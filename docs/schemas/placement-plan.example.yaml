@@ -1,0 +1,47 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Placement plan — WHERE agents run (no design_pattern, no engine refs)
+apiVersion: placement/v1
+kind: PlacementPlan
+
+metadata:
+  mas_id: trip-planner
+  deployment: local-inproc
+  strategy: local-inproc
+  spec_revision: sha256:abc123...
+
+spec:
+  agents:
+    - id: orchestrator
+      manifest: agents/orchestrator.yaml
+      placement:
+        unit: default
+      bind_address: inproc://orchestrator
+    - id: transport
+      manifest: agents/transport.yaml
+      placement:
+        unit: default
+      bind_address: inproc://transport
+
+  bus:
+    kind: inproc
+    routes:
+      - from: orchestrator
+        to: transport
+        egress: TRANSPORT_MSG
+      - from: transport
+        to: orchestrator
+        egress: TRANSPORT_MSG
+
+  supervision:
+    health_interval_s: 30
+    restart_policy: on-failure
+    runs_dir: logs/trip-planner/
+
+  executor:
+    docker:
+      image: mas-runtime:2.0
+      network: mas-bridge
+    k8s:
+      namespace: mas-dev
+      service_account: mas-agent

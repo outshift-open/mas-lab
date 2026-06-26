@@ -1,0 +1,326 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Lab 3 — Memory as Typed Extension: Reproducibility Benchmark
+#
+# Paper section: §5.3 — Extending the MAS Stack
+#
+# Central claim: context sources are typed contracts. Adding memory to the
+# trip planner is a one-overlay operation:
+#
+#   spec.memory: semantic          ← wires SemanticMemoryPlugin
+#   spec.tools: [memory-search]    ← registers MemoryToolProvider (ToolContract)
+#   spec.memory_seed: [...]        ← seeds vector DB at startup (deterministic)
+#
+# The same claim holds for the ContextContract interface: wrapping an external
+# memory library (Letta) requires only a plugin stanza in the overlay.
+#
+# Four scenarios run the same seeded-profile dataset:
+#   baseline                   — tools only (control; no profile available)
+#   with-vector-memory         — active retrieval via ToolContract (memory-search spans)
+#   with-letta-memory          — passive injection via ContextContract (Letta blocks)
+#   with-vector-memory-guardrail — memory + governance policy (policy fires on g1)
+#
+# Dataset query groups:
+#   recall      — single seeded fact required; profile recall test
+#   combination — 2+ seeded facts + tool call required; synthesis test
+#   neutral     — pure tool queries; no profile; overhead control
+#   guardrail   — forbidden destination query; triggers PolicyDenial in guardrail scenario
+#
+# Expected result for the paper figure:
+#   recall + combination: quality improves in both memory scenarios
+#   neutral: no regression vs baseline (memory adds zero overhead)
+#   CI bands: tight across n_runs=3 — proves the benchmark is reproducible
+#
+# Seeds live in the overlay (spec.memory_seed) — not in the dataset.
+# This is correct: seeds define the scenario's starting state (Alex's profile),
+# which is stable across all items in that scenario. Per-item seed variation
+# (different user profiles) would belong to the dataset; that is a separate
+# experiment design choice not needed here.
+#
+# Run:
+#   mas-lab benchmark run labs/extensions.lab/experiment.yaml --progress
+# Dry-run:
+#   mas-lab benchmark run labs/extensions.lab/experiment.yaml --dry-run
+
+experiment:
+  name: "memory-extension-reproducibility"
+  description: >
+    Lab 3 of the MAS-Lab paper (§5.3). Demonstrates that adding memory to
+    the trip planner is a one-overlay operation under the contract model.
+    Two memory extension types — active retrieval (ToolContract via
+    memory-search) and passive injection (ContextContract via Letta blocks) —
+    run against a tools-only baseline on the same deterministically seeded
+    dataset. The CI pipeline produces the paper figure showing quality
+    improvement on profile-dependent queries with no regression on neutral
+    queries across 3 reproducible runs.
+
+  default_flavour: local
+  applications:
+    - app: trip-planner
+      configs_dir: "./overlays"
+
+  # ------------------------------------------------------------------
+  # Scenarios
+  #
+  # Each scenario ID maps to overlays/<id>.yaml.
+  # Seeds (Alex's traveler profile) are in the overlay spec.memory_seed —
+  # not in the dataset — because they define stable scenario state, not
+  # per-item variation.
+  # ------------------------------------------------------------------
+  scenarios:
+    - id: baseline
+      description: >
+        Control — tools only, no memory. The agent answers using
+        lookup_schedule, get_fares, query_graph_database, and calculator.
+        No traveler profile is available; recall and combination queries
+        receive generic responses. Establishes the reference trace structure
+        (tool-call spans only) for comparison with memory scenarios.
+      tags: ["extension-model", "control"]
+
+    - id: with-vector-memory
+      description: >
+        Active retrieval via ToolContract. One overlay adds semantic memory:
+        spec.memory: semantic wires SemanticMemoryPlugin; spec.tools:
+        [memory-search] registers MemoryToolProvider. The agent calls
+        memory_search autonomously when profile context is needed. Every
+        call emits an OTel span with query, retrieved document IDs, and
+        similarity scores — full context provenance trace.
+      tags: ["extension-model", "active-retrieval", "tool-contract"]
+
+    - id: with-letta-memory
+      description: >
+        Passive injection via ContextContract. One overlay wraps Letta's
+        BasicBlockMemory via LettaCoreMemoryWrapper plugin. The traveler
+        profile is always present in the system prompt; no explicit
+        memory_search call is needed. Demonstrates that the ContextContract
+        interface accommodates external memory libraries without changing
+        the experiment configuration.
+      tags: ["extension-model", "passive-injection", "context-contract"]
+
+    - id: with-vector-memory-guardrail
+      description: >
+        Memory + governance — two orthogonal contract layers active simultaneously.
+        The vector memory configuration is identical to with-vector-memory; a
+        GovernancePolicyEngine plugin adds a forbidden-destination policy that
+        blocks any tool call targeting "Shadowmere". On items r*/c*/n*, the
+        governance layer is silent and the trajectory is indistinguishable from
+        with-vector-memory. On item g1, the policy fires before any tool call,
+        producing a PolicyDenial event visible in the multilevel trajectory
+        diagram — the paper's qualitative illustration of observable governance.
+      tags: ["extension-model", "active-retrieval", "governance", "guardrail"]
+
+  # ------------------------------------------------------------------
+  # Dataset
+  # ------------------------------------------------------------------
+  dataset:
+    path: ./datasets/extensions-queries.yaml
+
+
+  # ------------------------------------------------------------------
+  # Execution
+  # ------------------------------------------------------------------
+  execution:
+    parallel_scenarios: 3
+    timeout: 300
+    pause_between_runs: 1.0
+    strategy: coverage
+    reset_state: true
+
+    emulation:
+      infra:
+        llm: live
+        tools: live
+      runtime:
+        cache: content-addressed
+
+  # ------------------------------------------------------------------
+  # Pipeline
+  #
+  # Step 1 — eval-quality:         MCE evaluation for all scenarios and runs.
+  # Step 2 — collect-metrics:      aggregates MCE scores per run → tidy DataFrame.
+  # Step 3 — compute-ci:           95% CI (Student's t, n=3) per scenario × group.
+  #                                In-memory + ci_summary.csv for paper tables.
+  # Step 4 — ci-figure:            Paper figure — faceted by metric × query group,
+  #                                3 bars per cell (baseline / active / passive),
+  #                                error bars from CI bounds.
+  # Step 5 — extract-trajectories: Index all run traces → trajectories.jsonl.
+  # Step 6 — trajectory-plots:     Render one multilevel HTML trajectory per
+  #                                interesting scenario (vector-memory + guardrail).
+  #                                The guardrail trajectory shows the PolicyDenial
+  #                                event as an error node in the diagram.
+  #
+  # The CI figure layout is: metric (rows) × item_group (cols).
+  # Expected visual pattern:
+  #   recall/combination cols  — memory bars clearly above baseline
+  #   neutral col              — all three bars within CI of each other
+  # ------------------------------------------------------------------
+  run:
+    n_runs: 3
+  pipeline_bind: experiment/post
+
+  application:
+    post:
+      - name: eval-quality
+        type: eval_mce
+        config:
+          runs_dir: "{output_dir}"
+          max_workers: 2
+          fail_threshold: 0.5
+          metrics:
+            - goal_success_rate
+            - response_completeness
+            - answer_relevancy
+            - groundedness
+
+      - name: collect-metrics
+        type: collect_metrics
+        config:
+          output_dir: "{output_dir}"
+          dataset: ./datasets/extensions-queries.yaml
+        depends_on: [eval-quality]
+
+      # Pure data-transform: tidy rows → CI summary DataFrame (in-memory).
+      # CSV written for paper tables / manual inspection.
+      - name: compute-ci
+        type: compute_ci
+        config:
+          data: "@collect-metrics"
+          metrics:
+            - goal_success_rate
+            - response_completeness
+            - answer_relevancy
+          groupby: [scenario, group, metric]
+          ci_method: t
+          ci_level: 0.95
+          output: "{output_dir}/results/ci_summary.csv"
+        depends_on: [collect-metrics]
+
+      # Paper figure: quality improvement by memory model and query group.
+      # ymin/ymax present in mapping → geom_errorbar added automatically.
+      - name: ci-figure
+        type: plotnine
+        config:
+          data: "@compute-ci"
+          mapping:
+            x: scenario
+            y: mean
+            fill: scenario
+            ymin: ci_low
+            ymax: ci_high
+          geom: col
+          facet: "metric ~ group"
+          labels:
+            title: "Memory extension — quality improvement and reproducibility"
+            subtitle: "Mean ± 95% CI (Student's t, n=3) | baseline / active-retrieval / passive-injection"
+            x: ""
+            y: "MCE score"
+          output: "{output_dir}/results/figure-3-memory-extension.png"
+        depends_on: [compute-ci]
+
+      - name: extract-trace-stats
+        type: extract_trace_stats
+        config:
+          output: "{output_dir}/results/trace_stats.csv"
+
+      # Fig 3b: reproducibility — mean run duration per scenario × query group
+      - name: figure-reproducibility
+        type: plotnine
+        depends_on: [extract-trace-stats]
+        config:
+          data: "@extract-trace-stats"
+          filter:
+            scenario: [baseline, with-vector-memory, with-letta-memory]
+            item_group: [recall, combination, nominal]
+          mapping: { x: scenario, y: duration_s, fill: scenario }
+          geom: col
+          stat: summary
+          facet: "~ item_group"
+          labels:
+            title: "Extension reproducibility \u2014 mean run duration"
+            subtitle: "Mean duration (s) across query groups and runs"
+            x: ""
+            y: "Duration (s)"
+          output: "{output_dir}/results/fig_extensions_reproducibility.png"
+          width: 6.0
+          height: 3.5
+          hide_x_labels: true
+          rename_values:
+            scenario:
+              baseline: "Baseline"
+              with-vector-memory: "Vector Memory"
+              with-letta-memory: "Letta Memory"
+            item_group:
+              recall: "Recall"
+              combination: "Combination"
+              nominal: "Nominal"
+
+      # Fig 3c: LLM call count per scenario \u2014 memory does not add LLM overhead
+      - name: figure-llm-calls
+        type: plotnine
+        depends_on: [extract-trace-stats]
+        config:
+          data: "@extract-trace-stats"
+          filter:
+            scenario:
+              [
+                baseline,
+                with-vector-memory,
+                with-letta-memory,
+                with-vector-memory-guardrail,
+              ]
+            item_group: [recall, combination, neutral]
+          mapping: { x: scenario, y: n_llm_calls, fill: scenario }
+          geom: col
+          stat: summary
+          facet: "~ item_group"
+          labels:
+            title: "LLM calls per run \u2014 trace structure comparison"
+            subtitle: "Mean llm_call_start events across query groups"
+            x: ""
+            y: "LLM calls / run"
+          output: "{output_dir}/results/fig_extensions_llm_calls.png"
+          width: 6.0
+          height: 3.5
+          hide_x_labels: true
+          rename_values:
+            scenario:
+              baseline: "Baseline"
+              with-vector-memory: "Vector Memory"
+              with-letta-memory: "Letta Memory"
+              with-vector-memory-guardrail: "+Guardrail"
+            item_group:
+              recall: "Recall"
+              combination: "Combination"
+              neutral: "Neutral"
+
+      # Fig 3d: governance fires on g1 in guardrail scenario
+      - name: figure-governance-detection
+        type: plotnine
+        depends_on: [extract-trace-stats]
+        config:
+          data: "@extract-trace-stats"
+          filter:
+            item_group: [guardrail]
+          mapping: { x: scenario, y: n_governance_fired, fill: scenario }
+          geom: col
+          stat: summary
+          labels:
+            title: "Governance detection on guardrail item"
+            subtitle: "governance_policy fired events \u2014 g1 (forbidden destination)"
+            x: ""
+            y: "Fired events"
+          output: "{output_dir}/results/fig_extensions_governance.png"
+          width: 4.5
+          height: 3.0
+          hide_x_labels: true
+
+      # NOTE: extract-trajectories and trajectory-plots steps removed.
+      # plot_multilevel_trajectory_batch is not a built-in step type.
+      # Trajectory visualisations can be added later via a custom step.
+
+      # NOTE: attribution_flow, sankey_flow, extract_sys_stats, governance_overhead
+      # are not built-in step types. Removed pending custom step implementation.
+
+    # ------------------------------------------------------------------
+    # Flavours
+    # ------------------------------------------------------------------

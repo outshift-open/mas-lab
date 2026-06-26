@@ -1,0 +1,169 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+name: tutorial-03-observability
+title: "Tutorial 03 — Plugins & Observability"
+description: >
+  ReAct · CoT · Reflection — from raw trace to trajectory plots and
+  reproducible analysis pipelines on events.jsonl.
+version: "1.0"
+authors: ["MAS Framework Team"]
+tags: ["observability", "graph", "otel", "trajectory", "pipeline"]
+estimated_duration_min: 30
+prerequisites:
+  - "Tutorial 0: labs_dir / cache_dir in ~/.mas/config.yaml"
+  - "mas-lab on PATH (telemetry, plot, benchmark — OSS only)"
+  - "Offline: pytest tests/tutorials/test_scenario_commands.py -k tuto-03"
+working_dir: docs/tutorials/03-experiments-and-analysis # relative to repo root when running mas-tutorial from outshift-open/mas-lab
+cache_dir: ".demo-cache"
+
+sections:
+  - id: intro
+    title: "Introduction"
+    description: What this tutorial covers
+    steps:
+      - type: slide
+        title: "Three design patterns, one trace format"
+        content: |
+          ## Tutorial 03 — Plugins & Observability
+
+          Every agent run produces a single artifact: **`events.jsonl`**.
+
+          This tutorial shows how to turn that log into insight:
+
+          1. **Part A** — manual inspection: telemetry · trajectories on events.jsonl
+          2. **Part B** — analysis pipelines: declare once, run for every benchmark
+          3. **Part C** — topology comparison: single-agent vs linear vs moderator
+
+          The fixture trace in this demo uses a pre-recorded **ReAct** run
+          where the agent solves `17 × 23` and verifies that `391` is prime.
+
+  - id: raw-trace
+    title: "Part A — Raw Trace"
+    description: Inspect the fixture events.jsonl with telemetry show
+    steps:
+      - type: narrative
+        title: "What is events.jsonl?"
+        content: |
+          `events.jsonl` is the **universal artifact** — one line per agent event,
+          written by the MAS runtime during every run.
+
+          Key event kinds:
+          - `mas_call_start` / `mas_call_end` — outer MAS lifecycle
+          - `execution_start` / `execution_end` — per-agent execution
+          - `llm_call_start` / `llm_call_end` — every LLM round-trip
+          - `tool_call_start` / `tool_call_end` — every tool invocation
+
+          The fixture below was captured from a **ReAct** agent running two tools:
+          `calculator` and `verify_fact`.
+
+      - type: command
+        title: "telemetry show — event summary"
+        command: "mas-lab telemetry show fixtures/events.jsonl"
+        cache_key: "telemetry-show"
+        expected_exit_code: 0
+
+      - type: command
+        title: "Filter: tool calls only"
+        command: "mas-lab telemetry show fixtures/events.jsonl --filter tool_call"
+        cache_key: "telemetry-show-tool"
+        expected_exit_code: 0
+
+  - id: visualization
+    title: "Trajectory Visualization"
+    description: Plot agent trajectories as SVG and interactive swimlane HTML
+    steps:
+      - type: narrative
+        title: "Two plot types"
+        content: |
+          `mas-lab plot` produces two complementary views:
+
+          - **`trajectory`** — single-agent vertical timeline (SVG or Mermaid):
+            LLM rounds stacked top-to-bottom, tool calls annotated.
+          - **`multilevel-trajectory`** — swimlane HTML with one lane per agent,
+            showing parallel execution, delegation, and tool calls.
+
+      - type: command
+        title: "Trajectory SVG → output/demo-trajectory.svg"
+        command: >-
+          mas-lab plot trajectory fixtures/events.jsonl
+          --format svg -o output/demo-trajectory.svg
+        cache_key: "plot-trajectory-svg"
+        expected_exit_code: 0
+
+      - type: artifact
+        title: "Trajectory — SVG view"
+        artifact_path: output/demo-trajectory.svg
+        artifact_type: svg
+
+      - type: command
+        title: "Multilevel swimlane → output/demo-swimlane.html"
+        command: >-
+          mas-lab plot multilevel-trajectory fixtures/events.jsonl
+          --format html -o output/demo-swimlane.html
+        cache_key: "plot-multilevel-html"
+        expected_exit_code: 0
+
+      - type: artifact
+        title: "Multilevel trajectory — interactive HTML"
+        artifact_path: output/demo-swimlane.html
+        artifact_type: html-embed
+
+  - id: pipeline
+    title: "Part B — Analysis Pipelines"
+    description: Declarative pipeline YAML and benchmark dry-run
+    steps:
+      - type: narrative
+        title: "From manual to pipeline"
+        content: |
+          Part A showed telemetry and plot commands on `events.jsonl`.
+          **Part B** captures post-benchmark analysis in `pipelines/analysis.yaml`.
+
+          Knowledge-graph normalization and OTel export (`mas-lab graph`) are
+          not part of this open-source repository. OSS pipelines use telemetry,
+          plots, and benchmarks on `events.jsonl` directly.
+
+          Run once, re-run consistently for every new benchmark.
+
+      - type: artifact
+        title: "pipelines/analysis.yaml — pipeline flow"
+        artifact_path: pipelines/analysis.yaml
+        artifact_type: pipeline
+
+      - type: command
+        title: "Benchmark dry-run (no execution)"
+        command: "mas-lab benchmark run experiment.yaml --dry-run"
+        cache_key: "benchmark-dry-run"
+        expected_exit_code: 0
+
+      - type: checkpoint
+        title: "Checkpoint — ready for Part C?"
+        content: |
+          You have completed the full Part A + B pipeline for the QA agent.
+
+          **Part C** runs the same analysis across three topologies
+          (single-agent · linear · moderator) on 15 trip-planner questions.
+          Press → to continue.
+
+  - id: wrapup
+    title: "Wrap-up"
+    description: Key takeaways and next steps
+    steps:
+      - type: narrative
+        title: "What you built"
+        content: |
+          ## Key takeaways
+
+          1. **One artifact, many views** — `events.jsonl` feeds telemetry
+             and trajectory plots.
+          2. **Pipeline = reproducibility** — declare your analysis once,
+             run it for every benchmark with `mas-lab benchmark pipeline run`.
+          3. **Topology matters** — the swimlane plot immediately shows where
+             the moderator delegates vs. where the single agent serializes.
+          4. **Paper labs** — reproduce Section 5 figures with `task reproduce` or
+             `mas-lab benchmark run` on experiments under `labs/`.
+
+          ## Next steps
+
+          - `mas-lab benchmark run experiment.yaml --progress` — full benchmark run
+          - `mas-lab benchmark run experiment-topology.yaml --dry-run` — plan topology comparison
+          - [Paper labs](paper/index.md) — design-space, lifecycle, and extension experiments

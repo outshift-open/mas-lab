@@ -1,0 +1,44 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Tool
+
+metadata:
+  name: web-search
+  description: "Web search — retrieves current information from the web with
+    automatic caching."
+  version: "0.1.0"
+  tags: [ search, web, retrieval ]
+
+spec:
+  description: >
+    Search the web for current information. Call this tool when the user asks
+    about recent events, facts, statistics, or any information that requires
+    up-to-date sources. Returns summarized results from multiple web sources.
+
+  parameters:
+    - name: query
+      type: string
+      description: >
+        The search query string — write it as a concise search engine query.
+      required: true
+      examples:
+        - "latest AI research 2025"
+        - "population of France 2024"
+        - "Python 3.13 release date"
+
+  returns:
+    type: object
+    description: >
+      Dict with keys:
+        query    (string)  — the original search query
+        results  (array)   — list of result objects with title, url, snippet
+        cached   (bool)    — true if the result was served from local cache
+
+  idempotent: false
+  timeout_seconds: 30
+
+  impl:
+    kind: python
+    module_path: mas.library.standard.tools.web_search_tool
+    class_name: WebSearchTool

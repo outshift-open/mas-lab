@@ -1,0 +1,89 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# v2 plugin contract registry — maps contract IDs to TLA machines and Python modules.
+# Authority: docs/design/plugin-contracts.md
+apiVersion: mas/v1
+kind: ContractRegistry
+metadata:
+  name: mas-lab-contracts
+spec:
+  contracts:
+    - id: DesignPatternPlugin
+      alias: [MealyPlugin, DesignPatternContract, M_dp]
+      tla: DesignPatternScheduler.tla
+      module: mas.runtime.machines.design_pattern.protocol
+      ingress: [USER_INPUT_RECEIVED, CTX_ASSEMBLY_COMPLETE, ENGINE_IO_RETURN, HITL_RESOLVE]
+      egress: [REQUEST_CTX_ASSEMBLY, INVOKE_ENGINE_IO, EMIT_CLIENT_RESPONSE, EMIT_HITL_REQUEST]
+      implementations:
+        - react@v1
+        - cot@v1
+        - single_pass@v1
+
+    - id: EngineContract
+      alias: [M_model, M_tool, execution_engine]
+      tla: EngineEnvironment.tla
+      module: mas.runtime.engine.protocol
+      ingress: [InvokeEngineIo via driver]
+      egress: [EngineIoReturn]
+      implementations:
+        - SimulatedEngine
+        - ConversationEngine
+
+    - id: CtxAssembler
+      alias: [CtxAssemblerContract, M_ctx]
+      tla: ContextMachine.tla
+      module: mas.runtime.boundary.context.protocol
+      ingress: [RequestCtxAssembly]
+      egress: [CtxAssemblyComplete]
+      implementations:
+        - AutoCtxAssembler
+
+    - id: HitlResponder
+      alias: [M_gov_hitl]
+      tla: Governance.tla
+      module: mas.runtime.boundary.hitl.responders
+      ingress: [EmitHitlRequest]
+      egress: [HitlResolve]
+      implementations:
+        - AutoApproveResponder
+
+    - id: ObservabilitySink
+      alias: [M_obs]
+      tla: Observability.tla
+      module: mas.runtime.boundary.obs.protocol
+      implementations:
+        - ObservabilityOperator
+
+    - id: EnvelopeProduct
+      alias: [M_envelope, execute_contract_call]
+      tla: EnvelopeProduct.tla
+      tla_root: external-formal-repo/tla/specs
+      note: Formal TLA specs — maintained outside this OSS release
+      module: mas.runtime.kernel.envelope
+      ingress: [observability_post_execute, contract_end, governance_validate]
+      egress: [obs_wrap_gov_authorize, governance_authorize, contract_start, observability_pre_execute]
+      note: Profile flags EnableGov / EnableObs collapse σ schedule
+
+    - id: EventEmitter
+      alias: [obs_terminating_protocol]
+      module: mas.ctl.adapters.obs.emit
+      note: Terminating protocol — JSONL file or stderr (ctl-owned, not kernel)
+      implementations:
+        - JsonlFileEmitter
+        - StdoutJsonlEmitter
+
+    - id: EventTransform
+      module: mas.ctl.adapters.obs.transform
+      note: Pure transforms — boundary→native, native→otel (no I/O)
+      implementations:
+        - NativeObservabilityTransform
+        - OtelSpanTransform
+        - BoundaryPassthroughTransform
+
+  v1_migration:
+    ToolContract: EngineContract.TOOL_CALL
+    ModelContract: EngineContract.LLM_CALL
+    PromptContract: CtxAssembler
+    MemoryContract: EngineContract.MEMORY_OP
+    DPContract: DesignPatternPlugin
+    SurfaceAdapter: mas.ctl.ui.ConversationDisplay

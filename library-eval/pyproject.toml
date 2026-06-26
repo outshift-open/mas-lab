@@ -1,0 +1,36 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mas-library-eval"
+version = "0.1.0"
+description = "Evaluation and quality metrics library for MAS Lab — MCE integration."
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+
+dependencies = [
+    "mas-lab-core",
+    "mas-lab-bench",
+    "mas-runtime",
+    # MCE v1 — public packages from agntcy/telemetry-hub
+    "metrics-computation-engine>=0.1.0",
+    "mce-metrics-plugin>=0.1.0",
+    "deepeval>=4.0.0",
+    "click>=8.0",
+    "pandas>=2.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mas"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+[project.entry-points."mas.lab.cli.components"]
+eval = "mas.library.eval.cli:EvalCliComponent"

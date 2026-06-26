@@ -1,0 +1,61 @@
+<!--
+  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+  SPDX-License-Identifier: Apache-2.0
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 650">
+  <defs>
+    <style>
+      .title { font: 700 26px "Helvetica", sans-serif; fill: #2C3E50; }
+      .label { font: 600 16px "Helvetica", sans-serif; fill: #2C3E50; }
+      .small { font: 500 13px "Helvetica", sans-serif; fill: #2C3E50; }
+      .box { fill: #F7F9FB; stroke: #95A5A6; stroke-width: 2; rx: 10; }
+      .purple { fill: #E8DAEF; stroke: #9B59B6; }
+      .blue { fill: #D6EAF8; stroke: #3498DB; }
+      .green { fill: #D5F5E3; stroke: #2ECC71; }
+      .orange { fill: #FDEBD0; stroke: #E67E22; }
+      .arrow { stroke: #7F8C8D; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#7F8C8D" />
+    </marker>
+  </defs>
+
+  <text x="40" y="50" class="title">MAS Skeleton Architecture</text>
+
+  <rect x="40" y="90" width="420" height="220" class="box purple" />
+  <text x="70" y="125" class="label">MasRuntime</text>
+  <text x="70" y="155" class="small">- Loads config + artifacts</text>
+  <text x="70" y="180" class="small">- Routes agent-remote over semantic-messaging (local)</text>
+  <text x="70" y="205" class="small">- Negotiates ontologies</text>
+  <text x="70" y="230" class="small">- Emits telemetry</text>
+
+  <rect x="520" y="90" width="520" height="220" class="box blue" />
+  <text x="550" y="125" class="label">Agent Runtimes (agent-remote SDK)</text>
+  <rect x="550" y="150" width="140" height="120" class="box" />
+  <text x="575" y="220" class="small">Medical</text>
+  <rect x="705" y="150" width="140" height="120" class="box" />
+  <text x="730" y="220" class="small">Travel</text>
+  <rect x="860" y="150" width="140" height="120" class="box" />
+  <text x="885" y="220" class="small">Insurance</text>
+
+  <rect x="40" y="340" width="420" height="250" class="box green" />
+  <text x="70" y="375" class="label">Tool Server Artifacts</text>
+  <text x="70" y="405" class="small">- Tools (tool servers)</text>
+  <text x="70" y="430" class="small">- Prompts (tool server)</text>
+  <text x="70" y="455" class="small">- Memory stores</text>
+  <text x="70" y="480" class="small">  • episodic</text>
+  <text x="70" y="505" class="small">  • semantic</text>
+  <text x="70" y="530" class="small">  • procedural</text>
+
+  <rect x="520" y="340" width="520" height="250" class="box orange" />
+  <text x="550" y="375" class="label">Middleware + Telemetry</text>
+  <text x="550" y="405" class="small">- Audit</text>
+  <text x="550" y="430" class="small">- MITM / Mocking</text>
+  <text x="550" y="455" class="small">- Fault injection</text>
+  <text x="550" y="480" class="small">- Event logs</text>
+
+  <path d="M460 200 L520 200" class="arrow" />
+  <path d="M250 310 L250 340" class="arrow" />
+  <path d="M780 310 L780 340" class="arrow" />
+  <path d="M460 450 L520 450" class="arrow" />
+</svg>

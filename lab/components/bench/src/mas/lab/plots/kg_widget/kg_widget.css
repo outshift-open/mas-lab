@@ -1,0 +1,398 @@
+/*
+ * Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+ * SPDX-License-Identifier: Apache-2.0
+ */
+/* ─── KGWidget ─────────────────────────────────────────────────────────────
+ * Dark theme (default): .kg-widget
+ * Light theme:          .kg-widget.kg-light
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+/* CSS custom properties — dark (default) */
+.kg-widget {
+  --kg-bg:        #0f172a;
+  --kg-surface:   #1e293b;
+  --kg-surface2:  #263348;
+  --kg-border:    #334155;
+  --kg-border2:   #475569;
+  --kg-text:      #e2e8f0;
+  --kg-muted:     #64748b;
+  --kg-accent:    #00bceb;
+  --kg-accent2:   #0284c7;
+  --kg-code-bg:   #0f172a;
+  --kg-pre-fg:    #cbd5e1;
+  --kg-chip-bg:   rgba(0,188,235,0.12);
+  --kg-chip-fg:   #00bceb;
+  --kg-hover:     rgba(255,255,255,0.05);
+  --kg-scrollbar: #334155;
+}
+
+/* Light theme overrides */
+.kg-widget.kg-light {
+  --kg-bg:        #f8fafc;
+  --kg-surface:   #ffffff;
+  --kg-surface2:  #f1f5f9;
+  --kg-border:    #e2e8f0;
+  --kg-border2:   #cbd5e1;
+  --kg-text:      #1e293b;
+  --kg-muted:     #64748b;
+  --kg-accent:    #0284c7;
+  --kg-accent2:   #0369a1;
+  --kg-code-bg:   #f1f5f9;
+  --kg-pre-fg:    #334155;
+  --kg-chip-bg:   rgba(2,132,199,0.1);
+  --kg-chip-fg:   #0369a1;
+  --kg-hover:     rgba(0,0,0,0.03);
+  --kg-scrollbar: #cbd5e1;
+}
+
+/* ─── Root layout ─────────────────────────────────────────────────────────── */
+.kg-widget {
+  display: flex;
+  flex-direction: column;
+  background: var(--kg-bg);
+  color: var(--kg-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  border-radius: 4px;
+  overflow: hidden;
+  height: 100%;
+  min-height: 420px;
+  box-sizing: border-box;
+}
+.kg-widget *, .kg-widget *::before, .kg-widget *::after { box-sizing: border-box; }
+
+/* ─── Toolbar ─────────────────────────────────────────────────────────────── */
+.kg-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: var(--kg-surface);
+  border-bottom: 1px solid var(--kg-border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.kg-toolbar-left  { display: flex; align-items: center; gap: 4px; }
+.kg-toolbar-right { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.kg-title {
+  font-size: 12px; font-weight: 600; color: var(--kg-muted);
+  margin-left: 4px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.kg-btn {
+  padding: 3px 8px; border-radius: 3px; font-size: 11px; cursor: pointer;
+  background: var(--kg-surface2); color: var(--kg-text);
+  border: 1px solid var(--kg-border); transition: all 0.12s;
+  white-space: nowrap;
+}
+.kg-btn:hover   { background: var(--kg-border); }
+.kg-btn.active  { background: var(--kg-chip-bg); color: var(--kg-accent); border-color: var(--kg-accent); }
+.kg-btn-icon    { padding: 3px 6px; }
+
+select.kg-select {
+  padding: 2px 6px; border-radius: 3px; font-size: 11px; cursor: pointer;
+  background: var(--kg-surface2); color: var(--kg-text);
+  border: 1px solid var(--kg-border); outline: none;
+}
+select.kg-select:hover { border-color: var(--kg-border2); }
+
+/* ─── Body (panel + main) ─────────────────────────────────────────────────── */
+.kg-body { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+
+/* ─── KGGraph body (cy-container + detail) ────────────────────────────────── */
+.kg-graph-body { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+
+/* ─── Graph wrapper inside KGWidget ──────────────────────────────────────── */
+/* KGGraph (.kg-widget.kg-graph) is instantiated inside this div            */
+.kg-graph-wrapper {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* KGGraph fills its wrapper when nested */
+.kg-graph-wrapper > .kg-widget {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+
+/* ─── Panel content area (scrollable, works for both flat and layered) ────── */
+.kg-panel-content { flex: 1; overflow-y: auto; overflow-x: hidden; }
+.kg-panel-content::-webkit-scrollbar { width: 4px; }
+.kg-panel-content::-webkit-scrollbar-track { background: transparent; }
+.kg-panel-content::-webkit-scrollbar-thumb { background: var(--kg-scrollbar); border-radius: 2px; }
+
+/* ─── Filter panel ────────────────────────────────────────────────────────── */
+.kg-panel {
+  width: 190px;
+  flex-shrink: 0;
+  background: var(--kg-surface);
+  border-right: 1px solid var(--kg-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.15s;
+}
+.kg-panel.kg-panel-hidden { width: 0; border-right: none; }
+
+/* Panel tabs */
+.kg-panel-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--kg-border);
+  flex-shrink: 0;
+}
+.kg-panel-tab {
+  flex: 1; padding: 5px 2px; text-align: center;
+  font-size: 10px; cursor: pointer; color: var(--kg-muted);
+  border-bottom: 2px solid transparent;
+  background: transparent; border-top: none; border-left: none; border-right: none;
+  transition: color 0.12s;
+}
+.kg-panel-tab.active { color: var(--kg-accent); border-bottom-color: var(--kg-accent); }
+.kg-panel-tab:hover  { color: var(--kg-text); }
+
+.kg-panel-body { flex: 1; overflow-y: auto; overflow-x: hidden; }
+.kg-panel-body::-webkit-scrollbar { width: 4px; }
+.kg-panel-body::-webkit-scrollbar-track { background: transparent; }
+.kg-panel-body::-webkit-scrollbar-thumb { background: var(--kg-scrollbar); border-radius: 2px; }
+
+/* Panel tab views */
+.kg-tab-pane { display: none; padding: 0; }
+.kg-tab-pane.active { display: block; }
+
+/* Filters tab */
+.kg-layer-group { margin: 0; }
+.kg-layer-header {
+  display: flex; align-items: center; gap: 4px;
+  padding: 5px 8px; cursor: pointer;
+  font-size: 11px; font-weight: 600; color: var(--kg-muted);
+  background: var(--kg-surface2); border-bottom: 1px solid var(--kg-border);
+  user-select: none;
+}
+.kg-layer-header:hover { color: var(--kg-text); }
+.kg-layer-chevron { font-size: 9px; transition: transform 0.12s; }
+.kg-layer-group.collapsed .kg-layer-chevron { transform: rotate(-90deg); }
+.kg-layer-group.collapsed .kg-layer-items { display: none; }
+.kg-layer-icon { font-size: 12px; }
+.kg-layer-count {
+  margin-left: auto; font-size: 10px; font-weight: normal;
+  background: var(--kg-chip-bg); color: var(--kg-chip-fg);
+  padding: 0 4px; border-radius: 8px;
+}
+
+.kg-filter-row {
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 8px 3px 18px; cursor: pointer;
+  font-size: 11px; color: var(--kg-muted);
+  transition: background 0.1s;
+}
+.kg-filter-row:hover { background: var(--kg-hover); color: var(--kg-text); }
+.kg-filter-row input[type=checkbox] { accent-color: var(--kg-accent); cursor: pointer; flex-shrink: 0; }
+.kg-type-dot {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 500;
+  border: 1px solid transparent;
+}
+
+/* Edge type filter */
+.kg-panel-section { padding: 4px 0; border-bottom: 1px solid var(--kg-border); }
+.kg-panel-section-hdr {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 8px; font-size: 10px; font-weight: 600; color: var(--kg-muted);
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.kg-check-all, .kg-check-none {
+  font-size: 10px; cursor: pointer; color: var(--kg-muted); margin-left: auto;
+  padding: 1px 4px; border-radius: 2px;
+}
+.kg-check-all + .kg-check-none { margin-left: 2px; }
+.kg-check-all:hover, .kg-check-none:hover { color: var(--kg-accent); }
+
+/* Presets tab */
+.kg-preset-list { padding: 6px; display: flex; flex-direction: column; gap: 3px; }
+.kg-preset-btn {
+  display: block; width: 100%; text-align: left;
+  padding: 5px 8px; border-radius: 3px; font-size: 11px; cursor: pointer;
+  background: transparent; color: var(--kg-muted);
+  border: 1px solid var(--kg-border); transition: all 0.12s;
+}
+.kg-preset-btn:hover { background: var(--kg-hover); color: var(--kg-text); border-color: var(--kg-border2); }
+.kg-preset-desc { font-size: 10px; color: var(--kg-muted); margin-top: 1px; }
+
+/* Schema tab */
+.kg-schema-list { padding: 4px 0; }
+.kg-schema-type {
+  padding: 4px 8px; border-bottom: 1px solid var(--kg-border);
+}
+.kg-schema-hdr {
+  display: flex; align-items: center; gap: 4px; cursor: pointer;
+  font-size: 11px; font-weight: 600; color: var(--kg-text);
+  padding: 2px 0; user-select: none;
+}
+.kg-schema-hdr:hover { color: var(--kg-accent); }
+.kg-schema-fields { display: none; padding: 3px 0 3px 10px; }
+.kg-schema-type.open .kg-schema-fields { display: block; }
+.kg-schema-field { font-size: 10px; color: var(--kg-muted); padding: 1px 0; }
+.kg-schema-field span { color: var(--kg-chip-fg); }
+
+/* Stats bar at bottom of panel */
+.kg-stats-bar {
+  padding: 5px 8px; font-size: 10px; color: var(--kg-muted);
+  border-top: 1px solid var(--kg-border); flex-shrink: 0;
+  background: var(--kg-surface);
+}
+
+/* ─── Main graph area (legacy alias — now replaced by .kg-graph-body) ──────── */
+.kg-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.kg-cy-container {
+  flex: 1;
+  min-width: 0;
+  background: var(--kg-bg);
+}
+
+/* ─── Detail / context panel ─────────────────────────────────────────────── */
+.kg-detail {
+  width: 260px;
+  flex-shrink: 0;
+  background: var(--kg-surface);
+  border-left: 1px solid var(--kg-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: 12px;
+  transition: width 0.15s;
+}
+.kg-detail.kg-detail-hidden { width: 0; border-left: none; }
+
+.kg-detail-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 10px; border-bottom: 1px solid var(--kg-border);
+  flex-shrink: 0; background: var(--kg-surface2);
+}
+.kg-detail-type-badge {
+  font-size: 10px; padding: 2px 7px; border-radius: 10px;
+  font-weight: 600; border: 1px solid transparent;
+}
+.kg-detail-label {
+  font-size: 12px; font-weight: 600; flex: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.kg-detail-close {
+  background: transparent; border: none; color: var(--kg-muted);
+  cursor: pointer; font-size: 13px; padding: 0 4px; line-height: 1;
+}
+.kg-detail-close:hover { color: var(--kg-text); }
+
+.kg-detail-actions {
+  display: flex; gap: 4px; padding: 5px 8px;
+  border-bottom: 1px solid var(--kg-border); flex-shrink: 0;
+}
+.kg-detail-action {
+  font-size: 10px; padding: 2px 7px; border-radius: 3px; cursor: pointer;
+  background: var(--kg-surface2); color: var(--kg-muted);
+  border: 1px solid var(--kg-border); transition: all 0.12s;
+}
+.kg-detail-action:hover { border-color: var(--kg-accent); color: var(--kg-accent); }
+.kg-detail-action.active { background: var(--kg-chip-bg); color: var(--kg-accent); border-color: var(--kg-accent); }
+
+.kg-detail-body {
+  flex: 1; overflow-y: auto; padding: 8px 10px;
+}
+.kg-detail-body::-webkit-scrollbar { width: 4px; }
+.kg-detail-body::-webkit-scrollbar-track { background: transparent; }
+.kg-detail-body::-webkit-scrollbar-thumb { background: var(--kg-scrollbar); border-radius: 2px; }
+
+/* Property rows */
+.kg-prop { display: flex; gap: 6px; padding: 3px 0; border-bottom: 1px solid var(--kg-border); align-items: flex-start; }
+.kg-prop:last-child { border-bottom: none; }
+.kg-prop-key { font-size: 10px; color: var(--kg-muted); min-width: 90px; flex-shrink: 0; padding-top: 1px; }
+.kg-prop-val { font-size: 11px; color: var(--kg-text); word-break: break-all; }
+
+/* Collapsible content section */
+.kg-content-section { margin: 6px 0; }
+.kg-content-toggle {
+  display: flex; align-items: center; gap: 4px; cursor: pointer;
+  font-size: 11px; font-weight: 600; color: var(--kg-muted);
+  padding: 3px 0; border: none; background: transparent; width: 100%;
+  text-align: left; transition: color 0.12s;
+}
+.kg-content-toggle:hover { color: var(--kg-accent); }
+.kg-content-toggle .kg-chevron { font-size: 9px; transition: transform 0.12s; }
+.kg-content-toggle.open .kg-chevron { transform: rotate(90deg); }
+.kg-content-body { display: none; }
+.kg-content-toggle.open + .kg-content-body { display: block; }
+.kg-content-pre {
+  font-family: 'SFMono-Regular', Consolas, monospace; font-size: 10px;
+  color: var(--kg-pre-fg); background: var(--kg-code-bg);
+  padding: 6px 8px; border-radius: 3px; overflow-x: auto;
+  white-space: pre-wrap; word-break: break-word;
+  max-height: 180px; overflow-y: auto; margin: 4px 0;
+  border: 1px solid var(--kg-border);
+}
+.kg-content-pre::-webkit-scrollbar { width: 4px; height: 4px; }
+.kg-content-pre::-webkit-scrollbar-thumb { background: var(--kg-scrollbar); border-radius: 2px; }
+
+/* Token bar */
+.kg-token-bar-wrap { padding: 4px 0; }
+.kg-token-label { font-size: 10px; color: var(--kg-muted); margin-bottom: 3px; }
+.kg-token-bar {
+  display: flex; height: 6px; border-radius: 3px; overflow: hidden;
+  background: var(--kg-surface2);
+}
+.kg-token-prompt  { background: #0284c7; }
+.kg-token-compl   { background: #10b981; }
+.kg-token-numbers { display: flex; justify-content: space-between; font-size: 10px; color: var(--kg-muted); margin-top: 2px; }
+
+/* Section divider */
+.kg-section-div {
+  font-size: 10px; font-weight: 600; color: var(--kg-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 8px 0 3px 0; border-bottom: 1px solid var(--kg-border);
+  margin-bottom: 4px;
+}
+
+/* ─── Hover tooltip (fixed, appended to body) ────────────────────────────── */
+.kg-tooltip {
+  position: fixed;
+  z-index: 9999;
+  display: none;
+  pointer-events: none;
+  background: var(--kg-surface2, #1e293b);
+  color: var(--kg-text, #e2e8f0);
+  border: 1px solid var(--kg-border, #334155);
+  border-radius: 6px;
+  padding: 7px 11px;
+  font-size: 11px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  white-space: pre;
+  line-height: 1.55;
+  max-width: 300px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.45);
+  /* first line is bold (node type) */
+}
+/* Make the first line (node type) stand out */
+.kg-tooltip::first-line {
+  font-weight: 700;
+  color: var(--kg-accent, #00bceb);
+}
+
+/* ─── Empty state ─────────────────────────────────────────────────────────── */
+.kg-empty {
+  display: flex; align-items: center; justify-content: center;
+  height: 100%; color: var(--kg-muted); font-size: 13px;
+}
+.kg-error {
+  padding: 12px; color: #f87171; font-size: 12px;
+}
+
+/* ─── Highlight / dim ─────────────────────────────────────────────────────── */
+/* Applied via Cytoscape classes */

@@ -1,0 +1,210 @@
+<!--
+  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+  SPDX-License-Identifier: Apache-2.0
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="190.0" height="267.0" viewBox="0 0 190.0 267.0">
+<rect width="190.0" height="267.0" fill="#ffffff"/>
+<g transform="translate(0 0)">
+<rect width="190.0" height="131.0" fill="#ffffff"/>
+<text x="95.0" y="9.0" text-anchor="middle" font-size="7.5" font-weight="bold" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">Baseline</text>
+<rect x="0" y="11.0" width="190.0" height="24.0" fill="#f6f6f6"/>
+<rect x="0" y="12.0" width="2.0" height="22.0" fill="#222222" rx="0.5"/>
+<text x="47.0" y="24.8" text-anchor="end" font-size="5.0" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">moderator</text>
+<line x1="50.00" y1="23.00" x2="70.00" y2="23.00" stroke="#cccccc" stroke-width="0.5"/>
+<line x1="70.00" y1="23.00" x2="86.00" y2="23.00" stroke="#cccccc" stroke-width="0.3" stroke-dasharray="1,2"/>
+<line x1="146.00" y1="23.00" x2="182.00" y2="23.00" stroke="#cccccc" stroke-width="0.5"/>
+<rect x="0" y="35.0" width="190.0" height="24.0" fill="#eeeeee"/>
+<line x1="0.00" y1="35.00" x2="190.00" y2="35.00" stroke="#bbbbbb" stroke-width="0.3"/>
+<rect x="0" y="36.0" width="2.0" height="22.0" fill="#222222" rx="0.5"/>
+<text x="47.0" y="48.8" text-anchor="end" font-size="5.0" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">itinerary</text>
+<line x1="81.20" y1="47.00" x2="146.00" y2="47.00" stroke="#cccccc" stroke-width="0.5"/>
+<rect x="0" y="59.0" width="190.0" height="24.0" fill="#f6f6f6"/>
+<line x1="0.00" y1="59.00" x2="190.00" y2="59.00" stroke="#bbbbbb" stroke-width="0.3"/>
+<rect x="0" y="60.0" width="2.0" height="22.0" fill="#222222" rx="0.5"/>
+<text x="47.0" y="72.8" text-anchor="end" font-size="5.0" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">schedule</text>
+<line x1="81.20" y1="71.00" x2="146.00" y2="71.00" stroke="#cccccc" stroke-width="0.5"/>
+<rect x="0" y="83.0" width="190.0" height="24.0" fill="#eeeeee"/>
+<line x1="0.00" y1="83.00" x2="190.00" y2="83.00" stroke="#bbbbbb" stroke-width="0.3"/>
+<rect x="0" y="84.0" width="2.0" height="22.0" fill="#222222" rx="0.5"/>
+<text x="47.0" y="96.8" text-anchor="end" font-size="5.0" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">concierge</text>
+<line x1="81.20" y1="95.00" x2="146.00" y2="95.00" stroke="#cccccc" stroke-width="0.5"/>
+<circle cx="50.00" cy="23.00" r="2.2" fill="#222222"/>
+<line x1="52.20" y1="23.00" x2="64.30" y2="23.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="64.30" y1="21.20" x2="67.80" y2="23.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="64.30" y1="24.80" x2="67.80" y2="23.00" stroke="#141414" stroke-width="1.0"/>
+<circle cx="70.00" cy="23.00" r="4.0" fill="none" stroke="#222222" stroke-width="0.5"/><circle cx="70.00" cy="23.00" r="2.2" fill="#222222"/>
+<circle cx="162.00" cy="23.00" r="2.2" fill="#222222"/>
+<line x1="164.20" y1="23.00" x2="176.30" y2="23.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="176.30" y1="21.20" x2="179.80" y2="23.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="176.30" y1="24.80" x2="179.80" y2="23.00" stroke="#141414" stroke-width="1.0"/>
+<circle cx="182.00" cy="23.00" r="4.0" fill="none" stroke="#222222" stroke-width="0.5"/><circle cx="182.00" cy="23.00" r="2.2" fill="#222222"/>
+<circle cx="86.00" cy="47.00" r="2.2" fill="#222222"/>
+<line x1="88.20" y1="47.00" x2="100.30" y2="47.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="100.30" y1="45.20" x2="103.80" y2="47.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="100.30" y1="48.80" x2="103.80" y2="47.00" stroke="#141414" stroke-width="1.0"/>
+<circle cx="106.00" cy="47.00" r="2.2" fill="#222222"/>
+<line x1="108.20" y1="47.00" x2="120.30" y2="47.00" stroke="#444444" stroke-width="0.7"/>
+<polygon points="120.30,45.20 123.80,47.00 120.30,48.80" fill="#444444"/>
+<text x="116.00" y="43.00" text-anchor="middle" font-size="4.0" fill="#444444" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace" font-style="italic">qdb</text>
+<circle cx="126.00" cy="47.00" r="2.2" fill="#222222"/>
+<line x1="128.20" y1="47.00" x2="140.30" y2="47.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="140.30" y1="45.20" x2="143.80" y2="47.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="140.30" y1="48.80" x2="143.80" y2="47.00" stroke="#141414" stroke-width="1.0"/>
+<circle cx="146.00" cy="47.00" r="4.0" fill="none" stroke="#222222" stroke-width="0.5"/><circle cx="146.00" cy="47.00" r="2.2" fill="#222222"/>
+<circle cx="86.00" cy="71.00" r="2.2" fill="#222222"/>
+<line x1="88.20" y1="71.00" x2="100.30" y2="71.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="100.30" y1="69.20" x2="103.80" y2="71.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="100.30" y1="72.80" x2="103.80" y2="71.00" stroke="#141414" stroke-width="1.0"/>
+<circle cx="106.00" cy="71.00" r="2.2" fill="#222222"/>
+<line x1="108.20" y1="71.00" x2="120.30" y2="71.00" stroke="#444444" stroke-width="0.7"/>
+<polygon points="120.30,69.20 123.80,71.00 120.30,72.80" fill="#444444"/>
+<text x="116.00" y="67.00" text-anchor="middle" font-size="4.0" fill="#444444" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace" font-style="italic">sch</text>
+<circle cx="126.00" cy="71.00" r="2.2" fill="#222222"/>
+<line x1="128.20" y1="71.00" x2="140.30" y2="71.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="140.30" y1="69.20" x2="143.80" y2="71.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="140.30" y1="72.80" x2="143.80" y2="71.00" stroke="#141414" stroke-width="1.0"/>
+<circle cx="146.00" cy="71.00" r="4.0" fill="none" stroke="#222222" stroke-width="0.5"/><circle cx="146.00" cy="71.00" r="2.2" fill="#222222"/>
+<circle cx="86.00" cy="95.00" r="2.2" fill="#222222"/>
+<line x1="88.20" y1="95.00" x2="100.30" y2="95.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="100.30" y1="93.20" x2="103.80" y2="95.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="100.30" y1="96.80" x2="103.80" y2="95.00" stroke="#141414" stroke-width="1.0"/>
+<circle cx="106.00" cy="95.00" r="2.2" fill="#222222"/>
+<line x1="108.20" y1="95.00" x2="120.30" y2="95.00" stroke="#444444" stroke-width="0.7"/>
+<polygon points="120.30,93.20 123.80,95.00 120.30,96.80" fill="#444444"/>
+<text x="116.00" y="91.00" text-anchor="middle" font-size="4.0" fill="#444444" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace" font-style="italic">fare×3</text>
+<circle cx="126.00" cy="95.00" r="2.2" fill="#222222"/>
+<line x1="128.20" y1="95.00" x2="140.30" y2="95.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="140.30" y1="93.20" x2="143.80" y2="95.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="140.30" y1="96.80" x2="143.80" y2="95.00" stroke="#141414" stroke-width="1.0"/>
+<circle cx="146.00" cy="95.00" r="4.0" fill="none" stroke="#222222" stroke-width="0.5"/><circle cx="146.00" cy="95.00" r="2.2" fill="#222222"/>
+<line x1="78.00" y1="25.70" x2="78.00" y2="40.80" stroke="#777777" stroke-width="0.6"/><line x1="76.20" y1="40.80" x2="78.00" y2="44.30" stroke="#777777" stroke-width="0.6"/><line x1="79.80" y1="40.80" x2="78.00" y2="44.30" stroke="#777777" stroke-width="0.6"/>
+<line x1="76.60" y1="25.70" x2="76.60" y2="64.80" stroke="#777777" stroke-width="0.6"/><line x1="74.80" y1="64.80" x2="76.60" y2="68.30" stroke="#777777" stroke-width="0.6"/><line x1="78.40" y1="64.80" x2="76.60" y2="68.30" stroke="#777777" stroke-width="0.6"/>
+<line x1="75.20" y1="25.70" x2="75.20" y2="88.80" stroke="#777777" stroke-width="0.6"/><line x1="73.40" y1="88.80" x2="75.20" y2="92.30" stroke="#777777" stroke-width="0.6"/><line x1="77.00" y1="88.80" x2="75.20" y2="92.30" stroke="#777777" stroke-width="0.6"/>
+<text x="116.0" y="14.0" text-anchor="middle" font-size="5.0" fill="#bbbbbb" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace" font-style="italic">parallel</text>
+<line x1="146.00" y1="44.30" x2="146.00" y2="29.20" stroke="#777777" stroke-width="0.6"/><line x1="144.20" y1="29.20" x2="146.00" y2="25.70" stroke="#777777" stroke-width="0.6"/><line x1="147.80" y1="29.20" x2="146.00" y2="25.70" stroke="#777777" stroke-width="0.6"/>
+<line x1="146.00" y1="68.30" x2="146.00" y2="29.20" stroke="#777777" stroke-width="0.6"/><line x1="144.20" y1="29.20" x2="146.00" y2="25.70" stroke="#777777" stroke-width="0.6"/><line x1="147.80" y1="29.20" x2="146.00" y2="25.70" stroke="#777777" stroke-width="0.6"/>
+<line x1="146.00" y1="92.30" x2="146.00" y2="29.20" stroke="#777777" stroke-width="0.6"/><line x1="144.20" y1="29.20" x2="146.00" y2="25.70" stroke="#777777" stroke-width="0.6"/><line x1="147.80" y1="29.20" x2="146.00" y2="25.70" stroke="#777777" stroke-width="0.6"/>
+<line x1="70.00" y1="11.00" x2="70.00" y2="107.00" stroke="#bbbbbb" stroke-width="0.3" stroke-dasharray="3,2"/>
+<line x1="146.00" y1="11.00" x2="146.00" y2="107.00" stroke="#bbbbbb" stroke-width="0.3" stroke-dasharray="3,2"/>
+<line x1="54.20" y1="114.00" x2="62.50" y2="114.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="62.50" y1="112.20" x2="66.00" y2="114.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="62.50" y1="115.80" x2="66.00" y2="114.00" stroke="#141414" stroke-width="1.0"/>
+<text x="68.0" y="115.8" text-anchor="start" font-size="4.5" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">LLM call</text>
+<line x1="96.80" y1="114.00" x2="105.10" y2="114.00" stroke="#444444" stroke-width="0.7"/>
+<polygon points="105.10,112.20 108.60,114.00 105.10,115.80" fill="#444444"/>
+<text x="110.6" y="115.8" text-anchor="start" font-size="4.5" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">Tool call</text>
+<line x1="142.10" y1="114.00" x2="147.10" y2="114.00" stroke="#222222" stroke-width="0.7" stroke-dasharray="2.5,1.5"/>
+<line x1="147.10" y1="112.20" x2="150.60" y2="114.00" stroke="#222222" stroke-width="0.7"/>
+<line x1="147.10" y1="115.80" x2="150.60" y2="114.00" stroke="#222222" stroke-width="0.7"/>
+<line x1="148.10" y1="111.60" x2="152.90" y2="116.40" stroke="#222222" stroke-width="1.2"/><line x1="152.90" y1="111.60" x2="148.10" y2="116.40" stroke="#222222" stroke-width="1.2"/>
+<text x="156.4" y="115.8" text-anchor="start" font-size="4.5" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">Blocked</text>
+<circle cx="56.00" cy="124.00" r="4.0" fill="none" stroke="#222222" stroke-width="0.5"/><circle cx="56.00" cy="124.00" r="2.2" fill="#222222"/>
+<text x="62.0" y="125.8" text-anchor="start" font-size="4.5" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">Sub-agent result</text>
+<line x1="116.20" y1="120.40" x2="116.20" y2="124.10" stroke="#777777" stroke-width="0.6"/><line x1="114.40" y1="124.10" x2="116.20" y2="127.60" stroke="#777777" stroke-width="0.6"/><line x1="118.00" y1="124.10" x2="116.20" y2="127.60" stroke="#777777" stroke-width="0.6"/>
+<text x="119.7" y="125.8" text-anchor="start" font-size="4.5" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">Delegation</text>
+<line x1="155.70" y1="127.60" x2="155.70" y2="123.90" stroke="#777777" stroke-width="0.6"/><line x1="153.90" y1="123.90" x2="155.70" y2="120.40" stroke="#777777" stroke-width="0.6"/><line x1="157.50" y1="123.90" x2="155.70" y2="120.40" stroke="#777777" stroke-width="0.6"/>
+<text x="159.2" y="125.8" text-anchor="start" font-size="4.5" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">Return</text>
+<rect x="0" y="0" width="190.0" height="131.0" fill="none" stroke="#bbbbbb" stroke-width="0.4"/>
+</g>
+<line x1="0" y1="133.5" x2="190.0" y2="133.5" stroke="#bbbbbb" stroke-width="0.5" stroke-dasharray="4,3"/>
+<g transform="translate(0 136.0)">
+<rect width="190.0" height="131.0" fill="#ffffff"/>
+<text x="95.0" y="9.0" text-anchor="middle" font-size="7.5" font-weight="bold" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">+Guardrail</text>
+<rect x="0" y="11.0" width="190.0" height="24.0" fill="#f6f6f6"/>
+<rect x="0" y="12.0" width="2.0" height="22.0" fill="#222222" rx="0.5"/>
+<text x="47.0" y="24.8" text-anchor="end" font-size="5.0" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">moderator</text>
+<line x1="50.00" y1="23.00" x2="70.00" y2="23.00" stroke="#cccccc" stroke-width="0.5"/>
+<line x1="70.00" y1="23.00" x2="86.00" y2="23.00" stroke="#cccccc" stroke-width="0.3" stroke-dasharray="1,2"/>
+<line x1="146.00" y1="23.00" x2="182.00" y2="23.00" stroke="#cccccc" stroke-width="0.5"/>
+<rect x="0" y="35.0" width="190.0" height="24.0" fill="#eeeeee"/>
+<line x1="0.00" y1="35.00" x2="190.00" y2="35.00" stroke="#bbbbbb" stroke-width="0.3"/>
+<rect x="0" y="36.0" width="2.0" height="22.0" fill="#222222" rx="0.5"/>
+<text x="47.0" y="48.8" text-anchor="end" font-size="5.0" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">itinerary</text>
+<line x1="81.20" y1="47.00" x2="121.00" y2="47.00" stroke="#cccccc" stroke-width="0.5"/>
+<rect x="0" y="59.0" width="190.0" height="24.0" fill="#f6f6f6"/>
+<line x1="0.00" y1="59.00" x2="190.00" y2="59.00" stroke="#bbbbbb" stroke-width="0.3"/>
+<rect x="0" y="60.0" width="2.0" height="22.0" fill="#222222" rx="0.5"/>
+<text x="47.0" y="72.8" text-anchor="end" font-size="5.0" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">schedule</text>
+<line x1="81.20" y1="71.00" x2="146.00" y2="71.00" stroke="#cccccc" stroke-width="0.5"/>
+<rect x="0" y="83.0" width="190.0" height="24.0" fill="#eeeeee"/>
+<line x1="0.00" y1="83.00" x2="190.00" y2="83.00" stroke="#bbbbbb" stroke-width="0.3"/>
+<rect x="0" y="84.0" width="2.0" height="22.0" fill="#222222" rx="0.5"/>
+<text x="47.0" y="96.8" text-anchor="end" font-size="5.0" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">concierge</text>
+<line x1="81.20" y1="95.00" x2="146.00" y2="95.00" stroke="#cccccc" stroke-width="0.5"/>
+<circle cx="50.00" cy="23.00" r="2.2" fill="#222222"/>
+<line x1="52.20" y1="23.00" x2="64.30" y2="23.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="64.30" y1="21.20" x2="67.80" y2="23.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="64.30" y1="24.80" x2="67.80" y2="23.00" stroke="#141414" stroke-width="1.0"/>
+<circle cx="70.00" cy="23.00" r="4.0" fill="none" stroke="#222222" stroke-width="0.5"/><circle cx="70.00" cy="23.00" r="2.2" fill="#222222"/>
+<circle cx="162.00" cy="23.00" r="2.2" fill="#222222"/>
+<line x1="164.20" y1="23.00" x2="176.30" y2="23.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="176.30" y1="21.20" x2="179.80" y2="23.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="176.30" y1="24.80" x2="179.80" y2="23.00" stroke="#141414" stroke-width="1.0"/>
+<circle cx="182.00" cy="23.00" r="4.0" fill="none" stroke="#222222" stroke-width="0.5"/><circle cx="182.00" cy="23.00" r="2.2" fill="#222222"/>
+<circle cx="86.00" cy="47.00" r="2.2" fill="#222222"/>
+<line x1="88.20" y1="47.00" x2="100.30" y2="47.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="100.30" y1="45.20" x2="103.80" y2="47.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="100.30" y1="48.80" x2="103.80" y2="47.00" stroke="#141414" stroke-width="1.0"/>
+<circle cx="106.00" cy="47.00" r="2.2" fill="#222222"/>
+<line x1="108.20" y1="47.00" x2="119.40" y2="47.00" stroke="#222222" stroke-width="0.7" stroke-dasharray="2.5,1.5"/>
+<line x1="119.40" y1="45.20" x2="122.90" y2="47.00" stroke="#222222" stroke-width="0.7"/>
+<line x1="119.40" y1="48.80" x2="122.90" y2="47.00" stroke="#222222" stroke-width="0.7"/>
+<line x1="120.40" y1="44.60" x2="125.20" y2="49.40" stroke="#222222" stroke-width="1.2"/><line x1="125.20" y1="44.60" x2="120.40" y2="49.40" stroke="#222222" stroke-width="1.2"/>
+<line x1="103.80" y1="38.92" x2="103.80" y2="36.92" stroke="#888888" stroke-width="0.5"/><line x1="103.80" y1="36.92" x2="125.20" y2="36.92" stroke="#888888" stroke-width="0.5"/><line x1="125.20" y1="36.92" x2="125.20" y2="38.92" stroke="#888888" stroke-width="0.5"/>
+<text x="114.50" y="35.92" text-anchor="middle" font-size="3.5" fill="#888888" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace" font-style="italic">content-filter</text>
+<circle cx="86.00" cy="71.00" r="2.2" fill="#222222"/>
+<line x1="88.20" y1="71.00" x2="100.30" y2="71.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="100.30" y1="69.20" x2="103.80" y2="71.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="100.30" y1="72.80" x2="103.80" y2="71.00" stroke="#141414" stroke-width="1.0"/>
+<circle cx="106.00" cy="71.00" r="2.2" fill="#222222"/>
+<line x1="108.20" y1="71.00" x2="120.30" y2="71.00" stroke="#444444" stroke-width="0.7"/>
+<polygon points="120.30,69.20 123.80,71.00 120.30,72.80" fill="#444444"/>
+<text x="116.00" y="67.00" text-anchor="middle" font-size="4.0" fill="#444444" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace" font-style="italic">sch</text>
+<circle cx="126.00" cy="71.00" r="2.2" fill="#222222"/>
+<line x1="128.20" y1="71.00" x2="140.30" y2="71.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="140.30" y1="69.20" x2="143.80" y2="71.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="140.30" y1="72.80" x2="143.80" y2="71.00" stroke="#141414" stroke-width="1.0"/>
+<circle cx="146.00" cy="71.00" r="4.0" fill="none" stroke="#222222" stroke-width="0.5"/><circle cx="146.00" cy="71.00" r="2.2" fill="#222222"/>
+<circle cx="86.00" cy="95.00" r="2.2" fill="#222222"/>
+<line x1="88.20" y1="95.00" x2="100.30" y2="95.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="100.30" y1="93.20" x2="103.80" y2="95.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="100.30" y1="96.80" x2="103.80" y2="95.00" stroke="#141414" stroke-width="1.0"/>
+<circle cx="106.00" cy="95.00" r="2.2" fill="#222222"/>
+<line x1="108.20" y1="95.00" x2="120.30" y2="95.00" stroke="#444444" stroke-width="0.7"/>
+<polygon points="120.30,93.20 123.80,95.00 120.30,96.80" fill="#444444"/>
+<text x="116.00" y="91.00" text-anchor="middle" font-size="4.0" fill="#444444" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace" font-style="italic">fare×3</text>
+<circle cx="126.00" cy="95.00" r="2.2" fill="#222222"/>
+<line x1="128.20" y1="95.00" x2="140.30" y2="95.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="140.30" y1="93.20" x2="143.80" y2="95.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="140.30" y1="96.80" x2="143.80" y2="95.00" stroke="#141414" stroke-width="1.0"/>
+<circle cx="146.00" cy="95.00" r="4.0" fill="none" stroke="#222222" stroke-width="0.5"/><circle cx="146.00" cy="95.00" r="2.2" fill="#222222"/>
+<line x1="78.00" y1="25.70" x2="78.00" y2="40.80" stroke="#777777" stroke-width="0.6"/><line x1="76.20" y1="40.80" x2="78.00" y2="44.30" stroke="#777777" stroke-width="0.6"/><line x1="79.80" y1="40.80" x2="78.00" y2="44.30" stroke="#777777" stroke-width="0.6"/>
+<line x1="76.60" y1="25.70" x2="76.60" y2="64.80" stroke="#777777" stroke-width="0.6"/><line x1="74.80" y1="64.80" x2="76.60" y2="68.30" stroke="#777777" stroke-width="0.6"/><line x1="78.40" y1="64.80" x2="76.60" y2="68.30" stroke="#777777" stroke-width="0.6"/>
+<line x1="75.20" y1="25.70" x2="75.20" y2="88.80" stroke="#777777" stroke-width="0.6"/><line x1="73.40" y1="88.80" x2="75.20" y2="92.30" stroke="#777777" stroke-width="0.6"/><line x1="77.00" y1="88.80" x2="75.20" y2="92.30" stroke="#777777" stroke-width="0.6"/>
+<text x="116.0" y="14.0" text-anchor="middle" font-size="5.0" fill="#bbbbbb" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace" font-style="italic">parallel</text>
+<line x1="121.00" y1="44.30" x2="121.00" y2="29.20" stroke="#777777" stroke-width="0.6" stroke-dasharray="2,2"/><line x1="119.20" y1="29.20" x2="121.00" y2="25.70" stroke="#777777" stroke-width="0.6"/><line x1="122.80" y1="29.20" x2="121.00" y2="25.70" stroke="#777777" stroke-width="0.6"/>
+<line x1="146.00" y1="68.30" x2="146.00" y2="29.20" stroke="#777777" stroke-width="0.6"/><line x1="144.20" y1="29.20" x2="146.00" y2="25.70" stroke="#777777" stroke-width="0.6"/><line x1="147.80" y1="29.20" x2="146.00" y2="25.70" stroke="#777777" stroke-width="0.6"/>
+<line x1="146.00" y1="92.30" x2="146.00" y2="29.20" stroke="#777777" stroke-width="0.6"/><line x1="144.20" y1="29.20" x2="146.00" y2="25.70" stroke="#777777" stroke-width="0.6"/><line x1="147.80" y1="29.20" x2="146.00" y2="25.70" stroke="#777777" stroke-width="0.6"/>
+<line x1="70.00" y1="11.00" x2="70.00" y2="107.00" stroke="#bbbbbb" stroke-width="0.3" stroke-dasharray="3,2"/>
+<line x1="146.00" y1="11.00" x2="146.00" y2="107.00" stroke="#bbbbbb" stroke-width="0.3" stroke-dasharray="3,2"/>
+<line x1="54.20" y1="114.00" x2="62.50" y2="114.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="62.50" y1="112.20" x2="66.00" y2="114.00" stroke="#141414" stroke-width="1.0"/>
+<line x1="62.50" y1="115.80" x2="66.00" y2="114.00" stroke="#141414" stroke-width="1.0"/>
+<text x="68.0" y="115.8" text-anchor="start" font-size="4.5" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">LLM call</text>
+<line x1="96.80" y1="114.00" x2="105.10" y2="114.00" stroke="#444444" stroke-width="0.7"/>
+<polygon points="105.10,112.20 108.60,114.00 105.10,115.80" fill="#444444"/>
+<text x="110.6" y="115.8" text-anchor="start" font-size="4.5" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">Tool call</text>
+<line x1="142.10" y1="114.00" x2="147.10" y2="114.00" stroke="#222222" stroke-width="0.7" stroke-dasharray="2.5,1.5"/>
+<line x1="147.10" y1="112.20" x2="150.60" y2="114.00" stroke="#222222" stroke-width="0.7"/>
+<line x1="147.10" y1="115.80" x2="150.60" y2="114.00" stroke="#222222" stroke-width="0.7"/>
+<line x1="148.10" y1="111.60" x2="152.90" y2="116.40" stroke="#222222" stroke-width="1.2"/><line x1="152.90" y1="111.60" x2="148.10" y2="116.40" stroke="#222222" stroke-width="1.2"/>
+<text x="156.4" y="115.8" text-anchor="start" font-size="4.5" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">Blocked</text>
+<circle cx="56.00" cy="124.00" r="4.0" fill="none" stroke="#222222" stroke-width="0.5"/><circle cx="56.00" cy="124.00" r="2.2" fill="#222222"/>
+<text x="62.0" y="125.8" text-anchor="start" font-size="4.5" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">Sub-agent result</text>
+<line x1="116.20" y1="120.40" x2="116.20" y2="124.10" stroke="#777777" stroke-width="0.6"/><line x1="114.40" y1="124.10" x2="116.20" y2="127.60" stroke="#777777" stroke-width="0.6"/><line x1="118.00" y1="124.10" x2="116.20" y2="127.60" stroke="#777777" stroke-width="0.6"/>
+<text x="119.7" y="125.8" text-anchor="start" font-size="4.5" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">Delegation</text>
+<line x1="155.70" y1="127.60" x2="155.70" y2="123.90" stroke="#777777" stroke-width="0.6"/><line x1="153.90" y1="123.90" x2="155.70" y2="120.40" stroke="#777777" stroke-width="0.6"/><line x1="157.50" y1="123.90" x2="155.70" y2="120.40" stroke="#777777" stroke-width="0.6"/>
+<text x="159.2" y="125.8" text-anchor="start" font-size="4.5" fill="#222222" font-family="ui-monospace,SFMono-Regular,Consolas,Liberation Mono,monospace">Return</text>
+<rect x="0" y="0" width="190.0" height="131.0" fill="none" stroke="#bbbbbb" stroke-width="0.4"/>
+</g>
+</svg>

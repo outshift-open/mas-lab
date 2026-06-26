@@ -1,0 +1,23 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+name: multilevel_trajectory_plotter
+priority: 5
+description: >
+  Render a Trajectory into a multilevel swim-lane HTML/SVG diagram.
+  Shows Session / MAS / Agent / Call levels stacked vertically, with
+  shared state circles connected by vertical dashed lines and colored
+  transitions per call type.  No external dependencies.
+
+inputs:
+  - name: trace
+    kind: trajectory
+    description: The trajectory to render (run_id, JSONL path, or Trajectory artifact)
+
+outputs:
+  - name: plot
+    kind: plot_file
+    description: Self-contained HTML page (default) or SVG string
+    defaults:
+      format: html      # override with: plot.format=svg
+
+requires: {}

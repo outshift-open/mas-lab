@@ -1,0 +1,233 @@
+{
+  "name": "mas-necessity",
+  "description": "Benchmark probing when a MAS is strictly necessary vs a capable single agent.",
+  "version": "1.0",
+  "tags": [
+    "mas-necessity",
+    "design-space"
+  ],
+  "count": 8,
+  "items": [
+    {
+      "id": "mn1",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Alice is in Celestia, Bob is in Verdantia, and Charlie is in Luminos. They want to meet in ONE city for a shared day trip. Find the meeting point that minimises the total combined transport cost for all three. Show the cost of each leg, the total, and recommend 2 activities everyone can enjoy together within a $30 per-person activity budget."
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": {
+          "optimal_meeting_city": "Verdantia",
+          "alice_cost_usd": 28,
+          "bob_cost_usd": 0,
+          "charlie_cost_usd": 22,
+          "total_combined_cost_usd": 50,
+          "alice_route": [
+            "Celestia",
+            "Verdantia"
+          ],
+          "bob_route": [
+            "Verdantia"
+          ],
+          "charlie_route": [
+            "Luminos",
+            "Verdantia"
+          ]
+        }
+      },
+      "group": "mas-necessity"
+    },
+    {
+      "id": "mn2",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Plan TWO completely independent trips at the same time and compare them: (A) Celestia → Verdantia → Luminos, and (B) Luminos → Fortuna → Pannonia. For each trip: total rail transport cost, estimated travel time, and one highlight attraction per city. Which trip is cheaper? Can either be done for under $60 in transport costs?"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": {
+          "trip_a_total_cost_usd": 50,
+          "trip_a_travel_time": "5h",
+          "trip_b_total_cost_usd": 27,
+          "trip_b_travel_time": "2h 45m",
+          "cheaper_trip": "B",
+          "trip_a_under_60": true,
+          "trip_b_under_60": true,
+          "fare_breakdown": {
+            "celestia_verdantia_standard": 28,
+            "verdantia_luminos_standard": 22,
+            "luminos_fortuna_standard": 15,
+            "fortuna_pannonia_standard": 12
+          }
+        }
+      },
+      "group": "mas-necessity"
+    },
+    {
+      "id": "mn3",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A travel blogger claims: 'You can do Celestia → Verdantia → Luminos → Celestia (via air) in one day for under $150 total transport, using morning departures only.' Verify this claim step by step: check each leg's schedule, fare, and timing. If the claim is wrong, identify exactly which constraint is violated and provide the corrected feasible itinerary."
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": {
+          "claim_is_correct": false,
+          "violated_constraint": "timing",
+          "violated_leg": "Verdantia → Luminos",
+          "violation_reason": "After departing Celestia at 08:30 and arriving Verdantia at 11:30, no morning Standard departure (before noon) from Verdantia to Luminos is possible.\n",
+          "total_cost_if_timing_ignored_usd": 135,
+          "under_150": true,
+          "corrected_itinerary_note": "Feasible same-day option: depart Celestia early (06:15 Express, $42), arrive Verdantia 09:15, take morning Standard to Luminos (depart ~09:30, $22), fly back Luminos→Celestia Economy ($85). Total: $149 — just under budget.\n"
+        }
+      },
+      "group": "mas-necessity"
+    },
+    {
+      "id": "mn4",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Find a round-trip circuit starting and ending in Celestia that satisfies ALL of the following hard constraints: (1) visits exactly 3 intermediate cities, (2) total transport cost under $120, (3) at least one city must be in the forest_belt region, (4) all train departures before noon, (5) return to Celestia within 3 days. List all feasible circuits you find, ranked by total cost. If none exist, explain which constraint eliminates each candidate."
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": {
+          "best_circuit": [
+            "Celestia",
+            "Harmonia",
+            "Silvara",
+            "Verdantia",
+            "Celestia"
+          ],
+          "best_circuit_total_cost_usd": 90,
+          "forest_belt_city": "Silvara",
+          "fare_breakdown": {
+            "celestia_harmonia_standard": 20,
+            "harmonia_silvara_standard": 18,
+            "silvara_verdantia_standard": 24,
+            "verdantia_celestia_standard": 28
+          },
+          "all_feasible_circuits_count": 2,
+          "under_120": true
+        }
+      },
+      "group": "mas-necessity"
+    },
+    {
+      "id": "mn5",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Alice (prefers outdoor and eco-tourism, personal activity budget $80) and Bob (prefers cultural sites and museums, personal activity budget $60) are travelling together from Celestia. They share a transport budget of $100 for the entire trip. Find the 2-city itinerary that best satisfies BOTH of their preferences — at least 2 suitable activities per person in each city. Show the trade-offs: what does each person have to compromise on, and what is the total cost breakdown?"
+          }
+        ]
+      },
+      "group": "mas-necessity"
+    },
+    {
+      "id": "mn10",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "You have exactly $65 for train transport (Standard class only — no flights, no Express). Starting from Celestia, plan a one-way trip that visits exactly ONE city in the forest_belt region AND ONE city in the plains region (in any order). List every valid route you find with its exact total Standard-class fare. For the cheapest valid route: state the total cost and how much of your $65 budget remains.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": {
+          "cheapest_route": [
+            "Celestia",
+            "Verdantia",
+            "Luminos"
+          ],
+          "fare_breakdown": {
+            "Celestia_Verdantia_Standard": 28,
+            "Verdantia_Luminos_Standard": 22
+          },
+          "total_fare": 50,
+          "budget_remaining": 15,
+          "valid_routes_count": 1,
+          "note": "The only train-only Standard-class route that visits both a forest_belt city (Verdantia) and a plains city (Luminos) from Celestia. No direct Celestia→Luminos train; Celestia→Silvara requires Harmonia transfer and has no onward plains connection by train.\n"
+        }
+      },
+      "group": "mas-necessity"
+    },
+    {
+      "id": "mn11",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "You need to travel from Celestia to Luminos by train on a weekday (Standard class only — no flights, no Express). You must depart Celestia before 09:00. What is the earliest feasible Standard-class departure from Celestia? Which city do you connect through, what time is the onward Standard connection from that city, and what is the exact total Standard-class fare for the full journey?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": {
+          "departure_from_celestia": "08:30",
+          "service_type": "Standard",
+          "connection_city": "Verdantia",
+          "connection_departure": "12:45",
+          "arrival_luminos_approx": "14:45",
+          "total_journey_hours": 6.25,
+          "total_fare": 50,
+          "fare_breakdown": {
+            "Celestia_Verdantia_Standard": 28,
+            "Verdantia_Luminos_Standard": 22
+          },
+          "note": "08:30 Standard is the only Standard departure before 09:00 on weekdays (06:15 is Express). Train arrives Verdantia ~11:30. Next Standard from Verdantia is 12:45 (10:30 and 15:00 are Express). Arrives Luminos ~14:45.\n"
+        }
+      },
+      "group": "mas-necessity"
+    },
+    {
+      "id": "mn12",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "An online booking site shows the following itinerary:\n\n  Celestia → Verdantia   Standard train   $35\n  Verdantia → Luminos    Standard train   $25\n  Total: $60\n\nIs this pricing correct? Check each leg individually against the Arborian Network fare tables. For any leg where the shown price is wrong, state the correct Standard fare. What is the correct total for this itinerary?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": {
+          "celestia_verdantia_correct_fare": 28,
+          "verdantia_luminos_correct_fare": 22,
+          "correct_total": 50,
+          "errors": [
+            {
+              "leg": "Celestia → Verdantia",
+              "shown": 35,
+              "correct": 28,
+              "overcharge": 7
+            },
+            {
+              "leg": "Verdantia → Luminos",
+              "shown": 25,
+              "correct": 22,
+              "overcharge": 3
+            }
+          ],
+          "both_errors_present": true,
+          "note": "Both fares are inflated. Catching only one counts as partial detection. The agent must look up each leg independently, not trust the shown prices.\n"
+        }
+      },
+      "group": "mas-necessity"
+    }
+  ]
+}

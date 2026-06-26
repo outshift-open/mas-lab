@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "mas-lab/artefacts/run-info/v1",
+  "title": "Run Info Artefact",
+  "description": "Schema for run_info.json — per-run metadata written by the benchmark executor at the end of each run. Lives at item{N}/r{K}/run_info.json.",
+  "type": "object",
+  "required": ["run_hash", "experiment", "scenario", "item_id", "run_idx", "status", "recorded_at"],
+  "additionalProperties": false,
+  "properties": {
+    "run_hash": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Short content-addressable hash identifying this run's content."
+    },
+    "experiment": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Experiment slug (e.g. '01-semantic-grouping')."
+    },
+    "scenario": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Scenario identifier (e.g. 'baseline')."
+    },
+    "item_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Dataset item identifier (e.g. '1')."
+    },
+    "run_idx": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "0-based run index within the item (r{run_idx+1} folder name)."
+    },
+    "model": {
+      "type": "string",
+      "description": "LLM model identifier used for this run, or empty string."
+    },
+    "api_base": {
+      "type": "string",
+      "description": "API base URL used for this run, or empty string."
+    },
+    "prompt": {
+      "type": "string",
+      "description": "Task prompt presented to the MAS for this run."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error", "timeout"],
+      "description": "Final execution status."
+    },
+    "elapsed_ms": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Wall-clock execution time in milliseconds."
+    },
+    "error": {
+      "type": "string",
+      "description": "Error message when status is 'error', empty string otherwise."
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp when this run_info was written."
+    }
+  }
+}

@@ -1,0 +1,12 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Overlay: context manager — auto-injects skills into system prompt
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: context-manager
+spec:
+  patch:
+    context_manager:
+      skills:
+        - answer-formatting

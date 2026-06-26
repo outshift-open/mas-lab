@@ -1,0 +1,4 @@
+{"agent_id": "qa-agent", "call_id": "<stripped>", "input": "What is 2+2? Use the calculator if helpful.", "kind": "execution_start", "run_id": "<stripped>", "timestamp": "<stripped>", "turn_id": "<stripped>"}
+{"agent_id": "qa-agent", "correlation_id": 0, "finish_reason": "stop", "kind": "context_assembled", "run_id": "<stripped>", "timestamp": "<stripped>"}
+{"agent_id": "qa-agent", "call_id": "<stripped>", "content": "Based on the search results: [calculator] result computed", "finish_reason": "stop", "kind": "user_response", "run_id": "<stripped>", "timestamp": "<stripped>", "turn_id": "<stripped>"}
+{"agent_id": "qa-agent", "call_id": "<stripped>", "kind": "execution_end", "run_id": "<stripped>", "status": "ok", "timestamp": "<stripped>", "turn_id": "<stripped>"}

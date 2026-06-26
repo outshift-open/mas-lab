@@ -1,0 +1,65 @@
+*.pyc
+__pycache__/
+*.egg-info/
+dist/
+build/
+.venv/
+.env
+.env.local
+.env.*.local
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.test-venv/
+node_modules/
+*.log
+docs/tutorials/**/logs/
+.hypothesis/
+compliance-report.json
+COMPLIANCE_REPORT.md
+
+# MkDocs build output
+site/
+
+.vscode/
+
+# Test / coverage artifacts
+.coverage
+coverage.json
+**/coverage.json
+
+# LaTeX build artifacts
+*.fdb_latexmk
+*.fls
+*.aux
+*.out
+*.toc
+*.synctex.gz
+
+# Run output / artifacts
+**/output/*.jsonl
+**/output/benchmark
+**/output/meta.json
+**/output/current_run_id.txt
+**/output/*/
+.tutorial-cache/
+tests/.tutorial-engine-cache/
+
+# Backup files
+*.bak
+*.bak2
+
+# Legacy dead code (removed from repo)
+lab/src/mas/lab/_cli_legacy.py
+.deepeval/
+~/.mas/
+
+
+# Docker local secrets + data (never commit)
+docker/.env
+docker/data/*
+!docker/data/.gitkeep
+
+# Session / scratch (do not commit — not gitignored; keep local only)
+COVERAGE_REPORT.md
+MANIFEST_SCHEMA_MAPPING.md

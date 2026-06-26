@@ -1,0 +1,14 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  id: pattern-cot
+  description: "Chain-of-Thought — explicit reasoning chain before action (Wei et al. 2022)"
+
+spec:
+  patch:
+    design_pattern:
+      type: cot
+      config:
+        max_steps: 5

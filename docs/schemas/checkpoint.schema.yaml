@@ -1,0 +1,32 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Session checkpoint — ctl persistence artifact (kernel snapshot + external state)
+$schema: http://json-schema.org/draft-07/schema#
+title: SessionCheckpoint
+type: object
+required: [version, kernel]
+additionalProperties: false
+properties:
+  version:
+    type: integer
+    const: 1
+  label: { type: string }
+  turn: { type: integer, minimum: 0 }
+  kernel:
+    type: object
+    description: RuntimeKernel.snapshot() — Q_product and tau
+    required: [q, tau]
+    additionalProperties: true
+  memory_seeds:
+    type: array
+    items:
+      type: object
+      required: [key, content]
+      additionalProperties: false
+      properties:
+        key: { type: string }
+        content: { type: string }
+  runtime_profile:
+    type: object
+    additionalProperties: true
+    description: Optional design_pattern defaults and gov profile to restore with kernel

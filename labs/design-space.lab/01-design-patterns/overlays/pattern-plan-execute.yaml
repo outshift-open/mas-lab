@@ -1,0 +1,15 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  id: pattern-plan-execute
+  description: "Plan-and-Execute — generate a full plan, then execute steps sequentially"
+
+spec:
+  patch:
+    design_pattern:
+      type: plan_execute
+      config:
+        allow_replan: true
+        max_steps: 20

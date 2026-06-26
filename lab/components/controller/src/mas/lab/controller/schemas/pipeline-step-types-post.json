@@ -1,0 +1,519 @@
+{
+  "$comment": "Registry of all pipeline step types with their config schemas. Use this to build a dynamic pipeline editor in React.",
+  "step_types": [
+    {
+      "type": "service_stop",
+      "label": "Stop Service",
+      "description": "Stop an infrastructure service (Neo4j, OTel collector, etc.) after all scenarios complete.",
+      "phase": "post",
+      "category": "infrastructure",
+      "config": {
+        "service": {
+          "type": "string",
+          "required": true,
+          "description": "Service name declared in the infra bundle (e.g. neo4j, otel-collector)"
+        }
+      }
+    },
+    {
+      "type": "extract_trajectories",
+      "label": "Extract Trajectories",
+      "description": "Build trajectories.jsonl and per-run trajectory.json from benchmark CSV + trace paths.",
+      "phase": "post",
+      "category": "extraction",
+      "config": {
+        "csv_file": {
+          "type": "string",
+          "default": "results*.csv",
+          "description": "Glob pattern for benchmark CSV"
+        },
+        "runs_dir": {
+          "type": "string",
+          "default": "runs",
+          "description": "Relative dir for orphan run scan"
+        },
+        "overwrite": {
+          "type": "boolean",
+          "default": false,
+          "description": "Overwrite existing extractions"
+        }
+      }
+    },
+    {
+      "type": "analysis",
+      "label": "Consolidate Results",
+      "description": "Consolidate experiment results into DataFrame + optional parquet cache.",
+      "phase": "post",
+      "category": "analysis",
+      "config": {
+        "include_events": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include event data in consolidation"
+        },
+        "cache": {
+          "type": "boolean",
+          "default": true,
+          "description": "Write consolidated.parquet"
+        }
+      }
+    },
+    {
+      "type": "annotate_metrics",
+      "label": "Annotate Metrics",
+      "description": "Session-level evaluation metrics via EvalMetric class (e.g., AnswerRelevancyMetric).",
+      "phase": "post",
+      "category": "evaluation",
+      "config": {
+        "metric_class": {
+          "type": "string",
+          "default": "mas.lab.components.evaluation.deepeval_wrapper.AnswerRelevancyMetric",
+          "description": "Fully qualified metric class"
+        },
+        "metric_kwargs": {
+          "type": "object",
+          "default": {},
+          "description": "Kwargs passed to metric (model, api_key_env, threshold, etc.)"
+        },
+        "level": {
+          "type": "string",
+          "default": "session",
+          "enum": [
+            "session",
+            "turn"
+          ],
+          "description": "Evaluation granularity"
+        },
+        "max_items": {
+          "type": "integer",
+          "default": null,
+          "description": "Limit items to evaluate"
+        },
+        "overwrite": {
+          "type": "boolean",
+          "default": false,
+          "description": "Overwrite existing metrics"
+        }
+      }
+    },
+    {
+      "type": "embed_trajectories",
+      "label": "Embed Trajectories",
+      "description": "Compute embedding vectors for trajectory text fields.",
+      "phase": "post",
+      "category": "analysis",
+      "config": {
+        "model": {
+          "type": "string",
+          "default": "text-embedding-3-small",
+          "description": "Embedding model"
+        },
+        "api_base": {
+          "type": "string",
+          "default": "",
+          "description": "API base URL"
+        },
+        "api_key_env": {
+          "type": "string",
+          "default": "OPENAI_API_KEY",
+          "description": "Env var for API key"
+        },
+        "levels": {
+          "type": "array",
+          "default": [
+            "session"
+          ],
+          "description": "Granularity levels"
+        },
+        "fields": {
+          "type": "array",
+          "default": [
+            "input",
+            "output"
+          ],
+          "description": "Fields to embed"
+        },
+        "max_items": {
+          "type": "integer",
+          "default": null,
+          "description": "Limit items"
+        },
+        "overwrite": {
+          "type": "boolean",
+          "default": false,
+          "description": "Overwrite existing"
+        },
+        "batch_size": {
+          "type": "integer",
+          "default": 64,
+          "description": "Batch size"
+        }
+      }
+    },
+    {
+      "type": "ggplot",
+      "label": "Plot (Custom Class)",
+      "description": "Render a publication-quality figure from a MASPlot subclass. Uses experiment results directory for data.",
+      "phase": "post",
+      "category": "visualization",
+      "config": {
+        "class": {
+          "type": "string",
+          "required": true,
+          "description": "Plot library YAML name under plot_library/ (e.g. ablation_heatmap)",
+          "default": "ablation_heatmap"
+        },
+        "formats": {
+          "type": "array",
+          "default": [
+            "svg"
+          ],
+          "description": "Output formats"
+        }
+      }
+    },
+    {
+      "type": "plot",
+      "label": "Plot (Legacy)",
+      "description": "Generate visualizations from analysis DataFrame (legacy or declarative).",
+      "phase": "post",
+      "category": "visualization",
+      "config": {
+        "type": {
+          "type": "string",
+          "default": null,
+          "enum": [
+            "latency_distribution",
+            "success_rate",
+            "pattern_comparison",
+            "pareto_frontier"
+          ],
+          "description": "Legacy plot type"
+        },
+        "params": {
+          "type": "object",
+          "default": {},
+          "description": "Plot parameters"
+        },
+        "spec": {
+          "type": "object",
+          "default": null,
+          "description": "Declarative plot spec (alternative to type)"
+        },
+        "data_key": {
+          "type": "string",
+          "default": null,
+          "description": "Key in dependency data for declarative mode"
+        },
+        "filename": {
+          "type": "string",
+          "default": null,
+          "description": "Output filename for declarative mode"
+        }
+      }
+    },
+    {
+      "type": "plot_trajectory",
+      "label": "Plot Trajectory",
+      "description": "Render agent trajectory diagram from a single trace.",
+      "phase": "post",
+      "category": "visualization",
+      "config": {
+        "log_path": {
+          "type": "string",
+          "default": null,
+          "description": "Path to events.jsonl"
+        },
+        "format": {
+          "type": "string",
+          "default": "mermaid",
+          "enum": [
+            "mermaid",
+            "html",
+            "svg",
+            "table"
+          ],
+          "description": "Output format"
+        },
+        "include_prompts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include prompt text"
+        },
+        "filename": {
+          "type": "string",
+          "default": "trajectory",
+          "description": "Output filename"
+        },
+        "highlight_agents": {
+          "type": "array",
+          "default": null,
+          "description": "Agent names to highlight"
+        },
+        "highlight_keywords": {
+          "type": "array",
+          "default": null,
+          "description": "Keywords to highlight"
+        }
+      }
+    },
+    {
+      "type": "plot_trajectory_batch",
+      "label": "Plot Trajectory (Batch)",
+      "description": "Render trajectory diagrams for multiple runs.",
+      "phase": "post",
+      "category": "visualization",
+      "config": {
+        "runs": {
+          "type": "array",
+          "required": true,
+          "description": "List of {log_path, filename} entries"
+        },
+        "format": {
+          "type": "string",
+          "default": "html",
+          "enum": [
+            "mermaid",
+            "html",
+            "svg",
+            "table"
+          ],
+          "description": "Output format"
+        },
+        "include_prompts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include prompt text"
+        },
+        "concurrency": {
+          "type": "integer",
+          "default": 1,
+          "description": "Parallel renders"
+        }
+      }
+    },
+    {
+      "type": "plot_multilevel_trajectory",
+      "label": "Plot Multilevel Trajectory",
+      "description": "Multilevel trajectory diagram (HTML/SVG) with annotations.",
+      "phase": "post",
+      "category": "visualization",
+      "config": {
+        "log_path": {
+          "type": "string",
+          "default": null,
+          "description": "Path to events.jsonl"
+        },
+        "format": {
+          "type": "string",
+          "default": "html",
+          "enum": [
+            "html",
+            "svg"
+          ],
+          "description": "Output format"
+        },
+        "title": {
+          "type": "string",
+          "default": "MAS Multilevel Trajectory",
+          "description": "Diagram title"
+        },
+        "width_mode": {
+          "type": "string",
+          "default": "log",
+          "enum": [
+            "log",
+            "linear"
+          ],
+          "description": "Width scaling mode"
+        },
+        "show_user_actors": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show user actors"
+        },
+        "filename": {
+          "type": "string",
+          "default": "multilevel_trajectory",
+          "description": "Output filename"
+        },
+        "annotations": {
+          "type": "string",
+          "default": null,
+          "description": "Annotations YAML path"
+        },
+        "highlight_agents": {
+          "type": "array",
+          "default": null,
+          "description": "Agents to highlight"
+        },
+        "pins": {
+          "type": "array",
+          "default": null,
+          "description": "Pin markers"
+        }
+      }
+    },
+    {
+      "type": "plot_multilevel_trajectory_batch",
+      "label": "Plot Multilevel Trajectory (Batch)",
+      "description": "Batch multilevel trajectory rendering across runs.",
+      "phase": "post",
+      "category": "visualization",
+      "config": {
+        "runs": {
+          "type": "array",
+          "default": null,
+          "description": "Explicit run list (auto-derived if omitted)"
+        },
+        "format": {
+          "type": "string",
+          "default": "html",
+          "enum": [
+            "html",
+            "svg"
+          ],
+          "description": "Output format"
+        },
+        "width_mode": {
+          "type": "string",
+          "default": "log",
+          "enum": [
+            "log",
+            "linear"
+          ],
+          "description": "Width scaling"
+        },
+        "show_user_actors": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show user actors"
+        },
+        "title": {
+          "type": "string",
+          "default": "MAS Multilevel Trajectory",
+          "description": "Diagram title"
+        },
+        "annotations": {
+          "type": "string",
+          "default": null,
+          "description": "Annotations YAML"
+        },
+        "highlight_agents": {
+          "type": "array",
+          "default": null,
+          "description": "Agents to highlight"
+        },
+        "pins": {
+          "type": "array",
+          "default": null,
+          "description": "Pin markers"
+        },
+        "concurrency": {
+          "type": "integer",
+          "default": 1,
+          "description": "Parallel renders"
+        }
+      }
+    },
+    {
+      "type": "plot_communication_flow",
+      "label": "Plot Communication Flow",
+      "description": "Agent communication-flow diagram.",
+      "phase": "post",
+      "category": "visualization",
+      "config": {
+        "log_path": {
+          "type": "string",
+          "default": null,
+          "description": "Path to events.jsonl"
+        },
+        "format": {
+          "type": "string",
+          "default": "html",
+          "enum": [
+            "html",
+            "mermaid"
+          ],
+          "description": "Output format"
+        },
+        "title": {
+          "type": "string",
+          "default": "MAS Agent Communication Flow",
+          "description": "Diagram title"
+        },
+        "filename": {
+          "type": "string",
+          "default": "communication_flow",
+          "description": "Output filename"
+        }
+      }
+    },
+    {
+      "type": "list_clickhouse_sessions",
+      "label": "List ClickHouse Sessions",
+      "description": "List session IDs from ClickHouse sessions_mapping.",
+      "phase": "post",
+      "category": "graph",
+      "config": {
+        "dataset_id": {
+          "type": "string",
+          "required": true,
+          "description": "Dataset ID"
+        },
+        "limit": {
+          "type": "integer",
+          "default": 0,
+          "description": "Max sessions (0 = unlimited)"
+        }
+      }
+    }
+  ],
+  "categories": [
+    {
+      "id": "data",
+      "label": "Data",
+      "color": "#3b82f6"
+    },
+    {
+      "id": "execution",
+      "label": "Execution",
+      "color": "#8b5cf6"
+    },
+    {
+      "id": "extraction",
+      "label": "Extraction",
+      "color": "#06b6d4"
+    },
+    {
+      "id": "normalization",
+      "label": "Normalization",
+      "color": "#14b8a6"
+    },
+    {
+      "id": "analysis",
+      "label": "Analysis",
+      "color": "#f59e0b"
+    },
+    {
+      "id": "evaluation",
+      "label": "Evaluation",
+      "color": "#ef4444"
+    },
+    {
+      "id": "visualization",
+      "label": "Visualization",
+      "color": "#22c55e"
+    },
+    {
+      "id": "graph",
+      "label": "Graph DB",
+      "color": "#a855f7"
+    },
+    {
+      "id": "infrastructure",
+      "label": "Infrastructure",
+      "color": "#64748b"
+    }
+  ]
+}

@@ -1,0 +1,138 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Lab 2 — What-If Smoke Experiment
+#
+# Purpose: Validate the shared-LLM-cache design for orthogonality analysis.
+#
+# Core idea:
+#   Both scenarios use the SAME LLM responses (via MAS_LLM_CACHE_DIR).
+#   baseline runs first → populates the LLM cache.
+#   with-guardrail runs second → hits LLM cache → same LLM decisions.
+#   Trajectory difference = governance effect only.
+#
+# Two items:
+#   f-guardrail : Shadowmere → guardrail should fire (fork case)
+#   n1          : normal query → no fire (identity case; trajectories must match)
+#
+# Run:
+#   MAS_LLM_CACHE_DIR=~/.mas-lab/data/lifecycle-llm-cache-smoke \
+#   mas-lab benchmark run labs/lifecycle-control.lab/experiment-whatif-smoke.yaml \
+#   --progress --force
+
+experiment:
+  name: "lifecycle-control-whatif-smoke"
+  description: >
+    What-if smoke test for orthogonality validation.
+    Runs baseline then with-guardrail on the same items, sharing the LLM
+    response cache so trajectory differences are attributable only to
+    governance policy activation.
+
+  default_flavour: local
+  applications:
+    - app: trip-planner
+      configs_dir: "./overlays"
+
+  scenarios:
+    - id: baseline
+      description: "Baseline: no governance. Populates shared LLM cache."
+      tags: ["whatif", "smoke"]
+
+    - id: with-guardrail
+      description: "+Guardrail: same LLM responses, governance active."
+      tags: ["whatif", "smoke"]
+
+  dataset:
+    name: lifecycle-queries
+    filter:
+      type: fault
+    limit: 2 # f-budget + f-guardrail (first 2 fault items)
+
+  evaluation:
+    method: "trace_only"
+
+  execution:
+    parallel_scenarios: 1 # MUST be 1: baseline must complete before with-guardrail
+    timeout: 120
+    strategy: coverage
+
+    emulation:
+      infra:
+        llm: live
+        tools: live
+      runtime:
+        cache: content-addressed
+
+  run:
+    n_runs: 1
+  application:
+    post:
+      - name: extract-trace-stats
+        type: extract_trace_stats
+        config:
+          output: "{output_dir}/results/trace_stats.csv"
+
+      - name: extract-mealy-stats
+        type: extract_mealy_stats
+        config:
+          output: "{output_dir}/results/mealy_stats.csv"
+
+      - name: figure-fork
+        type: plotnine
+        depends_on: [extract-trace-stats]
+        config:
+          data: "@extract-trace-stats"
+          filter:
+            scenario: [baseline, with-guardrail]
+            item_group: [fault]
+          transform:
+            detected: "(n_governance_fired > 0) * 1"
+          mapping: { x: item, y: scenario, fill: detected }
+          geom: tile
+          labels:
+            title: "What-if fork smoke: governance-only divergence"
+            subtitle: "Shared LLM cache, same fault item class; policy fire is the only fork signal"
+            x: "Item"
+            y: "Scenario"
+          output: "{output_dir}/results/fig-fork.png"
+          width: 6.0
+          height: 2.8
+          palette: ["#d9d9d9", "#1a9850"]
+          factor_levels:
+            scenario: [baseline, with-guardrail]
+            detected: ["Not detected", "Detected"]
+          rename_values:
+            detected:
+              0: "Not detected"
+              1: "Detected"
+
+      - name: figure-trajectory-paper
+        type: lib.steps.figure_trajectory_paper:FigureTrajectoryPaperStep
+        depends_on: [extract-trace-stats]
+        config:
+          trace_baseline: "{output_dir}/baseline/itemf-guardrail/r1/traces/events.jsonl"
+          trace_guardrail: "{output_dir}/with-guardrail/itemf-guardrail/r1/traces/events.jsonl"
+          output: "{output_dir}/results/fig_trajectory_schematic.svg"
+
+      - name: figure-trajectory-automaton
+        type: lib.steps.figure_trajectory_automaton:FigureTrajectoryAutomatonStep
+        depends_on: [extract-trace-stats]
+        config:
+          trace_baseline: "{output_dir}/baseline/itemf-guardrail/r1/traces/events.jsonl"
+          trace_guardrail: "{output_dir}/with-guardrail/itemf-guardrail/r1/traces/events.jsonl"
+          output: "{output_dir}/results/fig_trajectory.svg"
+
+      - name: figure-trajectory-swimlane
+        type: lib.steps.figure_trajectory_swimlane:FigureTrajectorySwimlaneStep
+        depends_on: [extract-trace-stats]
+        config:
+          trace_baseline: "{output_dir}/baseline/itemf-guardrail/r1/traces/events.jsonl"
+          trace_guardrail: "{output_dir}/with-guardrail/itemf-guardrail/r1/traces/events.jsonl"
+          output: "{output_dir}/results/fig_trajectory_swimlane.svg"
+
+      - name: figure-trajectory-compact
+        type: lib.steps.figure_trajectory_compact:FigureTrajectoryCompactStep
+        depends_on: [extract-trace-stats]
+        config:
+          trace_baseline: "{output_dir}/baseline/itemf-guardrail/r1/traces/events.jsonl"
+          trace_guardrail: "{output_dir}/with-guardrail/itemf-guardrail/r1/traces/events.jsonl"
+          output: "{output_dir}/results/fig_trajectory_compact.svg"

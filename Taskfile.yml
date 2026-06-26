@@ -1,0 +1,383 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+version: "3"
+
+vars:
+  DOCKER_DIR: docker
+  VENV: "{{.ROOT_DIR}}/.venv/bin"
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+
+  install:
+    desc: "Install core MAS packages into this repo's .venv (editable mode). Run from repo root."
+    summary: |
+      Installs runtime, ctl, library-standard and mas-lab (pulls mas-lab-controller,
+      mas-lab-bench, mas-lab-core as transitive editable deps).
+      Uses .envrc UV_PROJECT_ENVIRONMENT (this repo's .venv). Re-run after pulling
+      new dependencies. For all libraries + extras use: task install-all
+    cmds:
+      - test -d .venv || uv venv .venv
+      - uv pip install -e runtime -e ctl -e library-standard -e library-eval -e lab/components/core -e lab/components/bench -e lab/components/controller -e lab
+      - .venv/bin/python -c "import mas.lab.controller; print('mas-lab-controller OK')"
+
+  install-dev:
+    desc: "Editable runtime+ctl+lab install with dev test dependencies."
+    summary: |
+      One-time after clone (or when pyproject.toml changes). Same as install plus
+      library-samples (app/dataset registry), pyarrow, and pytest tooling.
+    cmds:
+      - task: install
+      - uv pip install -e library-samples
+      - uv pip install pytest pytest-asyncio pytest-cov pytest-timeout import-linter pyyaml click python-dotenv jsonschema httpx certifi truststore pyarrow
+
+  verify-unit:
+    desc: "Unit tests — repo gates + v2 lab/bench/core packages"
+    deps: [install-dev]
+    cmds:
+      - "{{.VENV}}/import-linter lint --config lab/.importlinter"
+      - |
+        {{.VENV}}/pytest \
+          tests/test_tutorial_manifests_strict.py \
+          tests/test_tutorial_manifests_resolve_refs.py \
+          tests/test_lab_manifests_strict.py \
+          tests/test_workspace_imports.py \
+          runtime/tests/test_flavour_separation.py \
+          runtime/tests/test_flavour_manifest_load_rejects_infra_refs.py \
+          runtime/tests/test_manifest_composition.py \
+          runtime/tests/test_overlay_merge.py \
+          runtime/tests/test_library_catalog.py \
+          runtime/tests/test_mealy_envelope.py \
+          runtime/tests/test_infra_pipeline_bidirectional.py \
+          lab/components/core/tests/ \
+          lab/components/bench/tests/ \
+          lab/components/controller/tests/test_sessions.py \
+          lab/components/controller/tests/test_client.py \
+          lab/components/controller/tests/test_runtime_runners_api.py \
+          lab/components/controller/tests/test_api_calls_contract.py \
+          ctl/tests/test_infra_entries.py \
+          library-standard/tests/ \
+          -q --tb=line
+
+  verify-tutorials:
+    desc: "Tutorial integration tests (subprocess CLI; no mas-lab-tutorial package required)"
+    deps: [install-dev]
+    cmds:
+      - "{{.VENV}}/pytest tests/tutorials/ -q --tb=line"
+
+  verify-lab-smoke:
+    desc: "Per-lab mock run + post-pipeline + envelope parity + cache invalidation"
+    deps: [install-dev]
+    cmds:
+      - "{{.VENV}}/pytest tests/test_lab_smoke_benchmark.py tests/test_envelope_prompt_parity.py tests/test_lab_cache_invalidation.py -q --tb=line"
+
+  verify-golden-runs:
+    desc: "Golden events.jsonl fingerprint parity for all labs in labs.yaml manifest"
+    deps: [install-dev]
+    cmds:
+      - "{{.VENV}}/pytest tests/test_golden_run_events.py tests/test_golden_labs_run.py tests/test_lab_golden_manifest.py lab/components/bench/tests/test_golden_labs.py -q --tb=line"
+
+  verify-paper-labs:
+    desc: "Dry-run paper lab experiments (design-space, lifecycle-control, extensions)"
+    deps: [install-dev]
+    cmds:
+      - "{{.VENV}}/pytest tests/test_outshift_reproduction.py -q --tb=line -k 'test_experiment_dry_run and labs/'"
+
+  reproduce:
+    desc: "Reproduce all paper experiments. Uses content-addressed trace cache — re-runs complete in seconds."
+    cmds:
+      - mas-lab benchmark run labs/design-space.lab/01-design-patterns/experiment.yaml --no-progress
+      - mas-lab benchmark run labs/design-space.lab/02-topologies/experiment.yaml --no-progress
+      - mas-lab benchmark run labs/lifecycle-control.lab/experiment.yaml --no-progress
+      - mas-lab benchmark run labs/extensions.lab/experiment.yaml --no-progress
+
+  validate:
+    desc: "Dry-run paper + tutorial experiments (see tests/fixtures/reproduction/experiments.yaml)"
+    deps: [install-dev]
+    cmds:
+      - "{{.VENV}}/pytest tests/test_outshift_reproduction.py -q --tb=line -k test_experiment_dry_run"
+
+  verify-functional:
+    desc: "Functional / integration tests (lab smoke + golden runs + tutorial CLI tests)"
+    deps: [install-dev]
+    cmds:
+      - task: verify-lab-smoke
+      - task: verify-golden-runs
+      - task: verify-tutorials
+
+  ci:
+    desc: "CI parity — same gates as .github/workflows/test.yml (unit + functional + dry-run)"
+    deps: [install-dev]
+    cmds:
+      - task: verify-unit
+      - task: verify-functional
+      - task: validate
+
+  verify-hitl-gate:
+    desc: "Scripted HITL on tool — hitl_gate in events.jsonl (ctl + CLI paths)"
+    deps: [install-dev]
+    cmds:
+      - "{{.VENV}}/pytest tests/test_hitl_tool_gate.py -q --tb=short"
+
+  verify-reproduce:
+    desc: "Outshift-open reproduction gate — docs check, all lab dry-runs, HITL gate"
+    deps: [install-dev]
+    cmds:
+      - python3 scripts/gen_docs.py --check
+      - "{{.VENV}}/pytest tests/test_outshift_reproduction.py tests/test_hitl_tool_gate.py -q --tb=line"
+
+  verify-ctl-env:
+    desc: "mas-ctl resolves from this repo .venv"
+    cmds:
+      - |
+        expected="{{.VENV}}/mas-ctl"
+        actual="$(command -v mas-ctl 2>/dev/null || true)"
+        if [ ! -x "$expected" ]; then
+          echo "Missing $expected — run: task install-dev" >&2
+          exit 1
+        fi
+        if [ -n "$actual" ] && [ "$actual" != "$expected" ]; then
+          echo "mas-ctl is $actual" >&2
+          echo "Expected $expected (activate .venv or run direnv allow)" >&2
+          exit 1
+        fi
+        echo "OK: mas-ctl -> $expected"
+
+  verify-chat-smoke:
+    desc: "Tutorial agent chat smoke test (mock LLM + HITL overlay, no network)"
+    deps: [install-dev]
+    cmds:
+      - |
+        cd docs/tutorials/01-building-an-agent
+        {{.VENV}}/mas-ctl chat agent.yaml -q "Who is POTUS" \
+          -o overlays/mock-llm.yaml \
+          -o overlays/tools.yaml \
+          -o overlays/governance-hitl.yaml
+
+  verify:
+    desc: "Full pre-commit gate — versions, unit + functional tests, chat smoke"
+    deps: [install-dev]
+    cmds:
+      - python3 scripts/version_manager.py check
+      - task: verify-ctl-env
+      - task: verify-unit
+      - task: verify-functional
+      - task: verify-chat-smoke
+      - task: verify-hitl-gate
+
+  test:
+    desc: "Run full verify suite (verbose tutorials)"
+    deps: [install-dev]
+    cmds:
+      - task: verify-unit
+      - "{{.VENV}}/pytest tests/tutorials/ tests/test_lab_smoke_benchmark.py -v"
+
+  install-all:
+    desc: "Install ALL MAS packages including optional extras (non-minimal). Run from repo root."
+    summary: |
+      Full install: runtime, ctl, library-standard, lab,
+      library-eval, library-lab, library-samples.
+      This is not a minimal setup — see docs/packages-reference.md for details.
+    cmds:
+      - uv pip install -e runtime -e ctl -e library-standard -e lab -e library-eval -e library-lab -e library-samples
+
+  docs-gen:
+    desc: "Regenerate docs/packages-reference.md and docs/plugins-reference.md from manifests."
+    summary: |
+      Reads pyproject.toml files and library.yaml manifests to regenerate two
+      reference pages under docs/.  Run after adding, removing, or renaming
+      any package or plugin.  The generated files are checked-in — commit them
+      together with your manifest changes (required for every PR that touches
+      packages or plugins).
+      Use `python3 scripts/gen_docs.py --check` (or task verify-reproduce) in CI.
+    cmds:
+      - python3 scripts/gen_docs.py --root . --output-dir docs
+      - echo "docs/packages-reference.md and docs/plugins-reference.md updated."
+
+  docs-serve:
+    desc: "Serve MkDocs site locally (GitHub Pages source)."
+    cmds:
+      - uv pip install -r requirements-docs.txt --python {{.VENV}}/python
+      - "{{.VENV}}/mkdocs serve"
+
+  docs-build:
+    desc: "Build MkDocs site to site/ (same as Pages CI)."
+    cmds:
+      - uv pip install -r requirements-docs.txt --python {{.VENV}}/python
+      - "{{.VENV}}/mkdocs build"
+
+  docker-rebuild:
+    desc: "Remove local mas-lab images and rebuild Docker stack from scratch."
+    dir: "{{.DOCKER_DIR}}"
+    cmds:
+      - docker compose down --rmi local 2>/dev/null || true
+      - docker rmi mas-lab-backend:local mas-lab-ui:local 2>/dev/null || true
+      - docker compose build --no-cache backend
+      - docker compose build --no-cache ui
+
+  version:
+    desc: Get current lab version
+    cmds:
+      - python3 scripts/version_manager.py get lab
+
+  version-all:
+    desc: Get all package versions
+    cmds:
+      - python3 scripts/version_manager.py get all
+
+  version-check:
+    desc: Verify all package versions match VERSION
+    cmds:
+      - python3 scripts/version_manager.py check
+
+  version-set:
+    desc: "Set version for all packages (usage: task version-set -- 0.1.0)"
+    cmds:
+      - python3 scripts/version_manager.py set {{.CLI_ARGS}} all
+
+  version-bump-patch:
+    desc: Bump patch version for all packages
+    cmds:
+      - python3 scripts/version_manager.py bump patch all
+
+  version-bump-minor:
+    desc: Bump minor version for all packages
+    cmds:
+      - python3 scripts/version_manager.py bump minor all
+
+  version-bump-major:
+    desc: Bump major version for all packages
+    cmds:
+      - python3 scripts/version_manager.py bump major all
+
+  release-prepare:
+    desc: Verify release readiness before tagging
+    cmds:
+      - python3 scripts/version_manager.py check
+      - git status --short
+
+  release-tag:
+    desc: Create annotated release tag from VERSION
+    cmds:
+      - |
+        VERSION=$(python3 scripts/version_manager.py get lab)
+        git tag -a "v${VERSION}" -m "Release v${VERSION}"
+        echo "Created tag v${VERSION}"
+
+  release-publish:
+    desc: Push main and release tags
+    cmds:
+      - git push origin main
+      - git push origin --tags
+
+  release-minor:
+    desc: Bump minor version, commit VERSION sync, create and push release tag (triggers image build)
+    cmds:
+      - python3 scripts/version_manager.py check
+      - python3 scripts/version_manager.py bump minor all
+      - |
+        VERSION=$(python3 scripts/version_manager.py get lab)
+        git add VERSION
+        git add */pyproject.toml lab/components/*/pyproject.toml
+        if git diff --cached --quiet; then
+          echo "No version files changed"
+          exit 1
+        fi
+        git commit -m "chore: release v${VERSION}"
+        git tag -a "v${VERSION}" -m "Release v${VERSION}"
+        echo "Created v${VERSION} — run: git push origin main && git push origin v${VERSION}"
+
+  start:
+    desc: "Start MAS Lab UI + backend via Docker Compose (detached)."
+    summary: |
+      Builds images if needed, then runs UI (8080) and backend (8090) in the background.
+      OPENAI_API_KEY must be in docker/.env (containers do not see shell exports).
+      On first run, copies your shell OPENAI_API_KEY into docker/.env when the file has none.
+    dir: "{{.DOCKER_DIR}}"
+    cmds:
+      - task: ensure-docker-env
+      - docker compose up --build -d
+      - task: verify-env
+      - echo "UI  http://localhost:8080"
+      - echo "API http://localhost:8090/api/health"
+
+  restart:
+    desc: "Rebuild (if needed) and recreate UI + backend — reload docker/.env and code."
+    summary: |
+      Use after editing docker/.env or pulling code changes. Rebuilds images when
+      sources changed, then force-recreates both services. Verify with: task verify-env
+    dir: "{{.DOCKER_DIR}}"
+    cmds:
+      - task: ensure-docker-env
+      - docker compose up --build -d --force-recreate
+      - task: verify-env
+      - docker compose ps
+
+  ensure-docker-env:
+    desc: "Ensure docker/.env exists and contains OPENAI_API_KEY for containers."
+    internal: true
+    dir: "{{.DOCKER_DIR}}"
+    cmds:
+      - test -f .env || cp .env.example .env
+      - |
+        if grep -qE '^OPENAI_API_KEY=.+$' .env 2>/dev/null; then
+          exit 0
+        fi
+        if [ -n "${OPENAI_API_KEY:-}" ]; then
+          if grep -q '^OPENAI_API_KEY=' .env 2>/dev/null; then
+            sed -i.bak "s|^OPENAI_API_KEY=.*|OPENAI_API_KEY=${OPENAI_API_KEY}|" .env && rm -f .env.bak
+          else
+            printf '\nOPENAI_API_KEY=%s\n' "${OPENAI_API_KEY}" >> .env
+          fi
+          echo "Wrote OPENAI_API_KEY to docker/.env (containers do not read shell exports)."
+          exit 0
+        fi
+        echo "OPENAI_API_KEY is not set in docker/.env and not exported in your shell."
+        echo "Add it to docker/.env, then run: task restart"
+        exit 1
+
+  restart-backend:
+    desc: "Recreate backend only (reload docker/.env; no UI restart)."
+    dir: "{{.DOCKER_DIR}}"
+    cmds:
+      - docker compose up -d --force-recreate backend
+      - task: verify-env
+
+  verify-env:
+    desc: "Check OPENAI_API_KEY inside the running backend container."
+    summary: |
+      Reads the container environment directly (use single quotes — do not echo $VAR
+      from your shell into docker exec, that only prints your host value).
+    dir: "{{.DOCKER_DIR}}"
+    cmds:
+      - |
+        docker exec mas-lab-backend-1 sh -c 'if [ -n "${OPENAI_API_KEY:-}" ]; then echo "OPENAI_API_KEY set in container (len=${#OPENAI_API_KEY})"; else echo "OPENAI_API_KEY empty — set it in docker/.env (not shell export) then: task restart"; exit 1; fi'
+
+  license:
+    desc: "Add SPDX Apache-2.0 headers to source files (dry-run by default)"
+    summary: |
+      Scans human-authored source under the repo and prints files that would change.
+      Canonical header:
+        Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+        SPDX-License-Identifier: Apache-2.0
+      Use task license:write to apply, task license:check for CI.
+    cmds:
+      - "{{.VENV}}/python scripts/apply_license_headers.py {{.CLI_ARGS}}"
+
+  license:write:
+    desc: "Apply SPDX license headers to all scanned source files"
+    cmds:
+      - "{{.VENV}}/python scripts/apply_license_headers.py --write {{.CLI_ARGS}}"
+
+  license:check:
+    desc: "Fail if any scanned file is missing or has a non-canonical license header"
+    cmds:
+      - "{{.VENV}}/python scripts/apply_license_headers.py --check {{.CLI_ARGS}}"
+
+  license:audit:
+    desc: "Report missing, incompatible, or duplicate SPDX headers"
+    cmds:
+      - "{{.VENV}}/python scripts/apply_license_headers.py --audit {{.CLI_ARGS}}"

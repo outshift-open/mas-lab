@@ -1,0 +1,1588 @@
+<!--
+  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+  SPDX-License-Identifier: Apache-2.0
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{title}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',ui-sans-serif,sans-serif;background:#0f172a;color:#e2e8f0;padding:1.25rem}
+#toolbar{display:flex;align-items:center;gap:.6rem;margin-bottom:.75rem;flex-wrap:wrap}
+#toolbar button{background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:5px;
+  padding:.3rem .7rem;font-size:.78rem;cursor:pointer;transition:background .15s}
+#toolbar button:hover{background:#334155;color:#f1f5f9}
+#toolbar select{background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:5px;
+  padding:.28rem .5rem;font-size:.78rem;cursor:pointer}
+#chart-wrap{overflow-x:auto;border-radius:8px;border:1px solid #1e293b;background:#0f172a;
+  cursor:default;user-select:none}
+#tooltip{position:fixed;display:none;max-width:480px;max-height:360px;overflow-y:auto;
+  background:#1e293b;color:#f1f5f9;border:1px solid #334155;border-radius:6px;
+  padding:.65rem 1rem;font-size:.78rem;line-height:1.55;
+  box-shadow:0 8px 24px rgba(0,0,0,.6);z-index:9999;pointer-events:none;white-space:pre-wrap}
+#pinned-panel{display:none;position:fixed;top:60px;right:20px;width:680px;
+  background:#1e293b;color:#f1f5f9;border:1px solid #475569;border-radius:8px;
+  box-shadow:0 16px 48px rgba(0,0,0,.85);z-index:10000;font-size:.78rem;line-height:1.55;
+  resize:both;min-width:420px;min-height:120px;overflow:hidden}
+#pp-header{display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;
+  background:#0f172a;border-bottom:1px solid #334155;border-radius:8px 8px 0 0;
+  cursor:move;user-select:none}
+#pp-title{flex:1;font-weight:600;font-size:.82rem;color:#7dd3fc;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  display:flex;align-items:center;gap:.5rem}
+#pp-close{background:none;border:1px solid #475569;color:#94a3b8;border-radius:4px;
+  font-size:.9rem;cursor:pointer;padding:.1rem .4rem;line-height:1.4}
+#pp-close:hover{background:#334155;color:#f1f5f9}
+#pp-body{padding:.65rem 1rem;overflow-y:auto;height:calc(100% - 48px);max-height:70vh;white-space:pre-wrap}
+#ann-panel{display:none;position:fixed;top:60px;left:20px;width:360px;
+  background:#1a0a0a;color:#f1f5f9;border:1px solid #ef4444;border-radius:8px;
+  box-shadow:0 16px 48px rgba(0,0,0,.85);z-index:10001;font-size:.78rem;line-height:1.55;
+  max-height:80vh;overflow:hidden}
+#ann-header{display:flex;align-items:center;gap:.5rem;padding:.45rem .75rem;
+  background:#2d0a0a;border-bottom:1px solid #7f1d1d;border-radius:8px 8px 0 0;
+  user-select:none}
+#ann-title{flex:1;font-weight:700;font-size:.82rem;color:#fca5a5}
+#ann-close{background:none;border:1px solid #7f1d1d;color:#f87171;border-radius:4px;
+  font-size:.9rem;cursor:pointer;padding:.1rem .4rem;line-height:1.4}
+#ann-close:hover{background:#7f1d1d}
+#ann-body{padding:.6rem .85rem;overflow-y:auto;max-height:calc(80vh - 48px)}
+#tt-title{font-weight:600;font-size:.82rem;color:#7dd3fc;margin-bottom:.3rem;display:flex;align-items:center;gap:.5rem}
+#tt-sep{border:none;border-top:1px solid #334155;margin:.35rem 0}
+.lpk-cell{display:inline-block;height:22px;cursor:default;box-sizing:border-box}
+.lpk-cell:hover{filter:brightness(1.4)}
+
+/* ── CPR rich card styles ──────────────────────────────────────────────── */
+.cpr-card{font-size:.78rem;line-height:1.55;color:#f1f5f9}
+.cpr-header{display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem}
+.cpr-header .cpr-title{font-weight:700;font-size:.85rem;color:#7dd3fc;flex:1}
+.cpr-header .cpr-badge{font-size:.68rem;font-weight:700;padding:.1rem .42rem;border-radius:3px;
+  letter-spacing:.05em;color:#fff;font-family:ui-monospace,monospace;flex-shrink:0}
+.cpr-summary{color:#94a3b8;font-size:.72rem;margin-bottom:.6rem}
+/* Moodbar */
+.moodbar-sticky{position:sticky;top:0;z-index:5;background:#0f172a;padding-bottom:.4rem}
+.moodbar{display:flex;height:16px;border-radius:4px;overflow:hidden;margin-bottom:.75rem;
+  border:1px solid #334155;position:relative}
+.moodbar .mood-seg{min-width:2px;position:relative;transition:filter .15s;cursor:pointer}
+.moodbar .mood-seg:hover{filter:brightness(1.4)}
+.moodbar .mood-seg.mood-active{filter:brightness(1.6);outline:2px solid #7dd3fc;outline-offset:-1px;z-index:2}
+.moodbar-labels{display:flex;justify-content:space-between;font-size:.65rem;color:#64748b;margin-top:2px;margin-bottom:.6rem}
+/* Moodbar tooltip */
+.mood-tip{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  background:#0f172a;color:#e2e8f0;border:1px solid #475569;border-radius:4px;
+  padding:2px 8px;font-size:.68rem;white-space:nowrap;z-index:10;pointer-events:none;display:none}
+.mood-seg:hover .mood-tip{display:block}
+/* Facet highlight */
+.facet-item.facet-active{background:rgba(125,211,252,.08);border-left-color:#7dd3fc!important}
+/* Card layout with pie chart */
+.cpr-body{display:flex;gap:1rem;align-items:flex-start}
+.cpr-facets{flex:1;min-width:0}
+.cpr-right{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:.4rem;min-width:140px}
+.cpr-pie-label{font-size:.65rem;color:#64748b;text-align:center}
+.cpr-pie-value{font-size:.85rem;font-weight:700;color:#e2e8f0}
+/* Pie/donut chart */
+.cpr-pie{position:relative;width:120px;height:120px}
+.cpr-pie svg{width:100%;height:100%}
+.cpr-pie-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  text-align:center;pointer-events:none}
+.cpr-pie-center .pct{font-size:1.1rem;font-weight:700;color:#e2e8f0;line-height:1.2}
+.cpr-pie-center .pct-label{font-size:.6rem;color:#64748b}
+/* Pie legend */
+.pie-legend{display:flex;flex-wrap:wrap;gap:.3rem .7rem;margin-top:.3rem}
+.pie-legend-item{display:flex;align-items:center;gap:.25rem;font-size:.65rem;color:#94a3b8}
+.pie-legend-swatch{width:8px;height:8px;border-radius:2px}
+/* Facet list */
+.facet-list{display:flex;flex-direction:column;gap:0}
+.facet-item{border-left:3px solid var(--fc,#64748b);background:rgba(255,255,255,.02);
+  margin:0;transition:background .15s}
+.facet-item:hover{background:rgba(255,255,255,.05)}
+.facet-item+.facet-item{border-top:1px solid #1a2332}
+.facet-head{display:flex;align-items:center;gap:.4rem;padding:.35rem .6rem;cursor:pointer;user-select:none}
+.facet-head::-webkit-details-marker{display:none}
+.facet-head::marker{color:#475569;font-size:.7rem}
+.facet-cat{font-size:.6rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  padding:1px 6px;border-radius:3px;color:#fff;white-space:nowrap}
+.facet-src{font-weight:600;font-size:.75rem;color:#cbd5e1;font-family:ui-monospace,monospace;
+  flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.facet-tok{font-size:.65rem;color:#64748b;white-space:nowrap}
+.facet-prov{font-size:.68rem;color:#a5b4fc;font-family:ui-monospace,monospace;
+  padding:.3rem .6rem .1rem;line-height:1.5}
+.facet-content{margin:0;padding:.3rem .6rem .4rem}
+.facet-content pre{white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,monospace;
+  margin:0;max-height:200px;overflow-y:auto;font-size:.72rem;line-height:1.5;
+  padding:.35rem .5rem;background:rgba(0,0,0,.25);border-radius:4px;color:#cbd5e1}
+.facet-expand{color:#7dd3fc;font-size:.65rem;cursor:pointer;padding:0 .6rem .3rem;user-select:none}
+.facet-expand:hover{text-decoration:underline}
+/* Output section */
+.cpr-output{margin-top:.6rem;border-top:1px solid #334155;padding-top:.5rem}
+.cpr-output-label{font-size:.72rem;color:#64748b;font-weight:600;margin-bottom:.25rem}
+.cpr-output pre{white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,monospace;
+  margin:0;max-height:300px;overflow-y:auto;font-size:.72rem;line-height:1.5;
+  padding:.35rem .5rem;background:rgba(0,0,0,.2);border-radius:4px;color:#cbd5e1}
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <button id="btn-zoomin">＋ Zoom in</button>
+  <button id="btn-zoomout">－ Zoom out</button>
+  <button id="btn-reset">⟲ Reset</button>
+  <button id="btn-timeaxis" title="Toggle time axis">⏱ Time axis</button>
+  <label style="color:#64748b;font-size:.78rem">Width:
+    <select id="sel-mode">
+      <option value="fixed">Fixed</option>
+      <option value="proportional">Proportional</option>
+      <option value="log">Logarithmic</option>
+    </select>
+  </label>
+  <span style="color:#64748b;font-size:.78rem;margin-left:.6rem">Lanes:</span>
+  <div id="lane-track" style="position:relative;height:22px;border-radius:4px;border:1px solid #334155;display:inline-flex;overflow:visible;cursor:default"></div>
+  <span id="lpk-label" style="color:#7dd3fc;font-size:.78rem;min-width:100px;display:inline-block"></span>
+  <button id="btn-ann" style="display:none;color:#fca5a5;border-color:#7f1d1d">&#128204; <span id="ann-count">0</span> annotation(s)</button>
+</div>
+<div id="chart-wrap"><svg id="chart"></svg></div>
+<div id="tooltip"><div id="tt-title"></div><hr id="tt-sep"><div id="tt-body"></div></div>
+<div id="pinned-panel"><div id="pp-header"><div id="pp-title"></div><button id="pp-close">✕</button></div><div id="pp-body"></div></div>
+<div id="ann-panel"><div id="ann-header"><div id="ann-title">&#128204; Annotations</div><button id="ann-close">✕</button></div><div id="ann-body"></div></div>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script>
+let CHART = {chart_json};
+
+// ── Annotation helpers ──────────────────────────────────────────────────
+let _HL_AGENTS=new Set((CHART.highlightAgents||[]).map(s=>s.toLowerCase()));
+function _kwMatch(s){return(CHART.highlightKeywords||[]).some(k=>s&&s.toLowerCase().includes(k.toLowerCase()));}
+
+// ── Pin index — rebuilt on each masUpdateChart() call ────────────────────
+// ALL_PINS: [{num, laneId, ts, note, excerpt, hover}] in chart order (by ts)
+let ALL_PINS = [];
+function _buildAllPins() {
+  ALL_PINS.length = 0;
+  const seen = new Map(); // ts → pin (dedup across lanes, keep first)
+  CHART.lanes.forEach(lane=>{
+    lane.sequence.forEach(el=>{
+      if (el.type==='state' && el.gapMarker && !seen.has(el.ts)) {
+        seen.set(el.ts, {num:el.num, nodeId:el.nodeId, laneId:lane.laneId,
+          ts:el.ts, note:el.pinNote||'', excerpt:el.pinExcerpt||'', hover:el.hover||''});
+      }
+    });
+  });
+  seen.forEach(p=>ALL_PINS.push(p));
+  ALL_PINS.sort((a,b)=>a.ts-b.ts);
+  ALL_PINS.forEach((p,i)=>p.idx=i+1);
+}
+_buildAllPins();
+
+// ── Geometry constants ───────────────────────────────────────────────────
+const LW=108,PL=80,PR=80,TH=48,LGH=34,LH=68,LM=34,PB=20,TAH=24;
+const SW=34,SH=26,TRH=26,BR=10,AG=10,MIN_TRANS_W=80,MINCOL=150,TS_TOL=0.05,INSTANT_COL_W=130;
+const UA_OFFSET=60; // px from boundary-state centre to user box centre
+
+// ── Colours ──────────────────────────────────────────────────────────────
+const C={
+  bg:'#0f172a',sep:'#334155',lc:'#94a3b8',tc:'#f1f5f9',
+  laneBg:['#1e293b','#172032'],
+  stateF:'#ffffff',stateS:'#475569',stateT:'#1e293b',
+  badge:'#f87171',conn:'#475569',arrow:'#64748b',
+  user:'#eab308',   // yellow-500: user actor (distinct from LLM orange #ea580c)
+  accent:{session:'#0d3b4a',mas:'#155e75',agent:'#0e7490',call:'#64748b'},
+  swatches:[['session','#0d3b4a'],['mas','#155e75'],['agent','#0e7490'],
+            ['llm','#ea580c'],['tool','#16a34a'],['memory','#2563eb'],['rag','#7c3aed'],
+            ['processing','#64748b'],['user','#eab308']]
+};
+
+// ── Layout ───────────────────────────────────────────────────────────────
+// Build exact set of genuine instant-call column intervals.
+// Only ToolCall / MemoryCall / RAGQuery (isInstant=true, startTs≠endTs) generate
+// dedicated icon columns.  ProcessingCall overlays its own state bucket and is
+// excluded here because its startTs===endTs (sameTs=true in Phase 4).
+// Key: "${startTs}:${endTs}" with the raw float values from the data.
+let INSTANT_PAIRS = new Set();
+function _buildInstantPairs() {
+  INSTANT_PAIRS.clear();
+  CHART.lanes.forEach(lane => {
+    lane.sequence.forEach(el => {
+      if (el.type==='trans' && el.isInstant && el.callType!=='ProcessingCall')
+        INSTANT_PAIRS.add(`${el.startTs}:${el.endTs}`);
+    });
+  });
+}
+_buildInstantPairs();
+function isInstantCol(prev, b) { return INSTANT_PAIRS.has(`${prev}:${b}`); }
+
+function computeBaseXPos(buckets, mode) {
+  const n = buckets.length;
+  if (!n) return {};
+  if (n === 1) return {[buckets[0]]: LW+PL};
+  let raw;
+  if (mode==='proportional')
+    raw = buckets.slice(1).map((b,i)=>Math.max(1e-9, b-buckets[i]));
+  else if (mode==='log')
+    raw = buckets.slice(1).map((b,i)=>Math.pow(Math.log1p(Math.max(0,b-buckets[i])),0.5));
+  else
+    raw = new Array(n-1).fill(1);
+  // Classify intervals: only genuine instant-call columns get fixed narrow width.
+  const isInst = buckets.slice(1).map((b,i)=>isInstantCol(buckets[i],b));
+  const normalRaw = raw.filter((_,i)=>!isInst[i]);
+  const normalTot = normalRaw.reduce((a,b)=>a+b,0)||1;
+  const normalTotal = Math.max(1400, normalRaw.length*160);
+  const pos={[buckets[0]]:LW+PL};
+  let x=LW+PL;
+  raw.forEach((r,i)=>{
+    if (isInst[i]) { x+=INSTANT_COL_W; }
+    else           { x+=Math.max(MINCOL, r/normalTot*normalTotal); }
+    pos[buckets[i+1]]=x;
+  });
+  return pos;
+}
+
+function applyZoom(base, tx, k) {
+  // Instant columns are always exactly INSTANT_COL_W px wide, regardless of
+  // zoom — the icon must stay centred with equal arrows on both sides.
+  // Normal columns scale with k, subject to a minimum of SW+4 px.
+  const sorted = CHART.buckets;
+  const out={};
+  for (let i=0;i<sorted.length;i++) {
+    const b=sorted[i];
+    if (i===0) { out[b]=LW+(base[b]-LW)*k+tx; continue; }
+    const prev=sorted[i-1];
+    if (isInstantCol(prev,b)) {
+      out[b]=out[prev]+INSTANT_COL_W;  // fixed — never scales
+    } else {
+      const raw=LW+(base[b]-LW)*k+tx;
+      out[b]=Math.max(raw, out[prev]+SW+4);
+    }
+  }
+  return out;
+}
+
+// Compute the minimum zoom level below which any column would be too narrow.
+// Evaluated per-column so instant and normal columns use different thresholds:
+//   instant  → INSTANT_COL_W (enough to centre the icon with arrows on both sides)
+//   normal   → SW + 2*AG + 24 + 4 = 82 px (two half-boxes + arrows + 24 px bar)
+// The minimum zoom is the maximum ratio needed across all column types.
+function computeMinZoom(base) {
+  const sorted = CHART.buckets;
+  if (sorted.length < 2) return 0.05;
+  let maxRatio = 0;
+  for (let i=1; i<sorted.length; i++) {
+    const gap = base[sorted[i]] - base[sorted[i-1]];
+    const isInst = isInstantCol(sorted[i-1], sorted[i]);
+    const needed = isInst ? INSTANT_COL_W : SW + 2*AG + 24 + 4;
+    maxRatio = Math.max(maxRatio, needed / gap);
+  }
+  return Math.max(0.05, maxRatio);
+}
+
+function snap(ts, buckets) {
+  return buckets.reduce((b,c)=>Math.abs(c-ts)<Math.abs(b-ts)?c:b);
+}
+function cx(ts, xPos) {
+  const b=snap(+ts, CHART.buckets);
+  return xPos[b]??LW+PL;
+}
+
+// ── Tooltip ──────────────────────────────────────────────────────────────
+const tip=document.getElementById('tooltip');
+const ttT=document.getElementById('tt-title');
+const ttB=document.getElementById('tt-body');
+const TYPE_BADGE={
+  LLMCall:        {label:'LLM',    color:'#ea580c'},
+  ToolCall:       {label:'Tool',   color:'#16a34a'},
+  MemoryCall:     {label:'Mem',    color:'#2563eb'},
+  RAGQuery:       {label:'RAG',    color:'#7c3aed'},
+  ProcessingCall: {label:'Proc',   color:'#64748b'},
+  MITMCall:       {label:'MITM',   color:'#dc2626'},
+  ThinkingCall:   {label:'Think',  color:'#7c3aed'},
+  ThinkingEmit:   {label:'Emit',   color:'#4c1d95'},
+};
+function escH(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+// hlGap: escape text, then wrap the given excerpt (or legacy gapPhrases) in
+// red bold spans.  excerpt is a node-level string from the annotation YAML;
+// gapPhrases is the legacy global list (kept for backward compat).
+function hlGap(txt, excerpt) {
+  const raw = String(txt||'(empty)');
+  const phrases = excerpt ? [excerpt] : (CHART.gapPhrases || []);
+  if (!phrases.length) {
+    return '<pre style="margin:0;white-space:pre-wrap;font-size:.78rem;font-family:ui-monospace,monospace">'+escH(raw)+'</pre>';
+  }
+  const pats = phrases.map(p=>p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+  const re = new RegExp('('+pats.join('|')+')','gi');
+  const escaped = raw.split(re).map((part,i)=>
+    i%2===1
+      ? '<span style="color:#ef4444;font-weight:700">'+escH(part)+'</span>'
+      : escH(part)
+  ).join('');
+  return '<pre style="margin:0;white-space:pre-wrap;font-size:.78rem;font-family:ui-monospace,monospace">'+escaped+'</pre>';
+}
+// pinHeader: styled annotation note shown above the hover body.
+function pinHeader(note) {
+  if (!note) return '';
+  return '<div style="color:#ef4444;font-size:.74rem;font-weight:600;padding:.18rem 0 .35rem 0;border-bottom:1px solid #334155;margin-bottom:.38rem">&#9873; '+escH(note)+'</div>';
+}
+function showTip(e, label, content, callType, excerpt, pinNote, cprData) {
+  const tm=callType&&TYPE_BADGE[callType];
+  ttT.innerHTML=`<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(label)}</span>`
+    +(tm?`<span style="flex-shrink:0;background:${tm.color};color:#fff;font-size:.68rem;font-weight:700;padding:.1rem .42rem;border-radius:3px;letter-spacing:.05em;font-family:ui-monospace,monospace">${tm.label}</span>`:'');
+  if (cprData && cprData.length) {
+    ttB.innerHTML = pinHeader(pinNote) + renderCprTooltip(cprData);
+  } else {
+    ttB.innerHTML=pinHeader(pinNote)+hlGap(content, excerpt);
+  }
+  tip.style.display='block';
+  const m=16;
+  let l=e.clientX+m, t=e.clientY-30;
+  if (l+480>window.innerWidth)  l=e.clientX-480-m;
+  if (t+360>window.innerHeight) t=window.innerHeight-370;
+  tip.style.left=Math.max(4,l)+'px'; tip.style.top=Math.max(4,t)+'px';
+}
+function hideTip() { tip.style.display='none'; }
+
+// ── CPR rich card rendering ──────────────────────────────────────────────
+const CPR_CAT_COLORS = {
+  SYSTEM:'#3b82f6', SKILL:'#22c55e', MEMORY:'#a855f7',
+  TOOL:'#f97316', CONTEXT:'#64748b'
+};
+const CPR_CAT_LABELS = {
+  SYSTEM:'System Prompt', SKILL:'Skill', MEMORY:'Memory',
+  TOOL:'Tool Result', CONTEXT:'Context'
+};
+const MODEL_CTX_WINDOW = {
+  'gpt-4o':128000,'gpt-4o-mini':128000,'gpt-4-turbo':128000,'gpt-4':8192,
+  'gpt-4.1':1048576,'gpt-5':1048576,'gpt-5-mini':1048576,'gpt-5-nano':1048576,
+  'gpt-5-pro':1048576,'gpt-5.1':1048576,'gpt-5.2':1048576,'gpt-5.3':1048576,
+  'gpt-5.4':1048576,'gpt-5.4-pro':1048576,
+  'o3':200000,'o3-mini':200000,'o3-pro':200000,
+  'codex-mini':200000,
+  'gpt-3.5-turbo':16385,
+  'claude-3-opus':200000,'claude-3-sonnet':200000,
+  'claude-sonnet-4-5':200000,'claude-sonnet-4-6':200000,
+  'claude-opus-4-5':200000,'claude-opus-4-6':200000,'claude-opus-4-7':200000,
+  'claude-haiku-4-5':200000,
+  'gemini-2.5-pro':1048576,'gemini-2.5-flash':1048576,'gemini-2.5-flash-lite':1048576,
+  'gemini-2.0-flash':1048576,'gemini-3-pro':1048576,
+  'llama3-3-70b':128000,'llama4-maverick':128000,'llama4-scout':128000,
+  'deepseek-v3':128000,'deepseek-v4':128000,
+  'mistral-large':128000,'ministral':128000,
+  'nova-pro':300000,'nova-2-lite':300000,
+  'nemotron':128000,'kimi-k2':128000,
+};
+function getCtxWindow(model) {
+  if (!model) return 0;
+  const m = model.toLowerCase().replace(/^(azure|vertex_ai|bedrock)\//,'');
+  for (const [k,v] of Object.entries(MODEL_CTX_WINDOW)) {
+    if (m.includes(k)) return v;
+  }
+  return 0;
+}
+
+function renderMoodbar(parts, showLabels) {
+  const total = parts.reduce((s,p)=>s+(p.tokens||0),0) || 1;
+  let html = '<div class="moodbar">';
+  parts.forEach((p, i) => {
+    const pct = Math.max(0.5, (p.tokens||0)/total*100);
+    const col = CPR_CAT_COLORS[p.category]||'#64748b';
+    const lbl = `${p.category}: ${p.source} (${p.tokens} tok)`;
+    html += `<div class="mood-seg" data-idx="${i}" style="width:${pct}%;background:${col}" title="${escH(lbl)}">`;
+    html += `<div class="mood-tip">${escH(lbl)}</div></div>`;
+  });
+  html += '</div>';
+  if (showLabels) {
+    html += '<div class="moodbar-labels"><span>0 tok</span><span>' + total + ' tok</span></div>';
+  }
+  return html;
+}
+
+function renderPieChart(parts, model) {
+  const bycat = {};
+  let totalTok = 0;
+  parts.forEach(p => {
+    const c = p.category || 'CONTEXT';
+    bycat[c] = (bycat[c]||0) + (p.tokens||0);
+    totalTok += (p.tokens||0);
+  });
+  const ctxWin = getCtxWindow(model);
+  const usagePct = ctxWin > 0 ? Math.min(100, totalTok/ctxWin*100) : 0;
+
+  // SVG gauge (single arc showing context window usage)
+  const cx = 60, cy = 65;
+  const R = 48, strokeW = 12;
+  // Arc spans 240° (from 150° to 390° i.e. bottom-left to bottom-right)
+  const arcStart = 150 * Math.PI / 180;
+  const arcSpan  = 240 * Math.PI / 180;
+  const arcEnd   = arcStart + arcSpan;
+  // Background track
+  const bx1 = cx + R*Math.cos(arcStart), by1 = cy + R*Math.sin(arcStart);
+  const bx2 = cx + R*Math.cos(arcEnd),   by2 = cy + R*Math.sin(arcEnd);
+  let svg = `<path d="M${bx1},${by1} A${R},${R} 0 1 1 ${bx2},${by2}" fill="none" stroke="#1e293b" stroke-width="${strokeW}" stroke-linecap="round"/>`;
+  // Filled arc (usage)
+  if (usagePct > 0) {
+    const frac = Math.min(1, usagePct / 100);
+    const fillEnd = arcStart + frac * arcSpan;
+    const fx2 = cx + R*Math.cos(fillEnd), fy2 = cy + R*Math.sin(fillEnd);
+    const large = frac > 0.5 ? 1 : 0;
+    // Color: green < 50%, yellow < 80%, red >= 80%
+    const gaugeCol = usagePct >= 80 ? '#ef4444' : usagePct >= 50 ? '#eab308' : '#22d3ee';
+    svg += `<path d="M${bx1},${by1} A${R},${R} 0 ${large} 1 ${fx2},${fy2}" fill="none" stroke="${gaugeCol}" stroke-width="${strokeW}" stroke-linecap="round"/>`;
+  }
+
+  let html = `<div class="cpr-pie"><svg viewBox="0 0 120 120">${svg}</svg>`;
+  html += '<div class="cpr-pie-center">';
+  html += `<div class="pct">${totalTok} tok</div>`;
+  if (ctxWin > 0) {
+    html += `<div class="pct-label">${usagePct.toFixed(1)}% of ${(ctxWin/1000).toFixed(0)}k</div>`;
+  }
+  html += '</div></div>';
+
+  // Legend (category breakdown as compact badges — moodbar already shows distribution)
+  html += '<div class="pie-legend">';
+  const cats = Object.entries(bycat).sort((a,b)=>b[1]-a[1]);
+  cats.forEach(([cat, tok]) => {
+    const col = CPR_CAT_COLORS[cat]||'#64748b';
+    const pct = ((tok/(totalTok||1))*100).toFixed(0);
+    html += `<div class="pie-legend-item"><div class="pie-legend-swatch" style="background:${col}"></div>${CPR_CAT_LABELS[cat]||cat} ${pct}%</div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+function renderFacetList(parts) {
+  let html = '<div class="facet-list">';
+  parts.forEach((p, i) => {
+    const col = CPR_CAT_COLORS[p.category]||'#64748b';
+    const catLabel = CPR_CAT_LABELS[p.category]||p.category;
+    const retained = p.retained !== false;
+    const evCls = retained ? '' : ' style="opacity:.5"';
+    // ── L1: Badge row (always visible) ──
+    html += `<details class="facet-item" data-idx="${i}" style="--fc:${col}"${evCls}>`;
+    html += `<summary class="facet-head">`;
+    html += `<span class="facet-cat" style="background:${col}">${escH(catLabel)}</span>`;
+    html += `<span class="facet-src">${escH(p.source)}</span>`;
+    // Show retrieval|decision inline when available
+    const retr = p.retrieval || p.mechanism || '';
+    const dec = p.decision || '';
+    if (retr) html += `<span style="color:#a5b4fc;font-size:.6rem">${escH(retr)}</span>`;
+    if (dec) html += `<span style="color:#818cf8;font-size:.6rem">${escH(dec)}</span>`;
+    html += `<span class="facet-tok">${p.tokens||0} tok</span>`;
+    if (!retained) html += `<span style="color:#fca5a5;font-size:.62rem">evicted</span>`;
+    html += `</summary>`;
+    // ── L2: Provenance chain (first expand level) ──
+    html += '<div class="facet-prov">';
+    // New ontology fields first
+    if (p.retrieval) html += `<div style="color:#a5b4fc"><span style="color:#64748b">retrieval:</span> ${escH(p.retrieval)}</div>`;
+    if (p.decision) html += `<div style="color:#818cf8"><span style="color:#64748b">decision:</span> ${escH(p.decision)}</div>`;
+    // Chain (provenance operations)
+    if (p.chain && p.chain.length) {
+      html += `<div style="margin:.3rem 0 .2rem;color:#64748b;font-size:.62rem">provenance chain:</div>`;
+      p.chain.forEach((op, idx) => {
+        const arrow = idx > 0 ? '→ ' : '';
+        html += `<div style="color:#c4b5fd;padding-left:.5rem">${arrow}${escH(op.op||'')} <span style="color:#64748b">by</span> ${escH(op.agent||'?')}`;
+        if (op.params) html += ` <span style="color:#475569">${escH(JSON.stringify(op.params))}</span>`;
+        html += `</div>`;
+      });
+    }
+    // Legacy fields
+    if (p.sourceType) html += `<div style="color:#94a3b8"><span style="color:#64748b">source_type:</span> ${escH(p.sourceType)}</div>`;
+    if (p.sourceId) html += `<div style="color:#94a3b8"><span style="color:#64748b">source_id:</span> ${escH(p.sourceId)}</div>`;
+    if (p.mechanism) html += `<div style="color:#94a3b8"><span style="color:#64748b">mechanism:</span> ${escH(p.mechanism)}</div>`;
+    if (p.cause) html += `<div style="color:#94a3b8"><span style="color:#64748b">cause:</span> ${escH(p.cause)} <span style="color:#475569">(${escH(p.causeType||'?')})</span></div>`;
+    if (p.trigger) html += `<div style="color:#94a3b8"><span style="color:#64748b">trigger:</span> ${escH(p.trigger)}</div>`;
+    if (p.actor) html += `<div style="color:#94a3b8"><span style="color:#64748b">actor:</span> ${escH(p.actor)}</div>`;
+    if (p.via) html += `<div style="color:#94a3b8"><span style="color:#64748b">via:</span> ${escH(p.via)}</div>`;
+    html += '</div>';
+    // ── L3: Enrichments (second expand level) ──
+    const hasEnrichments = p.enrichments || p.metadata || p.annotations;
+    if (hasEnrichments) {
+      html += '<details style="margin:0 .6rem .3rem"><summary style="color:#64748b;font-size:.62rem;cursor:pointer">enrichments</summary>';
+      html += '<div style="padding:.2rem 0 .3rem;font-family:ui-monospace,monospace;font-size:.68rem;line-height:1.5">';
+      // Enrichments (new ontology — prefixed keys)
+      if (p.enrichments) {
+        Object.entries(p.enrichments).forEach(([k, v]) => {
+          html += `<div style="color:#7dd3fc"><span style="color:#64748b">${escH(k)}:</span> ${escH(String(v))}</div>`;
+        });
+      }
+      // Metadata (facet_source path, memory info)
+      if (p.metadata) {
+        const m = p.metadata;
+        if (m.facet_source) html += `<div style="color:#7dd3fc"><span style="color:#64748b">file:</span> ${escH(m.facet_source)}</div>`;
+        if (m.memory_type) html += `<div style="color:#c084fc"><span style="color:#64748b">memory_type:</span> ${escH(m.memory_type)}</div>`;
+        if (m.items_count != null) html += `<div style="color:#c084fc"><span style="color:#64748b">items:</span> ${m.items_retained != null ? m.items_retained+'/'+m.items_count+' retained' : m.items_count}</div>`;
+        if (m.avg_score != null) html += `<div style="color:#c084fc"><span style="color:#64748b">avg_score:</span> ${m.avg_score}</div>`;
+      }
+      // Annotations
+      if (p.annotations) {
+        const a = p.annotations;
+        if (a.search_query) html += `<div style="color:#f0abfc"><span style="color:#64748b">search_query:</span> "${escH(a.search_query)}"</div>`;
+        if (a.items_count != null) html += `<div style="color:#f0abfc"><span style="color:#64748b">results:</span> ${a.items_count}</div>`;
+        if (a.top_score != null) html += `<div style="color:#f0abfc"><span style="color:#64748b">top_score:</span> ${a.top_score.toFixed(3)}</div>`;
+      }
+      html += '</div></details>';
+    }
+    // Content
+    const content = p.content || '';
+    if (content) {
+      html += `<div class="facet-content"><pre>${escH(content)}</pre></div>`;
+    } else {
+      html += `<div class="facet-content"><pre style="color:#64748b;font-style:italic">(no content captured)</pre></div>`;
+    }
+    html += '</details>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function renderCprCard(parts, model, hoverOut, timeLine) {
+  const totalTok = parts.reduce((s,p)=>s+(p.tokens||0), 0);
+  const nParts = parts.length;
+  const byCat = {};
+  parts.forEach(p => { byCat[p.category] = (byCat[p.category]||0)+1; });
+  const catSummary = Object.entries(byCat).map(([c,n])=>`${CPR_CAT_LABELS[c]||c} ×${n}`).join(', ');
+
+  let html = '<div class="cpr-card">';
+  // Time + summary
+  if (timeLine) html += `<div style="color:#94a3b8;font-size:.72rem;margin-bottom:.4rem">${escH(timeLine)}</div>`;
+  html += `<div class="cpr-summary">${nParts} parts · ${totalTok} tokens · ${catSummary}`;
+  if (model) html += ` · model: ${escH(model)}`;
+  html += '</div>';
+  // Moodbar (sticky wrapper so it stays visible while scrolling facets)
+  html += '<div class="moodbar-sticky">' + renderMoodbar(parts, true) + '</div>';
+  // Body: facets + pie
+  html += '<div class="cpr-body">';
+  html += '<div class="cpr-facets">' + renderFacetList(parts) + '</div>';
+  html += '<div class="cpr-right">' + renderPieChart(parts, model) + '</div>';
+  html += '</div>';
+  // Output
+  if (hoverOut) {
+    html += '<div class="cpr-output"><div class="cpr-output-label">→ LLM Output</div>';
+    html += `<pre>${escH(hoverOut)}</pre></div>`;
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderCprTooltip(parts) {
+  const totalTok = parts.reduce((s,p)=>s+(p.tokens||0), 0);
+  const byCat = {};
+  parts.forEach(p => { byCat[p.category] = (byCat[p.category]||0)+1; });
+  const catSummary = Object.entries(byCat).map(([c,n])=>`${c} ×${n}`).join(', ');
+  let html = renderMoodbar(parts, false);
+  html += `<div style="color:#94a3b8;font-size:.72rem;margin-top:.2rem">${parts.length} parts · ${totalTok} tok · ${catSummary}</div>`;
+  html += `<div style="color:#475569;font-size:.65rem;margin-top:.15rem">Click to inspect prompt</div>`;
+  return html;
+}
+
+// ── Pinned panel ──────────────────────────────────────────────────────────
+const panel=document.getElementById('pinned-panel');
+const ppTitle=document.getElementById('pp-title');
+const ppBody=document.getElementById('pp-body');
+document.getElementById('pp-close').addEventListener('click',()=>panel.style.display='none');
+document.addEventListener('click',e=>{if(panel.style.display!=='none'&&!panel.contains(e.target))panel.style.display='none';});
+let _pdragging=false,_pdx=0,_pdy=0;
+document.getElementById('pp-header').addEventListener('mousedown',e=>{
+  if(e.target.id==='pp-close') return;
+  _pdragging=true;_pdx=e.clientX-panel.getBoundingClientRect().left;_pdy=e.clientY-panel.getBoundingClientRect().top;
+  e.preventDefault();
+});
+document.addEventListener('mousemove',e=>{if(!_pdragging)return;panel.style.right='auto';panel.style.left=(e.clientX-_pdx)+'px';panel.style.top=(e.clientY-_pdy)+'px';});
+document.addEventListener('mouseup',()=>{_pdragging=false;});
+function pinTip(e,label,content,callType,excerpt,pinNote,cprData,model,hoverOut){
+  const tm=callType&&TYPE_BADGE[callType];
+  ppTitle.innerHTML=`<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(label)}</span>`
+    +(tm?`<span style="flex-shrink:0;background:${tm.color};color:#fff;font-size:.68rem;font-weight:700;padding:.1rem .42rem;border-radius:3px;letter-spacing:.05em;font-family:ui-monospace,monospace">${tm.label}</span>`:'');
+  if (cprData && cprData.length) {
+    // Extract timeLine from content (first line) — only for transitions (callType set)
+    const timeLine = (callType && content) ? content.split('\n')[0] : '';
+    ppBody.innerHTML = pinHeader(pinNote) + renderCprCard(cprData, model||'', hoverOut||'', timeLine);
+  } else {
+    ppBody.innerHTML=pinHeader(pinNote)+hlGap(content,excerpt);
+  }
+  panel.style.display='block';
+  panel.style.right='auto';
+  const pw=panel.offsetWidth||560, ph2=panel.offsetHeight||300;
+  const m=16;
+  let l=e.clientX+m, t=e.clientY+m;
+  if (l+pw>window.innerWidth)  l=e.clientX-pw-m;
+  if (t+ph2>window.innerHeight) t=e.clientY-ph2-m;
+  panel.style.left=Math.max(4,l)+'px';
+  panel.style.top=Math.max(4,t)+'px';
+  // Wire moodbar↔facet bidirectional selection
+  _wireCprInteraction(panel);
+}
+
+function _wireCprInteraction(container) {
+  const segs = container.querySelectorAll('.mood-seg[data-idx]');
+  const facets = container.querySelectorAll('.facet-item[data-idx]');
+  function clearActive() {
+    segs.forEach(s => s.classList.remove('mood-active'));
+    facets.forEach(f => f.classList.remove('facet-active'));
+  }
+  // Click moodbar segment → highlight & scroll to facet
+  segs.forEach(seg => {
+    seg.addEventListener('click', e => {
+      e.stopPropagation();
+      const idx = seg.dataset.idx;
+      clearActive();
+      seg.classList.add('mood-active');
+      const target = container.querySelector(`.facet-item[data-idx="${idx}"]`);
+      if (target) {
+        target.classList.add('facet-active');
+        target.setAttribute('open', '');
+        target.scrollIntoView({behavior:'smooth', block:'nearest'});
+      }
+    });
+  });
+  // Click facet summary → highlight moodbar segment
+  facets.forEach(facet => {
+    const summary = facet.querySelector('.facet-head');
+    if (!summary) return;
+    summary.addEventListener('click', () => {
+      const idx = facet.dataset.idx;
+      clearActive();
+      facet.classList.add('facet-active');
+      const seg = container.querySelector(`.mood-seg[data-idx="${idx}"]`);
+      if (seg) seg.classList.add('mood-active');
+    });
+  });
+}
+
+// ── SVG setup ────────────────────────────────────────────────────────────
+const svg=d3.select('#chart');
+let nLanes=CHART.lanes.length; // total (for clip)
+let laneFrom=0, laneTo=nLanes-1;
+function visibleCount(){return laneTo-laneFrom+1;}
+function visibleLanes(){return CHART.lanes.slice(laneFrom,laneTo+1);}
+function toVisibleIdx(i){return(i>=laneFrom&&i<=laneTo)?i-laneFrom:-1;}
+function getH(){return TH+LGH+visibleCount()*LH+PB+(CHART.showTimeAxis?TAH:0);}
+svg.attr('height',getH());
+
+const defs=svg.append('defs');
+defs.append('clipPath').attr('id','content-clip')
+  .append('rect').attr('x',LW).attr('y',0).attr('width',99999).attr('height',TH+LGH+nLanes*LH+PB+TAH+8);
+defs.append('marker').attr('id','arr').attr('markerWidth',6).attr('markerHeight',5)
+  .attr('refX',5).attr('refY',2.5).attr('orient','auto')
+  .append('path').attr('d','M0,0 L6,2.5 L0,5 Z').attr('fill',C.arrow);
+
+// Static background group (lane strips, labels) — not clipped
+const bgG=svg.append('g').attr('id','bg');
+// Dynamic group (clipped) — redrawn on zoom
+let dynG=null;
+// Foreground group (labels overlay) — not clipped, drawn on top
+const fgG=svg.append('g').attr('id','fg');
+
+// ── Draw static background (lane BG + separator lines) ───────────────────
+function drawBg(totalW) {
+  bgG.selectAll('*').remove();
+  bgG.append('rect').attr('width',totalW).attr('height',getH()).attr('fill',C.bg);
+  // Lane strips
+  visibleLanes().forEach((lane,li)=>{
+    const lt=TH+LGH+li*LH;
+    bgG.append('rect').attr('x',0).attr('y',lt).attr('width',totalW).attr('height',LH)
+      .attr('fill',C.laneBg[li%2]);
+    bgG.append('rect').attr('x',0).attr('y',lt).attr('width',4).attr('height',LH)
+      .attr('fill',C.accent[lane.level]||C.sep);
+    bgG.append('line').attr('x1',0).attr('y1',lt).attr('x2',totalW).attr('y2',lt)
+      .attr('stroke',C.sep).attr('stroke-width',0.5);
+  });
+}
+
+// ── Draw foreground overlay (labels + title + legend) ────────────────────
+function drawFg(totalW) {
+  fgG.selectAll('*').remove();
+  // Mask left column so content doesn't bleed into labels
+  fgG.append('rect').attr('x',0).attr('y',TH+LGH).attr('width',LW)
+    .attr('height',nLanes*LH+PB).attr('fill',C.bg).attr('opacity',0);
+  // Lane labels
+  visibleLanes().forEach((lane,li)=>{
+    const lt=TH+LGH+li*LH;
+    const isHL=_HL_AGENTS.has((lane.laneId||lane.label||'').toLowerCase());
+    // label BG
+    fgG.append('rect').attr('x',0).attr('y',lt).attr('width',LW).attr('height',LH)
+      .attr('fill',isHL?'#251c00':C.laneBg[li%2]);
+    fgG.append('rect').attr('x',0).attr('y',lt).attr('width',4).attr('height',LH)
+      .attr('fill',isHL?'#f59e0b':C.accent[lane.level]||C.sep);
+    fgG.append('text').attr('x',LW-8).attr('y',lt+LM+4)
+      .attr('text-anchor','end').attr('font-size',11)
+      .attr('fill',isHL?'#f59e0b':C.lc).attr('font-family','ui-monospace,monospace')
+      .text(isHL?('\u26a0 '+lane.label):lane.label);
+  });
+  // Title
+  fgG.append('rect').attr('x',0).attr('y',0).attr('width',totalW).attr('height',TH)
+    .attr('fill',C.bg);
+  fgG.append('text').attr('x',LW+PL).attr('y',TH-12)
+    .attr('font-size',16).attr('font-weight','bold').attr('fill',C.tc)
+    .attr('font-family','ui-sans-serif,sans-serif').text(CHART.title);
+  // Legend bar
+  fgG.append('rect').attr('x',0).attr('y',TH).attr('width',totalW).attr('height',LGH)
+    .attr('fill','#172032');
+  fgG.append('text').attr('x',8).attr('y',TH+22).attr('font-size',10)
+    .attr('font-weight','bold').attr('fill',C.lc)
+    .attr('font-family','ui-monospace,monospace').text('LEVEL');
+  let sx=LW+16;
+  C.swatches.forEach(([lbl,col])=>{
+    fgG.append('rect').attr('x',sx).attr('y',TH+11).attr('width',12).attr('height',12)
+      .attr('fill',col).attr('rx',2);
+    fgG.append('text').attr('x',sx+15).attr('y',TH+22).attr('font-size',10)
+      .attr('fill',C.lc).attr('font-family','ui-monospace,monospace').text(lbl);
+    sx+=15+lbl.length*6.8+10;
+  });
+  // Separator under legend
+  fgG.append('line').attr('x1',0).attr('y1',TH+LGH).attr('x2',totalW).attr('y2',TH+LGH)
+    .attr('stroke',C.sep).attr('stroke-width',0.8);
+}
+
+// ── Draw dynamic content (clipped, zoom-aware) ────────────────────────────
+function redraw(xPos) {
+  if (dynG) dynG.remove();
+  dynG=svg.insert('g','#fg').attr('id','dyn').attr('clip-path','url(#content-clip)');
+
+  const ph0=dynG.append('g'), ph1=dynG.append('g'), ph2=dynG.append('g'), ph3=dynG.append('g'), ph4=dynG.append('g');
+
+  function drawDiamondMarker(group, x, y, label, fill, stroke, title, content, countLabel=null) {
+    const size=8;
+    const pts=`${x},${y-size} ${x+size},${y} ${x},${y+size} ${x-size},${y}`;
+    group.append('polygon')
+      .attr('points',pts)
+      .attr('fill',fill)
+      .attr('stroke',stroke)
+      .attr('stroke-width',1.6)
+      .style('cursor','pointer')
+      .on('mousemove',e=>showTip(e,title,content))
+      .on('mouseleave',hideTip)
+      .on('click',e=>{e.stopPropagation();pinTip(e,title,content);});
+    group.append('text')
+      .attr('x',x).attr('y',y+3)
+      .attr('text-anchor','middle').attr('font-size',8)
+      .attr('font-weight','bold').attr('fill','#e0f2fe')
+      .attr('pointer-events','none').attr('font-family','ui-monospace,monospace')
+      .text(label);
+    if (countLabel) {
+      group.append('text')
+        .attr('x',x).attr('y',y-12)
+        .attr('text-anchor','middle').attr('font-size',8)
+        .attr('font-weight','bold').attr('fill',stroke)
+        .attr('pointer-events','none').attr('font-family','ui-monospace,monospace')
+        .text(countLabel);
+    }
+  }
+
+  function drawBranchMarker(group, x, y, label, title, content, fill='#1f2937', stroke='#f59e0b', textFill='#fef3c7') {
+    const bw=28, bh=16, cut=5;
+    const pts=[
+      [x-bw/2+cut,y-bh/2],[x+bw/2-cut,y-bh/2],[x+bw/2,y],
+      [x+bw/2-cut,y+bh/2],[x-bw/2+cut,y+bh/2],[x-bw/2,y]
+    ].map(p=>p.join(',')).join(' ');
+    group.append('polygon')
+      .attr('points',pts)
+      .attr('fill',fill)
+      .attr('stroke',stroke)
+      .attr('stroke-width',1.4)
+      .style('cursor','pointer')
+      .on('mousemove',e=>showTip(e,title,content))
+      .on('mouseleave',hideTip)
+      .on('click',e=>{e.stopPropagation();pinTip(e,title,content);});
+    group.append('text')
+      .attr('x',x).attr('y',y+3)
+      .attr('text-anchor','middle').attr('font-size',8)
+      .attr('font-weight','bold').attr('fill',textFill)
+      .attr('pointer-events','none').attr('font-family','ui-monospace,monospace')
+      .text(label);
+  }
+
+  function drawRepeatStateToken(group, x, y, label, title, content) {
+    const w=24, h=12;
+    group.append('rect')
+      .attr('x',x-w/2).attr('y',y-h/2)
+      .attr('width',w).attr('height',h)
+      .attr('rx',3)
+      .attr('fill','#111827')
+      .attr('stroke','#93c5fd')
+      .attr('stroke-width',1.2)
+      .attr('stroke-dasharray','3,2')
+      .style('cursor','pointer')
+      .on('mousemove',e=>showTip(e,title,content))
+      .on('mouseleave',hideTip)
+      .on('click',e=>{e.stopPropagation();pinTip(e,title,content);});
+    group.append('text')
+      .attr('x',x).attr('y',y+3)
+      .attr('text-anchor','middle').attr('font-size',7)
+      .attr('font-weight','bold').attr('fill','#dbeafe')
+      .attr('pointer-events','none').attr('font-family','ui-monospace,monospace')
+      .text(label);
+  }
+
+  const parallelGroupOrder=Array.from(new Map(
+    CHART.lanes.flatMap(lane=>lane.sequence)
+      .filter(el=>el.parallelGroupId)
+      .map(el=>[el.parallelGroupId, ('startTs' in el ? el.startTs : el.ts)])
+  ).entries())
+    .sort((a,b)=>a[1]-b[1])
+    .reduce((acc,[gid],idx)=>acc.set(gid,idx+1), new Map());
+
+  function parallelGroupNo(groupId) {
+    return parallelGroupOrder.get(groupId)||0;
+  }
+
+  function branchListLabel(size) {
+    return Array.from({length: Math.max(0,size||0)}, (_, idx)=>`B${idx+1}`).join(' ');
+  }
+
+  function agentParallelSlot(lane, tr){
+    if (lane.level!=='agent' || !tr.parallelGroupId || (tr.parallelSize||1)<=1) return null;
+    const span=(lane.parallelSpans||[]).find(s=>Math.abs(s.startTs-tr.startTs)<0.01 && s.size===tr.parallelSize)
+      || (lane.parallelSpans||[])[0];
+    if (!span) return null;
+    const gx1=cx(span.startTs,xPos)+SW/2+AG;
+    const gx2=cx(span.endTs,xPos)-SW/2-AG;
+    const n=Math.max(1,tr.parallelSize||1);
+    const gap=10;
+    const avail=Math.max(gx2-gx1, MIN_TRANS_W*n);
+    const slotW=Math.max(MIN_TRANS_W,(avail-gap*(n-1))/n);
+    const rank=Math.max(0,tr.parallelRank||0);
+    const x1=gx1+rank*(slotW+gap);
+    return [x1, x1+slotW];
+  }
+
+  // Phase 0: parallel-group background bands ──────────────────────────────
+  // For each lane carrying parallelSpans, draw a tinted band + fork/join borders.
+  visibleLanes().forEach((lane,li)=>{
+    if (!lane.parallelSpans||!lane.parallelSpans.length) return;
+    const cy=TH+LGH+li*LH+LM;
+    const lt=TH+LGH+li*LH+1;
+    const gh=LH-2;
+    lane.parallelSpans.forEach(span=>{
+      const x1=cx(span.startTs,xPos)-SW/2-4;
+      const x2=cx(span.endTs,  xPos)+SW/2+4;
+      const bw=Math.max(x2-x1,10);
+      ph0.append('rect').attr('x',x1).attr('y',lt).attr('width',bw).attr('height',gh)
+        .attr('rx',3).attr('fill','#0c2a4a').attr('opacity',0.6)
+        .attr('pointer-events','none');
+      [x1,x2].forEach(vx=>{
+        ph0.append('line')
+          .attr('x1',vx).attr('y1',lt).attr('x2',vx).attr('y2',lt+gh)
+          .attr('stroke','#7dd3fc').attr('stroke-width',1.5)
+          .attr('stroke-dasharray','4,3').attr('opacity',0.7);
+      });
+    });
+  });
+
+  // Phase 1: lifelines + transitions ─────────────────────────────────────
+  visibleLanes().forEach((lane,li)=>{
+    const cy=TH+LGH+li*LH+LM;
+    const states=lane.sequence.filter(e=>e.type==='state'&&!e.connectorOnly);
+    // Draw lifeline in segments, breaking before any state with laneRestart=true
+    // (inter-agent thinking boundary — connecting them would be semantically wrong).
+    for (let si=0; si<states.length-1; si++) {
+      if (states[si+1].laneRestart) continue;
+      const x1=cx(states[si].ts,xPos), x2=cx(states[si+1].ts,xPos);
+      if (x2>x1+1)
+        ph1.append('line')
+          .attr('x1',x1).attr('y1',cy).attr('x2',x2).attr('y2',cy)
+          .attr('stroke',C.sep).attr('stroke-width',0.8)
+          .attr('stroke-dasharray','3,4').attr('opacity',0.4);
+    }
+    lane.sequence.forEach((tr,idx)=>{
+      if (tr.type!=='trans') return;
+      const ts0=(tr.startTs-CHART.tMin).toFixed(2);
+      const ts1=(tr.endTs  -CHART.tMin).toFixed(2);
+      const dur=Math.max(0,tr.endTs-tr.startTs).toFixed(2);
+      const timeLine=`${dur}s  (+${ts0}s \u2192 +${ts1}s)`;
+
+      // Instant calls are drawn in Phase 4 (above state boxes) — skip here.
+      if (tr.isInstant) { return; }
+
+      // If this lane has an instant-call icon at startTs, the bar must start
+      // after the icon (state_right + 4 + SW + AG) to avoid overlap.
+      const slot=agentParallelSlot(lane,tr);
+      const xl=slot ? slot[0] : cx(tr.startTs,xPos)+SW/2+AG;
+
+      // Concurrent-agent overlap fix: when concurrent calls from different
+      // agents are merged into one lane, a long bar (e.g. LLM call from agent A)
+      // can visually overlap the next trans in the sequence (which starts while
+      // agent A is still running).  Clip the bar's right edge to the visual
+      // start of the next transition so all elements appear as a clean sequence.
+      const nextTr=lane.sequence[idx+2];
+      const clipX=slot ? Infinity : ((nextTr&&nextTr.type==='trans'&&nextTr.startTs<tr.endTs)
+        ? cx(nextTr.startTs,xPos)-SW/2-AG
+        : Infinity);
+      const xr_nat=slot ? slot[1] : Math.min(cx(tr.endTs,xPos)-SW/2-AG, isFinite(clipX)?clipX:Infinity);
+
+      // When the natural width is negative, the destination state box sits visually
+      // BEFORE or AT the bar's start (concurrent-agent lane ordering artefact).
+      // Drawing a min-size rect here creates confusing overlaps; skip it entirely —
+      // the dotted lifeline already connects the surrounding state boxes.
+      if (xr_nat < xl) { return; }
+
+      // Tooltip content: ProcessingCall shows operation+task without useless "→ assembled".
+      // All other types: standard in → out layout.
+      const isProc=(tr.callType==='ProcessingCall');
+      const content=isProc
+        ? timeLine+'\n\n'+(tr.hoverIn||'(no details)')
+        : timeLine+'\n\n'+`${tr.hoverIn||'(no input)'}\n\n\u2192\n\n${tr.hoverOut||'(no output)'}`;
+      // (content is used below)
+      // tw_natural: actual column space available for this transition rect.
+      const tw_natural=xr_nat-xl;
+      const xr=Math.max(xr_nat, xl+Math.min(MIN_TRANS_W, tw_natural));
+      const tw=xr-xl, ty=cy-TRH/2;
+      const _trKW=_kwMatch(tr.label)||_kwMatch(tr.hoverIn)||_kwMatch(tr.hoverOut);
+      const prevState=(lane.sequence[idx-1]&&lane.sequence[idx-1].type==='state') ? lane.sequence[idx-1] : null;
+      const repeatedStateLabel=prevState ? (prevState.labelOverride || `S${prevState.num}`) : 'S?';
+      const repeatedStateToken=`${repeatedStateLabel}↺`;
+      let barLeft=xl, barRight=xr;
+      let closeMarkerLeft=null, closeMarkerRight=null;
+      if (tr.parallelGroupId && tw>=86) {
+        barLeft=Math.min(xr-34, xl+32);
+        closeMarkerLeft=xr-30;
+        closeMarkerRight=xr-2;
+        barRight=Math.max(barLeft+14, closeMarkerLeft-6);
+      }
+      const barMid=(barLeft+barRight)/2;
+      ph1.append('rect').attr('x',barLeft).attr('y',ty).attr('width',Math.max(2,barRight-barLeft)).attr('height',TRH)
+        .attr('rx',4).attr('fill',tr.color)
+        .attr('stroke','none')
+        .style('cursor','pointer')
+        .on('mousemove',e=>showTip(e,tr.label,content,tr.callType,null,null,tr.cprData)).on('mouseleave',hideTip)
+        .on('click',e=>{e.stopPropagation();pinTip(e,tr.label,content,tr.callType,null,null,tr.cprData,tr.model,tr.hoverOut);});
+      // Label: truncate proportionally to natural column width; hide entirely
+      // below 16 px so text never overflows into adjacent state boxes.
+      const maxC=Math.max(0,Math.floor((barRight-barLeft)/8));
+      if (maxC>=2)
+        ph1.append('text').attr('x',barMid).attr('y',cy+4)
+          .attr('text-anchor','middle').attr('font-size',10).attr('font-weight','bold')
+          .attr('fill','#fff').attr('pointer-events','none')
+          .attr('font-family','ui-monospace,monospace').text(tr.label.slice(0,maxC));
+      // Badge
+      const bx=Math.min(barLeft+(barRight-barLeft)*0.82, barRight-BR-1), by=ty-BR-1;
+      ph1.append('circle').attr('cx',bx).attr('cy',by).attr('r',BR).attr('fill',C.badge);
+      ph1.append('text').attr('x',bx).attr('y',by+4).attr('text-anchor','middle')
+        .attr('font-size',9).attr('font-weight','bold').attr('fill','#fff')
+        .attr('pointer-events','none').attr('font-family','ui-monospace,monospace')
+        .text(tr.seq);
+      const ax0=cx(tr.startTs,xPos)+SW/2;
+      let branchRight=null;
+      // Distinct branch marker before each branch start.
+      if (tr.parallelGroupId) {
+        const groupNo=parallelGroupNo(tr.parallelGroupId);
+        const branchLabel=`B${1+(tr.parallelRank||0)}`;
+        const markerX=Math.min(xl-18, Math.max(ax0+18, xl-22));
+        const branchLeft=markerX-14;
+        branchRight=markerX+14;
+        if (branchLeft-ax0>2)
+          ph1.append('line').attr('x1',ax0).attr('y1',cy).attr('x2',branchLeft).attr('y2',cy)
+            .attr('stroke','#f59e0b').attr('stroke-width',1.6).attr('opacity',0.95);
+        drawBranchMarker(
+          ph1,
+          markerX,
+          cy,
+          branchLabel,
+          `${branchLabel} branch`,
+          `${branchLabel} from fork F${groupNo} in ${branchListLabel(tr.parallelSize||2)}`
+        );
+        const repeatStateX=Math.min(xr-40, xl+14);
+        const repeatStateLeft=repeatStateX-12;
+        const repeatStateRight=repeatStateX+12;
+        if (repeatStateLeft-branchRight>2)
+          ph1.append('line').attr('x1',branchRight).attr('y1',cy).attr('x2',repeatStateLeft).attr('y2',cy)
+            .attr('stroke','#f59e0b').attr('stroke-width',1.6).attr('marker-end','url(#arr)')
+            .attr('opacity',0.95);
+        drawRepeatStateToken(
+          ph1,
+          repeatStateX,
+          cy,
+          repeatedStateToken,
+          `${branchLabel} repeated state`,
+          `Repeated entry state ${repeatedStateToken} for ${branchLabel}`
+        );
+        if (barLeft-repeatStateRight>2)
+          ph1.append('line').attr('x1',repeatStateRight).attr('y1',cy).attr('x2',barLeft).attr('y2',cy)
+            .attr('stroke','#93c5fd').attr('stroke-width',1.4).attr('opacity',0.9);
+        const branchFrameLeft=branchLeft-4;
+        const branchFrameRight=(closeMarkerRight!==null ? closeMarkerRight : xr)+4;
+        if (branchFrameRight-branchFrameLeft>24)
+          ph1.append('rect').attr('x',branchFrameLeft).attr('y',ty-4)
+            .attr('width',branchFrameRight-branchFrameLeft).attr('height',TRH+8)
+            .attr('rx',6).attr('fill','none').attr('stroke','#fbbf24')
+            .attr('stroke-width',1).attr('stroke-dasharray','4,3').attr('opacity',0.45);
+        if (closeMarkerLeft!==null && closeMarkerRight!==null) {
+          if (closeMarkerLeft-barRight>2)
+            ph1.append('line').attr('x1',barRight).attr('y1',cy).attr('x2',closeMarkerLeft).attr('y2',cy)
+              .attr('stroke','#fcd34d').attr('stroke-width',1.4).attr('opacity',0.9);
+          drawBranchMarker(
+            ph1,
+            (closeMarkerLeft+closeMarkerRight)/2,
+            cy,
+            `/${branchLabel}`,
+            `${branchLabel} end`,
+            `End of ${branchLabel}`,
+            '#3f2a12',
+            '#fcd34d',
+            '#fef3c7'
+          );
+        }
+      }
+      // Arrows
+      if (!slot && !tr.parallelGroupId && xl-ax0>2)
+        ph1.append('line').attr('x1',ax0).attr('y1',cy).attr('x2',xl).attr('y2',cy)
+          .attr('stroke',C.arrow).attr('stroke-width',1.5).attr('marker-end','url(#arr)');
+      // Right arrow: skip when clipped (the dotted lifeline connects to the end state)
+      const wasClipped=!slot && isFinite(clipX)&&clipX<cx(tr.endTs,xPos)-SW/2-AG;
+      if (!slot && !wasClipped) {
+        const ax1=cx(tr.endTs,xPos)-SW/2;
+        const rightStart=(closeMarkerRight!==null) ? closeMarkerRight : barRight;
+        if (ax1-rightStart>2)
+          ph1.append('line').attr('x1',rightStart).attr('y1',cy).attr('x2',ax1).attr('y2',cy)
+            .attr('stroke',C.arrow).attr('stroke-width',1.5).attr('marker-end','url(#arr)');
+      }
+    });
+  });
+
+  // Phase 2: vertical shared-state connectors (remap original → visible indices) ─────
+  CHART.sharedBuckets.forEach(sb=>{
+    const b=sb.ts, lis=sb.laneIndices;
+    const unique=[...new Set(lis.map(i=>toVisibleIdx(i)).filter(i=>i>=0))].sort((a,c)=>a-c);
+    if (unique.length<2) return;
+    const xc=cx(b,xPos);
+    for (let i=0;i<unique.length-1;i++) {
+      const y1=TH+LGH+unique[i]*LH+LM+SH/2+2;
+      const y2=TH+LGH+unique[i+1]*LH+LM-SH/2-2;
+      if (y2>y1)
+        ph2.append('line').attr('x1',xc).attr('y1',y1).attr('x2',xc).attr('y2',y2)
+          .attr('stroke',C.conn).attr('stroke-width',1.5)
+          .attr('stroke-dasharray','4,3').attr('opacity',0.85);
+    }
+  });
+
+  // User actor: box adjacent to boundary state (same size as state boxes).
+  // Direction is implicit from position (left=entry, right=exit).
+  function drawUserActor(g, scx, cy, isEntry, hover) {
+    const col=C.user;
+    const cap=isEntry?'User: input':'User: output';
+    const ux=isEntry?scx-UA_OFFSET:scx+UA_OFFSET;
+    const hw=SW/2;
+    // Arrow: user-box edge → state-box edge (entry) or reverse (exit)
+    const ax0=isEntry?ux+hw+AG:scx+hw+AG;
+    const ax1=isEntry?scx-hw-AG:ux-hw-AG;
+    if (ax1>ax0+2)
+      g.append('line').attr('x1',ax0).attr('y1',cy).attr('x2',ax1).attr('y2',cy)
+        .attr('stroke',col).attr('stroke-width',1.5).attr('marker-end','url(#arr)');
+    // Box (same size as state boxes, user colour fill)
+    g.append('rect').attr('x',ux-hw).attr('y',cy-SH/2).attr('width',SW).attr('height',SH)
+      .attr('rx',3).attr('fill',col).attr('stroke',col)
+      .style('cursor','pointer')
+      .on('mousemove',e=>showTip(e,cap,hover||'(empty)')).on('mouseleave',hideTip)
+      .on('click',e=>{e.stopPropagation();pinTip(e,cap,hover||'(empty)');});
+    // Person silhouette in dark ink inside the box
+    g.append('circle').attr('cx',ux).attr('cy',cy-5).attr('r',4)
+      .attr('fill','#0f172a').attr('pointer-events','none');
+    g.append('path').attr('d',`M ${ux-6},${cy+4} A 6,6 0 0 1 ${ux+6},${cy+4} Z`)
+      .attr('fill','#0f172a').attr('pointer-events','none');
+  }
+
+  // Phase 3: state boxes ─────────────────────────────────────────────────
+  visibleLanes().forEach((lane,li)=>{
+    const cy=TH+LGH+li*LH+LM;
+    const seen=new Set();
+    const isSessionLane=(lane.level==='session');
+    lane.sequence.filter(e=>e.type==='state').forEach(st=>{
+      if (seen.has(st.ts)) return;
+      seen.add(st.ts);
+      // Connector-only states are injected for shared-bucket vertical connectors
+      // but should not render a visible box (they have no transition edges in this lane).
+      if (st.connectorOnly) return;
+      const scx=cx(st.ts,xPos);
+      const sx=scx-SW/2, sy=cy-SH/2;
+      const lbl=st.labelOverride || `S${st.num}`;
+      // Interrupted: no execution_end in trace (agent was still running at cut).
+      // Error: execution_end.status was non-success.
+      const stateFill   = st.interrupted ? '#2d1a00' : (st.isError ? '#2d0000' : C.stateF);
+      const stateStroke = st.interrupted ? '#f59e0b' : (st.isError ? '#ef4444' : C.stateS);
+      const stateTxt    = (st.interrupted || st.isError) ? stateStroke : C.stateT;
+      const prefix      = st.interrupted ? '\u26a0 TRACE CUT \u2014 agent was still running\n\n'
+                        : st.isError     ? '\u2717 EXECUTION ERROR\n\n' : '';
+      const hoverContent= prefix + (st.hover||'(no content)');
+      const pinNote    = st.pinNote    || null;
+      const pinExcerpt = st.pinExcerpt || null;
+      if (st.gapMarker) {
+        // Ring border around state box
+        ph3.append('rect').attr('x',sx-3).attr('y',sy-3).attr('width',SW+6).attr('height',SH+6)
+          .attr('rx',5).attr('fill','none').attr('stroke','#ef4444').attr('stroke-width',2.5)
+          .attr('id','pin-ring-'+Math.round(st.ts*1000));
+        // Visible red flag triangle above the state box — numbered
+        const pidx = ALL_PINS.findIndex(p=>Math.abs(p.ts-st.ts)<0.01)+1;
+        ph3.append('polygon')
+          .attr('id','pin-flag-'+pidx)
+          .attr('points',`${scx-7},${sy-2} ${scx+7},${sy-2} ${scx},${sy-12}`)
+          .attr('fill','#ef4444').attr('opacity',0.92).attr('pointer-events','none');
+        ph3.append('text').attr('x',scx).attr('y',sy-4)
+          .attr('text-anchor','middle').attr('font-size',7).attr('font-weight','bold')
+          .attr('fill','#fff').attr('pointer-events','none')
+          .attr('font-family','ui-monospace,monospace').text(pidx>0?pidx:'!');
+      }
+      const stRect=ph3.append('rect').attr('x',sx).attr('y',sy).attr('width',SW).attr('height',SH)
+        .attr('rx',3).attr('fill',stateFill).attr('stroke',stateStroke).attr('stroke-width',1.5)
+        .style('cursor','pointer')
+        .on('mousemove',e=>showTip(e,lbl,hoverContent,null,pinExcerpt,pinNote,st.cprData)).on('mouseleave',hideTip)
+        .on('click',e=>{e.stopPropagation();pinTip(e,lbl,hoverContent,null,pinExcerpt,pinNote,st.cprData,st.model||'','');});
+      if (st.interrupted||st.isError) stRect.attr('stroke-dasharray','4,3');
+      ph3.append('text').attr('x',scx).attr('y',cy+4).attr('text-anchor','middle')
+        .attr('font-size',9).attr('font-weight','bold').attr('fill',stateTxt)
+        .attr('pointer-events','none').attr('font-family','ui-monospace,monospace').text(lbl);
+      // Fork/join are rendered as dedicated timeline glyphs near the state, not as states.
+      // They are ONLY drawn in the agent lane — fork/join flags propagate via the shared
+      // StateNode registry to other lanes (e.g. calls), but those lanes should not repeat them.
+      if (st.isFork && st.parallelSize>=2 && lane.level==='agent') {
+        const groupNo=parallelGroupNo(st.parallelGroupId);
+        const branches=branchListLabel(st.parallelSize);
+        const forkX=scx+SW/2+AG+10;
+        ph3.append('line')
+          .attr('x1',scx+SW/2).attr('y1',cy)
+          .attr('x2',forkX-8).attr('y2',cy)
+          .attr('stroke','#38bdf8').attr('stroke-width',1.6).attr('opacity',0.95);
+        drawDiamondMarker(
+          ph3,
+          forkX,
+          cy,
+          `F${groupNo}`,
+          '#082f49',
+          '#38bdf8',
+          'Fork point',
+          `Fork F${groupNo} after ${lbl} into ${branches}`,
+          branches
+        );
+      }
+      if (st.isJoin && st.parallelSize>=2 && lane.level==='agent') {
+        const groupNo=parallelGroupNo(st.parallelGroupId);
+        const branches=branchListLabel(st.parallelSize);
+        const joinX=scx-SW/2-AG-10;
+        ph3.append('line')
+          .attr('x1',joinX+8).attr('y1',cy)
+          .attr('x2',scx-SW/2).attr('y2',cy)
+          .attr('stroke','#f59e0b').attr('stroke-width',1.6).attr('opacity',0.95);
+        drawDiamondMarker(
+          ph3,
+          joinX,
+          cy,
+          `J${groupNo}`,
+          '#3f1d0b',
+          '#f59e0b',
+          'Join point',
+          `Join J${groupNo} before ${lbl} from ${branches}`,
+          branches
+        );
+      }
+      // Small badge icon at top-right corner of the box for interrupted/error states.
+      if (st.interrupted||st.isError) {
+        const badge=st.interrupted?'\u26a0':'\u2717';
+        ph3.append('text').attr('x',sx+SW-2).attr('y',sy+7)
+          .attr('text-anchor','end').attr('font-size',7).attr('fill',stateStroke)
+          .attr('pointer-events','none').text(badge);
+      }
+    });
+  });
+  // User actor: always pinned to first visible lane (even when session is hidden)
+  if (CHART.showUserActors) {
+    const ucy=TH+LGH+0*LH+LM;
+    const sessionLane=CHART.lanes.find(l=>l.level==='session');
+    if (sessionLane) {
+      const seen=new Set();
+      sessionLane.sequence.filter(e=>e.type==='state'&&(e.userEntry||e.userExit)).forEach(st=>{
+        if (seen.has(st.ts)) return;
+        seen.add(st.ts);
+        drawUserActor(ph3,cx(st.ts,xPos),ucy,st.userEntry,st.hover);
+      });
+    }
+  }
+
+  // Phase 4: instant call icons (drawn after state boxes, on top) ──────────────
+  // Layout contract (all instant call types share the same geometry model):
+  //
+  //   • The icon box is always SW × SH — identical to a state box.
+  //   • For ProcessingCall (startTs === endTs, no dedicated column):
+  //       icx = cx(startTs)  — icon overlays its state, no arrows.
+  //   • For ToolCall / MemoryCall / RAGQuery (dedicated column between two states):
+  //       icx = (scx + ecx) / 2  — centred between S_before and S_after.
+  //       Left arrow:  scx + SW/2  →  icx - SW/2  (drawn only when gap > 2 px)
+  //       Right arrow: icx + SW/2  →  ecx - SW/2  (drawn only when gap > 2 px)
+  //
+  //   Both arrows grow symmetrically with zoom — same model as Phase-1 bars.
+  //   applyZoom() guarantees the instant column stays ≥ INSTANT_COL_W px, so
+  //   the arrows are always visible at any zoom level.
+  const INSTANT_ICONS={'ProcessingCall':'⚙','ToolCall':'⚡','MemoryCall':'⛁','RAGQuery':'◐'};
+  visibleLanes().forEach((lane,li)=>{
+    const cy=TH+LGH+li*LH+LM;
+    lane.sequence.filter(e=>e.type==='trans'&&e.isInstant).forEach(tr=>{
+      const ts0=(tr.startTs-CHART.tMin).toFixed(2);
+      const dur=Math.max(0,tr.endTs-tr.startTs).toFixed(2);
+      const timeLine=`${dur}s  (+${ts0}s)`;
+      const icon=INSTANT_ICONS[tr.callType]||'\u2295';
+      const hoverContent=timeLine+'\n\n'+(tr.hoverIn||'(no input)')+'\n\n\u2192\n\n'+(tr.hoverOut||'(no output)');
+
+      const scx=cx(tr.startTs,xPos);
+      const ecx=cx(tr.endTs,xPos);
+      const sameTs=(scx===ecx);  // ProcessingCall: shares its state bucket
+
+      // Icon centre: midpoint of the slot (or the state itself for ProcessingCall)
+      const icx=sameTs ? scx : (scx+ecx)/2;
+      const ix=icx-SW/2, iy=cy-SH/2;
+
+      // Symmetric arrows from state-box edges to icon-box edges
+      if (!sameTs) {
+        const al0=scx+SW/2, al1=icx-SW/2;  // left arrow
+        const ar0=icx+SW/2, ar1=ecx-SW/2;  // right arrow
+        if (al1-al0>2)
+          ph4.append('line').attr('x1',al0).attr('y1',cy).attr('x2',al1).attr('y2',cy)
+            .attr('stroke',C.arrow).attr('stroke-width',1.5).attr('marker-end','url(#arr)');
+        if (ar1-ar0>2)
+          ph4.append('line').attr('x1',ar0).attr('y1',cy).attr('x2',ar1).attr('y2',cy)
+            .attr('stroke',C.arrow).attr('stroke-width',1.5).attr('marker-end','url(#arr)');
+      }
+
+      // ProcessingCall (sameTs): small badge at top-right of state box so the
+      // S-number stays readable.  All other instant calls: full-size icon box.
+      if (sameTs) {
+        const BS=Math.round(SH*0.55);
+        const bx=icx+SW/2-BS, by=cy-SH/2;
+        ph4.append('rect').attr('x',bx).attr('y',by).attr('width',BS).attr('height',BS)
+          .attr('rx',2).attr('fill',tr.color).attr('stroke',C.stateS).attr('stroke-width',1)
+          .style('cursor','pointer')
+          .on('mousemove',e=>showTip(e,`${icon} ${tr.label}`,hoverContent,tr.callType)).on('mouseleave',hideTip)
+          .on('click',e=>{e.stopPropagation();pinTip(e,`${icon} ${tr.label}`,hoverContent,tr.callType);});
+        ph4.append('text').attr('x',bx+BS/2).attr('y',by+BS/2+3.5)
+          .attr('text-anchor','middle').attr('font-size',10).attr('fill','#fff')
+          .attr('pointer-events','none').text(icon);
+      } else {
+        ph4.append('rect').attr('x',ix).attr('y',iy).attr('width',SW).attr('height',SH)
+          .attr('rx',3).attr('fill',tr.color).attr('stroke',C.stateS).attr('stroke-width',1.5).style('cursor','pointer')
+          .on('mousemove',e=>showTip(e,`${icon} ${tr.label}`,hoverContent,tr.callType)).on('mouseleave',hideTip)
+          .on('click',e=>{e.stopPropagation();pinTip(e,`${icon} ${tr.label}`,hoverContent,tr.callType);});
+        ph4.append('text').attr('x',icx).attr('y',cy+4)
+          .attr('text-anchor','middle').attr('font-size',12).attr('fill','#fff')
+          .attr('pointer-events','none').text(icon);
+      }
+    });
+  });
+
+  // Phase 5: time axis ruler (below all lanes) ────────────────────────────
+  if (CHART.showTimeAxis) {
+    const taxY=TH+LGH+visibleCount()*LH+PB+4;
+    const taxG=dynG.append('g');
+    // Axis baseline
+    const bk0=CHART.buckets[0], bk1=CHART.buckets[CHART.buckets.length-1];
+    if (bk0!==undefined && bk1!==undefined) {
+      taxG.append('line')
+        .attr('x1',cx(bk0,xPos)).attr('y1',taxY)
+        .attr('x2',cx(bk1,xPos)).attr('y2',taxY)
+        .attr('stroke',C.sep).attr('stroke-width',1);
+      // Ticks at each bucket — skip label if too close to previous (px or time)
+      let prevLblX=-999; let prevLblTs=-Infinity;
+      CHART.buckets.forEach(b=>{
+        const xb=cx(b,xPos);
+        taxG.append('line')
+          .attr('x1',xb).attr('y1',taxY)
+          .attr('x2',xb).attr('y2',taxY+5)
+          .attr('stroke',C.sep).attr('stroke-width',1);
+        if (xb-prevLblX>=50 && (b-prevLblTs)>=0.05) {
+          const relT=(b-CHART.tMin).toFixed(1);
+          taxG.append('text')
+            .attr('x',xb).attr('y',taxY+16)
+            .attr('text-anchor','middle').attr('font-size',9)
+            .attr('fill',C.lc).attr('font-family','ui-monospace,monospace')
+            .text(`+${relT}s`);
+          prevLblX=xb;
+          prevLblTs=b;
+        }
+      });
+
+      const spanMap=new Map();
+      visibleLanes().forEach(lane=>{
+        (lane.parallelSpans||[]).forEach(span=>{
+          const key=[span.startTs.toFixed(3),span.endTs.toFixed(3),span.size||1].join('|');
+          if (!spanMap.has(key)) spanMap.set(key,span);
+        });
+      });
+      Array.from(spanMap.values()).forEach(span=>{
+        const ax1=cx(span.startTs,xPos), ax2=cx(span.endTs,xPos);
+        const w=Math.max(ax2-ax1,12);
+        const topY=taxY-9;
+        const botY=taxY+9;
+        taxG.append('rect')
+          .attr('x',ax1).attr('y',taxY-4)
+          .attr('width',w).attr('height',8)
+          .attr('fill','#0c2a4a').attr('opacity',0.65)
+          .attr('rx',2);
+        [ax1,ax2].forEach(vx=>{
+          taxG.append('line')
+            .attr('x1',vx).attr('y1',topY)
+            .attr('x2',vx).attr('y2',botY)
+            .attr('stroke','#7dd3fc').attr('stroke-width',1.4)
+            .attr('stroke-dasharray','4,3').attr('opacity',0.85);
+        });
+        const mid=(ax1+ax2)/2;
+        taxG.append('text')
+          .attr('x',mid).attr('y',taxY-11)
+          .attr('text-anchor','middle').attr('font-size',9)
+          .attr('fill','#7dd3fc').attr('font-family','ui-monospace,monospace')
+          .text(`∥${span.size||2} reconciled`);
+        taxG.append('text')
+          .attr('x',mid).attr('y',taxY+4)
+          .attr('text-anchor','middle').attr('font-size',12)
+          .attr('fill','#bae6fd').attr('font-family','ui-monospace,monospace')
+          .text('//');
+      });
+    }
+  }
+}
+
+// ── Initialise ──────────────────────────────────────────────────────────
+let currentMode=CHART.widthMode;
+document.getElementById('sel-mode').value=currentMode;
+
+let baseXPos=computeBaseXPos(CHART.buckets,currentMode);
+let totalW=Math.max(...Object.values(baseXPos))+PR;
+let minZoom=computeMinZoom(baseXPos);
+let currentXPos=baseXPos; // track xPos from last redraw for toggle
+
+// ── Lane range picker ────────────────────────────────────────────────────
+const CELL_W=20;
+const LEVEL_FILL={session:'#0d3b4a',mas:'#155e75',agent:'#0e7490',call:'#64748b'};
+let _updateOverlays=()=>{};
+
+function refreshAll(){
+  svg.attr('height',getH());
+  svg.select('#content-clip rect').attr('height',TH+LGH+nLanes*LH+PB+TAH+8);
+  const w=Math.max(Math.max(...Object.values(currentXPos))+PR,LW+PL+200);
+  svg.attr('width',w);
+  drawBg(w);
+  redraw(currentXPos);
+  drawFg(w);
+}
+
+function buildLaneTrack(){
+  const n=CHART.lanes.length;
+  const track=document.getElementById('lane-track');
+  track.style.width=(n*CELL_W)+'px';
+  track.innerHTML='';
+  CHART.lanes.forEach((lane,i)=>{
+    const c=document.createElement('div');
+    c.className='lpk-cell';
+    c.style.width=CELL_W+'px';
+    c.style.background=LEVEL_FILL[lane.level]||'#334155';
+    c.style.borderRight='1px solid #0f172a';
+    c.title=lane.label+' ('+lane.level+')';
+    track.appendChild(c);
+  });
+  const dimL=document.createElement('div');
+  dimL.id='lpk-dim-l';
+  dimL.style.cssText='position:absolute;top:0;left:0;height:22px;background:rgba(0,0,0,.65);pointer-events:none;z-index:2;border-radius:3px 0 0 3px';
+  const dimR=document.createElement('div');
+  dimR.id='lpk-dim-r';
+  dimR.style.cssText='position:absolute;top:0;height:22px;background:rgba(0,0,0,.65);pointer-events:none;z-index:2;border-radius:0 3px 3px 0';
+  const HDL='position:absolute;top:-3px;width:6px;height:28px;background:#f1f5f9;border-radius:2px;z-index:4;transform:translateX(-3px)';
+  const hdlL=document.createElement('div'); hdlL.id='lpk-hdl-l'; hdlL.style.cssText=HDL+';cursor:ew-resize';
+  const hdlR=document.createElement('div'); hdlR.id='lpk-hdl-r'; hdlR.style.cssText=HDL+';cursor:ew-resize';
+  track.appendChild(dimL); track.appendChild(dimR);
+  track.appendChild(hdlL); track.appendChild(hdlR);
+
+  function updateOverlays(){
+    dimL.style.width=(laneFrom*CELL_W)+'px';
+    dimR.style.left=((laneTo+1)*CELL_W)+'px';
+    dimR.style.width=((n-laneTo-1)*CELL_W)+'px';
+    hdlL.style.left=(laneFrom*CELL_W)+'px';
+    hdlR.style.left=((laneTo+1)*CELL_W)+'px';
+    const lbl=document.getElementById('lpk-label');
+    if(lbl){
+      const lvls=[...new Set(CHART.lanes.slice(laneFrom,laneTo+1).map(l=>l.level))];
+      lbl.textContent=lvls.join(' → ');
+    }
+  }
+  _updateOverlays=updateOverlays;
+
+  function makeDrag(isLeft){
+    return function(e){
+      e.preventDefault(); e.stopPropagation();
+      const rect=track.getBoundingClientRect();
+      function onMove(ev){
+        const cx2=ev.touches?ev.touches[0].clientX:ev.clientX;
+        const i=Math.max(0,Math.min(n-1,Math.floor((cx2-rect.left)/CELL_W)));
+        if(isLeft) laneFrom=Math.min(i,laneTo);
+        else       laneTo =Math.max(i,laneFrom);
+        updateOverlays(); refreshAll();
+      }
+      function onUp(){document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);}
+      document.addEventListener('mousemove',onMove);
+      document.addEventListener('mouseup',onUp);
+    };
+  }
+  hdlL.addEventListener('mousedown',makeDrag(true));
+  hdlR.addEventListener('mousedown',makeDrag(false));
+  // Click on a dimmed cell extends the range to include it
+  track.addEventListener('click',e=>{
+    if(e.target===hdlL||e.target===hdlR) return;
+    const i=Math.max(0,Math.min(n-1,Math.floor((e.clientX-track.getBoundingClientRect().left)/CELL_W)));
+    if(i<laneFrom) laneFrom=i;
+    else if(i>laneTo) laneTo=i;
+    updateOverlays(); refreshAll();
+  });
+  updateOverlays();
+}
+
+function init() {
+  zoomBeh.scaleExtent([minZoom,40]);
+  svg.attr('width',Math.max(totalW,200));
+  svg.attr('height',getH());
+  drawBg(totalW);
+  currentXPos=baseXPos;
+  redraw(baseXPos);
+  drawFg(totalW);
+  // Reflect initial showTimeAxis state in button style
+  if (CHART.showTimeAxis) document.getElementById('btn-timeaxis').style.color='#7dd3fc';
+  buildLaneTrack();
+}
+
+// ── Zoom (Ctrl+wheel to scale; plain scroll = native horizontal scroll) ────
+const zoomBeh=d3.zoom().scaleExtent([0.05,40])
+  .filter(event=>{
+    if (event.type==='wheel') return event.ctrlKey||event.metaKey;
+    if (event.type==='mousedown') return false; // disable drag-pan
+    return true;
+  })
+  .on('zoom',event=>{
+    const {x:tx,k}=event.transform;
+    const xPos=applyZoom(baseXPos,tx,k);
+    currentXPos=xPos;
+    const w=Math.max(Math.max(...Object.values(xPos))+PR, LW+PL+200);
+    svg.attr('width',w).attr('height',getH());
+    drawBg(w);
+    redraw(xPos);
+    drawFg(w);
+  });
+
+svg.call(zoomBeh).on('dblclick.zoom',null);
+
+// ── Live update API (WebSocket / postMessage path) ───────────────────────
+// Called by the parent page to update the chart with new data without
+// reloading D3 from CDN.  The parent sends:
+//   iframe.contentWindow.postMessage({type:'mas_chart_update', data:{...}}, '*')
+// which triggers this function.  Used by the tutorial WebSocket handler
+// when the filter panel emits a new FacetQuery ("kg_viz:" command).
+function _rebuildChartState() {
+  _HL_AGENTS = new Set((CHART.highlightAgents||[]).map(s=>s.toLowerCase()));
+  _buildAllPins();
+  _buildInstantPairs();
+  nLanes = CHART.lanes.length;
+  laneFrom = 0;
+  laneTo = nLanes - 1;
+  currentMode = CHART.widthMode;
+  baseXPos = computeBaseXPos(CHART.buckets, currentMode);
+  totalW = Object.values(baseXPos).length ? Math.max(...Object.values(baseXPos))+PR : LW+PL+200;
+  minZoom = computeMinZoom(baseXPos);
+  currentXPos = baseXPos;
+}
+function _rebuildAnnotationsPanel() {
+  const btnAnn = document.getElementById('btn-ann');
+  const annCount = document.getElementById('ann-count');
+  const annBody = document.getElementById('ann-body');
+  if (!btnAnn || !annBody) return;
+  if (ALL_PINS.length) {
+    if (annCount) annCount.textContent = ALL_PINS.length;
+    btnAnn.style.display = '';
+    annBody.innerHTML = ALL_PINS.map(p=>{
+      const excerptHtml = p.excerpt
+        ? `<div style="margin-top:.3rem;background:#1e0505;border-left:3px solid #ef4444;padding:.25rem .5rem;font-family:ui-monospace,monospace;font-size:.74rem;color:#fca5a5">${escH(p.excerpt)}</div>`
+        : '';
+      return `<a href="#" onclick="scrollToPin(${p.idx});return false"
+          style="display:block;margin-bottom:.6rem;padding:.5rem .6rem .6rem;
+                 border:1px solid #2d1010;border-radius:5px;text-decoration:none;
+                 transition:background .15s;cursor:pointer"
+          onmouseover="this.style.background='#2d0a0a';this.style.borderColor='#7f1d1d'"
+          onmouseout="this.style.background='';this.style.borderColor='#2d1010'">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.25rem">
+          <span style="background:#ef4444;color:#fff;font-size:.7rem;font-weight:700;
+                       border-radius:50%;width:17px;height:17px;display:inline-flex;
+                       align-items:center;justify-content:center;flex-shrink:0">${p.idx}</span>
+          <span style="color:#f87171;font-size:.76rem;font-weight:600">S${p.num}&nbsp;&mdash;&nbsp;${escH(p.laneId)}</span>
+        </div>
+        <div style="color:#e2e8f0;font-size:.76rem;line-height:1.5">${escH(p.note)}</div>
+        ${excerptHtml}
+      </a>`;
+    }).join('');
+  } else {
+    btnAnn.style.display = 'none';
+    annBody.innerHTML = '';
+  }
+}
+window.masUpdateChart = function(newData) {
+  CHART = newData;
+  _rebuildChartState();
+  // Reset SVG clip path height
+  defs.select('#content-clip rect').attr('height', TH+LGH+nLanes*LH+PB+TAH+8);
+  // Reset zoom to identity before redraw
+  svg.call(zoomBeh.transform, d3.zoomIdentity);
+  // Recompute size and redraw
+  svg.attr('width', Math.max(totalW,200)).attr('height', getH());
+  // Clear dynamic group
+  bgG.selectAll('*').remove();
+  if (dynG) dynG.selectAll('*').remove();
+  fgG.selectAll('*').remove();
+  init();
+  _rebuildAnnotationsPanel();
+  // Reflect showTimeAxis state
+  const btnTa = document.getElementById('btn-timeaxis');
+  if (btnTa) btnTa.style.color = CHART.showTimeAxis ? '#7dd3fc' : '';
+};
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'mas_chart_update' && e.data.data) {
+    window.masUpdateChart(e.data.data);
+  }
+});
+
+// ── Controls ────────────────────────────────────────────────────────────
+document.getElementById('btn-zoomin') .addEventListener('click',()=>svg.transition().duration(300).call(zoomBeh.scaleBy,1.6));
+document.getElementById('btn-zoomout').addEventListener('click',()=>svg.transition().duration(300).call(zoomBeh.scaleBy,0.625));
+document.getElementById('btn-reset')  .addEventListener('click',()=>svg.transition().duration(400).call(zoomBeh.transform,d3.zoomIdentity));
+document.getElementById('btn-timeaxis').addEventListener('click',()=>{
+  CHART.showTimeAxis=!CHART.showTimeAxis;
+  svg.attr('height',getH());
+  redraw(currentXPos);
+  document.getElementById('btn-timeaxis').style.color=CHART.showTimeAxis?'#7dd3fc':'';
+});
+document.getElementById('sel-mode').addEventListener('change',e=>{
+  currentMode=e.target.value;
+  baseXPos=computeBaseXPos(CHART.buckets,currentMode);
+  currentXPos=baseXPos;
+  totalW=Math.max(...Object.values(baseXPos))+PR;
+  minZoom=computeMinZoom(baseXPos);
+  zoomBeh.scaleExtent([minZoom,40]);
+  svg.call(zoomBeh.transform,d3.zoomIdentity);
+});
+
+init();
+
+// ── Scroll to pinned node ────────────────────────────────────────────────
+function scrollToPin(pidx) {
+  const p = ALL_PINS[pidx-1];
+  if (!p) return;
+  const xTarget = cx(p.ts, currentXPos);
+  const wrap = document.getElementById('chart-wrap');
+  wrap.scrollLeft = Math.max(0, xTarget - wrap.clientWidth/3);
+  // Flash the flag triangle 3×
+  const el = document.getElementById('pin-flag-'+pidx);
+  if (!el) return;
+  let n=0;
+  const iv=setInterval(()=>{
+    el.setAttribute('fill', n%2===0 ? '#fff' : '#ef4444');
+    if (++n>=6) { clearInterval(iv); el.setAttribute('fill','#ef4444'); }
+  },180);
+}
+
+// ── Annotations panel (initial build) ──────────────────────────────────────
+_rebuildAnnotationsPanel();
+document.getElementById('ann-close')?.addEventListener('click',()=>{
+  document.getElementById('ann-panel').style.display='none';
+});
+document.getElementById('btn-ann')?.addEventListener('click',()=>{
+  const pan=document.getElementById('ann-panel');
+  pan.style.display = pan.style.display==='none'?'block':'none';
+});
+if (ALL_PINS.length) document.getElementById('ann-panel').style.display = 'block';
+</script>
+</body>
+</html>

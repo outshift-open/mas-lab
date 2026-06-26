@@ -1,0 +1,16 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Copied from docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: mock-llm
+spec:
+  patch:
+    execution:
+      mocking:
+        enabled: true
+    llm:
+      provider: mock
+    infra_refs:
+      - standard:mock-llm

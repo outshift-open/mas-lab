@@ -1,0 +1,51 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#policy-rule"
+title: PolicyRule
+description: GovernancePlugin declarative policy — maps to PolicyDefinition.
+type: object
+additionalProperties: false
+required: [name, trigger, action]
+properties:
+  name:
+    type: string
+    minLength: 1
+  enabled:
+    type: boolean
+    default: true
+  action:
+    type: string
+    enum: [hitl, block, terminate, log, modify, skip, retry, blacklist]
+  trigger:
+    type: object
+    additionalProperties: false
+    required: [on]
+    properties:
+      on:
+        type: string
+        enum:
+          - tool_input
+          - tool_output
+          - llm_output
+          - delegation_output
+          - budget_threshold
+          - event
+          - tool_failure_streak
+      tool:
+        type: string
+      condition:
+        type: string
+      evaluation:
+        type: string
+      threshold:
+        type: integer
+        minimum: 1
+      reset_on:
+        type: string
+  params:
+    type: object
+    additionalProperties: false
+  recovery:
+    type: object
+    additionalProperties: false

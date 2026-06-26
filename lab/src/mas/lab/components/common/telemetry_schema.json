@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "description": "Common event format for UI and tooling, including optional object model updates.",
+  "fields": {
+    "timestamp": "float (epoch seconds)",
+    "source": "string (skeleton|tool_server_mitm|otel_mitm|agent-remote|semantic-messaging)",
+    "kind": "string (event type)",
+    "agent_id": "string|null",
+    "target": "string|null",
+    "payload": "object (raw event data, including optional object/link updates)"
+  }
+}

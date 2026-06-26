@@ -1,0 +1,19 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# MAS Library Standard — manifest bundles and tool executors.
+
+name: mas-library-standard
+description: >
+  Standard library for MAS — infra bundles (OpenAI, mock, production),
+  tutorial tools (web-search, calculator), and design-pattern aliases.
+version: "0.0.1"
+dependencies:
+  - mas-runtime
+  - ddgs>=9.14.0
+
+module_base: mas.library.standard
+
+plugins:
+  tools:
+    - module: tools.registry
+      note: execute_tool registry for v2 runtime tool bindings

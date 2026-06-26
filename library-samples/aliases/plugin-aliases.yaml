@@ -1,0 +1,23 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Short names → canonical plugin_id@version (OpenClaw / flavour compatibility).
+# Control plane resolves aliases at compose time; kernel sees only canonical IDs.
+apiVersion: mas/v1
+kind: PluginAliasManifest
+metadata:
+  name: default-aliases
+spec:
+  aliases:
+    react: react@v1
+    cot: cot@v1
+    reflection: introspection@v1
+    introspection: introspection@v1
+    plan_execute: plan_execute@v1
+    plan-execute: plan_execute@v1
+    tot: tree_of_thoughts@v1
+    tree_of_thoughts: tree_of_thoughts@v1
+    memory: memory-semantic@v1
+    memory-semantic: memory-semantic@v1
+    skills: skills@v1
+    workflow-sequential: workflow-sequential@v1
+    workflow-graph: workflow-graph@v1

@@ -1,0 +1,60 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "infra/v1/fragments/infra-entry"
+title: "InfraBundle entry (typed)"
+description: >
+  One typed infrastructure slot inside an InfraBundle. Each entry resolves to a
+  leaf infra manifest (by kind) and may run an attached serial pipeline before
+  the next entry is applied. Replaces separate ``includes`` and ``interceptors``
+  lists (Phase 10 migration).
+
+type: object
+required: [id, type, ref]
+additionalProperties: false
+
+properties:
+  id:
+    type: string
+    minLength: 1
+    description: Stable slot id within the bundle (e.g. llm, tools, observe).
+
+  type:
+    type: string
+    enum:
+      - llm_provider
+      - llm_local
+      - tool_provider
+      - tool_registry
+      - tool_server_registry
+      - otel_collector
+      - datastore
+      - secrets_provider
+      - application
+      - infra_middleware
+
+  ref:
+    type: string
+    description: Path or library ref to the leaf infra manifest.
+
+  pipeline:
+    type: array
+    description: Serial middleware steps executed for this entry (outer-first).
+    items:
+      oneOf:
+        - type: string
+        - type: object
+          additionalProperties: false
+          properties:
+            ref:
+              type: string
+            middleware:
+              type: string
+            params:
+              $ref: "../fragments/infra-middleware-params.schema.yaml"
+
+  applies_to:
+    type: array
+    description: For infra_middleware entries — which entry ids to wrap.
+    items:
+      type: string

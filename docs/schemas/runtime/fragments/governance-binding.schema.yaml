@@ -1,0 +1,57 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#governance-binding"
+title: GovernanceBinding
+description: >
+  Governance plugin list (ordered plugin stanzas).
+type: array
+items:
+  oneOf:
+    - type: string
+      enum: [sample_governance, sample_governance@v1]
+    - type: object
+      additionalProperties: false
+      minProperties: 1
+      maxProperties: 1
+      properties:
+        sample_governance:
+          type: object
+          additionalProperties: false
+          properties:
+            hitl_on_tool: { type: boolean }
+            hitl_on_tool_result: { type: boolean }
+            hitl_once_per_turn: { type: boolean }
+            hitl_mode:
+              type: string
+              enum: [interactive, auto-approve, auto-deny, off]
+            gov_policy_profile: { type: string }
+            gov_block_destructive: { type: boolean }
+            gov_trigger_destructive: { type: boolean }
+            gov_ingress_profile: { type: string }
+            max_cot_pass: { type: integer, minimum: 0 }
+            max_gov_retries: { type: integer, minimum: 0 }
+            policies:
+              type: array
+              items:
+                $ref: "./policy-rule.schema.yaml"
+        sample_governance@v1:
+          type: object
+          additionalProperties: false
+          properties:
+            hitl_on_tool: { type: boolean }
+            hitl_on_tool_result: { type: boolean }
+            hitl_once_per_turn: { type: boolean }
+            hitl_mode:
+              type: string
+              enum: [interactive, auto-approve, auto-deny, off]
+            gov_policy_profile: { type: string }
+            gov_block_destructive: { type: boolean }
+            gov_trigger_destructive: { type: boolean }
+            gov_ingress_profile: { type: string }
+            max_cot_pass: { type: integer, minimum: 0 }
+            max_gov_retries: { type: integer, minimum: 0 }
+            policies:
+              type: array
+              items:
+                $ref: "./policy-rule.schema.yaml"

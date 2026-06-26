@@ -1,0 +1,19 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: infra/v1
+kind: InfraMiddleware
+
+metadata:
+  name: chaos-lite
+  description: >
+    Random LLM fault injection for reliability experiments. Apply via
+    infra_interceptors in front of any LLM provider ref.
+
+spec:
+  middleware: fault_inject
+  applies_to:
+    - LLM_CALL
+  params:
+    rate: 0.05
+    status_codes: [503, 429]
+    message: chaos-lite injected fault

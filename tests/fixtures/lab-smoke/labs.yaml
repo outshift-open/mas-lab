@@ -1,0 +1,32 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Per-lab CI smoke: one mock-LLM run + post-pipeline, isolated trace cache.
+# MAS_MCE_OFFLINE=1 (set by test fixture) stubs LLM-as-judge metrics offline.
+#   pytest tests/test_lab_smoke_benchmark.py -q
+
+labs:
+  - label: tutorial-qa
+    experiment: tests/fixtures/lab-smoke/experiment.yaml
+    artifacts:
+      - results/trace_stats.csv
+
+  - label: design-space-patterns
+    experiment: tests/fixtures/lab-smoke/design-space-patterns.yaml
+    artifacts:
+      - results/ci_summary.csv
+
+  - label: design-space-topologies
+    experiment: tests/fixtures/lab-smoke/design-space-topologies.yaml
+    artifacts:
+      - results/ci_summary.csv
+
+  - label: lifecycle-control
+    experiment: tests/fixtures/lab-smoke/lifecycle-control.yaml
+    artifacts:
+      - results/trace_stats.csv
+      - results/mealy_stats.csv
+
+  - label: extensions
+    experiment: tests/fixtures/lab-smoke/extensions.yaml
+    artifacts:
+      - results/ci_summary.csv

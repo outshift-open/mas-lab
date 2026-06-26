@@ -1,0 +1,365 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+kind: Overlay
+metadata:
+  id: vector-baseline
+# Scenario: with-vector-memory-factrecall
+#
+# Purpose: measure retrieval precision/recall/F1 per query using provenance.
+#
+# Architecture: memory lives on the MODERATOR only.
+#   The moderator is the sole entry point — it receives every user query,
+#   can call memory_search before deciding to answer directly or delegate,
+#   and produces tool_call_end(memory-search) events that the eval step reads.
+#   Sub-agents (schedule, itinerary, concierge) have no memory: they remain
+#   pure specialists. This is the cleanest extension of the trip-planner for
+#   memory benchmarking without restructuring the base MAS.
+#
+# Key properties:
+#   - context_inject: false — disables passive injection (on_pre_llm_call /
+#     collect_context).  The moderator MUST call memory_search as a tool.
+#     Every retrieval produces a tool_call_end event with doc_ids.
+#   - memory_seed items carry explicit key: fNNN → doc_id in SQLite store.
+#   - 100 facts; f001–f023 appear in expected_facts. f024–f100 are distractors.
+#
+# Retrieval trace: tool_call_end(memory_search).result.results[].key == fNNN
+
+spec:
+  plugins:
+    - module_path: mas.library.standard.plugins.memory.memory_semantic
+      class_name: SemanticMemoryPlugin
+      name: semantic_memory
+      priority: 60
+      params:
+        db_path: "~/.mas/memory/{agent_id}.sqlite"
+        context_inject: false # tool-only mode — no passive injection
+        max_results: 6
+
+  patch:
+    agents:
+      moderator:
+        tools:
+          - memory-search
+
+        role:
+          instructions: |
+            You are a moderator coordinating a team of specialized agents:
+            schedule_agent (timetables), itinerary_agent (routes and plans),
+            and concierge_agent (fares and prices).
+
+            You also have access to a long-term memory of the traveler's
+            personal facts via the memory_search tool.
+
+            DECISION PROCESS (single-shot retrieval):
+            1. If the question involves personal information about the
+               traveler, call memory_search ONCE with a concise query.
+            2. Use the retrieved facts to answer or delegate to a specialist.
+            3. Do NOT perform additional memory_search calls.
+
+        # 100 facts seeded with explicit keys (doc_ids) for provenance tracing.
+        # Facts f001–f023: directly queried in fact-recall dataset.
+        # Facts f024–f100: distractors (test retrieval precision).
+        memory_seed:
+          # --- Core profile ---
+          - key: f001
+            source: trip_history
+            content: "Alex took the Eurostar train to London."
+          - key: f002
+            source: trip_history
+            content: "Alex visited Paris in September 2023."
+          - key: f003
+            source: trip_history
+            content: "Alex stayed at the Park Hyatt Tokyo in Shinjuku during the Tokyo trip."
+          - key: f004
+            source: traveler_profile
+            content: "Alex's daily travel budget is $200."
+          - key: f005
+            source: traveler_profile
+            content: "Alex prefers cultural activities and art museums when travelling."
+          - key: f006
+            source: traveler_profile
+            content: "Alex's home city is Celestia."
+          - key: f007
+            source: traveler_profile
+            content: "Alex prefers morning departures before 9 am."
+          - key: f008
+            source: traveler_profile
+            content: "Alex requests vegetarian meals on flights."
+          - key: f009
+            source: traveler_profile
+            content: "Alex is enrolled in the SkyWings frequent flyer program."
+          - key: f010
+            source: traveler_profile
+            content: "Alex prefers window seats on the quiet carriage on trains."
+          - key: f011
+            source: traveler_profile
+            content: "Alex speaks French in addition to English."
+          - key: f012
+            source: trip_history
+            content: "Alex found the Emerald Canyon Bridge in Verdantia too steep and would skip it next time."
+          - key: f013
+            source: trip_history
+            content: "Alex enjoyed the Living Library in Verdantia."
+          - key: f014
+            source: traveler_profile
+            content: "Alex prefers boutique hotels with local character over large international chains."
+          - key: f015
+            source: traveler_profile
+            content: "Alex is lactose intolerant."
+          - key: f016
+            source: trip_history
+            content: "Alex flew to Barcelona for a past trip."
+          - key: f017
+            source: trip_history
+            content: "The highlight of Alex's Barcelona trip was the Picasso Museum."
+          - key: f018
+            source: traveler_profile
+            content: "Alex uses GlobalGuard travel insurance."
+          - key: f019
+            source: traveler_profile
+            content: "Alex pays with a Sapphire Visa credit card for travel bookings."
+          - key: f020
+            source: trip_history
+            content: "Alex hired a local guide named Kenji in Kyoto."
+          - key: f021
+            source: trip_history
+            content: "Kenji led Alex on a temple district walking tour in Kyoto."
+          - key: f022
+            source: trip_history
+            content: "Alex's visa application for India was approved within 2 weeks."
+          - key: f023
+            source: trip_history
+            content: "Alex received a typhoid vaccination before travelling to India."
+
+          # --- Distractors (f024–f100): not in any expected_facts list ---
+          - key: f024
+            source: traveler_profile
+            content: "Alex's passport expires in March 2028."
+          - key: f025
+            source: traveler_profile
+            content: "Alex prefers aisle seats on long-haul flights."
+          - key: f026
+            source: trip_history
+            content: "Alex visited New York in April 2022 for a conference."
+          - key: f027
+            source: trip_history
+            content: "Alex stayed at a brownstone Airbnb in Brooklyn during the New York trip."
+          - key: f028
+            source: trip_history
+            content: "Alex attended a jazz concert at the Blue Note in New York."
+          - key: f029
+            source: trip_history
+            content: "Alex found Manhattan too crowded and prefers Brooklyn neighbourhoods."
+          - key: f030
+            source: traveler_profile
+            content: "Alex carries a portable WiFi hotspot when travelling abroad."
+          - key: f031
+            source: traveler_profile
+            content: "Alex keeps a travel journal and sketches street scenes."
+          - key: f032
+            source: trip_history
+            content: "Alex visited the Uffizi Gallery in Florence in 2021."
+          - key: f033
+            source: trip_history
+            content: "Alex took a cooking class in Florence focused on Tuscan pasta."
+          - key: f034
+            source: trip_history
+            content: "Alex stayed at a small pension near the Arno river in Florence."
+          - key: f035
+            source: trip_history
+            content: "Alex rated the Florence trip a 9/10, mainly because of the art."
+          - key: f036
+            source: traveler_profile
+            content: "Alex subscribes to an annual travel magazine for destination inspiration."
+          - key: f037
+            source: trip_history
+            content: "Alex took a ferry from Athens to Santorini in the summer of 2019."
+          - key: f038
+            source: trip_history
+            content: "Alex stayed in an oia cave hotel overlooking the caldera in Santorini."
+          - key: f039
+            source: trip_history
+            content: "Alex's most memorable meal was grilled octopus at a harbour taverna in Santorini."
+          - key: f040
+            source: traveler_profile
+            content: "Alex is allergic to shellfish."
+          - key: f041
+            source: traveler_profile
+            content: "Alex always books travel insurance before departure."
+          - key: f042
+            source: trip_history
+            content: "Alex hiked the Cinque Terre coastal trail in Liguria in 2022."
+          - key: f043
+            source: trip_history
+            content: "Alex found the Cinque Terre hike strenuous but worth it for the views."
+          - key: f044
+            source: trip_history
+            content: "Alex stayed in Monterosso for two nights during the Cinque Terre trip."
+          - key: f045
+            source: traveler_profile
+            content: "Alex prefers trips of 5–10 days rather than very short or very long stays."
+          - key: f046
+            source: traveler_profile
+            content: "Alex uses a noise-cancelling headset on all flights."
+          - key: f047
+            source: trip_history
+            content: "Alex rented a bicycle in Amsterdam and cycled along the canal ring."
+          - key: f048
+            source: trip_history
+            content: "Alex visited the Rijksmuseum and the Van Gogh Museum during the Amsterdam trip."
+          - key: f049
+            source: trip_history
+            content: "Alex found Amsterdam's Jordaan district the most charming neighbourhood."
+          - key: f050
+            source: traveler_profile
+            content: "Alex is a light packer and travels with only a carry-on for trips under 10 days."
+          - key: f051
+            source: trip_history
+            content: "Alex took the bullet train (Shinkansen) from Tokyo to Kyoto."
+          - key: f052
+            source: trip_history
+            content: "Alex bought a 7-day JR Pass for the Japan trip."
+          - key: f053
+            source: trip_history
+            content: "Alex visited the Fushimi Inari Shrine at sunrise to avoid crowds in Kyoto."
+          - key: f054
+            source: trip_history
+            content: "Alex attended a traditional tea ceremony in Kyoto's Gion district."
+          - key: f055
+            source: trip_history
+            content: "Alex purchased a hand-painted ceramic bowl as a souvenir from a Kyoto studio."
+          - key: f056
+            source: traveler_profile
+            content: "Alex sets a souvenir budget of $50 per destination."
+          - key: f057
+            source: trip_history
+            content: "Alex experienced a typhoon warning during the Tokyo trip and stayed indoors for one day."
+          - key: f058
+            source: traveler_profile
+            content: "Alex always downloads offline maps before visiting a new city."
+          - key: f059
+            source: trip_history
+            content: "Alex visited the Sagrada Família in Barcelona and pre-booked skip-the-line tickets."
+          - key: f060
+            source: trip_history
+            content: "Alex walked Las Ramblas in Barcelona and found it overly touristy."
+          - key: f061
+            source: trip_history
+            content: "Alex discovered El Born neighbourhood in Barcelona as a hidden gem."
+          - key: f062
+            source: traveler_profile
+            content: "Alex uses a VPN when connecting to public WiFi abroad."
+          - key: f063
+            source: trip_history
+            content: "Alex took a day trip from Barcelona to Montserrat by rack railway."
+          - key: f064
+            source: trip_history
+            content: "Alex found the Montserrat monastery views among the best of the trip."
+          - key: f065
+            source: traveler_profile
+            content: "Alex rates destinations primarily on art, architecture, and food."
+          - key: f066
+            source: trip_history
+            content: "Alex visited the Louvre in Paris and spent most time in the Denon wing."
+          - key: f067
+            source: trip_history
+            content: "Alex had lunch at a neighbourhood bistro near the Marais in Paris."
+          - key: f068
+            source: trip_history
+            content: "Alex took a night cruise on the Seine during the Paris trip."
+          - key: f069
+            source: trip_history
+            content: "Alex stayed at a Haussmann-era apartment hotel in the 3rd arrondissement of Paris."
+          - key: f070
+            source: traveler_profile
+            content: "Alex always carries a pocket phrasebook for the local language."
+          - key: f071
+            source: trip_history
+            content: "Alex visited the British Museum and the Tate Modern during the London trip."
+          - key: f072
+            source: trip_history
+            content: "Alex took afternoon tea at Fortnum & Mason in London."
+          - key: f073
+            source: trip_history
+            content: "Alex found the London Underground reliable but expensive compared to Eurostar."
+          - key: f074
+            source: trip_history
+            content: "Alex stayed in a Georgian townhouse B&B in Bloomsbury, London."
+          - key: f075
+            source: traveler_profile
+            content: "Alex budgets an additional 10% contingency on top of the daily $200 limit."
+          - key: f076
+            source: trip_history
+            content: "Alex visited the Acropolis in Athens at dusk for the best light."
+          - key: f077
+            source: trip_history
+            content: "Alex took a guided tour of the Ancient Agora in Athens."
+          - key: f078
+            source: trip_history
+            content: "Alex stayed in a boutique hotel in Plaka, Athens, with rooftop Acropolis views."
+          - key: f079
+            source: trip_history
+            content: "Alex found Athens street food (souvlaki) to be the highlight of Greek cuisine."
+          - key: f080
+            source: traveler_profile
+            content: "Alex prefers to learn at least 10 basic phrases in the local language before a trip."
+          - key: f081
+            source: trip_history
+            content: "Alex visited the National Palace Museum in Taipei in 2018."
+          - key: f082
+            source: trip_history
+            content: "Alex took a night train from Taipei to Hualien for the Taroko Gorge hike."
+          - key: f083
+            source: trip_history
+            content: "Alex found Taiwanese street food (scallion pancakes, beef noodle soup) excellent."
+          - key: f084
+            source: traveler_profile
+            content: "Alex carries travel adapters for EU, UK, and US/AU socket types."
+          - key: f085
+            source: trip_history
+            content: "Alex visited the Hermitage Museum in Saint Petersburg in 2017."
+          - key: f086
+            source: trip_history
+            content: "Alex took a canal boat tour of Saint Petersburg's waterways."
+          - key: f087
+            source: trip_history
+            content: "Alex attended a Mariinsky Theatre performance during the Saint Petersburg trip."
+          - key: f088
+            source: traveler_profile
+            content: "Alex photographs architecture and street art as a travel hobby."
+          - key: f089
+            source: trip_history
+            content: "Alex visited the Prado Museum in Madrid in 2023."
+          - key: f090
+            source: trip_history
+            content: "Alex took a flamenco show and dinner package in Madrid's tablao district."
+          - key: f091
+            source: trip_history
+            content: "Alex stayed at a design hotel near Gran Vía in Madrid."
+          - key: f092
+            source: traveler_profile
+            content: "Alex uses a currency conversion app to track spending in local currency."
+          - key: f093
+            source: trip_history
+            content: "Alex visited the Topkapi Palace and Hagia Sophia in Istanbul in 2016."
+          - key: f094
+            source: trip_history
+            content: "Alex took a Bosphorus cruise at sunset in Istanbul."
+          - key: f095
+            source: trip_history
+            content: "Alex found Istanbul's Grand Bazaar overwhelming and preferred the Spice Bazaar."
+          - key: f096
+            source: traveler_profile
+            content: "Alex keeps digital copies of all travel documents in an encrypted cloud folder."
+          - key: f097
+            source: trip_history
+            content: "Alex visited the Kröller-Müller Museum in the Hoge Veluwe National Park in the Netherlands."
+          - key: f098
+            source: trip_history
+            content: "Alex cycled through the national park to reach the Kröller-Müller Museum."
+          - key: f099
+            source: traveler_profile
+            content: "Alex donates to a local charity or social enterprise in each destination visited."
+          - key: f100
+            source: traveler_profile
+            content: "Alex's emergency contact abroad is a colleague named Marie who speaks both French and English."

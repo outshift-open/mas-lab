@@ -1,0 +1,61 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+kind: Overlay
+metadata:
+  id: with-context-inject
+# Scenario: with-context-inject (static context injection)
+#
+# This is the tutorial-1 "context manager" pattern applied to the MAS benchmark:
+# the traveler profile is injected as a static string directly in the
+# concierge_agent's system prompt.  No memory library is instantiated; no
+# tool calls are needed to retrieve the profile.  It is always present.
+#
+# Corresponds to the overlay/context-manager pattern from Tutorial 1:
+#   docs/tutorials/01-building-an-agent/overlays/context-manager.yaml
+# which adds static background to the system prompt via spec.context.background.
+# Here we use the MAS per-agent override path (spec.patch.agents.<id>.role)
+# because the tutorial overlay format works for single-agent manifests only.
+#
+# What this overlay does:
+#   spec.patch.agents.concierge_agent.role.instructions → extends the concierge
+#   system prompt with Alex's full traveler profile as a hardcoded block.
+#   No SemanticMemoryPlugin.  No memory_search.  No tool overhead.
+#
+# This is the simplest context extension that can produce correct answers on
+# recall and combination queries.  Its trajectory has the same structure as
+# the baseline (tool calls only) but the concierge's system prompt is larger.
+# Comparing with-tool-memory vs with-context-inject shows:
+#   - with-tool-memory: tool_call_start(memory_search) spans visible in OTel
+#   - with-context-inject: no extra spans; profile is in context from the start
+#
+# Both should outperform baseline on recall/combination groups.
+# with-context-inject is expected to be slightly faster (no retrieval latency).
+spec:
+  patch:
+    agents:
+      concierge_agent:
+        role:
+          instructions: |
+            You can look up the prices (fares) for trains and air routes.
+            You have access to two tools: get_fares for looking up fares,
+            and calc for calculations.
+
+            ## Traveler Profile (Alex)
+            The following profile has been loaded from the traveler's
+            long-term record and is always available to you:
+            - Interests: cultural activities and art museums
+            - Daily budget: $200
+            - Home city: Celestia; prefers morning departures before 9 am
+            - Past trips: Visited Verdantia — enjoyed the Living Library;
+              found Emerald Canyon Bridge too steep and would skip next time.
+
+            Use this profile when answering questions about Alex's preferences,
+            budget constraints, or recommendations based on past experiences.
+            Use get_fares to find train and airplane prices (fares). When you
+            have gathered sufficient information, provide a clear overview of
+            the prices (fares) for each itinerary.
+
+    design_pattern:
+      type: react
+      config:
+        max_steps: 12

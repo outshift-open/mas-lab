@@ -1,0 +1,53 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "http://json-schema.org/draft-07/schema#"
+$id: "mas-lab/lab/v1"
+title: "mas-lab lab manifest (v1)"
+description: >
+  Lab metadata beside experiments.  ``libraries`` declares installable library
+  schemes or forward-relative paths injected at run time.  ``plugins`` register
+  lab-local modules (pythonpath, step registration, …).
+
+type: object
+required: [lab]
+additionalProperties: false
+
+properties:
+  lab:
+    type: object
+    required: [name]
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+        minLength: 1
+      description:
+        type: string
+      libraries:
+        type: array
+        description: >
+          Library scheme names (e.g. ``samples``) or forward-relative directories
+          added to the lab import path.
+        items:
+          type: string
+          minLength: 1
+      plugins:
+        type: array
+        description: >
+          Lab-local plugins.  Each entry is a module name or a plugin spec object.
+        items:
+          oneOf:
+            - type: string
+              minLength: 1
+            - type: object
+              additionalProperties: false
+              properties:
+                id:
+                  type: string
+                path:
+                  type: string
+                module:
+                  type: string
+              anyOf:
+                - required: [path]
+                - required: [module]

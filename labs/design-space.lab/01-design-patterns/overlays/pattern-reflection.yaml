@@ -1,0 +1,16 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  id: pattern-reflection
+  description: "Reflection / Introspection — periodic self-review loop after each N steps"
+
+spec:
+  patch:
+    design_pattern:
+      type: introspection
+      config:
+        mode: health_check
+        trigger_every_n_steps: 2
+        max_introspection_tokens: 1000

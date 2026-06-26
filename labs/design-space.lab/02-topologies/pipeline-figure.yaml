@@ -1,0 +1,100 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+pipeline:
+  name: figure-02-topologies
+  description: "Dual-metric (AR + GSR) latency/quality figure from topology benchmark runs."
+
+  steps:
+    - name: collect-metrics
+      type: collect_metrics
+      config:
+        scenarios:
+          - topo-parallel
+          - topo-linear-pipeline
+          - topo-moderator-broker
+          - topo-supervised
+          - topo-verifier
+
+    - name: compute-ci
+      type: compute_ci
+      depends_on: [collect-metrics]
+      config:
+        data: "@collect-metrics"
+        groupby: [scenario, metric]
+        metrics: [answer_relevancy, goal_success_rate]
+        # Pre-aggregate runs → item means, then CI over items (n=n_items, wider CI)
+        pre_aggregate:
+          by: [scenario, metric, item_id]
+          agg: mean
+        extra_cols: [latency_s]
+        ci_method: t
+        ci_level: 0.95
+        output: "{output_dir}/results/ci_summary.csv"
+
+    - name: figure-overhead-quality
+      type: plotnine
+      depends_on: [collect-metrics, compute-ci]
+      config:
+        data: "@compute-ci"
+        mapping:
+          x: latency_s_mean
+          y: mean
+          color: scenario
+          shape: metric
+          xmin: latency_s_ci_low
+          xmax: latency_s_ci_high
+          ymin: ci_low
+          ymax: ci_high
+        layers:
+          # Dotted gray segment connecting AR mean to GSR mean for each scenario
+          - data: "@compute-ci"
+            geom: line
+            mapping:
+              x: latency_s_mean
+              y: mean
+              group: scenario
+            color: "#666666"
+            linetype: "dotted"
+            alpha: 0.85
+            size: 0.8
+          # Individual-run scatter (faint)
+          - data: "@collect-metrics"
+            geom: point
+            mapping:
+              x: latency_s
+              y: value
+              color: scenario
+            alpha: 0.25
+            size: 2.0
+            stroke: 0.0
+        geom: point
+        point_size: 3.5
+        alpha: 0.92
+        x_limits: [0, 300]
+        oov_x:
+          enabled: true
+          max: 300
+          shape: ">"
+          size: 2.4
+          alpha: 0.75
+        legend_position: [0.98, 0.02]
+        legend_justification: [1, 0]
+        errorbarh_height: 0.02
+        labels:
+          x: "Session Latency (s)"
+          y: "Score (AR / GSR)"
+          color: "Topology"
+          shape: "Metric"
+        output: "{output_dir}/results/figure-02-overhead-quality.png"
+        width: 8
+        height: 5
+        rename_values:
+          metric:
+            answer_relevancy: "Answer Relevancy"
+            goal_success_rate: "Goal Success Rate"
+          scenario:
+            topo-parallel: "Parallel"
+            topo-linear-pipeline: "Linear Pipeline"
+            topo-moderator-broker: "Moderator-Broker"
+            topo-supervised: "Supervised"
+            topo-verifier: "Verifier"

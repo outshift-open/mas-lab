@@ -1,0 +1,57 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+experiment:
+  name: smoke-extensions
+  description: >
+    CI smoke for extensions.lab — one mock run, eval_mce + CI pipeline,
+    isolated trace cache (cache disabled).
+  default_flavour: local
+  applications:
+    - app: trip-planner
+      configs_dir: ../../../labs/extensions.lab/overlays
+  scenarios:
+    - id: baseline
+      overlays:
+        logic:
+          - ref: ../../../docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml
+        control: []
+        infra: []
+  dataset:
+    path: ../../../labs/extensions.lab/datasets/fact-recall-smoke.yaml
+    limit: 1
+  execution:
+    emulation:
+      runtime:
+        cache: disabled
+  run:
+    n_runs: 1
+  pipeline_bind: experiment/post
+  application:
+    post:
+      - name: eval-quality
+        type: eval_mce
+        config:
+          runs_dir: "{output_dir}"
+          max_workers: 1
+          fail_threshold: 0.5
+          metrics:
+            - goal_success_rate
+            - answer_relevancy
+      - name: collect-metrics
+        type: collect_metrics
+        depends_on: [eval-quality]
+        config:
+          output_dir: "{output_dir}"
+          dataset: ../../../labs/extensions.lab/datasets/fact-recall-smoke.yaml
+      - name: compute-ci
+        type: compute_ci
+        depends_on: [collect-metrics]
+        config:
+          data: "@collect-metrics"
+          metrics:
+            - goal_success_rate
+            - answer_relevancy
+          groupby: [scenario, group, metric]
+          ci_method: t
+          ci_level: 0.95
+          output: "{output_dir}/results/ci_summary.csv"

@@ -1,0 +1,31 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: MAS
+metadata:
+  name: qa-mas
+  description: General-purpose Q&A MAS with web search and calculator.
+spec:
+  agency:
+    agents:
+      - id: qa-agent
+        ref: agents/qa-agent.yaml
+  workflow:
+    type: dynamic
+    entry: qa-agent
+    nodes:
+      - id: qa-agent
+        role: specialist
+x-canvas-positions:
+  qa-agent:
+    x: 0
+    y: 0
+  node_cb0e6f39:
+    x: -608
+    y: 32
+  node_3e21b256:
+    x: -544
+    y: 368
+  node_515c961a:
+    x: -512
+    y: 688

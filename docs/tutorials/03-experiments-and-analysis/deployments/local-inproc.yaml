@@ -1,0 +1,24 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Tutorial 03 default — python-v2 in-process
+apiVersion: deployment/v1
+kind: Deployment
+
+metadata:
+  name: local-inproc
+  description: Python v2 Mealy kernel, in-process bus.
+
+spec:
+  runtime_id: python-v2
+  strategy: local-inproc
+
+  framework:
+    default_adapter: native
+
+  agents: []
+
+  bus:
+    kind: inproc
+
+  shared:
+    observability_ref: native

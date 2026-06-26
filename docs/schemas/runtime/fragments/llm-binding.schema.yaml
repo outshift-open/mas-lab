@@ -1,0 +1,21 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#llm-binding"
+title: LlmBinding
+description: EngineContract / LiveLlmEngine parameters — not free-form config.
+type: object
+additionalProperties: false
+properties:
+  model:
+    type: string
+  provider:
+    type: string
+    description: "Engine provider hint (mock, openai, azure, …)."
+  temperature:
+    type: number
+    minimum: 0
+    maximum: 2
+  max_tokens:
+    type: integer
+    minimum: 1

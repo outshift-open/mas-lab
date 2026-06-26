@@ -1,0 +1,175 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1/tool"
+title: "Tool Manifest"
+description: >
+  Schema for kind: Tool manifests (apiVersion: mas/v1).
+  A Tool manifest is the declarative contract of a single tool:
+    - spec.parameters[]  — semantic interface (name, type, description, examples)
+    - spec.returns       — output description
+    - spec.impl          — implementation (module_path, class_name, kind)
+  Agent manifests reference Tool manifests via tools[].ref: ./path/to/tool.yaml.
+  ToolBundle entries can also be addressed via tools[].ref: bundle://<bundle>/<tool-id>.
+type: object
+required:
+  - apiVersion
+  - kind
+  - metadata
+  - spec
+additionalProperties: false
+properties:
+
+  apiVersion:
+    type: string
+    const: "mas/v1"
+
+  kind:
+    type: string
+    const: "Tool"
+
+  metadata:
+    type: object
+    required: [name]
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+        pattern: "^[a-z0-9][a-z0-9_-]*$"
+        description: >
+          Canonical tool name — used as the tool call name in LLM tool-use
+          (OpenAI function name, tool-server tool name).  Must be unique within an agent.
+      description:
+        type: string
+        default: ""
+        description: "Short one-liner surfaced in tool catalogues and dashboards."
+      version:
+        type: string
+        pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+.*$"
+        default: "0.1.0"
+      tags:
+        type: array
+        items:
+          type: string
+        default: []
+
+  spec:
+    type: object
+    additionalProperties: false
+    properties:
+
+      description:
+        type: string
+        default: ""
+        description: >
+          Full description of what the tool does, when to call it, and what
+          it returns.  Published verbatim as the LLM function description
+          and tool-server tool.description.
+          Write from the caller's perspective:
+          "Call this tool when you need X. It returns Y."
+
+      parameters:
+        type: array
+        description: >
+          Ordered list of input parameters.  Rendered as JSON Schema
+          ``properties`` for LLM tool-use and tool-server inputSchema.
+          Use ``required: true`` on mandatory parameters.
+        default: []
+        items:
+          type: object
+          required: [name, type]
+          additionalProperties: false
+          properties:
+            name:
+              type: string
+              description: "Parameter name — must be a valid Python identifier."
+              pattern: "^[a-zA-Z_][a-zA-Z0-9_]*$"
+            type:
+              type: string
+              enum: [string, integer, number, boolean, array, object]
+              description: "JSON Schema primitive type."
+            description:
+              type: string
+              default: ""
+              description: "Human-readable description injected into the LLM tool spec."
+            required:
+              type: boolean
+              default: false
+              description: >
+                When true, the parameter is added to JSON Schema ``required[]``.
+                Omit or set false for optional parameters.
+            default:
+              description: "Default value used when the parameter is absent."
+            enum:
+              type: array
+              description: "Allowed values for the parameter."
+              items: {}
+            examples:
+              type: array
+              description: >
+                Representative values shown to LLMs in the tool spec.
+                Helps the model understand the expected format.
+              items: {}
+
+      returns:
+        type: object
+        description: "Description of the tool's return value."
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            enum: [string, integer, number, boolean, array, object, any]
+            default: "any"
+            description: "JSON Schema type of the return value."
+          description:
+            type: string
+            default: ""
+            description: >
+              Human-readable description of the return value.
+              Published in tool-server tool spec output schemas and LLM docs.
+
+      idempotent:
+        type: boolean
+        default: false
+        description: >
+          True if calling with the same args always gives the same result.
+          Used by the governance layer for safe retries.
+
+      timeout_seconds:
+        type: integer
+        minimum: 1
+        maximum: 3600
+        default: 30
+        description: "Max wall-clock execution time enforced by the pre_tool_call hook."
+
+      impl:
+        type: object
+        description: >
+          Implementation section — maps the semantic contract to a concrete
+          runtime executor.  Hidden from LLM callers; used only by the runtime
+          loader.
+        required: [module_path]
+        additionalProperties: false
+        properties:
+          kind:
+            type: string
+            enum: [python, remote_tool, openapi]
+            default: python
+            description: >
+              python   — ToolContract subclass loaded via module_path.
+              remote_tool  — remote tool-server tool; module_path points to the ToolServerClient adapter.
+              openapi  — OpenAPI endpoint; module_path points to the OpenAPITool adapter.
+          module_path:
+            type: string
+            description: >
+              Dotted Python module path, e.g. mas.runtime.tools.calculator_tool.
+              May also be a relative filesystem path (./tools/my_tool.py).
+          class_name:
+            type: [string, "null"]
+            default: null
+            description: "Class implementing ToolContract. Auto-discovered when null."
+          params:
+            type: object
+            description: "Optional constructor kwargs forwarded to the class at instantiation."
+            additionalProperties: true
+            default: {}

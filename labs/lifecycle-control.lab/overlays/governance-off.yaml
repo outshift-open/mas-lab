@@ -1,0 +1,10 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+kind: Overlay
+metadata:
+  id: governance-off
+# Governance OFF — no policies, baseline for Exp 2.3
+spec:
+  observability:
+    - native
+  governance: []

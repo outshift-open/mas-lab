@@ -1,0 +1,11 @@
+{
+  "label": "lab-smoke",
+  "entries": [
+    {
+      "run_hash": "cd0d75b6da3b1ca0e617",
+      "has_run_json": true,
+      "has_inputs_json": true,
+      "has_events": true
+    }
+  ]
+}

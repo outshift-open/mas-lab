@@ -1,0 +1,34 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+experiment:
+  name: verify-lab-smoke
+  description: 'CI smoke — one mock agent run (cache disabled) plus a lightweight post pipeline.
+
+    '
+  default_flavour: local
+  applications:
+    - manifest: ../../../docs/tutorials/01-building-an-agent/agent.yaml
+      configs_dir: ../../../docs/tutorials/01-building-an-agent/overlays
+  scenarios:
+  - id: mock-tools
+    overlays:
+      logic:
+      - mock-llm
+      - tools
+      control: []
+      infra: []
+  dataset:
+    path: dataset.yaml
+    limit: 1
+  execution:
+    emulation:
+      runtime:
+        cache: disabled
+  run:
+    n_runs: 1
+  application:
+    post:
+      - name: trace-stats
+        type: extract_trace_stats
+        config:
+          output: '{output_dir}/results/trace_stats.csv'

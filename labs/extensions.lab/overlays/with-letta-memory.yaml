@@ -1,0 +1,49 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+kind: Overlay
+metadata:
+  id: with-letta-memory
+# Scenario: with-letta-memory (passive injection via ContextContract)
+#
+# One overlay wraps Letta's BasicBlockMemory via LettaCoreMemoryWrapper.
+# The traveler profile is always present in the system prompt (Letta block);
+# no explicit memory_search call is needed by the agent.
+#
+# Wiring (MAS overlay path — spec.plugins is handled by load_scenario_config):
+#   spec.plugins: [LettaCoreMemoryWrapper]  ← registers ContextContract globally
+#
+# lab/memory/letta_wrapper.py is on sys.path via lab-config.yaml plugins (path: lib).
+# The wrapper implements ContextContract.collect_context() → injects blocks
+# as <memory_blocks> XML into every LLM system prompt automatically.
+#
+# Comparison with with-vector-memory:
+#   active-retrieval  — agent calls memory_search explicitly (ToolContract)
+#   passive-injection — profile is always in context  (ContextContract)
+#
+# Alex's profile (same content as with-vector-memory, different access pattern).
+spec:
+  plugins:
+    - module_path: memory.letta_wrapper
+      class_name: LettaCoreMemoryWrapper
+      name: letta_core_memory
+      priority: 55
+      params:
+        blocks:
+          - label: persona
+            value: "I am a personalized travel planning assistant."
+            limit: 8000
+          - label: human
+            value: |
+              Traveler profile — Alex:
+              - Interests: cultural activities and art museums
+              - Daily budget: $200
+              - Home city: Celestia; prefers morning departures before 9 am
+              - Past trips: Visited Verdantia — enjoyed the Living Library;
+                found Emerald Canyon Bridge too steep and would skip next time.
+            limit: 8000
+
+  patch:
+    design_pattern:
+      type: react
+      config:
+        max_steps: 12

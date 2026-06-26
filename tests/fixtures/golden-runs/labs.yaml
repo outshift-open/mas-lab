@@ -1,0 +1,23 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Golden-run lab manifest
+#
+# Each entry maps a fixture label under tests/fixtures/golden-runs/ to a
+# mock-LLM capture experiment (fast, deterministic CI parity).
+#
+# Capture:
+#   python scripts/capture_golden_run.py --labs all
+#   python scripts/capture_golden_run.py --labs design-space
+#
+# Verify:
+#   task verify-golden-runs
+
+labs:
+  - label: lab-smoke
+    experiment: tests/fixtures/lab-smoke/experiment.yaml
+  - label: design-space
+    experiment: tests/fixtures/golden-runs/capture/design-space/experiment.yaml
+  - label: lifecycle-control
+    experiment: tests/fixtures/golden-runs/capture/lifecycle-control/experiment.yaml
+  - label: extensions
+    experiment: tests/fixtures/golden-runs/capture/extensions/experiment.yaml

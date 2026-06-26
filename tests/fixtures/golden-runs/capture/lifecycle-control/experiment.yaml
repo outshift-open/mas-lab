@@ -1,0 +1,24 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+experiment:
+  name: golden-lifecycle-control
+  description: Golden capture — trip-planner mock run (lifecycle-control lab fingerprint)
+  default_flavour: local
+  applications:
+    - app: trip-planner
+  scenarios:
+    - id: golden
+      overlays:
+        logic:
+          - ref: ../../../../../docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml
+        control: []
+        infra: []
+  dataset:
+    path: ../dataset.yaml
+    limit: 1
+  execution:
+    emulation:
+      runtime:
+        cache: disabled
+  run:
+    n_runs: 1

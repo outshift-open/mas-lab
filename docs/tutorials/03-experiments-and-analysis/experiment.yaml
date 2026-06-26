@@ -1,0 +1,38 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+experiment:
+  name: t3-observability-patterns
+  description: 'Tutorial 03 experiment: compare CoT, ReAct, and Reflection design patterns on a fixed set of QA queries and
+    observe the generated OTel traces.
+
+    '
+  default_flavour: local
+  applications:
+    - manifest: ./agent.yaml
+      configs_dir: ./overlays
+  scenarios:
+  - id: cot
+    description: Chain-of-Thought reasoning
+    overlays:
+      logic:
+      - cot
+      control: []
+      infra: []
+  - id: react
+    description: ReAct — interleaved reasoning and tool calls
+    overlays:
+      logic:
+      - react
+      control: []
+      infra: []
+  - id: reflection
+    description: Reflection — self-critique loop
+    overlays:
+      logic:
+      - reflection
+      control: []
+      infra: []
+  dataset:
+    path: ./dataset.yaml
+  run:
+    n_runs: 1

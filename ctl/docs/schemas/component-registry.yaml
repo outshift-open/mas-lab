@@ -1,0 +1,38 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Authoritative runtime/placement/framework IDs (mas-lab)
+apiVersion: mas/v1
+kind: ComponentRegistry
+
+metadata:
+  name: component-registry
+  description: Single source of truth for ctl dispatch IDs
+
+spec:
+  runtimes:
+    - id: python-v2
+      layer: ctl.runtime
+      module: mas.ctl.compose.backends.python_v2.PythonV2KernelBackend
+      description: Python Mealy kernel v2 (OSS)
+      status: available
+
+  placement:
+    - id: local-inproc
+      layer: ctl.placement
+      module: mas.ctl.compose.placement_registry.LocalInprocBackend
+      description: In-process comm bus (OSS default)
+      status: available
+    - id: docker
+      layer: ctl.placement
+      description: Docker placement — not in this OSS release; future release
+      status: future_release
+    - id: kubernetes
+      layer: ctl.placement
+      description: Kubernetes placement — not in this OSS release; future release
+      status: future_release
+
+  framework:
+    - id: native
+      layer: ctl.framework
+      description: Native MAS kernel runner (OSS — mas-lab benchmark path)
+      status: available

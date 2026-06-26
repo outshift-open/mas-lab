@@ -1,0 +1,28 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: cot-moderator
+spec:
+  target:
+    kind: MAS
+  patch:
+    agents:
+      moderator:
+        design_pattern:
+          type: cot
+          config:
+            max_steps: 10
+x-namespace: trip-planner
+x-canvas-positions:
+  node_0b4b49e4:
+    x: 880
+    y: 144
+  node_6fa7510e:
+    x: 384
+    y: 160
+x-canvas-node-ids:
+  moderator:
+    agent: node_0b4b49e4
+    designPattern: node_6fa7510e

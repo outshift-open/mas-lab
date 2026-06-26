@@ -1,0 +1,41 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mas-library-samples"
+version = "0.1.0"
+description = "Community-contributed MAS sample apps, datasets, and tools."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+authors = [{name = "MAS Framework Contributors"}]
+dependencies = []
+
+[project.entry-points."mas.runtime.manifest_libraries"]
+samples = "mas.library.samples"
+
+# Checkout layout stays flat (apps/, datasets/, tools/, library.yaml at the
+# library root).  Hatch remaps those directories into the Python package only
+# when building the wheel.
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "apps",
+  "datasets",
+  "tools",
+  "library.yaml",
+  "src/mas",
+  "README.md",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mas"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"apps" = "src/mas/library/samples/apps"
+"datasets" = "src/mas/library/samples/datasets"
+"tools" = "src/mas/library/samples/tools"
+"library.yaml" = "src/mas/library/samples/library.yaml"

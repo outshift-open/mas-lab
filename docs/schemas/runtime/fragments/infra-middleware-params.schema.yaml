@@ -1,0 +1,33 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "infra/v1#middleware-params"
+title: InfraMiddlewareParams
+description: InfraMiddleware spec.params — cache and fault-inject knobs.
+type: object
+additionalProperties: false
+properties:
+  enabled:
+    type: boolean
+  cache_path:
+    type: [string, "null"]
+  path:
+    type: string
+  rate:
+    type: number
+    minimum: 0
+    maximum: 1
+  failure_rate:
+    type: number
+    minimum: 0
+    maximum: 1
+  status_codes:
+    type: array
+    items:
+      type: integer
+  errors:
+    type: array
+    items:
+      type: integer
+  message:
+    type: string

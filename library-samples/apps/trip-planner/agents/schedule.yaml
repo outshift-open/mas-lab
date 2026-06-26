@@ -1,0 +1,38 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  x-node-id: node_8335d6ff
+  name: schedule_agent
+spec:
+  intent: >
+    Schedule Agent — looks up train and air departure times, frequencies, and
+    attraction opening hours for cities in
+        the Arborian Network. Receives a ScheduleQuery from the moderator and returns a ScheduleResult containing departures and
+        travel times grounded in arborian-network.yaml. It also provides attractions details and opening hours for each city on the itinerary.
+  role:
+    description: Transport schedule and attractions specialist.
+    instructions: >-
+      You can look up train and airplane schedules and attractions inside
+      cities.
+            You have access to three tools:
+            1. lookup_schedule — to search for train and airplane schedules between cities. Schedule only between cities, not attractions
+            2. get_attractions — to fetch quick lists of attraction names for a city
+            3. get_attractions_description — to fetch detailed attraction/highlight listings for a city with accessibility information (filter by city and get all the attractions descriptions)
+
+            Use lookup_schedule to find train and airplane schedules. For attractions,
+            use get_attractions for quick name lookups or get_attractions_description for detailed accessibility information.
+            When you have gathered sufficient information, provide a clear overview of relevant
+            transport schedules and attractions for each city on the itinerary.
+  models:
+    - model: azure/gpt-4o
+      temperature: 0.2
+      max_tokens: 1500
+  tools:
+    - ref: ../tools/lookup_schedule.tool.yaml
+    - ref: ../tools/get_attractions.tool.yaml
+    - ref: ../tools/get_attractions_description.tool.yaml
+x-canvas-node-ids:
+  model: node_074e0028
+  tools: node_737d0489

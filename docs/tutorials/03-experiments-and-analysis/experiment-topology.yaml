@@ -1,0 +1,37 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+experiment:
+  name: t3-topology-comparison
+  description: 'Tutorial 03 Part C experiment: compare single-agent, linear pipeline, and moderator topologies on a fixed
+    QA dataset.
+
+    '
+  default_flavour: local
+  applications:
+    - manifest: ./mas.yaml
+      configs_dir: ./topologies
+  scenarios:
+  - id: single-agent
+    description: Single-agent — all tools in one agent
+    overlays:
+      logic: []
+      control: []
+      infra: []
+  - id: linear
+    description: Linear pipeline — schedule then itinerary
+    overlays:
+      logic: []
+      control: []
+      infra: []
+  - id: moderator
+    description: Moderator topology — dynamic delegation
+    overlays:
+      logic: []
+      control: []
+      infra: []
+  dataset:
+    path: ./dataset.yaml
+  run:
+    n_runs: 1
+  application:
+    post: []

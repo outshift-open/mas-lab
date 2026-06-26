@@ -1,0 +1,85 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: MAS
+metadata:
+  name: trip-planner
+  description: |-
+    Trip Planner MAS — the canonical four-agent Arborian Network example.
+        A moderator orchestrates three specialists (schedule_agent,
+        itinerary_agent, concierge_agent) to answer transport queries, plan
+        routes, and assemble full itineraries.  This is the v1 baseline: no
+        memory or ontology enhancement, standard keyword-based skill retrieval.
+spec:
+  agency:
+    agents:
+      - id: concierge_agent
+        ref: agents/concierge_agent.yaml
+      - id: itinerary_agent
+        ref: agents/itinerary_agent.yaml
+      - id: moderator
+        ref: agents/moderator.yaml
+      - id: schedule_agent
+        ref: agents/schedule.yaml
+  workflow:
+    type: dynamic
+    entry: moderator
+    nodes:
+      - id: concierge_agent
+        role: specialist
+      - id: itinerary_agent
+        role: specialist
+      - id: moderator
+        role: specialist
+        delegates_to:
+          - schedule_agent
+          - itinerary_agent
+          - concierge_agent
+      - id: schedule_agent
+        role: specialist
+x-canvas-positions:
+  node_ed20e5ed:
+    x: 1856
+    y: 1488
+  node_09e219dd:
+    x: 960
+    y: 1584
+  node_33334abf:
+    x: 848
+    y: 1952
+  node_e6eac2eb:
+    x: 1808
+    y: 512
+  node_d01ccd30:
+    x: 1408
+    y: 624
+  node_19931790:
+    x: 1504
+    y: 912
+  node_ae0f3975:
+    x: 496
+    y: 64
+  node_41250ae4:
+    x: -64
+    y: 80
+  node_2d8bb164:
+    x: 16
+    y: 416
+  node_6f5cc735:
+    x: 112
+    y: 736
+  node_8335d6ff:
+    x: 1616
+    y: -496
+  node_074e0028:
+    x: 1008
+    y: -672
+  node_737d0489:
+    x: 880
+    y: -368
+intent:
+  summary: |-
+    I plan trips between cities in the Arborian Network (fictional city
+        universe).  Tell me your destination preferences, travel dates, budget
+        (in EUR), and interests, and I will select the best city, produce a
+        detailed local guide, and assemble a complete day-by-day itinerary.

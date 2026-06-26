@@ -1,0 +1,237 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+name: tutorial-02-creating-a-mas
+title: "Tutorial 02 — Creating a Multi-Agent System"
+description: >
+  Compose specialised agents into a Multi-Agent System (MAS). Switch between
+  dynamic, single-agent, and linear topologies using overlays and inspect the
+  resulting traces with telemetry, graph normalisation, and trajectory plots.
+version: "1.0"
+authors: ["MAS Framework Team"]
+tags: ["mas", "topology", "overlays", "telemetry", "graph", "tutorial"]
+prerequisites:
+  - "Tutorial 0: infra via ~/.mas/config.yaml or --infra-ref; mas-lab config for paths"
+  - "mas-ctl and mas-lab on PATH"
+  - "Tutorial 01 completed (overlays)"
+  - "Offline: pytest tests/tutorials/test_scenario_commands.py -k tuto-02"
+  - "Online: OPENAI_API_KEY for mas-ctl run-mas steps"
+estimated_duration_min: 30
+working_dir: docs/tutorials/02-creating-a-mas # relative to repo root
+cache_dir: ".demo-cache"
+
+sections:
+  # ──────────────────────────────────────────────────
+  # 01  Introduction
+  # ──────────────────────────────────────────────────
+  - id: intro
+    title: "Introduction"
+    description: MAS concepts and what this tutorial builds.
+    steps:
+      - type: slide
+        title: "From one agent to a team"
+        content: |
+          ## Tutorial 02 — Creating a MAS
+
+          A **Multi-Agent System** (MAS) is a group of specialised agents
+          coordinated by a shared workflow.  Each agent has its own manifest,
+          tools, and skills — but they communicate through a common protocol.
+
+          This tutorial builds a **trip-planning MAS** with four agents:
+
+          | Agent | Role |
+          |-------|------|
+          | `moderator` | Orchestrates delegation |
+          | `schedule_agent` | Finds transport schedules |
+          | `itinerary_agent` | Builds day-by-day plans |
+          | `concierge_agent` | Recommends restaurants and hotels |
+
+          You will run the same query through **three topologies** using
+          overlays — no changes to the agent manifests:
+
+          | Topology | Overlay |
+          |----------|---------|
+          | Dynamic (moderator) | *(default)* |
+          | Single-agent | `overlays/single-agent.yaml` |
+          | Linear pipeline | `overlays/linear.yaml` |
+
+  # ──────────────────────────────────────────────────
+  # 02  Validate the MAS manifest
+  # ──────────────────────────────────────────────────
+  - id: validate
+    title: "Validate the MAS Manifest"
+    description: Run schema validation before the first live run.
+    steps:
+      - type: narrative
+        title: "Validating a MAS manifest"
+        content: |
+          `mas.yaml` declares the full MAS: agent refs, workflow type, and
+          entry point.  Validate it before running to catch schema errors
+          or missing agent files:
+
+          ```bash
+          mas-ctl validate mas.yaml
+          ```
+
+      - type: command
+        title: "Validate mas.yaml"
+        command: "mas-ctl validate mas.yaml"
+        cache_key: "validate-mas"
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "OK"
+
+  # ──────────────────────────────────────────────────
+  # 03  Run with dynamic topology (default)
+  # ──────────────────────────────────────────────────
+  - id: dynamic-topology
+    title: "Topology 1 — Dynamic (Moderator)"
+    description: Run the default MAS where the moderator decides delegation.
+    steps:
+      - type: narrative
+        title: "Dynamic routing via moderator"
+        content: |
+          The default topology uses a **moderator** agent that reads the query
+          and decides which specialists to call, in what order.
+
+          Watch the `[moderator] -> [schedule_agent]` delegation lines in the
+          verbose output to see how the moderator routes the request.
+
+      - type: command
+        title: "Run MAS — dynamic topology"
+        command: >-
+          mas-ctl run-mas mas.yaml
+          --events --events-file logs/events.jsonl
+          -q "Plan a 3-day trip to Thornhaven, budget €500"
+        cache_key: "run-dynamic"
+        allowed_modes: [online]
+        expected_exit_code: 0
+
+  # ──────────────────────────────────────────────────
+  # 04  Topology overlays
+  # ──────────────────────────────────────────────────
+  - id: topology-overlays
+    title: "Topology 2 & 3 — Overlay Variants"
+    description: Switch to single-agent and linear pipeline using overlays.
+    steps:
+      - type: slide
+        title: "Topology overlays"
+        content: |
+          ## Switching Topologies
+
+          Just as agent overlays add tools and skills, **MAS-level overlays**
+          change the workflow structure:
+
+          | Overlay | Effect |
+          |---------|--------|
+          | `overlays/single-agent.yaml` | Collapse to one generalist agent |
+          | `overlays/linear.yaml` | Fixed sequential order: schedule → itinerary → concierge |
+
+          Compare the traces to understand the trade-offs between flexibility
+          and predictability.
+
+      - type: command
+        title: "Run MAS — single-agent overlay"
+        command: >-
+          mas-ctl run-mas mas.yaml
+          --events --events-file logs/events.jsonl
+          -o overlays/single-agent.yaml
+          -q "Plan a 3-day trip to Thornhaven, budget €500"
+        cache_key: "run-single-agent"
+        allowed_modes: [online]
+        expected_exit_code: 0
+
+      - type: command
+        title: "Run MAS — linear pipeline overlay"
+        command: >-
+          mas-ctl run-mas mas.yaml
+          --events --events-file logs/events.jsonl
+          -o overlays/linear.yaml
+          -q "Plan a 3-day trip to Thornhaven, budget €500"
+        cache_key: "run-linear"
+        allowed_modes: [online]
+        expected_exit_code: 0
+
+  # ──────────────────────────────────────────────────
+  # 05  Trace inspection
+  # ──────────────────────────────────────────────────
+  - id: trace-inspection
+    title: "Trace Inspection"
+    description: Inspect the trace with telemetry and trajectory plot.
+    steps:
+      - type: narrative
+        title: "What mas-ctl produces"
+        content: |
+          Each `mas-ctl run-mas` call writes an `events.jsonl` log in
+          `logs/`.  The log records every event: MAS calls, agent
+          executions, LLM calls, and tool invocations.
+
+          Use `mas-lab` to turn the log into insight:
+
+          ```
+          logs/events.jsonl
+           ├─ mas-lab telemetry show               → event summary
+           └─ mas-lab plot multilevel-trajectory  → swimlane HTML
+          ```
+
+          Knowledge-graph normalisation (`mas-lab graph`) is not part of
+          this open-source repository.
+
+      - type: command
+        title: "Telemetry summary (fixture trace)"
+        command: "mas-lab telemetry show fixtures/events.jsonl"
+        cache_key: "telemetry-show"
+        allowed_modes: [offline]
+        expected_exit_code: 0
+
+      - type: command
+        title: "Multilevel trajectory → output/trajectory.html"
+        command: >-
+          mas-lab plot multilevel-trajectory fixtures/events.jsonl
+          --format html -o output/trajectory.html
+        cache_key: "plot-multilevel"
+        allowed_modes: [offline]
+        expected_exit_code: 0
+
+      - type: artifact
+        title: "Multilevel trajectory — interactive swimlane"
+        artifact_path: output/trajectory.html
+        artifact_type: html-embed
+
+  # ──────────────────────────────────────────────────
+  # 06  Wrap-up
+  # ──────────────────────────────────────────────────
+  - id: wrapup
+    title: "Wrap-up"
+    description: What you built and where to go next.
+    steps:
+      - type: checkpoint
+        title: "Tutorial 02 complete ✓"
+        content: |
+          You ran one MAS query through three different topologies:
+
+          ```
+          mas.yaml                           default — dynamic (moderator)
+           + overlays/single-agent.yaml      → one generalist agent
+           + overlays/linear.yaml            → fixed sequential pipeline
+          ```
+
+          For each topology you inspected the trace with telemetry, KG
+          normalisation, and an interactive multilevel swimlane.
+
+      - type: narrative
+        title: "Next steps"
+        content: |
+          **Tutorial 03 — Plugins & Observability**
+
+          Load a pre-recorded trace, run a full analysis pipeline, and
+          compare design patterns (ReAct vs CoT vs Reflection) with
+          automated metrics.
+
+          ```bash
+          mas-tutorial run docs/tutorials/03-experiments-and-analysis/demo/scenario.yaml
+          ```
+
+          **Benchmarks**
+
+          Automate multi-scenario runs with `mas-lab benchmark run` and
+          compare topology performance across a dataset.

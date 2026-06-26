@@ -1,0 +1,48 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Component registry — authoritative IDs for ctl/runtime adapters.
+# Deployment.spec.runtime_id, placement strategy, and framework adapter MUST use these ids.
+apiVersion: mas/v1
+kind: ComponentRegistry
+metadata:
+  name: mas-lab-components
+spec:
+  runtimes:
+    - id: python-v2
+      layer: ctl.runtime
+      module: mas.ctl.compose.backends.python_v2.PythonV2KernelBackend
+      description: Python Mealy kernel (provable product, local-inproc)
+
+  placement:
+    - id: local-inproc
+      layer: ctl.placement
+      module: mas.ctl.compose.placement_registry.LocalInprocBackend
+      description: In-process comm bus (OSS-supported)
+      status: available
+    - id: local-multiprocess
+      layer: ctl.placement
+      module: null
+      status: planned
+      description: Planned — not in this OSS release
+    - id: docker
+      layer: ctl.placement
+      module: mas.ctl.placement.docker.DockerBackend
+      status: planned
+      description: Planned — not in this OSS release
+    - id: kubernetes
+      layer: ctl.placement
+      module: mas.ctl.placement.k8s.K8sBackend
+      status: planned
+      description: Planned — not in this OSS release
+
+  framework:
+    - id: native
+      layer: ctl.framework
+      module: mas.ctl.compose.framework_registry.NativeFrameworkAdapter
+    - id: langgraph
+      layer: ctl.framework
+      module: mas.ctl.compose.framework_registry.LangGraphFrameworkAdapter
+    - id: crewai
+      layer: ctl.framework
+      module: null
+      status: planned

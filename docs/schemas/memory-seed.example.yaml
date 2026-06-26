@@ -1,0 +1,11 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Memory seed file — preload context before first turn
+apiVersion: memory-seed/v1
+kind: MemorySeed
+
+entries:
+  - key: user-preference
+    content: "User prefers window seats on flights."
+  - key: trip-context
+    content: "Conference in Berlin, March 12–14."

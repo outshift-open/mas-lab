@@ -1,0 +1,548 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "http://json-schema.org/draft-07/schema#"
+$id: "mas-lab/experiment/v1"
+title: "mas-lab experiment manifest (v1)"
+description: >
+  Schema for experiment.yaml — declarative batch benchmark configuration.
+  Top-level key must be 'experiment:'.  All relative paths are resolved from
+  the directory containing this file.
+
+type: object
+required: [experiment]
+additionalProperties: false
+
+properties:
+  experiment:
+    type: object
+    additionalProperties: false
+    description: "Batch benchmark configuration — scenarios × dataset × runs."
+
+    properties:
+      # ── Identity ──────────────────────────────────────────────────────────
+      name:
+        type: string
+        minLength: 1
+        description: "Unique experiment identifier (used in output paths and reports)."
+
+      description:
+        type: string
+        description: "Free-text description shown in benchmark reports."
+
+      metadata:
+        type: object
+        additionalProperties: true
+        description: "Optional reproducibility metadata (model, dataset version, notes)."
+
+      output_schema:
+        type: object
+        additionalProperties: false
+        description: "Optional post-run output validation (required files/columns)."
+        properties:
+          required_files:
+            type: array
+            items:
+              type: string
+          required_columns:
+            type: object
+            additionalProperties:
+              type: array
+              items:
+                type: string
+
+      default_flavour:
+        type: string
+        description: >
+          Runtime flavour name resolved via library-standard
+          (mas.lab.flavour.resolve).
+
+      default_infra:
+        type: string
+        description: "Default infra bundle name for service/codec pipeline steps."
+
+      pipeline_bind:
+        type: string
+        description: "Library pipeline binding id (e.g. experiment/post)."
+
+      # ── MAS applications ──────────────────────────────────────────────────
+      applications:
+        type: array
+        minItems: 1
+        description: "One or more MAS use-cases targeted by this experiment."
+        items:
+          type: object
+          additionalProperties: false
+          description: "Pointer to a MAS use-case (manifest path, app name, or configs directory)."
+          properties:
+            manifest:
+              type: string
+              description: "Path to mas.yaml or agent.yaml."
+            app:
+              type: string
+              description: >
+                Registered app name (mas.apps registry → mas.yaml).
+            configs_dir:
+              type: string
+              description: "Path to the overlays directory."
+            base_scenario:
+              type: string
+              default: "baseline"
+              description: "Default scenario used as reference/baseline."
+          anyOf:
+            - required: [manifest]
+            - required: [app]
+
+      # ── Scenarios ─────────────────────────────────────────────────────────
+      scenarios:
+        type: array
+        description: "Ordered list of scenarios to benchmark."
+        items:
+          type: object
+          required: [id]
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+              minLength: 1
+              description: "Unique scenario identifier within this experiment. Also used as overlay name when overlays is absent."
+            overlays:
+              type: object
+              additionalProperties: false
+              description: "Layered overlay stacks (logic / control / infra)."
+              required: [logic, control, infra]
+              properties:
+                logic:
+                  type: array
+                  items:
+                    oneOf:
+                      - type: string
+                        minLength: 1
+                      - type: object
+                        required: [ref]
+                        additionalProperties: false
+                        properties:
+                          ref:
+                            type: string
+                            minLength: 1
+                  default: []
+                control:
+                  type: array
+                  items:
+                    oneOf:
+                      - type: string
+                        minLength: 1
+                      - type: object
+                        required: [ref]
+                        additionalProperties: false
+                        properties:
+                          ref:
+                            type: string
+                            minLength: 1
+                  default: []
+                infra:
+                  type: array
+                  items:
+                    oneOf:
+                      - type: string
+                        minLength: 1
+                      - type: object
+                        required: [ref]
+                        additionalProperties: false
+                        properties:
+                          ref:
+                            type: string
+                            minLength: 1
+                  default: []
+            description:
+              type: string
+            tags:
+              type: array
+              items:
+                type: string
+              description: "Labels for grouping/filtering (e.g. ['reference', 'baseline'])."
+            flavour:
+              type: string
+              description: "Per-scenario flavour override (name or path)."
+
+      # ── Dataset ───────────────────────────────────────────────────────────
+      dataset:
+        type: object
+        additionalProperties: false
+        description: >-
+          Benchmark dataset reference.  Resolved via mas.registry in priority
+          order: explicit path > cross-app lookup > global mas.datasets registry
+          > local datasets/ folder fallback.
+        properties:
+          name:
+            type: string
+            description: >-
+              Dataset name — resolved via the global mas.datasets registry, or
+              as a local-folder fallback ({experiment_dir}/datasets/{name}.yaml).
+          app:
+            type: string
+            description: >-
+              App name (from mas.apps registry).  When present, the dataset is
+              resolved as {app_root}/datasets/{name}.yaml.  Requires 'name'.
+          path:
+            type: string
+            description: >-
+              Explicit relative or absolute path to the dataset YAML.  Overrides
+              name/app resolution.
+          locator:
+            type: string
+            description: >-
+              Manifest library scheme (e.g. ``samples``) or package name.  Resolves
+              ``name`` via that library's ``library.yaml`` dataset catalog.
+          filter:
+            type: object
+            additionalProperties: true
+            description: "Optional filter applied to dataset items before benchmarking."
+          limit:
+            type: integer
+            minimum: 1
+            description: "Cap number of dataset items processed (smoke runs)."
+
+      # ── Evaluation ────────────────────────────────────────────────────────
+      evaluation:
+        type: object
+        required: [method]
+        additionalProperties: false
+        description: "Automatic evaluation spec applied to benchmark outputs."
+        properties:
+          method:
+            type: string
+            enum: [user_emulation, llm_judge, metrics, trace_only]
+            description: "Evaluation strategy. trace_only = collect trajectories without scoring."
+          config:
+            type: object
+            additionalProperties: true
+            description: "Method-specific configuration."
+
+      # ── Output ────────────────────────────────────────────────────────────
+      trace_cache_dir:
+        type: string
+        description: >
+          Override the global trace-cache directory for this experiment.
+          Falls back to env var MAS_TRACE_CACHE, then ~/.mas/cache/traces.
+
+      # ── Execution ─────────────────────────────────────────────────────────
+      execution:
+        type: object
+        additionalProperties: false
+        description: "Batch execution parameters (MASExperimentConfig only). All fields are optional — defaults apply when absent."
+        properties:
+          parallel_scenarios:
+            type: integer
+            minimum: 1
+            default: 4
+            description: "Max concurrent MAS runs."
+          timeout:
+            type: integer
+            minimum: 1
+            default: 300
+            description: "Per-run timeout in seconds."
+          pause_between_runs:
+            type: number
+            minimum: 0
+            default: 1.0
+            description: "Sleep in seconds between runs (let resources settle)."
+          strategy:
+            type: string
+            enum: [coverage, depth]
+            default: "coverage"
+            description: >
+              Execution ordering strategy.
+              'coverage' (default): breadth-first — one round across all conditions before the next.
+              'depth': depth-first — finish all n_runs for one condition before moving on.
+          runner:
+            type: string
+            minLength: 1
+            default: mas
+            description: >
+              Lab adapter id (mas.lab.runners entry point). Optional override —
+              when omitted, inferred from applications[].app / mas.manifest
+              spec.framework.default_adapter or agent spec.framework_adapter.
+          reset_state:
+            type: boolean
+            description: "Reset emulation/runtime state between runs when true."
+          emulation:
+            type: object
+            additionalProperties: true
+            description: "Emulation profile (infra llm/tools mode, runtime cache policy)."
+          design:
+            type: object
+            additionalProperties: false
+            description: "Experiment design mode and cartesian guard."
+            properties:
+              mode:
+                type: string
+                enum: [cartesian, coupled, one_factor]
+                default: cartesian
+              max_executions:
+                type: integer
+                minimum: 1
+                description: "Fail when scenarios × items × n_runs exceeds this limit."
+              couplings:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+              pin:
+                type: object
+                additionalProperties: true
+
+      # ── Artifacts ─────────────────────────────────────────────────────────
+      artifacts:
+        $ref: "#/$defs/artifact_declarations"
+
+      # ── Level hooks ────────────────────────────────────────────────────────────
+      # Each level has a pre: and post: phase:
+      #   run        → once per (scenario × item × run)  — also declares n_runs
+      #   test       → once per (scenario × item), after all runs
+      #   scenario   → once per scenario, after all tests
+      #
+      # ── Per-level pipeline hooks ──────────────────────────────────────────
+      # Each level (application, scenario, test, run) has pre: and post: hooks.
+      # pre: fires before the level's execution, post: after.
+      # Each hook accepts a LIST of pipelines; each pipeline is inline steps (list),
+      # a file ref (string), the long form {steps: [...]} / {ref: "path"}, or
+      # a library pipeline reference {id: "pipeline-name"}.
+      application:
+        $ref: "#/$defs/level_section"
+        description: >-
+          Experiment-level lifecycle hooks.
+          pre: runs before execution starts (setup, infra allocation).
+          post: runs after all scenarios complete (eval, aggregation, plots).
+      run:
+        $ref: "#/$defs/run_level_section"
+      test:
+        $ref: "#/$defs/level_section"
+      scenario:
+        $ref: "#/$defs/level_section"
+
+      ui:
+        type: object
+        additionalProperties: false
+        description: "Demo UI configuration hints (used by 'mas-lab demo', ignored in batch mode)."
+        properties:
+          port:
+            type: integer
+            minimum: 1
+            maximum: 65535
+            description: "HTTP port for the demo server."
+          mode:
+            type: string
+            enum: [interactive, automated]
+            default: "interactive"
+          layout:
+            type: string
+            enum: [dag, grid, default]
+            default: "default"
+          node_positions:
+            type: object
+            additionalProperties:
+              type: object
+              additionalProperties: false
+              required: [x, y]
+              properties:
+                x:
+                  type: number
+                y:
+                  type: number
+            description: "Per-agent canvas coordinates {agent_id: {x, y}}."
+
+    required: [name, applications]
+
+# ── Shared definitions ────────────────────────────────────────────────────────
+$defs:
+  # ── Artifact declarations ─────────────────────────────────────────────────
+  artifact_declarations:
+    type: object
+    description: >
+      Named artifacts at this scope level.  Keys are artifact names.
+      Short form: name: type (string).
+      Long form: name: {type, path, validate}.
+    additionalProperties:
+      oneOf:
+        - type: string
+          description: "Short form — artifact type name (e.g. 'trace', 'metrics')."
+        - type: object
+          required: [type]
+          additionalProperties: false
+          properties:
+            type:
+              type: string
+              description: >
+                Artifact type from the library: trace, run_info, metrics, plot, dataframe.
+            path:
+              type: string
+              description: >
+                Output path template.  Supports variables: {run_dir}, {test_dir},
+                {scenario_dir}, {output_dir}, {scenario_id}, {item_id}, {run_idx}.
+                Default is derived from the artifact type.
+            validate:
+              type: boolean
+              default: false
+              description: "Validate artifact schema after creation."
+
+  # ── Level section (application / test / scenario) ──────────────────────
+  level_section:
+    type: object
+    additionalProperties: false
+    description: >-
+      Pre/post hooks and artifacts at a single hierarchy level.
+    properties:
+      artifacts:
+        $ref: "#/$defs/artifact_declarations"
+      pre:
+        type: array
+        description: "Pipelines to run before this level's execution."
+        items:
+          $ref: "#/$defs/level_pipeline_entry"
+      post:
+        type: array
+        description: "Pipelines to run after this level's execution."
+        items:
+          $ref: "#/$defs/level_pipeline_entry"
+
+  # ── Run level section ────────────────────────────────────────────────────
+  # Extends level_section with n_runs — the only per-run execution parameter
+  # that belongs at this scope (not in execution:).
+  run_level_section:
+    type: object
+    additionalProperties: false
+    description: >-
+      Pre/post hooks, artifacts, and run-count declaration for the run scope.
+      n_runs is declared here rather than in execution: to keep the execution
+      block free of per-run settings.
+    properties:
+      n_runs:
+        type: integer
+        minimum: 1
+        default: 3
+        description: "How many times each (scenario × item) combination is executed."
+      artifacts:
+        $ref: "#/$defs/artifact_declarations"
+      pre:
+        type: array
+        description: "Pipelines to run before each run (0, 1, or N pipelines)."
+        items:
+          $ref: "#/$defs/level_pipeline_entry"
+      post:
+        type: array
+        description: "Pipelines to run after each run."
+        items:
+          $ref: "#/$defs/level_pipeline_entry"
+
+  # ── Level hook entry (inline step, file ref, or wrapped steps) ───────────
+  level_pipeline_entry:
+    description: >
+      One pipeline step, external pipeline file path, or wrapped step list.
+    oneOf:
+      - $ref: "#/$defs/pipeline_step"
+      - type: string
+        description: "Path to an external pipeline.yaml (resolved relative to the experiment)."
+      - type: object
+        additionalProperties: false
+        properties:
+          steps:
+            type: array
+            items:
+              $ref: "#/$defs/pipeline_step"
+          ref:
+            type: string
+            description: "Path to an external pipeline.yaml file."
+          id:
+            type: string
+            description: "Named pipeline ID from the pipeline library."
+        oneOf:
+          - required: [steps]
+          - required: [ref]
+          - required: [id]
+
+  # ── Pipeline phase (inline or by reference) ───────────────────────────────
+  pipeline_phase:
+    description: >
+      A pipeline attached to a level phase (pre or post).  Three equivalent forms:
+
+        # Inline shorthand — list of steps directly:
+        post:
+          - {type: extract_trajectories}
+          - {type: eval_mce, depends_on: [extract_trajectories]}
+
+        # File reference — path to an external pipeline.yaml:
+        post: ./pipelines/post-run.yaml
+
+        # Long form — explicit steps or ref:
+        post:
+          steps:
+            - {type: extract_trace_stats, depends_on: [extract_trajectories]}
+        post:
+          ref: ./pipelines/post-run.yaml
+    oneOf:
+      - type: string
+        description: "Path to an external pipeline.yaml file (resolved relative to the experiment)."
+      - type: array
+        description: "Inline shorthand — list of steps directly."
+        items:
+          $ref: "#/$defs/pipeline_step"
+      - type: object
+        additionalProperties: false
+        description: "Long form — either inline steps, an external file reference, or a library pipeline ID."
+        properties:
+          steps:
+            type: array
+            items:
+              $ref: "#/$defs/pipeline_step"
+          ref:
+            type: string
+            description: "Path to an external pipeline.yaml file."
+          id:
+            type: string
+            description: "Named pipeline ID resolved from the pipeline library."
+        oneOf:
+          - required: [steps]
+          - required: [ref]
+          - required: [id]
+
+  # ── Pipeline step ─────────────────────────────────────────────────────────
+  pipeline_step:
+    type: object
+    required: [type]
+    additionalProperties: false
+    description: "One step in a pipeline."
+    properties:
+      type:
+        type: string
+        description: "Registered step type."
+      name:
+        type: string
+        description: "Explicit step name (auto-generated when absent)."
+      in:
+        description: >
+          Input artifact name(s).  Scalar (string) for a single input,
+          array for multiple.  When a step at level L references an artifact
+          declared at level L-1 (child), it fans in all instances.
+        oneOf:
+          - type: string
+          - type: array
+            items:
+              type: string
+      out:
+        description: >
+          Output artifact name(s).  Scalar or array.  Must match artifacts
+          declared at this level.
+        oneOf:
+          - type: string
+          - type: array
+            items:
+              type: string
+      depends_on:
+        type: array
+        items:
+          type: string
+        description: "Names of upstream steps that must complete first."
+      config:
+        type: object
+        additionalProperties: true
+        description: "Step-type-specific configuration."

@@ -1,0 +1,105 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "http://json-schema.org/draft-07/schema#"
+$id: "mas-lab/run-input/v1"
+title: "mas-lab Run Input Envelope (v1)"
+description: >
+  Canonical per-run input document.  Embedded under dataset item ``inputs:`` or
+  loaded via ``ref:``.
+
+type: object
+additionalProperties: false
+
+properties:
+  inputs:
+    type: object
+    additionalProperties: false
+    properties:
+      user:
+        type: array
+        description: "User messages (multi-turn).  First message may duplicate item prompt."
+        minItems: 1
+        items:
+          $ref: "#/$defs/message"
+      hitl:
+        type: array
+        description: "Scripted human-operator replies."
+        items:
+          $ref: "#/$defs/message"
+        default: []
+      memory_seeds:
+        description: "Inline seed list or path/ref to a seed file."
+        oneOf:
+          - type: array
+            items:
+              type: object
+              additionalProperties: true
+          - type: string
+            minLength: 1
+      tool_fixtures:
+        description: "World / grounding state for mock tool providers."
+        oneOf:
+          - type: string
+            minLength: 1
+          - type: object
+            additionalProperties: true
+      checkpoint:
+        type: object
+        additionalProperties: false
+        properties:
+          load:
+            description: "Checkpoint ref or null."
+            oneOf:
+              - type: "null"
+              - type: string
+                minLength: 1
+              - type: object
+                additionalProperties: true
+          save:
+            oneOf:
+              - type: boolean
+              - type: string
+                minLength: 1
+        default: {}
+      session_id:
+        type: string
+        minLength: 1
+        description: "Fixed conversation id for session-aware memory replay."
+    required: [user]
+
+  expectations:
+    type: object
+    additionalProperties: true
+    description: "Ground truth and evaluation overrides for this run."
+    properties:
+      ground_truth:
+        oneOf:
+          - type: string
+          - type: object
+            additionalProperties: true
+      governance:
+        type: object
+        additionalProperties: true
+      metrics:
+        type: array
+        items:
+          type: string
+      tool_calls:
+        type: object
+        additionalProperties: true
+      recovery:
+        type: object
+        additionalProperties: true
+
+$defs:
+  message:
+    type: object
+    required: [role, content]
+    additionalProperties: false
+    properties:
+      role:
+        type: string
+        enum: [user, hitl, system]
+      content:
+        type: string
+        minLength: 1

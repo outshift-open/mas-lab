@@ -1,0 +1,340 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/outshift-open/mas-lab/main/lab/components/core/src/mas/lab/schemas/ui/mas-manifest.schema.json",
+  "title": "MAS Manifest",
+  "description": "Schema for Multi-Agent System manifest files (kind: MAS). Defines the agent topology, workflow routing, and optional capabilities for a MAS application.",
+  "type": "object",
+  "required": ["kind", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "type": "string",
+      "description": "API version of the manifest format.",
+      "enum": ["mas/v1"],
+      "default": "mas/v1"
+    },
+    "kind": {
+      "type": "string",
+      "description": "Resource kind. Must be 'MAS' for a multi-agent system manifest.",
+      "enum": ["MAS"]
+    },
+    "metadata": {
+      "$ref": "#/definitions/Metadata"
+    },
+    "mas_intent": {
+      "$ref": "#/definitions/MASIntent"
+    },
+    "intent": {
+      "$ref": "#/definitions/Intent"
+    },
+    "spec": {
+      "$ref": "#/definitions/Spec"
+    },
+    "x-canvas-positions": {
+      "type": "object",
+      "description": "Studio UI layout positions for visual canvas (not used at runtime).",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "x": { "type": "number" },
+          "y": { "type": "number" }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "Metadata": {
+      "type": "object",
+      "description": "Descriptive metadata for the MAS.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique identifier for the MAS. Used in CLI, benchmark IDs, and directory names."
+        },
+        "version": {
+          "type": "string",
+          "description": "Semantic version of this MAS definition.",
+          "examples": ["1.0.0", "0.2.0"]
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the MAS purpose and capabilities."
+        },
+        "tags": {
+          "type": "array",
+          "description": "Searchable tags for categorization.",
+          "items": { "type": "string" }
+        },
+        "default_flavour": {
+          "type": "string",
+          "description": "Name of the default flavour to use when none is specified at runtime.",
+          "examples": ["local"]
+        },
+        "source": {
+          "type": "string",
+          "description": "Origin of this manifest (e.g., 'openclaw_workspace' for auto-generated manifests)."
+        },
+        "workspace_root": {
+          "type": "string",
+          "description": "Relative path to the workspace root that generated this manifest."
+        }
+      },
+      "additionalProperties": false
+    },
+    "MASIntent": {
+      "type": "object",
+      "description": "Top-level intent declaration (used by runtime for system prompt context).",
+      "properties": {
+        "summary": {
+          "type": "string",
+          "description": "Natural language summary of what this MAS does. May be injected into the coordinator's system prompt."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Intent": {
+      "type": "object",
+      "description": "Alternative intent block (Studio format).",
+      "properties": {
+        "summary": {
+          "type": "string",
+          "description": "Natural language summary of what this MAS does."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Spec": {
+      "type": "object",
+      "description": "Core specification of the MAS: agents, workflow, and optional runtime configuration.",
+      "required": ["agents"],
+      "properties": {
+        "agents": {
+          "type": "array",
+          "description": "List of agents in the system. Each agent is either a ref to an external agent.yaml or an inline definition.",
+          "items": { "$ref": "#/definitions/AgentEntry" },
+          "minItems": 1
+        },
+        "agency": {
+          "$ref": "#/definitions/Agency"
+        },
+        "workflow": {
+          "$ref": "#/definitions/Workflow"
+        },
+        "flavour": {
+          "type": "string",
+          "description": "Path to the flavour file for this MAS (alternative to default_flavour in metadata)."
+        },
+        "entry_agent": {
+          "type": "string",
+          "description": "ID of the entry agent (shorthand alternative to workflow.entry)."
+        },
+        "telemetry": {
+          "$ref": "#/definitions/Telemetry"
+        },
+        "memory_stores": {
+          "$ref": "#/definitions/MemoryStores"
+        },
+        "tools_ref": {
+          "type": "string",
+          "description": "Path to a shared tools manifest (tools.yaml) used by all agents."
+        },
+        "infra_refs": {
+          "type": "array",
+          "description": "List of paths to infrastructure manifests (LLM proxies, tool providers, etc.).",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Agency": {
+      "type": "object",
+      "description": "Agent registry (Studio format). Alternative to spec.agents — used when agents are nested under spec.agency.agents.",
+      "properties": {
+        "agents": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/AgentEntry" },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "AgentEntry": {
+      "type": "object",
+      "description": "An agent participating in the MAS. Can be a reference to an external manifest or an inline definition with full agent spec fields.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this agent within the MAS. Used in workflow routing and delegation."
+        },
+        "ref": {
+          "type": "string",
+          "description": "Relative path to the agent's manifest file (agent.yaml). Resolved relative to the MAS manifest location."
+        },
+        "role": {
+          "type": "string",
+          "description": "Role of this agent in the system.",
+          "enum": ["coordinator", "specialist"],
+          "default": "specialist"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable display name for the agent (used in inline definitions)."
+        },
+        "instructions": {
+          "type": "string",
+          "description": "System prompt / instructions for the agent (inline definition only; typically provided via ref)."
+        },
+        "system_prompt": {
+          "type": "string",
+          "description": "Full system prompt (alternative to instructions)."
+        },
+        "delegates_to": {
+          "type": "array",
+          "description": "List of agent IDs this agent can delegate work to.",
+          "items": { "type": "string" }
+        },
+        "models": {
+          "type": "array",
+          "description": "LLM model configurations for this agent.",
+          "items": { "$ref": "agent-manifest.schema.json#/definitions/ModelEntry" }
+        },
+        "design_pattern": {
+          "$ref": "agent-manifest.schema.json#/definitions/DesignPattern"
+        },
+        "tools": {
+          "type": "array",
+          "description": "Tools available to this agent.",
+          "items": { "$ref": "agent-manifest.schema.json#/definitions/ToolEntry" }
+        },
+        "skills": {
+          "type": "array",
+          "description": "Skill names the agent can consult via consult_skills.",
+          "items": { "type": "string" }
+        },
+        "memory": {
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "agent-manifest.schema.json#/definitions/MemoryConfig" }
+          ],
+          "description": "Memory type or configuration ('semantic', 'semantic-persistent', 'episodic', etc.)."
+        },
+        "context": {
+          "$ref": "agent-manifest.schema.json#/definitions/AgentContext"
+        },
+        "context_manager": {
+          "$ref": "agent-manifest.schema.json#/definitions/ContextManager"
+        },
+        "execution": {
+          "$ref": "agent-manifest.schema.json#/definitions/Execution"
+        },
+        "intent": {
+          "type": "string",
+          "description": "Natural language description of this agent's purpose."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Workflow": {
+      "type": "object",
+      "description": "Defines how agents interact: entry point, routing topology, and delegation graph.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Workflow topology type.",
+          "enum": ["dynamic", "sequential", "async_dynamic", "graph", "supervised"],
+          "examples": ["dynamic", "sequential"]
+        },
+        "entry": {
+          "type": "string",
+          "description": "ID of the agent that receives the initial user prompt."
+        },
+        "nodes": {
+          "type": "array",
+          "description": "Workflow nodes defining per-agent routing and delegation.",
+          "items": { "$ref": "#/definitions/WorkflowNode" }
+        },
+        "edges": {
+          "type": "array",
+          "description": "Explicit routing edges between agents (Studio format; alternative to delegates_to on nodes).",
+          "items": { "$ref": "#/definitions/WorkflowEdge" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "WorkflowNode": {
+      "type": "object",
+      "description": "A node in the workflow graph. Maps an agent to its delegation targets.",
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identifier matching an agent ID in spec.agents."
+        },
+        "agent": {
+          "type": "string",
+          "description": "Agent ID this node routes to (when node ID differs from agent ID)."
+        },
+        "delegates_to": {
+          "type": "array",
+          "description": "List of agent IDs this node can delegate to.",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "WorkflowEdge": {
+      "type": "object",
+      "description": "An explicit directed edge in the workflow graph (Studio visual format).",
+      "required": ["from", "to"],
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "Source agent ID."
+        },
+        "to": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ],
+          "description": "Target agent ID or list of target agent IDs."
+        },
+        "label": {
+          "type": "string",
+          "description": "Optional label for the edge (e.g., condition or description)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Telemetry": {
+      "type": "object",
+      "description": "Telemetry configuration for the MAS.",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "File path for the events.jsonl telemetry output.",
+          "examples": ["logs/events.jsonl"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "MemoryStores": {
+      "type": "object",
+      "description": "References to memory store files for long-term agent memory.",
+      "properties": {
+        "episodic_ref": {
+          "type": "string",
+          "description": "Path to episodic memory store (conversation history, past interactions)."
+        },
+        "semantic_ref": {
+          "type": "string",
+          "description": "Path to semantic memory store (facts, knowledge base)."
+        },
+        "procedural_ref": {
+          "type": "string",
+          "description": "Path to procedural memory store (learned procedures, skills)."
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

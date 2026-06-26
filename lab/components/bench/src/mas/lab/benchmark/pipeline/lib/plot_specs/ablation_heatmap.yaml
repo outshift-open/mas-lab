@@ -1,0 +1,51 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+plot:
+  name: ablation_heatmap
+  type: heatmap
+  title: "Ablation matrix: ΔMCE (amplify → mitigate)"
+  subtitle: "Rows: challenge condition  •  Columns: MCE dimension"
+  description: >
+    Two-dimensional heatmap comparing composite MCE score change between
+    the amplify and mitigate variants of each challenge condition. Cells
+    closer to 1 indicate the mitigation fully recovered the challenge-caused
+    regression.
+
+  data:
+    key: ablation_matrix          # DataFrame or list[{challenge, dimension, delta}]
+    x: dimension                  # column axis
+    y: challenge                  # row axis
+    value: delta                  # cell colour value  (mitigate − amplify)
+
+  marks:
+    - type: heatmap_cell
+      annotate: true              # show numeric value in each cell
+      annotation_format: "+.2f"
+      annotation_fontsize: 9
+
+  scales:
+    color:
+      type: diverging
+      palette: RdYlGn            # matplotlib colormap name
+      domain: [-1, 1]
+      center: 0
+    x:
+      label: "MCE dimension"
+    y:
+      label: "Challenge"
+      sort_by: challenge_id      # C1 … C7
+
+  aesthetics:
+    linewidth: 0.5               # grid line width
+    linecolor: "#ffffff"
+
+  layout:
+    width:  800
+    height: 480
+    colorbar: true
+    colorbar_label: "ΔMCE (mitigate − amplify)"
+    margin: {left: 140, right: 100, top: 80, bottom: 80}
+
+  output:
+    format: svg
+    dpi: 150

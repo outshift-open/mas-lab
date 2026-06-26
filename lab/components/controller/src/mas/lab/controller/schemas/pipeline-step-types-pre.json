@@ -1,0 +1,35 @@
+{
+  "$comment": "Registry of all pipeline step types with their config schemas. Use this to build a dynamic pipeline editor in React.",
+  "step_types": [
+    {
+      "type": "service_start",
+      "label": "Start Service",
+      "description": "Start an infrastructure service (Neo4j, OTel collector, etc.) before the benchmark loop.",
+      "phase": "pre",
+      "category": "infrastructure",
+      "config": {
+        "service": {
+          "type": "string",
+          "required": true,
+          "description": "Service name declared in the infra bundle (e.g. neo4j, otel-collector)"
+        },
+        "health_timeout": {
+          "type": "integer",
+          "default": 60,
+          "description": "Seconds to wait for the service health check to pass"
+        }
+      }
+    }
+  ],
+  "categories": [
+    { "id": "data", "label": "Data", "color": "#3b82f6" },
+    { "id": "execution", "label": "Execution", "color": "#8b5cf6" },
+    { "id": "extraction", "label": "Extraction", "color": "#06b6d4" },
+    { "id": "normalization", "label": "Normalization", "color": "#14b8a6" },
+    { "id": "analysis", "label": "Analysis", "color": "#f59e0b" },
+    { "id": "evaluation", "label": "Evaluation", "color": "#ef4444" },
+    { "id": "visualization", "label": "Visualization", "color": "#22c55e" },
+    { "id": "graph", "label": "Graph DB", "color": "#a855f7" },
+    { "id": "infrastructure", "label": "Infrastructure", "color": "#64748b" }
+  ]
+}

@@ -1,0 +1,107 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "workflow/v1"
+title: "Workflow Manifest"
+description: >
+  Schema for kind: Workflow manifests (apiVersion: workflow/v1). Authoritative
+  field list is derived from WorkflowSpec in workflow.py. Validate with: python
+  -m jsonschema --instance workflows/default.yaml workflow.schema.yaml
+type: object
+required:
+  - apiVersion
+  - kind
+  - metadata
+  - spec
+additionalProperties: false
+properties:
+  apiVersion:
+    type: string
+    const: "workflow/v1"
+
+  kind:
+    type: string
+    const: "Workflow"
+
+  metadata:
+    type: object
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+        default: ""
+      description:
+        type: string
+        default: ""
+
+  spec:
+    type: object
+    additionalProperties: false
+    properties:
+      entry:
+        type: string
+        description: "ID of the entry agent — receives the initial user prompt."
+        default: ""
+
+      nodes:
+        type: array
+        description: "All agent nodes in the workflow."
+        default: []
+        items:
+          type: object
+          required: [ id ]
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+              description: >
+                Node ID — must match the agent metadata.name declared in the MAS
+                manifest.
+            agent:
+              type: string
+              description: "Agent ID to bind to this node. Defaults to id when absent."
+              default: ""
+            delegates_to:
+              type: array
+              description: >
+                IDs of nodes this node can delegate sub-tasks to. Empty list →
+                leaf node. Only populated for broker / orchestrator nodes.
+              default: []
+              items:
+                type: string
+            config:
+              type: object
+              description: "Optional node-level config passed to the agent at startup."
+              additionalProperties: true
+              default: {}
+
+      edges:
+        type: array
+        description: "Explicit routing edges (required for deterministic flows)."
+        default: []
+        items:
+          type: object
+          required: [ "from", "to" ]
+          additionalProperties: false
+          properties:
+            from:
+              type: string
+              description: "Source node ID."
+            to:
+              type: string
+              description: "Target node ID."
+            condition:
+              type: [ string, "null" ]
+              description: "Optional routing condition (Python-like expression evaluated at
+                runtime)."
+              default: null
+            label:
+              type: string
+              description: "Human-readable label describing when this edge fires."
+              default: ""
+
+      context_schema:
+        type: object
+        description: "Optional JSON-Schema fragment describing shared context keys."
+        additionalProperties: true
+        default: {}

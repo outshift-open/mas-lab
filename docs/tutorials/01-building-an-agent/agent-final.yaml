@@ -1,0 +1,60 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# agent-final.yaml — READ-ONLY reference
+#
+# This is what the runtime sees after merging all four Tutorial 1 overlays:
+#
+#   mas-ctl chat agent.yaml -i \
+#     --overlay overlays/tools.yaml   \
+#     --overlay overlays/skills.yaml  \
+#     --overlay overlays/memory.yaml
+#
+# DO NOT run this file directly — it exists only so you can visualise
+# the fully-assembled agent in one place.  The real workflow is:
+#   base (agent.yaml) + overlays stacked with --overlay.
+#
+apiVersion: mas/v1
+kind: Agent
+
+metadata:
+  name: qa-agent
+  description: "Tutorial 1 — Q&A agent"
+
+spec:
+  # ── Model (from agent.yaml) ─────────────────────────────────────────────
+  models:
+    - model: gpt-4o-mini
+
+  # ── Context (merged from agent.yaml + tools overlay + skills overlay + memory overlay) ─
+  context:
+    intent: "Answer general knowledge questions."
+    role: |
+      Answer questions clearly and concisely.
+    tool_usage: |
+      When you need to perform calculations, use the calculator tool.
+      When you need current information from the web, use the web_search tool.
+    memory_usage: |
+      IMPORTANT — You have a long-term memory.  Relevant memories are shown
+      in the "Semantic Memory" section of this system prompt.  You MUST read
+      and apply them before answering.  If a memory records a user preference
+      or correction it overrides your default interpretation.
+
+      When the user corrects you or shares a preference, store it using the
+      memory_store tool so you remember in future sessions.
+
+  # ── Skills (from skills overlay) ──────────────────────────────────────────
+  skills:
+    - answer-formatting
+  context_manager:
+    skills:
+      - answer-formatting
+
+  # ── Tools (from tools overlay + memory overlay, deduplicated) ─────────────
+  # memory-search provider exposes: memory_search, memory_get, memory_store
+  tools:
+    - web-search
+    - calculator
+    - memory-search
+
+  # ── Memory (from memory overlay) ─── ephemeral (in-memory, no filesystem)
+  memory: semantic

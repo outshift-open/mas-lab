@@ -1,0 +1,29 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  id: topo-parallel
+  description: >
+    Parallel topology — moderator fans out to ALL specialists simultaneously
+    (dispatch: parallel), waits for all results, then aggregates into a single
+    coherent answer.  Structurally equivalent to moderator-broker except that
+    sub-agent calls are concurrent rather than sequential.
+  notes: >
+    Contrasts with topo-linear-pipeline (sequential, deterministic chain) and
+    topo-moderator-broker (sequential, dynamic delegation).  Parallel dispatch
+    should reduce latency vs moderator-broker on multi-aspect queries while
+    preserving full coverage — the moderator always calls all three specialists.
+  tags: [topology, exp-1.2]
+
+spec:
+  patch:
+    workflow:
+      entry: moderator
+      nodes:
+        - id: moderator
+          dispatch: parallel
+          delegates_to: [schedule_agent, itinerary_agent, concierge_agent]
+        - id: schedule_agent
+        - id: itinerary_agent
+        - id: concierge_agent

@@ -1,0 +1,133 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+site_name: MAS-Lab
+site_description: >-
+  Multi-Agent System Lab — experimentation, benchmarking, and analysis for
+  reliable multi-agent systems.
+site_url: https://outshift-open.github.io/mas-lab/
+repo_url: https://github.com/outshift-open/mas-lab
+repo_name: GitHub
+edit_uri: edit/main/docs/
+docs_dir: docs
+
+theme:
+  name: material
+  logo: assets/mas-lab-logo.svg
+  favicon: assets/mas-lab-icon.svg
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  icon:
+    repo: fontawesome/brands/github
+
+extra_css:
+  - stylesheets/mas-lab.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/outshift-open/mas-lab
+
+plugins:
+  - search
+  - material/blog:
+      blog_dir: blog
+      post_date_format: long
+      post_url_format: "{date}/{slug}"
+      authors_file: "{blog}/.authors.yml"
+      archive_name: Archive
+      categories_name: Categories
+      categories_allowed:
+        - Updates
+        - Releases
+
+exclude_docs: |
+  doc-map.md
+  blog/README.md
+  REVIEW-2026-06-29.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.snippets:
+      base_path: ["."]
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - MAS-Lab:
+      - MAS-Lab: index.md
+      - Overview: overview.md
+  - User guide:
+      - user-guide.md
+      - user-config.md
+      - libraries.md
+      - cli/observability.md
+      - Web UI: ui/index.md
+      - ctl/tui.md
+      - glossary.md
+  - Tutorials:
+      - tutorials/index.md
+      - "0 — Environment setup": tutorials/00-environment-setup/README.md
+      - "1 — Build an agent": tutorials/01-building-an-agent/README.md
+      - "2 — Orchestrate your MAS": tutorials/02-creating-a-mas/README.md
+      - "3 — Run an experiment": tutorials/03-experiments-and-analysis/README.md
+  - References:
+      - Overview: references/index.md
+      - "ADR 0001 — lab terminology": references/adr-0001-lab-terminology.md
+      - Specifications:
+          - Agent: manifests/agent.md
+          - MAS: manifests/mas.md
+          - Topology & workflow: manifests/topology-and-workflow.md
+          - Workflow: manifests/workflow.md
+          - Overlay: manifests/overlay.md
+          - Flavour: manifests/flavour.md
+          - Infra: manifests/infra.md
+          - Schemas: references/schemas.md
+      - Runtime:
+          - Manifest fields: manifests/runtime.md
+          - Contracts: references/contracts.md
+          - Package documentation: references/runtime.md
+      - Lab & benchmarks:
+          - Experiment: manifests/experiment.md
+          - Dataset: manifests/dataset.md
+          - Pipeline: manifests/pipeline.md
+          - Lab folder: manifests/lab.md
+          - Package documentation: references/lab.md
+  - Paper: paper/index.md
+  - Blog:
+      - All posts: blog/index.md

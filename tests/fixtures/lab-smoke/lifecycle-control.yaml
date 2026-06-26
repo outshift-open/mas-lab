@@ -1,0 +1,40 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+experiment:
+  name: smoke-lifecycle-control
+  description: >
+    CI smoke for lifecycle-control.lab — one mock run, trace/mealy stats pipeline,
+    isolated trace cache (cache disabled).
+  default_flavour: local
+  applications:
+    - app: trip-planner
+      configs_dir: ../../../labs/lifecycle-control.lab/overlays
+  scenarios:
+    - id: baseline
+      overlays:
+        logic:
+          - ref: ../../../docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml
+        control: []
+        infra: []
+  dataset:
+    path: ../../../labs/lifecycle-control.lab/datasets/lifecycle-queries.yaml
+    limit: 1
+  evaluation:
+    method: trace_only
+  execution:
+    emulation:
+      runtime:
+        cache: disabled
+  run:
+    n_runs: 1
+  application:
+    post:
+      - name: extract-trace-stats
+        type: extract_trace_stats
+        config:
+          output: "{output_dir}/results/trace_stats.csv"
+      - name: extract-mealy-stats
+        type: extract_mealy_stats
+        depends_on: [extract-trace-stats]
+        config:
+          output: "{output_dir}/results/mealy_stats.csv"

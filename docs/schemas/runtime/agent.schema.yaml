@@ -1,0 +1,846 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1"
+title: "Agent Manifest"
+description: >
+  Schema for kind: Agent manifests (apiVersion: mas/v1).
+  Authoritative field list is derived from AgentSpec in agent.py.
+  Validate with: python -m jsonschema --instance my-agent.yaml agent.schema.yaml
+type: object
+required:
+  - apiVersion
+  - kind
+  - metadata
+  - spec
+additionalProperties: false
+patternProperties:
+  "^x-":
+    description: "Extension properties (UI metadata, canvas state, etc.) — ignored by the runtime."
+properties:
+  apiVersion:
+    type: string
+    const: "mas/v1"
+
+  kind:
+    type: string
+    const: "Agent"
+
+  metadata:
+    type: object
+    required: [name]
+    additionalProperties: false
+    patternProperties:
+      "^x-":
+        description: "Extension properties (UI metadata) — ignored by the runtime."
+    properties:
+      name:
+        type: string
+        description: "Agent ID — must match the workflow node id that references this agent."
+      description:
+        type: string
+        description: "Human-readable description of this agent."
+        default: ""
+      version:
+        type: string
+        pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+.*$"
+        default: "0.1.0"
+      tags:
+        type: array
+        items:
+          type: string
+        description: "Free-form tags for filtering and grouping."
+        default: []
+
+  spec:
+    type: object
+    additionalProperties: false
+    patternProperties:
+      "^x-":
+        description: "Extension properties (UI metadata) — ignored by the runtime."
+    properties:
+      context:
+        type: object
+        description: >
+          Flat key-value context dict injected into the system prompt by
+          DefaultContextPlugin.  Well-known keys: intent, role.  Values
+          starting with ./ are treated as file references resolved relative
+          to the agent manifest directory.
+        additionalProperties:
+          type: string
+
+      description:
+        type: string
+        description: >
+          Routing-facing description for delegation tools and AgentCard.
+          Write from the delegator's perspective.
+          Priority: spec.description > spec.role.description > spec.context.intent.
+        default: ""
+
+      intent:
+        type: string
+        description: >
+          Application-level purpose of this agent — shared context injected into the system prompt.
+          In single-agent deployments, written directly here.
+          In multi-agent deployments, defined once in the MAS config and injected via overlay.
+          Used as the AgentCard description fallback when role.description is empty.
+        default: ""
+
+      role:
+        type: object
+        description: >
+          The ONLY place for system prompt configuration in kind: Agent.
+          role.description  → routing-facing one-liner for orchestrator LLMs; falls back to intent.
+          role.instructions → inline system prompt (mutually exclusive with instructions_ref).
+          role.instructions_ref → external reference (mutually exclusive with instructions).
+        additionalProperties: false
+        not:
+          allOf:
+            - required: [instructions]
+            - required: [instructions_ref] # both present → validation error
+        properties:
+          description:
+            type: string
+            description: >
+              Routing-optimised one-liner surfaced as the delegate_to_<id> tool
+              description seen by the orchestrator's LLM.
+              Write it from the delegator's perspective: "Call me when you need X. I return Y."
+              Used for AgentCard; falls back to spec.intent when empty.
+            default: ""
+          instructions:
+            type: string
+            description: >
+              Inline system prompt — the full text injected before every LLM call.
+              Mutually exclusive with instructions_ref.
+            default: ""
+          instructions_ref:
+            type: [string, "null"]
+            description: >
+              External reference to the system prompt.  Three forms:
+              - Plain text file:  "./prompts/broker.md"  (Markdown / plain text, Jinja2 ok)
+              - XPointer:  "./prompts/sre-prompts.yaml#broker-role"
+                File must be a kind: PromptBundle YAML; the fragment selects the entry key.
+              - Library ref:  "@sre-prompts#broker-role"
+                Searches for sre-prompts.yaml in prompts/ then manifest directory.
+              Mutually exclusive with instructions.
+            default: null
+
+          examples:
+            type: array
+            description: >
+              Few-shot examples for this agent's role, injected before the first user message.
+              Each entry is inline (prompt + response), a plain YAML list file
+              (ref: ./examples/qa.yaml), an XPointer (ref: ./prompts/sre.yaml#broker-examples),
+              or a library ref (ref: @sre-prompts#broker-examples).
+            default: []
+            items:
+              type: object
+              additionalProperties: false
+              properties:
+                ref:
+                  type: string
+                  description: >
+                    Ref forms: ./path/file.yaml (plain list), ./bundle.yaml#key (XPointer),
+                    or @lib-name#key (library ref).
+                prompt:
+                  type: string
+                  description: "Inline user-side prompt text."
+                response:
+                  type: string
+                  description: "Inline expected response text."
+
+      models:
+        type: array
+        description: >
+          Preferred model(s) for this agent. Structural intent only —
+          the active flavour selects the actual provider at runtime.
+          Do NOT put api_base or api_key_env here.
+        default: []
+        items:
+          type: object
+          required: [model]
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+              description: "Logical model ID within this agent. Use 'main' for the primary model."
+              default: "main"
+            model:
+              type: string
+              description: "LiteLLM-style model string, e.g. vertex_ai/gemini-3-pro-preview."
+            temperature:
+              type: number
+              minimum: 0.0
+              maximum: 2.0
+              default: 0.7
+            max_tokens:
+              type: integer
+              minimum: 1
+              default: 2000
+
+      design_pattern:
+        type: object
+        description: "Reasoning strategy. Defaults to react if absent."
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            description: >
+              Builtin name shorthand — mutually exclusive with ref.
+              react | cot | cot_native | plan_execute | tree_of_thoughts | accumulator | role aliases.
+              Equivalent to ref: <name> when no scheme prefix.
+          ref:
+            type: string
+            description: >
+              Unified plugin locator — mutually exclusive with type.
+              Forms: bare-name, ./local/path, module://pkg.Class, oci://registry/img:tag
+          params:
+            type: object
+            description: Plugin-specific design-pattern parameters.
+            additionalProperties: true
+            default: {}
+          config:
+            type: object
+            description: Alias for params (overlay compatibility).
+            additionalProperties: true
+            default: {}
+
+      collaboration:
+        type: object
+        description: >
+          How this agent decides where to delegate at runtime.
+          The topology (reachable peers) is declared in the MAS manifest via
+          workflow.nodes[].delegates_to.  This block declares the decision
+          engine that operates on that topology.
+          Builtin types: llm-delegator | none (default).
+          Omit entirely for leaf / specialist agents — equivalent to type: none.
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            description: >
+              Builtin shorthand — mutually exclusive with ref.
+              llm-delegator: the LLM picks which neighbor to call via tool calling (moderator pattern).
+              none: no active delegation; the agent executes its own task and returns.
+          ref:
+            type: string
+            description: >
+              Unified plugin locator — mutually exclusive with type.
+              Same forms as design_pattern.ref (bare-name, ./local/path, module://pkg.Class).
+          params:
+            $ref: "./fragments/collaboration-params.schema.yaml"
+            default: {}
+
+      context_manager:
+        type: object
+        description: >
+          Context window management strategy. Defaults to stack (StackConversation,
+          unbounded history) when absent. Builtin types: stack | sliding-window |
+          summarising | full-history.
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            description: "Builtin name shorthand — mutually exclusive with ref: stack | sliding-window | summarising | full-history."
+          ref:
+            type: string
+            description: "Unified plugin locator — mutually exclusive with type. Same forms as design_pattern.ref."
+          params:
+            $ref: "./fragments/context-manager-params.schema.yaml"
+            default: {}
+          skills:
+            type: array
+            description: >
+              Skill names to auto-inject into the system prompt via
+              ContextFacetProvider.  Resolved by the same locator chain as
+              spec.skills (app-local → libraries → packages).
+              This is the context path — complements the tool path
+              (spec.skills → consult_skills tool).
+            default: []
+            items:
+              type: string
+          memory:
+            type: array
+            description: >
+              Memory types whose content is auto-injected into the system
+              prompt as context facets.  E.g. [semantic].
+            default: []
+            items:
+              type: string
+
+      memory_seed:
+        type: array
+        description: >
+          Documents to pre-index into the memory backend at startup.
+          Useful for demos and tests that need pre-populated memory
+          without a persistent store.  Each entry is indexed via
+          index_document(source, content, metadata?).
+        items:
+          $ref: "./fragments/memory-seed-entry.schema.yaml"
+
+      memory:
+        description: >
+          Memory configuration for this agent.  Three forms:
+          - String shorthand: "semantic" — resolved to plugin bundle.
+          - Array shorthand: ["semantic", "episodic"] — multiple bundles.
+          - Full object: memory.types, memory.compaction, etc.
+          When absent, the active flavour decides defaults.
+        oneOf:
+          - type: string
+            description: >
+              Shorthand: a single memory type name, e.g. "semantic".
+              Resolved to the corresponding plugin bundle by the builder.
+          - type: array
+            description: >
+              List of memory type names, e.g. ["semantic", "episodic"].
+            items:
+              type: string
+          - type: object
+            description: >
+              Full memory configuration object.
+            additionalProperties: false
+            properties:
+              enabled:
+                type: boolean
+                description: "Master switch.  false = no memory plugins loaded."
+                default: true
+
+              types:
+                type: array
+                description: >
+                  Ordered list of memory layers to activate.  The runtime instantiates
+                  one MemoryProviderPlugin per entry.  When absent, the flavour
+                  decides which layers to activate.
+                default: []
+                items:
+                  type: object
+                  required: [name]
+                  additionalProperties: false
+                  properties:
+                    name:
+                      type: string
+                      description: >
+                        Memory layer name: session | episodic | semantic | working | procedural.
+                    backend:
+                      type: string
+                      description: >
+                        Backend implementation: in-memory | file | sqlite-vec | redis | remote_tool.
+                      default: "in-memory"
+                    params:
+                      $ref: "./fragments/memory-backend-params.schema.yaml"
+                      default: {}
+
+              compaction:
+                type: object
+                description: >
+                  Conversation compaction configuration.  Controls how old turns are
+                  summarized to stay within the context window.  Maps to the
+                  ConversationStrategy used by ContextAssemblerPlugin.
+                additionalProperties: false
+                properties:
+                  strategy:
+                    type: string
+                    description: >
+                      Compaction strategy name: keep_recent | summarize | chunked_summarize.
+                      chunked_summarize is the OpenClaw-equivalent multi-part strategy.
+                    default: "keep_recent"
+                  reserve_tokens:
+                    type: integer
+                    description: "Minimum tokens reserved for the LLM reply."
+                    default: 20000
+                  keep_recent_ratio:
+                    type: number
+                    description: "Fraction of recent messages to preserve verbatim (0.0–1.0)."
+                    minimum: 0.0
+                    maximum: 1.0
+                    default: 0.4
+                  min_chunk_ratio:
+                    type: number
+                    description: "Minimum fraction per compaction chunk."
+                    minimum: 0.0
+                    maximum: 1.0
+                    default: 0.15
+                  safety_margin:
+                    type: number
+                    description: "Buffer multiplier for token estimation error."
+                    default: 1.2
+                  identifier_preservation:
+                    type: boolean
+                    description: >
+                      Preserve opaque identifiers (UUIDs, hashes, URLs, file names)
+                      during summarization.  Matches OpenClaw compaction.ts behavior.
+                    default: true
+                  summarize_instructions:
+                    type: string
+                    description: "Custom instructions prepended to the summarization prompt."
+                    default: ""
+
+              persistence:
+                type: object
+                description: >
+                  Session transcript persistence.  Controls where and how conversation
+                  history is saved between runs.
+                additionalProperties: false
+                properties:
+                  backend:
+                    type: string
+                    description: "Persistence backend: none | file | sqlite | redis."
+                    default: "none"
+                  path:
+                    type: string
+                    description: >
+                      Base directory for file-based persistence.  Supports {agent_id}
+                      and {session_id} placeholders.  Default: ~/.mas/agents/{agent_id}/sessions/
+                    default: ""
+                  auto_save:
+                    type: boolean
+                    description: "Automatically persist after each turn."
+                    default: true
+                  auto_load:
+                    type: boolean
+                    description: "Automatically load session on bootstrap."
+                    default: true
+
+              search:
+                type: object
+                description: >
+                  Semantic memory search configuration.  Controls vector retrieval
+                  from the semantic memory layer.
+                additionalProperties: false
+                properties:
+                  enabled:
+                    type: boolean
+                    description: "Enable semantic search injection into context."
+                    default: false
+                  max_results:
+                    type: integer
+                    description: "Maximum retrieved chunks per query."
+                    default: 6
+                  min_score:
+                    type: number
+                    description: "Minimum similarity score threshold."
+                    default: 0.35
+                  chunking:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      tokens:
+                        type: integer
+                        description: "Chunk size in tokens for indexing."
+                        default: 400
+                      overlap:
+                        type: integer
+                        description: "Overlap tokens between chunks."
+                        default: 80
+                  hybrid:
+                    type: object
+                    description: "Hybrid search (vector + full-text) configuration."
+                    additionalProperties: false
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: true
+                      vector_weight:
+                        type: number
+                        default: 0.7
+                      text_weight:
+                        type: number
+                        default: 0.3
+                      mmr_enabled:
+                        type: boolean
+                        description: "Max Marginal Relevance re-ranking."
+                        default: false
+                      mmr_lambda:
+                        type: number
+                        default: 0.7
+                      temporal_decay_enabled:
+                        type: boolean
+                        default: false
+                      temporal_decay_half_life_days:
+                        type: integer
+                        default: 30
+                  cache:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: true
+                      max_entries:
+                        type: integer
+                        default: 128
+
+              citations:
+                type: object
+                description: >
+                  Citation formatting for memory search results.
+                  Controls whether and how source references are included
+                  in search results injected into context.
+                additionalProperties: false
+                properties:
+                  mode:
+                    type: string
+                    enum: [auto, "on", "off"]
+                    description: >
+                      Citation mode: auto (include when useful), on (always include),
+                      off (strip source info).  Mirrors OpenClaw MemoryCitationsMode.
+                    default: "auto"
+                  max_snippet_chars:
+                    type: integer
+                    description: "Maximum characters per search result snippet."
+                    default: 700
+
+              sync:
+                type: object
+                description: >
+                  File watching and re-indexing synchronization policy.
+                  Controls when workspace memory files (MEMORY.md, memory/*.md)
+                  are re-indexed into semantic memory.
+                additionalProperties: false
+                properties:
+                  on_session_start:
+                    type: boolean
+                    description: "Re-index when a session begins."
+                    default: true
+                  on_search:
+                    type: boolean
+                    description: "Re-index before search (ensures fresh results)."
+                    default: false
+                  interval_seconds:
+                    type: integer
+                    description: "Periodic re-index interval in seconds (0 = disabled)."
+                    default: 300
+                  delta_messages:
+                    type: integer
+                    description: "Re-index after this many new messages."
+                    default: 50
+                  delta_bytes:
+                    type: integer
+                    description: "Re-index after this many bytes of new content."
+                    default: 100000
+                  post_compaction_force:
+                    type: boolean
+                    description: "Force re-index after compaction."
+                    default: true
+                  file_watch:
+                    type: object
+                    description: "File change detection settings."
+                    additionalProperties: false
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: true
+                      patterns:
+                        type: array
+                        description: "Glob patterns to watch for changes."
+                        items:
+                          type: string
+                        default: ["MEMORY.md", "memory/*.md"]
+                      debounce_ms:
+                        type: integer
+                        description: "Debounce interval for file change detection."
+                        default: 1500
+
+              overflow_retry:
+                type: object
+                description: >
+                  Compaction retry on context overflow.  When an LLM call fails
+                  because the context exceeds the window, automatically compact
+                  and retry.  Mirrors OpenClaw waitForCompactionRetryWithAggregateTimeout.
+                additionalProperties: false
+                properties:
+                  enabled:
+                    type: boolean
+                    description: "Enable overflow detection and automatic retry."
+                    default: false
+                  max_retries:
+                    type: integer
+                    description: "Maximum compaction+retry attempts."
+                    default: 2
+                  aggregate_timeout_seconds:
+                    type: number
+                    description: "Maximum total time for all retries."
+                    default: 60.0
+                  budget_reduction_factor:
+                    type: number
+                    description: "Multiply budget by this factor on each retry."
+                    default: 0.7
+
+              qmd:
+                type: object
+                description: >
+                  QMD (Qualitative Memory Database) backend configuration.
+                  Alternative search via external qmd binary.
+                additionalProperties: false
+                properties:
+                  enabled:
+                    type: boolean
+                    description: "Enable QMD as a retriever backend."
+                    default: false
+                  binary_path:
+                    type: string
+                    description: "Path to qmd binary (auto-detected if empty)."
+                    default: ""
+                  index_path:
+                    type: string
+                    description: "Path to QMD index directory."
+                    default: ""
+                  search_mode:
+                    type: string
+                    description: "QMD search mode."
+                    default: "search"
+                  max_snippet_chars:
+                    type: integer
+                    default: 700
+                  timeout_seconds:
+                    type: number
+                    default: 4.0
+
+      skills:
+        type: array
+        description: >
+          Skills to activate for this agent.  Each entry is a string with two forms:
+
+            # Name only — resolved from the default locator chain:
+            skills:
+              - triage-protocol
+              - memory-protocol
+
+            # @library/name — explicit library source:
+            skills:
+              - "@sre-skills/triage-protocol"
+              - "@mas.library.samples/web-search-skill"
+
+          No file paths, no directory references.  Resolution order:
+          1. App-local skills/ directory (if present).
+          2. Libraries declared under 'libraries:' in mas-workspace.yaml.
+          3. Installed Python packages.
+        default: []
+        items:
+          type: string
+          description: >
+            Skill name (resolved from default locator chain) or
+            @library/name (explicit library source).
+
+      tools_ref:
+        type: [string, "null"]
+        description: >
+          Logical tool-set name resolved by the infra manifest ToolRegistry.
+          No file paths, no extensions — a simple identifier only.
+          The infra ToolRegistry maps this name to the actual JSON tool-index
+          file path. E.g. sre-tools, backend-tools, verifier-tools.
+        pattern: "^[a-z0-9][a-z0-9_-]*$"
+        default: null
+
+      tools:
+        type: array
+        description: >
+          Tool declarations for this agent.  Three forms are supported:
+
+          Form A — ref to a kind: Tool manifest (recommended):
+            tools:
+              - ref: ./tools/calculator.tool.yaml
+              - ref: bundle://sre-tools/check-health   # ToolBundle entry
+
+          Form B — inline anonymous (backward-compatible):
+            tools:
+              - module_path: mas.runtime.tools.calculator_tool
+                class_name: CalculatorTool
+
+          Additive with tools_ref — both may be set simultaneously.
+        default: []
+        items:
+          oneOf:
+            # ── Form C: semantic name (bare string) ──────────────────────
+            - type: string
+              description: >
+                Semantic tool name resolved by the flavour's tool_providers.
+                E.g. web-search, calculator, memory-search.
+
+            # ── Form A: ref —————————————————————————————————————————————
+            - type: object
+              required: [ref]
+              additionalProperties: false
+              description: >
+                Reference to a kind: Tool manifest or a ToolBundle entry.
+                Accepted values:
+                  ./path/to/tool.tool.yaml        — relative path to kind: Tool manifest
+                  bundle://<bundle-name>/<tool-id> — named entry in a ToolBundle
+              properties:
+                ref:
+                  type: string
+                  description: >
+                    Path to a kind: Tool manifest (./tools/calculator.tool.yaml) or a
+                    ToolBundle entry reference (bundle://sre-tools/check-health).
+                priority:
+                  type: integer
+                  description: "Registration priority (higher = loaded first)."
+                  default: 100
+
+            # ── Form B: inline anonymous (backward-compatible) ───────────
+            - type: object
+              required: [module_path]
+              additionalProperties: false
+              description: >
+                Inline anonymous tool declaration.  Provide module_path at minimum;
+                class_name is auto-discovered when omitted.
+                Use a kind: Tool manifest (Form A) instead when the description and
+                parameters need to be declared explicitly.
+              properties:
+                kind:
+                  type: string
+                  enum: [python, remote_tool, openapi]
+                  description: >
+                    Implementation kind — defaults to python.
+                    python  — ToolContract subclass loaded via module_path.
+                    remote_tool — remote tool-server tool; module_path points to ToolServerClient adapter.
+                    openapi — OpenAPI endpoint; module_path points to OpenAPITool adapter.
+                  default: python
+                module_path:
+                  type: string
+                  description: >
+                    Dotted Python module path, e.g. mas.runtime.tools.calculator_tool.
+                    May also be a relative filesystem path (./tools/my_tool.py).
+                class_name:
+                  type: string
+                  description: "Class name in the module. Auto-discovered when omitted."
+                priority:
+                  type: integer
+                  description: "Registration priority (higher = loaded first)."
+                  default: 100
+                params:
+                  type: object
+                  description: "Optional tool-specific init params."
+                  additionalProperties: true
+                  default: {}
+
+      plugins:
+        type: array
+        description: >
+          Plugin instances to load into this agent's registry.
+          Processed in order — use priority to control execution ordering
+          within hook chains.
+          Overlay-compatible: an overlay may append entries to this list or
+          override a named entry (matched by the name field).
+        default: []
+        items:
+          type: object
+          required: [module_path, class_name]
+          additionalProperties: false
+          properties:
+            name:
+              type: string
+              description: >
+                Logical name for this plugin instance.
+                Used as a stable key for overlay merge and registry lookup.
+                Defaults to class_name when omitted.
+              default: ""
+            module_path:
+              type: string
+              description: "Dotted Python module path, e.g. mas.runtime.plugins.guardrails_plugin."
+            class_name:
+              type: string
+              description: "Plugin class name to instantiate."
+            config:
+              type: object
+              description: "Plugin-specific init kwargs passed as plugin_cls(**config)."
+              additionalProperties: true
+              default: {}
+            params:
+              type: object
+              description: "Alias for config (backward compatibility)."
+              additionalProperties: true
+              default: {}
+            priority:
+              type: integer
+              description: "Execution order within a hook chain. Lower = earlier."
+              default: 100
+            enabled:
+              type: boolean
+              description: "Set to false to disable this plugin without removing it."
+              default: true
+
+      behavior:
+        type: object
+        description: >
+          Per-agent runtime behavior configuration.
+          These settings are structural/semantic — they affect what system tools and
+          capabilities are exposed to this agent's LLM at runtime.
+          Do NOT put secrets, API keys, or deployment config here (use flavour.yaml).
+        additionalProperties: false
+        properties:
+          share_reasoning:
+            type: boolean
+            default: false
+            description: >
+              When true, the send_to_caller tool exposes an optional reasoning_context
+              parameter.  The sub-agent can (but is not required to) provide a concise
+              summary of HOW it reached its answer — not its message history, but
+              key evidence, decision points, and confidence signals.
+              Forwarded to the orchestrator as result["reasoning"] so it can bridge
+              the reasoning-context gap between delegation and synthesis.
+              Privacy-by-default: false.  Enable only for trusted internal agents
+              where context leakage is acceptable.
+          delegation_style:
+            type: string
+            enum: [typed, generic]
+            default: typed
+            description: >
+              Controls which delegation tools are registered for this agent.
+
+              typed (default): Only delegate_to_<id> tools are available.
+                The set of reachable agent IDs is static (registered by MasRuntime
+                from the workflow topology).  The LLM cannot hallucinate an agent_id
+                that does not exist in the topology.  Preferred for production MAS.
+
+              generic: In addition to typed tools (if any), GenericDelegationPlugin
+                is registered, exposing delegate_task(agent_id, task).  The LLM
+                provides the agent_id as a free string — no static validation.
+                Used by LangChain, ADK, AutoGen, Bedrock.  Acceptable for fully
+                dynamic / open-world topologies where agent IDs are not known at
+                manifest-load time.
+
+      governance:
+        $ref: "./fragments/governance-binding.schema.yaml"
+        description: >
+          Governance bindings (typically applied via overlay). See
+          spec-contract-bindings.md — flat scalars + ingress_plugins[] only.
+        default: {}
+
+      llm:
+        $ref: "./fragments/llm-binding.schema.yaml"
+        description: "EngineContract / LiveLlmEngine overrides."
+        default: {}
+
+      execution:
+        $ref: "./fragments/execution-binding.schema.yaml"
+        description: "EngineContract execution mode (mock, cache, parallel)."
+        default: {}
+
+      control:
+        $ref: "./fragments/control-binding.schema.yaml"
+        description: "Control-plane plugin configs keyed by plugin id."
+        default: {}
+
+      observability:
+        $ref: "./fragments/observability-binding.schema.yaml"
+        description: "ObservabilitySink plugin list — list form only."
+        default: null
+
+      infra_refs:
+        type: array
+        description: >
+          Infra manifest references (LLM proxy, tool registry). Merged additively
+          from overlays.
+        items:
+          type: string
+        default: []
+
+      infra_interceptors:
+        type: array
+        description: >
+          Cross-cutting infra middleware (cache, chaos, …) outer-first in front
+          of merged infra_refs providers.
+        items:
+          type: string
+        default: []

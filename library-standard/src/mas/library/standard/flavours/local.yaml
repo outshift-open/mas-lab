@@ -1,0 +1,36 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: flavour/v1
+kind: Flavour
+
+metadata:
+  name: local
+  description: >
+    Default local development flavour. Infra bundles are resolved via
+    workspace refs or mas-library-standard bundled libs.
+
+spec:
+  llm:
+    provider: openai
+    api_key_env: OPENAI_API_KEY
+    temperature: 0.7
+    max_tokens: 2000
+
+  skills:
+    backend: auto
+
+  agent_comm:
+    protocol: agent-local
+    mode: local
+    emulation: true
+
+  tools:
+    remote_tools_enabled: false
+    allowed: ["*"]
+
+  mocking:
+    enabled: false
+
+  telemetry:
+    backend: file
+    path: logs/

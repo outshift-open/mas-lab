@@ -1,0 +1,103 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Contract: Complete Hook Coverage
+# Type: Hook Interception (Contract 1)
+#
+# This contract verifies that ALL agent actions pass through governance hooks
+# without bypasses. Critical for ensuring Theorem 1 assumptions hold.
+
+contract:
+  name: "Complete Hook Coverage"
+  type: "hook_interception"
+
+  policy:
+    description: "All actions must be intercepted by governance hooks"
+    formal: "forall action a: exists hook h: intercepts(h, a)"
+
+  test_cases:
+    # Basic action types
+    - action:
+        type: "tool_call"
+        tool: "send_email"
+        args: { to: "user@example.com" }
+      expected: "intercepted"
+      rationale: "LLM tool call must be intercepted"
+
+    - action:
+        type: "tool_call"
+        tool: "query_database"
+        args: { query: "SELECT * FROM users" }
+      expected: "intercepted"
+      rationale: "Database query must be intercepted"
+
+    - action:
+        type: "spawn_agent"
+        args: { name: "SubAgent", depth: 1 }
+      expected: "intercepted"
+      rationale: "Agent spawning must be intercepted"
+
+    # Edge cases: bypass attempts
+    - action:
+        type: "direct_api_call" # Not a standard action type
+        endpoint: "/internal/bypass"
+      expected: "intercepted"
+      rationale: "Non-standard action type must still be intercepted"
+
+    - action:
+        _internal: true # Flag suggesting internal operation
+        type: "tool_call"
+        tool: "send_email"
+      expected: "intercepted"
+      rationale: "Internal flags must not bypass hooks"
+
+    # Adversarial cases
+    - action:
+        type: "tool_call"
+        tool: "../../../bypass/send_email" # Path traversal
+      expected: "intercepted"
+      rationale: "Path traversal attack must be intercepted"
+
+    - action:
+        type: "__bypass__tool_call" # Name mangling
+        tool: "send_email"
+      expected: "intercepted"
+      rationale: "Name mangling must not bypass hooks"
+
+    - action:
+        # Empty action
+      expected: "intercepted"
+      rationale: "Empty actions must be intercepted (or rejected)"
+
+    - action:
+        type: null # Null type
+        tool: "send_email"
+      expected: "?"
+      rationale: "Null type, behavior undefined"
+
+  fuzzing:
+    enabled: true
+    mutations:
+      - "type_variations" # "tool_call" -> "TOOL_CALL", "tool-call"
+      - "internal_flags" # Add _internal, __system__, etc.
+      - "path_traversal" # "..", "../..", etc.
+      - "unicode_normalization" # "tool_call" -> "tool\u200Bcall" (zero-width)
+    iterations: 2000
+# Testing Instructions:
+#
+# 1. Instrument all action execution paths with interception logging
+# 2. Run all test actions through the system
+# 3. Verify EVERY action triggers hook interception (check logs)
+# 4. Any action that bypasses hooks = test FAILURE
+#
+# Expected Implementation:
+#
+# class HookInterceptor:
+#     def __init__(self):
+#         self.intercepted_actions = []
+#
+#     def intercept(self, action: dict) -> bool:
+#         """Return True if action was intercepted."""
+#         self.intercepted_actions.append(action)
+#         return True
+#
+# Testing verifies len(intercepted_actions) == len(test_cases)

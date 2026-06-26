@@ -1,0 +1,88 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Placement plan — ctl compose step 3 (WHERE agents run; not agent logic)
+$schema: http://json-schema.org/draft-07/schema#
+title: PlacementPlan
+description: >
+  Placement topology only. Design patterns, tools, and LLM refs belong in
+  Agent manifests and EffectiveBind — not here.
+type: object
+required: [apiVersion, kind, spec]
+additionalProperties: false
+properties:
+  apiVersion:
+    type: string
+    const: placement/v1
+  kind:
+    type: string
+    const: PlacementPlan
+  metadata:
+    type: object
+    additionalProperties: true
+    properties:
+      mas_id: { type: string }
+      deployment: { type: string }
+      strategy: { type: string }
+      spec_revision: { type: string }
+  spec:
+    type: object
+    required: [agents, bus]
+    additionalProperties: false
+    properties:
+      agents:
+        type: array
+        minItems: 1
+        items:
+          type: object
+          required: [id, bind_address]
+          additionalProperties: false
+          properties:
+            id: { type: string }
+            manifest:
+              type: string
+              description: Relative path to kind Agent manifest (from MAS agency.agents[].ref)
+            placement:
+              type: object
+              additionalProperties: true
+              properties:
+                unit: { type: string }
+                host: { type: string }
+                replica: { type: integer, minimum: 0 }
+            bind_address:
+              type: string
+              description: Bus/process endpoint (inproc://, grpc://, …)
+      bus:
+        type: object
+        required: [kind]
+        additionalProperties: false
+        properties:
+          kind:
+            type: string
+            enum: [inproc, unix, grpc, k8s]
+          routes:
+            type: array
+            items:
+              type: object
+              required: [from, to]
+              additionalProperties: false
+              properties:
+                from: { type: string }
+                to: { type: string }
+                egress: { type: string }
+      shared:
+        type: object
+        additionalProperties: false
+        properties:
+          observability_ref: { type: string }
+      supervision:
+        type: object
+        additionalProperties: false
+        properties:
+          health_interval_s: { type: number, minimum: 0 }
+          restart_policy:
+            type: string
+            enum: [never, on-failure, always]
+          runs_dir: { type: string }
+      executor:
+        type: object
+        additionalProperties: true

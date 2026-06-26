@@ -1,0 +1,217 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+name: Publish Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Package to publish"
+        required: true
+        type: choice
+        options:
+          - all
+          - runtime
+          - ctl
+          - library
+          - lab
+          - core
+          - bench
+      bump_type:
+        description: "Version bump type"
+        required: false
+        type: choice
+        options:
+          - none
+          - patch
+          - minor
+          - major
+          - rc
+        default: "none"
+      publish_target:
+        description: "Publish target"
+        required: false
+        type: choice
+        options:
+          - github
+          - pypi
+        default: "github"
+      pypi_repository_url:
+        description: "PyPI repository URL (leave empty for default PyPI)"
+        required: false
+        type: string
+        default: ""
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  GITHUB_PYPI_REPOSITORY_URL: https://upload.pkg.github.com/${{ github.repository }}/
+  PYPI_REPOSITORY_URL: ${{ github.event.inputs.pypi_repository_url || 'https://upload.pypi.org/legacy/' }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          # Order matters: dependencies must be built first
+          - name: runtime
+            path: runtime
+          - name: library
+            path: library-standard
+          - name: ctl
+            path: ctl
+          - name: core
+            path: lab/components/core
+          - name: bench
+            path: lab/components/bench
+          - name: lab
+            path: lab
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if package should be published
+        id: check
+        run: |
+          PKG="${{ matrix.name }}"
+          INPUT="${{ github.event.inputs.package || 'all' }}"
+          if [[ "$INPUT" == "all" || "$INPUT" == "$PKG" ]]; then
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_publish=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Python
+        if: steps.check.outputs.should_publish == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        if: steps.check.outputs.should_publish == 'true'
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install build tools
+        if: steps.check.outputs.should_publish == 'true'
+        run: |
+          uv tool install build
+          uv tool install twine
+
+      - name: Bump version (if requested)
+        if: >
+          steps.check.outputs.should_publish == 'true' && github.event_name ==
+          'workflow_dispatch' && github.event.inputs.bump_type != 'none'
+        run: |
+          python3 scripts/version_manager.py bump \
+            ${{ github.event.inputs.bump_type }} \
+            ${{ matrix.name }}
+
+      - name: Get version
+        if: steps.check.outputs.should_publish == 'true'
+        id: version
+        run: |
+          VERSION=$(python3 scripts/version_manager.py get ${{ matrix.name }})
+          FULL=$(python3 scripts/version_manager.py get-full ${{ matrix.name }})
+          echo "base=$VERSION" >> $GITHUB_OUTPUT
+          echo "full=$FULL" >> $GITHUB_OUTPUT
+
+      - name: Build package
+        if: steps.check.outputs.should_publish == 'true'
+        run: pyproject-build ${{ matrix.path }}
+
+      - name: Check package
+        if: steps.check.outputs.should_publish == 'true'
+        run: uvx twine check ${{ matrix.path }}/dist/*
+
+      - name: Resolve publish target
+        if: steps.check.outputs.should_publish == 'true'
+        id: publish_target
+        run: |
+          TARGET="${{ github.event.inputs.publish_target || 'github' }}"
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            TARGET="github"
+          fi
+          echo "target=${TARGET}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to GitHub Packages (PyPI)
+        # Registry upload is manual-only: GH Packages PyPI API is not enabled for
+        # this org. Tag pushes build artifacts without uploading to a registry.
+        if: steps.check.outputs.should_publish == 'true' &&
+          steps.publish_target.outputs.target == 'github' &&
+          github.event_name == 'workflow_dispatch'
+        env:
+          TWINE_USERNAME: ${{ github.actor }}
+          TWINE_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          uvx twine upload \
+            --repository-url "${GITHUB_PYPI_REPOSITORY_URL}" \
+            ${{ matrix.path }}/dist/*
+
+      - name: Publish to PyPI
+        if: steps.check.outputs.should_publish == 'true' &&
+          steps.publish_target.outputs.target == 'pypi'
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          REPO_URL="${PYPI_REPOSITORY_URL}"
+          if [[ -z "${REPO_URL}" ]]; then
+            REPO_URL="https://upload.pypi.org/legacy/"
+          fi
+          uvx twine upload \
+            --repository-url "${REPO_URL}" \
+            ${{ matrix.path }}/dist/*
+
+      - name: Upload artifacts
+        if: steps.check.outputs.should_publish == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.name }}-${{ github.sha }}
+          path: ${{ matrix.path }}/dist/*
+          retention-days: 30
+
+  commit-version:
+    needs: publish
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' && github.event.inputs.bump_type
+      != 'none'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Bump all versions
+        run: |
+          python3 scripts/version_manager.py bump \
+            ${{ github.event.inputs.bump_type }} \
+            ${{ github.event.inputs.package }}
+
+      - name: Commit and tag
+        run: |
+          VERSION=$(python3 scripts/version_manager.py get lab)
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION **/pyproject.toml
+          git commit -m "chore: bump version to $VERSION" || true
+          git tag "v$VERSION"
+          git push && git push --tags

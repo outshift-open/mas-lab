@@ -1,0 +1,176 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "http://json-schema.org/draft-07/schema#"
+$id: "mas-lab/lab-config/v1"
+title: "mas-lab lab-config manifest (v1)"
+description: >
+  Schema for lab-config.yaml — interactive MAS demo configuration.
+  Top-level key must be 'lab:'.  All relative paths are resolved from
+  the directory containing this file.
+
+  A lab-config.yaml is loaded by 'mas-lab demo'.  It configures the live
+  demo UI (port, layout, node positions) and declares which scenarios the
+  user can select interactively.  Unlike experiment.yaml it does NOT have
+  execution batch parameters, flavours, or post-run plots.
+
+type: object
+required: [lab]
+additionalProperties: false
+
+properties:
+  lab:
+    type: object
+    required: [name]
+    additionalProperties: false
+    description: "Interactive MAS demo configuration."
+
+    properties:
+
+      # ── Identity ──────────────────────────────────────────────────────────
+      name:
+        type: string
+        minLength: 1
+        description: "Use-case name shown in the demo UI header."
+
+      version:
+        type: string
+        default: "v1"
+        description: "Format version — omit or set 'v1' to silence future warnings."
+
+      description:
+        type: string
+        description: "Free-text description shown in the demo UI."
+
+      # ── MAS applications ──────────────────────────────────────────────────
+      applications:
+        type: array
+        minItems: 1
+        description: "MAS use-case pointer(s) for the demo."
+        items:
+          type: object
+          additionalProperties: false
+          properties:
+            manifest:
+              type: string
+              description: "Path to mas.yaml."
+            app:
+              type: string
+              description: "Registered app name (mas.apps registry)."
+            configs_dir:
+              type: string
+              description: "Path to the scenario overlay YAML directory."
+            base_scenario:
+              type: string
+              default: "baseline"
+              description: "Scenario loaded on demo startup."
+          anyOf:
+            - required: [manifest]
+            - required: [app]
+
+      # ── Scenarios ─────────────────────────────────────────────────────────
+      scenarios:
+        type: array
+        description: "Selectable scenarios in the demo UI dropdown."
+        items:
+          type: object
+          required: [id]
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+              minLength: 1
+              description: "Scenario identifier shown in the UI dropdown."
+            overlays:
+              type: object
+              additionalProperties: false
+              required: [logic, control, infra]
+              properties:
+                logic:
+                  type: array
+                  items:
+                    type: string
+                  default: []
+                control:
+                  type: array
+                  items:
+                    type: string
+                  default: []
+                infra:
+                  type: array
+                  items:
+                    type: string
+                  default: []
+              description: "Layered overlay stacks applied logic → control → infra."
+            description:
+              type: string
+              description: "Human-readable label shown in the UI dropdown."
+            tags:
+              type: array
+              items:
+                type: string
+
+      # ── Dataset ───────────────────────────────────────────────────────────
+      dataset:
+        type: object
+        required: [path]
+        additionalProperties: false
+        description: "Optional prompts dataset for automated demo runs."
+        properties:
+          path:
+            type: string
+          filter:
+            type: object
+            additionalProperties: true
+
+      # ── Evaluation ────────────────────────────────────────────────────────
+      evaluation:
+        type: object
+        required: [method]
+        additionalProperties: false
+        properties:
+          method:
+            type: string
+            enum: [user_emulation, llm_judge, metrics]
+          config:
+            type: object
+            additionalProperties: true
+
+      trace_cache_dir:
+        type: string
+        description: >
+          Override the global trace-cache root for this demo.
+          Defaults to env var MAS_TRACE_CACHE, then ~/.mas-lab/trace-cache.
+
+      # ── UI hints ──────────────────────────────────────────────────────────
+      ui:
+        type: object
+        additionalProperties: false
+        description: "Demo UI configuration — port, layout, per-agent canvas positions."
+        properties:
+          port:
+            type: integer
+            minimum: 1
+            maximum: 65535
+            description: "HTTP port for the demo server (CLI --port takes precedence)."
+          mode:
+            type: string
+            enum: [interactive, automated]
+            default: "interactive"
+            description: "'interactive': user drives; 'automated': runs without input."
+          layout:
+            type: string
+            enum: [dag, grid, default]
+            default: "default"
+            description: "Graph layout hint for the topology visualiser."
+          node_positions:
+            type: object
+            additionalProperties:
+              type: object
+              additionalProperties: false
+              required: [x, y]
+              properties:
+                x:
+                  type: number
+                y:
+                  type: number
+            description: "Per-agent canvas coordinates {agent_id: {x: float, y: float}}."

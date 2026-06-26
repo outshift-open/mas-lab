@@ -1,0 +1,28 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Memory seed — preload context before first turn (ctl applies; kernel receives via ctx assembler)
+$schema: http://json-schema.org/draft-07/schema#
+title: MemorySeed
+type: object
+required: [apiVersion, kind, entries]
+additionalProperties: false
+properties:
+  apiVersion:
+    type: string
+    const: memory-seed/v1
+  kind:
+    type: string
+    const: MemorySeed
+  metadata:
+    type: object
+    additionalProperties: true
+  entries:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required: [key, content]
+      additionalProperties: false
+      properties:
+        key: { type: string, minLength: 1 }
+        content: { type: string }

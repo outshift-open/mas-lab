@@ -1,0 +1,33 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Overlay
+
+metadata:
+  name: linear
+  description: >
+    Sequential pipeline — no moderator, no dynamic routing. Specialists execute
+    in fixed order: schedule → itinerary → concierge, passing accumulated
+    context from one to the next.
+
+spec:
+  target:
+    kind: MAS
+  patch:
+    agency:
+      agents:
+        - id: schedule_agent
+          ref: agents/schedule-agent/agent.yaml
+        - id: itinerary_agent
+          ref: agents/itinerary-agent/agent.yaml
+        - id: concierge_agent
+          ref: agents/concierge-agent/agent.yaml
+
+    workflow:
+      type: sequential
+      entry: schedule_agent
+      edges:
+        - from: schedule_agent
+          to: [ itinerary_agent ]
+        - from: itinerary_agent
+          to: [ concierge_agent ]

@@ -1,0 +1,20 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  id: topo-supervised
+  description: "Supervised topology — broker with a supervisor review loop after each sub-agent"
+  tags: [topology, exp-1.2]
+
+spec:
+  patch:
+    workflow:
+      entry: moderator
+      max_rounds: 20
+      nodes:
+        - id: moderator
+          delegates_to: [schedule_agent, itinerary_agent, concierge_agent]
+        - id: schedule_agent
+        - id: itinerary_agent
+        - id: concierge_agent

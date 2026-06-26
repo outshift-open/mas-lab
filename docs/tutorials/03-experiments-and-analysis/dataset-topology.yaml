@@ -1,0 +1,20 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: lab/v1
+kind: Dataset
+metadata:
+  name: t3-topology-queries
+  display_name: Tutorial 03 topology comparison queries
+  version: '1.0'
+  description: 'Subset of QA prompts for topology comparison scaffold (Part C).
+
+    '
+spec:
+  items:
+  - id: item1
+    inputs:
+      user:
+      - role: user
+        content: 'Plan a weekend trip from Arborville to Coastport. Include transport options and one restaurant recommendation.
+
+          '

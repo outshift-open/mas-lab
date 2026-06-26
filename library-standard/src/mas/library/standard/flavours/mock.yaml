@@ -1,0 +1,33 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: flavour/v1
+kind: Flavour
+
+metadata:
+  name: mock
+  description: >
+    Offline CI flavour — mock LLM, no network. Used by golden benchmark runs and CI.
+
+spec:
+  llm:
+    provider: mock
+    model: mock
+
+  skills:
+    backend: auto
+
+  agent_comm:
+    protocol: agent-local
+    mode: local
+    emulation: true
+
+  tools:
+    remote_tools_enabled: false
+    allowed: ["*"]
+
+  mocking:
+    enabled: true
+
+  telemetry:
+    backend: file
+    path: logs/

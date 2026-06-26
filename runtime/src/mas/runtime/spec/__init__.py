@@ -1,0 +1,25 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+"""Manifest loading and source resolution (spec layer)."""
+
+from mas.runtime.spec.source import (
+    load_yaml_file,
+    load_yaml_mapping,
+    resolve_app_resource,
+    resolve_manifest_source,
+    resolve_path,
+    resolve_ref_with_search,
+    resolve_yaml_path,
+    resolve_yaml_source,
+)
+
+__all__ = [
+    "load_yaml_file",
+    "load_yaml_mapping",
+    "resolve_app_resource",
+    "resolve_manifest_source",
+    "resolve_path",
+    "resolve_ref_with_search",
+    "resolve_yaml_path",
+    "resolve_yaml_source",
+]

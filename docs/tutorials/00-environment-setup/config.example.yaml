@@ -1,0 +1,15 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Copy to ~/.mas/config.yaml (Tutorial 0 §2a)
+# Secrets go in .env — never in this file.
+
+apiVersion: mas.config/v1
+kind: UserConfig
+
+# OSS: standard:production (OpenAI) or standard:development (Ollama)
+# Team libs: my-org:bundle-id after uv pip install -e …
+default_infra: standard:production
+
+runs_dir: ~/.mas/runs
+cache_dir: ~/.mas/cache
+labs_dir: ~/.mas/labs

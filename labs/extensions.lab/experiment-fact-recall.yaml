@@ -1,0 +1,254 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Lab 3b — Memory Retrieval Observability: Fact-Level Provenance Benchmark
+#
+# Paper section: §5.3.2 — Observability through Typed Contracts
+#
+# Central claim: different memory architectures create different observability
+# and cost/context-usage trade-offs.
+#
+# Two memory architectures compared:
+#   with-vector-memory-factrecall — ToolContract (active retrieval)
+#     SemanticMemoryPlugin, context_inject=false.  Agent calls memory_search
+#     explicitly; every access produces a tool_call_end span with doc_ids.
+#     Sparse retrieval: only relevant facts fetched per query.
+#
+#   with-letta-factrecall         — ContextContract (passive injection)
+#     LettaCoreMemoryWrapper injects all 100 facts into every LLM call via
+#     <memory_blocks> XML.  No tool call needed; full profile always present.
+#     Dense retrieval: 100 facts always in context regardless of query.
+#
+# 100 facts seeded with explicit keys (f001–f100):
+#   f001–f023: referenced in expected_facts for k1/k2/k3 queries
+#   f024–f100: distractors — measure retrieval precision (false positives)
+#
+# 40 queries across 4 groups:
+#   k0 — no fact needed (overhead: how many facts injected/retrieved unnecessarily)
+#   k1 — 1 fact needed (single-hop recall)
+#   k2 — 2 facts needed (multi-hop retrieval)
+#   k3 — 3+ facts needed (composite reasoning)
+#
+# Evaluation: provenance-only.
+#   vector: retrieved_ids = doc_ids from tool_call_end(memory-search) spans
+#   letta:  retrieved_ids = all seeded keys (f001–f100, always in context)
+#   → precision, recall, F1, hit@1, n_retrieved (context overhead)
+#
+# Run:
+#   mas-lab benchmark run labs/extensions.lab/experiment-fact-recall.yaml --progress
+# Dry-run:
+#   mas-lab benchmark run labs/extensions.lab/experiment-fact-recall.yaml --dry-run
+
+experiment:
+  name: "memory-fact-recall-provenance"
+  description: >
+    Lab 3b — provenance-based evaluation of memory retrieval accuracy.
+    100 facts about traveler Alex are pre-seeded with explicit keys (f001–f100).
+    The agent must call memory-search to access any fact (passive injection
+    disabled).  Tool spans record which doc_ids were returned; precision/recall/
+    F1 are computed purely from spans vs ground-truth expected_facts.
+
+  default_flavour: local
+  applications:
+    - app: trip-planner
+      configs_dir: "./overlays"
+
+  scenarios:
+    - id: with-vector-memory-factrecall
+      description: >
+        Active retrieval — SemanticMemoryPlugin with context_inject=false.
+        The agent MUST call memory-search to access facts; no passive injection.
+        Every retrieval is a tool_call_end span with doc_ids.  We compare
+        retrieved doc_ids vs expected_facts to compute precision/recall/F1.
+        100 facts seeded with keys f001–f100; f024–f100 are distractors.
+        k0 queries measure false-positive retrieval (overhead/cost).
+      tags: ["active-retrieval", "tool-contract", "provenance"]
+
+    - id: vector-multistep
+      description: >
+        Active retrieval — SemanticMemoryPlugin, max_results=6, multi-query.
+        Agent is instructed to decompose multi-fact questions into separate
+        focused memory_search calls.  Tests whether iterative retrieval
+        recovers facts that a single query misses (k2/k3 groups).
+      tags: ["active-retrieval", "tool-contract", "multi-query", "provenance"]
+
+    - id: vector-bigk
+      description: >
+        Active retrieval — SemanticMemoryPlugin, max_results=20, single query.
+        Broader top-k retrieval trades precision for recall.  Tests whether
+        a wider retrieval window compensates for single-query limitations
+        on k2/k3 items.
+      tags: ["active-retrieval", "tool-contract", "wide-k", "provenance"]
+
+    - id: with-letta-factrecall
+      description: >
+        Passive injection — LettaCoreMemoryWrapper (ContextContract).
+        All 100 facts always injected as <memory_blocks> XML into every LLM
+        system prompt.  No memory_search tool call needed.  The eval step
+        treats retrieved_keys = {f001..f100} (all always in context).
+        k0 queries measure context overhead: 100 facts injected, none needed.
+      tags: ["passive-injection", "context-contract", "letta", "overhead"]
+
+  dataset:
+    path: ./datasets/fact-recall.yaml
+
+
+  execution:
+    parallel_scenarios: 4
+    timeout: 300
+    pause_between_runs: 1.0
+    strategy: coverage
+    reset_state: true
+
+    emulation:
+      infra:
+        llm: live
+        tools: live
+      runtime:
+        cache: none
+
+  run:
+    n_runs: 3
+  pipeline_bind: experiment/post
+
+  application:
+    post:
+      # Step 1: Extract trace stats (durations, tool calls, governance events)
+      - name: extract-trace-stats
+        type: extract_trace_stats
+        config:
+          output: "{output_dir}/results/trace_stats.csv"
+
+      # Step 2: Provenance-based fact recall evaluation — no LLM-as-judge.
+      # Vector: reads tool_call_end(memory-search) spans for retrieved doc_ids.
+      # Letta: no tool calls; eval step marks retrieved_keys = all seeded facts
+      #        (f001–f100 always in context).
+      # Computes precision/recall/F1/hit@1/n_retrieved per (scenario, group).
+      - name: eval-fact-recall
+        type: lib.steps.eval_fact_recall:EvalFactRecallStep
+        depends_on: [extract-trace-stats]
+        config:
+          runs_dir: "{output_dir}"
+          dataset: ./datasets/fact-recall.yaml
+          output_runs: "{output_dir}/results/fact_recall_runs.csv"
+          output_summary: "{output_dir}/results/fact_recall_summary.csv"
+          letta_scenarios: [with-letta-factrecall]
+          n_seeded_facts: 100
+          vector_scenarios:
+            - with-vector-memory-factrecall
+            - vector-multistep
+            - vector-bigk
+
+      # Step 3: Figure — recall per group (k1/k2/k3) by scenario
+      - name: figure-fact-recall
+        type: plotnine
+        depends_on: [eval-fact-recall]
+        config:
+          data: "{output_dir}/results/fact_recall_summary.csv"
+          filter:
+            group: [k1, k2, k3]
+          mapping: { x: group, y: recall_mean, fill: scenario }
+          geom: col
+          position: dodge
+          labels:
+            title: "Memory retrieval recall by query group"
+            subtitle: "Fraction of expected facts retrieved (n=3 runs per scenario)"
+            x: "Query group"
+            y: "Recall"
+          output: "{output_dir}/results/fig_fact_recall.png"
+          width: 7.0
+          height: 4.0
+          rename_values:
+            scenario:
+              with-vector-memory-factrecall: "RAG-direct (k=6)"
+              vector-multistep: "RAG-decomposed (k=6)"
+              vector-bigk: "RAG-wide (k=20)"
+              with-letta-factrecall: "Letta-core (inject)"
+            group:
+              k1: "k=1 (single fact)"
+              k2: "k=2 (two facts)"
+              k3: "k=3+ (composite)"
+
+      # Step 4: Figure — context overhead: n_retrieved for k0 (no fact needed)
+      - name: figure-overhead
+        type: plotnine
+        depends_on: [eval-fact-recall]
+        config:
+          data: "{output_dir}/results/fact_recall_summary.csv"
+          filter:
+            group: [k0]
+          mapping: { x: scenario, y: n_retrieved_mean, fill: scenario }
+          geom: col
+          labels:
+            title: "Context overhead — k=0 queries (no fact needed)"
+            subtitle: "Mean facts injected/retrieved when no retrieval is required"
+            x: "Memory architecture"
+            y: "Facts in context (n_retrieved)"
+          output: "{output_dir}/results/fig_overhead.png"
+          width: 5.0
+          height: 4.0
+          rename_values:
+            scenario:
+              with-vector-memory-factrecall: "RAG-direct (k=6)"
+              vector-multistep: "RAG-decomposed (k=6)"
+              vector-bigk: "RAG-wide (k=20)"
+              with-letta-factrecall: "Letta-core (inject)"
+
+      # Step 5: Figure — precision vs recall scatter per group (k1/k2/k3 only)
+      - name: figure-precision-recall
+        type: plotnine
+        depends_on: [eval-fact-recall]
+        config:
+          data: "{output_dir}/results/fact_recall_summary.csv"
+          filter:
+            group: [k1, k2, k3]
+          mapping: { x: recall_mean, y: precision_mean, color: group, shape: scenario }
+          geom: point
+          labels:
+            title: "Precision vs Recall — fact retrieval"
+            subtitle: "Vector Memory vs Letta; shapes = scenario, colors = query group"
+            x: "Recall"
+            y: "Precision"
+          output: "{output_dir}/results/fig_precision_recall.png"
+          width: 5.5
+          height: 4.5
+          rename_values:
+            group:
+              k1: "k=1"
+              k2: "k=2"
+              k3: "k=3+"
+            scenario:
+              with-vector-memory-factrecall: "RAG-direct (k=6)"
+              vector-multistep: "RAG-decomposed (k=6)"
+              vector-bigk: "RAG-wide (k=20)"
+              with-letta-factrecall: "Letta-core (inject)"
+
+      # Step 6: Figure — F1 by group (k1/k2/k3) and scenario
+      - name: figure-f1-summary
+        type: plotnine
+        depends_on: [eval-fact-recall]
+        config:
+          data: "{output_dir}/results/fact_recall_summary.csv"
+          filter:
+            group: [k1, k2, k3]
+          mapping: { x: group, y: f1_mean, fill: scenario }
+          geom: col
+          position: dodge
+          labels:
+            title: "F1 score — memory retrieval by query group"
+            subtitle: "Harmonic mean of precision and recall (n=3 runs)"
+            x: "Query group"
+            y: "F1"
+          output: "{output_dir}/results/fig_f1_summary.png"
+          width: 6.0
+          height: 3.5
+          rename_values:
+            scenario:
+              with-vector-memory-factrecall: "RAG-direct (k=6)"
+              vector-multistep: "RAG-decomposed (k=6)"
+              vector-bigk: "RAG-wide (k=20)"
+              with-letta-factrecall: "Letta-core (inject)"
+            group:
+              k0: "k=0 (neutral)"
+              k1: "k=1 (single)"
+              k2: "k=2 (multi)"
+              k3: "k=3+ (composite)"

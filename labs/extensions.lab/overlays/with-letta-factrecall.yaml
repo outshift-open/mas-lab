@@ -1,0 +1,143 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+kind: Overlay
+metadata:
+  id: with-letta-factrecall
+# Scenario: with-letta-factrecall (passive injection via ContextContract)
+#
+# Comparison point for with-vector-memory-factrecall:
+#   - vector-memory: agent calls memory_search explicitly → sparse retrieval
+#   - letta:         all 100 facts always injected into system prompt → dense
+#
+# Letta block contains all 100 facts with explicit [fNNN] key markers.
+# The eval step detects Letta runs by the absence of tool_call_end(memory_search)
+# events and sets retrieved_keys = {f001..f100} (all always in context).
+#
+# Key metrics:
+#   - k0 (neutral): precision=0 (100 facts injected, none needed) → overhead
+#   - k1-k3:        recall=1.0 (all facts always present), precision=low
+#
+# Retrieval trace: context_part_contributed events (no memory_search tool calls)
+
+spec:
+  plugins:
+    - module_path: lib.memory.letta_wrapper
+      class_name: LettaCoreMemoryWrapper
+      name: letta_core_memory
+      priority: 55
+      params:
+        blocks:
+          - label: persona
+            value: "I am a personalized travel planning assistant for Alex."
+            limit: 2000
+          - label: traveler_profile
+            value: |
+              Traveler profile — Alex (100 facts, keys f001–f100):
+
+              [f001] Alex took the Eurostar train to London.
+              [f002] Alex visited Paris in September 2023.
+              [f003] Alex stayed at the Park Hyatt Tokyo in Shinjuku during the Tokyo trip.
+              [f004] Alex's daily travel budget is $200.
+              [f005] Alex prefers cultural activities and art museums when travelling.
+              [f006] Alex's home city is Celestia.
+              [f007] Alex prefers morning departures before 9 am.
+              [f008] Alex requests vegetarian meals on flights.
+              [f009] Alex is enrolled in the SkyWings frequent flyer program.
+              [f010] Alex prefers window seats on the quiet carriage on trains.
+              [f011] Alex speaks French in addition to English.
+              [f012] Alex found the Emerald Canyon Bridge in Verdantia too steep and would skip it next time.
+              [f013] Alex enjoyed the Living Library in Verdantia.
+              [f014] Alex prefers boutique hotels with local character over large international chains.
+              [f015] Alex is lactose intolerant.
+              [f016] Alex flew to Barcelona for a past trip.
+              [f017] The highlight of Alex's Barcelona trip was the Picasso Museum.
+              [f018] Alex uses GlobalGuard travel insurance.
+              [f019] Alex pays with a Sapphire Visa credit card for travel bookings.
+              [f020] Alex hired a local guide named Kenji in Kyoto.
+              [f021] Kenji led Alex on a temple district walking tour in Kyoto.
+              [f022] Alex's visa application for India was approved within 2 weeks.
+              [f023] Alex received a typhoid vaccination before travelling to India.
+              [f024] Alex's passport expires in March 2028.
+              [f025] Alex prefers aisle seats on long-haul flights.
+              [f026] Alex visited New York in April 2022 for a conference.
+              [f027] Alex stayed at a brownstone Airbnb in Brooklyn during the New York trip.
+              [f028] Alex attended a jazz concert at the Blue Note in New York.
+              [f029] Alex found Manhattan too crowded and prefers Brooklyn neighbourhoods.
+              [f030] Alex carries a portable WiFi hotspot when travelling abroad.
+              [f031] Alex keeps a travel journal and sketches street scenes.
+              [f032] Alex visited the Uffizi Gallery in Florence in 2021.
+              [f033] Alex took a cooking class in Florence focused on Tuscan pasta.
+              [f034] Alex stayed at a small pension near the Arno river in Florence.
+              [f035] Alex rated the Florence trip a 9/10, mainly because of the art.
+              [f036] Alex subscribes to an annual travel magazine for destination inspiration.
+              [f037] Alex took a ferry from Athens to Santorini in the summer of 2019.
+              [f038] Alex stayed in an oia cave hotel overlooking the caldera in Santorini.
+              [f039] Alex's most memorable meal was grilled octopus at a harbour taverna in Santorini.
+              [f040] Alex is allergic to shellfish.
+              [f041] Alex always books travel insurance before departure.
+              [f042] Alex hiked the Cinque Terre coastal trail in Liguria in 2022.
+              [f043] Alex found the Cinque Terre hike strenuous but worth it for the views.
+              [f044] Alex stayed in Monterosso for two nights during the Cinque Terre trip.
+              [f045] Alex prefers trips of 5–10 days rather than very short or very long stays.
+              [f046] Alex uses a noise-cancelling headset on all flights.
+              [f047] Alex rented a bicycle in Amsterdam and cycled along the canal ring.
+              [f048] Alex visited the Rijksmuseum and the Van Gogh Museum during the Amsterdam trip.
+              [f049] Alex found Amsterdam's Jordaan district the most charming neighbourhood.
+              [f050] Alex is a light packer and travels with only a carry-on for trips under 10 days.
+              [f051] Alex took the bullet train (Shinkansen) from Tokyo to Kyoto.
+              [f052] Alex bought a 7-day JR Pass for the Japan trip.
+              [f053] Alex visited the Fushimi Inari Shrine at sunrise to avoid crowds in Kyoto.
+              [f054] Alex attended a traditional tea ceremony in Kyoto's Gion district.
+              [f055] Alex purchased a hand-painted ceramic bowl as a souvenir from a Kyoto studio.
+              [f056] Alex sets a souvenir budget of $50 per destination.
+              [f057] Alex experienced a typhoon warning during the Tokyo trip and stayed indoors for one day.
+              [f058] Alex always downloads offline maps before visiting a new city.
+              [f059] Alex visited the Sagrada Família in Barcelona and pre-booked skip-the-line tickets.
+              [f060] Alex walked Las Ramblas in Barcelona and found it overly touristy.
+              [f061] Alex discovered El Born neighbourhood in Barcelona as a hidden gem.
+              [f062] Alex uses a VPN when connecting to public WiFi abroad.
+              [f063] Alex took a day trip from Barcelona to Montserrat by rack railway.
+              [f064] Alex found the Montserrat monastery views among the best of the trip.
+              [f065] Alex rates destinations primarily on art, architecture, and food.
+              [f066] Alex visited the Louvre in Paris and spent most time in the Denon wing.
+              [f067] Alex had lunch at a neighbourhood bistro near the Marais in Paris.
+              [f068] Alex took a night cruise on the Seine during the Paris trip.
+              [f069] Alex stayed at a Haussmann-era apartment hotel in the 3rd arrondissement of Paris.
+              [f070] Alex always carries a pocket phrasebook for the local language.
+              [f071] Alex visited the British Museum and the Tate Modern during the London trip.
+              [f072] Alex took afternoon tea at Fortnum & Mason in London.
+              [f073] Alex found the London Underground reliable but expensive compared to Eurostar.
+              [f074] Alex stayed in a Georgian townhouse B&B in Bloomsbury, London.
+              [f075] Alex budgets an additional 10% contingency on top of the daily $200 limit.
+              [f076] Alex visited the Acropolis in Athens at dusk for the best light.
+              [f077] Alex took a guided tour of the Ancient Agora in Athens.
+              [f078] Alex stayed in a boutique hotel in Plaka, Athens, with rooftop Acropolis views.
+              [f079] Alex found Athens street food (souvlaki) to be the highlight of Greek cuisine.
+              [f080] Alex prefers to learn at least 10 basic phrases in the local language before a trip.
+              [f081] Alex visited the National Palace Museum in Taipei in 2018.
+              [f082] Alex took a night train from Taipei to Hualien for the Taroko Gorge hike.
+              [f083] Alex found Taiwanese street food (scallion pancakes, beef noodle soup) excellent.
+              [f084] Alex carries travel adapters for EU, UK, and US/AU socket types.
+              [f085] Alex visited the Hermitage Museum in Saint Petersburg in 2017.
+              [f086] Alex took a canal boat tour of Saint Petersburg's waterways.
+              [f087] Alex attended a Mariinsky Theatre performance during the Saint Petersburg trip.
+              [f088] Alex photographs architecture and street art as a travel hobby.
+              [f089] Alex visited the Prado Museum in Madrid in 2023.
+              [f090] Alex took a flamenco show and dinner package in Madrid's tablao district.
+              [f091] Alex stayed at a design hotel near Gran Vía in Madrid.
+              [f092] Alex uses a currency conversion app to track spending in local currency.
+              [f093] Alex visited the Topkapi Palace and Hagia Sophia in Istanbul in 2016.
+              [f094] Alex took a Bosphorus cruise at sunset in Istanbul.
+              [f095] Alex found Istanbul's Grand Bazaar overwhelming and preferred the Spice Bazaar.
+              [f096] Alex keeps digital copies of all travel documents in an encrypted cloud folder.
+              [f097] Alex visited the Kröller-Müller Museum in the Hoge Veluwe National Park in the Netherlands.
+              [f098] Alex cycled through the national park to reach the Kröller-Müller Museum.
+              [f099] Alex donates to a local charity or social enterprise in each destination visited.
+              [f100] Alex's emergency contact abroad is a colleague named Marie who speaks both French and English.
+            limit: 10000
+
+  patch:
+    design_pattern:
+      type: react
+      config:
+        max_steps: 12

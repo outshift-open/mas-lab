@@ -1,0 +1,34 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Development overrides — live-bind Python sources into the install root.
+#
+#   cd docker && docker compose -f compose.yaml -f compose.dev.yaml up --build
+#
+# Workspace and data mounts still come from compose.yaml (.env MAS_WORKSPACE_MOUNT / MAS_DATA_MOUNT).
+
+services:
+  backend:
+    volumes:
+      - ${MAS_WORKSPACE_MOUNT:-..}:/workspace
+      - ${MAS_DATA_MOUNT:-./data}:/data
+      - ../runtime:/opt/mas-lab/runtime:ro
+      - ../ctl:/opt/mas-lab/ctl:ro
+      - ../library-standard:/opt/mas-lab/library-standard:ro
+      - ../library-samples:/opt/mas-lab/library-samples:ro
+      - ../library-lab:/opt/mas-lab/library-lab:ro
+      - ../library-eval:/opt/mas-lab/library-eval:ro
+      - ../lab:/opt/mas-lab/lab:ro
+      - ../apps:/opt/mas-lab/apps:ro
+
+  cli:
+    volumes:
+      - ${MAS_WORKSPACE_MOUNT:-..}:/workspace
+      - ${MAS_DATA_MOUNT:-./data}:/data
+      - ../runtime:/opt/mas-lab/runtime:ro
+      - ../ctl:/opt/mas-lab/ctl:ro
+      - ../library-standard:/opt/mas-lab/library-standard:ro
+      - ../library-samples:/opt/mas-lab/library-samples:ro
+      - ../library-lab:/opt/mas-lab/library-lab:ro
+      - ../library-eval:/opt/mas-lab/library-eval:ro
+      - ../lab:/opt/mas-lab/lab:ro
+      - ../apps:/opt/mas-lab/apps:ro

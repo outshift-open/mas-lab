@@ -1,0 +1,532 @@
+<!--
+  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+  SPDX-License-Identifier: Apache-2.0
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MAS Topology</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="js/plugins/plugins.css" />
+    <!-- GOLDEN LAYOUT -->
+    <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.1.min.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/golden-layout@1.5.9/dist/goldenlayout.min.js"></script>
+    <link type="text/css" rel="stylesheet" href="https://unpkg.com/golden-layout@1.5.9/src/css/goldenlayout-base.css" />
+    <link type="text/css" rel="stylesheet" href="https://unpkg.com/golden-layout@1.5.9/src/css/goldenlayout-dark-theme.css" />
+    <style>
+      :root {
+        --gl-header-h: 30px;
+        --gl-splitter-w: 5px;
+      }
+
+      /* ── GoldenLayout base overrides ─────────────────── */
+      #layout-container {
+        position: absolute;
+        top: 44px;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        height: calc(100vh - 44px);
+        background: #0b0f1a;
+      }
+
+      /* Header bar — full-width solid bar */
+      .lm_header {
+        background: rgba(13, 19, 35, 0.97) !important;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.13) !important;
+        height: var(--gl-header-h) !important;
+        display: flex !important;
+        align-items: stretch !important;
+      }
+
+      /* Tab list fills header */
+      .lm_tabs {
+        display: flex !important;
+        flex: 1 !important;
+        height: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        list-style: none !important;
+        overflow: hidden !important;
+      }
+
+      /* Each tab — by default muted */
+      .lm_tab {
+        flex: 1 !important;
+        display: flex !important;
+        align-items: center !important;
+        padding: 0 14px !important;
+        background: transparent !important;
+        border: none !important;
+        border-bottom: 2px solid transparent !important;
+        color: rgba(148, 163, 184, 0.5) !important;
+        font-size: 10px !important;
+        font-family: 'IBM Plex Mono', monospace !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.14em !important;
+        cursor: pointer !important;
+        white-space: nowrap !important;
+        user-select: none !important;
+        transition: color 0.15s, border-color 0.15s !important;
+        box-sizing: border-box !important;
+        height: 100% !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+      }
+
+      /* Active tab — underline style, no filled background */
+      .lm_tab.lm_active {
+        background: transparent !important;
+        border-bottom: 2px solid #7c5cff !important;
+        color: #e5e7eb !important;
+      }
+
+      .lm_tab:not(.lm_active):hover {
+        color: rgba(148, 163, 184, 0.85) !important;
+        background: rgba(148, 163, 184, 0.05) !important;
+      }
+
+      /* Title text inside tab */
+      .lm_tab .lm_title {
+        flex: 1 !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+      }
+
+      /* Hide the close ✕ (panels are not closable) */
+      .lm_tab .lm_close_tab {
+        display: none !important;
+      }
+
+      /* Controls (maximise) */
+      .lm_controls {
+        display: flex !important;
+        align-items: center !important;
+        padding: 0 6px !important;
+        gap: 2px !important;
+      }
+
+      .lm_controls > li {
+        width: 18px !important;
+        height: 18px !important;
+        opacity: 0.35 !important;
+        transition: opacity 0.15s !important;
+      }
+
+      .lm_controls > li:hover {
+        opacity: 0.85 !important;
+      }
+
+      /* Panel content area */
+      .lm_content {
+        background: #0b0f1a !important;
+        border: none !important;
+        overflow: hidden !important;
+      }
+
+      /* ── Splitters ───────────────────────────────────── */
+      .lm_splitter {
+        background: rgba(148, 163, 184, 0.07) !important;
+        transition: background 0.18s !important;
+        z-index: 10 !important;
+        position: relative !important;
+      }
+
+      /* Vertical splitter (between columns) */
+      .lm_splitter.lm_vertical {
+        height: var(--gl-splitter-w) !important;
+        cursor: row-resize !important;
+      }
+
+      /* Horizontal splitter (between rows) */
+      .lm_splitter.lm_horizontal {
+        width: var(--gl-splitter-w) !important;
+        cursor: col-resize !important;
+      }
+
+      .lm_splitter:hover,
+      .lm_splitter_drag {
+        background: rgba(124, 92, 255, 0.55) !important;
+      }
+
+      /* Drag ghost */
+      .lm_splitter_drag {
+        background: rgba(124, 92, 255, 0.65) !important;
+      }
+
+      /* Grip dots on splitter */
+      .lm_splitter::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.18);
+        transition: background 0.15s;
+      }
+
+      .lm_splitter.lm_horizontal::after {
+        width: 2px;
+        height: 22px;
+      }
+
+      .lm_splitter.lm_vertical::after {
+        width: 22px;
+        height: 2px;
+      }
+
+      .lm_splitter:hover::after {
+        background: rgba(255, 255, 255, 0.5);
+      }
+
+      /* Template storage */
+      #templates { display: none; }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="topbar-brand">
+          <a class="logo-link" href="/">
+            <div class="brand">
+              <h1>Multi-Agent Network</h1>
+            </div>
+          </a>
+        </div>
+        <div class="topbar-content">
+          <div class="controls-container">
+            
+            <!-- Application Group -->
+            <div class="nav-group">
+                <button id="nav-app-trigger" class="nav-trigger" type="button" aria-expanded="false">
+                   <!-- App Icon -->
+                   <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+                   <div class="nav-trigger-content">
+                      <span class="nav-label">Application</span>
+                      <span id="nav-app-value" class="nav-value">--</span>
+                      <span id="nav-context-value" class="nav-sub-value"></span>
+                   </div>
+                   <span class="nav-chevron">▼</span>
+                </button>
+                <div id="nav-app-dropdown" class="nav-dropdown" aria-hidden="true">
+                    <div class="nav-section">
+                        <label class="nav-section-label">Application</label>
+                        <select id="app-select" class="config-select"></select>
+                    </div>
+                    <div class="nav-section">
+                        <label class="nav-section-label">Scenario</label>
+                        <select id="scenario-select" class="config-select"></select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Run/Stop Buttons (Moved out of dropdown) -->
+            <div class="nav-actions-inline">
+                 <button id="btn-init-scenario" type="button" class="btn-primary">Run App</button>
+                 <button id="btn-stop-scenario" type="button" class="btn-secondary btn-stop" style="display: none">Stop App</button>
+            </div>
+
+            <!-- User Group & Prompt Joined -->
+             <div class="nav-group">
+                <button id="nav-user-trigger" class="nav-trigger" type="button" aria-expanded="false">
+                   <!-- User Icon -->
+                   <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                   <div class="nav-trigger-content">
+                      <span class="nav-label">User</span>
+                      <span id="nav-user-value" class="nav-value">Manual</span>
+                   </div>
+                   <span class="nav-chevron">▼</span>
+                </button>
+                 <div id="nav-user-dropdown" class="nav-dropdown" aria-hidden="true">
+                    <div class="nav-section">
+                        <label class="nav-section-label">Model</label>
+                        <select id="user-model-select" class="config-select">
+                            <option value="autonomous">Autonomous</option>
+                            <option value="manual" selected>Manual</option>
+                        </select>
+                    </div>
+                 </div>
+                 
+                <!-- Prompt (Visually joined) -->
+                <form id="prompt-form" class="nav-prompt-group">
+                    <!-- Dataset / scenario filter ──────────────────── -->
+                    <div class="nav-dataset-wrap">
+                        <button id="nav-dataset-btn" type="button" class="nav-dataset-btn" title="Select dataset" aria-expanded="false">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v6c0 1.66 4.03 3 9 3s9-1.34 9-3V5"></path><path d="M3 11v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6"></path></svg>
+                            <span id="nav-dataset-label">Dataset</span>
+                            <svg class="nav-dataset-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div id="nav-dataset-dropdown" class="nav-dataset-dropdown" aria-hidden="true"></div>
+                    </div>
+                    <div class="nav-prompt-icon">
+                        <!-- Message Icon -->
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    </div>
+                    <div class="nav-prompt-input-wrapper">
+                         <input list="prompt-options" id="prompt-input" class="config-input" placeholder="Enter prompt..." aria-label="User prompt">
+                         <datalist id="prompt-options"></datalist>
+                         <!-- Clear Button (Hidden by default until input has value) -->
+                         <button id="prompt-clear" type="button" class="action-icon is-hidden" aria-label="Clear prompt">
+                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                         </button>
+                         <!-- Custom Chevron for Datalist -->
+                         <div class="input-chevron">
+                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                         </div>
+                         <select id="prompt-select" class="config-select config-select--inline" style="display:none"></select>
+                    </div>
+                    <button id="btn-send-prompt" type="button" class="btn-primary" disabled>Send</button>
+                    <span id="prompt-status" class="status-pill status-idle" style="display:none">IDLE</span>
+                </form>
+            </div>
+
+          </div>
+          <div class="topbar-actions">
+            <button class="menu-button" id="panel-menu-button" type="button">View</button>
+            <div class="menu" id="panel-menu" role="menu" aria-hidden="true">
+              <div class="menu-row">
+                <span class="menu-label">Layout</span>
+                <select id="layout-select" class="layout-select" aria-label="Layout"></select>
+              </div>
+              <button class="menu-action" id="reset-layout" type="button">Reset layout</button>
+              <button class="menu-action" id="reset-view" type="button">Reset View (Clear)</button>
+              <label class="checkbox checkbox--compact">
+                <input id="toggle-signals" type="checkbox" checked />
+                <span>Timeline panel</span>
+              </label>
+              <label class="checkbox checkbox--compact">
+                <input id="toggle-metrics" type="checkbox" checked />
+                <span>Metrics panel</span>
+              </label>
+              <label class="checkbox checkbox--compact">
+                <input id="toggle-log" type="checkbox" checked />
+                <span>Exchange log</span>
+              </label>
+              <div class="menu-divider"></div>
+              <label class="checkbox checkbox--compact">
+                <input id="toggle-dp-badge" type="checkbox" checked />
+                <span>Show DP badge</span>
+              </label>
+              <label class="checkbox checkbox--compact">
+                <input id="toggle-hover-tooltips" type="checkbox" checked />
+                <span>Hover tooltips</span>
+              </label>
+            </div>
+            <div class="status service-status" id="service-status" aria-live="polite">
+               <button id="service-status-trigger" class="menu-button menu-button--status" type="button" aria-expanded="false" title="System Services">
+                  <span class="status-dot status-dot--ok" id="controller-status"></span>
+                  <span class="menu-button-label">Services</span>
+               </button>
+               <span class="status-warn" id="controller-warn" title="Controller offline">!</span>
+
+              <div class="service-status-menu" id="service-status-menu" aria-hidden="true">
+                <div class="service-status-header">
+                  <span>System Services</span>
+                </div>
+                <span id="service-status-summary" class="service-status-summary">All ok</span>
+                <div class="service-status-list" id="service-status-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </header>
+
+      <!-- GoldenLayout Container -->
+      <div id="layout-container"></div>
+
+      <!-- Hidden Source Templates (Original Structure) -->
+      <!-- Node hover tooltip (HTML, absolutely positioned over #layout-container) -->
+    <div id="topo-tooltip" class="topo-tooltip" aria-hidden="true"></div>
+
+    <div id="templates" style="display:none">
+      
+      <section class="board">
+        <nav class="side-panel" id="timeline-template">
+          <div class="panel-header">
+            <h2>Timeline</h2>
+            <button class="panel-close" id="hide-signals" type="button" title="Hide panel">✕</button>
+          </div>
+          <div class="timeline-tabs" role="tablist" aria-label="Timeline view">
+            <button class="timeline-tab" id="timeline-tab-tree" type="button" role="tab" aria-selected="false">Tree</button>
+            <button class="timeline-tab is-active" id="timeline-tab-graph" type="button" role="tab" aria-selected="true">Graph</button>
+          </div>
+          <div class="timeline-container">
+            <svg id="timeline-tree" viewBox="0 0 280 700" aria-label="Execution timeline (tree)"></svg>
+            <div id="timeline-graph" class="timeline-graph is-hidden" aria-label="Execution timeline (graph)"></div>
+          </div>
+          <div class="controls">
+            <label class="checkbox checkbox--compact">
+              <input id="toggle-timeline-autoscroll" type="checkbox" checked />
+              <span>Auto-scroll timeline</span>
+            </label>
+            <label class="checkbox">
+              <input id="toggle-otel" type="checkbox" checked />
+              <span>Show OTel + trace store</span>
+            </label>
+            <label class="checkbox">
+              <input id="toggle-absolute-time" type="checkbox" />
+              <span>Absolute timestamps</span>
+            </label>
+          </div>
+        </nav>
+        <div class="topology-container" id="topology-template">
+          <svg id="topology" viewBox="0 0 1600 900" aria-label="Agent topology"></svg>
+          <div id="loading-overlay" class="loading-overlay is-hidden">
+            <div class="loading-content">
+              <div class="loading-spinner"></div>
+              <p>Waiting for first message...</p>
+              <div class="loading-progress">
+                <div class="loading-progress-bar"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="resize-handle resize-handle--right" id="metrics-handle"></div>
+        <div id="metrics-template"><aside class="metrics-panel" id="metrics-panel">
+            <div class="panel-header">
+                <h2>Realtime Metrics</h2>
+                <button class="panel-close" id="hide-metrics" type="button" title="Hide panel">✕</button>
+            </div>
+            
+            <div class="metrics-group">
+                <h3>Cost</h3>
+                <div class="metrics-grid">
+                    <div class="metric-card" id="card-duration">
+                        <span class="metric-label">Duration</span>
+                        <span class="metric-value" id="metric-duration">00:00</span>
+                        <span class="metric-unit">mm:ss</span>
+                    </div>
+                    <div class="metric-card" id="card-cost">
+                        <span class="metric-label">Est. Cost</span>
+                        <span class="metric-value" id="metric-cost">0.000</span>
+                        <span class="metric-unit">$</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metrics-group">
+                <h3>Reliability & Perf</h3>
+                <div class="metrics-grid">
+                    <div class="metric-card" id="card-tools">
+                        <span class="metric-label">Active Tools</span>
+                        <span class="metric-value status-ok" id="metric-tools">0</span>
+                        <span class="metric-unit">Connected</span>
+                    </div>
+                   <div class="metric-card" id="card-tokens">
+                        <span class="metric-label">Tokens</span>
+                        <span class="metric-value" id="metric-tokens">0</span>
+                        <span class="metric-unit">total</span>
+                    </div>
+                </div>
+                <div class="metrics-grid" style="margin-top: 8px;">
+                     <div class="metric-card" id="card-reliability">
+                        <span class="metric-label">Success Rate</span>
+                        <span class="metric-value" id="metric-reliability">100</span>
+                        <span class="metric-unit">%</span>
+                    </div>
+                    <div class="metric-card" id="card-perf">
+                        <span class="metric-label">Avg Latency</span>
+                        <span class="metric-value" id="metric-perf">--</span>
+                        <span class="metric-unit">ms</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metrics-group">
+                <h3>Quality (Eval)</h3>
+                <div class="metrics-grid">
+                    <div class="metric-card metric-card--large" id="card-quality">
+                        <span class="metric-label">Answer Relevancy</span>
+                        <span class="metric-value" id="metric-quality">--</span>
+                        <span class="metric-unit">Score (0-1)</span>
+                    </div>
+                </div>
+            </div>
+            
+             <div class="metrics-group">
+                <h3>Activity</h3>
+                <div class="metrics-grid">
+                     <div class="metric-card" id="card-events">
+                        <span class="metric-label">Event Rate</span>
+                        <span class="metric-value" id="metric-events">0</span>
+                        <span class="metric-unit">/min</span>
+                    </div>
+                </div>
+            </div>
+
+        </aside></div>
+      </section> <!-- End Board -->
+      <section class="log-dock" id="logs-template">
+        <div class="dock-handle" id="dock-handle" aria-label="Resize log"></div>
+        <div class="log-dock-header">
+          <span>Exchange Log</span>
+          <button class="panel-close" id="hide-log" type="button" title="Hide panel">✕</button>
+          <label class="checkbox checkbox--compact">
+            <input id="toggle-autoscroll" type="checkbox" checked />
+            <span>Auto-scroll</span>
+          </label>
+        </div>
+        <div id="activity-log" class="log"></div>
+      </section>
+      
+      <!-- Service Status Template (New) -->
+      <div id="service-infra-template">
+          <div class="metrics-group" style="padding: 12px;">
+             <h3>Infrastructure Services</h3>
+             <div id="service-list" class="metrics-grid"></div>
+          </div>
+      </div>
+      
+      </div> <!-- End Templates -->
+    </main>
+
+    <!-- Timeline Scrubber Bar -->
+    <div id="scrubber-bar" class="scrubber-bar">
+      <!-- Play / Pause -->
+      <button id="scrubber-play-pause" class="scrubber-btn scrubber-btn--play" title="Play / Pause" aria-label="Play or pause playback">
+        <svg id="scrubber-icon-play" width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><polygon points="2,1 11,6 2,11"/></svg>
+        <svg id="scrubber-icon-pause" width="12" height="12" viewBox="0 0 12 12" fill="currentColor" style="display:none"><rect x="2" y="1" width="3" height="10"/><rect x="7" y="1" width="3" height="10"/></svg>
+      </button>
+      <!-- Live toggle -->
+      <button id="scrubber-live" class="scrubber-btn scrubber-btn--live" title="Jump to live" aria-label="Switch to live mode">LIVE</button>
+      <!-- Current position timestamp -->
+      <span id="scrubber-time-current" class="scrubber-time" aria-label="Current playback time">0:00</span>
+      <!-- Scrubber range -->
+      <div class="scrubber-track">
+        <div id="scrubber-progress-fill" class="scrubber-fill"></div>
+        <input id="scrubber-range" type="range" min="0" max="1000" value="1000" step="1"
+               class="scrubber-range" aria-label="Timeline position" />
+      </div>
+      <!-- Total duration -->
+      <span id="scrubber-time-total" class="scrubber-time" aria-label="Total run duration">0:00</span>
+      <!-- Playback speed -->
+      <select id="scrubber-speed" class="scrubber-speed" aria-label="Playback speed">
+        <option value="0.5">0.5×</option>
+        <option value="1" selected>1×</option>
+        <option value="2">2×</option>
+        <option value="4">4×</option>
+        <option value="8">8×</option>
+      </select>
+      <!-- KG live stats badge -->
+      <span id="scrubber-kg-stats" class="scrubber-kg-stats" title="Graph nodes / edges in current view">KG: —</span>
+    </div>
+
+    <!-- Plugin System -->
+    <script src="js/plugin-system.js"></script>
+    <script src="js/plugins/events.js"></script>
+    <script src="js/plugins/hitl.js"></script>
+    <script src="js/plugins/metrics.js"></script>
+    <script src="js/plugins/observability.js"></script>
+    
+    <!-- Main Application -->
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,50 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  name: generalist
+  version: 0.1.0
+spec:
+  role:
+    description: >
+      Single generalist trip planner — handles schedule lookups, route planning,
+      fare estimation, and itinerary assembly without delegation.
+    instructions: |
+      You are an all-in-one trip planner for the Arborian Network.
+
+      You have four tools at your disposal:
+      - lookup_schedule: search train/airplane schedules and city attractions
+      - query_graph_database: find routes between cities with travel times
+      - get_fares: look up fares for transport segments
+      - calc: perform arithmetic (totals, budgets, conversions)
+
+      For every trip request:
+      1. Look up schedules and attractions for the relevant cities.
+      2. Find feasible routes between origin and destination.
+      3. Get fares for the proposed routes.
+      4. Assemble a complete itinerary with schedule, route, and prices.
+
+      Always include your reasoning before each tool call and provide a
+      clear final answer with the full itinerary.
+  models:
+    - id: main
+      model: gpt-4o
+      temperature: 0.3
+      max_tokens: 2000
+  design_pattern:
+    type: react
+  tools:
+    - ref: ../../tools/lookup_schedule.tool.yaml
+    - ref: ../../tools/query_graph_database.tool.yaml
+    - ref: ../../tools/get_fares.tool.yaml
+    - ref: ../../tools/calc.tool.yaml
+  skills:
+    - trip-orchestration
+    - transport-schedule-lookup
+    - route-planning
+    - fare-and-itinerary-assembly
+  intent: >
+    Trip Planner Generalist — single agent that handles the entire trip planning
+    workflow: schedule lookup, route planning, fare estimation, and itinerary
+    assembly for cities in the Arborian Network.

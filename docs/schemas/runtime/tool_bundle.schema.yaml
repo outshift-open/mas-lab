@@ -1,0 +1,139 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1/tool_bundle"
+title: "ToolBundle Manifest"
+description: >
+  Schema for kind: ToolBundle manifests (apiVersion: mas/v1).
+  A ToolBundle is the declarative registry of tools: description, Python
+  implementation reference, input/output schemas, and tool-server serving config.
+  Agent manifests reference bundles via tools_ref: <bundle-name>.
+  tool server: mas-runtime tool-server-serve --bundle <file.yaml> --port 9090
+type: object
+required:
+  - apiVersion
+  - kind
+  - metadata
+  - spec
+additionalProperties: false
+properties:
+
+  apiVersion:
+    type: string
+    const: "mas/v1"
+
+  kind:
+    type: string
+    const: "ToolBundle"
+
+  metadata:
+    type: object
+    required: [name]
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+        pattern: "^[a-z0-9][a-z0-9_-]*$"
+        description: "Bundle name — used in tools_ref and tool-server endpoint path."
+      description:
+        type: string
+        default: ""
+      version:
+        type: string
+        pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+.*$"
+        default: "0.1.0"
+      tags:
+        type: array
+        items:
+          type: string
+        default: []
+
+  spec:
+    type: object
+    required: [tools]
+    additionalProperties: false
+    properties:
+
+      tools:
+        type: object
+        description: >
+          Dict of tool-id → ToolEntry.  The tool-id is the canonical name used
+          in tool-server calls (/tools/call) and in agent manifests via tools_ref.
+          Must match [a-z0-9][a-z0-9_-]*.
+        additionalProperties:
+          type: object
+          required: [description]
+          additionalProperties: false
+          properties:
+
+            description:
+              type: string
+              description: >
+                What the tool does, published in tool-server tool spec and LLM tool-use.
+                Write from the caller's perspective:
+                "Call this when you need X. It returns Y."
+
+            module_path:
+              type: [string, "null"]
+              description: >
+                Fully-qualified Python module path (importlib-style).
+                E.g. mas.runtime.tools.calculator_tool.
+                Required unless the tool is mock-only (testing).
+              default: null
+
+            class_name:
+              type: [string, "null"]
+              description: >
+                Name of the class inside module_path implementing ToolContract.
+                E.g. CalculatorTool.
+              default: null
+
+            input_schema:
+              type: object
+              description: >
+                Flat dict of parameter definitions.
+                Each key is a parameter name, value is a param spec:
+                  type: string | integer | number | boolean | array | object
+                  description: "Human-readable description"
+                  required: true     # shorthand (adds to JSON Schema required[])
+                  default: <value>   # optional default
+                  enum: [...]        # optional allowed values
+              additionalProperties:
+                oneOf:
+                  - type: string   # shorthand: just the type name
+                  - type: object
+                    additionalProperties: true
+              default: {}
+
+            output_schema:
+              type: object
+              description: >
+                Flat dict of output field definitions (documentation only).
+                Not enforced at runtime.
+              additionalProperties:
+                oneOf:
+                  - type: string
+                  - type: object
+                    additionalProperties: true
+              default: {}
+
+            tags:
+              type: array
+              items:
+                type: string
+              description: "Labels for filtering/grouping (e.g. [health, monitoring])."
+              default: []
+
+            idempotent:
+              type: boolean
+              description: >
+                True if calling with the same args always gives the same result.
+                Used by the governance layer for safe retries.
+              default: false
+
+            timeout_seconds:
+              type: integer
+              minimum: 1
+              maximum: 3600
+              description: "Max wall-clock execution time. Enforced by pre_tool_call hook."
+              default: 30

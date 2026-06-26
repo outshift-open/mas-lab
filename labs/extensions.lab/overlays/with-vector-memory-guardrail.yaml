@@ -1,0 +1,108 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+kind: Overlay
+metadata:
+  id: with-vector-memory-guardrail
+# Scenario: with-vector-memory-guardrail
+#
+# This scenario demonstrates TWO orthogonal extensions applied simultaneously:
+#
+#   1. Memory extension (same as with-vector-memory):
+#      spec.plugins                           ← SemanticMemoryPlugin globally
+#      spec.patch.agents.concierge_agent
+#        .tools: [memory-search]              ← MemoryToolProvider on concierge
+#        .role.instructions                   ← IMPORTANT memory_usage directive
+#        .memory_seed                         ← Alex's profile seeded at startup
+#
+#   2. Governance extension (orthogonal — does not affect the memory layer):
+#      spec.governance.policies:              ← GovernancePolicyEngine
+#        forbidden-destination                ← blocks any tool call targeting
+#                                               "Shadowmere"
+#
+# Paper claim: contract layers are orthogonal. Adding a guardrail policy to a
+# memory-extended agent requires a single spec.governance stanza — no changes
+# to the memory configuration, no changes to the dataset, no code changes.
+# The policy fires deterministically on the guardrail dataset item and is
+# visible as a PolicyDenial event in the multilevel trajectory diagram.
+#
+# Trajectory illustration:
+#   - Items r1/r2/r3/c1/c2/c3/n1/n2/n3: identical to with-vector-memory
+#     (memory_search calls visible; governance layer silent)
+#   - Item g1 ("Plan a trip to Shadowmere"): policy fires → PolicyDenial event
+#     appears in the trajectory; agent returns a blocked-request response.
+spec:
+  plugins:
+    - module_path: mas.library.standard.plugins.memory.memory_semantic
+      class_name: SemanticMemoryPlugin
+      name: semantic_memory
+      priority: 60
+      params:
+        db_path: "~/.mas/memory/{agent_id}.sqlite"
+
+  patch:
+    agents:
+      concierge_agent:
+        tools:
+          - memory-search
+        role:
+          instructions: |
+            You can look up the prices (fares) for trains and air routes.
+            You have access to three tools: get_fares for looking up fares,
+            calc for calculations, and memory_search for retrieving the
+            traveler's stored profile and preferences.
+
+            IMPORTANT — You have a long-term memory. When a user asks about
+            their budget, preferences, travel interests, home city, departure
+            preferences, or past trips, call memory_search to retrieve the
+            relevant stored facts BEFORE answering.
+
+            For queries that require MULTIPLE pieces of personal information
+            (e.g., both budget AND interests, or home city AND departure time),
+            call memory_search SEPARATELY for each piece of information needed.
+            For example:
+              - memory_search("traveler interests") to find what the traveler enjoys
+              - memory_search("traveler budget") to find the daily budget
+              - memory_search("home city departure") to find home city and preferred times
+              - memory_search("past trips") to find previous travel history
+            Do not answer from general knowledge when the traveler's personal
+            data is available in memory. Always retrieve relevant profile facts
+            first, then use get_fares or other tools for live data.
+
+            Use get_fares to find train and airplane prices (fares). When you
+            have gathered sufficient information, provide a clear overview of
+            the prices (fares) for each itinerary.
+        memory_seed:
+          - source: traveler_profile
+            content: >
+              Alex prefers cultural activities and art museums when travelling.
+          - source: traveler_profile
+            content: >
+              Alex's daily travel budget is $200.
+          - source: traveler_profile
+            content: >
+              Alex's home city is Celestia. Alex prefers morning departures
+              before 9 am.
+          - source: traveler_history
+            content: >
+              Alex previously visited Verdantia. Enjoyed the Living Library.
+              Found Emerald Canyon Bridge too steep and would skip it next time.
+
+    design_pattern:
+      type: react
+      config:
+        max_steps: 12
+
+  governance:
+    - sample_governance:
+        policies:
+          - name: forbidden-destination
+            trigger:
+              "on": tool_input
+              tool: "*"
+              condition: 'arguments.destination == "Shadowmere"'
+              evaluation: deterministic
+            action: block
+            params:
+              message: >
+                Restricted destination: Shadowmere is not available in the
+                Arborian Network booking system.

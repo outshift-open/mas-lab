@@ -1,0 +1,68 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+experiment:
+  name: bit-exactness
+  description: 'Lab 5.A — measure trace reproducibility (byte / event-count / event-kind match rate) across 3 replicate runs
+    per (scenario, item) tuple of the trip-planner MAS.
+
+    '
+  applications:
+    - app: trip-planner
+      configs_dir: ./overlays
+  default_flavour: local-benchmark
+  default_infra: llm-proxy
+  scenarios:
+  - id: single-agent_cot
+    overlays:
+      logic:
+      - topo-single-agent
+      - pattern-cot
+      control: []
+      infra: []
+  - id: linear-pipeline_cot
+    overlays:
+      logic:
+      - topo-linear-pipeline
+      - pattern-cot
+      control: []
+      infra: []
+  - id: supervised_cot
+    overlays:
+      logic:
+      - topo-supervised
+      - pattern-cot
+      control: []
+      infra: []
+  dataset:
+    name: trip-planner-queries
+    locator: samples
+  run:
+    n_runs: 3
+  pipeline_bind: experiment/post
+  application:
+    post:
+      - name: trace-diff
+        type: trace_diff
+        config:
+          trace_file: traces/events.jsonl
+          normalize:
+            drop_fields:
+            - timestamp
+            - call_id
+            - parent_call_id
+            - context.run_id
+          output: '{output_dir}/results/trace-diff.csv'
+      - name: figure-bars
+        type: bar_plot
+        depends_on:
+        - trace-diff
+        config:
+          data: '@trace-diff'
+          x_col: scenario
+          y_col: value
+          facet_col: metric
+          title: Lab 5.A — Trace Reproducibility (3 replicates)
+          ylim:
+          - 0
+          - 1
+          output: '{output_dir}/results/figure-bit-exactness.png'

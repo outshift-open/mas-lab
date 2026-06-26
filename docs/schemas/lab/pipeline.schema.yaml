@@ -1,0 +1,112 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "http://json-schema.org/draft-07/schema#"
+$id: "mas-lab/pipeline/v1"
+title: "mas-lab pipeline manifest (v1)"
+description: >
+  Schema for pipeline.yaml — standalone post-processing pipeline declaration.
+  Top-level key must be 'pipeline:'.  All relative paths are resolved from the
+  directory containing this file.
+
+  **Artifacts and transport:** Steps pass outputs in-memory within a single pipeline
+  run (Python dicts / dataframes). Steps that declare file paths in config
+  (events_jsonl, trajectory_csv, output_dir) serialize artifacts to disk. Experiment
+  manifests declare typed artifacts (trace, metrics, plot, …) for persistence
+  targets; see PIPELINE_DESIGN.md and experiment.schema.yaml artifacts block.
+
+type: object
+required: [pipeline]
+additionalProperties: false
+
+properties:
+  pipeline:
+    type: object
+    required: [name, steps]
+    additionalProperties: false
+    description: "Standalone post-processing pipeline — ordered steps with DAG
+      dependencies."
+
+    properties:
+      # ── Identity ──────────────────────────────────────────────────────────
+      name:
+        type: string
+        minLength: 1
+        description: "Pipeline identifier (used in output paths and logs)."
+
+      description:
+        type: string
+        description: "Free-text description."
+
+      # ── Output ────────────────────────────────────────────────────────────
+      output:
+        type: object
+        additionalProperties: false
+        description: "Pipeline output configuration."
+        properties:
+          base_dir:
+            type: string
+            default: "./output"
+            description: "Base output directory (relative to this file)."
+
+      # ── Steps ─────────────────────────────────────────────────────────────
+      steps:
+        type: array
+        minItems: 1
+        description:
+          "Ordered list of pipeline steps.  Execute in DAG order respecting
+          depends_on."
+        items:
+          type: object
+          required: [name, type]
+          additionalProperties: false
+          properties:
+            name:
+              type: string
+              minLength: 1
+              description: "Unique step identifier within this pipeline."
+            type:
+              type: string
+              description: "Registered step type."
+            depends_on:
+              type: array
+              items:
+                type: string
+              description: "Names of upstream steps that must finish before this step runs."
+            inputs:
+              type: object
+              additionalProperties: true
+              description: >
+                Logical input bindings from upstream steps (in-memory artifact handles).
+                Omitted when the step reads only from config file paths.
+            outputs:
+              type: object
+              additionalProperties: true
+              description: >
+                Named outputs exposed to downstream steps. File serialization is
+                configured inside step config (output_csv, output_dir, …).
+            config:
+              type: object
+              additionalProperties: true
+              description: "Step-type-specific configuration (see § Step types in docs)."
+
+# ── Step config sub-schemas (informative, not enforced at top level) ──────────
+#
+# plot_trajectory config:
+#   log_path: str          (path to events.jsonl, relative to this pipeline.yaml)
+#   format: html | mermaid | svg | table  (default: html)
+#   include_prompts: bool  (default: true)
+#   filename: str          (output filename without extension; default: trajectory)
+#
+# extract_trajectories config:
+#   output_csv: str        (default: trajectories.csv)
+#   scenarios: [str]       (optional filter)
+#
+# eval_mce config:
+#   trajectory_csv: str    (path from extract_trajectories step)
+#   output_csv: str        (default: trajectories_eval.csv)
+#
+# embed_trajectories config:
+#   trajectory_csv: str
+#   model: str             (embed model id)
+#   output_csv: str
+#

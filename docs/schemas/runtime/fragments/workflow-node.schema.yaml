@@ -1,0 +1,32 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#workflow-node"
+title: WorkflowNode
+description: MAS workflow graph node — id, delegation targets, optional role/config.
+type: object
+additionalProperties: false
+required: [id]
+properties:
+  id:
+    type: string
+  role:
+    type: string
+  agent:
+    type: string
+  delegates_to:
+    type: array
+    items:
+      type: string
+    default: []
+  dispatch:
+    type: string
+    description: "Parallel topology dispatch mode (e.g. all)."
+  config:
+    type: object
+    description: Plugin-specific parameters (pattern-dependent keys allowed).
+    additionalProperties: true
+    default: {}
+  description:
+    type: string
+    default: ""

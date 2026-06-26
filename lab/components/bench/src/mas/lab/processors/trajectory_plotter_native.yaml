@@ -1,0 +1,22 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+name: trajectory_plotter_native
+priority: 10
+description: >
+  Render a Trajectory into a PlotFile using the hand-drawn Python SVG renderer.
+  No external dependencies — works offline without playwright or Chromium.
+  Prefer trajectory_plotter (priority=1) when playwright is available.
+
+inputs:
+  - name: trace
+    kind: trajectory
+    description: The trajectory to render (run_id, JSONL path, or pickled Trajectory)
+
+outputs:
+  - name: plot
+    kind: plot_file
+    description: Output plot file
+    defaults:
+      format: html      # override with: plot.format=svg|mermaid|table
+
+requires: {}

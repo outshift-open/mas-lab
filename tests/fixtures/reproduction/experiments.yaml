@@ -1,0 +1,27 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Experiments that must pass `mas-lab benchmark run <path> --dry-run`.
+# Used by tests/test_outshift_reproduction.py and task verify-reproduce.
+#
+# Add new paper labs / tutorial experiments here when they ship.
+
+experiments:
+  # Paper labs (design-space §5.1–5.3)
+  - labs/design-space.lab/01-design-patterns/experiment.yaml
+  - labs/design-space.lab/02-topologies/experiment.yaml
+  - labs/lifecycle-control.lab/experiment.yaml
+  - labs/extensions.lab/experiment.yaml
+  - labs/lifecycle-control.lab/02-bit-exactness/experiment.yaml
+  - labs/lifecycle-control.lab/experiment-whatif-smoke.yaml
+  - labs/extensions.lab/experiment-fact-recall-smoke.yaml
+  # CI smoke + golden capture paths
+  - tests/fixtures/lab-smoke/experiment.yaml
+  - tests/fixtures/lab-smoke/design-space-patterns.yaml
+  - tests/fixtures/lab-smoke/design-space-topologies.yaml
+  - tests/fixtures/lab-smoke/lifecycle-control.yaml
+  - tests/fixtures/lab-smoke/extensions.yaml
+  # Tutorials
+  - docs/tutorials/03-experiments-and-analysis/experiment.yaml
+  - docs/tutorials/03-experiments-and-analysis/experiment-topology.yaml
+  - docs/tutorials/01-building-an-agent/experiments/memory-provenance/experiment.yaml
+  - docs/tutorials/01-building-an-agent/experiments/memory-provenance/experiment-letta.yaml

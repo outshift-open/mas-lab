@@ -1,0 +1,293 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/outshift-open/mas-lab/main/lab/components/core/src/mas/lab/schemas/ui/agent-manifest.schema.json",
+  "title": "Agent Manifest",
+  "description": "Schema for Agent manifest files (kind: Agent). Defines a single agent's model, design pattern, tools, skills, memory, and context configuration.",
+  "type": "object",
+  "required": ["kind", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "type": "string",
+      "description": "API version of the manifest format.",
+      "enum": ["mas/v1"],
+      "default": "mas/v1"
+    },
+    "kind": {
+      "type": "string",
+      "description": "Resource kind. Must be 'Agent' for an agent manifest.",
+      "enum": ["Agent"]
+    },
+    "metadata": {
+      "$ref": "#/definitions/AgentMetadata"
+    },
+    "spec": {
+      "$ref": "#/definitions/AgentSpec"
+    }
+  },
+  "definitions": {
+    "AgentMetadata": {
+      "type": "object",
+      "description": "Descriptive metadata for the agent.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique identifier for the agent. Used in MAS workflow routing and telemetry."
+        },
+        "version": {
+          "type": "string",
+          "description": "Semantic version of this agent definition.",
+          "examples": ["1.0.0", "0.1.0"]
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the agent's purpose."
+        },
+        "tags": {
+          "type": "array",
+          "description": "Searchable tags for categorization.",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "AgentSpec": {
+      "type": "object",
+      "description": "Core specification of the agent: model, design pattern, tools, skills, memory, and context.",
+      "properties": {
+        "models": {
+          "type": "array",
+          "description": "LLM model configurations for this agent. The first entry (or the one with id 'main') is the primary model.",
+          "items": { "$ref": "#/definitions/ModelEntry" },
+          "minItems": 1
+        },
+        "design_pattern": {
+          "$ref": "#/definitions/DesignPattern"
+        },
+        "tools": {
+          "type": "array",
+          "description": "Tools available to this agent. Each item is either a string tool ID (resolved from tool providers) or an object with ref/module details.",
+          "items": { "$ref": "#/definitions/ToolEntry" }
+        },
+        "skills": {
+          "type": "array",
+          "description": "List of skill names the agent can consult. Skills inject domain knowledge into the system prompt and are queryable via consult_skills.",
+          "items": { "type": "string" },
+          "examples": [["answer-formatting", "Coordinator", "Medical Expert"]]
+        },
+        "memory": {
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "#/definitions/MemoryConfig" }
+          ],
+          "description": "Memory type or configuration. String shorthand: 'semantic' (ephemeral in-memory), 'semantic-persistent' (SQLite cross-session), 'episodic', etc."
+        },
+        "context": {
+          "$ref": "#/definitions/AgentContext"
+        },
+        "context_manager": {
+          "$ref": "#/definitions/ContextManager"
+        },
+        "role": {
+          "$ref": "#/definitions/Role"
+        },
+        "intent": {
+          "type": "string",
+          "description": "Natural language description of what this agent does. Used by coordinators to decide delegation."
+        },
+        "system_prompt": {
+          "type": "string",
+          "description": "Full system prompt (alternative to structured context/role). Used in Workflow-kind inline agent definitions."
+        },
+        "execution": {
+          "$ref": "#/definitions/Execution"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ModelEntry": {
+      "type": "object",
+      "description": "An LLM model configuration.",
+      "required": ["model"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identifier for this model entry (e.g., 'main').",
+          "default": "main"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model identifier in provider/model format (e.g., 'openai/gpt-4o', 'vertex_ai/gemini-3-pro-preview', 'gpt-4o-mini').",
+          "examples": ["openai/gpt-4o", "gpt-4o-mini", "vertex_ai/gemini-3-pro-preview", "azure/gpt-4o"]
+        },
+        "temperature": {
+          "type": "number",
+          "description": "Sampling temperature for the model.",
+          "minimum": 0,
+          "maximum": 2,
+          "default": 0.7
+        },
+        "max_tokens": {
+          "type": "integer",
+          "description": "Maximum number of tokens in the model response.",
+          "minimum": 1,
+          "examples": [1500, 2000, 4096]
+        },
+        "top_p": {
+          "type": "number",
+          "description": "Nucleus sampling parameter.",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "DesignPattern": {
+      "type": "object",
+      "description": "The agent's reasoning/execution loop pattern. Determines how the agent iterates on tasks.",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Design pattern type.",
+          "enum": ["react", "cot", "reflection"]
+        },
+        "config": {
+          "$ref": "#/definitions/DesignPatternConfig"
+        }
+      },
+      "additionalProperties": false
+    },
+    "DesignPatternConfig": {
+      "type": "object",
+      "description": "Configuration parameters for the design pattern.",
+      "properties": {
+        "max_steps": {
+          "type": "integer",
+          "description": "Maximum number of reasoning/action iterations (ReAct steps) before the agent must produce a final answer.",
+          "minimum": 1,
+          "default": 25,
+          "examples": [5, 10, 25]
+        }
+      },
+      "additionalProperties": true
+    },
+    "ToolEntry": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Tool ID resolved from registered tool providers (e.g., 'web-search', 'calculator', 'memory-search')."
+        },
+        {
+          "type": "object",
+          "description": "Tool reference or inline tool definition.",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Path to an external tool definition file (JSON or YAML)."
+            },
+            "module_path": {
+              "type": "string",
+              "description": "Python module path for the tool class (e.g., 'agent_runtime.tools.calculator_tool')."
+            },
+            "class_name": {
+              "type": "string",
+              "description": "Python class name within the module."
+            },
+            "priority": {
+              "type": "integer",
+              "description": "Tool priority for ordering in the tool list.",
+              "default": 100
+            }
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "AgentContext": {
+      "type": "object",
+      "description": "Structured context blocks that are assembled into the agent's system prompt.",
+      "properties": {
+        "intent": {
+          "type": "string",
+          "description": "Brief statement of the agent's purpose (injected at the top of the system prompt)."
+        },
+        "role": {
+          "type": "string",
+          "description": "Role description and behavioral instructions."
+        },
+        "tool_usage": {
+          "type": "string",
+          "description": "Instructions on when and how to use available tools."
+        },
+        "memory_usage": {
+          "type": "string",
+          "description": "Instructions on how to use long-term memory (read, store, prioritize)."
+        }
+      },
+      "additionalProperties": true
+    },
+    "ContextManager": {
+      "type": "object",
+      "description": "Context manager configuration for runtime prompt assembly.",
+      "properties": {
+        "skills": {
+          "type": "array",
+          "description": "Skills to inject into context at runtime.",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "Role": {
+      "type": "object",
+      "description": "Agent role definition with structured instructions.",
+      "properties": {
+        "instructions": {
+          "type": "string",
+          "description": "Detailed instructions for the agent's behavior and responsibilities."
+        },
+        "description": {
+          "type": "string",
+          "description": "Short role description."
+        }
+      },
+      "additionalProperties": false
+    },
+    "MemoryConfig": {
+      "type": "object",
+      "description": "Detailed memory configuration (when string shorthand is insufficient).",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Memory store type.",
+          "enum": ["semantic", "semantic-persistent", "episodic", "procedural"]
+        },
+        "path": {
+          "type": "string",
+          "description": "File path for persistent memory stores."
+        }
+      },
+      "additionalProperties": true
+    },
+    "Execution": {
+      "type": "object",
+      "description": "Execution constraints for the agent.",
+      "properties": {
+        "timeout": {
+          "type": "integer",
+          "description": "Maximum execution time in seconds before the agent is terminated.",
+          "minimum": 1,
+          "examples": [90, 120, 300]
+        },
+        "max_retries": {
+          "type": "integer",
+          "description": "Number of retries on transient failures.",
+          "minimum": 0,
+          "default": 2
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

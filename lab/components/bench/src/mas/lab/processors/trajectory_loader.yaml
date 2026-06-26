@@ -1,0 +1,16 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+name: trajectory_loader
+priority: 10
+description: Load a JSONL trace file or run_id into a Trajectory artifact.
+
+inputs:
+  - name: trace
+    kind: path
+    description: A run_id string or path to a JSONL trace file
+
+outputs:
+  - name: trajectory
+    kind: trajectory
+    description: Loaded trajectory artifact
+    defaults: {}

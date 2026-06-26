@@ -1,0 +1,302 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#overlay"
+title: "Overlay Manifest"
+description: >
+  Schema for kind: Overlay manifests (apiVersion: mas/v1). An overlay is a partial
+  manifest applied on top of Agent, MAS, or Flavour configuration for a specific
+  experimental or deployment condition (RFC 7396 JSON Merge Patch under spec.patch).
+  Validate with:
+  python -m jsonschema --instance overlays/baseline.yaml overlay.schema.yaml
+type: object
+required:
+  - apiVersion
+  - kind
+  - metadata
+  - spec
+additionalProperties: false
+properties:
+  apiVersion:
+    type: string
+    const: "mas/v1"
+
+  kind:
+    type: string
+    const: "Overlay"
+
+  metadata:
+    type: object
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+        description: "Patch identifier — also the stem of the YAML file (e.g. baseline)."
+        default: ""
+      description:
+        type: string
+        default: ""
+
+  spec:
+    type: object
+    description: "Patch spec: target selector, patch payload, and optional
+      agent-level fields."
+    additionalProperties: false
+    required:
+      - patch
+    properties:
+      tools:
+        type: array
+        description: >
+          Agent tools injected for this scenario (merged via
+          merge_agent_overlay). Accepts semantic names (strings) or ref/inline
+          objects.
+        default: []
+        items:
+          oneOf:
+            - type: string
+            - type: object
+              additionalProperties: false
+              required: [ref]
+              properties:
+                ref:
+                  type: string
+
+      target:
+        type: object
+        description: "Selects which resource this patch applies to."
+        additionalProperties: false
+        properties:
+          kind:
+            type: string
+            description: "Resource kind: MAS | Flavour | Agent | any (default: any)"
+            default: "any"
+          name:
+            type: string
+            description: "Optional name filter. Omit to apply to every matching kind."
+
+      patch:
+        type: object
+        description: >
+          Patch payload — RFC 7396 merge patch. Only contract-binding keys
+          allowed (see spec-contract-bindings.md). No free-form bags.
+        additionalProperties: false
+        properties:
+          params:
+            type: object
+            description: "Tool execution context parameters (string values only)."
+            additionalProperties:
+              type: string
+            default: {}
+
+          context:
+            type: object
+            additionalProperties:
+              type: string
+
+          memory:
+            type: string
+            description: "Memory backend plugin id."
+
+          memory_seed:
+            type: array
+            items:
+              $ref: "./fragments/memory-seed-entry.schema.yaml"
+
+          tools:
+            type: array
+            items:
+              oneOf:
+                - type: string
+                - type: object
+                  additionalProperties: false
+                  required: [ref]
+                  properties:
+                    ref:
+                      type: string
+
+          skills:
+            type: array
+            items:
+              type: string
+
+          context_manager:
+            type: object
+            additionalProperties: false
+            properties:
+              skills:
+                type: array
+                items:
+                  type: string
+
+          llm:
+            $ref: "./fragments/llm-binding.schema.yaml"
+
+          execution:
+            $ref: "./fragments/execution-binding.schema.yaml"
+
+          infra_refs:
+            type: array
+            items:
+              type: string
+
+          infra_interceptors:
+            type: array
+            items:
+              type: string
+
+          agency:
+            type: object
+            additionalProperties: false
+            properties:
+              agents:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [id, ref]
+                  properties:
+                    id:
+                      type: string
+                    ref:
+                      type: string
+
+          agents:
+            description: >
+              Agent overrides.  Two forms accepted: - **object** (per-agent
+              overrides keyed by agent ID):
+                  agents:
+                    sre:
+                      design_pattern: {type: cot}
+              - **array** (full agent list replacement — for topology
+              switching):
+                  agents:
+                    - id: generalist
+                      ref: agents/moderator/agent.yaml
+            oneOf:
+              - type: object
+                additionalProperties:
+                  $ref: "./fragments/agent-patch.schema.yaml"
+              - type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [id, ref]
+                  properties:
+                    id:
+                      type: string
+                    ref:
+                      type: string
+            default: {}
+
+          design_pattern:
+            type: [ object, "null" ]
+            description: >
+              Global design-pattern override applied to all agents.
+            additionalProperties: false
+            properties:
+              type:
+                type: string
+              ref:
+                type: string
+              config:
+                $ref: "./fragments/design-pattern-config.schema.yaml"
+            default: null
+
+          workflow:
+            type: object
+            description: "MAS workflow topology override."
+            additionalProperties: false
+            properties:
+              type:
+                type: string
+              entry:
+                type: string
+              nodes:
+                type: array
+                items:
+                  $ref: "./fragments/workflow-node.schema.yaml"
+              edges:
+                type: array
+                items:
+                  $ref: "./fragments/workflow-edge.schema.yaml"
+            default: null
+
+          telemetry:
+            type: object
+            description: "Log output path for this patch condition."
+            additionalProperties: false
+            properties:
+              path:
+                type: string
+                default: ""
+
+          tools_remove:
+            type: array
+            description: >
+              List of tool names to strip from every agent's tool set. Used in
+              ablation experiments to measure individual tool contributions.
+            default: []
+            items:
+              type: string
+
+          context_policy:
+            type: [ object, "null" ]
+            description: >
+              Input-side context freshness enforcement.  Declares which context
+              keys each agent requires before dispatch, and the action when a
+              key is missing or stale.
+            default: null
+            properties:
+              on_missing_key:
+                type: string
+                description: "Action when a required key is absent: inject_gap_marker | reject"
+                default: "inject_gap_marker"
+              on_stale_key:
+                type: string
+                description: "Action when a required key exceeds freshness_delta:
+                  inject_stale_marker | reject"
+                default: "inject_stale_marker"
+              per_agent:
+                type: object
+                description: "Per-agent context requirements, keyed by agent ID."
+                additionalProperties:
+                  type: object
+                  properties:
+                    required_context_keys:
+                      type: array
+                      items:
+                        type: object
+                        required: [ key ]
+                        properties:
+                          key:
+                            type: string
+                          source:
+                            type: string
+                            default: ""
+                          freshness_delta:
+                            type: string
+                            default: ""
+
+          control:
+            oneOf:
+              - type: "null"
+              - $ref: "./fragments/control-binding.schema.yaml"
+            description: "Control-plane plugin overrides."
+            default: null
+
+          governance:
+            oneOf:
+              - type: "null"
+              - $ref: "./fragments/governance-binding.schema.yaml"
+            description: >
+              Governance contract bindings — flat scalars + ingress_plugins[].
+              No nested plugin blocks.
+            default: null
+
+          observability:
+            oneOf:
+              - type: "null"
+              - $ref: "./fragments/observability-binding.schema.yaml"
+            description: "ObservabilitySink plugin list."
+            default: null

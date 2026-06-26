@@ -1,0 +1,97 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "http://json-schema.org/draft-07/schema#"
+$id: "mas.config/mas-workspace/v1"
+title: "mas-workspace.yaml"
+description: >
+  Project workspace configuration discovered by walking up from the current
+  directory (or from MAS_WORKSPACE_ROOT). Secrets belong in the file named by
+  mas_ctl.env (default .env) — never in this YAML.
+
+type: object
+additionalProperties: false
+properties:
+  mas_ctl:
+    type: object
+    additionalProperties: false
+    description: Defaults for mas-ctl chat / run-mas / validate.
+    properties:
+      flavour:
+        type: string
+        default: local
+        description: >-
+          Flavour name (library-standard bundle, e.g. local). Resolved to
+          flavours/<name>.yaml under the workspace or installed library.
+      env:
+        type: string
+        default: .env
+        description: Gitignored secrets file relative to workspace root.
+      deployment:
+        type: string
+        description: Optional deployment manifest path (relative to workspace).
+      runtime_id:
+        type: string
+        description: Kernel/runtime id override.
+      runtime_profile:
+        type: string
+        description: Path to runtime-profile manifest (relative to workspace).
+
+  mas_lab:
+    type: object
+    additionalProperties: false
+    description: Defaults for mas-lab benchmark and demo commands.
+    properties:
+      flavour:
+        type: string
+        default: local
+      benchmark_flavour:
+        type: string
+        description: Flavour used when running benchmark experiments.
+
+  infra_refs:
+    oneOf:
+      - type: string
+      - type: array
+        items:
+          type: string
+    description: >-
+      Infra bundle refs merged left-to-right (e.g. standard:openai,
+      standard:llm-proxy, or a workspace-relative LLMProxy path). Override at
+      runtime with env var MAS_INFRA_REFS (comma- or space-separated) without
+      editing this file; CLI --infra-ref still wins.
+
+  infra_interceptors:
+    oneOf:
+      - type: string
+      - type: array
+        items:
+          type: string
+    description: Optional infra interceptor bundle refs.
+
+  manifest_libraries:
+    type: object
+    additionalProperties:
+      type: string
+    description: >-
+      Map library scheme to directory (e.g. samples: ./library-samples/src).
+
+  defaults:
+    type: object
+    additionalProperties: false
+    properties:
+      model:
+        type: string
+        description: Default model id when manifests omit one.
+
+  paths:
+    type: object
+    additionalProperties: false
+    description: >-
+      Optional path overrides (otherwise ~/.mas/config.yaml or MAS_* env vars).
+    properties:
+      labs_dir:
+        type: string
+      cache_dir:
+        type: string
+      runs_dir:
+        type: string

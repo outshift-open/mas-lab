@@ -1,0 +1,20 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#memory-seed-entry"
+title: MemorySeedEntry
+description: Inline memory seed — maps to MemorySeedLoader (key/source + content).
+type: object
+additionalProperties: false
+required: [content]
+properties:
+  key:
+    type: string
+  source:
+    type: string
+  id:
+    type: string
+  content:
+    type: string
+  text:
+    type: string

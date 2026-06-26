@@ -1,0 +1,15 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Canonical aliases — see library-samples/aliases/plugin-aliases.yaml for full list.
+apiVersion: mas/v1
+kind: PluginAliasManifest
+metadata:
+  name: standard-aliases
+spec:
+  aliases:
+    react: react@v1
+    cot: cot@v1
+    reflection: introspection@v1
+    plan_execute: plan_execute@v1
+    tot: tree_of_thoughts@v1
+    memory: memory-semantic@v1

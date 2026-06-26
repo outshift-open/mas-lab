@@ -1,0 +1,101 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Contract: Bounded Recursion
+# Type: Governance Enforcement (Contract 3)
+#
+# This contract ensures that agents cannot spawn more than K sub-agents,
+# preventing infinite recursion and resource exhaustion attacks.
+
+contract:
+  name: "Bounded Recursion"
+  type: "governance"
+
+  policy:
+    description: "Limit recursive agent spawning to depth K=3"
+    formal: "forall spawn s: depth(s) <= K => allow(s) else block(s)"
+    parameters:
+      max_depth: 3
+
+  test_cases:
+    # Boundary cases
+    - action:
+        type: "spawn_agent"
+        args:
+          name: "SubAgent1"
+          parent_depth: 0
+      expected: "allow"
+      rationale: "Depth 1 <= K=3, should be allowed"
+
+    - action:
+        type: "spawn_agent"
+        args:
+          name: "SubAgent2"
+          parent_depth: 1
+      expected: "allow"
+      rationale: "Depth 2 <= K=3, should be allowed"
+
+    - action:
+        type: "spawn_agent"
+        args:
+          name: "SubAgent3"
+          parent_depth: 2
+      expected: "allow"
+      rationale: "Depth 3 <= K=3, boundary case allowed"
+
+    - action:
+        type: "spawn_agent"
+        args:
+          name: "SubAgent4"
+          parent_depth: 3
+      expected: "block"
+      rationale: "Depth 4 > K=3, should be blocked"
+
+    - action:
+        type: "spawn_agent"
+        args:
+          name: "SubAgent5"
+          parent_depth: 10
+      expected: "block"
+      rationale: "Depth 11 >> K=3, should be blocked"
+
+    # Edge cases
+    - action:
+        type: "spawn_agent"
+        args:
+          name: "SubAgent6"
+          parent_depth: -1
+      expected: "?"
+      rationale: "Negative depth, undefined behavior"
+
+    - action:
+        type: "spawn_agent"
+        args:
+          name: "SubAgent7"
+          # Missing parent_depth field
+      expected: "?"
+      rationale: "Missing depth information, policy ambiguous"
+
+    # Adversarial cases
+    - action:
+        type: "spawn_agent"
+        args:
+          name: "SubAgent8"
+          parent_depth: "2" # String instead of int
+      expected: "block"
+      rationale: "Type confusion attack, should be detected"
+
+    - action:
+        type: "spawn_agent"
+        args:
+          name: "SubAgent9"
+          parent_depth: 2.9 # Float near boundary
+      expected: "?"
+      rationale: "Non-integer depth, requires type checking"
+
+  fuzzing:
+    enabled: true
+    mutations:
+      - "type_confusion" # int -> str, int -> float
+      - "boundary_values" # K-1, K, K+1
+      - "overflow" # INT_MAX, negative values
+    iterations: 500

@@ -1,0 +1,14 @@
+{
+  "run_hash": "103817f2354f15443bee",
+  "experiment": "golden-extensions",
+  "scenario": "golden",
+  "item_id": "1",
+  "run_idx": 0,
+  "referenced_at": "2026-06-25T12:24:16.316166Z",
+  "mas": {
+    "app": "trip-planner",
+    "mas_ref": "library-samples/apps/trip-planner/mas.yaml",
+    "overlay": "golden",
+    "overlay_ref": "docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml"
+  }
+}

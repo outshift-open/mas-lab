@@ -1,0 +1,104 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+kind: Overlay
+metadata:
+  id: with-vector-memory
+# Scenario: with-vector-memory (active retrieval via ToolContract)
+#
+# One overlay adds semantic memory to the trip planner:
+#
+#   spec.plugins                           ← injects SemanticMemoryPlugin into
+#                                            ALL agents (global — handled by
+#                                            load_scenario_config)
+#   spec.patch.agents.concierge_agent
+#     .tools: [memory-search]              ← registers MemoryToolProvider on
+#                                            the concierge only (ToolContract
+#                                            active retrieval)
+#     .role.instructions                   ← adds the IMPORTANT memory_usage
+#                                            directive so the LLM calls
+#                                            memory_search when profile context
+#                                            is needed
+#     .memory_seed                         ← seeds Alex's profile into the
+#                                            concierge's memory backend at
+#                                            runtime startup
+#
+# Why spec.patch.agents rather than spec.tools:
+#   spec.tools at MAS overlay level reaches only the entry/moderator agent.
+#   spec.patch.agents.<id> is applied per-agent via merge_agent_overlay so the
+#   concierge — the fare/profile specialist — receives the tool.
+#
+# Alex's profile (seeded via spec.patch.agents.concierge_agent.memory_seed):
+#   - Interests: cultural activities and art museums
+#   - Budget: $200/day
+#   - Home city: Celestia, morning departures before 9 am
+#   - Past trip: Verdantia — enjoyed the Living Library, found Emerald
+#     Canyon Bridge too steep
+spec:
+  plugins:
+    - module_path: mas.library.standard.plugins.memory.memory_semantic
+      class_name: SemanticMemoryPlugin
+      name: semantic_memory
+      priority: 60
+      params:
+        db_path: "~/.mas/memory/{agent_id}.sqlite"
+
+  patch:
+    agents:
+      concierge_agent:
+        # Add memory-search tool to the concierge only.
+        tools:
+          - memory-search
+
+        # Extend role instructions: keep original fare/calc guidance and add
+        # the IMPORTANT memory_usage directive.
+        role:
+          instructions: |
+            You can look up the prices (fares) for trains and air routes.
+            You have access to three tools: get_fares for looking up fares,
+            calc for calculations, and memory_search for retrieving the
+            traveler's stored profile and preferences.
+
+            IMPORTANT — You have a long-term memory. When a user asks about
+            their budget, preferences, travel interests, home city, departure
+            preferences, or past trips, call memory_search to retrieve the
+            relevant stored facts BEFORE answering.
+
+            For queries that require MULTIPLE pieces of personal information
+            (e.g., both budget AND interests, or home city AND departure time),
+            call memory_search SEPARATELY for each piece of information needed.
+            For example:
+              - memory_search("traveler interests") to find what the traveler enjoys
+              - memory_search("traveler budget") to find the daily budget
+              - memory_search("home city departure") to find home city and preferred times
+              - memory_search("past trips") to find previous travel history
+            Do not answer from general knowledge when the traveler's personal
+            data is available in memory. Always retrieve relevant profile facts
+            first, then use get_fares or other tools for live data.
+
+            Use get_fares to find train and airplane prices (fares). When you
+            have gathered sufficient information, provide a clear overview of
+            the prices (fares) for each itinerary.
+
+        # Seed Alex's traveler profile into this agent's memory backend at
+        # startup.  Processed by MasRuntime._seed_agent_memory after
+        # _wire_agent_memory confirms the backend is ready.
+        memory_seed:
+          - source: traveler_profile
+            content: >
+              Alex prefers cultural activities and art museums when travelling.
+          - source: traveler_profile
+            content: >
+              Alex's daily travel budget is $200.
+          - source: traveler_profile
+            content: >
+              Alex's home city is Celestia. Alex prefers morning departures
+              before 9 am.
+          - source: traveler_history
+            content: >
+              Alex previously visited Verdantia. Enjoyed the Living Library.
+              Found Emerald Canyon Bridge too steep and would skip it next time.
+
+    design_pattern:
+      type: react
+      config:
+        max_steps: 12

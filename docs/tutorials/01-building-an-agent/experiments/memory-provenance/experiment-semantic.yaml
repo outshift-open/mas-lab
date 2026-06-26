@@ -1,0 +1,40 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Memory Provenance Experiment — Semantic Memory (auto-extract + hybrid retrieval)
+experiment:
+  name: "memory-provenance-semantic"
+  description: >
+    Semantic memory with auto-extraction and hybrid retrieval (Mem0-style). 5
+    runs, empty memory each time. Sequential conversational dataset.
+
+  default_flavour: local
+  applications:
+    - manifest: "semantic-memory/mas.yaml"
+      configs_dir: "semantic-memory/overlays"
+      base_scenario: "baseline"
+
+  scenarios:
+    - id: baseline
+      description: "Semantic memory — auto-extract + hybrid retrieval"
+      tags: [ semantic, mem0-style, auto-extract ]
+
+  dataset:
+    path: ./dataset.yaml
+
+  evaluation:
+    method: "trace_only"
+
+  execution:
+    parallel_scenarios: 1
+    timeout: 180
+    pause_between_runs: 1.0
+    strategy: depth
+
+    emulation:
+      infra:
+        llm: live
+        tools: live
+      runtime:
+        cache: content-addressed
+  run:
+    n_runs: 5

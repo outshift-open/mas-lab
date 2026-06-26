@@ -1,0 +1,123 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+name: tutorial-00-environment-setup
+title: "Tutorial 00 — Environment Setup"
+description: >
+  Verify Docker image build and CLI smoke commands without a local Python install.
+version: "1.0"
+authors: ["MAS Framework Team"]
+tags: ["setup", "docker", "tutorial"]
+prerequisites:
+  - "Docker Engine / Docker Desktop running"
+  - "Repository cloned; commands run from repo root unless noted"
+estimated_duration_min: 15
+working_dir: .
+cache_dir: ".demo-cache"
+
+sections:
+  - id: docker-build
+    title: "Docker — build images"
+    description: Build backend and UI images from this repository (not published to a registry yet).
+    steps:
+      - type: command
+        title: "Build backend image (CLI + API)"
+        command: "docker compose --profile tools -f docker/compose.yaml build backend"
+        cache_key: "docker-build"
+        timeout_s: 300
+        allowed_modes: [offline]
+        expected_exit_code: 0
+
+  - id: docker-cli
+    title: "Docker — CLI smoke"
+    description: Run mas-lab and mas-ctl inside the backend image.
+    steps:
+      - type: command
+        title: "Show effective lab paths in container"
+        command: "docker compose --profile tools -f docker/compose.yaml run --rm --no-deps cli mas-lab config"
+        cache_key: "docker-config"
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "labs root"
+
+      - type: command
+        title: "Validate Tutorial 1 agent manifest"
+        command: >-
+          docker compose --profile tools -f docker/compose.yaml run --rm --no-deps cli
+          mas-ctl validate docs/tutorials/01-building-an-agent/agent.yaml
+        cache_key: "docker-validate-agent"
+        allowed_modes: [offline]
+        expected_exit_code: 0
+
+  - id: developer-offline
+    title: "Developer — CLI smoke (no Docker)"
+    description: Same checks as Docker path, using the repo venv (Path B).
+    steps:
+      - type: command
+        title: "Show effective lab paths"
+        command: "mas-lab config"
+        cache_key: "dev-config"
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "labs root"
+
+      - type: command
+        title: "Validate Tutorial 1 agent manifest"
+        command: "mas-ctl validate docs/tutorials/01-building-an-agent/agent.yaml"
+        cache_key: "dev-validate-agent"
+        allowed_modes: [offline]
+        expected_exit_code: 0
+
+      - type: command
+        title: "Mock LLM chat (offline)"
+        command: >-
+          mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml
+          -o docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml
+          -q "What is 2+2?"
+        cache_key: "dev-mock-chat"
+        allowed_modes: [offline]
+        expected_exit_code: 0
+
+  - id: developer-online
+    title: "Developer — live LLM (requires OPENAI_API_KEY)"
+    description: Tutorial 0 §4 live path; skipped unless TUTORIAL_ONLINE=1.
+    steps:
+      - type: command
+        title: "Live OpenAI chat"
+        command: >-
+          mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml
+          -q "What is the capital of France?"
+        cache_key: "dev-live-chat"
+        allowed_modes: [online]
+        expected_exit_code: 0
+        expected_output: Paris
+
+  - id: docker-mock
+    title: "Docker — mock LLM"
+    description: Offline mock overlay inside the backend image.
+    steps:
+      - type: command
+        title: "Mock chat in container"
+        command: >-
+          docker compose --profile tools -f docker/compose.yaml run --rm --no-deps cli mas-ctl chat
+          docs/tutorials/01-building-an-agent/agent.yaml
+          -o docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml
+          -q "What is 2+2?"
+        cache_key: "docker-mock-chat"
+        allowed_modes: [offline]
+        expected_exit_code: 0
+
+  - id: docker-online
+    title: "Docker — live LLM (requires OPENAI_API_KEY in docker/.env)"
+    description: Tutorial 0 §4 live path; skipped unless TUTORIAL_ONLINE=1.
+    steps:
+      - type: command
+        title: "Live chat in container"
+        command: >-
+          docker compose --profile tools -f docker/compose.yaml run --rm --no-deps cli mas-ctl chat
+          /workspace/docs/tutorials/01-building-an-agent/agent-proxy-smoke.yaml
+          -q "What is the capital of France?"
+        cache_key: "docker-live-chat"
+        allowed_modes: [online]
+        timeout_s: 120
+        expected_exit_code: 0
+        expected_output: Paris

@@ -1,0 +1,194 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Lab 1 / Exp 1.2 — Topology Sweep on Trip Planner
+#
+# Central claim: switching the collaboration topology (linear-pipeline → parallel
+# → moderator-broker → supervised → verifier) is a single-overlay change —
+# zero agent code is modified.
+#
+# Run:
+#   mas-lab benchmark run labs/design-space.lab/02-topologies/experiment.yaml --progress
+# Limit to N items (smoke-style):
+#   mas-lab benchmark run labs/design-space.lab/02-topologies/experiment.yaml --max-items 5 --progress
+
+experiment:
+  name: "lab1-exp1.2-topologies-trip-planner"
+  description: >
+    Exp 02 of Lab 1 (§5.1). Sweeps 5 collaboration topologies on the 4-agent
+    trip-planner MAS across the 100-item trip-planner-benchmark-100 dataset
+    (released in library-samples). Demonstrates that topology selection is a
+    declarative overlay change — no agent code is modified. Topologies:
+    linear-pipeline, parallel, moderator-broker, supervised, verifier.
+
+  # Optional: reproducibility metadata (recommended for published experiments)
+  default_flavour: local
+  metadata:
+    model_name: "gpt-4o"
+    model_endpoint: "https://api.openai.com/v1"
+    dataset_version: "trip-planner-benchmark-100 v1.0"
+    notes: >
+      Baseline: MAS Framework main branch. Each topology is evaluated on the same
+      100-item trip-planner dataset. Model sensitivity analysis can be run by
+      updating model_name and re-running eval_mce + compute_ci steps only.
+
+  # Optional: output schema validation (fail-fast on missing results)
+  output_schema:
+    required_files:
+      - "results/ci_summary.csv"
+      - "results/figure-02-overhead-quality.png"
+    required_columns:
+      results/ci_summary.csv:
+        [scenario, metric, mean, ci_low, ci_high, latency_s_mean]
+
+  applications:
+    - app: trip-planner
+      configs_dir: "./overlays"
+
+  scenarios:
+    - id: topo-parallel
+      description: "Parallel — moderator fans out to all specialists concurrently"
+
+    - id: topo-linear-pipeline
+      description: "Linear pipeline — agents execute in a fixed sequential chain"
+
+    - id: topo-moderator-broker
+      description: "Moderator-broker — dynamic delegation to the right specialist"
+
+    - id: topo-supervised
+      description: "Supervised — supervisor reviews and approves each output"
+
+    - id: topo-verifier
+      description: "Verifier — a dedicated verifier checks all agent outputs"
+
+  dataset:
+    name: trip-planner-benchmark-100
+    locator: samples
+    limit: 100
+
+  run:
+    n_runs: 1
+  pipeline_bind: experiment/post
+
+  application:
+    post:
+      - name: eval-quality
+        type: eval_mce
+        config:
+          max_workers: 2
+          fail_threshold: 0.5
+          overwrite: true
+          metrics:
+            - goal_success_rate
+            - answer_relevancy
+            # Domain-specific metrics — moved to Exp 03
+            # - groundedness
+            # - response_completeness
+            # - workflow_cohesion_index
+
+      - name: collect-metrics
+        type: collect_metrics
+        depends_on: [eval-quality]
+        config:
+          scenarios:
+            [
+              topo-parallel,
+              topo-linear-pipeline,
+              topo-moderator-broker,
+              topo-supervised,
+              topo-verifier,
+            ]
+
+      - name: compute-ci
+        type: compute_ci
+        depends_on: [collect-metrics]
+        config:
+          data: "@collect-metrics"
+          groupby: [scenario, metric]
+          metrics: [answer_relevancy, goal_success_rate]
+          extra_cols: [latency_s]
+          ci_method: t
+          ci_level: 0.95
+          output: "{output_dir}/results/ci_summary.csv"
+
+      - name: figure-overhead-quality
+        type: plotnine
+        depends_on: [collect-metrics, compute-ci]
+        config:
+          # Main data: group means ± 95% CI (from compute-ci)
+          data: "@compute-ci"
+          df_schema:
+            required_columns:
+              [
+                scenario,
+                metric,
+                mean,
+                ci_low,
+                ci_high,
+                latency_s_mean,
+                latency_s_ci_low,
+                latency_s_ci_high,
+              ]
+            required_groups:
+              scenario:
+                [
+                  topo-parallel,
+                  topo-linear-pipeline,
+                  topo-moderator-broker,
+                  topo-supervised,
+                  topo-verifier,
+                ]
+              metric: [goal_success_rate]
+          filter:
+            metric: [goal_success_rate]
+          mapping:
+            x: latency_s_mean
+            y: mean
+            color: scenario
+            # 2D crosshair confidence intervals
+            xmin: latency_s_ci_low
+            xmax: latency_s_ci_high
+            ymin: ci_low
+            ymax: ci_high
+          # Background layer: individual run scatter (faint)
+          layers:
+            - data: "@collect-metrics"
+              geom: point
+              filter:
+                metric: [goal_success_rate]
+              mapping:
+                x: latency_s
+                y: value
+                color: scenario
+              alpha: 0.25
+              size: 2.0
+              stroke: 0.0
+          geom: point
+          point_size: 3.5
+          alpha: 0.92
+          x_limits: [0, 300]
+          oov_x:
+            enabled: true
+            max: 300
+            shape: ">"
+            size: 2.4
+            alpha: 0.75
+          legend_position: [0.98, 0.02]
+          legend_justification: [1, 0]
+          labels:
+            x: "Session Latency (s)"
+            y: "Goal Success Rate"
+            color: "Topology"
+          output: "{output_dir}/results/figure-02-overhead-quality.png"
+          width: 8
+          height: 5
+          factor_levels:
+            metric: ["Goal Success Rate"]
+          rename_values:
+            metric:
+              goal_success_rate: "Goal Success Rate"
+            scenario:
+              topo-parallel: "Parallel"
+              topo-linear-pipeline: "Linear Pipeline"
+              topo-moderator-broker: "Moderator-Broker"
+              topo-supervised: "Supervised"
+              topo-verifier: "Verifier"

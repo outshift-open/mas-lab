@@ -1,0 +1,10 @@
+{
+  "inputs": {
+    "user": [
+      {
+        "content": "What is 2+2? Use the calculator if helpful.",
+        "role": "user"
+      }
+    ]
+  }
+}

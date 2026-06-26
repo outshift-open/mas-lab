@@ -1,0 +1,16 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Overlay: add web-search + calculator tools
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: tools
+spec:
+  patch:
+    context:
+      tool_usage: |
+        When you need to perform calculations, use the calculator tool.
+        When you need current information from the web, use the web-search tool.
+    tools:
+      - web-search
+      - calculator

@@ -1,0 +1,68 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+plot:
+  name: trajectory_gantt
+  type: gantt
+  title: "Agent Execution Timeline"
+  subtitle: "Each bar is one agent span  •  colour = span type"
+  description: >
+    Gantt-style timeline of event-trace spans.  Y-axis shows agent identifiers;
+    X-axis is wall-clock time (ms relative to session start). Bars represent
+    call durations, coloured by mas_class (LLMCall, ToolCall, AgentCall, etc.)
+    so you can immediately see where latency accumulates. Useful for visual
+    inspection of a single run, loaded from KG nodes.
+
+  data:
+    # Expected input: list of KG call-nodes enriched with start_ts / end_ts.
+    # Typically loaded from trajectory companion data (call-level DataFrame).
+    key: nodes # key in step data; nodes list from normalize step
+    filter: "node_type not in ['Run', 'Agent']"
+    y: agent_id # one row per unique agent_id
+    x_start: start_ts # epoch ms (or ISO8601 — auto-detected)
+    x_end: end_ts # epoch ms (or ISO8601)
+    group_by: node_type # colour grouping
+
+  marks:
+    - type: gantt_bar
+      height: 0.7
+      alpha: 0.85
+    - type: duration_label # show call_id abbreviated on long bars
+      min_width_ms: 200 # only label bars wider than 200 ms
+      fontsize: 7
+
+  scales:
+    x:
+      type: time
+      unit: ms
+      origin: first_event # normalise t=0 to session start
+      label: "Elapsed time (ms)"
+    y:
+      type: categorical
+      sort_by: first_start # top agent = first to start
+      label: "Agent"
+    color:
+      type: categorical
+      palette:
+        AgentCall: "#4C72B0"
+        LLMCall: "#DD8452"
+        ToolCall: "#55A868"
+        MASCall: "#C44E52"
+        RAGQuery: "#8172B2"
+        MemoryCall: "#937860"
+        ProcessingCall: "#DA8BC3"
+        TaskCall: "#8C8C8C"
+
+  aesthetics:
+    background: "#fafafa"
+
+  layout:
+    width: 1100
+    height: auto # grows with number of agents
+    row_height: 32
+    legend: true
+    legend_position: upper_right
+    margin: { left: 120, right: 60, top: 80, bottom: 60 }
+
+  output:
+    format: svg
+    dpi: 150

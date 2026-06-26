@@ -1,0 +1,20 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+kind: Overlay
+metadata:
+  id: baseline
+# Scenario: baseline (control — no memory extension)
+#
+# Tools only: lookup_schedule, query_graph_database, get_fares, calculator.
+# No traveler profile is available; recall and combination queries receive
+# generic, unPersonalized responses.
+#
+# This is the zero-extension baseline. OTel spans here contain tool-call
+# spans only — no memory_search spans. Comparing against the memory
+# scenarios isolates the quality contribution of the memory extension.
+spec:
+  patch:
+    design_pattern:
+      type: react
+      config:
+        max_steps: 10

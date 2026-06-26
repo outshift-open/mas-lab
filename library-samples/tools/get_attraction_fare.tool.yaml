@@ -1,0 +1,36 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Tool
+
+metadata:
+  name: get_attraction_fare
+  description: "Look up admission details for an attraction in an Arborian Network city."
+  version: "1.0.0"
+  tags: [travel, attractions, fares, cost]
+
+spec:
+  description: >
+    Return the admission information for a named attraction in a given city in the
+    Arborian Network. Use this to retrieve entry prices and hours from the
+    attraction's admission field.
+
+  parameters:
+    - name: city
+      type: string
+      description: "City name in the Arborian Network (must match exactly or be resolvable)."
+      required: true
+      examples: ["Celestia", "Luminos", "Verdantia", "Aurelia"]
+
+    - name: attraction
+      type: string
+      description: "Attraction or highlight name in the specified city."
+      required: true
+      examples: ["Crystal Tower Observatory", "Starlight Gardens", "The Prism Palace"]
+
+  impl:
+    kind: python
+    module_path: ./get_attraction_fare.py
+    class_name: GetAttractionFareTool
+    params:
+      dataset_path: fixtures/arborian-network.yaml

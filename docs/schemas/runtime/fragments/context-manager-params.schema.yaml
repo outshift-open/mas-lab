@@ -1,0 +1,54 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#context-manager-params"
+title: ContextManagerParams
+description: ContextManagerPlugin constructor kwargs.
+type: object
+additionalProperties: false
+properties:
+  max_turns:
+    type: integer
+    minimum: 1
+    description: Sliding-window / summarising — max prior exchange pairs.
+  window_size:
+    type: integer
+    minimum: 1
+    description: Alias for max_turns (sliding-window).
+  max_messages:
+    type: integer
+    minimum: 1
+    description: Stack CM — cap total past messages.
+  working_memory_messages:
+    type: integer
+    minimum: 1
+    description: Slice size for working_memory context source (default 20).
+  token_budget:
+    type: integer
+    minimum: 1
+    description: Max estimated input tokens after assembly.
+  max_tokens:
+    type: integer
+    minimum: 1
+    description: Alias for token_budget.
+  reserve_tokens:
+    type: integer
+    minimum: 0
+    description: Tokens reserved for model completion (default 512).
+  summary_threshold:
+    type: integer
+    minimum: 1
+    description: Summarising CM — token threshold before compression.
+  keep_turns:
+    type: integer
+    minimum: 1
+    description: Summarising CM — recent pairs kept verbatim.
+  working_memory_ref:
+    type: string
+    description: Registry ref for working_memory context source plugin.
+  trimmer_ref:
+    type: string
+    description: Registry ref for token-budget trimmer plugin.
+  token_budget_ref:
+    type: string
+    description: Alias for trimmer_ref.

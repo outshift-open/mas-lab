@@ -1,0 +1,26 @@
+/*
+ * Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+ * SPDX-License-Identifier: Apache-2.0
+ */
+body {
+  margin: 0;
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  height: 100%;
+  min-width: 1366px;
+}
+
+html {
+  height: 100%;
+}
+
+code {
+  font-family:
+    source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+}
+
+#root {
+  height: 100%;
+  position: relative;
+}

@@ -1,0 +1,14 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#collaboration-params"
+title: CollaborationParams
+description: CollaborationPlugin constructor kwargs.
+type: object
+additionalProperties: false
+properties:
+  max_delegations:
+    type: integer
+    minimum: 0
+  allow_parallel:
+    type: boolean

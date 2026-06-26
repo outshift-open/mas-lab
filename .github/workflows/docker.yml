@@ -1,0 +1,38 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+name: Container images
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  build-ui:
+    uses: ./.github/workflows/build-push-ghcr.yaml
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    with:
+      image-name: mas-lab/ui
+      context: .
+      dockerfile: docker/ui/Dockerfile
+
+  build-backend:
+    uses: ./.github/workflows/build-push-ghcr.yaml
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    with:
+      image-name: mas-lab/backend
+      context: .
+      dockerfile: docker/backend/Dockerfile

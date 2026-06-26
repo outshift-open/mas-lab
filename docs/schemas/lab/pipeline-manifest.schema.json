@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/outshift-open/mas-lab/main/docs/schemas/lab/pipeline-manifest.schema.json",
+  "title": "Pipeline Manifest",
+  "description": "Schema for kind: Pipeline manifests (apiVersion: mas/v1). Used by mas-lab-ui PipelineBuilder and controller pipeline validation. Steps pass in-memory artifacts between depends_on edges; file paths in step config serialize to disk. Experiment manifests declare typed artifacts for persistence targets.",
+  "type": "object",
+  "required": ["kind", "metadata", "spec"],
+  "additionalProperties": true,
+  "properties": {
+    "apiVersion": {
+      "type": "string",
+      "enum": ["mas/v1"],
+      "default": "mas/v1"
+    },
+    "kind": {
+      "type": "string",
+      "const": "Pipeline"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": true,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["steps"],
+      "additionalProperties": true,
+      "properties": {
+        "output": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "base_dir": {
+              "type": "string"
+            }
+          }
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name", "type"],
+            "additionalProperties": true,
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "type": {
+                "type": "string",
+                "minLength": 1
+              },
+              "depends_on": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "description": {
+                "type": "string"
+              },
+              "inputs": {
+                "type": "object",
+                "description": "Logical bindings from upstream step outputs (in-memory). Optional when step reads file paths from config only."
+              },
+              "outputs": {
+                "type": "object",
+                "description": "Named outputs for downstream steps. Disk serialization is step-config driven (output_csv, output_dir, …)."
+              },
+              "config": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "x-canvas-positions": {
+      "type": "object",
+      "description": "Studio UI layout positions (not used at runtime).",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "x": { "type": "number" },
+          "y": { "type": "number" }
+        }
+      }
+    }
+  }
+}

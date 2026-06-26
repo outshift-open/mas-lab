@@ -1,0 +1,56 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://mas-lab.dev/schemas/evaluation-envelope/v0.1
+title: EvaluationEnvelope
+description: >
+  Summarized benchmark outcome for one (experiment, scenario, item, run) cell.
+  Used by pipeline export steps and regression tooling.
+type: object
+required:
+  - schema_version
+  - experiment
+  - scenario
+  - item_id
+  - run_idx
+  - status
+properties:
+  schema_version:
+    type: string
+    const: "0.1"
+  experiment:
+    type: string
+  scenario:
+    type: string
+  item_id:
+    type: string
+  run_idx:
+    type: integer
+    minimum: 0
+  status:
+    type: string
+    enum: [success, failure, skipped, timeout]
+  metrics:
+    type: object
+    additionalProperties:
+      type: number
+  expectations:
+    type: object
+    description: Optional structural expectation results from trace analysis
+    additionalProperties: true
+  artifacts:
+    type: object
+    properties:
+      events_jsonl:
+        type: string
+      output_dir:
+        type: string
+    additionalProperties:
+      type: string
+  fingerprint:
+    type: string
+    description: Content hash for golden / cache identity
+  notes:
+    type: array
+    items:
+      type: string

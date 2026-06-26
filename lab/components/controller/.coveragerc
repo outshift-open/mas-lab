@@ -1,0 +1,7 @@
+[run]
+source = mas.lab.controller.fastapi_app
+omit =
+
+[report]
+show_missing = true
+skip_empty = true

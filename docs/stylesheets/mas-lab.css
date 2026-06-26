@@ -1,0 +1,472 @@
+/* MAS Lab — navy chrome, white header text, amber accent.
+ *
+ * Material naming: --md-primary-fg-color = header/tabs BACKGROUND;
+ * --md-primary-bg-color = text/icons ON that background (must be light).
+ *
+ * With navigation.tabs.sticky, tabs render inside <header>. Desktop layout
+ * uses flex + display:contents so logo, title, tabs, and utilities share one
+ * sticky bar that does not break on scroll.
+ */
+
+:root {
+  --mas-header-h: 2.5rem;
+}
+
+[data-md-color-primary="custom"] {
+  --md-primary-fg-color: #1a2f4b;
+  --md-primary-fg-color--light: #2d4f73;
+  --md-primary-fg-color--dark: #0f1e33;
+  --md-primary-bg-color: #ffffff;
+  --md-accent-fg-color: #c17817;
+  --md-accent-fg-color--transparent: rgba(193, 120, 23, 0.12);
+  --md-typeset-a-color: #1d5f8a;
+}
+
+[data-md-color-scheme="slate"][data-md-color-primary="custom"] {
+  --md-default-bg-color: #0d1117;
+  --md-default-bg-color--light: #161b22;
+  --md-typeset-a-color: #7ec8e8;
+}
+
+[data-md-color-scheme="slate"] .md-typeset a {
+  color: #7ec8e8;
+}
+
+[data-md-color-scheme="slate"] .md-typeset a:hover,
+[data-md-color-scheme="slate"] .md-typeset a:focus {
+  color: #a8ddf5;
+}
+
+/* ── Header chrome ───────────────────────────────────────────────────── */
+
+.md-grid {
+  max-width: min(96rem, 100%);
+}
+
+.md-header {
+  background-color: var(--md-primary-fg-color);
+}
+
+.md-header__title,
+.md-header__topic,
+.md-header__button,
+.md-header__button svg {
+  color: var(--md-primary-bg-color);
+}
+
+/* Always show site name — never swap to page title in the top bar */
+.md-header__topic[data-md-component="header-topic"] {
+  display: none !important;
+}
+
+.md-header__title--active .md-header__topic:first-child {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: none !important;
+  z-index: 0 !important;
+}
+
+.md-header__button.md-logo {
+  margin: 0;
+  padding: 0.15rem;
+}
+
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 1.5rem;
+  width: 1.5rem;
+}
+
+.md-source {
+  color: var(--md-primary-bg-color);
+}
+
+.md-source__repository,
+.md-source__fact {
+  display: none;
+}
+
+.md-search__form {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.md-search__input {
+  color: #ffffff;
+}
+
+.md-search__input::placeholder {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.md-search__icon {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.md-tabs__link {
+  color: #ffffff !important;
+  opacity: 0.9;
+  font-size: 0.72rem;
+}
+
+.md-tabs__link:hover,
+.md-tabs__link:focus {
+  color: #ffffff !important;
+  opacity: 1;
+}
+
+.md-tabs__link--active {
+  color: #ffffff !important;
+  opacity: 1;
+  font-weight: 600;
+}
+
+/* Site home tab — brand label */
+.md-tabs__list > .md-tabs__item:first-child .md-tabs__link {
+  font-weight: 700 !important;
+}
+
+/* ── Desktop: single sticky navbar row ───────────────────────────────── */
+
+@media screen and (min-width: 76.25em) {
+  .md-header--lifted {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    height: var(--mas-header-h) !important;
+    min-height: var(--mas-header-h) !important;
+    max-height: var(--mas-header-h) !important;
+    padding: 0 0.75rem;
+    background-color: var(--md-primary-fg-color);
+  }
+
+  .md-header--lifted > script {
+    display: none !important;
+  }
+
+  /* Flatten inner nav so logo, title, search, … flex with tabs */
+  .md-header--lifted .md-header__inner {
+    display: contents;
+  }
+
+  .md-header--lifted .md-header__button.md-logo {
+    order: 1;
+    flex: 0 0 auto;
+  }
+
+  .md-header--lifted [data-md-component="header-title"] {
+    order: 2;
+    flex: 0 0 auto;
+    display: block !important;
+    margin: 0 0.5rem 0 0.25rem;
+    height: var(--mas-header-h);
+    line-height: var(--mas-header-h);
+    font-size: 0.95rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .md-header--lifted .md-tabs {
+    order: 3;
+    position: static !important;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: var(--mas-header-h) !important;
+    margin: 0;
+    padding: 0;
+    background: transparent !important;
+    box-shadow: none !important;
+    overflow: hidden;
+  }
+
+  .md-header--lifted .md-tabs .md-grid {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    height: 100%;
+  }
+
+  .md-header--lifted .md-tabs__list {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .md-header--lifted .md-tabs__list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .md-header--lifted .md-tabs__item {
+    height: 100%;
+    padding: 0 0.35rem;
+  }
+
+  .md-header--lifted .md-tabs__link {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    margin-top: 0 !important;
+    padding: 0 0.35rem;
+    border-bottom: 2px solid transparent;
+  }
+
+  .md-header--lifted .md-tabs__link--active {
+    border-bottom-color: var(--md-accent-fg-color);
+  }
+
+  /* Hide mobile-only header controls when inline search is shown */
+  .md-header--lifted .md-header__button[for="__drawer"],
+  .md-header--lifted label.md-icon[for="__search"] {
+    display: none !important;
+  }
+
+  /* Right cluster: search · GitHub · theme (theme rightmost, tight spacing) */
+  .md-header--lifted .md-search {
+    order: 10;
+    flex: 0 0 auto;
+    margin-left: auto !important;
+    margin-right: 0.35rem !important;
+    width: 9.5rem;
+    max-width: 9.5rem;
+    min-width: 0;
+  }
+
+  /* Material reserves ~11.7rem for repo text — collapse to icon-only */
+  .md-header--lifted .md-header__source {
+    order: 11;
+    flex: 0 0 auto;
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 0.25rem 0 0 !important;
+    padding: 0;
+  }
+
+  .md-header--lifted .md-header__source .md-source {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.4rem;
+    min-width: 2.4rem;
+    margin: 0;
+    padding: 0;
+  }
+
+  .md-header--lifted .md-header__option {
+    order: 12;
+    flex: 0 0 auto;
+    margin: 0 !important;
+    padding: 0;
+  }
+
+  .md-header--lifted .md-header__option .md-header__button {
+    margin: 0;
+  }
+
+  .md-header--lifted ~ .md-container .md-sidebar {
+    top: var(--mas-header-h) !important;
+  }
+
+  .md-header--lifted ~ .md-container .md-typeset :target {
+    --md-scroll-margin: var(--mas-header-h);
+  }
+
+  /* Lone section link duplicates the tab — hide that item only; keep the panel
+     for sections with real sub-menus (References, Tutorials, User guide, …). */
+  .md-sidebar--primary
+    .md-nav
+    > .md-nav__list
+    > .md-nav__item:only-child:not(.md-nav__item--nested) {
+    display: none;
+  }
+}
+
+/* ── Mobile / tablet header ──────────────────────────────────────────── */
+
+@media screen and (max-width: 76.24em) {
+  .md-header__inner {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.25rem;
+    padding: 0 0.75rem;
+    height: var(--mas-header-h);
+  }
+
+  .md-header__title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .md-search {
+    flex: 0 0 auto;
+  }
+}
+
+/* ── Sidebar nav ───────────────────────────────────────────────────── */
+
+.md-sidebar--primary .md-nav__link {
+  color: var(--md-default-fg-color);
+}
+
+.md-sidebar--primary .md-nav__link--active,
+.md-sidebar--primary .md-nav__link:focus,
+.md-sidebar--primary .md-nav__link:hover {
+  color: var(--md-accent-fg-color);
+}
+
+[data-md-color-scheme="slate"] .md-sidebar--primary .md-nav__link--active,
+[data-md-color-scheme="slate"] .md-sidebar--primary .md-nav__link:focus,
+[data-md-color-scheme="slate"] .md-sidebar--primary .md-nav__link:hover {
+  color: #e8b060;
+}
+
+.md-nav__item--section > .md-nav__link {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--light);
+  pointer-events: none;
+  margin-top: 0.6rem;
+}
+
+.md-nav__item--section > .md-nav__link:first-child {
+  margin-top: 0;
+}
+
+/* ── Typography: section & subsection accent (navy / sky — not orange) ─ */
+
+.md-typeset h2 {
+  color: #2d4f73;
+  font-weight: 700;
+  border-bottom: 1px solid rgba(45, 79, 115, 0.22);
+  padding-bottom: 0.25rem;
+}
+
+.md-typeset h3 {
+  color: #1d5f8a;
+  font-weight: 600;
+}
+
+.md-typeset h4 {
+  color: var(--md-default-fg-color);
+  font-weight: 600;
+  opacity: 0.92;
+}
+
+[data-md-color-scheme="slate"] .md-typeset h2 {
+  color: #8ec8e8;
+  border-bottom-color: rgba(142, 200, 232, 0.28);
+}
+
+[data-md-color-scheme="slate"] .md-typeset h3 {
+  color: #a8d4f0;
+}
+
+[data-md-color-scheme="slate"] .md-typeset h4 {
+  color: #c5dff0;
+}
+
+/* Home page — section headings without underline rules */
+.mas-home h2 {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-top: 1.75rem;
+}
+
+.mas-home h2:first-of-type {
+  margin-top: 1.25rem;
+}
+
+.md-typeset figcaption {
+  color: var(--md-default-fg-color--light);
+  font-style: italic;
+}
+
+/* Blog figures — compact, centered, readable on dark backgrounds */
+.mas-blog-figure {
+  margin: 1.25rem auto 1.75rem;
+  max-width: 22rem;
+  text-align: center;
+}
+
+.mas-blog-figure img {
+  display: block;
+  width: 100%;
+  max-width: 20rem;
+  height: auto;
+  margin: 0 auto;
+  padding: 0.65rem;
+  background: #ffffff;
+  border: 1px solid rgba(26, 47, 75, 0.18);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+[data-md-color-scheme="slate"] .mas-blog-figure img {
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.mas-blog-figure figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+}
+
+/* Blog index excerpt */
+.md-post--excerpt {
+  color: var(--md-default-fg-color);
+  opacity: 0.92;
+}
+
+/* Blog post sidebar — date first, compact authors */
+.md-sidebar--post .md-nav.md-nav--primary {
+  display: flex;
+  flex-direction: column;
+}
+
+.md-sidebar--post .md-post__meta {
+  order: 1;
+  margin: 0 0.5rem 0.75rem;
+}
+
+.md-sidebar--post .md-post__meta .md-post__title {
+  display: none;
+}
+
+.md-sidebar--post .md-post__meta .md-nav__link {
+  font-size: 0.72rem;
+  padding: 0.15rem 0;
+}
+
+.md-sidebar--post .md-post__meta time {
+  font-weight: 600;
+}
+
+.md-sidebar--post .md-post__authors {
+  order: 2;
+  gap: 0.4rem;
+  margin: 0 0.5rem 1rem;
+}
+
+.md-sidebar--post .md-post__profile .md-author.md-author--long {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.md-sidebar--post .md-profile {
+  gap: 0.4rem;
+  font-size: 0.68rem;
+  line-height: 1.3;
+}
+
+.md-sidebar--post .md-profile__description strong {
+  font-weight: 600;
+}

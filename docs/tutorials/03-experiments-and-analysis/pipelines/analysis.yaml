@@ -1,0 +1,44 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Pipeline
+
+metadata:
+  name: t3-analysis
+  description: >
+    Tutorial 03 analysis pipeline — extract trajectories, trace stats, and plots.
+
+spec:
+  steps:
+    - name: extract
+      type: extract_trajectories
+      description: "Extract per-agent trajectories from events.jsonl"
+      inputs:
+        events: "{{run.events_path}}"
+      outputs:
+        trajectories: "{{run.output_dir}}/trajectories.json"
+
+    - name: trace-stats
+      type: extract_trace_stats
+      description: "Aggregate trace statistics per run"
+      depends_on: [extract]
+      config:
+        output: "{{run.output_dir}}/results/trace_stats.csv"
+
+    - name: plot-svg
+      type: plot_trajectory
+      description: "Generate trajectory SVG for each run"
+      depends_on: [extract]
+      inputs:
+        trajectories: "{{run.output_dir}}/trajectories.json"
+      outputs:
+        svg: "{{run.output_dir}}/trajectory.svg"
+
+    - name: plot-html
+      type: plot_multilevel_trajectory
+      description: "Generate multilevel swimlane HTML"
+      depends_on: [extract]
+      inputs:
+        trajectories: "{{run.output_dir}}/trajectories.json"
+      outputs:
+        html: "{{run.output_dir}}/swimlane.html"

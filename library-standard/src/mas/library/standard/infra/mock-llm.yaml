@@ -1,0 +1,36 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: infra/v1
+kind: LLMLocal
+
+# Mock LLM infrastructure — no network, no external services.
+# Returns only cached/echo responses.  Used for CI, tutorials, and offline testing.
+#
+# The mock server can be started for HTTP integration tests:
+#   python -m mas.lab.components.llm.mock_server
+# But most callers use MockModelAccess directly (no HTTP).
+
+metadata:
+  name: mock-llm
+  description: >
+    Cache-first / echo LLM backend for offline testing.  No API key, no external
+    service required.  Responses are served from a local cache file
+    (artifacts/llm_cache.json) or synthesised as echo/stub responses.
+
+spec:
+  server:
+    api_base: "" # Not used — MockModelAccess reads the cache directly
+    api_key_env: "" # No key needed
+    health_endpoint: "" # No external process
+
+  models:
+    defaults:
+      llm: "" # No default model — MockModelAccess is enabled via mocking.enabled: true
+      embed: "" # No embedding model in mock mode
+
+  model_access:
+    provider: mock
+    module_path: mas.library.standard.plugins.llm_mock
+    class_name: MockModelAccess
+    params:
+      cache_path: null # auto-resolve to artifacts/llm_cache.json

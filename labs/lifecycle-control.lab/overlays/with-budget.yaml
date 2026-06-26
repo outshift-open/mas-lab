@@ -1,0 +1,19 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+kind: Overlay
+metadata:
+  id: with-budget
+# +Budget: adds budget governance (normal threshold)
+spec:
+  observability:
+    - native
+  governance:
+    - sample_governance:
+        policies:
+          - name: budget-cap
+            trigger:
+              "on": budget_threshold
+              condition: "cumulative.total_cost_usd > 0.15"
+              evaluation: deterministic
+            action: terminate
+            params: { reason: "Budget exceeded ($0.15 limit)" }

@@ -1,0 +1,28 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: infra/v1
+kind: LLMLocal
+
+metadata:
+  name: mock-llm
+  description: >
+    Cache-first / echo LLM backend for offline testing, CI, and tutorials.
+    No API key or external service required.
+
+spec:
+  server:
+    api_base: ""
+    api_key_env: ""
+    health_endpoint: ""
+
+  models:
+    defaults:
+      llm: ""
+      embed: ""
+
+  model_access:
+    provider: mock
+    module_path: mas.library.standard.plugins.llm_mock
+    class_name: MockModelAccess
+    params:
+      cache_path: null

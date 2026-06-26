@@ -1,0 +1,151 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+"""Tests for compose_run agent binding."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from mas.ctl.compose.runner import ComposeRequest, compose_run
+
+
+def _mas_lab_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _library_samples_manifest() -> Path | None:
+    manifest = _mas_lab_root() / "library-samples" / "apps" / "trip-planner" / "mas.yaml"
+    return manifest if manifest.is_file() else None
+
+
+def test_compose_run_multi_agent_bind_from_library_samples():
+    manifest = _library_samples_manifest()
+    if manifest is None:
+        pytest.skip("library-samples trip-planner not in workspace")
+
+    result = compose_run(
+        ComposeRequest(
+            manifest=manifest,
+            validate=False,
+            infra_refs=["standard:mock-llm"],
+        )
+    )
+
+    agents = result.effective_bind.get("agents") or []
+    assert len(agents) >= 2
+    agent_ids = {a["agent_id"] for a in agents}
+    assert {"moderator", "schedule_agent", "itinerary_agent", "concierge_agent"}.issubset(agent_ids)
+
+
+def test_compose_run_two_agent_fixture(tmp_path: Path):
+    agent_a = tmp_path / "agents" / "alpha.yaml"
+    agent_b = tmp_path / "agents" / "beta.yaml"
+    agent_a.parent.mkdir(parents=True)
+    for path, name in ((agent_a, "alpha"), (agent_b, "beta")):
+        path.write_text(
+            f"""apiVersion: mas/v1
+kind: Agent
+metadata:
+  name: {name}
+spec:
+  role:
+    description: test agent
+  models:
+    - model: mock
+""",
+            encoding="utf-8",
+        )
+
+    mas_path = tmp_path / "mas.yaml"
+    mas_path.write_text(
+        """apiVersion: mas/v1
+kind: MAS
+metadata:
+  name: two-agent-fixture
+spec:
+  agency:
+    agents:
+      - id: alpha
+        ref: agents/alpha.yaml
+      - id: beta
+        ref: agents/beta.yaml
+  workflow:
+    type: sequential
+    entry: alpha
+    nodes:
+      - id: alpha
+        role: specialist
+        delegates_to:
+          - beta
+      - id: beta
+        role: specialist
+""",
+        encoding="utf-8",
+    )
+
+    result = compose_run(
+        ComposeRequest(
+            manifest=mas_path,
+            validate=False,
+            infra_refs=["standard:mock-llm"],
+        )
+    )
+
+    agents = result.effective_bind.get("agents") or []
+    assert len(agents) == 2
+    assert {a["agent_id"] for a in agents} == {"alpha", "beta"}
+
+
+def test_is_sequential_workflow_dynamic_delegates_not_sequential():
+    from mas.ctl.executor.run_mas import _is_sequential_workflow
+
+    dynamic = {
+        "spec": {
+            "workflow": {
+                "entry": "moderator",
+                "nodes": [
+                    {"id": "moderator", "delegates_to": ["a", "b"]},
+                    {"id": "a"},
+                    {"id": "b"},
+                ],
+            }
+        }
+    }
+    assert _is_sequential_workflow(dynamic, 3) is False
+
+    linear = {
+        "spec": {
+            "workflow": {
+                "type": "sequential",
+                "entry": "a",
+                "nodes": [{"id": "a", "delegates_to": ["b"]}, {"id": "b"}],
+            }
+        }
+    }
+    assert _is_sequential_workflow(linear, 2) is True
+
+
+def test_inproc_bus_transport_handoff():
+    from mas.ctl.placement.bus.adapter import RuntimeCommEndpoint
+    from mas.ctl.placement.bus.inproc import InProcessCommBus
+    from mas.runtime.schema.egress import InvokeEngineIo
+
+    delivered = []
+
+    class _Inst:
+        def feed(self, payload):
+            delivered.append(payload.response_kind)
+
+    bus = InProcessCommBus()
+    bus.register("alpha", RuntimeCommEndpoint("alpha", _Inst()))
+    bus.register("beta", RuntimeCommEndpoint("beta", _Inst()))
+    result = bus.send(
+        from_agent="alpha",
+        to_agent="beta",
+        intent=InvokeEngineIo(correlation_id=1, op="TRANSPORT_MSG"),
+    )
+    assert result is not None
+    assert result.response_kind == "TRANSPORT_ACK"
+    assert delivered == ["TRANSPORT_ACK"]

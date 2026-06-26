@@ -1,0 +1,69 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# MAS Lab local stack — UI + controller API.
+#
+#   cd docker && cp .env.example .env && docker compose up --build
+#
+# UI:  http://localhost:8080
+# API: http://localhost:8090
+#
+# Mount your project at /workspace and persistent data at /data (see .env.example).
+
+name: mas-lab
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/backend/Dockerfile
+    image: mas-lab-backend:local
+    ports:
+      - "${MAS_BACKEND_PORT:-8090}:8090"
+    environment:
+      MAS_WORKSPACE_ROOT: /workspace
+      MAS_DATA_ROOT: /data
+      MAS_CONTROLLER_PORT: "8090"
+    # Secrets and local overrides: docker/.env only (gitignored).
+    # Intentionally NOT ${OPENAI_API_KEY} here — shell exports must not override the file.
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ${MAS_WORKSPACE_MOUNT:-..}:/workspace
+      - ${MAS_DATA_MOUNT:-./data}:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/api/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+
+  ui:
+    build:
+      context: ..
+      dockerfile: docker/ui/Dockerfile
+    image: mas-lab-ui:local
+    ports:
+      - "${MAS_UI_PORT:-8080}:8080"
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8090}
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # One-off CLI runs (benchmarks, agent runtime, ctl) — same image as backend.
+  #   docker compose run --rm cli mas-lab benchmark run labs/.../experiment.yaml
+  #   docker compose run --rm cli mas-runtime run-agent agents/simple.yaml -q "Hello"
+  cli:
+    profiles: [tools]
+    image: mas-lab-backend:local
+    environment:
+      MAS_WORKSPACE_ROOT: /workspace
+      MAS_DATA_ROOT: /data
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ${MAS_WORKSPACE_MOUNT:-..}:/workspace
+      - ${MAS_DATA_MOUNT:-./data}:/data
+    entrypoint: ["/usr/local/bin/mas-lab-entrypoint"]

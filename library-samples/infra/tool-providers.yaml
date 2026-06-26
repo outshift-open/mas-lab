@@ -1,0 +1,65 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: infra/v1
+kind: ToolProvider
+
+metadata:
+  name: trip-planner-tools
+  description: >
+    Tool provider bindings for the Trip Planner example.
+    Maps semantic tool names to their Python implementations.
+
+spec:
+  tools:
+    calculator:
+      kind: python
+      module: mas.runtime.tools.calculator_tool
+    web-search:
+      kind: python
+      module: mas.library.standard.tools.web_search_tool
+    query_graph_database:
+      kind: python
+      module_path: library-samples/tools/query_graph_database.py
+      class_name: QueryGraphDatabaseTool
+      params:
+        dataset_path: datasets/arborian-network.yaml
+    lookup_schedule:
+      kind: python
+      module_path: library-samples/tools/lookup_schedule.py
+      class_name: LookupScheduleTool
+      params:
+        dataset_path: datasets/arborian-network.yaml
+    get_attractions:
+      kind: python
+      module_path: library-samples/tools/get_attractions.py
+      class_name: GetAttractionsTool
+      params:
+        dataset_path: datasets/arborian-network.yaml
+    get_attractions_description:
+      kind: python
+      module_path: library-samples/tools/get_attractions_description.py
+      class_name: GetAttractionsDescriptionTool
+      params:
+        dataset_path: datasets/arborian-network.yaml
+    get_attraction_fare:
+      kind: python
+      module_path: library-samples/tools/get_attraction_fare.py
+      class_name: GetAttractionFareTool
+      params:
+        dataset_path: datasets/arborian-network.yaml
+    get_trip_fares:
+      kind: python
+      module_path: library-samples/tools/get_trip_fares.py
+      class_name: GetTripFaresTool
+      params:
+        dataset_path: datasets/arborian-network.yaml
+    get_fares:
+      kind: python
+      module_path: library-samples/tools/get_fares.py
+      class_name: GetFaresTool
+      params:
+        dataset_path: datasets/arborian-network.yaml
+    calc:
+      kind: python
+      module_path: library-samples/tools/calc.py
+      class_name: CalcTool

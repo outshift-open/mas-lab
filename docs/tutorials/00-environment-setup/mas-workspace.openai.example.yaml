@@ -1,0 +1,16 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Copy to your project root as mas-workspace.yaml (no secrets in this file).
+# Schema: docs/schemas/mas-workspace.schema.yaml
+
+mas_ctl:
+  flavour: local
+  env: .env
+
+mas_lab:
+  flavour: local
+  benchmark_flavour: local
+
+# OpenAI via library-standard (requires OPENAI_API_KEY in .env)
+infra_refs:
+  - standard:openai

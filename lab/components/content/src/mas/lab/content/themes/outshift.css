@@ -1,0 +1,174 @@
+/*
+ * Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+ * SPDX-License-Identifier: Apache-2.0
+ */
+/* Outshift Content Theme — shared across tutorial, article, and slides.
+ *
+ * This file defines:
+ * - CSS custom properties (Outshift brand)
+ * - Widget component styles
+ * - Typography / prose styles
+ * - Utility classes
+ *
+ * Import this in any renderer that needs the content widget styles.
+ */
+
+/* === BRAND TOKENS === */
+:root {
+  --bg: #0a0a0f;
+  --surface: #12121a;
+  --surface2: #1a1a28;
+  --surface3: #222233;
+  --border: #2c2b3d;
+  --text: #eaeaf0;
+  --text-body: #c8c8d8;
+  --text-dim: #7a7a9a;
+  --accent: #00d4ff;
+  --accent2: #6c63ff;
+  --green: #34d399;
+  --yellow: #fbbf24;
+  --red: #f87171;
+  --magenta: #c084fc;
+  --mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --radius: 10px;
+  --transition: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* === PROSE === */
+.prose { line-height: 1.85; color: var(--text-body); font-size: 0.95rem; }
+.prose p { margin-bottom: 1.1rem; }
+.prose code {
+  background: var(--surface3); padding: 0.1rem 0.4rem; border-radius: 3px;
+  font-family: var(--mono); font-size: 0.85em;
+}
+.prose pre {
+  background: #0d0d14; padding: 1.2rem 1.4rem; border-radius: 8px;
+  overflow-x: auto; border: 1px solid var(--border); margin: 1.2rem 0;
+  font-size: 0.82rem; line-height: 1.5;
+}
+.prose pre code { background: none; padding: 0; }
+.prose ul, .prose ol { padding-left: 1.5rem; margin-bottom: 1.1rem; }
+.prose li { margin-bottom: 0.35rem; }
+.prose h1 { font-size: 1.8rem; color: var(--text); margin: 2rem 0 0.8rem; font-weight: 800; }
+.prose h2 { font-size: 1.4rem; color: var(--accent); margin: 1.8rem 0 0.6rem; font-weight: 700; }
+.prose h3 { font-size: 1.15rem; color: var(--text); margin: 1.4rem 0 0.5rem; font-weight: 600; }
+.prose h4 { font-size: 1rem; color: var(--accent); margin: 1.2rem 0 0.4rem; }
+.prose strong { color: var(--text); }
+.prose a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(0,212,255,0.3); }
+.prose a:hover { border-bottom-color: var(--accent); }
+.prose blockquote {
+  border-left: 3px solid var(--accent); padding: 0.6rem 1rem; margin: 1rem 0;
+  background: var(--surface); border-radius: 0 8px 8px 0; color: var(--text-dim);
+}
+.prose img { max-width: 100%; border-radius: 8px; margin: 1rem 0; }
+.prose hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+.prose table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.85rem; }
+.prose th, .prose td { padding: 0.5rem 0.8rem; text-align: left; border-bottom: 1px solid var(--border); }
+.prose th { color: var(--accent); font-weight: 600; background: var(--surface2); }
+
+/* === WIDGET: NOTE === */
+.w-note {
+  border-left: 3px solid var(--accent); background: var(--surface);
+  border-radius: 0 var(--radius) var(--radius) 0; padding: 1rem 1.2rem;
+  margin: 1.2rem 0;
+}
+.w-note-header { margin-bottom: 0.5rem; font-size: 0.85rem; }
+.w-note .prose { font-size: 0.88rem; }
+
+/* === WIDGET: MERMAID === */
+.w-mermaid {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.5rem; margin: 1.2rem 0;
+  text-align: center;
+}
+.w-mermaid .mermaid { display: inline-block; }
+
+/* === WIDGET: CHART === */
+.w-chart {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.2rem; margin: 1.2rem 0;
+  position: relative;
+}
+.w-chart-canvas { width: 100%; }
+
+/* === WIDGET: CODE === */
+.w-code {
+  background: #0d0d14; border: 1px solid var(--border);
+  border-radius: 8px; margin: 1.2rem 0; overflow: hidden;
+}
+.w-code-title {
+  padding: 0.5rem 1rem; background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim);
+  font-weight: 600;
+}
+.w-code pre { margin: 0; padding: 1rem 1.2rem; }
+.w-code code { font-size: 0.82rem; line-height: 1.5; }
+
+/* === WIDGET: ARTIFACT === */
+.w-artifact {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); margin: 1.2rem 0; overflow: hidden;
+}
+.w-artifact-header {
+  padding: 0.5rem 1rem; background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem; color: var(--yellow); font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.w-artifact-content { padding: 1rem; }
+
+/* === WIDGET: TIMELINE === */
+.w-timeline { margin: 1.5rem 0; padding-left: 1.5rem; border-left: 2px solid var(--border); }
+.w-timeline .prose li {
+  position: relative; padding-left: 0.5rem; margin-bottom: 1rem;
+}
+.w-timeline .prose li::before {
+  content: ''; position: absolute; left: -1.85rem; top: 0.5rem;
+  width: 8px; height: 8px; background: var(--accent); border-radius: 50%;
+}
+
+/* === WIDGET: EMBED === */
+.w-embed {
+  margin: 1.2rem 0; border-radius: var(--radius); overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+/* === WIDGET: FIGURE === */
+.w-figure {
+  margin: 1.5rem 0; text-align: center;
+}
+.w-figure img { border-radius: 8px; max-width: 100%; }
+.w-figure figcaption {
+  margin-top: 0.6rem; font-size: 0.78rem; color: var(--text-dim);
+  font-style: italic;
+}
+
+/* === WIDGET: QUOTE === */
+.w-quote {
+  border-left: 3px solid var(--magenta); background: var(--surface);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 1.5rem 1.5rem 1rem; margin: 1.5rem 0;
+  font-size: 1.05rem; font-style: italic; color: var(--text);
+}
+.w-quote cite {
+  display: block; margin-top: 0.8rem; font-size: 0.8rem;
+  color: var(--text-dim); font-style: normal;
+}
+
+/* === WIDGET: UNKNOWN (fallback) === */
+.widget-unknown {
+  background: var(--surface2); border: 1px dashed var(--border);
+  border-radius: var(--radius); padding: 1rem; margin: 1rem 0;
+}
+.widget-label {
+  font-size: 0.7rem; color: var(--red); text-transform: uppercase;
+  font-weight: 700; margin-bottom: 0.5rem;
+}
+
+/* === SHARED CAPTION === */
+.w-caption {
+  font-size: 0.78rem; color: var(--text-dim); margin-top: 0.6rem;
+  font-style: italic; text-align: center;
+}

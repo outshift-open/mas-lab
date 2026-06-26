@@ -1,0 +1,97 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "mas-lab/artefacts/session-metrics/v1",
+  "title": "Session Metrics Artefact",
+  "description": "Schema for metrics.json — standalone per-run MCE metric scores written by EvalMceBatchStep. Lives next to run_info.json in each run folder (item{N}/r{K}/metrics.json).",
+  "type": "object",
+  "required": ["schema_version", "item_id", "scenario", "session", "computed_at"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1",
+      "description": "Artefact format version. Increment when the schema changes in a breaking way."
+    },
+    "item_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Dataset item identifier (e.g. '1', '51', '126')."
+    },
+    "scenario": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Benchmark scenario name (e.g. 'baseline')."
+    },
+    "session": {
+      "type": "object",
+      "description": "Session-level MCE metric scores, keyed by metric_id.",
+      "additionalProperties": {
+        "$ref": "#/$defs/MetricScore"
+      }
+    },
+    "agents": {
+      "type": "object",
+      "description": "Per-agent MCE metric scores, keyed by agent_id. Empty in schema_version=1; reserved for future extension.",
+      "additionalProperties": {
+        "type": "object",
+        "description": "Metric scores for one agent.",
+        "additionalProperties": {
+          "$ref": "#/$defs/MetricScore"
+        }
+      }
+    },
+    "run_quality": {
+      "type": "object",
+      "description": "Per-run data quality summary emitted by eval_mce (warnings/errors/status).",
+      "required": ["warnings", "errors", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "errors": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "warn", "error"]
+        }
+      }
+    },
+    "computed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp when the metrics were computed."
+    }
+  },
+  "$defs": {
+    "MetricScore": {
+      "type": "object",
+      "description": "Result for one MCE metric computation.",
+      "required": ["value"],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "oneOf": [
+            { "type": "number", "minimum": 0 },
+            { "type": "null" }
+          ],
+          "description": "Metric score. LLM-as-judge metrics are normalised to [0, 1]; non-LLM metrics (e.g. session_duration in seconds) may exceed 1. Always >= 0, or null when computation failed."
+        },
+        "reasoning": {
+          "type": "string",
+          "description": "Human-readable explanation from the LLM judge."
+        },
+        "error": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
+          ],
+          "description": "Error message when computation failed, null otherwise."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,161 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "http://json-schema.org/draft-07/schema#"
+$id: "mas-lab/dataset/v1"
+title: "mas-lab Dataset manifest (v1)"
+description: >
+  Dataset items use the Run Input Envelope (inputs + expectations).
+  See run-input.schema.yaml for item shape.
+
+type: object
+required: [apiVersion, kind, metadata, spec]
+additionalProperties: false
+
+properties:
+  apiVersion:
+    type: string
+    const: "lab/v1"
+
+  kind:
+    type: string
+    const: "Dataset"
+
+  metadata:
+    type: object
+    required: [name]
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+        minLength: 1
+      display_name:
+        type: string
+      version:
+        type: string
+        default: "1.0"
+      description:
+        type: string
+      tags:
+        type: array
+        items:
+          type: string
+
+  spec:
+    type: object
+    additionalProperties: false
+    oneOf:
+      - required: [items]
+      - required: [path]
+    properties:
+      items:
+        type: array
+        minItems: 1
+        items:
+          type: object
+          required: [id, inputs]
+          additionalProperties: true
+          properties:
+            id:
+              oneOf:
+                - type: string
+                - type: integer
+            inputs:
+              type: object
+              required: [user]
+              additionalProperties: true
+              properties:
+                user:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [role, content]
+                    additionalProperties: false
+                    properties:
+                      role:
+                        type: string
+                        enum: [user, system]
+                      content:
+                        type: string
+                        minLength: 1
+                hitl:
+                  type: array
+                  items:
+                    type: object
+                    required: [role, content]
+                    additionalProperties: false
+                    properties:
+                      role:
+                        type: string
+                        enum: [hitl]
+                      content:
+                        type: string
+                memory_seeds:
+                  oneOf:
+                    - type: string
+                    - type: array
+                      items:
+                        type: object
+                        additionalProperties: true
+                tool_fixtures:
+                  oneOf:
+                    - type: string
+                    - type: object
+                      additionalProperties: true
+                session_id:
+                  type: string
+                checkpoint:
+                  type: object
+                  additionalProperties: true
+            expectations:
+              type: object
+              additionalProperties: true
+              properties:
+                ground_truth:
+                  oneOf:
+                    - type: string
+                    - type: object
+                      additionalProperties: true
+                governance:
+                  type: object
+                  additionalProperties: true
+                metrics:
+                  type: array
+                  items:
+                    type: string
+            category:
+              type: string
+            group:
+              type: string
+            type:
+              type: string
+            tags:
+              type: array
+              items:
+                type: string
+            metadata:
+              type: object
+              additionalProperties: true
+
+      path:
+        type: string
+      format:
+        type: string
+        enum: [yaml]
+        default: yaml
+      item_schema:
+        type: object
+        additionalProperties: true
+      groups:
+        type: array
+        items:
+          type: object
+          required: [id]
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+            description:
+              type: string
+            count:
+              type: integer

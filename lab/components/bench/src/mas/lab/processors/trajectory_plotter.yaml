@@ -1,0 +1,25 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+name: trajectory_plotter
+priority: 1
+description: >
+  Render a Trajectory (or AnnotatedTrajectory) into a PlotFile.
+  SVG output uses Mermaid rendered via headless Chromium (playwright),
+  which preserves the full delegation chain exactly as the HTML view.
+  Falls back transparently to the native SVG renderer if playwright is unavailable.
+
+inputs:
+  - name: trace
+    kind: trajectory
+    description: The trajectory to render (run_id, JSONL path, or pickled Trajectory)
+
+outputs:
+  - name: plot
+    kind: plot_file
+    description: Output plot file
+    defaults:
+      format: html      # override with: plot.format=svg|svg_native|mermaid|md|table
+
+requires:
+  optional:
+    - playwright>=1.40  # for format=svg (Mermaid rendering); falls back to native if absent

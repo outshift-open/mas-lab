@@ -1,0 +1,38 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mas-lab-controller"
+version = "0.1.0"
+description = "MAS Lab controller daemon — workers, IPC, HTTP API for CLI and UI."
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+
+dependencies = [
+    "mas-lab-core",
+    "mas-lab-bench",
+    "mas-runtime",
+    "mas-ctl",
+    "click>=8.0",
+    "pyyaml>=6.0",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0",
+    "pytest-asyncio",
+    "pytest-cov>=6.0",
+    "httpx>=0.27",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mas"]
+
+[project.entry-points."mas.lab.cli.components"]
+controller = "mas.lab.controller.cli:ControllerCliComponent"

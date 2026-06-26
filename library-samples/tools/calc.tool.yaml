@@ -1,0 +1,28 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Tool
+
+metadata:
+  name: calc
+  description: "Simple arithmetic calculator for cost aggregation."
+  version: "1.0.0"
+  tags: [travel, math, cost]
+
+spec:
+  description: >
+    Evaluate a basic arithmetic expression and return the numeric result.
+    Use to sum fare_usd values, multiply daily costs, and compute totals.
+    Supports +, -, *, / and parentheses. No external calls.
+
+  parameters:
+    - name: expression
+      type: string
+      description: "Arithmetic expression to evaluate (e.g. '28 + 22 + 125 * 3')."
+      required: true
+      examples: ["28 + 22", "125 * 3 + 42", "(55 + 33) * 2"]
+
+  impl:
+    kind: python
+    module_path: ./calc.py
+    class_name: CalcTool

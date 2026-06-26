@@ -1,0 +1,32 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: lab/v1
+kind: Dataset
+metadata:
+  name: memory-provenance-tutorial
+  display_name: Memory Provenance Tutorial Dataset
+  version: '1.0'
+  description: Multi-turn evaluation dataset used in the memory-provenance tutorial.
+  tags:
+  - memory
+  - tutorial
+spec:
+  items:
+  - id: memory-conversation
+    inputs:
+      user:
+      - role: user
+        content: My name is Alex and I work at Acme Corp on the MAS framework. I build multi-agent systems. Remember this
+          about me.
+      - role: user
+        content: I prefer Python over Java, and I always use uv instead of pip for package management. Please remember my
+          preferences.
+      - role: user
+        content: What is my name and where do I work?
+      - role: user
+        content: What programming language do I prefer, and what package manager do I use?
+      - role: user
+        content: Given what you know about me, suggest a good side project I could build. Explain why it fits my background.
+    tags:
+    - multi-turn
+    - memory-provenance

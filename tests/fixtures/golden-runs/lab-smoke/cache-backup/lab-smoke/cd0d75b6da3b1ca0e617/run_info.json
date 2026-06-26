@@ -1,0 +1,14 @@
+{
+  "run_hash": "cd0d75b6da3b1ca0e617",
+  "experiment": "verify-lab-smoke",
+  "scenario": "mock-tools",
+  "item_id": "1",
+  "run_idx": 0,
+  "referenced_at": "2026-06-25T12:37:18.431824Z",
+  "mas": {
+    "app": "qa-agent",
+    "mas_ref": "docs/tutorials/01-building-an-agent/agent.yaml",
+    "overlay": "mock-tools",
+    "overlay_ref": "docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml"
+  }
+}

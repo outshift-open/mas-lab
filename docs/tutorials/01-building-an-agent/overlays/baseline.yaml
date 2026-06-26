@@ -1,0 +1,17 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: baseline
+  description: "Control scenario — Q&A agent with ReAct reasoning, tools enabled"
+
+spec:
+  target:
+    kind: MAS
+  patch:
+    agents:
+      qa-agent:
+        tools:
+          - web-search
+          - calculator

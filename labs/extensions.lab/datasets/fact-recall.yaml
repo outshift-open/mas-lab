@@ -1,0 +1,514 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: lab/v1
+kind: Dataset
+metadata:
+  name: fact-recall
+  display_name: Fact Recall Benchmark — Provenance Evaluation
+  version: '1.0'
+  description: "Dataset for Lab 3b — Memory Retrieval Observability (MAS-Lab paper §5.3.2).\n100 named facts about traveler\
+    \ Alex are pre-seeded in memory (key: f001–f100). Each query specifies expected_facts: the set of fact keys the agent\
+    \ must retrieve via memory_search to answer correctly.\nFour groups test retrieval at different depths:\n  k0 — no fact\
+    \ needed (neutral, measures false-positive retrieval / noise)\n  k1 — exactly 1 fact needed (single-hop recall)\n  k2\
+    \ — exactly 2 facts needed (multi-hop retrieval)\n  k3 — 3 or more facts needed (composite reasoning)\n\nEvaluation is\
+    \ purely provenance-based: compare retrieved doc_ids from tool_call_end(memory_search) spans vs expected_facts. No LLM-as-judge\
+    \ required.\nExpected result:\n  baseline    — no memory_search calls, all k1/k2/k3 unanswered\n  vector-tool — memory_search\
+    \ called with correct doc_ids retrieved\n"
+  tags:
+  - extensions
+  - memory
+  - provenance
+  - fact-recall
+spec:
+  items:
+  - id: k0_q01
+    inputs:
+      user:
+      - role: user
+        content: 'What is the train fare from Celestia to Verdantia on a Monday morning?
+
+          '
+    expectations:
+      ground_truth: 'Fares depend on class and date; use the fare lookup tool.
+
+        '
+    group: k0
+  - id: k0_q02
+    inputs:
+      user:
+      - role: user
+        content: 'Is there a direct flight route between Verdantia and Maritima?
+
+          '
+    expectations:
+      ground_truth: 'Check available routes via the schedule tool.
+
+        '
+    group: k0
+  - id: k0_q03
+    inputs:
+      user:
+      - role: user
+        content: 'What is the fastest way to travel from Halcyon to Verdantia?
+
+          '
+    expectations:
+      ground_truth: 'The train is typically fastest; check schedules for current times.
+
+        '
+    group: k0
+  - id: k0_q04
+    inputs:
+      user:
+      - role: user
+        content: 'Are there any morning departures from Halcyon to Celestia?
+
+          '
+    expectations:
+      ground_truth: 'Morning departures are available; check the schedule tool for times.
+
+        '
+    group: k0
+  - id: k0_q05
+    inputs:
+      user:
+      - role: user
+        content: 'How many stops does the express train from Verdantia to Celestia make?
+
+          '
+    expectations:
+      ground_truth: 'The express service is direct; confirm via schedule lookup.
+
+        '
+    group: k0
+  - id: k1_q01
+    inputs:
+      user:
+      - role: user
+        content: 'What transport mode did I use on my last trip to London?
+
+          '
+    expectations:
+      ground_truth: 'Alex took the Eurostar train to London.
+
+        '
+    group: k1
+  - id: k1_q02
+    inputs:
+      user:
+      - role: user
+        content: 'When was my last visit to Paris?
+
+          '
+    expectations:
+      ground_truth: 'Alex visited Paris in September 2023.
+
+        '
+    group: k1
+  - id: k1_q03
+    inputs:
+      user:
+      - role: user
+        content: 'Which hotel did I stay at in Tokyo?
+
+          '
+    expectations:
+      ground_truth: 'Alex stayed at the Park Hyatt Tokyo in Shinjuku.
+
+        '
+    group: k1
+  - id: k1_q04
+    inputs:
+      user:
+      - role: user
+        content: 'What is my daily travel budget?
+
+          '
+    expectations:
+      ground_truth: 'Alex''s daily travel budget is $200.
+
+        '
+    group: k1
+  - id: k1_q05
+    inputs:
+      user:
+      - role: user
+        content: 'What type of activities do I prefer when travelling?
+
+          '
+    expectations:
+      ground_truth: 'Alex prefers cultural activities and art museums.
+
+        '
+    group: k1
+  - id: k1_q06
+    inputs:
+      user:
+      - role: user
+        content: 'What city do I live in?
+
+          '
+    expectations:
+      ground_truth: 'Alex lives in Celestia.
+
+        '
+    group: k1
+  - id: k1_q07
+    inputs:
+      user:
+      - role: user
+        content: 'What departure time do I usually prefer?
+
+          '
+    expectations:
+      ground_truth: 'Alex prefers morning departures before 9 am.
+
+        '
+    group: k1
+  - id: k1_q08
+    inputs:
+      user:
+      - role: user
+        content: 'What meal preference do I have when flying?
+
+          '
+    expectations:
+      ground_truth: 'Alex requests vegetarian meals on flights.
+
+        '
+    group: k1
+  - id: k1_q09
+    inputs:
+      user:
+      - role: user
+        content: 'Which airline loyalty program am I enrolled in?
+
+          '
+    expectations:
+      ground_truth: 'Alex is enrolled in the SkyWings frequent flyer program.
+
+        '
+    group: k1
+  - id: k1_q10
+    inputs:
+      user:
+      - role: user
+        content: 'What is my seat preference on trains?
+
+          '
+    expectations:
+      ground_truth: 'Alex prefers window seats on the quiet carriage.
+
+        '
+    group: k1
+  - id: k1_q11
+    inputs:
+      user:
+      - role: user
+        content: 'What language do I speak besides English?
+
+          '
+    expectations:
+      ground_truth: 'Alex also speaks French.
+
+        '
+    group: k1
+  - id: k1_q12
+    inputs:
+      user:
+      - role: user
+        content: 'Which attraction did I dislike in Verdantia?
+
+          '
+    expectations:
+      ground_truth: 'Alex found the Emerald Canyon Bridge too steep and would skip it next time.
+
+        '
+    group: k1
+  - id: k1_q13
+    inputs:
+      user:
+      - role: user
+        content: 'What did I enjoy most in Verdantia?
+
+          '
+    expectations:
+      ground_truth: 'Alex enjoyed the Living Library in Verdantia.
+
+        '
+    group: k1
+  - id: k1_q14
+    inputs:
+      user:
+      - role: user
+        content: 'What is my preferred accommodation type?
+
+          '
+    expectations:
+      ground_truth: 'Alex prefers boutique hotels with local character over large chains.
+
+        '
+    group: k1
+  - id: k1_q15
+    inputs:
+      user:
+      - role: user
+        content: 'Do I have any dietary restrictions?
+
+          '
+    expectations:
+      ground_truth: 'Alex is lactose intolerant.
+
+        '
+    group: k1
+  - id: k2_q01
+    inputs:
+      user:
+      - role: user
+        content: 'Given my budget and interests, which paid museum in Celestia should I prioritise on a half-day visit?
+
+          '
+    expectations:
+      ground_truth: 'With a $200/day budget and preference for art/culture, the Museum of Celestial Arts is the top priority.
+
+        '
+    group: k2
+  - id: k2_q02
+    inputs:
+      user:
+      - role: user
+        content: 'I want to book a morning train from my home city to Verdantia. What should I tell the booking agent?
+
+          '
+    expectations:
+      ground_truth: 'Book a train from Celestia to Verdantia departing before 9 am.
+
+        '
+    group: k2
+  - id: k2_q03
+    inputs:
+      user:
+      - role: user
+        content: 'I''m planning a repeat trip to the same European destinations I visited before. Which transport did I use
+          to London and when was I last in Paris?
+
+          '
+    expectations:
+      ground_truth: 'Alex took the Eurostar to London and visited Paris in September 2023.
+
+        '
+    group: k2
+  - id: k2_q04
+    inputs:
+      user:
+      - role: user
+        content: 'Based on my Tokyo stay and general accommodation preference, what type of hotel should I book for my next
+          trip to Kyoto?
+
+          '
+    expectations:
+      ground_truth: 'A boutique hotel with local character, similar to Park Hyatt Tokyo; avoid large international chains.
+
+        '
+    group: k2
+  - id: k2_q05
+    inputs:
+      user:
+      - role: user
+        content: 'What should the airline be told about my food preferences for the next long-haul flight?
+
+          '
+    expectations:
+      ground_truth: 'Alex requires a vegetarian meal and is lactose intolerant — request a vegan or dairy-free vegetarian
+        option.
+
+        '
+    group: k2
+  - id: k2_q06
+    inputs:
+      user:
+      - role: user
+        content: 'When I book my next flight and train combo, what loyalty number and seat preference should I specify?
+
+          '
+    expectations:
+      ground_truth: 'Add SkyWings frequent flyer number; request a window seat in the quiet carriage on the train.
+
+        '
+    group: k2
+  - id: k2_q07
+    inputs:
+      user:
+      - role: user
+        content: 'I''m considering a trip to Paris. Given my language skills and preferred departure time, what should I keep
+          in mind?
+
+          '
+    expectations:
+      ground_truth: 'Alex speaks French so communication is easy; book a morning departure before 9 am.
+
+        '
+    group: k2
+  - id: k2_q08
+    inputs:
+      user:
+      - role: user
+        content: 'I''m returning to Verdantia. Which attraction should I skip and which one was worth repeating?
+
+          '
+    expectations:
+      ground_truth: 'Skip the Emerald Canyon Bridge (too steep); revisit the Living Library.
+
+        '
+    group: k2
+  - id: k2_q09
+    inputs:
+      user:
+      - role: user
+        content: 'What was the highlight of my trip to Barcelona and how did I get there?
+
+          '
+    expectations:
+      ground_truth: 'Alex flew to Barcelona and the highlight was the Picasso Museum.
+
+        '
+    group: k2
+  - id: k2_q10
+    inputs:
+      user:
+      - role: user
+        content: 'What is my travel insurance provider and which credit card do I use for booking?
+
+          '
+    expectations:
+      ground_truth: 'Alex uses GlobalGuard travel insurance and pays with a Sapphire Visa.
+
+        '
+    group: k2
+  - id: k2_q11
+    inputs:
+      user:
+      - role: user
+        content: 'What was the name of the guide I hired in Kyoto and what tour did they run?
+
+          '
+    expectations:
+      ground_truth: 'Alex hired Kenji for a temple district walking tour in Kyoto.
+
+        '
+    group: k2
+  - id: k2_q12
+    inputs:
+      user:
+      - role: user
+        content: 'What was the outcome of my visa application for India, and what vaccination did I get for that trip?
+
+          '
+    expectations:
+      ground_truth: 'Alex''s India visa was approved in 2 weeks; Alex got a typhoid vaccination.
+
+        '
+    group: k2
+  - id: k3_q01
+    inputs:
+      user:
+      - role: user
+        content: 'Plan a 2-night itinerary for me in Verdantia that fits my budget, interests, and accommodation preferences.
+
+          '
+    expectations:
+      ground_truth: '$200/day × 2 = $400 total; focus on cultural sites and art museums; stay at a boutique hotel with local
+        character.
+
+        '
+    group: k3
+  - id: k3_q02
+    inputs:
+      user:
+      - role: user
+        content: 'Book me the best train option from my home city to Verdantia that matches all my usual travel preferences.
+
+          '
+    expectations:
+      ground_truth: 'Book a morning train from Celestia to Verdantia before 9 am, window seat in the quiet carriage.
+
+        '
+    group: k3
+  - id: k3_q03
+    inputs:
+      user:
+      - role: user
+        content: 'I''m revisiting my two favourite European cities. Summarise when I went, how I travelled, and any language
+          advantage I have.
+
+          '
+    expectations:
+      ground_truth: 'Eurostar to London (date not specified), Paris in September 2023; Alex speaks French which helps in Paris.
+
+        '
+    group: k3
+  - id: k3_q04
+    inputs:
+      user:
+      - role: user
+        content: 'For my next international trip, what should I communicate to my hotel and airline about my personal requirements?
+
+          '
+    expectations:
+      ground_truth: 'Hotel: boutique style with local character; airline: vegetarian meal, lactose-free options; note lactose
+        intolerance.
+
+        '
+    group: k3
+  - id: k3_q05
+    inputs:
+      user:
+      - role: user
+        content: 'Based on my past experience in Verdantia and my general travel interests, build a half-day plan that avoids
+          what I disliked.
+
+          '
+    expectations:
+      ground_truth: 'Skip Emerald Canyon Bridge; start with Living Library; add another cultural/arts venue (Alex prefers
+        cultural activities and art museums).
+
+        '
+    group: k3
+  - id: k3_q06
+    inputs:
+      user:
+      - role: user
+        content: 'When booking my next flight, what loyalty program, insurance, and payment method should I use?
+
+          '
+    expectations:
+      ground_truth: 'SkyWings loyalty number; GlobalGuard travel insurance; Sapphire Visa for booking.
+
+        '
+    group: k3
+  - id: k3_q07
+    inputs:
+      user:
+      - role: user
+        content: 'I''m planning a second trip to Barcelona. Which attraction did I like last time, how did I travel, and does
+          it match my general interests?
+
+          '
+    expectations:
+      ground_truth: 'Loved the Picasso Museum (flight to Barcelona); yes, art museums align with Alex''s cultural interests.
+
+        '
+    group: k3
+  - id: k3_q08
+    inputs:
+      user:
+      - role: user
+        content: 'I want to plan a day trip from my home city. What budget do I have, when should I leave, and where am I
+          departing from?
+
+          '
+    expectations:
+      ground_truth: '$200/day budget; depart from Celestia before 9 am.
+
+        '
+    group: k3

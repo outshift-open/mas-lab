@@ -1,0 +1,62 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+plot:
+  name: shapley_bars
+  type: bar_h
+  title: "Shapley values: marginal contribution per capability"
+  subtitle: "Mean Shapley value across incidents  (higher = more valuable capability)"
+  description: >
+    Horizontal bar chart of Shapley values. Each bar represents one
+    capability (e.g. Memory, Orchestration, Skills) and its mean marginal
+    contribution to the composite MCE score. Error bars show ±1 standard
+    deviation across incident items.
+
+  data:
+    key: shapley_values     # list[{capability, mean, std, n}]
+    x: mean                 # bar length
+    y: capability           # categorical axis
+    error: std              # whisker half-width
+
+  marks:
+    - type: bar
+      orientation: horizontal
+      width: 0.6
+    - type: errorbar
+      orientation: horizontal
+      capsize: 4
+    - type: vline
+      x: 0
+      color: "#888888"
+      linestyle: dashed
+      width: 1
+
+  scales:
+    x:
+      type: linear
+      domain: auto           # derived from data; symmetric around 0 if negative values
+      label: "Mean Shapley value (ΔMCE)"
+    y:
+      type: categorical
+      sort_by: mean          # sort bars by value descending
+      label: "Capability"
+
+  aesthetics:
+    color_by: mean           # diverging: positive green, negative red
+    palette:
+      positive: "#2ca02c"
+      negative: "#d62728"
+      neutral:  "#aec7e8"
+    positive_threshold: 0.0
+
+  layout:
+    width:  720
+    height: 400
+    margin: {left: 160, right: 60, top: 60, bottom: 60}
+    legend: false
+    annotations:
+      - type: value_label   # show numeric value at end of each bar
+        format: "+.3f"
+
+  output:
+    format: svg
+    dpi: 150

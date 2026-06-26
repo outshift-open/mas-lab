@@ -1,0 +1,675 @@
+<!--
+  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+  SPDX-License-Identifier: Apache-2.0
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>{title}</title>
+<script>
+(function() {
+  var t = localStorage.getItem('mg-theme') || '{initial_theme}';
+  var eff = t === 'auto'
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    : t;
+  document.documentElement.setAttribute('data-theme', eff);
+})();
+</script>
+<style>
+:root {
+  --ch-bg:#f3f4f6; --ch-header:#ffffff; --ch-border:#e5e7eb;
+  --ch-text:#111827; --ch-ctrl:#e5e7eb; --ch-ctrl-hover:#d1d5db;
+  --ch-shadow:rgba(0,0,0,.12);
+  --pv-bg:#ffffff; --pv-border:#e5e7eb; --pv-txt:#111827;
+  --pv-dim:#6b7280; --pv-code:#f9fafb; --pv-blue:#3b82f6;
+}
+html[data-theme="dark"] {
+  --ch-bg:#1e1e2e; --ch-header:#181825; --ch-border:#313244;
+  --ch-text:#cdd6f4; --ch-ctrl:#313244; --ch-ctrl-hover:#45475a;
+  --ch-shadow:rgba(0,0,0,.4);
+  --mg-bg:#181825; --mg-band:#1e1e2e; --mg-band-alt:#24273a;
+  --mg-band-lbl:#6c7086; --mg-lane:#313244; --mg-lane-lbl:#cdd6f4;
+  --mg-edge:#585b70; --mg-arrow:#585b70;
+  --mg-tool-sq:#45475a; --mg-tool-tick:#45475a;
+  --mg-title:#cdd6f4; --mg-legend-sep:#313244; --mg-legend-lbl:#a6adc8;
+  --pv-bg:#1e1e2e; --pv-border:#313244; --pv-txt:#cdd6f4;
+  --pv-dim:#64748b; --pv-code:#181825; --pv-blue:#60a5fa;
+}
+*,*::before,*::after{box-sizing:border-box;}
+body{background:var(--ch-bg);color:var(--ch-text);font-family:system-ui,sans-serif;margin:0;transition:background .2s,color .2s;}
+header{padding:8px 12px;background:var(--ch-header);border-bottom:1px solid var(--ch-border);display:flex;align-items:center;gap:8px;}
+header h1{font-size:14px;margin:0;flex:1;color:var(--ch-text);}
+.ctrl{background:var(--ch-ctrl);border:1px solid var(--ch-border);color:var(--ch-text);padding:4px 10px;border-radius:4px;cursor:pointer;font-size:13px;transition:background .15s;}
+.ctrl:hover{background:var(--ch-ctrl-hover);}
+.ctrl.active{background:#3b82f6;color:#fff;border-color:#2563eb;}
+
+/* layout */
+#layout{display:flex;height:calc(100vh - 41px);overflow:hidden;}
+#container{flex:1;overflow:auto;padding:16px;min-width:0;}
+#container svg{border-radius:6px;box-shadow:0 2px 12px var(--ch-shadow);}
+
+/* provenance panel */
+#pv{width:0;flex-shrink:0;overflow:hidden;background:var(--pv-bg);
+    border-left:1px solid var(--pv-border);display:flex;flex-direction:column;
+    transition:width .2s ease;}
+#pv.open{width:360px;overflow-y:auto;}
+
+#pv-hd{padding:8px 10px 6px;border-bottom:1px solid var(--pv-border);
+        display:flex;align-items:center;gap:6px;flex-shrink:0;}
+#pv-title{font-size:12px;font-weight:700;color:var(--pv-txt);flex:1;
+           white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#pv-close{cursor:pointer;color:var(--pv-dim);font-size:16px;line-height:1;
+           padding:2px 4px;border-radius:3px;}
+#pv-close:hover{color:var(--pv-txt);background:var(--ch-ctrl);}
+
+/* mode toggle */
+#pv-mode-bar{padding:6px 10px;border-bottom:1px solid var(--pv-border);
+              display:flex;gap:4px;flex-shrink:0;}
+.mode-btn{flex:1;text-align:center;padding:3px 0;border-radius:4px;
+           font-size:10px;cursor:pointer;border:1px solid var(--pv-border);
+           color:var(--pv-dim);background:transparent;transition:all .15s;}
+.mode-btn.active{background:var(--pv-blue);color:#fff;border-color:var(--pv-blue);}
+
+/* moodbar */
+#pv-mb-wrap{padding:10px 10px 2px;flex-shrink:0;}
+.mb-title{font-size:10px;color:var(--pv-dim);margin-bottom:4px;}
+.moodbar{display:flex;height:18px;border-radius:4px;overflow:hidden;gap:1px;background:var(--pv-border);}
+.mood-seg{flex:1;cursor:pointer;position:relative;transition:filter .15s;min-width:6px;}
+.mood-seg:hover{filter:brightness(1.35);}
+.mood-seg.active{filter:brightness(1.5);outline:2px solid #7dd3fc;outline-offset:-1px;z-index:2;}
+.mood-seg.leaf{cursor:default;}.mood-seg.leaf:hover{filter:none;}
+.mb-tip{display:none;position:absolute;bottom:calc(100%+5px);left:50%;transform:translateX(-50%);
+         background:#0f172a;color:#e2e8f0;font-size:10px;padding:3px 7px;border-radius:4px;
+         white-space:nowrap;pointer-events:none;z-index:100;border:1px solid #334155;}
+.mood-seg:hover .mb-tip{display:block;}
+
+/* breadcrumbs */
+#pv-bc{padding:6px 10px;border-bottom:1px solid var(--pv-border);
+        display:flex;flex-wrap:wrap;gap:3px;align-items:center;min-height:0;flex-shrink:0;}
+#pv-bc:empty{display:none;}
+.bc-crumb{font-size:10px;padding:2px 8px;border-radius:10px;cursor:pointer;
+           white-space:nowrap;color:#fff;transition:opacity .15s;}
+.bc-crumb:not(.cur){opacity:.5;}.bc-crumb:not(.cur):hover{opacity:.8;}
+.bc-sep{color:var(--pv-dim);font-size:10px;}
+
+/* drill view facet list */
+#pv-body{flex:1;overflow-y:auto;padding:4px 0 12px;}
+.facet{border-left:3px solid transparent;margin:3px 10px;border-radius:0 4px 4px 0;}
+.facet-hd{display:flex;align-items:center;gap:5px;padding:5px 8px;cursor:pointer;
+           background:var(--pv-code);border-radius:0 4px 0 0;list-style:none;user-select:none;}
+.facet-hd::marker,.facet-hd::-webkit-details-marker{display:none;}
+.facet-hd:hover{filter:brightness(.95);}
+html[data-theme="dark"] .facet-hd:hover{filter:brightness(1.1);}
+.f-badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;
+          color:#fff;flex-shrink:0;text-transform:uppercase;letter-spacing:.04em;}
+.f-mech{font-size:10px;color:var(--pv-dim);flex-shrink:0;}
+.f-lbl{font-size:11px;color:var(--pv-txt);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.f-badge-tc{font-size:9px;background:#334155;color:#94a3b8;padding:1px 5px;border-radius:3px;flex-shrink:0;}
+.f-drill{font-size:10px;color:var(--pv-blue);flex-shrink:0;cursor:pointer;}
+.facet-bd{padding:5px 8px 8px;font-size:10px;color:var(--pv-dim);line-height:1.55;
+           background:var(--pv-code);border-radius:0 0 4px 0;border-top:1px solid var(--pv-border);}
+.f-pre{white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,'Cascadia Code',monospace;
+        font-size:9.5px;line-height:1.5;color:var(--pv-txt);opacity:.85;max-height:120px;overflow-y:auto;}
+.f-hint{margin-top:4px;font-size:9px;color:var(--pv-blue);cursor:pointer;}
+.f-hint:hover{text-decoration:underline;}
+
+/* ── CHAIN VIEW ── */
+#pv-chain{padding:8px 6px 16px;}
+.chain-intro{font-size:10px;color:var(--pv-dim);padding:0 4px 8px;}
+.chain-step{position:relative;}
+/* vertical connector between steps */
+.chain-connector{display:flex;align-items:center;gap:6px;padding:2px 0 2px 14px;
+                  font-size:9px;color:var(--pv-dim);}
+.chain-connector::before{content:'';display:block;width:1px;min-height:14px;
+                           background:var(--pv-border);}
+.chain-node{display:flex;align-items:flex-start;gap:8px;padding:6px 8px 6px 10px;
+             margin:0 2px;border-radius:5px;border-left:3px solid transparent;}
+.chain-node.terminal{background:color-mix(in srgb,var(--pv-code) 70%,transparent);}
+.cn-icon{font-size:13px;flex-shrink:0;line-height:1.4;}
+.cn-body{flex:1;min-width:0;}
+.cn-head{display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
+.cn-badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;color:#fff;text-transform:uppercase;}
+.cn-mech{font-size:10px;color:var(--pv-dim);}
+.cn-label{font-size:11px;color:var(--pv-txt);font-weight:600;}
+.cn-tc{font-size:9px;background:#1e3a5f;color:#7dd3fc;padding:1px 5px;border-radius:3px;}
+.cn-terminal-badge{font-size:9px;padding:1px 5px;border-radius:3px;}
+.cn-pre{margin-top:4px;white-space:pre-wrap;word-break:break-word;
+         font-family:ui-monospace,'Cascadia Code',monospace;
+         font-size:9px;line-height:1.45;color:var(--pv-dim);max-height:80px;overflow-y:auto;}
+.chain-branch{margin-left:28px;border-left:2px dashed var(--pv-border);
+               padding-left:10px;margin-top:3px;margin-bottom:2px;}
+.chain-branch-lbl{font-size:9px;color:var(--pv-dim);padding:3px 0 4px;font-style:italic;}
+.chain-limit-note{font-size:9px;color:var(--pv-dim);font-style:italic;
+                   padding:4px 10px;margin-left:28px;}
+
+/* text/hover mode */
+.hover-pre{padding:8px 10px;font-family:ui-monospace,'Cascadia Code',monospace;
+            font-size:10px;line-height:1.6;white-space:pre;overflow-x:auto;color:var(--pv-txt);}
+
+/* interaction mode toggle */
+.imode-grp{display:flex;gap:0;border:1px solid var(--ch-border);border-radius:5px;overflow:hidden;}
+.imode-btn{padding:4px 9px;background:var(--ch-ctrl);color:var(--ch-text);border:none;
+            font-size:11px;cursor:pointer;transition:background .15s;}
+.imode-btn:hover{background:var(--ch-ctrl-hover);}
+.imode-btn.active{background:#3b82f6;color:#fff;}
+
+/* hover popover */
+#pv-pop{position:fixed;display:none;z-index:9998;background:var(--pv-bg);color:var(--pv-txt);
+         border:1px solid var(--pv-border);border-radius:7px;box-shadow:0 4px 20px var(--ch-shadow);
+         width:340px;max-height:430px;overflow-y:auto;pointer-events:auto;}
+#pv-pop-hd{padding:7px 10px 5px;border-bottom:1px solid var(--pv-border);font-size:12px;font-weight:700;
+            display:flex;align-items:center;gap:6px;flex-shrink:0;}
+#pv-pop-bd{padding:6px 0 10px;}
+.pv-pop-close{margin-left:auto;cursor:pointer;color:var(--pv-dim);font-size:15px;line-height:1;
+               padding:1px 4px;border-radius:3px;}
+.pv-pop-close:hover{color:var(--pv-txt);background:var(--ch-ctrl);}
+
+/* legacy tooltip */
+#mg-tip{position:fixed;display:none;pointer-events:none;z-index:9999;
+         background:var(--ch-header);color:var(--ch-text);border:1px solid var(--ch-border);
+         border-radius:6px;box-shadow:0 4px 16px var(--ch-shadow);max-width:440px;max-height:380px;overflow-y:auto;}
+#mg-tip-hd{font-weight:700;font-size:12px;padding:6px 10px 5px;border-bottom:1px solid var(--ch-border);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#mg-tip-bd{padding:6px 10px;white-space:pre-wrap;font-family:ui-monospace,'Cascadia Code',monospace;
+            font-size:11px;opacity:.9;line-height:1.5;}
+[data-tip-label]{cursor:pointer;}
+</style>
+</head>
+<body>
+<header>
+  <h1>{title}</h1>
+  <button class="ctrl" id="theme-toggle" onclick="cycleTheme()">&#9881; Auto</button>
+  <button class="ctrl" onclick="zoom(1.25)">+</button>
+  <button class="ctrl" onclick="zoom(0.8)">&minus;</button>
+  <button class="ctrl" onclick="resetZoom()">Reset</button>
+  <div class="imode-grp">
+    <button class="imode-btn active" id="imode-panel" onclick="setInteractionMode('panel')" title="Click node to open side panel">&#128204; Panel</button>
+    <button class="imode-btn" id="imode-hover" onclick="setInteractionMode('hover')" title="Hover node to show floating popover">&#9889; Hover</button>
+  </div>
+  <button class="ctrl" id="pv-toggle-btn" onclick="togglePanel()">Provenance &#9658;</button>
+  <button class="ctrl" onclick="downloadSvg()">&#8595; SVG</button>
+</header>
+<div id="layout">
+  <div id="container">{svg}</div>
+  <div id="pv">
+    <div id="pv-hd">
+      <div id="pv-title">&#8212;</div>
+      <div id="pv-close" onclick="closePanel()" title="Close">&#215;</div>
+    </div>
+    <div id="pv-mode-bar">
+      <button class="mode-btn active" id="btn-chain" onclick="setMode('chain')">Full Chain</button>
+      <button class="mode-btn" id="btn-drill" onclick="setMode('drill')">Drill</button>
+      <button class="mode-btn" id="btn-hover" onclick="setMode('hover')">Text</button>
+    </div>
+    <div id="pv-mb-wrap"></div>
+    <div id="pv-bc"></div>
+    <div id="pv-body">
+      <div id="pv-chain"></div>
+      <div id="pv-facets"></div>
+    </div>
+  </div>
+</div>
+<div id="mg-tip"><div id="mg-tip-hd"></div><div id="mg-tip-bd"></div></div>
+<div id="pv-pop">
+  <div id="pv-pop-hd"><span id="pv-pop-title">&#8212;</span><span class="pv-pop-close" onclick="hidePop()">&#215;</span></div>
+  <div id="pv-pop-bd"></div>
+</div>
+<script>
+// ── Theme ─────────────────────────────────────────────────────────────────
+const THEMES=['auto','light','dark'];
+const ICONS={auto:'\u2699 Auto',light:'\u2600 Light',dark:'\u263e Dark'};
+const TKEY='mg-theme';
+let scale=1;
+const svgEl=document.querySelector('#container svg');
+function getStored(){return localStorage.getItem(TKEY)||'{initial_theme}';}
+function applyTheme(t){
+  const eff=t==='auto'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t;
+  document.documentElement.setAttribute('data-theme',eff);
+  document.getElementById('theme-toggle').textContent=ICONS[t]||t;
+}
+function cycleTheme(){
+  const next=THEMES[(THEMES.indexOf(getStored())+1)%THEMES.length];
+  localStorage.setItem(TKEY,next); applyTheme(next);
+}
+applyTheme(getStored());
+
+// ── Zoom + download ───────────────────────────────────────────────────────
+function zoom(f){scale=Math.min(Math.max(scale*f,.25),8);svgEl.style.transform='scale('+scale+')';svgEl.style.transformOrigin='0 0';}
+function resetZoom(){scale=1;svgEl.style.transform='';}
+function downloadSvg(){
+  const s=new XMLSerializer().serializeToString(svgEl);
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([s],{type:'image/svg+xml'}));
+  a.download='{title}.svg'; a.click();
+}
+
+// ── Legacy tooltip ────────────────────────────────────────────────────────
+const tip=document.getElementById('mg-tip');
+const tipHd=document.getElementById('mg-tip-hd');
+const tipBd=document.getElementById('mg-tip-bd');
+document.addEventListener('mousemove',function(e){
+  if(tip.style.display==='block'){
+    const tw=tip.offsetWidth,th=tip.offsetHeight;
+    let lx=e.clientX+14,ly=e.clientY+14;
+    if(lx+tw>window.innerWidth)lx=e.clientX-tw-6;
+    if(ly+th>window.innerHeight)ly=e.clientY-th-6;
+    tip.style.left=lx+'px'; tip.style.top=ly+'px';
+  }
+});
+document.addEventListener('click',function(e){
+  const prov=e.target.closest('g.turn-node[data-prov]');
+  if(prov){
+    e.stopPropagation();tip.style.display='none';
+    if(interactionMode==='hover'){openPopFor(prov,e.clientX,e.clientY);}
+    else{openProvFor(prov);}
+    return;
+  }
+  const el=e.target.closest('[data-tip-label]');
+  if(el){
+    tipHd.textContent=el.dataset.tipLabel||'';
+    tipBd.textContent=el.dataset.tipBody||'';
+    tip.style.display='block';
+    tip.style.left=(e.clientX+14)+'px'; tip.style.top=(e.clientY+14)+'px';
+  } else if(!tip.contains(e.target)&&!document.getElementById('pv-pop').contains(e.target)){
+    tip.style.display='none';
+  }
+});
+document.addEventListener('mouseover',function(e){
+  if(interactionMode!=='hover')return;
+  const prov=e.target.closest('g.turn-node[data-prov]');
+  if(prov&&prov!==pvPop._lastEl){pvPop._lastEl=prov;openPopFor(prov,null,null,true);}
+});
+document.addEventListener('click',function(e){
+  if(pvPop.style.display==='block'&&!pvPop.contains(e.target))hidePop();
+},true);
+
+// ── Hover popover ───────────────────────────────────────────────────────
+const pvPop=document.getElementById('pv-pop');
+pvPop._lastEl=null;
+const pvPopTitle=document.getElementById('pv-pop-title');
+const pvPopBd=document.getElementById('pv-pop-bd');
+function openPopFor(nodeEl,cx,cy,fromHover){
+  const provJson=nodeEl.dataset.prov;
+  if(!provJson)return;
+  var nodes;
+  try{nodes=JSON.parse(provJson);}catch(e){return;}
+  const agent=nodeEl.dataset.agent||'?';
+  const turn=nodeEl.dataset.turn||'?';
+  const color=nodeEl.dataset.color||'#888';
+  pvPopTitle.innerHTML='<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'
+    +color+';margin-right:5px"></span>'+escH(agent)+' \u2014 Turn '+turn;
+  pvPopBd.innerHTML='<div style="padding:0 6px">'+buildChainNodes(nodes,0)+'</div>';
+  pvPop.style.display='block';
+  if(fromHover){
+    const r=nodeEl.getBoundingClientRect();
+    let px=r.right+10,py=r.top;
+    if(px+340>window.innerWidth)px=Math.max(4,r.left-348);
+    if(py+430>window.innerHeight)py=Math.max(4,window.innerHeight-440);
+    pvPop.style.left=px+'px'; pvPop.style.top=py+'px';
+  } else {
+    let px=(cx||0)+14,py=(cy||0)+14;
+    if(px+340>window.innerWidth)px=Math.max(4,(cx||0)-348);
+    if(py+430>window.innerHeight)py=Math.max(4,(cy||0)-440);
+    pvPop.style.left=px+'px'; pvPop.style.top=py+'px';
+  }
+}
+function hidePop(){pvPop.style.display='none';pvPop._lastEl=null;}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function escH(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+// ── Provenance taxonomy ───────────────────────────────────────────────────
+//  system      Static system prompt (instructions, persona)            blue
+//  user_input  User task/query injected into context                   amber-yellow
+//  delegation  Sub-agent response received via tool call (own prov tree) agent color
+//  tool_result Direct tool/API result (non-agent)                      orange
+//  memory      Memory recall                                           purple
+//  skill       Skill plugin result                                     green
+//  hitl        LLM-requested human input mid-task                      amber-orange
+const MECH_ICON={
+  delegation:'\ud83e\udd16', // 🤖 sub-agent response
+  tool_result:'\ud83d\udd27',// 🔧 direct tool result
+  system:'\ud83d\udca1',     // 💡 system prompt
+  user_input:'\ud83d\udccb', // 📋 user task/query
+  memory:'\ud83e\udde0',     // 🧠 memory recall
+  skill:'\u2699',            // ⚙  skill
+  hitl:'\ud83d\ude4b',       // 🙋 LLM-requested human input
+};
+const MECH_LBL={
+  delegation:'sub-agent response (via tool call)',
+  tool_result:'direct tool result',
+  system:'system prompt (static instructions)',
+  user_input:'user task / query',
+  memory:'memory recall',
+  skill:'skill result',
+  hitl:'human-in-the-loop input',
+};
+// Source-type badge label (CPR palette)
+const SRC_BADGE={
+  delegation:'DELEGATION', tool_result:'TOOL', system:'SYSTEM',
+  user_input:'USER', memory:'MEMORY', skill:'SKILL', hitl:'HITL',
+};
+const SRC_COLOR={
+  delegation:null,         // uses agent colour
+  tool_result:'#f97316',   // orange
+  system:'#3b82f6',        // blue
+  user_input:'#eab308',    // amber-yellow (user node colour)
+  memory:'#a855f7',        // purple
+  skill:'#22c55e',         // green
+  hitl:'#f59e0b',          // amber-orange (distinct from user_input)
+};
+// Delegation keeps agent color; all terminal sources use CPR palette
+function mechColor(mech, agentColor){
+  return mech==='delegation' ? agentColor : (SRC_COLOR[mech]||'#64748b');
+}
+
+// ── Panel state ───────────────────────────────────────────────────────────
+var provStack=[];
+var currentMode='chain';
+var currentRootNodes=[];
+var currentNodeLabel='';
+// Interaction mode: 'panel' (click opens side panel) | 'hover' (mouseover shows popover)
+var interactionMode='panel';
+function setInteractionMode(m){
+  interactionMode=m;
+  document.getElementById('imode-panel').classList.toggle('active',m==='panel');
+  document.getElementById('imode-hover').classList.toggle('active',m==='hover');
+  localStorage.setItem('mg-imode',m);
+}
+(function(){var s=localStorage.getItem('mg-imode');if(s)setInteractionMode(s);})();
+
+function togglePanel(){
+  const pv=document.getElementById('pv');
+  const btn=document.getElementById('pv-toggle-btn');
+  if(pv.classList.contains('open')){
+    pv.classList.remove('open'); btn.classList.remove('active');
+    btn.textContent='Provenance \u25b8';
+  } else {
+    pv.classList.add('open'); btn.classList.add('active');
+    btn.textContent='Provenance \u00d7';
+  }
+}
+function closePanel(){
+  document.getElementById('pv').classList.remove('open');
+  document.getElementById('pv-toggle-btn').classList.remove('active');
+  document.getElementById('pv-toggle-btn').textContent='Provenance \u25b8';
+  provStack=[]; currentRootNodes=[];
+}
+function setMode(m){
+  currentMode=m;
+  ['chain','drill','hover'].forEach(function(k){
+    document.getElementById('btn-'+k).classList.toggle('active',k===m);
+  });
+  renderCurrentMode();
+}
+
+// ── Moodbar ───────────────────────────────────────────────────────────────
+function renderMoodbar(nodes,activeIdx){
+  const wrap=document.getElementById('pv-mb-wrap');
+  if(!nodes||!nodes.length){wrap.innerHTML='';return;}
+  const drillCount=nodes.filter(function(n){return n.mechanism==='delegation'&&(n.children||[]).length;}).length;
+  let html='<div class="mb-title">Context sources \u00b7 '+nodes.length+' contributor'+(nodes.length>1?'s':'')
+    +(currentMode==='drill'&&drillCount?' \u00b7 click \ud83e\udd16 to trace':'')+'</div>';
+  html+='<div class="moodbar">';
+  nodes.forEach(function(n,i){
+    const mech=n.mechanism||'system';
+    const drillable=mech==='delegation'&&(n.children||[]).length&&currentMode==='drill';
+    const srcType=SRC_BADGE[mech]||mech.toUpperCase();
+    let lbl=srcType;
+    if(mech==='delegation'){lbl+=' \u00b7 '+n.agentId;if(n.transitionCount)lbl+=' \u00b7 '+n.transitionCount+' calls';}
+    else if(mech==='user_input'){lbl+=' \u00b7 user task';}
+    else if(mech==='system'){lbl+=' \u00b7 system prompt';}
+    else{lbl+=' \u00b7 '+n.label;}
+    const segColor=mechColor(mech,n.color);
+    const cls=['mood-seg',drillable?'':'leaf',i===activeIdx?'active':''].join(' ').trim();
+    const click=drillable?'drillDown('+i+')':'';
+    html+='<div class="'+cls+'" style="background:'+segColor+'" '+(click?'onclick="'+click+'"':'')+'>'; \
+    html+='<div class="mb-tip">'+escH(lbl)+'</div></div>';
+  });
+  html+='</div>';
+  wrap.innerHTML=html;
+}
+
+// ── Breadcrumbs (drill mode) ──────────────────────────────────────────────
+function renderBreadcrumbs(){
+  const el=document.getElementById('pv-bc');
+  if(currentMode!=='drill'||provStack.length<=1){el.innerHTML='';return;}
+  let html='';
+  provStack.forEach(function(lv,i){
+    if(i>0)html+='<span class="bc-sep">\u203a</span>';
+    const cur=i===provStack.length-1;
+    html+='<span class="bc-crumb'+(cur?' cur':'')+'" style="background:'+lv.color+'" onclick="drillUpTo('+i+')">'+escH(lv.label)+'</span>';
+  });
+  el.innerHTML=html;
+}
+
+// ── Drill facet list ──────────────────────────────────────────────────────
+function renderFacets(nodes){
+  const el=document.getElementById('pv-facets');
+  if(!nodes||!nodes.length){el.innerHTML='';return;}
+  let html='';
+  nodes.forEach(function(n,i){
+    const mech=n.mechanism||'system';
+    const drillable=mech==='delegation'&&(n.children||[]).length;
+    const tc=n.transitionCount;
+    html+='<details class="facet" style="border-left-color:'+n.color+'">';
+    html+='<summary class="facet-hd">';
+    const srcType=SRC_BADGE[mech]||mech.toUpperCase();
+    const badgeCol=mechColor(mech,n.color);
+    html+='<span class="f-badge" style="background:'+badgeCol+'">'+escH(srcType)+'</span>';
+    if(mech==='delegation'){
+      // Primary: sub-agent name (it IS the source, has own provenance)
+      html+='<span class="f-lbl" style="color:'+n.color+';font-weight:600">'+escH(n.agentId)+'</span>';
+      if(n.label&&n.label!==n.agentId)html+='<span class="f-mech">'+escH(n.label)+'</span>';
+    } else if(mech==='user_input'||mech==='system'){
+      html+='<span class="f-lbl">'+escH(n.label)+'</span>';
+    } else {
+      html+='<span class="f-lbl">'+escH(n.label)+'</span>';
+      html+='<span class="f-mech" style="font-size:9px">orig: <span style="color:'+n.color+'">'+escH(n.agentId)+'</span></span>';
+    }
+    if(tc)html+='<span class="f-badge-tc">'+tc+' calls</span>';
+    if(drillable)html+='<span class="f-drill" onclick="event.preventDefault();drillDown('+i+')">trace \u2935</span>';
+    html+='</summary><div class="facet-bd">';
+    const preview=(n.outputPreview||'').substring(0,400);
+    if(preview)html+='<div class="f-pre">'+escH(preview)+'</div>';
+    else if(mech==='system')html+='<div style="opacity:.6">Static system instructions</div>';
+    else if(mech==='user_input')html+='<div style="opacity:.6">User task injected as context</div>';
+    if(drillable)html+='<div class="f-hint" onclick="drillDown('+i+')">\u2935 Trace back to original source ('+(n.children||[]).length+' inputs)</div>';
+    html+='</div></details>';
+  });
+  el.innerHTML=html;
+}
+
+// ── Drill navigation ──────────────────────────────────────────────────────
+function drillDown(idx){
+  const cur=provStack[provStack.length-1];
+  const node=cur.nodes[idx];
+  if(!node||node.mechanism!=='delegation'||!(node.children||[]).length)return;
+  provStack.push({label:node.agentId,nodes:node.children,color:node.color});
+  renderDrillLevel();
+}
+function drillUpTo(levelIdx){
+  if(levelIdx>=provStack.length-1)return;
+  provStack=provStack.slice(0,levelIdx+1);
+  renderDrillLevel();
+}
+function renderDrillLevel(){
+  renderBreadcrumbs();
+  const lv=provStack[provStack.length-1];
+  renderMoodbar(lv.nodes,-1);
+  renderFacets(lv.nodes);
+}
+
+// ── Chain view — full provenance tree ────────────────────────────────────
+// Shows the complete provenance tree in one view.
+// Delegation nodes show "survived N LLM calls" and expand into their own subtrees.
+// Tool/self nodes are terminal leaves marked as original sources.
+
+function renderChain(nodes,receiverLabel){
+  const el=document.getElementById('pv-chain');
+  if(!nodes||!nodes.length){
+    el.innerHTML='<div style="padding:12px;font-size:11px;opacity:.5">No provenance data.</div>';
+    return;
+  }
+  let html='<div class="chain-intro">Full context provenance \u2014 from receiver back to original sources</div>';
+  html+=buildChainNodes(nodes,0);
+  el.innerHTML=html;
+}
+
+function buildChainNodes(nodes,depth){
+  // delegation first, then user_input, then tool_result, then system/others
+  const delegs=nodes.filter(function(n){return n.mechanism==='delegation';});
+  const user_in=nodes.filter(function(n){return n.mechanism==='user_input';});
+  const tools=nodes.filter(function(n){return n.mechanism==='tool_result';});
+  const others=nodes.filter(function(n){return n.mechanism!=='delegation'&&n.mechanism!=='user_input'&&n.mechanism!=='tool_result';});
+  let html='';
+  delegs.concat(user_in).concat(tools).concat(others).forEach(function(n){
+    html+=buildChainNode(n,depth);
+  });
+  return html;
+}
+
+function buildChainNode(n,depth){
+  const mech=n.mechanism||'system';
+  const tc=n.transitionCount;
+  const children=n.children||[];
+  const isTerminal=mech!=='delegation'||!children.length;
+  const preview=(n.outputPreview||'').substring(0,200);
+  const indent=depth*20;
+
+  let html='<div class="chain-step">';
+
+  // Edge label between parent and this node
+  if(depth>0){
+    let edgeLbl='';
+    if(mech==='delegation')edgeLbl='\u2191 sub-agent response (tool call) \u2192 injected as context';
+    else if(mech==='tool_result')edgeLbl='\u2191 tool result \u2192 injected in context';
+    else if(mech==='user_input')edgeLbl='\u2191 user task \u2192 injected as context';
+    else edgeLbl='\u2191 system prompt';
+    html+='<div class="chain-connector" style="padding-left:'+(indent+4)+'px"><span>'+escH(edgeLbl)+'</span></div>';
+  }
+
+  // Node card
+  const nodeColor=n.color||'#888';
+  const mechIcon=MECH_ICON[mech]||'\u2753';
+  const borderCol=mechColor(mech,nodeColor);
+  html+='<div class="chain-node'+(isTerminal?' terminal':'')+'" style="border-left-color:'+borderCol+';padding-left:'+(indent+8)+'px">';
+  html+='<div class="cn-icon">'+mechIcon+'</div>';
+  html+='<div class="cn-body">';
+  html+='<div class="cn-head">';
+  const srcType=SRC_BADGE[mech]||mech.toUpperCase();
+  const badgeCol=mechColor(mech,nodeColor);
+  html+='<span class="cn-badge" style="background:'+badgeCol+'">'+escH(srcType)+'</span>';
+
+  if(mech==='delegation'){
+    // Primary: sub-agent name (has its own provenance tree)
+    html+='<span class="cn-mech" style="color:'+nodeColor+';font-weight:600">'+escH(n.agentId)+'</span>';
+    if(tc)html+='<span class="cn-tc">survived '+tc+' LLM call'+(tc>1?'s':'')+'</span>';
+    if(isTerminal&&!children.length&&tc!==undefined)html+='<span class="cn-terminal-badge" style="background:#1e293b;color:#94a3b8">depth limit</span>';
+  } else if(mech==='user_input'){
+    html+='<span class="cn-label">user task</span>';
+    html+='<span class="cn-terminal-badge" style="background:#422006;color:#eab308">\u25cf original source</span>';
+  } else if(mech==='tool_result'){
+    html+='<span class="cn-label">'+escH(n.label)+'</span>';
+    html+='<span class="cn-mech" style="font-size:9px">orig: <span style="color:'+nodeColor+'">'+escH(n.agentId)+'</span></span>';
+    html+='<span class="cn-terminal-badge" style="background:#052e16;color:#22c55e">\u25cf original source</span>';
+  } else if(mech==='memory'){
+    if(n.label&&n.label!==n.agentId)html+='<span class="cn-label">'+escH(n.label)+'</span>';
+    html+='<span class="cn-mech" style="font-size:9px">orig: <span style="color:'+nodeColor+'">'+escH(n.agentId)+'</span></span>';
+    html+='<span class="cn-terminal-badge" style="background:#2e1065;color:#a855f7">\u25cf original source</span>';
+  } else if(mech==='skill'){
+    if(n.label&&n.label!==n.agentId)html+='<span class="cn-label">'+escH(n.label)+'</span>';
+    html+='<span class="cn-mech" style="font-size:9px">orig: <span style="color:'+nodeColor+'">'+escH(n.agentId)+'</span></span>';
+    html+='<span class="cn-terminal-badge" style="background:#052e16;color:#22c55e">\u25cf original source</span>';
+  } else if(mech==='hitl'){
+    html+='<span class="cn-label">human input</span>';
+    html+='<span class="cn-terminal-badge" style="background:#422006;color:#f59e0b">\u25cf original source</span>';
+  } else {
+    // system
+    html+='<span class="cn-terminal-badge" style="background:#1e2942;color:#3b82f6">\u25cf system prompt</span>';
+  }
+  html+='</div>'; // cn-head
+
+  if(preview&&mech!=='system'){
+    html+='<div class="cn-pre">'+escH(preview)+'</div>';
+  }
+  html+='</div></div>'; // cn-body, chain-node
+
+  // Recurse into children (delegation sub-tree)
+  if(children.length){
+    html+='<div class="chain-branch">';
+    html+='<div class="chain-branch-lbl">'+escH(n.agentId)+' received context from:</div>';
+    html+=buildChainNodes(children,depth+1);
+    html+='</div>';
+  }
+
+  html+='</div>'; // chain-step
+  return html;
+}
+
+// ── Text mode ─────────────────────────────────────────────────────────────
+function renderHoverText(nodes){
+  const lines=[];
+  function walk(ns,ind){
+    ns.forEach(function(n){
+      const tc=n.transitionCount?' ['+n.transitionCount+' calls]':'';
+      const icon=MECH_ICON[n.mechanism]||'\u2753';
+      lines.push(' '.repeat(ind*2)+icon+' '+n.label+' ['+n.mechanism+']'+tc);
+      if((n.outputPreview||'').trim()){
+        lines.push(' '.repeat(ind*2+2)+'\u2192 '+n.outputPreview.substring(0,120).replace(/\n/g,' '));
+      }
+      if((n.children||[]).length)walk(n.children,ind+1);
+    });
+  }
+  walk(nodes,0);
+  document.getElementById('pv-facets').innerHTML='<div class="hover-pre">'+escH(lines.join('\n'))+'</div>';
+}
+
+// ── Main render dispatch ──────────────────────────────────────────────────
+function renderCurrentMode(){
+  document.getElementById('pv-chain').innerHTML='';
+  document.getElementById('pv-facets').innerHTML='';
+  document.getElementById('pv-bc').innerHTML='';
+  const nodes=currentRootNodes;
+  if(!nodes||!nodes.length)return;
+
+  if(currentMode==='chain'){
+    renderMoodbar(nodes,-1);
+    document.getElementById('pv-mb-wrap').querySelector('.mb-title') &&
+      (document.getElementById('pv-mb-wrap').querySelector('.mb-title').textContent=
+        'Context sources \u00b7 '+nodes.length+' contributor'+(nodes.length>1?'s':''));
+    renderChain(nodes,currentNodeLabel);
+  } else if(currentMode==='drill'){
+    if(!provStack.length)provStack=[{label:currentNodeLabel,nodes:nodes,color:(nodes[0]&&nodes[0].color)||'#888'}];
+    renderDrillLevel();
+  } else {
+    renderMoodbar(nodes,-1);
+    renderHoverText(nodes);
+  }
+}
+
+// ── Open panel on SVG node click ─────────────────────────────────────────
+function openProvFor(nodeEl){
+  const provJson=nodeEl.dataset.prov;
+  if(!provJson)return;
+  var nodes;
+  try{nodes=JSON.parse(provJson);}catch(e){return;}
+  const agent=nodeEl.dataset.agent||'?';
+  const turn=nodeEl.dataset.turn||'?';
+  const color=nodeEl.dataset.color||'#888';
+  const label=agent+' \u2014 Turn '+turn;
+  document.getElementById('pv-title').textContent=label;
+  currentNodeLabel=label;
+  currentRootNodes=nodes;
+  provStack=[{label:label,nodes:nodes,color:color}];
+  renderCurrentMode();
+  const pv=document.getElementById('pv');
+  if(!pv.classList.contains('open')){
+    pv.classList.add('open');
+    document.getElementById('pv-toggle-btn').classList.add('active');
+    document.getElementById('pv-toggle-btn').textContent='Provenance \u00d7';
+  }
+}
+</script>
+</body>
+</html>

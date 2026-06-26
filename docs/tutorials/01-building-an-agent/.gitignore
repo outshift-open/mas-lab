@@ -1,0 +1,5 @@
+# Generated output files — reproduce with:
+#   mas-lab benchmark run experiment.yaml --flavour local --progress
+output/*.svg
+output/*.html
+output/*.csv

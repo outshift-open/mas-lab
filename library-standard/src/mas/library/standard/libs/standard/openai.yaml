@@ -1,0 +1,29 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: infra/v1
+kind: LLMProxy
+
+metadata:
+  name: openai-direct
+  description: >
+    Direct connection to OpenAI API (no proxy).
+    Requires OPENAI_API_KEY environment variable.
+    Use for development when proxy is unavailable.
+
+spec:
+  proxy:
+    api_base: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+
+  models:
+    # No mappings needed - use OpenAI model names directly
+    allowed:
+      - gpt-4o
+      - gpt-4o-mini
+      - gpt-4-turbo
+      - gpt-3.5-turbo
+      - text-embedding-3-small
+      - text-embedding-3-large
+
+  defaults:
+    embedding: text-embedding-3-small

@@ -1,0 +1,34 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: MAS
+
+metadata:
+  name: trip-planner
+  version: "0.1.0"
+
+intent:
+  summary: >
+    I plan trips between cities in the Arborian Network. Tell me your
+    destination preferences, travel dates, budget, and interests.
+
+spec:
+  agency:
+    agents:
+      - id: moderator
+        ref: agents/moderator/agent.yaml
+      - id: schedule_agent
+        ref: agents/schedule-agent/agent.yaml
+      - id: itinerary_agent
+        ref: agents/itinerary-agent/agent.yaml
+      - id: concierge_agent
+        ref: agents/concierge-agent/agent.yaml
+  
+  workflow:
+    entry: moderator
+    nodes:
+      - id: moderator
+        delegates_to: [ schedule_agent, itinerary_agent, concierge_agent ]
+      - id: schedule_agent
+      - id: itinerary_agent
+      - id: concierge_agent

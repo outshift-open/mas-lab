@@ -1,0 +1,28 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#execution-binding"
+title: ExecutionBinding
+description: EngineContract execution mode — mock/live/cache/parallel only.
+type: object
+additionalProperties: false
+properties:
+  mocking:
+    type: object
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+  cache:
+    type: object
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+  parallel:
+    type: boolean
+  live:
+    type: boolean
+  timeout:
+    type: number
+    minimum: 0

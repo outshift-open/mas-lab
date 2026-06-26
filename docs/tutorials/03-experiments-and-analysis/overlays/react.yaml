@@ -1,0 +1,17 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: react
+  description: "ReAct pattern — interleaved reasoning and tool calls"
+
+spec:
+  target:
+    kind: Agent
+    name: qa-agent-t3
+  patch:
+    design_pattern:
+      type: react
+      config:
+        max_steps: 5

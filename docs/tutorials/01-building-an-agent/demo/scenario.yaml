@@ -1,0 +1,337 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+name: tutorial-01-building-an-agent
+title: "Tutorial 01 — Building an Agent"
+description: >
+  Declarative agent design: add tools, skills, and memory through composable
+  overlays. Covers mas-ctl validate, chat, and trajectory plotting.
+version: "1.0"
+authors: ["MAS Framework Team"]
+tags: ["agent", "overlays", "tools", "skills", "memory", "tutorial"]
+prerequisites:
+  - "Tutorial 0 complete: task install, ~/.mas/config.yaml (optional), .env for live runs"
+  - "mas-ctl and mas-lab on PATH (venv / direnv)"
+  - "Offline: pytest tests/tutorials/test_scenario_commands.py -k tuto-01"
+  - "Online: default_infra or --infra-ref + OPENAI_API_KEY for mas-ctl chat steps"
+estimated_duration_min: 30
+working_dir: docs/tutorials/01-building-an-agent # relative to repo root
+cache_dir: ".demo-cache"
+
+sections:
+  # ──────────────────────────────────────────────────
+  # 01  Introduction
+  # ──────────────────────────────────────────────────
+  - id: intro
+    title: "Introduction"
+    description: What declarative agents are and what this tutorial covers.
+    steps:
+      - type: slide
+        title: "Declarative agents — one manifest, infinite configurations"
+        content: |
+          ## Tutorial 01 — Building an Agent
+
+          An **agent manifest** is a YAML file that describes:
+          - what **model** the agent uses
+          - what **tools** it can call
+          - what **skills** (prompt decorators) shape its reasoning
+          - what **memory** it reads and writes
+
+          You never modify the manifest to change behaviour — you use
+          **overlays**. An overlay is a targeted patch: add a tool, swap a
+          skill, enable memory, all without touching the base spec.
+
+          This tutorial walks you through five layers:
+
+          | Layer | File |
+          |-------|------|
+          | Minimal agent | `agent.yaml` |
+          | + Calculator tool | `+ overlays/tools.yaml` |
+          | + Formatting skill | `+ overlays/skills.yaml` |
+          | + Memory | `+ overlays/memory.yaml` |
+          | Merged view | `agent-final.yaml` |
+
+  # ──────────────────────────────────────────────────
+  # 02  Step 1 — Minimal agent
+  # ──────────────────────────────────────────────────
+  - id: step1-minimal
+    title: "Step 1 — Minimal Agent"
+    description: Validate and run the base agent manifest.
+    steps:
+      - type: narrative
+        title: "The base manifest"
+        content: |
+          `agent.yaml` defines the simplest possible agent: a language model
+          with a system prompt and a name.  No tools, no skills, no memory.
+
+          Before running it, always validate the manifest:
+
+          ```bash
+          mas-ctl validate agent.yaml
+          ```
+
+          Validation checks the schema, resolves all references, and reports
+          any missing keys or unknown fields.
+
+      - type: command
+        title: "Validate base manifest"
+        command: "mas-ctl validate agent.yaml"
+        cache_key: "validate-base"
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "OK"
+
+      - type: narrative
+        title: "Running the agent"
+        content: |
+          Run the agent with a direct query using `-q`:
+
+          ```bash
+          mas-ctl chat agent.yaml -v -q "What is the capital of France?"
+          ```
+
+          The `-v` flag enables the exchange log so you can see the LLM
+          request and response.  The agent returns the answer in the
+          `[qa-agent] AGENT -> USER:` line.
+
+      - type: command
+        title: "Run base agent — capital of France"
+        command: 'mas-ctl chat agent.yaml -v -q "What is the capital of France?"'
+        cache_key: "run-base-capital"
+        allowed_modes: [online]
+        expected_exit_code: 0
+
+  # ──────────────────────────────────────────────────
+  # 03  Step 2 — Add tools
+  # ──────────────────────────────────────────────────
+  - id: step2-tools
+    title: "Step 2 — Adding Tools"
+    description: Inject a calculator tool via an overlay and verify it is called.
+    steps:
+      - type: slide
+        title: "Tools via overlays"
+        content: |
+          ## Adding Tools
+
+          `overlays/tools.yaml` patches the base manifest to inject:
+          - **`calculator`** — safe arithmetic evaluator
+          - **`verify_fact`** — lightweight fact-checking stub
+
+          The agent can now call these tools inside its ReAct loop.
+
+          Overlays are applied at runtime; the base `agent.yaml` is untouched.
+
+      - type: command
+        title: "Validate agent + tools overlay"
+        command: "mas-ctl validate agent.yaml -o overlays/tools.yaml"
+        cache_key: "validate-tools"
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "OK"
+
+      - type: command
+        title: "Run agent with calculator"
+        command: >-
+          mas-ctl chat agent.yaml -v
+          -o overlays/tools.yaml
+          -q "If Tokyo has 14 million people and Paris has 2.1 million, how many times larger is Tokyo?"
+        cache_key: "run-tools-calculator"
+        allowed_modes: [online]
+        expected_exit_code: 0
+
+  # ──────────────────────────────────────────────────
+  # 04  Step 3 — Add skills
+  # ──────────────────────────────────────────────────
+  - id: step3-skills
+    title: "Step 3 — Adding Skills"
+    description: Layer a formatting skill on top of tools.
+    steps:
+      - type: narrative
+        title: "Skills — prompt decorators"
+        content: |
+          **Skills** are prompt fragments injected by the runtime before every
+          LLM call.  They are not tools — they shape how the model reasons and
+          formats its reply.
+
+          `overlays/skills.yaml` adds a formatting skill that instructs the
+          model to structure its answers with headings and bullet points.
+
+      - type: command
+        title: "Validate agent + tools + skills"
+        command: >-
+          mas-ctl validate agent.yaml
+          -o overlays/tools.yaml
+          -o overlays/skills.yaml
+        cache_key: "validate-skills"
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "OK"
+
+      - type: command
+        title: "Run agent with tools and skills"
+        command: >-
+          mas-ctl chat agent.yaml -v
+          -o overlays/tools.yaml
+          -o overlays/skills.yaml
+          -q "Who is the current secretary-general of the United Nations?"
+        cache_key: "run-skills-un"
+        allowed_modes: [online]
+        expected_exit_code: 0
+
+  # ──────────────────────────────────────────────────
+  # 05  Step 4 — Add memory
+  # ──────────────────────────────────────────────────
+  - id: step4-memory
+    title: "Step 4 — Adding Memory"
+    description: Enable semantic memory and demonstrate preference seeding.
+    steps:
+      - type: slide
+        title: "Memory — read and write"
+        content: |
+          ## Memory
+
+          `overlays/memory.yaml` enables a semantic memory store.  The agent:
+          1. **reads** relevant memory before each LLM call
+          2. **writes** facts it decides to retain after each response
+
+          You can also **seed** the memory store with pre-loaded facts using
+          `overlays/memory-seed.yaml`.  This lets the agent answer questions
+          about user preferences without any prior interaction.
+
+      - type: command
+        title: "Validate agent + tools + skills + memory"
+        command: >-
+          mas-ctl validate agent.yaml
+          -o overlays/tools.yaml
+          -o overlays/skills.yaml
+          -o overlays/memory.yaml
+        cache_key: "validate-memory"
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "OK"
+
+      - type: command
+        title: "Run agent with memory — first question (cold)"
+        command: >-
+          mas-ctl chat agent.yaml -v
+          -o overlays/tools.yaml
+          -o overlays/skills.yaml
+          -o overlays/memory.yaml
+          -q "What is the current price of Apple?"
+          -q "No, I meant Apple the fruit, not the company."
+        cache_key: "run-memory-cold"
+        allowed_modes: [online]
+        expected_exit_code: 0
+
+      - type: narrative
+        title: "Seeding the memory store"
+        content: |
+          The first run had to ask for clarification because the agent didn't
+          know the user's preference.
+
+          `overlays/memory-seed.yaml` pre-loads the preference
+          *"The user prefers the fruit Apple, not the company"*
+          into the store.  On the next run the agent should answer without
+          asking for clarification.
+
+      - type: command
+        title: "Run agent with seeded memory — preference resolved"
+        command: >-
+          mas-ctl chat agent.yaml -v
+          -o overlays/tools.yaml
+          -o overlays/skills.yaml
+          -o overlays/memory.yaml
+          -o overlays/memory-seed.yaml
+          -q "What is the current price of Apple?"
+        cache_key: "run-memory-seeded"
+        allowed_modes: [online]
+        expected_exit_code: 0
+
+  # ──────────────────────────────────────────────────
+  # 06  Step 5 — Merged view and trajectory
+  # ──────────────────────────────────────────────────
+  - id: step5-final
+    title: "Step 5 — Merged Manifest and Trajectory"
+    description: Validate the final merged manifest and plot the agent trajectory.
+    steps:
+      - type: narrative
+        title: "agent-final.yaml — the merged view"
+        content: |
+          `agent-final.yaml` shows the result of applying all overlays: tools,
+          skills, memory, and context-manager, all merged into a single
+          readable manifest.
+
+          It is useful for code review, documentation, and debugging — you can
+          see at a glance what the agent looks like when fully configured.
+
+      - type: command
+        title: "Validate agent-final.yaml"
+        command: "mas-ctl validate agent-final.yaml"
+        cache_key: "validate-final"
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "OK"
+
+      - type: command
+        title: "Plot trajectory (Mermaid) from checked-in trace"
+        command: "mas-lab plot trajectory traces/events.jsonl --format mermaid"
+        cache_key: "plot-trajectory-mermaid"
+        allowed_modes: [offline]
+        expected_exit_code: 0
+
+      - type: narrative
+        title: "Plotting the trajectory"
+        content: |
+          Every `mas-ctl chat` call writes an `events.jsonl` log
+          (by default in the current directory).  Use `mas-lab plot` to turn
+          it into a visual timeline:
+
+          ```bash
+          mas-lab plot trajectory logs/events.jsonl --format mermaid
+          ```
+
+          `--format mermaid` prints a Mermaid diagram you can paste into any
+          Markdown renderer.  Use `--format svg` or `--format html` for
+          file output.
+
+  # ──────────────────────────────────────────────────
+  # 07  Wrap-up
+  # ──────────────────────────────────────────────────
+  - id: wrapup
+    title: "Wrap-up"
+    description: What you built and where to go next.
+    steps:
+      - type: checkpoint
+        title: "Tutorial 01 complete ✓"
+        content: |
+          You have built a fully-featured agent step by step:
+
+          ```
+          agent.yaml          minimal agent — model + system prompt
+           + overlays/tools.yaml          → calculator + verify_fact
+           + overlays/skills.yaml         → structured formatting
+           + overlays/memory.yaml         → semantic read/write
+           + overlays/memory-seed.yaml    → pre-loaded preferences
+          ──────────────────────────────────────────
+           = agent-final.yaml             merged, readable manifest
+          ```
+
+          The base manifest never changed.  All behaviour came from overlays.
+
+      - type: narrative
+        title: "Next steps"
+        content: |
+          **Tutorial 02 — Creating a MAS**
+
+          Compose multiple agents into a Multi-Agent System with topology
+          overlays: dynamic routing, single-agent fallback, and linear
+          pipeline.
+
+          ```bash
+          cd docs/tutorials/02-creating-a-mas
+          mas-ctl run-mas mas.yaml -q "Plan a 3-day trip to Thornhaven, budget €500"
+          ```
+
+          **Benchmark & analyse**
+
+          Run a multi-scenario experiment and explore the traces with
+          Tutorial 03 (Plugins & Observability).

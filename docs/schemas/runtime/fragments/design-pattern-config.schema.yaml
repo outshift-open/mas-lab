@@ -1,0 +1,17 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#design-pattern-config"
+title: DesignPatternConfig
+description: Plugin params passed to DesignPatternPlugin registry entry.
+type: object
+additionalProperties: false
+properties:
+  max_steps:
+    type: integer
+    minimum: 1
+  parallel:
+    type: boolean
+  critique_turns:
+    type: integer
+    minimum: 0

@@ -1,0 +1,110 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Deployment manifest — placement + bus + kernel target (replaces Flavour comm topology)
+$schema: http://json-schema.org/draft-07/schema#
+title: Deployment
+type: object
+required: [apiVersion, kind, spec]
+additionalProperties: false
+properties:
+  apiVersion:
+    type: string
+    const: deployment/v1
+  kind:
+    type: string
+    const: Deployment
+  metadata:
+    type: object
+    additionalProperties: true
+    properties:
+      name: { type: string }
+      description: { type: string }
+  spec:
+    type: object
+    required: [strategy, runtime_id]
+    additionalProperties: false
+    properties:
+      runtime_id:
+        type: string
+        enum: [python-v2]
+        description: >
+          Registered runtime id (authority: docs/schemas/component-registry.yaml).
+          Selects kernel implementation for all agents in this deployment.
+      strategy:
+        type: string
+        enum: [local-inproc, local-multiprocess, docker, kubernetes]
+        description: >
+          Placement strategy. Only local-inproc is supported in mas-lab OSS;
+          local-multiprocess, docker, and kubernetes are planned for a later
+          release (2026.3). See component-registry.yaml.
+      runtime:
+        type: object
+        additionalProperties: false
+        description: Runtime-specific options (image, immutability) — id lives in runtime_id only.
+        properties:
+          image: { type: string }
+          immutable: { type: boolean }
+          spec_overlay_ref: { type: string }
+      framework:
+        type: object
+        additionalProperties: false
+        properties:
+          default_adapter:
+            type: string
+            enum: [native, langgraph, crewai]
+          adapters:
+            type: object
+            additionalProperties: { type: string }
+      agents:
+        type: array
+        items:
+          type: object
+          required: [id]
+          additionalProperties: false
+          properties:
+            id: { type: string }
+            placement:
+              type: object
+              additionalProperties: true
+            framework_adapter:
+              type: string
+              enum: [native, langgraph, crewai]
+            bind_address: { type: string }
+      bus:
+        type: object
+        additionalProperties: false
+        properties:
+          kind:
+            type: string
+            enum: [inproc, unix, grpc, k8s]
+          routes:
+            type: array
+            items:
+              type: object
+              required: [from, to]
+              properties:
+                from: { type: string }
+                to: { type: string }
+      shared:
+        type: object
+        additionalProperties: false
+        properties:
+          observability_ref: { type: string }
+          sink_ref: { type: string }
+      observability:
+        type: object
+        additionalProperties: false
+        properties:
+          backend: { type: string }
+          sink_ref: { type: string }
+      supervision:
+        type: object
+        additionalProperties: false
+        properties:
+          health_interval_s: { type: number, minimum: 0 }
+          restart_policy:
+            type: string
+            enum: [never, on-failure, always]
+      units:
+        type: array
+        items: { type: object }

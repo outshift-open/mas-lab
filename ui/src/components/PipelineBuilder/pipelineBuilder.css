@@ -1,0 +1,393 @@
+/*
+ * Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+ * SPDX-License-Identifier: Apache-2.0
+ */
+/* ============================================================
+   PipelineBuilder — Layout
+   ============================================================ */
+
+.pipeline-builder {
+  display: flex;
+  height: 700px;
+  width: 100%;
+  position: relative;
+}
+
+.pipeline-builder__flow {
+  flex: 1;
+  height: 100%;
+}
+
+/* ============================================================
+   Sidebar — Step palette
+   ============================================================ */
+
+.pipeline-sidebar {
+  width: 220px;
+  min-width: 220px;
+  height: 100%;
+  border-right: 1px solid var(--color-medium-blue-90);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-medium-blue-95, #0f214d);
+  padding: 8px;
+}
+
+.pipeline-sidebar__title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 4px 6px 8px;
+  font-weight: 600;
+}
+
+.pipeline-sidebar__nodes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.pipeline-sidebar__category {
+  margin-bottom: 6px;
+}
+
+.pipeline-sidebar__category-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  padding: 4px 6px 2px;
+  opacity: 0.9;
+}
+
+.pipeline-sidebar__node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-left: 3px solid;
+  border-radius: 4px;
+  cursor: grab;
+  background: rgba(255, 255, 255, 0.04);
+  transition: background 0.15s;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.pipeline-sidebar__node:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.pipeline-sidebar__node:active {
+  cursor: grabbing;
+}
+
+.pipeline-sidebar__node-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================================
+   Step Node
+   ============================================================ */
+
+.pipeline-step-node {
+  min-width: 260px;
+  max-width: 320px;
+  border: 2px solid #555;
+  border-radius: 8px;
+  background: #1e1e2e;
+  color: #e0e0e0;
+  font-size: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.pipeline-step-node--selected {
+  box-shadow: 0 0 0 2px rgba(24, 105, 255, 0.6);
+}
+
+.pipeline-step-node__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pipeline-step-node__type-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline-step-node__phase-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.25);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.pipeline-step-node__body {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pipeline-step-node__field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pipeline-step-node__field > label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: default;
+}
+
+.pipeline-step-node__required {
+  color: #ef4444;
+  margin-left: 2px;
+}
+
+.pipeline-step-node__input,
+.pipeline-step-node__select {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 4px 6px;
+  color: #e0e0e0;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pipeline-step-node__input:focus,
+.pipeline-step-node__select:focus {
+  border-color: rgba(24, 105, 255, 0.5);
+}
+
+.pipeline-step-node__input::placeholder {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.pipeline-step-node__select option {
+  background: #1e1e2e;
+  color: #e0e0e0;
+}
+
+/* Chips (depends_on) */
+
+.pipeline-step-node__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pipeline-step-node__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(24, 105, 255, 0.2);
+  border: 1px solid rgba(24, 105, 255, 0.4);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 11px;
+  color: #75aaff;
+}
+
+.pipeline-step-node__chip-remove {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+  line-height: 1;
+}
+
+.pipeline-step-node__chip-remove:hover {
+  color: #ef4444;
+}
+
+/* Config section */
+
+.pipeline-step-node__config-section {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pipeline-step-node__config-title {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+/* Key-Value editor (object fields like metric_kwargs) */
+
+.pipeline-step-node__kv-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pipeline-step-node__kv-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pipeline-step-node__kv-key {
+  font-size: 11px;
+  color: #75aaff;
+  min-width: 60px;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pipeline-step-node__kv-value {
+  flex: 1;
+  min-width: 0;
+}
+
+.pipeline-step-node__kv-key-input {
+  width: 70px;
+  flex-shrink: 0;
+}
+
+.pipeline-step-node__kv-remove,
+.pipeline-step-node__kv-add-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  font-size: 14px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  line-height: 1;
+}
+
+.pipeline-step-node__kv-remove:hover {
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+.pipeline-step-node__kv-add-btn:hover:not(:disabled) {
+  color: #22c55e;
+  border-color: #22c55e;
+}
+
+.pipeline-step-node__kv-add-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.pipeline-step-node__kv-add {
+  margin-top: 2px;
+  padding-top: 3px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+/* ============================================================
+   Experiment select bar above canvas
+   ============================================================ */
+
+.pipeline-builder__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.15);
+  font-size: 13px;
+}
+
+.pipeline-builder__toolbar label {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pipeline-builder__toolbar select {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: #e0e0e0;
+  font-size: 12px;
+  font-family: inherit;
+  min-width: 200px;
+}
+
+.pipeline-builder__toolbar select option {
+  background: #1e1e2e;
+  color: #e0e0e0;
+}
+
+.pipeline-step-node__metrics-multi {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pipeline-step-node__metrics-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pipeline-step-node__metrics-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #2d2d3d;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  color: #e0e0e0;
+}
+
+.pipeline-step-node__metrics-chip-remove {
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.pipeline-step-node__metrics-chip-remove:hover {
+  color: #ff6b6b;
+}

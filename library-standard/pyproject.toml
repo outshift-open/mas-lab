@@ -1,0 +1,33 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mas-library-standard"
+version = "0.1.0"
+description = "Standard library for MAS — infra bundles, tools, and pattern aliases."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "mas-runtime",
+    "ddgs>=9.14.0",
+]
+
+[project.entry-points."mas.runtime.manifest_libraries"]
+standard = "mas.library.standard"
+
+[tool.hatch.build]
+include = [
+    "src/mas/library/standard/libs/**/*.yaml",
+    "src/mas/library/standard/infra/**/*.yaml",
+    "src/mas/library/standard/flavours/**/*.yaml",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mas"]
+
+[tool.uv.sources]
+mas-runtime = { workspace = true }

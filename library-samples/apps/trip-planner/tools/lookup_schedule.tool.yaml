@@ -1,0 +1,49 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Tool
+
+metadata:
+  name: lookup_schedule
+  description: "Look up departure schedules between two cities in the Arborian Network."
+  version: "1.0.0"
+  tags: [travel, schedule, transport]
+
+spec:
+  description: >
+    Fetch the route schedule between an origin and destination city.
+    Returns departure times, frequency, travel time, and service classes
+    (Express, Standard, NightTrain, Economy, Business).
+
+  parameters:
+    - name: origin
+      type: string
+      description: "Departure city name (must match an Arborian Network city)."
+      required: true
+      examples: ["Celestia", "Luminos", "Verdantia"]
+
+    - name: destination
+      type: string
+      description: "Arrival city name."
+      required: true
+      examples: ["Verdantia", "Fortuna", "Aurelia"]
+
+    - name: travel_mode
+      type: string
+      description: "Transport mode to filter results."
+      required: false
+      enum: ["train", "airplane", "any"]
+      examples: ["train", "airplane", "any"]
+
+    - name: departure_date
+      type: string
+      description: "Departure date descriptor: 'weekday', 'weekend', or ISO date (YYYY-MM-DD)."
+      required: false
+      examples: ["weekday", "weekend", "2026-04-15"]
+
+  impl:
+    kind: python
+    module_path: ./lookup_schedule.py
+    class_name: LookupScheduleTool
+    params:
+      dataset_path: fixtures/arborian-network.yaml

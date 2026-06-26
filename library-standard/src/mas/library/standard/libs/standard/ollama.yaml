@@ -1,0 +1,32 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: infra/v1
+kind: LLMLocal
+
+metadata:
+  name: ollama-local
+  description: >
+    Local Ollama instance for development and testing.
+    Assumes Ollama is running on localhost:11434.
+    No API key required.
+
+spec:
+  proxy:
+    api_base: http://localhost:11434/v1
+    # No api_key_env needed for local Ollama
+
+  models:
+    # No model mappings needed for Ollama
+    # Use model names directly (e.g., llama3.2, mistral)
+    allowed:
+      - llama3.2
+      - llama3.2:latest
+      - llama3.1
+      - mistral
+      - mistral:latest
+      - codellama
+      - phi3
+      - qwen2.5
+
+  defaults:
+    llm: llama3.2

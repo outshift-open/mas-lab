@@ -1,0 +1,69 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#agent-patch"
+title: AgentPatch
+description: Per-agent override fields allowed in overlay patch.agents.
+type: object
+additionalProperties: false
+properties:
+  design_pattern:
+    type: object
+    additionalProperties: false
+    properties:
+      type:
+        type: string
+      ref:
+        type: string
+      params:
+        $ref: "./design-pattern-config.schema.yaml"
+      config:
+        $ref: "./design-pattern-config.schema.yaml"
+  collaboration:
+    type: object
+    additionalProperties: false
+    properties:
+      type:
+        type: string
+      ref:
+        type: string
+      params:
+        $ref: "./collaboration-params.schema.yaml"
+  context_manager:
+    type: object
+    additionalProperties: false
+    properties:
+      type:
+        type: string
+      ref:
+        type: string
+      params:
+        $ref: "./context-manager-params.schema.yaml"
+      skills:
+        type: array
+        items:
+          type: string
+  llm:
+    $ref: "./llm-binding.schema.yaml"
+  execution:
+    $ref: "./execution-binding.schema.yaml"
+  memory:
+    type: string
+  tools:
+    type: array
+    items:
+      oneOf:
+        - type: string
+        - type: object
+          additionalProperties: false
+          required: [ref]
+          properties:
+            ref:
+              type: string
+  skills:
+    type: array
+    items:
+      type: string
+  ref:
+    type: string
+    description: Agent manifest path when replacing agent list entry.

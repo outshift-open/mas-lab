@@ -1,0 +1,276 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "infra/v1"
+title: "Infra Manifest"
+description: >
+  Schema for infrastructure manifests (apiVersion: infra/v1). Different ``kind``
+  values populate different ``spec`` fields; see InfraManifest in infra_manifest.py.
+  InfraBundle composes other infra files via spec.includes (resolved recursively).
+
+type: object
+required:
+  - apiVersion
+  - kind
+  - metadata
+  - spec
+additionalProperties: false
+
+properties:
+  apiVersion:
+    type: string
+    const: "infra/v1"
+
+  kind:
+    type: string
+    enum:
+      - InfraBundle
+      - InfraMiddleware
+      - InfraInterceptor
+      - LLMProxy
+      - LLMLocal
+      - ToolServerRegistry
+      - PersonalSecrets
+      - Application
+      - ToolRegistry
+      - ToolProvider
+      - Datastore
+      - SecretsProvider
+      - Infrastructure
+
+  metadata:
+    type: object
+    additionalProperties: false
+    required: [name]
+    properties:
+      name:
+        type: string
+        minLength: 1
+      description:
+        type: string
+
+  spec:
+    type: object
+    description: >
+      Kind-specific infrastructure specification. String values may use
+      ``env:VAR_NAME`` or ``env:VAR_NAME|default`` to read deploy-time
+      configuration from the process environment (Kubernetes valueFrom,
+      Vault agent, local .env). Fields ending in ``_env`` (e.g.
+      ``api_key_env``, ``password_env``) are secretKeyRef names and must
+      be literal env var names, not ``env:`` lookups.
+    additionalProperties: true
+    properties:
+      # ── InfraBundle ─────────────────────────────────────────────────────
+      entries:
+        type: array
+        description: >
+          Typed infra slots (Phase 10). Each entry resolves a leaf manifest and
+          optional serial pipeline. Preferred over ``includes`` + ``interceptors``.
+        items:
+          $ref: "./fragments/infra-entry.schema.yaml"
+
+      includes:
+        type: array
+        description: "Paths or library refs (e.g. standard:openai) merged into one InfraManifest."
+        items:
+          type: string
+
+      interceptors:
+        type: array
+        description: >
+          Ordered cross-cutting middleware refs or inline entries (outer-first).
+        items:
+          oneOf:
+            - type: string
+            - type: object
+              additionalProperties: false
+              properties:
+                ref:
+                  type: string
+                middleware:
+                  type: string
+                params:
+                  $ref: "./fragments/infra-middleware-params.schema.yaml"
+
+      middleware:
+        type: string
+        description: "InfraMiddleware/InfraInterceptor: registry id (e.g. llm_cache, fault_inject)."
+
+      applies_to:
+        type: array
+        description: >
+          InfraMiddleware/InfraInterceptor: engine ops this entry wraps.
+          Default [LLM_CALL]. Future: TOOL_HTTP, OTEL_EXPORT.
+        items:
+          type: string
+          enum:
+            - LLM_CALL
+            - TOOL_HTTP
+            - OTEL_EXPORT
+        default: [LLM_CALL]
+
+      # ── LLMProxy / LLMLocal / Infrastructure ────────────────────────────
+      proxy:
+        type: object
+        additionalProperties: true
+        properties:
+          api_base:
+            type: string
+            description: >
+              OpenAI-compatible base URL. Use ``env:LLM_PROXY_API_BASE|https://…``
+              for deploy-time injection (K8s ConfigMap / external secret).
+          api_key_env:
+            type: string
+            default: "OPENAI_API_KEY"
+            description: >
+              Name of the environment variable holding the API key (secretKeyRef).
+              Literal only — do not use ``env:`` syntax here.
+
+      server:
+        type: object
+        description: "LLMLocal: OpenAI-compatible endpoint (alias for proxy fields)."
+        additionalProperties: true
+        properties:
+          api_base:
+            type: string
+          api_key_env:
+            type: string
+
+      models:
+        type: object
+        additionalProperties: true
+        properties:
+          allowed:
+            type: array
+            items:
+              type: string
+          available:
+            type: array
+            description: "LLMLocal alias for allowed model list."
+            items:
+              type: string
+          defaults:
+            type: object
+            properties:
+              llm:
+                type: string
+              embed:
+                type: string
+          mappings:
+            type: object
+            additionalProperties:
+              type: string
+
+      endpoints:
+        description: "Application: map of id → endpoint. LLMProxy: may be a list with name field."
+        oneOf:
+          - type: object
+            additionalProperties:
+              type: object
+              additionalProperties: true
+          - type: array
+            items:
+              type: object
+              additionalProperties: true
+
+      # ── ToolServerRegistry ─────────────────────────────────────────────────────
+      tool_servers:
+        type: array
+        items:
+          type: object
+          required: [id]
+          additionalProperties: true
+          properties:
+            id:
+              type: string
+            url:
+              type: string
+            name:
+              type: string
+            transport:
+              type: string
+              default: "http"
+            description:
+              type: string
+
+      # ── ToolRegistry ────────────────────────────────────────────────────
+      tools:
+        description: "ToolRegistry: logical tool-set id → JSON index path. ToolProvider: semantic tool bindings."
+        oneOf:
+          - type: array
+            items:
+              type: object
+              required: [id]
+              additionalProperties: false
+              properties:
+                id:
+                  type: string
+                path:
+                  type: string
+                description:
+                  type: string
+          - type: object
+            additionalProperties:
+              $ref: "./fragments/infra-tool-binding.schema.yaml"
+
+      # ── PersonalSecrets ─────────────────────────────────────────────────
+      token_refs:
+        type: array
+        items:
+          type: object
+          required: [id, api_key_env]
+          additionalProperties: true
+          properties:
+            id:
+              type: string
+            api_key_env:
+              type: string
+            description:
+              type: string
+
+      # ── Datastore ───────────────────────────────────────────────────────
+      stores:
+        type: object
+        description: "Named datastore connections (Neo4j, ClickHouse, filesystem, …)."
+        additionalProperties:
+          type: object
+          additionalProperties: true
+          properties:
+            type:
+              type: string
+            uri:
+              type: string
+            host:
+              type: string
+            port:
+              type: integer
+            path:
+              type: string
+            user:
+              type: string
+            password_env:
+              type: string
+            database:
+              type: string
+            description:
+              type: string
+            artifacts:
+              type: array
+              description: "Artifact kinds this store handles (otel_traces, events, kg, …)."
+              items:
+                type: object
+                properties:
+                  kind:
+                    type: string
+                  ops:
+                    type: array
+                    items:
+                      type: string
+                      enum: [read, write, query]
+
+      # ── SecretsProvider ─────────────────────────────────────────────────
+      provider:
+        type: string
+        description: "Secrets backend id (e.g. env, vault)."
+      params:
+        $ref: "./fragments/infra-middleware-params.schema.yaml"

@@ -1,0 +1,33 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  name: concierge_agent
+  version: 0.1.0
+spec:
+  role:
+    description: 'Fare lookup specialist.
+
+      '
+    instructions: |
+      You can look up the prices (fares) for trains and air routes. You have access
+      to two tools: get_fares for looking up fares, and calc for calculations.
+
+      Use these tools to find train and airplane prices (fares). When you have
+      gathered sufficient information, provide a clear overview of the prices
+      (fares) for each itinerary.
+  models:
+  - id: main
+    model: gpt-4o
+    temperature: 0.2
+    max_tokens: 2000
+  design_pattern:
+    type: react
+  skills:
+  - fare-and-itinerary-assembly
+  tools:
+  - ref: ../../tools/get_fares.tool.yaml
+  - ref: ../../tools/calc.tool.yaml
+  intent: Concierge Agent — fare lookup, cost estimation, budget tracking, and day-by-day itinerary assembly. Receives FareQuery
+    + RouteOptions from the moderator and returns FareResult with a complete cost breakdown.

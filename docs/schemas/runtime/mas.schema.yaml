@@ -1,0 +1,262 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1"
+title: "MAS Manifest"
+description: >
+  Schema for kind: MAS manifests (apiVersion: mas/v1). Authoritative field list
+  is derived from MASSpec in mas.py. Validate with: python -m jsonschema
+  --instance mas.yaml mas.schema.yaml
+type: object
+required:
+  - apiVersion
+  - kind
+  - metadata
+  - spec
+additionalProperties: false
+patternProperties:
+  "^x-":
+    description: "Extension properties (UI metadata, canvas state, etc.) — ignored by the runtime."
+properties:
+  apiVersion:
+    type: string
+    const: "mas/v1"
+
+  kind:
+    type: string
+    const: "MAS"
+
+  intent:
+    type: object
+    description: "Optional: what this system knows and can do."
+    additionalProperties: false
+    properties:
+      summary:
+        type: string
+        default: ""
+
+  x-canvas-positions:
+    type: object
+    description: "UI-only: React Flow node positions (not consumed by runtime)."
+    additionalProperties:
+      type: object
+      additionalProperties: false
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+      required: [x, y]
+
+  metadata:
+    type: object
+    required: [name]
+    additionalProperties: false
+    patternProperties:
+      "^x-":
+        description: "Extension properties (UI metadata) — ignored by the runtime."
+    properties:
+      name:
+        type: string
+        description: "Unique MAS identifier. Used in run output paths and agent URNs."
+      version:
+        type: string
+        pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+.*$"
+        default: "0.1.0"
+      description:
+        type: string
+        default: ""
+      tags:
+        type: array
+        items:
+          type: string
+        default: []
+      default_flavour:
+        type: string
+        description: "Name of the flavour to use when none is specified on the CLI."
+        default: "local"
+
+  spec:
+    type: object
+    additionalProperties: false
+    patternProperties:
+      "^x-":
+        description: "Extension properties (UI metadata) — ignored by the runtime."
+    properties:
+      agents:
+        type: array
+        description: >
+          Short form: flat list of agent refs (equivalent to agency.agents).
+        default: []
+        items:
+          oneOf:
+            - type: object
+              required: [ref]
+              additionalProperties: false
+              properties:
+                id:
+                  type: string
+                ref:
+                  type: string
+            - type: object
+              required: [kind, metadata, spec]
+              additionalProperties: false
+              patternProperties:
+                "^x-":
+                  description: "UI extension — ignored by the runtime."
+              properties:
+                apiVersion:
+                  type: string
+                  const: "mas/v1"
+                kind:
+                  type: string
+                  const: "Agent"
+                metadata:
+                  type: object
+                spec:
+                  type: object
+
+      transport:
+        type: object
+        description: "Transport / communication protocol config."
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            enum: [local, agent-remote, agent-local]
+            default: "local"
+          mode:
+            type: string
+            enum: [local, remote]
+            default: "local"
+          emulation:
+            type: boolean
+            description: "When true, delegation uses in-process function calls (no HTTP)."
+            default: true
+
+      framework:
+        type: object
+        additionalProperties: false
+        description: >
+          Framework surface adapter for this MAS use-case. Selects which ctl/lab
+          wrapper mounts around the native machinery skeleton (not an alternate kernel).
+          mas-lab infers the lab adapter from default_adapter unless execution.runner overrides.
+        properties:
+          default_adapter:
+            type: string
+            enum: [native, langgraph, autogen, crewai]
+            default: native
+            description: >
+              Framework adapter id. native = direct python-v2 kernel; others delegate
+              to registered ctl framework wrappers (future release).
+
+      agency:
+        type: object
+        description: "The agents and their topology."
+        additionalProperties: false
+        properties:
+          agents:
+            type: array
+            description: "Ordered list of agent participants and delegation targets."
+            default: []
+            items:
+              oneOf:
+                - type: object
+                  required: [ref]
+                  additionalProperties: false
+                  properties:
+                    id:
+                      type: string
+                      description: "Logical identifier used in workflow edges and delegation lists."
+                    ref:
+                      type: string
+                      description: "Path to the agent manifest, relative to the MAS manifest directory."
+                - type: object
+                  required: [kind, metadata, spec]
+                  additionalProperties: false
+                  patternProperties:
+                    "^x-":
+                      description: "UI extension — ignored by the runtime."
+                  properties:
+                    apiVersion:
+                      type: string
+                      const: "mas/v1"
+                    kind:
+                      type: string
+                      const: "Agent"
+                    metadata:
+                      type: object
+                    spec:
+                      type: object
+
+      workflow:
+        type: object
+        description: "Workflow topology — entry point and delegation graph."
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            description: >
+              Workflow strategy: dynamic, sequential, hybrid, or single.
+            enum: [dynamic, sequential, hybrid, single]
+            default: "dynamic"
+          plugin:
+            type: string
+            description: >
+              Filesystem path to a Python module registering the workflow via
+              WorkflowContract.register_impl().
+          entry:
+            type: string
+            description: "ID of the entry-point agent (first to receive the user request)."
+          max_rounds:
+            type: integer
+            minimum: 1
+            description: "Supervised / verifier workflow round cap."
+          nodes:
+            type: array
+            description: "Agent nodes in the workflow graph."
+            default: []
+            items:
+              $ref: "./fragments/workflow-node.schema.yaml"
+
+      tools_ref:
+        type: [string, "null"]
+        description: "MAS-level logical tool-set name resolved by the infra ToolRegistry."
+        pattern: "^[a-z0-9][a-z0-9_-]*$"
+        default: null
+
+      infra_refs:
+        type: array
+        description: "Infra manifest paths relative to the MAS manifest directory."
+        default: []
+        items:
+          type: string
+
+      middleware:
+        description: "Middleware config (reserved for future use)."
+        default: null
+
+      memory_stores:
+        type: object
+        description: "Named memory store artifact paths."
+        additionalProperties: false
+        properties:
+          episodic_ref:
+            type: string
+            default: ""
+          semantic_ref:
+            type: string
+            default: ""
+          procedural_ref:
+            type: string
+            default: ""
+
+      telemetry:
+        type: object
+        description: "Telemetry output config."
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+            description: "Path to the event log file (JSONL), relative to mas.yaml."
+            default: ""

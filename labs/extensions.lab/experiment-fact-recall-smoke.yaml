@@ -1,0 +1,128 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Lab 3 — SMOKE TEST: Memory backend and retrieval strategy comparison
+#
+# Four scenarios, 10-item dataset, n_runs=1 → 40 total runs.
+#
+#   with-letta-factrecall  ContextContract (passive injection, all 100 facts
+#                          always in system prompt via Letta block memory).
+#                          Recall = 1.0 by construction; precision = low.
+#   vector-baseline        ToolContract (active retrieval, k=6, single query).
+#   vector-multistep       ToolContract (active retrieval, k=6, decomposed queries).
+#   vector-bigk            ToolContract (active retrieval, k=20, single query).
+#
+# Letta is the primary story: wrapping an opinionated library via one overlay
+# and getting identical provenance/eval out-of-the-box.
+# Vector conditions show the swap-and-compare capability.
+#
+# Run:
+#   .venv/bin/mas-lab benchmark run \
+#     labs/extensions.lab/experiment-fact-recall-smoke.yaml --progress
+
+experiment:
+  name: "memory-fact-recall-smoke"
+  description: >
+    Smoke test for Lab 3: compare Letta (passive injection) with three vector
+    retrieval strategies on a 10-item subset (2 k0, 3 k1, 4 k2, 1 k3),
+    single run. Validates that all backends produce consistent provenance
+    traces and that the eval pipeline handles both ContextContract and
+    ToolContract scenarios with no extra instrumentation.
+
+  default_flavour: local
+  applications:
+    - app: trip-planner
+      configs_dir: "./overlays"
+
+  scenarios:
+    - id: with-letta-factrecall
+      description: >
+        Passive injection via ContextContract (LettaCoreMemoryWrapper).
+        All 100 facts always present in system prompt — recall=1.0,
+        precision low. Primary story: wrap an opinionated library in one overlay.
+      tags: [passive-injection, letta, context-contract]
+
+    - id: vector-baseline
+      description: >
+        Active retrieval, max_results=6, single-shot search.
+        Baseline single-pass vector RAG.
+      tags: [active-retrieval, vector, single-shot, k6]
+
+    - id: vector-multistep
+      description: >
+        Active retrieval, max_results=6, instructions force the agent to
+        decompose multi-fact questions into several memory_search calls
+        with reformulated queries.
+      tags: [active-retrieval, vector, multistep, k6]
+
+    - id: vector-bigk
+      description: >
+        Active retrieval, max_results=20, single-shot search.
+        Wider retrieval — measures recall ↑ / precision ↓ tradeoff.
+      tags: [active-retrieval, vector, single-shot, k20]
+
+  dataset:
+    path: ./datasets/fact-recall-smoke.yaml
+
+
+  execution:
+    parallel_scenarios: 3
+    timeout: 180
+    pause_between_runs: 0.5
+    strategy: coverage
+    reset_state: true
+
+    emulation:
+      infra:
+        llm: live
+        tools: live
+      runtime:
+        cache: content-addressed
+
+  run:
+    n_runs: 1
+  pipeline_bind: experiment/post
+
+  application:
+    post:
+      - name: extract-trace-stats
+        type: extract_trace_stats
+        config:
+          output: "{output_dir}/results/trace_stats.csv"
+
+      - name: eval-fact-recall
+        type: lib.steps.eval_fact_recall:EvalFactRecallStep
+        depends_on: [extract-trace-stats]
+        config:
+          runs_dir: "{output_dir}"
+          dataset: ./datasets/fact-recall-smoke.yaml
+          output_runs: "{output_dir}/results/fact_recall_runs.csv"
+          output_summary: "{output_dir}/results/fact_recall_summary.csv"
+          letta_scenarios: [with-letta-factrecall]
+          n_seeded_facts: 100
+
+      - name: figure-recall-summary
+        type: lib.steps.figure_recall_summary:FigureRecallSummaryStep
+        depends_on: [eval-fact-recall]
+        config:
+          summary_csv: "{output_dir}/results/fact_recall_summary.csv"
+          output:      "{output_dir}/results/fig_recall_summary.png"
+          dpi: 150
+
+      - name: figure-evidence
+        type: lib.steps.figure_smoke_evidence:FigureSmokeEvidenceStep
+        depends_on: [eval-fact-recall]
+        config:
+          runs_csv:          "{output_dir}/results/fact_recall_runs.csv"
+          results_csv:       "{output_dir}/results.csv"
+          output_provenance: "{output_dir}/results/fig_smoke_provenance.png"
+          output_calls:      "{output_dir}/results/fig_smoke_calls.png"
+          dpi: 150
+
+      - name: figure-provenance-record
+        type: lib.steps.figure_provenance_record:FigureProvenanceRecordStep
+        depends_on: [eval-fact-recall]
+        config:
+          results_csv: "{output_dir}/results.csv"
+          item_id: k1_q04
+          output: "{output_dir}/results/fig_provenance_record.png"
+          dpi: 150

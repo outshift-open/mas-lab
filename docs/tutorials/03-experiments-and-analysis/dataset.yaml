@@ -1,0 +1,30 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: lab/v1
+kind: Dataset
+metadata:
+  name: t3-qa-queries
+  display_name: Tutorial 03 QA queries
+  version: '1.0'
+  description: 'Two reasoning prompts used in Tutorial 03 (ReAct / CoT / Reflection sweep). Matches the fixture trace in fixtures/events.jsonl.
+
+    '
+spec:
+  items:
+  - id: item1
+    inputs:
+      user:
+      - role: user
+        content: 'Compute 17 × 23. Then verify whether the result is a prime number. Show your reasoning step by step and
+          use tools when helpful.
+
+          '
+    category: multi-step-math
+  - id: item2
+    inputs:
+      user:
+      - role: user
+        content: 'What is the capital of Australia? Verify your answer with a fact-check tool before responding.
+
+          '
+    category: factual-verification

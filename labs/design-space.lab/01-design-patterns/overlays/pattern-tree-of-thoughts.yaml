@@ -1,0 +1,16 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  id: pattern-tree-of-thoughts
+  description: "Tree-of-Thoughts — branching reasoning with evaluation and pruning (Yao et al. 2023)"
+
+spec:
+  patch:
+    design_pattern:
+      type: tree_of_thoughts
+      config:
+        depth: 2
+        breadth: 3
+        eval_threshold: 0.7

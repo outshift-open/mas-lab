@@ -1,0 +1,140 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: lab/v1
+kind: Dataset
+metadata:
+  name: qa-reasoning-queries
+  display_name: QA Reasoning Queries
+  version: '1.0'
+  description: '8 questions designed to stress-test reasoning quality across design patterns. Categories: multi-step math,
+    logical deduction, factual synthesis, claim verification, sequential planning, and open-ended analysis.
+
+    '
+  tags:
+  - qa-agent
+  - design-patterns
+  - reasoning
+spec:
+  items:
+  - id: math-1
+    inputs:
+      user:
+      - role: user
+        content: 'A train travels at 120 km/h for 2.5 hours, then slows to 80 km/h for the next 1 hour 45 minutes. What is
+          the total distance covered? Then, if a second train needs to cover the same total distance in exactly 3 hours, what
+          constant speed must it maintain?
+
+          '
+    expectations:
+      ground_truth: 'Leg 1: 120 × 2.5 = 300 km. Leg 2: 80 × 1.75 = 140 km. Total: 440 km. Required speed: 440 / 3 ≈ 146.7
+        km/h.
+
+        '
+    category: multi-step-math
+  - id: math-2
+    inputs:
+      user:
+      - role: user
+        content: 'A store sells a jacket at 40% markup over cost. During a sale, it offers a 25% discount on the marked price.
+          If the final sale price is $90, what was the original cost price? What is the store''s actual profit or loss percentage
+          on the cost?
+
+          '
+    expectations:
+      ground_truth: 'Marked price = 90 / 0.75 = $120. Cost = 120 / 1.4 ≈ $85.71. Profit = (90 - 85.71) / 85.71 ≈ 5%.
+
+        '
+    category: compound-reasoning
+  - id: logic-1
+    inputs:
+      user:
+      - role: user
+        content: 'All mammals are warm-blooded. Some warm-blooded animals lay eggs. Dolphins are mammals. Platypuses lay eggs.
+          (1) Are dolphins warm-blooded? Explain. (2) Does "dolphins are mammals" imply dolphins lay eggs? Why or why not?
+          (3) What is the minimum additional fact needed to conclude that platypuses are mammals?
+
+          '
+    expectations:
+      ground_truth: '(1) Yes — dolphins are mammals, all mammals are warm-blooded, so dolphins are warm-blooded (modus ponens).
+        (2) No — "some warm-blooded lay eggs" does not imply all do; dolphins may or may not (requires additional fact). (3)
+        Need: "platypuses are warm-blooded AND all egg-laying warm-blooded animals are mammals" — or simply "platypuses are
+        mammals" directly.
+
+        '
+    category: logical-deduction
+  - id: logic-2
+    inputs:
+      user:
+      - role: user
+        content: 'Evaluate the following claim: "If a number is divisible by 6, it must be divisible by both 2 and 3. Therefore,
+          if a number is divisible by 2 and 3, it must be divisible by 6." Is the claim correct? Provide a proof or a counterexample.
+
+          '
+    expectations:
+      ground_truth: 'The claim is correct. 6 = 2 × 3 (coprime factors). If n divisible by 2 and 3, then by lcm(2,3) = 6. No
+        counterexample exists — the biconditional holds because 2 and 3 are coprime.
+
+        '
+    category: claim-verification
+  - id: synthesis-1
+    inputs:
+      user:
+      - role: user
+        content: 'Compare the computational complexity of binary search and linear search. For a sorted list of 1 million
+          elements: how many comparisons does each require in the worst case? For which list sizes does linear search outperform
+          binary search, if any?
+
+          '
+    expectations:
+      ground_truth: 'Linear search: up to 1,000,000 comparisons (O(n)). Binary search: up to log2(1,000,000) ≈ 20 comparisons
+        (O(log n)). Binary search requires sorted data and random access. For very small lists (n ≤ ~8) or unsorted data,
+        linear search may be preferable due to lower overhead.
+
+        '
+    category: factual-synthesis
+  - id: synthesis-2
+    inputs:
+      user:
+      - role: user
+        content: 'A company has 3 servers. Server A handles 50% of requests with a 2% error rate. Server B handles 30% with
+          a 5% error rate. Server C handles 20% with a 1% error rate. What is the overall error rate? If a randomly chosen
+          request errored, what is the probability it came from Server B?
+
+          '
+    expectations:
+      ground_truth: 'Overall error rate: 0.5×0.02 + 0.3×0.05 + 0.2×0.01 = 0.01 + 0.015 + 0.002 = 0.027 = 2.7%. P(B | error)
+        = (0.3×0.05) / 0.027 = 0.015/0.027 ≈ 55.6%.
+
+        '
+    category: multi-source-reasoning
+  - id: planning-1
+    inputs:
+      user:
+      - role: user
+        content: 'You need to bake a layered cake. The steps are: mix batter (20 min), bake layer 1 (35 min), bake layer 2
+          (35 min), cool each layer (45 min each, can be done in parallel), make frosting (15 min), assemble (10 min). The
+          oven fits only one layer at a time. What is the minimum total time? Show the critical path.
+
+          '
+    expectations:
+      ground_truth: 'Critical path: mix (20) → bake L1 (35) → bake L2 (35) → cool L1+L2 in parallel (45) + frosting (15, overlaps
+        cooling) → assemble (10). Total: 20 + 35 + 35 + 45 + 10 = 145 minutes. Frosting fits inside the 45-min cooling window
+        so it does not add to critical path.
+
+        '
+    category: sequential-planning
+  - id: analysis-1
+    inputs:
+      user:
+      - role: user
+        content: 'Explain why quicksort has an average case of O(n log n) but a worst case of O(n²). Under what concrete conditions
+          does the worst case occur? What pivot selection strategy best mitigates this, and why?
+
+          '
+    expectations:
+      ground_truth: 'Average: each partition splits roughly in half → recurrence T(n) = 2T(n/2) + O(n) → O(n log n). Worst
+        case: pivot always chosen as min/max → one partition of size n-1 → O(n²). Occurs with sorted/ reverse-sorted input
+        + first/last pivot. Mitigation: median-of-3 or random pivot selection reduces worst-case probability to near zero.
+
+        '
+    category: open-ended-analysis

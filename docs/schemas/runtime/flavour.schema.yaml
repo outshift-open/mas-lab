@@ -1,0 +1,237 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#flavour"
+title: "Flavour Manifest"
+description: >
+  Schema for kind: Flavour manifests.
+
+  A Flavour is a *plugin loader and runtime configurator* — it does NOT own
+  model names or infrastructure coordinates.  Those concerns belong to:
+
+    * kind: Agent  (spec.models)    — which model this agent should use
+    * kind: MAS    (spec.agency)    — topology / orchestration
+    * infra/v1     (LLMProxy, InfraBundle) — api_base, api_key_env, allowed
+                                             models, embed defaults
+
+  A typical Flavour only needs:
+    spec:
+      skills: {backend: llamaindex, embed_model: ...}
+      agent_comm: {protocol: local, mode: local, emulation: true}
+      tools: {remote_tools_enabled: false, allowed: ["*"]}
+      telemetry: {backend: file, path: logs/}
+
+  Infrastructure references (infra_refs) are NOT part of the Flavour — they
+  belong in mas-workspace.yaml or on the CLI (--infra-ref).  This separation
+  keeps flavours portable and reusable across deployments.
+
+  The optional spec.llm block is limited to *provider type* and inference
+  parameters (temperature, max_tokens).  The api_base and model fields are
+  intentionally absent — they are resolved from --infra-ref / workspace
+  infra_refs at load time.
+
+type: object
+required:
+  - apiVersion
+  - kind
+  - metadata
+  - spec
+additionalProperties: false
+
+properties:
+  apiVersion:
+    type: string
+    description: "API version — 'flavour/v1'."
+
+  kind:
+    type: string
+    const: "Flavour"
+
+  metadata:
+    type: object
+    additionalProperties: true
+    properties:
+      name:
+        type: string
+      version:
+        type: string
+      description:
+        type: string
+      tags:
+        type: array
+        items:
+          type: string
+
+  spec:
+    type: object
+    additionalProperties: true
+    description: >
+      Flavour specification. All sub-objects are additionalProperties: true to
+      remain forward-compatible as new sections are added.
+
+      NOTE: infra_refs / infra_ref are NOT allowed here — infrastructure
+      references belong in mas-workspace.yaml or on the CLI (--infra-ref). The
+      separation validator rejects flavours that include them.
+    properties:
+      llm:
+        type: object
+        additionalProperties: false
+        description: >
+          Optional LLM runtime parameters.
+
+          FORBIDDEN: 'model' and 'api_base' must NOT appear here.
+            - model    → belongs in kind: Agent (spec.models[*].model)
+            - api_base → belongs in infra/v1 LLMProxy (resolved from --infra-ref
+                         or workspace infra_refs)
+
+          A flavour that includes either field will be rejected by the
+          FlavourSeparationValidator at load time.
+        properties:
+          provider:
+            type: string
+            description: >
+              Provider type hint passed to the runtime adapter. Use "mock" in
+              offline/test flavours; "openai" (default) for any
+              OpenAI-compatible endpoint.
+          api_key_env:
+            type: string
+            description: >
+              Name of the env var that holds the API key. Overrides the infra
+              bundle value when explicitly set.
+          timeout:
+            type: number
+          temperature:
+            type: number
+          max_tokens:
+            type: integer
+
+      skills:
+        type: object
+        additionalProperties: true
+        description: >
+          Skills / RAG backend configuration. embed_model should be set here (or
+          left to be filled from infra\n          models.defaults.embed via
+          --infra-ref).
+        properties:
+          backend:
+            type: string
+            description: >
+              RAG backend: "llamaindex" | "keyword" | "auto" (default). Use
+              "keyword" in mock/offline flavours.  "auto" selects llamaindex
+              when embed_model is provided and llama-index is installed,
+              otherwise falls back to keyword.
+          embed_model:
+            type: string
+            description: >
+              Embedding model name passed to the backend.  Defaults to
+              infra.models.defaults.embed when resolved via --infra-ref.
+          embed_api_base:
+            type: string
+            description: >
+              Override for the embedding endpoint base URL.  Defaults to
+              LLMProxy.spec.proxy.api_base resolved from --infra-ref.
+          embed_api_key_env:
+            type: string
+            description: >
+              Override for the embedding API key env-var name.  Defaults to
+              LLMProxy.spec.proxy.api_key_env resolved from --infra-ref.
+
+      prefer_local:
+        type: boolean
+        description: >
+          When true, local providers (locality: local) are preferred over remote
+          ones regardless of declared priority.  Useful for offline /
+          development flavours.
+
+      agent_comm:
+        type: object
+        additionalProperties: true
+        description: "Agent-to-agent communication settings."
+        properties:
+          protocol:
+            type: string
+            description: "local | grpc | hybrid"
+          mode:
+            type: string
+            description: "local | remote"
+          emulation:
+            type: boolean
+          agents:
+            type: object
+            additionalProperties:
+              type: string
+            description: "agent-id → socket/TCP address (grpc/hybrid protocols only)"
+
+      capabilities:
+        type: object
+        additionalProperties: true
+        description: "Feature flags and capability overrides."
+
+      mocking:
+        type: object
+        additionalProperties: true
+        description: "Mock/stub configuration for testing."
+        properties:
+          enabled:
+            type: boolean
+          mode:
+            type: string
+            description: "echo | replay | …"
+
+      telemetry:
+        type: object
+        additionalProperties: true
+        description: "Basic telemetry / log sink configuration."
+        properties:
+          backend:
+            type: string
+            description: "file | none"
+          path:
+            type: string
+
+      observability:
+        type: object
+        additionalProperties: true
+        description: >
+          Distributed tracing and span export configuration (OTel, otel_extended).
+        properties:
+          backend:
+            type: string
+            description: "otel_sdk | otel_extended | none"
+          output_path:
+            type: string
+            description: >
+              Relative path inside the run folder where span JSONL files are
+              written (e.g. traces/otel).  Null disables file export.
+          otlp_endpoint_env:
+            type: string
+            description: >
+              Env-var name that holds the live OTLP HTTP endpoint.  Value is
+              resolved at runtime — never stored in YAML.
+          trace_content:
+            type: boolean
+
+      tools:
+        type: object
+        additionalProperties: true
+        description: "Tool-level configuration overrides."
+        properties:
+          remote_tools_enabled:
+            type: boolean
+          allowed:
+            type: array
+            items:
+              type: string
+
+      config:
+        type: object
+        additionalProperties: true
+        description: >
+          Free-form deployment config: infrastructure URLs, non-secret
+          identifiers, feature flags.  Never place secret values here — use
+          api_key_env references in infra manifests instead.
+
+      operator:
+        type: object
+        additionalProperties: true
+        description: "Operator / provisioner metadata."

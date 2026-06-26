@@ -1,0 +1,107 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Reusable workflow — build and push a container image to GHCR.
+name: Build & Push (GHCR)
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        description: Image name under GHCR (can include slashes)
+        required: true
+        type: string
+      context:
+        description: Docker build context
+        required: false
+        type: string
+        default: "."
+      dockerfile:
+        description: Path to Dockerfile (relative to repo root)
+        required: false
+        type: string
+        default: "Dockerfile"
+      image-tag:
+        description: Optional explicit tag (otherwise computed from VERSION / git ref)
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Compute tags
+        id: tags
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SHA="$(git rev-parse --short HEAD)"
+          IMAGE="ghcr.io/${{ github.repository_owner }}/${{ inputs.image-name }}"
+
+          if [[ -n "${{ inputs.image-tag }}" ]]; then
+            TAG="${{ inputs.image-tag }}"
+          elif [[ "${GITHUB_REF}" =~ ^refs/tags/v(.+)$ ]]; then
+            # Release tag push: <version>-<sha> (e.g. 0.0.1-a3f5c21)
+            VERSION="${BASH_REMATCH[1]}"
+            TAG="${VERSION}-${SHA}"
+          else
+            # workflow_dispatch: <version>-<commits-since-tag>-g<sha>
+            if git describe --long --tags --match 'v*' >/dev/null 2>&1; then
+              DESCRIBE="$(git describe --long --tags --match 'v*')"
+              TAG="${DESCRIBE#v}"
+            else
+              BASE="$(tr -d '\n\r' < VERSION)"
+              TAG="${BASE}-0-g${SHA}"
+            fi
+          fi
+
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          TAGS="$IMAGE:$TAG"
+
+          {
+            echo "tags<<EOF"
+            echo "$TAGS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.tags.outputs.tag }}

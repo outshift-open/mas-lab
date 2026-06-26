@@ -1,0 +1,16 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+name: trajectory_annotator
+priority: 10
+description: Add analyst highlights and notes to a Trajectory, producing an AnnotatedTrajectory.
+
+inputs:
+  - name: trajectory
+    kind: trajectory
+    description: The trajectory to annotate (Trajectory or AnnotatedTrajectory)
+
+outputs:
+  - name: annotated
+    kind: annotated_trajectory
+    description: Annotated trajectory artifact
+    defaults: {}

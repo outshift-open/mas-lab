@@ -1,0 +1,36 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Tool
+
+metadata:
+  name: get_trip_fares
+  description: "Look up one-way fares for a route leg in the Arborian Network."
+  version: "1.0.0"
+  tags: [travel, fares, cost]
+
+spec:
+  description: >
+    Return the one-way adult fare for a given route leg and travel class.
+    Concierge Agent only — do not use in schedule or route agents.
+
+  parameters:
+    - name: route_id
+      type: string
+      description: "Route identifier from the network (e.g. 'CV', 'CF-train', 'CL-air'). Must match exactly — use query_graph_database to discover valid IDs. NOT a city abbreviation."
+      required: true
+      examples: ["CV", "VL", "CF-train", "CL-air", "LF"]
+
+    - name: travel_class
+      type: string
+      description: "Service class for the fare lookup."
+      required: true
+      enum: ["Standard", "Express", "NightTrain_couchette", "Economy", "Business"]
+      examples: ["Standard", "Express", "Economy"]
+
+  impl:
+    kind: python
+    module_path: ./get_trip_fares.py
+    class_name: GetTripFaresTool
+    params:
+      dataset_path: fixtures/arborian-network.yaml

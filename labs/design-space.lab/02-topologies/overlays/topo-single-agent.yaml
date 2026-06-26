@@ -1,0 +1,38 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  id: topo-single-agent
+  description: >
+    Single-agent topology: collapse the four-agent MAS into one generalist agent
+    that holds all tools and skills.  Demonstrates that topology is an orthogonal
+    dimension — no other dimension (tools, skills, design pattern) changes.
+  notes: >
+    Canonical single-agent declaration: a MAS manifest with one agent and no
+    explicit workflow (workflow defaults to type=dynamic, entry=first agent).
+    See ``labs/design-space.lab/02-topologies/overlays/topo-single-agent.yaml`` for the
+    single-agent topology scenario used in Exp 1.2.
+    This overlay exists to make the single-agent topology a scenario within the
+    design-space benchmark alongside the multi-agent topologies.
+
+spec:
+  patch:
+    # Remove the four base agents; the generalist replaces them all.
+    agents_remove:
+      - moderator
+      - schedule_agent
+      - itinerary_agent
+      - concierge_agent
+
+    # Add the generalist (defined in agents/generalist/agent.yaml with
+    # all tools + skills + a combined system prompt).
+    agents_add:
+      - id: generalist
+        ref: agents/generalist/agent.yaml
+
+    # Wire the single-node workflow.
+    workflow:
+      entry: generalist
+      nodes:
+        - id: generalist

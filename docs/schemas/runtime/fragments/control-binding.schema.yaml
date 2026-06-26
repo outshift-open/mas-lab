@@ -1,0 +1,44 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#control-binding"
+title: ControlBinding
+description: >
+  Control-plane plugin configs keyed by plugin id. Set a key to null to disable.
+  Each value is passed to the registered control plugin only.
+type: object
+additionalProperties: false
+properties:
+  budget:
+    oneOf:
+      - type: "null"
+      - type: object
+        additionalProperties: false
+        properties:
+          max_tokens:
+            type: integer
+            minimum: 0
+          max_cost_usd:
+            type: number
+            minimum: 0
+  circuit_breaker:
+    oneOf:
+      - type: "null"
+      - type: object
+        additionalProperties: false
+        properties:
+          failure_threshold:
+            type: integer
+            minimum: 1
+          reset_timeout_s:
+            type: number
+            minimum: 0
+  rate_limiter:
+    oneOf:
+      - type: "null"
+      - type: object
+        additionalProperties: false
+        properties:
+          requests_per_minute:
+            type: integer
+            minimum: 1

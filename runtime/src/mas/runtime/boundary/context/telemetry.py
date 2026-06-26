@@ -1,0 +1,137 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+"""Context / working-memory observability — kernel path (LangGraph-style messages)."""
+
+from __future__ import annotations
+
+import uuid
+from typing import Any
+
+
+def _preview(text: str, *, limit: int = 120) -> str:
+    blob = str(text or "").strip()
+    if len(blob) <= limit:
+        return blob
+    return blob[: limit - 3] + "..."
+
+
+def _token_estimate(text: str) -> int:
+    return max(1, len(str(text or "")) // 4)
+
+
+def _message_source(msg: dict[str, Any], *, index: int, layer: str) -> str:
+    role = str(msg.get("role") or "?")
+    if role == "system":
+        return "context/system"
+    if role == "tool":
+        return f"{layer}/tool_result"
+    if role == "assistant" and msg.get("tool_calls"):
+        return f"{layer}/tool_call"
+    if role == "assistant":
+        return f"{layer}/assistant"
+    if role == "user":
+        return f"{layer}/user"
+    return f"{layer}/{role}"
+
+
+def segments_from_messages(
+    messages: list[dict[str, Any]],
+    *,
+    layer: str = "assembled",
+) -> list[dict[str, Any]]:
+    """Build L4-compatible segment dicts from OpenAI-shaped messages."""
+    segments: list[dict[str, Any]] = []
+    for idx, msg in enumerate(messages):
+        role = str(msg.get("role") or "?")
+        content = msg.get("content") or ""
+        if role == "assistant" and msg.get("tool_calls"):
+            calls = msg.get("tool_calls") or []
+            names = []
+            for call in calls:
+                fn = (call.get("function") or {}) if isinstance(call, dict) else {}
+                names.append(str(fn.get("name") or "?"))
+            content = f"tool_calls: {', '.join(names)}"
+        segments.append(
+            {
+                "part_id": str(uuid.uuid4()),
+                "role": role,
+                "source": _message_source(msg, index=idx, layer=layer),
+                "section_id": f"{layer}/{idx}/{role}",
+                "index": idx,
+                "tokens": _token_estimate(str(content)),
+                "content_preview": _preview(str(content)),
+                "tool_call_id": msg.get("tool_call_id") or "",
+                "retained": True,
+            }
+        )
+    return segments
+
+
+def record_context_mutation(
+    observability: Any | None,
+    *,
+    action: str,
+    turn_index: int = 0,
+    correlation_id: int = 0,
+    role: str = "",
+    call_id: str = "",
+    content: str = "",
+    committed_count: int = 0,
+    wm_count: int = 0,
+) -> None:
+    """Log working-memory / turn-history mutations (state that affects the next LLM call)."""
+    if observability is None:
+        return
+    record = getattr(observability, "record_context_mutation", None)
+    if not callable(record):
+        return
+    record(
+        action=action,
+        turn_index=turn_index,
+        correlation_id=correlation_id,
+        role=role,
+        call_id=call_id,
+        content_preview=_preview(content),
+        committed_count=committed_count,
+        wm_count=wm_count,
+    )
+
+
+def record_context_assembly(
+    observability: Any | None,
+    *,
+    correlation_id: int,
+    messages: list[dict[str, Any]],
+    turn_index: int = 0,
+    agent_id: str = "agent",
+) -> None:
+    """Log the exact messages[] snapshot sent to the LLM (pre-call)."""
+    if observability is None or not messages:
+        return
+    record = getattr(observability, "record_context_assembled", None)
+    if not callable(record):
+        return
+    segments = segments_from_messages(messages)
+    record(
+        correlation_id=correlation_id,
+        turn_index=turn_index,
+        agent_id=agent_id,
+        messages=messages,
+        segments=segments,
+        total_tokens=sum(s.get("tokens") or 0 for s in segments),
+    )
+
+
+def record_engine_llm_return(
+    observability: Any | None,
+    *,
+    correlation_id: int,
+    text: str,
+    next_step: str = "STOP",
+) -> None:
+    if observability is None:
+        return
+    record = getattr(observability, "record_engine_llm_return", None)
+    if not callable(record):
+        return
+    record(correlation_id=correlation_id, text=text, next_step=next_step)

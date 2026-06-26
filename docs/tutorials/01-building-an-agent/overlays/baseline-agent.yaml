@@ -1,0 +1,12 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Agent-level baseline — tools for qa-agent chat (use with agent.yaml)
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: baseline-agent
+spec:
+  patch:
+    tools:
+      - web-search
+      - calculator

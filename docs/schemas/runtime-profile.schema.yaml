@@ -1,0 +1,40 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Runtime profile — kernel defaults (not placement, not agent logic)
+$schema: http://json-schema.org/draft-07/schema#
+title: RuntimeProfile
+type: object
+required: [apiVersion, kind, spec]
+additionalProperties: false
+properties:
+  apiVersion:
+    type: string
+    const: runtime-profile/v1
+  kind:
+    type: string
+    const: RuntimeProfile
+  metadata:
+    type: object
+    additionalProperties: true
+  spec:
+    type: object
+    additionalProperties: false
+    properties:
+      runtime_id:
+        type: string
+        enum: [python-v2]
+      design_pattern:
+        type: object
+        additionalProperties: false
+        description: Default when agent manifest omits design_pattern (registry lookup by type)
+        properties:
+          type:
+            type: string
+            description: Builtin name — react, cot, plan_execute, …
+      gov_policy_profile:
+        type: string
+        enum: [permissive, block_destructive, strict]
+      enable_observability: { type: boolean }
+      enable_coordination: { type: boolean }
+      enable_governance: { type: boolean }
+      enable_envelope_observability: { type: boolean }
