@@ -390,7 +390,9 @@ properties:
                     type: string
                     description: >
                       Base directory for file-based persistence.  Supports {agent_id}
-                      and {session_id} placeholders.  Default: ~/.mas/agents/{agent_id}/sessions/
+                      and {session_id} placeholders.  Default when unset:
+                      $XDG_DATA_HOME/mas/agents/{agent_id}/sessions/
+                      (see docs/user-config.md).
                     default: ""
                   auto_save:
                     type: boolean
@@ -613,7 +615,7 @@ properties:
 
           No file paths, no directory references.  Resolution order:
           1. App-local skills/ directory (if present).
-          2. Libraries declared under 'libraries:' in mas-workspace.yaml.
+          2. Libraries declared under 'libraries:' in config.yaml.
           3. Installed Python packages.
         default: []
         items:

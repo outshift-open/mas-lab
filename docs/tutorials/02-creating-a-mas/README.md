@@ -5,7 +5,7 @@
 # Tutorial 2 — Creating a Multi-Agent System
 
 > **Packages:** `mas-ctl` (run-mas, validate), `mas-lab` (telemetry/plots)
-> **Deployment:** `deployments/local-inproc.yaml` with `runtime_id: python-v2`
+> **Deployment:** `deployments/local-inproc.yaml` (default runtime)
 > **Time:** ~30 min hands-on
 > **Goal:** Compose a multi-agent trip planner with a declarative `kind: MAS` manifest and run it interactively.
 > **Prerequisite:** [Tutorial 0](../00-environment-setup/) (config + infra) and

@@ -16,6 +16,7 @@ on:
       - "examples/**"
       - "Taskfile.yml"
       - "pyproject.toml"
+      - "scripts/**"
       - ".github/workflows/test.yml"
   push:
     branches: [ main ]
@@ -48,7 +49,7 @@ jobs:
           sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b "${{ runner.temp }}/bin"
           echo "${{ runner.temp }}/bin" >> "$GITHUB_PATH"
 
-      - name: CI gates (Taskfile ci = verify-unit + verify-functional + validate)
+      - name: CI gates (Taskfile ci = verify:literals + verify-unit + verify-functional + validate)
         run: task ci
 
       - name: Coverage gate (kernel, ctl.workspace, bench pipeline)

@@ -89,7 +89,7 @@ class MASRunBase:
     1. CLI ``--trace-cache`` flag
     2. This YAML field (``trace_cache_dir:``)
     3. Env var ``MAS_TRACE_CACHE``
-    4. Default ``~/.mas-lab/trace-cache``
+    4. Default ``$XDG_CACHE_HOME/mas/traces``
     """
 
     pipeline: List["PipelineStepSpec"] = field(default_factory=list)

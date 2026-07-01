@@ -10,6 +10,7 @@ import pytest
 
 from mas.ctl.compose.placement_validate import validate_placement_strategy
 from mas.ctl.compose.runner import ComposeRequest, compose_run
+from mas.ctl.deployment.runtime_id import DEFAULT_RUNTIME_ID
 
 
 def test_validate_local_inproc_ok():
@@ -62,13 +63,13 @@ spec:
     )
     dep_path = tmp_path / "deployment.yaml"
     dep_path.write_text(
-        """apiVersion: deployment/v1
+        f"""apiVersion: deployment/v1
 kind: Deployment
 metadata:
   name: docker-dep
 spec:
   strategy: docker
-  runtime_id: python-v2
+  runtime_id: {DEFAULT_RUNTIME_ID}
 """,
         encoding="utf-8",
     )

@@ -10,6 +10,8 @@ import click
 import yaml
 
 from mas.ctl.cli.obs_flags import observability_options, resolve_observability_config
+from mas.ctl.cli.runtime_flags import runtime_id_choice
+from mas.ctl.deployment.runtime_id import DEFAULT_RUNTIME_ID
 from mas.ctl.executor.run_mas import execute_run_mas
 
 
@@ -22,8 +24,8 @@ from mas.ctl.executor.run_mas import execute_run_mas
 @click.option("--infra-ref", "infra_refs", multiple=True)
 @click.option(
     "--kernel",
-    default="python-v2",
-    type=click.Choice(["python-v2"], case_sensitive=False),
+    default=DEFAULT_RUNTIME_ID,
+    type=runtime_id_choice(),
 )
 @click.option("-i", "--interactive", is_flag=True)
 @click.option(

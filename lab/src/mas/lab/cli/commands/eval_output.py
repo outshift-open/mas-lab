@@ -95,7 +95,7 @@ def eval_output_cmd(
         raise SystemExit(1)
 
     # ── Inject openai-SDK LLM service (bypasses litellm entirely) ───────────
-    # Source: infra manifest (mas-workspace.yaml → InfraManifest), --model overrides
+    # Source: infra manifest (config.yaml → InfraManifest), --model overrides
     install_openai_llm_service(model, api_key_env=api_key_env)
 
     if fixture:

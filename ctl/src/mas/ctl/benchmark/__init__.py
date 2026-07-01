@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Bench runner for python-v2 kernel."""
+"""Bench runner for the default ctl runtime."""
 
 from __future__ import annotations
 

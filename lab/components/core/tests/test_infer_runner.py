@@ -7,6 +7,7 @@ from pathlib import Path
 
 import yaml
 
+from mas.lab.runners.constants import DEFAULT_LAB_RUNNER_ID
 from mas.lab.runners.infer import (
     framework_adapter_from_dict,
     infer_runner_id,
@@ -14,12 +15,12 @@ from mas.lab.runners.infer import (
 )
 
 
-def test_runner_id_for_framework_adapter_defaults_to_mas() -> None:
-    assert runner_id_for_framework_adapter(None) == "mas"
-    assert runner_id_for_framework_adapter("native") == "mas"
+def test_runner_id_for_framework_adapter_defaults_to_mas_lab() -> None:
+    assert runner_id_for_framework_adapter(None) == DEFAULT_LAB_RUNNER_ID
+    assert runner_id_for_framework_adapter("native") == DEFAULT_LAB_RUNNER_ID
     # Framework wrappers are not shipped in OSS — native mas machinery only.
-    assert runner_id_for_framework_adapter("langgraph") == "mas"
-    assert runner_id_for_framework_adapter("autogen") == "mas"
+    assert runner_id_for_framework_adapter("langgraph") == DEFAULT_LAB_RUNNER_ID
+    assert runner_id_for_framework_adapter("autogen") == DEFAULT_LAB_RUNNER_ID
 
 
 def test_framework_adapter_from_agent_spec() -> None:
@@ -40,11 +41,11 @@ def test_infer_runner_execution_override_wins(tmp_path: Path) -> None:
     )
     assert (
         infer_runner_id(
-            execution_runner="mas",
+            execution_runner="native",
             mas_manifest=mas,
             agent_config={"spec": {"framework_adapter": "autogen"}},
         )
-        == "mas"
+        == DEFAULT_LAB_RUNNER_ID
     )
 
 
@@ -54,9 +55,9 @@ def test_infer_runner_from_mas_manifest(tmp_path: Path) -> None:
         yaml.safe_dump({"spec": {"framework": {"default_adapter": "langgraph"}}}),
         encoding="utf-8",
     )
-    assert infer_runner_id(mas_manifest=mas) == "mas"
+    assert infer_runner_id(mas_manifest=mas) == DEFAULT_LAB_RUNNER_ID
 
 
 def test_infer_runner_from_app_agent_config() -> None:
     cfg = {"spec": {"framework_adapter": "autogen"}}
-    assert infer_runner_id(agent_config=cfg) == "mas"
+    assert infer_runner_id(agent_config=cfg) == DEFAULT_LAB_RUNNER_ID

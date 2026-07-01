@@ -31,7 +31,7 @@ def test_workspace_infra_refs_from_sample_workspace():
 
     repo = Path(__file__).resolve().parents[1]
     sample = repo / "examples" / "sample-workspace"
-    assert (sample / "mas-workspace.yaml").is_file()
+    assert (sample / "config.yaml").is_file()
     ws = WorkspaceConfig.load(repo / "docs/tutorials/01-building-an-agent")
     assert ws.found
     infra = resolve_infra_refs(["standard:mock-llm"], anchor=repo, workspace=ws)

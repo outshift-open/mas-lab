@@ -6,11 +6,13 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from mas.runtime.xdg import mas_data_root
+
 DEFAULT_HTTP_PORT = int(os.environ.get("MAS_CONTROLLER_PORT", "9000"))
 
 
 def mas_dir() -> Path:
-    return Path(os.environ.get("MAS_HOME", Path.home() / ".mas"))
+    return Path(os.environ.get("MAS_HOME", mas_data_root()))
 
 
 def controller_dir() -> Path:

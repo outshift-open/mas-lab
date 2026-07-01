@@ -8,8 +8,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from mas.ctl.deployment.runtime_id import DEFAULT_RUNTIME_ID
 
-KernelBackendId = Literal["python-v2"]
+# Literal must match DEFAULT_RUNTIME_ID (component-registry.yaml).
+KernelBackendId = Literal["mas-runtime-py"]
 RuntimeId = KernelBackendId
 DeploymentStrategy = Literal["local-inproc", "local-multiprocess", "docker", "kubernetes"]
 FrameworkAdapterId = Literal["native", "langgraph", "crewai"]
@@ -51,7 +53,7 @@ class PlacementPlan:
     """Deployment manifest materialization — ctl step 3."""
 
     strategy: DeploymentStrategy = "local-inproc"
-    runtime_id: RuntimeId = "python-v2"
+    runtime_id: RuntimeId = DEFAULT_RUNTIME_ID
     default_framework_adapter: FrameworkAdapterId = "native"
     agents: list[AgentPlacement] = field(default_factory=list)
     bus_kind: BusKind = "inproc"

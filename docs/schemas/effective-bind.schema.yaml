@@ -11,7 +11,7 @@ properties:
   spec_revision: { type: string }
   runtime_id:
     type: string
-    enum: [python-v2]
+    enum: [mas-runtime-py]
     description: Registered runtime id (component-registry.yaml)
   deployment_name: { type: string }
   bus_kind:

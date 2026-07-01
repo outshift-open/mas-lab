@@ -25,7 +25,7 @@ Example::
     from mas.lab.benchmark.results import ExperimentResults
 
     exp = ExperimentResults.from_output_dir(
-        "~/.mas-lab/labs/design-space/design-patterns-qa"
+        "labs_root()/design-space/design-patterns-qa"
     )
 
     for scenario in exp.scenarios:
@@ -212,7 +212,7 @@ class ExperimentResults:
     Iterate the hierarchy manually::
 
         exp = ExperimentResults.from_output_dir(
-            "~/.mas-lab/labs/design-space/design-patterns-qa"
+            "labs_root()/design-space/design-patterns-qa"
         )
         for scenario in exp.scenarios:
             for item in scenario.items:
@@ -243,25 +243,25 @@ class ExperimentResults:
     ) -> "ExperimentResults":
         """Locate the output directory by experiment name.
 
-        Searches under ``~/.mas-lab/labs/<name>`` first (flat), then
-        ``~/.mas-lab/labs/*/<name>`` (nested lab).
+        Searches under ``labs_root()/<name>`` first (flat), then
+        ``labs_root()/*/<name>`` (nested lab).
 
         Parameters
         ----------
         name:
             Experiment name as written in ``experiment.yaml``.
         labs_root:
-            Override the default ``~/.mas-lab/labs/`` root.
+            Override the default ``labs_root()/`` root.
         """
         from mas.lab.paths import labs_root as _labs_root_fn
         root = labs_root or _labs_root_fn()
 
-        # flat: ~/.mas-lab/labs/<name>/
+        # flat: labs_root()/<name>/
         direct = root / name
         if direct.is_dir():
             return cls(direct)
 
-        # nested: ~/.mas-lab/labs/<lab>/<name>/
+        # nested: labs_root()/<lab>/<name>/
         for candidate in root.iterdir():
             if candidate.is_dir():
                 nested = candidate / name

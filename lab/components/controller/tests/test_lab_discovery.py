@@ -166,7 +166,7 @@ def test_config_files_include_workspace_infra(tmp_path: Path):
     store._libraries = {"demo": lab}
     configs = store.config_files("demo")
     assert any(k.startswith("workspace/infra/") for k in configs["infra"])
-    assert "mas-workspace.yaml" not in configs["workspace"] or configs["workspace"] == {}
+    assert "config.yaml" not in configs["workspace"] or configs["workspace"] == {}
     reset_lab_registry()
 
 

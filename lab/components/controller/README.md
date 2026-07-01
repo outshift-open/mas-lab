@@ -53,7 +53,7 @@ uv pip install -e "mas-lab[all]"
 task install              # from repo root — installs mas-lab-controller into .venv
 mas-lab serve
 # HTTP API → http://localhost:8090  (use --port to change)
-# Unix socket → ~/.mas/controller.sock
+# Unix socket → $XDG_DATA_HOME/mas/controller.sock
 ```
 
 **Background daemon** (default HTTP port 9000):
@@ -126,8 +126,8 @@ Environment variables (defaults):
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `MAS_HOME` | `~/.mas` | Config and socket parent dir |
-| `MAS_CONTROLLER_SOCKET` | `~/.mas/controller.sock` | Unix socket path |
+| `MAS_HOME` | `$XDG_DATA_HOME/mas` | Config and socket parent dir |
+| `MAS_CONTROLLER_SOCKET` | `$XDG_DATA_HOME/mas/controller.sock` | Unix socket path |
 | `MAS_CONTROLLER_PORT` | `9000` | HTTP API port |
 
 ---

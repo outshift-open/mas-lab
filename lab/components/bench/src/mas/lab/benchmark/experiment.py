@@ -172,7 +172,7 @@ def _resolve_dataset_by_name(
         1. ``importlib.resources.files(package).joinpath("datasets")`` — works
            for any package installed in the active venv.
         2. sys.path scan — catches paths injected via the workspace
-           ``libraries:`` key in ``mas-workspace.yaml``.  Each entry is
+           ``libraries:`` key in ``config.yaml``.  Each entry is
            treated as a root; the function looks for ``<root>/datasets/``.
 
         Use this form when a dataset is shared across many labs and lives in
@@ -180,7 +180,7 @@ def _resolve_dataset_by_name(
 
     Cross-lab references are deliberately **not** supported.  If a dataset is
     needed by multiple labs, put it in a library package and install it (or
-    add the local path to ``libraries:`` in ``mas-workspace.yaml``).
+    add the local path to ``libraries:`` in ``config.yaml``).
     """
     if not locator or locator == "local":
         # ── Local lookup ──────────────────────────────────────────────────
@@ -265,7 +265,7 @@ def _resolve_dataset_from_package(name: str, package: str) -> Path:
 
     raise FileNotFoundError(
         f"No Dataset named {name!r} in package {package!r}. "
-        f"Is the package installed or listed under 'libraries:' in mas-workspace.yaml?"
+        f"Is the package installed or listed under 'libraries:' in config.yaml?"
     )
 
 

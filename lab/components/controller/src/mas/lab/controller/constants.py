@@ -7,6 +7,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from mas.runtime.xdg import mas_cache_root, mas_data_root
+
 LIBRARIES_DIR = Path(
     os.getenv(
         "MAS_LIBRARIES_DIR",
@@ -16,9 +18,9 @@ LIBRARIES_DIR = Path(
 
 MAX_TIMEOUT = 1200
 
-MAS_LAB_ROOT = Path(os.environ.get("MAS_LAB_ROOT", Path.home() / ".mas"))
+MAS_LAB_ROOT = Path(os.environ.get("MAS_LAB_ROOT", mas_data_root()))
 
-WEB_SEARCH_CACHE_DIR = Path.home() / ".mas-cache" / "web_search"
+WEB_SEARCH_CACHE_DIR = mas_cache_root() / "web_search"
 
 HIDDEN_FILES = {".DS_Store", ".run_ref", ".gitkeep"}
 

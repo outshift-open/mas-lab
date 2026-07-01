@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from mas.lab.runners.constants import DEFAULT_LAB_RUNNER_ID
 from mas.lab.runners.factory import RunnerFactory
 from mas.lab.runners.protocol import ApplicationRunnerProtocol
 from mas.lab.runners.registry import ApplicationRunnerRegistry
@@ -22,6 +23,10 @@ class _StubRunner(ApplicationRunnerProtocol):
 
     def supports_contract(self, contract_id: str) -> bool:
         return False
+
+
+class _MasLabStubRunner(_StubRunner):
+    runner_id: str = DEFAULT_LAB_RUNNER_ID
 
 
 @pytest.fixture(autouse=True)
@@ -42,10 +47,16 @@ def test_factory_get_returns_instance():
     assert runner.runner_id == "stub-factory"
 
 
-def test_factory_infer_and_get_default_mas(monkeypatch):
-    ApplicationRunnerRegistry.register("mas", _StubRunner)
+def test_factory_infer_and_get_default_mas_lab(monkeypatch):
+    ApplicationRunnerRegistry.register(DEFAULT_LAB_RUNNER_ID, _MasLabStubRunner)
     runner = RunnerFactory.infer_and_get()
-    assert runner.runner_id == "mas"
+    assert runner.runner_id == DEFAULT_LAB_RUNNER_ID
+
+
+def test_factory_get_default_native():
+    ApplicationRunnerRegistry.register(DEFAULT_LAB_RUNNER_ID, _MasLabStubRunner)
+    runner = RunnerFactory.get(DEFAULT_LAB_RUNNER_ID)
+    assert runner.runner_id == DEFAULT_LAB_RUNNER_ID
 
 
 def test_factory_infer_and_get_execution_override():
@@ -61,6 +72,6 @@ def test_factory_infer_from_mas_manifest(tmp_path: Path):
         encoding="utf-8",
     )
 
-    ApplicationRunnerRegistry.register("mas", _StubRunner)
+    ApplicationRunnerRegistry.register(DEFAULT_LAB_RUNNER_ID, _MasLabStubRunner)
     runner = RunnerFactory.infer_and_get(mas_manifest=mas_path)
-    assert runner.runner_id == "mas"
+    assert runner.runner_id == DEFAULT_LAB_RUNNER_ID

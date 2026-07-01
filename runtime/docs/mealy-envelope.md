@@ -69,4 +69,4 @@ Maps to `KernelConfig.enable_governance` / `enable_envelope_observability`.
 
 ## 5. Further reading
 
-- [`automaton-product-model.md`](automaton-product-model.md), [`mealy-product-formal-design.md`](mealy-product-formal-design.md)
+- [`automaton-product-model.md`](automaton-product-model.md)

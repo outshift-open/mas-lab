@@ -155,7 +155,6 @@ at the repository root — Tutorials 0–3 cover environment, agent, MAS, and ex
 | [docs/production-path.md](docs/production-path.md) | Kernel execution path |
 | [docs/mealy-envelope.md](docs/mealy-envelope.md) | Envelope implementation status |
 | [docs/automaton-product-model.md](docs/automaton-product-model.md) | Formal product model (design + map) |
-| [docs/architectural-decisions.md](docs/architectural-decisions.md) | ADRs |
 | [docs/developer-guide.md](docs/developer-guide.md) | Plugin and test workflow |
 | [docs/trajectory-schema.md](docs/trajectory-schema.md) | Event / trace schema |
 

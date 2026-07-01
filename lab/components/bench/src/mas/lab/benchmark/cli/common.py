@@ -14,9 +14,10 @@ from typing import Optional
 
 from mas.lab.benchmark.cache import get_trace_cache_dir as _get_trace_cache_dir
 
-def _resolve_run_manager_dir(explicit: Optional[Path]) -> Optional[Path]:
+def _resolve_run_manager_dir(explicit: Optional[Path]) -> Path:
+    """Return the primary benchmark output root from CLI or active config."""
     if explicit is not None:
-        return explicit
+        return explicit.resolve()
     for _d in [Path.cwd().resolve(), *Path.cwd().resolve().parents]:
         _cfg = _d / "lab-config.yaml"
         if _cfg.exists():
@@ -29,5 +30,7 @@ def _resolve_run_manager_dir(explicit: Optional[Path]) -> Optional[Path]:
             except Exception:
                 logger.debug('suppressed', exc_info=True)
             break
-    return None
+    from mas.lab import paths as _paths
+
+    return _paths.labs_root()
 

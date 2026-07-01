@@ -72,7 +72,7 @@ Site: [outshift-open.github.io/mas-lab](https://outshift-open.github.io/mas-lab/
 
 ## Schemas
 
-Workspace configuration: [mas-workspace.schema.yaml](schemas/mas-workspace.schema.yaml).
+Workspace configuration: [config.schema.yaml](schemas/config.schema.yaml).
 
 Experiment and benchmark manifests are validated by `mas-lab validate` against
 schemas under `lab/components/bench/src/mas/lab/manifests/schema/`. Manifest

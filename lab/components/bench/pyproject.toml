@@ -31,4 +31,4 @@ dependencies = [
 packages = ["src/mas"]
 
 [project.entry-points."mas.lab.runners"]
-mas = "mas.lab.benchmark.plugins.mas:MasRuntimeRunner"
+native = "mas.lab.benchmark.plugins.mas:MasRuntimeRunner"

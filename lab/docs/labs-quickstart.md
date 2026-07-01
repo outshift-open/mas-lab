@@ -8,7 +8,8 @@ A **lab** is a folder ending in `.lab` with an **experiment** manifest
 (`experiment.yaml`): which **scenarios** and **dataset** items to run, and which
 **pipeline** steps turn **runs** into tables and figures.
 
-Full term list: [glossary.md](../../docs/glossary.md).
+Full term list: [glossary.md](../../docs/glossary.md). Default paths:
+[`docs/user-config.md`](../../docs/user-config.md).
 
 ## What one command does
 
@@ -41,10 +42,10 @@ Install walkthrough: [Tutorial 0](../../docs/tutorials/00-environment-setup/READ
 
 ## Where output goes
 
-With `~/.mas/config.yaml`, results use `experiment.name`:
+With `$XDG_CONFIG_HOME/mas/config.yaml`, results use `experiment.name`:
 
 ```text
-~/.mas/labs/<experiment-name>/results/
+$XDG_DATA_HOME/mas/labs/<experiment-name>/results/
   trace_stats.csv
   mealy_stats.csv
   fig-*.png
@@ -83,7 +84,7 @@ Pipeline only (logs already on disk):
 
 ```bash
 mas-lab benchmark pipeline run labs/design-space.lab/01-design-patterns/pipeline-figure.yaml \
-  -o ~/.mas/labs/lab1-exp1.1-design-patterns-qa
+  -o $XDG_DATA_HOME/mas/labs/lab1-exp1.1-design-patterns-qa
 ```
 
 ## Paper experiments

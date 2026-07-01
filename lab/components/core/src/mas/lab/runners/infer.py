@@ -9,16 +9,17 @@ from typing import Any, Dict, Optional
 
 from mas.runtime.spec.source import load_yaml_file
 
+from mas.lab.runners.constants import DEFAULT_LAB_RUNNER_ID, normalize_runner_id
+
 logger = logging.getLogger(__name__)
 
 # ctl framework_adapter ids → mas.lab.runners entry point id.
 FRAMEWORK_ADAPTER_TO_RUNNER: dict[str, str] = {
-    "native": "mas",
-    "mas": "mas",
-    "python-v2": "mas",
-    "langgraph": "mas",
-    "autogen": "mas",
-    "crewai": "mas",
+    "native": DEFAULT_LAB_RUNNER_ID,
+    "mas": DEFAULT_LAB_RUNNER_ID,
+    "langgraph": DEFAULT_LAB_RUNNER_ID,
+    "autogen": DEFAULT_LAB_RUNNER_ID,
+    "crewai": DEFAULT_LAB_RUNNER_ID,
 }
 
 
@@ -66,8 +67,8 @@ def framework_adapter_from_path(manifest_path: Path) -> Optional[str]:
 
 def runner_id_for_framework_adapter(adapter: Optional[str]) -> str:
     if not adapter:
-        return "mas"
-    return FRAMEWORK_ADAPTER_TO_RUNNER.get(adapter.strip().lower(), "mas")
+        return DEFAULT_LAB_RUNNER_ID
+    return FRAMEWORK_ADAPTER_TO_RUNNER.get(adapter.strip().lower(), DEFAULT_LAB_RUNNER_ID)
 
 
 def infer_runner_id(
@@ -84,10 +85,10 @@ def infer_runner_id(
     2. Composed agent manifest ``spec.framework_adapter``
     3. MAS ``mas.yaml`` (from ``applications[].app`` or ``mas.manifest``)
     4. Flavour / inline deployment ``framework.default_adapter``
-    5. Default ``mas`` (bench plugin ``mas.lab.benchmark.plugins.mas``)
+    5. Default ``native`` (bench plugin ``mas.lab.benchmark.plugins.mas``)
     """
     if execution_runner:
-        return execution_runner.strip()
+        return normalize_runner_id(execution_runner)
 
     adapter = framework_adapter_from_dict(agent_config)
     if not adapter and mas_manifest:
@@ -96,7 +97,7 @@ def infer_runner_id(
         adapter = framework_adapter_from_dict(flavour)
 
     runner_id = runner_id_for_framework_adapter(adapter)
-    if adapter and runner_id != "mas":
+    if adapter and runner_id != DEFAULT_LAB_RUNNER_ID:
         logger.debug(
             "Inferred lab runner %r from framework_adapter=%r",
             runner_id,

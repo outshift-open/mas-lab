@@ -4,9 +4,9 @@
 -->
 # Deployments
 
-**`local-inproc.yaml`** — default in-process run with `spec.runtime_id: python-v2`.
+**`local-inproc.yaml`** — default in-process run (see `spec.runtime_id` in component-registry).
 
-Referenced from `mas-workspace.yaml` (`mas_ctl.deployment: local-inproc`) and copied into tutorial bundles under `deployments/`.
+Referenced from `config.yaml` (`mas_ctl.deployment: local-inproc`) and copied into tutorial bundles under `deployments/`.
 
 ## Local Docker Compose
 

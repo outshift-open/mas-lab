@@ -257,7 +257,7 @@ class TestCLISubcommands:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 8. Agent instantiation with T03 manifests (python-v2)
+# 8. Agent instantiation with T03 manifests (default runtime)
 # ═══════════════════════════════════════════════════════════════════════════
 
 class TestT03AgentInstantiation:

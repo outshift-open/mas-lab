@@ -1,8 +1,8 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
 $schema: "http://json-schema.org/draft-07/schema#"
-$id: "mas.config/mas-workspace/v1"
-title: "mas-workspace.yaml"
+$id: "mas.config/config/v1"
+title: "config.yaml"
 description: >
   Project workspace configuration discovered by walking up from the current
   directory (or from MAS_WORKSPACE_ROOT). Secrets belong in the file named by
@@ -47,6 +47,15 @@ properties:
       benchmark_flavour:
         type: string
         description: Flavour used when running benchmark experiments.
+      labs_search_paths:
+        oneOf:
+          - type: string
+          - type: array
+            items:
+              type: string
+        description: >-
+          Directories (relative to workspace root) scanned for ``*.lab`` folders
+          and experiment YAML. Separate from ``paths.labs_dir`` (benchmark output).
 
   infra_refs:
     oneOf:
@@ -87,10 +96,12 @@ properties:
     type: object
     additionalProperties: false
     description: >-
-      Optional path overrides (otherwise ~/.mas/config.yaml or MAS_* env vars).
+      Optional path overrides (otherwise $XDG_CONFIG_HOME/mas/config.yaml paths
+      or MAS_* env vars; see docs/user-config.md).
     properties:
       labs_dir:
         type: string
+        description: Default root for benchmark run output (metadata.yaml, results.csv).
       cache_dir:
         type: string
       runs_dir:

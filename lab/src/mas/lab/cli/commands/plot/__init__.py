@@ -26,7 +26,7 @@ def plot_group() -> None:
     Source resolution:
       FILE PATH         Path to ``events.jsonl``
       LAB SHORTHAND     <lab>/<experiment>[/<scenario>/<item>/<run>]
-                        resolved under ~/.mas-lab/labs/; missing segments
+                        resolved under labs_root()/; missing segments
                         auto-expand to the first child
       RUN ID            e.g. 20260224-062142-baseline-673d6359
 

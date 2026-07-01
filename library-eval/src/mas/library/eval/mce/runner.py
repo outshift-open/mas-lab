@@ -174,7 +174,7 @@ def install_openai_llm_service(
 
     Configuration resolution order:
       1. *model_override* argument
-      2. ``mas-workspace.yaml`` → InfraManifest
+      2. ``config.yaml`` → InfraManifest
       3. Hard-coded fallback: ``vertex_ai/gemini-3-pro-preview``
     """
     global _jury, _jury_patched, _deepeval_model
@@ -251,7 +251,7 @@ def install_openai_llm_service(
 
 
 def _resolve_infra() -> tuple[str, str, str]:
-    """Resolve LLM proxy config from ``mas-workspace.yaml`` InfraManifest."""
+    """Resolve LLM proxy config from ``config.yaml`` InfraManifest."""
     _FALLBACK = ("", "OPENAI_API_KEY", "vertex_ai/gemini-3-pro-preview")
     try:
         from mas.lab.workspace import WorkspaceConfig, workspace_get

@@ -37,10 +37,10 @@ task reproduce
 
 | `experiment.name` | Typical path |
 |-------------------|--------------|
-| `lab1-exp1.1-design-patterns-qa` | `~/.mas/labs/lab1-exp1.1-design-patterns-qa/` |
-| `lab1-exp1.2-topologies-trip-planner` | `~/.mas/labs/lab1-exp1.2-topologies-trip-planner/` |
-| `lifecycle-control` | `~/.mas/labs/lifecycle-control/lifecycle-control/` |
-| `memory-extension-reproducibility` | `~/.mas/labs/memory-extension-reproducibility/` |
+| `lab1-exp1.1-design-patterns-qa` | `$XDG_DATA_HOME/mas/labs/lab1-exp1.1-design-patterns-qa/` |
+| `lab1-exp1.2-topologies-trip-planner` | `$XDG_DATA_HOME/mas/labs/lab1-exp1.2-topologies-trip-planner/` |
+| `lifecycle-control` | `$XDG_DATA_HOME/mas/labs/lifecycle-control/lifecycle-control/` |
+| `memory-extension-reproducibility` | `$XDG_DATA_HOME/mas/labs/memory-extension-reproducibility/` |
 
 ```bash
 mas-lab benchmark show last plots

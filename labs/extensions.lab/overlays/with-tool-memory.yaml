@@ -14,7 +14,7 @@ metadata:
 #
 # What this overlay does:
 #   1. spec.plugins → injects SemanticMemoryPlugin into ALL agents (global).
-#      Each agent gets its own SQLite store at ~/.mas/memory/{agent_id}.sqlite.
+#      Each agent gets its own SQLite store at $XDG_DATA_HOME/mas/memory/{agent_id}.sqlite.
 #      The concierge's store is the relevant one; the others carry no data.
 #
 #   2. spec.patch.agents.concierge_agent.tools → adds "memory-search" to the
@@ -31,7 +31,7 @@ metadata:
 #      manually before running or via a pipeline pre-step:
 #        python -c "
 #          from mas.runtime.tools.memory_search_tool import MemoryToolProvider
-#          MemoryToolProvider.seed('~/.mas/memory/concierge_agent.sqlite', seeds)
+#          MemoryToolProvider.seed('$XDG_DATA_HOME/mas/memory/concierge_agent.sqlite', seeds)
 #        "
 #      The seed entries are documented here for reproducibility.
 #
@@ -48,7 +48,7 @@ spec:
       name: semantic_memory
       priority: 60
       params:
-        db_path: "~/.mas/memory/{agent_id}.sqlite"
+        db_path: "~/.local/share/mas/memory/{agent_id}.sqlite"  # default $XDG_DATA_HOME/mas/memory/
 
   # memory_seed: documents reproducibility intent.
   # In the MAS benchmark path these are NOT auto-applied; seed manually.

@@ -9,8 +9,8 @@ like Kubernetes resolves ``secretKeyRef`` from a Secret.
 Resolution order for each field (highest → lowest priority):
   1. **CLI flag**                    ``--uri``, ``--user``, ``--database``
   2. **InfraManifest**               ``config/infra/neo4j.yaml`` / ``kind: Datastore``
-                                     discovered via the nearest ``mas-workspace.yaml``
-  3. **``~/.mas-lab/connections.yaml``**  personal override (same ``env:VAR`` syntax)
+                                     discovered via the nearest ``config.yaml``
+  3. **``$XDG_CONFIG_HOME/mas/connections.yaml``**  personal override (same ``env:VAR`` syntax)
   4. **``NEO4J_*`` environment variables**  backward compatibility
   5. **Built-in default**            ``bolt://localhost:7687``, user ``neo4j``, db ``neo4j``
 
@@ -52,12 +52,10 @@ except ImportError:
     _yaml = None  # type: ignore
 
 
-# ---------------------------------------------------------------------------
-# Canonical config location
-# ---------------------------------------------------------------------------
+from mas.runtime.constants import CONNECTIONS_CONFIG_FILENAME, WORKSPACE_CONFIG_FILENAME
+from mas.runtime.xdg import mas_config_dir
 
-_CONFIG_HOME = Path.home() / ".mas-lab"
-_CONNECTIONS_FILE = _CONFIG_HOME / "connections.yaml"
+_CONNECTIONS_FILE = mas_config_dir() / CONNECTIONS_CONFIG_FILENAME
 
 
 # ---------------------------------------------------------------------------
@@ -98,7 +96,7 @@ def _load_dotenv() -> Dict[str, str]:
 
     # 2. <workspace_root>/config/secrets/.env (higher priority — declared secrets)
     for parent in (here, *here.parents):
-        if (parent / "mas-workspace.yaml").exists():
+        if (parent / WORKSPACE_CONFIG_FILENAME).exists():
             secrets_env = parent / "config" / "secrets" / ".env"
             if secrets_env.exists():
                 result.update(_parse_file(secrets_env))
@@ -127,7 +125,7 @@ def _resolve_value(v: Any, dotenv: Dict[str, str]) -> str:
 
 
 def _load_named_connection(name: str) -> Dict[str, Any]:
-    """Return the raw config entry for *name* from ``~/.mas-lab/connections.yaml``.
+    """Return the raw config entry for *name* from the user connections file.
 
     Returns an empty dict if the file does not exist or the entry is absent.
     """
@@ -140,7 +138,7 @@ def _load_named_connection(name: str) -> Dict[str, Any]:
 def _load_infra_store(store_id: str) -> Optional[Any]:
     """Return the ``DatastoreSpec`` for *store_id* from the nearest infra manifest.
 
-    Discovers the infra bundle referenced by the nearest ``mas-workspace.yaml``
+    Discovers the infra bundle referenced by the nearest ``config.yaml``
     (same chain used by mas-runtime and mas-ctl), loads it, and returns the
     matching ``DatastoreSpec`` from ``infra.stores``.  Returns ``None`` on any
     failure (missing workspace, missing infra ref, missing store entry).
@@ -186,7 +184,7 @@ def resolve_clickhouse_conn(
     """Return fully-resolved ClickHouse HTTP connection parameters.
 
     Resolution order per field:
-        CLI flag > ~/.mas-lab/connections.yaml >
+        CLI flag > $XDG_CONFIG_HOME/mas/connections.yaml >
         CLICKHOUSE_* env vars > built-in default
 
     The ``password`` is always resolved from the ``password_env`` indirection in
@@ -239,7 +237,7 @@ def resolve_neo4j_conn(
 
     Resolution order per field:
         CLI flag > infra manifest store (store_id) >
-        ~/.mas-lab/connections.yaml >
+        $XDG_CONFIG_HOME/mas/connections.yaml >
         NEO4J_* env vars > built-in default
 
     Returns:

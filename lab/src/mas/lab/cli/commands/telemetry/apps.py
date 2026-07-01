@@ -39,7 +39,7 @@ def list_apps_cmd(
     ``ServiceName``).  Rows where ``application_id`` is empty or NULL are
     included and displayed as ``(empty)``.
 
-    Connection parameters are resolved: CLI flags → ~/.mas-lab/connections.yaml
+    Connection parameters are resolved: CLI flags → $XDG_CONFIG_HOME/mas/connections.yaml
     → CLICKHOUSE_* env vars → built-in defaults (localhost:8123).
 
     \b

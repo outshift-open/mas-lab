@@ -37,7 +37,7 @@ spec:
       name: semantic_memory
       priority: 60
       params:
-        db_path: "~/.mas/memory/{agent_id}.sqlite"
+        db_path: "~/.local/share/mas/memory/{agent_id}.sqlite"  # default $XDG_DATA_HOME/mas/memory/
 
   patch:
     agents:

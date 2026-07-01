@@ -22,7 +22,7 @@ mkdir -p "${MAS_DATA_ROOT}" "${MAS_TRACE_CACHE}" "${MAS_LABS_ROOT}" "${MAS_RUNS_
 # Use mounted workspace for config discovery (MAS_WORKSPACE_ROOT) when it has
 # project markers; otherwise fall back to the baked install tree.  Always run
 # uv from MAS_INSTALL_ROOT so we do not re-sync against the mounted pyproject.toml.
-if [ ! -f "${MAS_WORKSPACE_ROOT}/mas-workspace.yaml" ] \
+if [ ! -f "${MAS_WORKSPACE_ROOT}/config.yaml" ] \
    && [ ! -d "${MAS_WORKSPACE_ROOT}/labs" ] \
    && [ ! -f "${MAS_WORKSPACE_ROOT}/mas.yaml" ]; then
   export MAS_WORKSPACE_ROOT="${MAS_INSTALL_ROOT}"

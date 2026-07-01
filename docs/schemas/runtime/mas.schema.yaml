@@ -140,14 +140,14 @@ properties:
         description: >
           Framework surface adapter for this MAS use-case. Selects which ctl/lab
           wrapper mounts around the native machinery skeleton (not an alternate kernel).
-          mas-lab infers the lab adapter from default_adapter unless execution.runner overrides.
+          Lab infers the runner from default_adapter unless execution.runner overrides.
         properties:
           default_adapter:
             type: string
             enum: [native, langgraph, autogen, crewai]
             default: native
             description: >
-              Framework adapter id. native = direct python-v2 kernel; others delegate
+              Framework adapter id. native = direct default OSS kernel; others delegate
               to registered ctl framework wrappers (future release).
 
       agency:

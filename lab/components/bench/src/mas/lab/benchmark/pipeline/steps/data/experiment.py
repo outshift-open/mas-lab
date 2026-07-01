@@ -71,7 +71,7 @@ class ExperimentStep(PipelineStep):
         async def create_agent(pattern_name, pattern_config):
             raise NotImplementedError(
                 f"Step '{self.name}': legacy experiment step is unsupported. "
-                "Use execution.runner: mas in experiment.yaml and mas-lab benchmark schedule."
+                "Use execution.runner: native in experiment.yaml and mas-lab benchmark schedule."
             )
         
         # Run experiment

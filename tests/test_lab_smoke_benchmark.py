@@ -14,7 +14,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MAS_LAB = Path(sys.executable).parent / "mas-lab"
 MANIFEST = REPO_ROOT / "tests/fixtures/lab-smoke/labs.yaml"
-_DEFAULT_GLOBAL_CACHE = Path.home() / ".mas-lab" / "data" / "trace-cache"
+_DEFAULT_GLOBAL_CACHE = Path.home() / ".cache" / "mas" / "traces"
 
 
 def _labs_from_manifest() -> list[tuple[str, Path, list[str]]]:
@@ -30,7 +30,7 @@ def _labs_from_manifest() -> list[tuple[str, Path, list[str]]]:
 
 @pytest.fixture
 def smoke_env(tmp_path, monkeypatch):
-    """Isolated benchmark output + trace-cache; must not write to ~/.mas-lab cache."""
+    """Isolated benchmark output + trace-cache; must not write to global trace cache."""
     out = tmp_path / "benchmark-out"
     trace_cache = tmp_path / "trace-cache"
     trace_cache.mkdir()

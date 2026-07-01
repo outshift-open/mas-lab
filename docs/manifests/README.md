@@ -29,7 +29,7 @@ experiment.yaml          ← what to run (scenarios × dataset × n_runs + pipel
 mas.yaml                 ← team topology, workflow, transport
     └── agents/*.yaml    ← design pattern, tools, skills, observability
 
-mas-workspace.yaml       ← project defaults (flavour, infra_refs, .env path)
+config.yaml       ← project defaults (flavour, infra_refs, .env path)
 ```
 
 | Layer | Manifest kinds | Reference |
@@ -68,7 +68,7 @@ YAML schemas live under [`docs/schemas/`](../schemas/). The bench UI and
 |------|------------------|
 | Lab (experiment, dataset, pipeline) | `docs/schemas/lab/` |
 | Runtime (agent, mas, overlay, infra) | `docs/schemas/runtime/` |
-| Workspace | [mas-workspace.schema.yaml](../schemas/mas-workspace.schema.yaml) |
+| Workspace | [config.schema.yaml](../schemas/config.schema.yaml) |
 
 ---
 
@@ -89,6 +89,6 @@ See [topology-and-workflow.md](topology-and-workflow.md) for workflow vs routing
 
 ## See also
 
-- [user-config.md](../user-config.md) — `~/.mas/config.yaml` and `mas-workspace.yaml`
+- [user-config.md](../user-config.md) — XDG user config and project `config.yaml`
 - [cli/observability.md](../cli/observability.md) — `events.jsonl` and CLI flags
 - [paper/index.md](../paper/index.md) — sample labs that ship with the repo

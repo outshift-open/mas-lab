@@ -31,7 +31,7 @@ Force re-execution: `--force` (runs) or `benchmark pipeline run ... --force STEP
 ## Trace cache
 
 Completed runs store traces under the configured cache root (default
-`~/.mas/cache/traces/` when `~/.mas/config.yaml` is present). Run directories
+`$XDG_CACHE_HOME/mas/traces/` when `$XDG_CONFIG_HOME/mas/config.yaml` is present). Run directories
 may contain `.run_ref` symlinks into the cache instead of duplicating JSONL.
 
 Configure: [docs/user-config.md](../../docs/user-config.md).

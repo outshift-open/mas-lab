@@ -57,7 +57,9 @@ def _web_search(*, arguments: dict[str, Any] | None = None, **_: Any) -> str:
     query = str((arguments or {}).get("query") or "").strip()
     if not query:
         return "[web-search] empty query"
-    cache_dir = Path.home() / ".mas-cache" / "web_search"
+    from mas.runtime.xdg import mas_cache_root
+
+    cache_dir = mas_cache_root() / "web_search"
     cache_dir.mkdir(parents=True, exist_ok=True)
     key = hashlib.sha256(query.lower().encode()).hexdigest()
     cache_file = cache_dir / f"{key}.json"
@@ -85,8 +87,10 @@ def _memory_search(*, arguments: dict[str, Any] | None = None, ctx: Any = None, 
     if not q:
         return "[memory-search] empty query"
     agent_id = getattr(ctx, "agent_id", None) or "default"
+    from mas.runtime.boundary.memory.semantic import default_store_path
+
     mem = SemanticMemoryPlugin(
-        db_path="~/.mas/memory/{agent_id}.sqlite",
+        db_path=str(default_store_path(str(agent_id))),
         context_inject=False,
     )
     mem.agent_id = str(agent_id)

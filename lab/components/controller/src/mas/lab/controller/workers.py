@@ -123,9 +123,10 @@ def run_application_worker(registry: WorkerRegistry, runner: "WorkerRunner", spe
     )
 
     def _execute() -> dict:
+        from mas.lab.runners.constants import DEFAULT_LAB_RUNNER_ID, normalize_runner_id
         from mas.lab.runners.factory import RunnerFactory
 
-        runner_id = spec.get("runner_id", "mas")
+        runner_id = normalize_runner_id(spec.get("runner_id", DEFAULT_LAB_RUNNER_ID))
         app_runner = RunnerFactory.get(runner_id)
         output_dir = Path(spec.get("output_dir") or tempfile.mkdtemp(prefix="mas-lab-run-"))
         output_dir.mkdir(parents=True, exist_ok=True)

@@ -537,6 +537,18 @@ def main() -> None:
                 print(f"  [check FAIL] {err}", file=sys.stderr)
             sys.exit(1)
         print("  [check OK] docs/packages-reference.md and docs/plugins-reference.md")
+
+        from gen_doc_paths import generate_mas_paths_snippet
+
+        paths_snippet = root / "docs" / "includes" / "mas-paths.md"
+        paths_content = generate_mas_paths_snippet()
+        if not paths_snippet.is_file():
+            print("  [check FAIL] missing docs/includes/mas-paths.md — run: task docs-gen", file=sys.stderr)
+            sys.exit(1)
+        if paths_snippet.read_text(encoding="utf-8") != paths_content:
+            print("  [check FAIL] stale docs/includes/mas-paths.md — run: task docs-gen", file=sys.stderr)
+            sys.exit(1)
+        print("  [check OK] docs/includes/mas-paths.md")
         return
 
     pkg_ref.write_text(pkg_content, encoding="utf-8")
@@ -545,6 +557,15 @@ def main() -> None:
     # ── Write plugins-reference.md ───────────────────────────────────────────
     plugin_ref.write_text(plugin_content, encoding="utf-8")
     print(f"  → wrote {plugin_ref.relative_to(root)}")
+
+    # ── Path snippet include (MkDocs pymdownx.snippets) ─────────────────────
+    from gen_doc_paths import generate_mas_paths_snippet
+
+    paths_snippet = root / "docs" / "includes" / "mas-paths.md"
+    paths_content = generate_mas_paths_snippet()
+    paths_snippet.parent.mkdir(parents=True, exist_ok=True)
+    paths_snippet.write_text(paths_content, encoding="utf-8")
+    print(f"  → wrote {paths_snippet.relative_to(root)}")
 
 
 if __name__ == "__main__":

@@ -25,7 +25,21 @@ os.environ.setdefault("MAS_CONTROLLER_IDLE_SEC", "120")
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SAMPLE_WORKSPACE = _REPO_ROOT / "examples" / "sample-workspace"
 if _SAMPLE_WORKSPACE.is_dir():
-    os.environ.setdefault("MAS_WORKSPACE_ROOT", str(_SAMPLE_WORKSPACE))
+    # Force sample workspace — parent checkouts may export MAS_WORKSPACE_ROOT with
+    # integration-only infra_refs (e.g. claris:llm-proxy).
+    os.environ["MAS_WORKSPACE_ROOT"] = str(_SAMPLE_WORKSPACE)
+
+_XDG_CONFIG = _TEST_HOME / "xdg-config"
+_XDG_DATA = _TEST_HOME / "xdg-data"
+_XDG_CACHE = _TEST_HOME / "xdg-cache"
+_XDG_STATE = _TEST_HOME / "xdg-state"
+for _d in (_XDG_CONFIG, _XDG_DATA, _XDG_CACHE, _XDG_STATE):
+    _d.mkdir(parents=True, exist_ok=True)
+(_XDG_CONFIG / "mas").mkdir(parents=True, exist_ok=True)
+os.environ["XDG_CONFIG_HOME"] = str(_XDG_CONFIG)
+os.environ["XDG_DATA_HOME"] = str(_XDG_DATA)
+os.environ["XDG_CACHE_HOME"] = str(_XDG_CACHE)
+os.environ["XDG_STATE_HOME"] = str(_XDG_STATE)
 
 
 @pytest.fixture(scope="session")

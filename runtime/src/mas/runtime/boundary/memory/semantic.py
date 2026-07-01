@@ -58,5 +58,7 @@ class SemanticMemoryStore:
 
 
 def default_store_path(agent_id: str = "default") -> Path:
-    base = Path.home() / ".mas" / "memory" / "semantic"
+    from mas.runtime.xdg import mas_data_root
+
+    base = mas_data_root() / "memory" / "semantic"
     return base / f"{agent_id}.sqlite"

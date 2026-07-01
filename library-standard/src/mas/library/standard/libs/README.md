@@ -39,7 +39,7 @@ This directory contains infrastructure manifest bundles referenced via the
 
 ### In User Config
 
-Set a default infrastructure bundle in `~/.mas/config.yaml`:
+Set a default infrastructure bundle in `$XDG_CONFIG_HOME/mas/config.yaml` (see [User config](../../../../docs/user-config.md)):
 
 ```yaml
 apiVersion: mas.config/v1

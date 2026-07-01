@@ -9,7 +9,7 @@ version: "1.0"
 authors: ["MAS Framework Team"]
 tags: ["agent", "overlays", "tools", "skills", "memory", "tutorial"]
 prerequisites:
-  - "Tutorial 0 complete: task install, ~/.mas/config.yaml (optional), .env for live runs"
+  - "Tutorial 0 complete: task install, $XDG_CONFIG_HOME/mas/config.yaml (optional), .env for live runs"
   - "mas-ctl and mas-lab on PATH (venv / direnv)"
   - "Offline: pytest tests/tutorials/test_scenario_commands.py -k tuto-01"
   - "Online: default_infra or --infra-ref + OPENAI_API_KEY for mas-ctl chat steps"

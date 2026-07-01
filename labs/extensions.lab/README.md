@@ -46,7 +46,7 @@ mas-lab benchmark run labs/extensions.lab/experiment.yaml --dry-run
 
 `experiment.name`: `memory-extension-reproducibility`
 
-`~/.mas/labs/memory-extension-reproducibility/results/`
+`$XDG_DATA_HOME/mas/labs/memory-extension-reproducibility/results/`
 
 ```bash
 mas-lab benchmark show last plots

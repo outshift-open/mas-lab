@@ -2,13 +2,13 @@
 #  SPDX-License-Identifier: Apache-2.0
 """ApplicationRunner — pluggable lab execution façade.
 
-The default ``mas`` backend wraps :mod:`mas.runtime` and :mod:`mas.ctl` **inside
+The default ``native`` backend wraps :mod:`mas.runtime` and :mod:`mas.ctl` **inside
 the plugin implementation only**. The lab scheduler calls
 :func:`mas.lab.runners.invoke.invoke_runner` with a :class:`RunContext`.
 Alternative backends (langgraph, autogen, …) are not shipped in this repository;
-OSS maps those adapter ids to the native ``mas`` runner. The default adapter is a
+OSS maps those adapter ids to the native runner for now. The default adapter is a
 **bench plugin** (``mas.lab.benchmark.plugins.mas``) registered via the
-``mas.lab.runners`` entry point.
+``mas.lab.runners`` entry point (id ``native``).
 """
 from __future__ import annotations
 

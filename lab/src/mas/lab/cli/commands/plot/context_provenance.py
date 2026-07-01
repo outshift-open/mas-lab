@@ -98,7 +98,9 @@ def context_provenance_cmd(
         kg = _load_kg_from_path(kg_path)
         resolved_path = kg_path
     else:
-        lab_dir = Path.home() / ".mas-lab" / "labs" / resolved
+        from mas.lab import paths as lab_paths
+
+        lab_dir = lab_paths.labs_root() / resolved
         if lab_dir.is_dir():
             candidates = list(lab_dir.rglob("kg.json"))
             if not candidates:

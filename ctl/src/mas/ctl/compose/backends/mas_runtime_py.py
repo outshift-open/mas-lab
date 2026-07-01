@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Python v2 kernel backend — RuntimeInstance from EffectiveBind + resolved infra."""
+"""Default OSS Python runtime — RuntimeInstance from EffectiveBind + resolved infra."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from mas.ctl.compose.models import AgentBindSlice, EffectiveBindManifest, KernelBackendId, ResolvedInfra
+from mas.ctl.deployment.runtime_id import DEFAULT_RUNTIME_ID
 from mas.runtime.driver.instance import RuntimeInstance
 
 
@@ -17,8 +18,8 @@ class MaterializedLocal:
     infra: ResolvedInfra | None = None
 
 
-class PythonV2KernelBackend:
-    backend_id: KernelBackendId = "python-v2"
+class MasRuntimePyKernelBackend:
+    backend_id: KernelBackendId = DEFAULT_RUNTIME_ID  # type: ignore[assignment]
 
     def __init__(self, *, resolved_infra: ResolvedInfra | None = None) -> None:
         self._infra = resolved_infra
@@ -60,7 +61,7 @@ class PythonV2KernelBackend:
         resolved_infra: ResolvedInfra | None = None,
     ) -> MaterializedLocal:
         infra = resolved_infra or self._infra
-        backend = PythonV2KernelBackend(resolved_infra=infra)
+        backend = MasRuntimePyKernelBackend(resolved_infra=infra)
         instances = {a.agent_id: backend.create_agent_runtime(bind, a.agent_id) for a in bind.agents}
         return MaterializedLocal(instances=instances, infra=infra)
 

@@ -16,6 +16,7 @@ from importlib.metadata import entry_points as _entry_points
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from mas.runtime.constants import WORKSPACE_CONFIG_FILENAME
 from mas.runtime.spec.source import load_yaml_file
 
 logger = logging.getLogger(__name__)
@@ -420,7 +421,7 @@ class LabRegistry:
             if labs_dir.is_dir():
                 for path in sorted(labs_dir.glob("*.lab")):
                     _add(path.stem, path, f"cwd-walk:{directory}")
-            if (directory / "mas-workspace.yaml").exists():
+            if (directory / WORKSPACE_CONFIG_FILENAME).exists():
                 break
 
         try:

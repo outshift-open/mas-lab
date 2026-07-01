@@ -35,7 +35,7 @@ Integration tests: `runtime/tests/integration/test_design_pattern_plugins_integr
 
 The design-pattern automaton \(M_{dp}\) is one factor in the runtime product. See
 [automaton-product-model.md](automaton-product-model.md) and
-[mealy-product-formal-design.md](mealy-product-formal-design.md).
+See [automaton-product-model.md](automaton-product-model.md).
 
 ## Tutorials
 

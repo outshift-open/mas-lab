@@ -73,12 +73,12 @@ def test_infra_bundle_entries_loads_llm_proxy_cached(tmp_path: Path, monkeypatch
 
 
 def test_workspace_infra_refs_resolve_from_subdirectory():
-    """Refs like ``standard:openai`` resolve from mas-workspace root, not anchor only."""
+    """Refs like ``standard:openai`` resolve from config root, not anchor only."""
     repo = Path(__file__).resolve().parents[2]
     tutorial = repo / "docs/tutorials/01-building-an-agent"
     sample = repo / "examples" / "sample-workspace"
-    if not (sample / "mas-workspace.yaml").is_file():
-        pytest.skip("examples/sample-workspace/mas-workspace.yaml not in workspace")
+    if not (sample / "config.yaml").is_file():
+        pytest.skip("examples/sample-workspace/config.yaml not in workspace")
     ws = WorkspaceConfig.load(sample)
     assert ws.found
     infra = resolve_infra_refs(

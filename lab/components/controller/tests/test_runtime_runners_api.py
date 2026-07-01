@@ -4,8 +4,9 @@
 from __future__ import annotations
 
 
-def test_list_runtime_runners_includes_mas() -> None:
+def test_list_runtime_runners_includes_mas_lab() -> None:
     from mas.lab.controller.api import ControllerAPI
+    from mas.lab.runners.constants import DEFAULT_LAB_RUNNER_ID
     from mas.lab.runners.factory import RunnerFactory
     from mas.lab.runners.registry import ApplicationRunnerRegistry
 
@@ -13,5 +14,5 @@ def test_list_runtime_runners_includes_mas() -> None:
     RunnerFactory.available()
     runners = ControllerAPI().list_runtime_runners()
     ids = {r["id"] for r in runners}
-    assert "mas" in ids
+    assert DEFAULT_LAB_RUNNER_ID in ids
     ApplicationRunnerRegistry.reset()

@@ -31,7 +31,7 @@ import click
 @click.option("-o", "--output-dir", type=Path, default=None,
               help="Output directory for benchmark results.")
 @click.option("--trace-cache", "trace_cache_dir", type=Path, default=None,
-              help="Override trace-cache directory (CLI > YAML > MAS_TRACE_CACHE > ~/.mas-lab/data/trace-cache).")
+              help="Override trace-cache directory (CLI > YAML > MAS_TRACE_CACHE > $XDG_CACHE_HOME/mas/traces).")
 @click.option("--data-cache", "data_cache_dir", type=Path, default=None,
               help="Override step-cache directory (CLI > MAS_DATA_CACHE > <output_dir>/.cache). "
                    "Use a shared path to reuse computed pipeline outputs after benchmark import.")

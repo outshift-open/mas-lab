@@ -8,10 +8,19 @@ from typing import Any
 
 from mas.ctl.registry.catalog import validate_runtime_id as _validate_catalog
 
+from mas.runtime.constants import DEFAULT_RUNTIME_ID
+
+__all__ = [
+    "DEFAULT_RUNTIME_ID",
+    "is_default_runtime",
+    "normalize_runtime_id",
+    "runtime_id_from_deployment",
+]
+
 
 def normalize_runtime_id(value: str | None) -> str:
     if not value:
-        return "python-v2"
+        return DEFAULT_RUNTIME_ID
     return _validate_catalog(str(value).strip())
 
 
@@ -24,5 +33,5 @@ def runtime_id_from_deployment(deployment: dict[str, Any]) -> str | None:
     return None
 
 
-def is_v2_runtime(runtime_id: str) -> bool:
-    return normalize_runtime_id(runtime_id) == "python-v2"
+def is_default_runtime(runtime_id: str) -> bool:
+    return normalize_runtime_id(runtime_id) == DEFAULT_RUNTIME_ID

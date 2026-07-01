@@ -115,7 +115,6 @@ Deep dive into how contracts work, how they interact, and how to extend them:
 | [dev/contracts/mealy-hooks-and-closure.md](dev/contracts/mealy-hooks-and-closure.md) | Execution model: 5-chokepoint Mealy machine, state transitions |
 | [mealy-envelope.md](mealy-envelope.md) | Envelope hot path — what is wrapped, OSS tests |
 | [automaton-product-model.md](automaton-product-model.md) | Full agent product ⊗ model |
-| [mealy-product-formal-design.md](mealy-product-formal-design.md) | Envelope σ schedule and composition |
 | [dev/contracts/messaging-and-orchestration.md](dev/contracts/messaging-and-orchestration.md) | Agent communication patterns and orchestration protocols |
 | [dev/contracts/execution-control-and-observability.md](dev/contracts/execution-control-and-observability.md) | Control flow, observability hooks, and event routing |
 | [dev/contracts/model-and-tools.md](dev/contracts/model-and-tools.md) | LLM and tool contract details with lifecycle |
@@ -151,10 +150,8 @@ Complete reference for all CLI tools:
 
 ### Framework architecture (deep dives)
 
-- [architectural-decisions.md](architectural-decisions.md) — ADRs
 - [context-segmentation.md](context-segmentation.md) — context assembly and provenance
 - [semantic-protocols.md](semantic-protocols.md) — URNs and governance scopes
-- [theoretical-contribution.md](theoretical-contribution.md) — formal model pointers
 - [dev/contracts/](dev/contracts/) — contract reference
 
 ### Contributing

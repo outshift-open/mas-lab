@@ -34,6 +34,11 @@ tasks:
       - uv pip install -e library-samples
       - uv pip install pytest pytest-asyncio pytest-cov pytest-timeout import-linter pyyaml click python-dotenv jsonschema httpx certifi truststore pyarrow
 
+  verify:literals:
+    desc: "Forbidden path/id literal gate (scripts/check_literals.py)"
+    cmds:
+      - python3 scripts/check_literals.py
+
   verify-unit:
     desc: "Unit tests — repo gates + v2 lab/bench/core packages"
     deps: [install-dev]
@@ -112,6 +117,7 @@ tasks:
     desc: "CI parity — same gates as .github/workflows/test.yml (unit + functional + dry-run)"
     deps: [install-dev]
     cmds:
+      - task: verify:literals
       - task: verify-unit
       - task: verify-functional
       - task: validate
@@ -163,6 +169,7 @@ tasks:
     cmds:
       - python3 scripts/version_manager.py check
       - task: verify-ctl-env
+      - task: verify:literals
       - task: verify-unit
       - task: verify-functional
       - task: verify-chat-smoke
@@ -185,13 +192,15 @@ tasks:
       - uv pip install -e runtime -e ctl -e library-standard -e lab -e library-eval -e library-lab -e library-samples
 
   docs-gen:
-    desc: "Regenerate docs/packages-reference.md and docs/plugins-reference.md from manifests."
+    desc: "Regenerate docs/packages-reference.md, docs/plugins-reference.md, and path snippets."
     summary: |
-      Reads pyproject.toml files and library.yaml manifests to regenerate two
-      reference pages under docs/.  Run after adding, removing, or renaming
-      any package or plugin.  The generated files are checked-in — commit them
-      together with your manifest changes (required for every PR that touches
-      packages or plugins).
+      Reads pyproject.toml files and library.yaml manifests to regenerate reference
+      pages under docs/, and writes docs/includes/mas-paths.md from runtime path
+      constants (MkDocs pymdownx.snippets).
+      Run after adding, removing, or renaming any package or plugin, or after
+      changing canonical path defaults.  The generated files are checked-in —
+      commit them together with your manifest changes (required for every PR that
+      touches packages, plugins, or path constants).
       Use `python3 scripts/gen_docs.py --check` (or task verify-reproduce) in CI.
     cmds:
       - python3 scripts/gen_docs.py --root . --output-dir docs

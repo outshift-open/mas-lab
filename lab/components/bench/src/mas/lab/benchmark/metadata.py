@@ -6,7 +6,7 @@ Each benchmark run has:
 - Unique UUID
 - Timestamp
 - Metadata (experiment name, description, status, progress)
-- Storage in ~/.mas-lab/benchmarks/<timestamp>_<uuid>/
+- Storage in $XDG_DATA_HOME/mas/benchmarks/<timestamp>_<uuid>/
 """
 
 from dataclasses import dataclass, field, asdict

@@ -33,7 +33,7 @@ mas-lab benchmark pipeline run pipeline.yaml -o DIR # pipeline only
 
 From `experiment.name` and [user-config](../../docs/user-config.md):
 
-- Default (after `mas-lab config`): `~/.mas/labs/<experiment-name>/`
+- Default (after `mas-lab config`): `$XDG_DATA_HOME/mas/labs/<experiment-name>/`
 
 Override: `-o /path/to/output`.
 

@@ -102,7 +102,7 @@ run_session_loop(controller, interactive=False, scripted=[])
 | `agent_manifest` | Parsed agent dict |
 | `manifest_dir` | Base path for refs and skills |
 | `resolved_infra` | Composed infra from `mas-ctl compose` |
-| `workspace` | `WorkspaceConfig` from `mas-workspace.yaml` |
+| `workspace` | `WorkspaceConfig` from `config.yaml` |
 | `enable_observability` / `enable_governance` / `enable_coordination` | Kernel feature flags |
 
 ---

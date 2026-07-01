@@ -785,6 +785,6 @@ on how the spec was authored.
 
 ## References
 
-- [mealy-product-formal-design.md](./mealy-product-formal-design.md) — full Σ listing
+- [automaton-product-model.md](./automaton-product-model.md) — product model and Σ listing
 - [mealy-hooks-and-closure.md](./dev/contracts/mealy-hooks-and-closure.md) — closure definition
 - [automaton-product-model.md](./automaton-product-model.md) — formal product

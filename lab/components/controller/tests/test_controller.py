@@ -9,14 +9,15 @@ from pathlib import Path
 import pytest
 
 
-def test_application_runner_registry_mas():
+def test_application_runner_registry_mas_lab():
+    from mas.lab.runners.constants import DEFAULT_LAB_RUNNER_ID
     from mas.lab.runners.registry import ApplicationRunnerRegistry
 
     ApplicationRunnerRegistry.reset()
     available = ApplicationRunnerRegistry.available()
-    assert "mas" in available
-    runner = ApplicationRunnerRegistry.get("mas")
-    assert runner.runner_id == "mas"
+    assert DEFAULT_LAB_RUNNER_ID in available
+    runner = ApplicationRunnerRegistry.get(DEFAULT_LAB_RUNNER_ID)
+    assert runner.runner_id == DEFAULT_LAB_RUNNER_ID
 
 
 def test_manifest_store_discovers_labs():

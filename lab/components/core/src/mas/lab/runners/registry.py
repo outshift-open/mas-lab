@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 from typing import Dict, Type
 
-from mas.lab.runners.protocol import ApplicationRunnerProtocol
+from mas.lab.runners.constants import normalize_runner_id
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,8 @@ class ApplicationRunnerRegistry:
             from importlib.metadata import entry_points
 
             for ep in entry_points(group=_ENTRY_POINT_GROUP):
+                if ep.name in cls._runners:
+                    continue
                 try:
                     cls._runners[ep.name] = ep.load()
                 except Exception as load_exc:
@@ -43,7 +45,8 @@ class ApplicationRunnerRegistry:
     @classmethod
     def get(cls, runner_id: str) -> ApplicationRunnerProtocol:
         cls._ensure_initialized()
-        runner_cls = cls._runners.get(runner_id)
+        rid = normalize_runner_id(runner_id)
+        runner_cls = cls._runners.get(rid)
         if runner_cls is None:
             available = cls.available()
             raise ValueError(
@@ -55,7 +58,7 @@ class ApplicationRunnerRegistry:
     @classmethod
     def available(cls) -> list[str]:
         cls._ensure_initialized()
-        return sorted(cls._runners.keys())
+        return sorted(cls._runners)
 
     @classmethod
     def reset(cls) -> None:
