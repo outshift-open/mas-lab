@@ -1,69 +1,58 @@
-<!--
-  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
-  SPDX-License-Identifier: Apache-2.0
--->
-# Contributing to MAS Lab
+# How to Contribute
 
-Thank you for your interest in contributing. This project is an Apache 2.0
-open-source monorepo managed with [uv](https://docs.astral.sh/uv/).
+Thanks for your interest in contributing to `mas-lab`! Here are a few
+general guidelines on contributing and reporting bugs that we ask you to review.
+Following these guidelines helps to communicate that you respect the time of the
+contributors managing and developing this open source project. In return, they
+should reciprocate that respect in addressing your issue, assessing changes, and
+helping you finalize your pull requests. In that spirit of mutual respect, we
+endeavor to review incoming issues and pull requests within 10 days, and will
+close any lingering issues or pull requests after 60 days of inactivity.
 
-## Getting started
+Please note that all of your interactions in the project are subject to our
+[Code of Conduct](/CODE_OF_CONDUCT.md). This includes creation of issues or pull
+requests, commenting on issues or pull requests, and extends to all interactions
+in any real-time space e.g., Slack, Discord, etc.
 
-```bash
-git clone https://github.com/outshift-open/mas-lab.git
-cd mas-lab
-uv sync --all-packages
-export PATH="$PWD/.venv/bin:$PATH"
-```
+## Reporting Issues
 
-Verify the install:
+Before reporting a new issue, please ensure that the issue was not already
+reported or fixed by searching through our [issues
+list](https://github.com/outshift-open/mas-lab/issues).
 
-```bash
-mas-runtime --help
-mas-ctl --help
-mas-lab --help
-```
+When creating a new issue, please be sure to include a **title and clear
+description**, as much relevant information as possible, and, if possible, a
+test case.
 
-## Development workflow
+**If you discover a security bug, please do not report it through GitHub.
+Instead, please see security procedures in [SECURITY.md](/SECURITY.md).**
 
-1. Open an issue or comment on an existing one before large changes.
-2. Create a feature branch from `main`.
-3. Make focused changes with tests where behavior changes.
-4. Run the relevant test suites before opening a PR.
-5. Open a pull request with a clear description and test plan.
+## Sending Pull Requests
 
-## Running tests
+Before sending a new pull request, take a look at existing pull requests and
+issues to see if the proposed change or fix has been discussed in the past, or
+if the change was already implemented but not yet released.
 
-```bash
-# Core packages
-uv run pytest runtime/tests/ -v
-uv run pytest ctl/tests/ -v
-uv run pytest lab/tests/ -v
-uv run pytest library-standard/tests/ -v
+We expect new pull requests to include tests for any affected behavior, and, as
+we follow semantic versioning, we may reserve breaking changes until the next
+major version release.
 
-# Tutorial integration tests (optional, may require API keys)
-uv run pytest tests/tutorials/ -v
-```
+## Other Ways to Contribute
 
-## Code style
+We welcome anyone that wants to contribute to `mas-lab` to triage and
+reply to open issues to help troubleshoot and fix existing bugs. Here is what
+you can do:
 
-- Python 3.11+ with type hints where practical
-- Line length: 120 (ruff)
-- Match existing naming and module layout in each package
-- Secrets belong in environment variables — never commit credentials
+- Help ensure that existing issues follows the recommendations from the
+  _[Reporting Issues](#reporting-issues)_ section, providing feedback to the
+  issue's author on what might be missing.
+- Review and update the existing content of our
+  [Wiki](https://github.com/outshift-open/mas-lab/wiki) with up-to-date
+  instructions and code samples.
+- Review existing pull requests, and testing patches against real existing
+  applications that use `mas-lab`.
+- Write a test, or add a missing test case to an existing test.
 
-## Package layout
+Thanks again for your interest on contributing to `mas-lab`!
 
-| Directory | Package |
-| --- | --- |
-| `runtime/` | `mas-runtime` |
-| `ctl/` | `mas-ctl` |
-| `library-standard/` | `mas-library-standard` |
-| `lab/` | `mas-lab` (+ `mas-lab-core`, `mas-lab-bench` components) |
-
-See [docs/developer-guide.md](docs/developer-guide.md) for architecture details.
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the
-Apache License 2.0. See [LICENSE](LICENSE).
+:heart:
