@@ -10,7 +10,7 @@ version: "1.0"
 authors: ["MAS Framework Team"]
 tags: ["mas", "topology", "overlays", "telemetry", "graph", "tutorial"]
 prerequisites:
-  - "Tutorial 0: infra via ~/.mas/config.yaml or --infra-ref; mas-lab config for paths"
+  - "Tutorial 0: infra via $XDG_CONFIG_HOME/mas/config.yaml or --infra-ref; mas-lab config for paths"
   - "mas-ctl and mas-lab on PATH"
   - "Tutorial 01 completed (overlays)"
   - "Offline: pytest tests/tutorials/test_scenario_commands.py -k tuto-02"

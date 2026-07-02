@@ -15,7 +15,7 @@
 #   n1          : normal query → no fire (identity case; trajectories must match)
 #
 # Run:
-#   MAS_LLM_CACHE_DIR=~/.mas-lab/data/lifecycle-llm-cache-smoke \
+#   MAS_LLM_CACHE_DIR=$XDG_DATA_HOME/mas/data/lifecycle-llm-cache-smoke \
 #   mas-lab benchmark run labs/lifecycle-control.lab/experiment-whatif-smoke.yaml \
 #   --progress --force
 

@@ -33,7 +33,7 @@ via **Overlay**; flavour configures the **runtime plane** they attach to.
 | Forbidden in Flavour | Belongs in |
 |---------------------|------------|
 | `model`, `api_base` | Agent `models` + infra `LLMProxy` |
-| `infra_refs` | `mas-workspace.yaml`, MAS `infra_refs`, CLI `--infra-ref` |
+| `infra_refs` | `config.yaml`, MAS `infra_refs`, CLI `--infra-ref` |
 
 Enforced by `FlavourSeparationValidator` and `mas-lab check-config`.
 

@@ -1,13 +1,13 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-# Canonical mas-workspace.yaml — copy to your project root as mas-workspace.yaml.
+# Canonical config.yaml — copy to your project root as config.yaml.
 #
-# Global fallback: ~/.mas/mas-workspace.yaml
-# Project override: <project-root>/mas-workspace.yaml (highest precedence)
+# Global fallback: $XDG_CONFIG_HOME/mas/config.yaml
+# Project override: <project-root>/config.yaml (highest precedence)
 # Checkout dev: export MAS_WORKSPACE_ROOT=examples/sample-workspace
 #
 # For live OpenAI/production infra, see:
-#   docs/tutorials/00-environment-setup/mas-workspace.openai.example.yaml
+#   docs/tutorials/00-environment-setup/config.openai.example.yaml
 
 mas_ctl:
   flavour: local

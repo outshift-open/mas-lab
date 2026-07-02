@@ -104,7 +104,7 @@ on the proxy) and was killed after producing the 120-run trace corpus
 but before writing the CI summary CSV. The numerical reproducibility
 claim of §5.3 is therefore **not refreshed in this session**; the
 previously published Table 5 (last run 2026-05 in the archive snapshot
-at `~/.mas/labs/memory-provenance/`) remains the canonical source
+at `$XDG_DATA_HOME/mas/labs/memory-provenance/`) remains the canonical source
 for GSR/AR numbers. What this session adds is:
 
 - **120 fresh runs across all 4 scenarios** with the `n_runs=3`

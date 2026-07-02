@@ -20,7 +20,7 @@ import click
 @click.option("-o", "--output-dir", type=Path, default=None)
 @click.option("--trace-cache", "trace_cache_dir", type=Path, default=None,
               help="Override trace-cache directory used for cache coverage display "
-                   "(CLI > MAS_TRACE_CACHE > ~/.mas-lab/data/trace-cache).")
+                   "(CLI > MAS_TRACE_CACHE > $XDG_CACHE_HOME/mas/traces).")
 @click.option("--format", "fmt",
               type=click.Choice(["text","json","yaml"]),
               default="text", show_default=True)

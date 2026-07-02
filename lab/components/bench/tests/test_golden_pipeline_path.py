@@ -18,8 +18,29 @@ def smoke_env(tmp_path, monkeypatch):
     trace_cache.mkdir()
     mas_home = tmp_path / "mas-home"
     mas_home.mkdir()
+
+    xdg_config = tmp_path / "xdg-config"
+    xdg_data = tmp_path / "xdg-data"
+    xdg_cache = tmp_path / "xdg-cache"
+    xdg_state = tmp_path / "xdg-state"
+    for d in (xdg_config, xdg_data, xdg_cache, xdg_state):
+        d.mkdir(parents=True)
+    (xdg_config / "mas").mkdir(parents=True)
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "config.yaml").write_text(
+        "infra_refs:\n  - standard:mock-llm\n",
+        encoding="utf-8",
+    )
+
     monkeypatch.setenv("MAS_HOME", str(mas_home))
     monkeypatch.setenv("MAS_TRACE_CACHE", str(trace_cache))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg_config))
+    monkeypatch.setenv("XDG_DATA_HOME", str(xdg_data))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(xdg_cache))
+    monkeypatch.setenv("XDG_STATE_HOME", str(xdg_state))
+    monkeypatch.setenv("MAS_WORKSPACE_ROOT", str(workspace))
     return out, trace_cache
 
 

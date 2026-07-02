@@ -2,54 +2,87 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Canonical data path resolution for mas-lab.
 
-All persistent data lives under a single *data root* directory, defaulting
-to ``~/.mas-lab``.  Two first-level subdirectories structure the contents:
+All CLI commands resolve storage locations through the same precedence ladder
+(see :func:`resolve_path`).  Defaults follow the `XDG Base Directory Specification`_.
 
-``~/.mas-lab/labs/``
-    All experiment outputs — whether from a named lab (``*.lab/``) or a
-    standalone benchmark run.  A *lab* is a coherent set of experiments; an
-    *experiment* is a reproducible result (like a row in a paper table).
-    Benchmarks are simply the tool used to execute experiments within a lab.
+.. _XDG Base Directory Specification: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
 
-    Hierarchy::
+Precedence (highest first)
+--------------------------
+1. Explicit CLI argument (per command)
+2. ``MAS_*`` environment variables
+3. Project ``config.yaml`` ``paths:`` block
+4. ``$XDG_CONFIG_HOME/mas/config.yaml`` top-level ``labs_dir`` / ``cache_dir`` / ``runs_dir``
+5. XDG defaults under ``$XDG_DATA_HOME/mas/``, ``$XDG_CACHE_HOME/mas/``
 
-        ~/.mas-lab/labs/
-            <lab-name>/            ← one directory per lab
-                <experiment-name>/ ← one directory per experiment
-                    <scenario>[.vN]/
-                        item<N>/
-                            r<N>/  ← individual run artefacts
+Trace and pipeline caches honour ``MAS_DATA_ROOT`` / ``MAS_LAB_DATA`` via
+:func:`data_dir` when ``cache_dir`` is not overridden. Otherwise traces default
+to ``$XDG_CACHE_HOME/mas/traces`` (or ``<cache_dir>/traces`` when configured).
 
-``~/.mas-lab/data/``
-    Ephemeral / support data: trace cache, standalone run records, logs,
-    pipeline scratch outputs.  Rarely needs manual inspection.
+Relative path values in any loaded config file resolve from that file's
+directory (same rule for project ``config.yaml`` and user config).
 
-Each sub-tree can be overridden independently via environment variables.
+Benchmark output layouts (both indexed by ``benchmark list``)
+-------------------------------------------------------------
+* **Nested** — legacy single-agent runs create timestamped directories::
+
+      <labs_root>/2026-07-01_12-30-00_a1b2c3d4/metadata.yaml
+
+* **Flat** — MAS batch runs with a fixed ``-o`` / ``output_dir`` write one
+  ``metadata.yaml`` at the output root.
 """
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
+
+from mas.runtime.constants import WORKSPACE_CONFIG_FILENAME
+from mas.runtime.workspace_config import (
+    RuntimeWorkspaceConfig,
+    find_workspace_file,
+    _user_config_path,
+    resolve_config_relative,
+)
+from mas.runtime.xdg import (
+    DEFAULT_PATH_SOURCE,
+    USER_CONFIG_SOURCE,
+    mas_cache_root,
+    mas_data_root,
+)
 
 # -----------------------------------------------------------------
 # Environment-variable names (public — used by `mas-lab config`)
 # -----------------------------------------------------------------
 MAS_DATA_ROOT_ENV           = "MAS_DATA_ROOT"
 MAS_LABS_ROOT_ENV           = "MAS_LABS_ROOT"
-MAS_LAB_DATA_ENV            = "MAS_LAB_DATA"        # ~/.mas-lab/data override
+MAS_LAB_DATA_ENV            = "MAS_LAB_DATA"
 MAS_TRACE_CACHE_ENV         = "MAS_TRACE_CACHE"
 MAS_DATA_CACHE_ENV          = "MAS_DATA_CACHE"
 MAS_RUNS_ROOT_ENV           = "MAS_RUNS_ROOT"
 MAS_STANDALONE_RUNS_ENV     = "MAS_STANDALONE_RUNS_ROOT"
 
+PathKey = Literal["labs_dir", "cache_dir", "runs_dir"]
 
-# -----------------------------------------------------------------
-# Path resolvers
-# -----------------------------------------------------------------
+_ENV_FOR_KEY: dict[PathKey, str | None] = {
+    "labs_dir": MAS_LABS_ROOT_ENV,
+    "cache_dir": None,
+    "runs_dir": MAS_RUNS_ROOT_ENV,
+}
 
-def _load_mas_config_yaml() -> dict:
-    """Load ``~/.mas/config.yaml`` when the runtime user-config module is unavailable."""
-    cfg_path = Path.home() / ".mas" / "config.yaml"
+
+@dataclass(frozen=True)
+class ResolvedPath:
+    """A filesystem path plus a short tag describing where it came from."""
+
+    path: Path
+    source: str
+
+
+def _load_user_config_yaml() -> dict:
+    """Load user config from ``$XDG_CONFIG_HOME/mas/config.yaml``."""
+    cfg_path = _user_config_path()
     if not cfg_path.is_file():
         return {}
     try:
@@ -61,59 +94,91 @@ def _load_mas_config_yaml() -> dict:
         return {}
 
 
-def _user_config_paths() -> tuple[Path | None, Path | None, Path | None]:
-    """Return (labs_dir, cache_dir, runs_dir) from ``~/.mas/config.yaml`` if loaded."""
-    try:
-        from mas.runtime.user_config import get_user_config
+def _raw_from_user_config(key: PathKey) -> str | None:
+    raw = _load_user_config_yaml()
+    value = raw.get(key)
+    if value:
+        return str(value)
+    paths_block = raw.get("paths")
+    if isinstance(paths_block, dict) and paths_block.get(key):
+        return str(paths_block[key])
+    return None
 
-        cfg = get_user_config()
-        if getattr(cfg, "_config_exists", False):
-            return cfg.labs_dir, cfg.cache_dir, cfg.runs_dir
-    except Exception:
-        pass
 
-    raw = _load_mas_config_yaml()
-    if not raw:
-        return None, None, None
+def _raw_from_workspace(key: PathKey) -> tuple[str | None, Path | None]:
+    ws = RuntimeWorkspaceConfig.load()
+    if not ws.found:
+        return None, None
+    value = ws.paths.get(key)
+    if not value:
+        return None, None
+    return value, ws.root
 
-    def _as_path(key: str) -> Path | None:
-        value = raw.get(key)
-        if not value:
-            return None
-        return Path(str(value)).expanduser()
 
-    return _as_path("labs_dir"), _as_path("cache_dir"), _as_path("runs_dir")
+def _default_for(key: PathKey) -> Path:
+    data = mas_data_root()
+    cache = mas_cache_root()
+    if key == "labs_dir":
+        return data / "labs"
+    if key == "cache_dir":
+        return cache
+    if key == "runs_dir":
+        return data / "runs"
+    raise ValueError(key)
+
+
+def resolve_path(
+    key: PathKey,
+    *,
+    explicit: Path | str | None = None,
+    env_var: str | None = None,
+) -> ResolvedPath:
+    """Resolve *key* using the unified config ladder."""
+    if explicit:
+        return ResolvedPath(Path(str(explicit)).expanduser().resolve(), "cli")
+
+    _env = env_var or _ENV_FOR_KEY.get(key)
+    if _env:
+        _raw_env = os.environ.get(_env, "").strip()
+        if _raw_env:
+            return ResolvedPath(Path(_raw_env).expanduser().resolve(), f"${_env}")
+
+    ws_raw, ws_root = _raw_from_workspace(key)
+    if ws_raw and ws_root is not None:
+        cfg_path = find_workspace_file()
+        if cfg_path is None:
+            p = Path(ws_raw).expanduser().resolve()
+        else:
+            p = resolve_config_relative(ws_raw, cfg_path)
+        name = cfg_path.name if cfg_path else WORKSPACE_CONFIG_FILENAME
+        return ResolvedPath(p, name)
+
+    user_raw = _raw_from_user_config(key)
+    if user_raw:
+        cfg_path = _user_config_path()
+        if cfg_path.is_file():
+            p = resolve_config_relative(user_raw, cfg_path)
+        else:
+            p = Path(user_raw).expanduser().resolve()
+        return ResolvedPath(p, USER_CONFIG_SOURCE)
+
+    return ResolvedPath(_default_for(key), DEFAULT_PATH_SOURCE)
 
 
 def data_root() -> Path:
-    """Return the root directory for all mas-lab persistent data.
-
-    Resolved from ``$MAS_DATA_ROOT``; else parent of ``labs_dir`` from
-    ``~/.mas/config.yaml`` when configured; else ``~/.mas-lab``.
-    """
+    """Return the root directory for all mas-lab persistent data."""
     _raw = os.environ.get(MAS_DATA_ROOT_ENV, "").strip()
     if _raw:
         return Path(_raw).expanduser()
-    _labs, _cache, _runs = _user_config_paths()
-    if _labs is not None:
-        # labs_dir is typically ~/.mas/labs → data root ~/.mas
-        return _labs.parent
-    return Path.home() / ".mas-lab"
+    labs = resolve_path("labs_dir")
+    if labs.source != DEFAULT_PATH_SOURCE:
+        return labs.path.parent
+    return mas_data_root()
 
 
 def labs_root() -> Path:
-    """Return the root directory for all experiment outputs (labs + benchmarks).
-
-    Resolved from ``$MAS_LABS_ROOT``; else ``labs_dir`` from ``~/.mas/config.yaml``;
-    else ``<data_root>/labs``.
-    """
-    _raw = os.environ.get(MAS_LABS_ROOT_ENV, "").strip()
-    if _raw:
-        return Path(_raw).expanduser()
-    _labs, _, _ = _user_config_paths()
-    if _labs is not None:
-        return _labs
-    return data_root() / "labs"
+    """Return the root directory for benchmark / experiment outputs."""
+    return resolve_path("labs_dir").path
 
 
 def benchmark_root() -> Path:
@@ -122,153 +187,139 @@ def benchmark_root() -> Path:
 
 
 def data_dir() -> Path:
-    """Return the directory for ephemeral / support data.
-
-    Resolved from ``$MAS_LAB_DATA``; defaults to ``<data_root>/data``.
-
-    Contains: trace-cache, standalone run records, logs, pipeline scratch.
-    """
+    """Return the directory for ephemeral / support data (trace cache, scratch)."""
     _raw = os.environ.get(MAS_LAB_DATA_ENV, "").strip()
-    return Path(_raw).expanduser() if _raw else data_root() / "data"
+    if _raw:
+        return Path(_raw).expanduser()
+    _raw_data = os.environ.get(MAS_DATA_ROOT_ENV, "").strip()
+    if _raw_data:
+        return Path(_raw_data).expanduser() / "data"
+    return mas_data_root() / "data"
 
 
 def lab_output() -> Path:
-    """Return the directory for interactive demo / lab-config outputs.
-
-    Defaults to ``<data_dir>/lab-output`` (not overridable by env — use
-    ``MAS_LAB_DATA`` or ``MAS_DATA_ROOT`` to relocate the parent tree).
-    """
+    """Return the directory for interactive demo / lab-config outputs."""
     return data_dir() / "lab-output"
 
 
 def trace_cache(explicit: str | None = None) -> Path:
-    """Return the directory used for run trace caching.
-
-    If *explicit* is provided it overrides everything else.
-    Otherwise resolved from ``$MAS_TRACE_CACHE``; defaults to
-    ``<data_dir>/trace-cache``.
-    """
+    """Return the directory used for run trace caching."""
     if explicit:
         return Path(explicit).expanduser()
     _raw = os.environ.get(MAS_TRACE_CACHE_ENV, "").strip()
     if _raw:
         return Path(_raw).expanduser()
-    _, _cache, _ = _user_config_paths()
-    if _cache is not None:
-        return _cache / "traces"
-    return data_dir() / "trace-cache"
+    cache = resolve_path("cache_dir")
+    if cache.source != DEFAULT_PATH_SOURCE:
+        return cache.path / "traces"
+    if os.environ.get(MAS_DATA_ROOT_ENV) or os.environ.get(MAS_LAB_DATA_ENV):
+        return data_dir() / "trace-cache"
+    return mas_cache_root() / "traces"
+
+
+def _pipeline_cache_under_data_dir(data: Path) -> Path:
+    """Pipeline step cache under ``data_dir`` (``cache/``)."""
+    return data / "cache"
 
 
 def data_cache(explicit: str | None = None) -> Path:
-    """Return the directory used for pipeline step caching.
-
-    Stores step fingerprints and (optionally) intermediate outputs so that
-    pipeline steps are not re-executed unnecessarily — including after a
-    benchmark archive is imported on another machine.
-
-    If *explicit* is provided it overrides everything else.
-    Otherwise resolved from ``$MAS_DATA_CACHE``; defaults to
-    ``<data_dir>/data-cache``.
-    """
+    """Return the directory used for pipeline step caching."""
     if explicit:
         return Path(explicit).expanduser()
     _raw = os.environ.get(MAS_DATA_CACHE_ENV, "").strip()
     if _raw:
         return Path(_raw).expanduser()
-    _, _cache, _ = _user_config_paths()
-    if _cache is not None:
-        return _cache / "artifacts"
-    return data_dir() / "data-cache"
+    cache = resolve_path("cache_dir")
+    if cache.source != DEFAULT_PATH_SOURCE:
+        return cache.path / "artifacts"
+    if os.environ.get(MAS_DATA_ROOT_ENV) or os.environ.get(MAS_LAB_DATA_ENV):
+        return _pipeline_cache_under_data_dir(data_dir())
+    return mas_cache_root() / "artifacts"
 
 
 def runs_root() -> Path:
-    """Return the directory where agent run artefacts are stored.
-
-    Resolved from ``$MAS_RUNS_ROOT``; defaults to ``<data_dir>/runs``.
-    """
-    _raw = os.environ.get(MAS_RUNS_ROOT_ENV, "").strip()
-    if _raw:
-        return Path(_raw).expanduser()
-    _, _, _runs = _user_config_paths()
-    if _runs is not None:
-        return _runs
-    return data_dir() / "runs"
+    """Return the directory where agent run artefacts are stored."""
+    return resolve_path("runs_dir").path
 
 
 def standalone_runs_root() -> Path:
-    """Return the directory where standalone run records are stored.
-
-    Resolved from ``$MAS_STANDALONE_RUNS_ROOT``; defaults to
-    ``<data_dir>/standalone-runs``.
-    """
+    """Return the directory where standalone run records are stored."""
     _raw = os.environ.get(MAS_STANDALONE_RUNS_ENV, "").strip()
     return Path(_raw).expanduser() if _raw else data_dir() / "standalone-runs"
 
 
-# -----------------------------------------------------------------
-# Display helper
-# -----------------------------------------------------------------
+def benchmark_search_roots(*, extra: Path | None = None) -> list[Path]:
+    """Return ordered roots to scan for ``metadata.yaml`` (benchmark list/show)."""
+    roots: list[Path] = []
+    for candidate in (labs_root(), runs_root(), extra):
+        if candidate is None:
+            continue
+        resolved = candidate.resolve()
+        if resolved not in roots:
+            roots.append(resolved)
+    return roots
+
+
+def path_resolution_summary() -> dict[str, ResolvedPath]:
+    """Effective paths for ``mas-lab config`` display."""
+    return {
+        "labs_dir": resolve_path("labs_dir"),
+        "cache_dir": resolve_path("cache_dir"),
+        "runs_dir": resolve_path("runs_dir"),
+        "trace_cache": ResolvedPath(trace_cache(), _trace_cache_source()),
+        "data_dir": ResolvedPath(data_dir(), _data_dir_source()),
+        "data_root": ResolvedPath(data_root(), _data_root_source()),
+    }
+
+
+def _trace_cache_source() -> str:
+    if os.environ.get(MAS_TRACE_CACHE_ENV):
+        return f"${MAS_TRACE_CACHE_ENV}"
+    cache = resolve_path("cache_dir")
+    if cache.source != DEFAULT_PATH_SOURCE:
+        return f"{cache.source} / traces"
+    if os.environ.get(MAS_DATA_ROOT_ENV) or os.environ.get(MAS_LAB_DATA_ENV):
+        return _data_dir_source() + " / trace-cache"
+    return "$XDG_CACHE_HOME/mas/traces"
+
+
+def _data_dir_source() -> str:
+    if os.environ.get(MAS_LAB_DATA_ENV):
+        return f"${MAS_LAB_DATA_ENV}"
+    if os.environ.get(MAS_DATA_ROOT_ENV):
+        return f"${MAS_DATA_ROOT_ENV}/data"
+    return "$XDG_DATA_HOME/mas/data"
+
+
+def _data_root_source() -> str:
+    if os.environ.get(MAS_DATA_ROOT_ENV):
+        return f"${MAS_DATA_ROOT_ENV}"
+    labs = resolve_path("labs_dir")
+    if labs.source != DEFAULT_PATH_SOURCE:
+        return f"{labs.source} (parent)"
+    return "$XDG_DATA_HOME/mas"
+
 
 def source_tag(
+    *,
+    key: PathKey = "labs_dir",
     specific_env: str | None = None,
     lab_config: bool = False,
 ) -> str:
-    """Return a short human-readable string describing the path source.
-
-    Used by ``mas-lab config`` to explain *why* a path has its current value.
-    """
-    if specific_env and os.environ.get(specific_env):
-        return f"${specific_env}"
+    """Return a short human-readable string describing the path source."""
     if lab_config:
         return "lab-config.yaml"
-    if os.environ.get(MAS_LABS_ROOT_ENV):
-        return f"${MAS_LABS_ROOT_ENV} (derived)"
-    if os.environ.get(MAS_DATA_ROOT_ENV):
-        return f"${MAS_DATA_ROOT_ENV} (derived)"
-    return "default"
+    if specific_env and os.environ.get(specific_env):
+        return f"${specific_env}"
+    return resolve_path(key).source
 
-
-# -----------------------------------------------------------------
-# Shorthand path resolver
-# -----------------------------------------------------------------
 
 def resolve_run_artifact(
     shorthand: str,
     *,
     artifact: str = "events.jsonl",
 ) -> Path:
-    """Resolve a lab-shorthand into an artifact path.
-
-    *shorthand* is a ``/``-separated string of up to 5 segments::
-
-        <lab>/<experiment>/<scenario>/<item>/<run>
-
-    Each slash-separated component is matched against the directory names
-    under :func:`labs_root`.  Trailing segments that are omitted default
-    to the first (alphabetically sorted) child at that level.
-
-    Args:
-        shorthand: A ``/``-delimited path relative to labs_root, e.g.
-            ``tutorials/t3-analysis/baseline/item1/r1``.
-            Partial paths are expanded by picking the first child.
-        artifact: The artifact filename to return.  Common values:
-            ``"events.jsonl"`` (default, under ``traces/``)
-
-    Returns:
-        Absolute path to the requested artifact.
-
-    Raises:
-        FileNotFoundError: When no matching directory or artifact is found.
-
-    Examples::
-
-        resolve_run_artifact("tutorials/t3-analysis")
-        # → ~/.mas-lab/labs/tutorials/t3-analysis/baseline/item1/r1/traces/events.jsonl
-
-        resolve_run_artifact("tutorials/t3-analysis/baseline/item1/r1",
-                             artifact="events.jsonl")
-        # → ~/.mas-lab/labs/tutorials/t3-analysis/baseline/item1/r1/traces/events.jsonl
-    """
+    """Resolve a lab-shorthand into an artifact path."""
     parts = [p for p in shorthand.strip("/").split("/") if p]
     root = labs_root()
     if not root.exists():
@@ -284,9 +335,7 @@ def resolve_run_artifact(
             )
         cur = candidate
 
-    # Auto-descend into the first child at each remaining level until we
-    # reach a directory that contains the artifact (or its parent "traces/").
-    MAX_DEPTH = 5  # safety: lab / experiment / scenario / item / run
+    MAX_DEPTH = 5
     for _ in range(MAX_DEPTH):
         if _has_artifact(cur, artifact):
             break
@@ -299,14 +348,12 @@ def resolve_run_artifact(
 
 
 def _has_artifact(directory: Path, artifact: str) -> bool:
-    """Check whether *directory* contains the requested artifact."""
     if artifact == "events.jsonl":
         return (directory / "traces" / "events.jsonl").exists()
     return (directory / artifact).exists()
 
 
 def _artifact_path(directory: Path, artifact: str) -> Path:
-    """Return the artifact path, raising if it doesn't exist."""
     if artifact == "events.jsonl":
         p = directory / "traces" / "events.jsonl"
     else:
@@ -328,12 +375,7 @@ def list_labs() -> list[str]:
 
 
 def workspace_relative_path(path: str | Path, *, start: Path | None = None) -> str:
-    """Return *path* relative to the mas-workspace root when possible.
-
-    Absolute paths under the workspace are stored as repo-relative strings in
-    artefacts such as ``run_info.json``.  Paths already relative are normalized
-    with forward slashes.
-    """
+    """Return *path* relative to the workspace root when possible."""
     if not path:
         return ""
     raw = str(path).strip()

@@ -7,7 +7,7 @@
 Reference for the file families produced by every MAS run:
 
 1. **Run files** — written by `mas-runtime` under
-   `~/.mas/runs/<mas-id>/<timestamp>-<scenario>-<run-id>/`
+   `$XDG_DATA_HOME/mas/runs/<mas-id>/<timestamp>-<scenario>-<run-id>/`
 2. **Metric files** — written by the benchmark pipeline into
    the pipeline output directory.
 
@@ -18,7 +18,7 @@ The schemas are identical across use cases.
 ## Run directory layout
 
 ```
-~/.mas/runs/<mas-id>/<YYYYMMDD-HHMMSS>-<scenario>-<run-id>/
+$XDG_DATA_HOME/mas/runs/<mas-id>/<YYYYMMDD-HHMMSS>-<scenario>-<run-id>/
 ├── run.json          # Run metadata (single object)
 └── traces/
     └── events.jsonl  # Ordered stream of ObsEvents (one JSON object per line)

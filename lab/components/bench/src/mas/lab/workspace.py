@@ -3,13 +3,17 @@
 
 from __future__ import annotations
 
-"""Lab workspace helpers — mas-workspace.yaml accessors (not runtime shims)."""
+"""Lab workspace helpers — project ``config.yaml`` accessors (not runtime shims)."""
 
 
 from pathlib import Path
 from typing import Any
 
 from mas.ctl.workspace.config import WorkspaceConfig, _find_workspace_file
+
+from mas.runtime.constants import WORKSPACE_CONFIG_FILENAME
+
+_CONFIG_FILE = WORKSPACE_CONFIG_FILENAME
 
 
 def workspace_get(ws: WorkspaceConfig, tool: str, key: str, fallback: Any = None) -> Any:
@@ -31,10 +35,10 @@ _find_config = _find_workspace_file
 
 
 def find_workspace_root(start: Path | None = None) -> Path | None:
-    """Find workspace root by walking up to ``mas-workspace.yaml``."""
+    """Find workspace root by walking up to ``config.yaml``."""
     current = (start or Path.cwd()).resolve()
     for directory in [current, *current.parents]:
-        if (directory / "mas-workspace.yaml").exists():
+        if (directory / _CONFIG_FILE).is_file():
             return directory
     return None
 

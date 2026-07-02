@@ -66,7 +66,7 @@ mas-lab benchmark show last
 ```yaml
 name: my-sre-ablation
 n_runs: 5
-output_dir: ~/.mas/labs/results/my-ablation
+output_dir: $XDG_DATA_HOME/mas/labs/results/my-ablation
 
 mas_config: path/to/mas.yaml
 flavour: local
@@ -120,7 +120,7 @@ mas-lab benchmark run experiment.yaml -o /tmp/results
 | `--sample-scenarios` | — | Randomly sample N scenarios |
 | `--single-run` | off | Run exactly 1 scenario |
 | `-o / --output-dir` | from YAML | Output directory |
-| `--trace-cache` | `~/.mas/cache/traces` | Override trace-cache directory |
+| `--trace-cache` | `$XDG_CACHE_HOME/mas/traces` | Override trace-cache directory |
 | `--force-lock` | off | Break existing lock |
 | `--flavour` | `local` | Runtime flavour YAML name |
 | `--strategy` | `coverage` | `coverage` (breadth-first) or `depth` (depth-first) |

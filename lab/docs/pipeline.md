@@ -27,7 +27,7 @@ experiment:
 **Standalone pipeline** — separate YAML; use when **runs** already exist:
 
 ```bash
-mas-lab benchmark pipeline run labs/.../pipeline-figure.yaml -o ~/.mas/labs/my-exp
+mas-lab benchmark pipeline run labs/.../pipeline-figure.yaml -o $XDG_DATA_HOME/mas/labs/my-exp
 ```
 
 Schema: [manifests/pipeline.md](../../docs/manifests/pipeline.md).

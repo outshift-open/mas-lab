@@ -73,8 +73,8 @@ Named overlay for A/B configuration without duplicating manifests.
 
 ### Workspace
 
-`~/.mas/config.yaml` and optional `mas-workspace.yaml` — see
-[docs/user-config.md](../docs/user-config.md).
+`$XDG_CONFIG_HOME/mas/config.yaml` and optional project `config.yaml` — see
+[docs/user-config.md](../docs/user-config.md) for the full XDG layout.
 
 ---
 
@@ -140,7 +140,6 @@ Flavours ship in **`library-standard`** and resolve by name:
 |----------|--------|
 | [docs/user-guide.md](docs/user-guide.md) | Operational guide |
 | [docs/developer-guide.md](docs/developer-guide.md) | Manifest and compose extensions |
-| [docs/architecture-v2-compose.md](docs/architecture-v2-compose.md) | Compose pipeline |
 | [../docs/manifests/](../docs/manifests/README.md) | YAML reference |
 | [../docs/libraries.md](../docs/libraries.md) | Package matrix |
 | [../docs/cli/observability.md](../docs/cli/observability.md) | Trace emission and event artifacts |

@@ -37,7 +37,7 @@ def get_app(name: str) -> Path:
         available = ", ".join(sorted(apps)) or "(none found)"
         raise AppNotFoundError(
             f"App '{name}' not found. Available: {available}. "
-            "Declare the app under manifest_libraries in mas-workspace.yaml "
+            "Declare the app under manifest_libraries in config.yaml "
             "or register a mas.apps entry point."
         )
     return apps[name]

@@ -22,7 +22,7 @@ properties:
     properties:
       runtime_id:
         type: string
-        enum: [python-v2]
+        enum: [mas-runtime-py]
       design_pattern:
         type: object
         additionalProperties: false

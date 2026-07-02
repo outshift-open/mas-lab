@@ -17,7 +17,7 @@ def _find_trace_by_run_id(run_id: str) -> Path:
     """Search the runs root for a run directory whose name contains *run_id*.
 
     The runs root is resolved via :func:`mas.lab.paths.runs_root`:
-    ``MAS_RUNS_ROOT`` > ``MAS_DATA_ROOT/runs`` > ``~/.mas-lab/runs``.
+    ``MAS_RUNS_ROOT`` > ``MAS_DATA_ROOT/runs`` > ``runs_root()``.
     """
     from mas.lab import paths as _paths
     runs_root = _paths.runs_root()
@@ -46,7 +46,7 @@ def load_trace(source: Union[str, Path]) -> list[dict]:
           extension; converted to synthetic events via :func:`kg_to_events`), **or**
         * A run_id string (e.g. ``"20260224-062142-baseline-673d6359"``); the
           function will search the runs root (``MAS_RUNS_ROOT`` /
-          ``MAS_DATA_ROOT/runs`` / ``~/.mas-lab/runs``) for matching directories.
+          ``MAS_DATA_ROOT/runs`` / ``runs_root()``) for matching directories.
 
     Returns
     -------

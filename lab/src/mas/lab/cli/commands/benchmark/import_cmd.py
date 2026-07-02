@@ -13,10 +13,10 @@ import click
 @click.argument("tarball", type=Path)
 @click.option("--output-dir", type=Path, default=None,
               help="Directory to restore the benchmark output into "
-                   "(default: ~/.mas/labs/benchmarks/<benchmark_id>).")
+                   "(default: labs_root()/benchmarks/<benchmark_id>).")
 @click.option("--trace-cache", "trace_cache_dir", type=Path, default=None,
               help="Directory to restore trace-cache entries into "
-                   "(default: ~/.mas/cache/traces or MAS_TRACE_CACHE).")
+                   "(default: trace_cache() or MAS_TRACE_CACHE).")
 @click.option("--dry-run", is_flag=True, default=False,
               help="Show what would be extracted without touching the filesystem.")
 def import_cmd(tarball: Path, output_dir: Path | None,
@@ -30,7 +30,7 @@ def import_cmd(tarball: Path, output_dir: Path | None,
     \b
     Examples
     --------
-    # Restore to defaults (~/.mas/)
+    # Restore to defaults (XDG data root)
     mas-lab benchmark import run.tar.gz
 
     # Restore to a temp directory for inspection / testing

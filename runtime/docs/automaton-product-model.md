@@ -11,8 +11,8 @@
 > `runtime/src/mas/runtime/contracts/`. `DPFactory` / `DPPhaseMachine` naming in this
 > document describes the formal design target; see [mealy-envelope.md](mealy-envelope.md)
 > for the v0.1 implementation checklist.
-**Companion docs:** `mealy-product-formal-design.md` (7-symbol call envelope),  
-[contracts/DESIGN_SPACE.md](contracts/DESIGN_SPACE.md) (10 dimensions),  
+
+**Companion docs:** [contracts/DESIGN_SPACE.md](contracts/DESIGN_SPACE.md) (10 dimensions),
 [contracts/MANIFEST_MAPPING.md](contracts/MANIFEST_MAPPING.md) (manifest mapping),  
 [mealy-envelope.md](mealy-envelope.md) (implementation checklist — **authoritative for v0.1**)
 

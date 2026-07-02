@@ -10,10 +10,10 @@ metadata:
 
 spec:
   runtimes:
-    - id: python-v2
+    - id: mas-runtime-py
       layer: ctl.runtime
-      module: mas.ctl.compose.backends.python_v2.PythonV2KernelBackend
-      description: Python Mealy kernel v2 (OSS)
+      module: mas.ctl.compose.backends.mas_runtime_py.MasRuntimePyKernelBackend
+      description: Python Mealy kernel (OSS default)
       status: available
 
   placement:

@@ -17,8 +17,8 @@ import click
 @click.option("--dry-run", is_flag=True, default=False,
               help="Show what would be done without touching the filesystem.")
 @click.option("--mas-data-root", type=Path, default=None,
-              help="Override the ~/.mas-lab/labs root used for auto-derived targets "
-                   "(default: ~/.mas-lab/labs).",)
+              help="Override the labs_root() root used for auto-derived targets "
+                   "(default: labs_root()).",)
 def migrate_cmd(
     source_dir: Path,
     target_dir: Path | None,
@@ -26,12 +26,12 @@ def migrate_cmd(
     dry_run: bool,
     mas_data_root: Path | None,
 ) -> None:
-    """Move a benchmark run directory to ~/.mas-lab/labs/ (or TARGET_DIR).
+    """Move a benchmark run directory to labs_root()/ (or TARGET_DIR).
 
     SOURCE_DIR must contain a ``metadata.yaml`` file (benchmark run folder).
 
     TARGET_DIR is optional — when omitted mas-lab derives a canonical path
-    under ``~/.mas-lab/labs/<experiment_name>/``.
+    under ``labs_root()/<experiment_name>/``.
 
     After copying the data mas-lab patches all absolute paths inside the
     copied ``metadata.yaml`` so the benchmark remains accessible via the
@@ -48,7 +48,7 @@ def migrate_cmd(
     mas-lab benchmark migrate examples/trip-planner/output/01-semantic-grouping
 
     # Explicit target
-    mas-lab benchmark migrate ./output/my-run ~/.mas-lab/labs/trip-planner/my-run
+    mas-lab benchmark migrate ./output/my-run labs_root()/trip-planner/my-run
 
     # Preview without touching the filesystem
     mas-lab benchmark migrate ./output/my-run --dry-run

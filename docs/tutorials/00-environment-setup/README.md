@@ -44,25 +44,26 @@ Three separate concerns — never mix secrets into YAML:
 
 | Piece | What it is | Where it lives |
 |-------|------------|----------------|
-| **Infra manifest** | Non-secret endpoint config (API base URL, allowed models, `api_key_env` name) | `infra_refs` in `mas-workspace.yaml` or `--infra-ref` on CLI |
+| **Infra manifest** | Non-secret endpoint config (API base URL, allowed models, `api_key_env` name) | `infra_refs` in `config.yaml` or `--infra-ref` on CLI |
 | **Credential** | API key or token | `docker/.env` (Docker) or gitignored `.env` (developers) |
 | **Flavour** | Runtime environment bundle (`local` = default in `library-standard`) | `mas_ctl.flavour` / `mas_lab.flavour` in workspace, or manifest |
 
 **Copy-ready examples** (Tutorial 0 directory):
 
 ```bash
-cp docs/tutorials/00-environment-setup/mas-workspace.openai.example.yaml mas-workspace.yaml
+cp docs/tutorials/00-environment-setup/config.openai.example.yaml config.yaml
 cp docs/tutorials/00-environment-setup/.env.example docker/.env   # Docker path
 # Edit docker/.env — set OPENAI_API_KEY=sk-...
 ```
 
-`mas-workspace.openai.example.yaml` sets:
+`config.openai.example.yaml` sets:
 
 - `mas_ctl.flavour: local` and `mas_lab.flavour: local` (library-standard defaults)
 - `infra_refs: [standard:openai]` — resolves to the bundled OpenAI `LLMProxy` manifest
 
-Schema: [`docs/schemas/mas-workspace.schema.yaml`](../../schemas/mas-workspace.schema.yaml).
-Machine-wide path defaults: copy [`config.example.yaml`](config.example.yaml) to `~/.mas/config.yaml`.
+Schema: [`docs/schemas/config.schema.yaml`](../../schemas/config.schema.yaml).
+Machine-wide path defaults: copy [`config.example.yaml`](config.example.yaml) to
+`$XDG_CONFIG_HOME/mas/config.yaml` (default: `~/.config/mas/config.yaml`).
 
 ### 3 — Build images
 
@@ -102,7 +103,7 @@ MAS_CTL_MODEL=gpt-4o-mini docker compose -f docker/compose.yaml run --rm --no-de
 ```
 
 **Corporate / OpenAI-compatible proxy** — set `infra_refs: [standard:llm-proxy]` in
-`mas-workspace.yaml` (or `MAS_INFRA_REFS=standard:llm-proxy`) and
+`config.yaml` (or `MAS_INFRA_REFS=standard:llm-proxy`) and
 `LLM_PROXY_API_BASE` in `.env` / `docker/.env`. See
 [`.env.example`](.env.example).
 
@@ -130,8 +131,8 @@ To write the trace elsewhere, use **`--events-file /path/to/events.jsonl`**.
 
 | Store | Default location | Purpose |
 |-------|------------------|---------|
-| **Trace cache** | `~/.mas/cache/traces/` (host: `docker/data/`) | Content-addressed LLM traces — **re-runs skip cached completions** |
-| **Lab outputs** | `~/.mas/labs/<lab>/<experiment>/…` | Benchmark trees: `…/itemN/rN/traces/events.jsonl`, `results/` |
+| **Trace cache** | `$XDG_CACHE_HOME/mas/traces/` (default `~/.cache/mas/traces/`) | Content-addressed LLM traces — **re-runs skip cached completions** |
+| **Lab outputs** | `$XDG_DATA_HOME/mas/labs/<lab>/<experiment>/…` | Benchmark trees: `…/itemN/rN/traces/events.jsonl`, `results/` |
 | **CLI chat traces** | Next to manifest: `traces/events.jsonl` unless `--events-file` set | Ad-hoc `mas-ctl chat` runs |
 
 Confirm paths:
@@ -149,8 +150,9 @@ mas-lab config
 | `mas-ctl chat` | `--events-file PATH` | Write `events.jsonl` to `PATH` |
 | Env | `MAS_LABS_ROOT`, `MAS_TRACE_CACHE`, `MAS_RUNS_ROOT` | Override globals (see `mas-lab config`) |
 
-Workspace `paths:` keys in `mas-workspace.yaml` mirror `~/.mas/config.yaml` when you
-want per-project defaults (schema: `paths.labs_dir`, `paths.cache_dir`, `paths.runs_dir`).
+Workspace `paths:` keys in `config.yaml` mirror `$XDG_CONFIG_HOME/mas/config.yaml`
+when you want per-project defaults (schema: `paths.labs_dir`, `paths.cache_dir`,
+`paths.runs_dir`).
 
 ### 6 — Start the web UI
 
@@ -195,21 +197,21 @@ MAS_WORKSPACE_MOUNT=/path/to/your/project
 MAS_DATA_MOUNT=/path/to/persistent-data
 ```
 
-The sample workspace file is at [`examples/sample-workspace/mas-workspace.yaml`](../../../examples/sample-workspace/mas-workspace.yaml).
-Copy it to your project root as `mas-workspace.yaml`, or set
+The sample workspace file is at [`examples/sample-workspace/config.yaml`](../../../examples/sample-workspace/config.yaml).
+Copy it to your project root as `config.yaml`, or set
 `MAS_WORKSPACE_ROOT=examples/sample-workspace` when working from this checkout.
 
 ### Configuration priority (inside Docker)
 
 ```
-/workspace/mas-workspace.yaml   ← project copy (highest; optional on host mount)
-/opt/mas-lab/mas-workspace.yaml ← baked sample when mount has no project file
+/workspace/config.yaml   ← project copy (highest; optional on host mount)
+/opt/mas-lab/config.yaml ← baked sample when mount has no project file
 docker/.env                     ← OPENAI_API_KEY
 /data/                            ← trace cache & benchmark outputs
 ```
 
 `MAS_WORKSPACE_ROOT=/workspace` is set in the container. The runtime does **not**
-read a host `~/.mas/mas-workspace.yaml` when that env var is set.
+read a host `$XDG_CONFIG_HOME/mas/config.yaml` when that env var is set.
 
 ### One-off CLI commands
 
@@ -303,7 +305,7 @@ automatically. **Never** commit API keys.
 
 | Variable | Purpose |
 |----------|---------|
-| `MAS_INFRA_REFS` | Replace `infra_refs` from `mas-workspace.yaml` (e.g. `standard:llm-proxy`) |
+| `MAS_INFRA_REFS` | Replace `infra_refs` from `config.yaml` (e.g. `standard:llm-proxy`) |
 | `MAS_CTL_MODEL` | Override the agent model for one run (e.g. `gpt-4o-mini`, or a provider-prefixed id via a proxy gateway) |
 | `MAS_LLM_MODEL` | Alias for `MAS_CTL_MODEL` (legacy `.env` name) |
 | `MAS_WORKSPACE_ROOT` | Point at a project root when cwd is elsewhere |
@@ -321,13 +323,14 @@ mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
   -q "What is the capital of France?"
 ```
 
-### 5 — User config (`~/.mas/config.yaml`)
+### 5 — User config (`$XDG_CONFIG_HOME/mas/config.yaml`)
 
 Machine-wide paths and default infra bundle:
 
 ```bash
-mkdir -p ~/.mas
-cp docs/tutorials/00-environment-setup/config.example.yaml ~/.mas/config.yaml
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/mas"
+cp docs/tutorials/00-environment-setup/config.example.yaml \
+  "${XDG_CONFIG_HOME:-$HOME/.config}/mas/config.yaml"
 ```
 
 Or create manually:
@@ -336,9 +339,9 @@ Or create manually:
 apiVersion: mas.config/v1
 kind: UserConfig
 default_infra: standard:production
-runs_dir: ~/.mas/runs
-cache_dir: ~/.mas/cache
-labs_dir: ~/.mas/labs
+runs_dir: ~/.local/share/mas/runs
+cache_dir: ~/.cache/mas
+labs_dir: ~/.local/share/mas/labs
 ```
 
 Check effective paths:
@@ -410,8 +413,8 @@ mas-runtime list-bundles
 docker compose -f docker/compose.yaml run --rm --no-deps cli mas-runtime list-bundles
 ```
 
-Set the default in `~/.mas/config.yaml` (`default_infra: standard:production`) or
-per-project in `mas-workspace.yaml` (`infra_refs:`). CLI `--infra-ref` overrides
+Set the default in `$XDG_CONFIG_HOME/mas/config.yaml` (`default_infra: standard:production`) or
+per-project in `config.yaml` (`infra_refs:`). CLI `--infra-ref` overrides
 for one run.
 
 ### Inline URL (quickest smoke test)
@@ -429,7 +432,7 @@ mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
 | `cache_dir/traces/` | Content-addressed trace store |
 | `cache_dir/artifacts/` | Pipeline step cache |
 
-Override: `MAS_LABS_ROOT`, `MAS_TRACE_CACHE`, or fields in `~/.mas/config.yaml`.
+Override: `MAS_LABS_ROOT`, `MAS_TRACE_CACHE`, or fields in `$XDG_CONFIG_HOME/mas/config.yaml`.
 Always confirm with `mas-lab config`.
 
 More detail: [user-config.md](../../user-config.md).
@@ -470,7 +473,7 @@ Activate the venv: `direnv allow` or `source .venv/bin/activate`, then `task ins
 
 - Docker: set `OPENAI_API_KEY` in `docker/.env`, then `task restart`
 - Source: set `OPENAI_API_KEY` in repo `.env` or `source .env`
-- Check bundle: `mas-lab config` and `default_infra` in `~/.mas/config.yaml`
+- Check bundle: `mas-lab config` and `default_infra` in `$XDG_CONFIG_HOME/mas/config.yaml`
 
 ### Docker build fails
 
@@ -478,7 +481,7 @@ Ensure you run `docker compose` from `docker/` (or use `docker compose -f docker
 
 ### Wrong benchmark output path
 
-Run `mas-lab config` — outputs moved to `~/.mas/labs/` when user config is present.
+Run `mas-lab config` — outputs go to `$XDG_DATA_HOME/mas/labs/` by default (or paths from user config).
 
 ---
 

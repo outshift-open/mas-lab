@@ -167,7 +167,7 @@ def classify_llm_http_error(exc: BaseException) -> str:
             return (
                 f"LLM request failed: HTTP {status} (authentication/authorization){detail_hint}. "
                 "Check the API key env var named in your infra manifest (api_key_env). "
-                "Ensure mas-workspace.yaml infra_refs selects the correct bundle "
+                "Ensure config.yaml infra_refs selects the correct bundle "
                 "(e.g. standard:llm-proxy vs standard:production)."
             )
         if status == 429:

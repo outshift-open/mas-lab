@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""mas-workspace.yaml and ~/.mas/config.yaml — v2 ctl discovery (no v1 runtime import)."""
+"""Project ``config.yaml`` and XDG user config — v2 ctl discovery."""
 
 from __future__ import annotations
 
@@ -11,14 +11,15 @@ from typing import Any
 
 import yaml
 
-_WORKSPACE_FILE = "mas-workspace.yaml"
+from mas.runtime.workspace_config import find_workspace_file, _user_config_path, resolve_config_relative
+from mas.runtime.xdg import mas_cache_root, mas_infra_dir
 _ENV_INFRA_REFS = "MAS_INFRA_REFS"
 
 
 def infra_refs_from_env() -> list[str]:
     """Parse ``MAS_INFRA_REFS`` (comma- or space-separated bundle refs).
 
-    When set, overrides ``infra_refs`` from ``mas-workspace.yaml`` (CLI
+    When set, overrides ``infra_refs`` from the active workspace config (CLI
     ``--infra-ref`` still wins). Useful for CI and corporate LLM proxies
   without editing workspace files.
     """
@@ -89,6 +90,7 @@ def merge_infra_interceptors(
 class WorkspaceConfig:
     _data: dict[str, Any] = field(default_factory=dict)
     _path: Path | None = None
+    _config_file: Path | None = None
 
     @classmethod
     def load(cls, start: Path | None = None) -> WorkspaceConfig:
@@ -99,7 +101,11 @@ class WorkspaceConfig:
             data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         except Exception:
             return cls({})
-        return cls(data if isinstance(data, dict) else {}, path.parent)
+        return cls(
+            data if isinstance(data, dict) else {},
+            path.parent,
+            path,
+        )
 
     @property
     def found(self) -> bool:
@@ -146,6 +152,15 @@ class WorkspaceConfig:
         return dict(raw) if isinstance(raw, dict) else {}
 
     @property
+    def paths(self) -> dict[str, str]:
+        raw = self._data.get("paths") or {}
+        return {str(k): str(v) for k, v in raw.items()} if isinstance(raw, dict) else {}
+
+    @property
+    def config_path(self) -> Path | None:
+        return self._config_file
+
+    @property
     def infra_bundle_refs(self) -> list[str]:
         """Workspace infra bundle refs (InfraBundle / LLMProxy paths or library refs)."""
         return self.infra_refs
@@ -188,45 +203,29 @@ class WorkspaceConfig:
 @dataclass
 class UserConfig:
     default_infra: str | None = None
-    cache_dir: Path = field(default_factory=lambda: Path.home() / ".mas" / "cache")
+    cache_dir: Path = field(default_factory=mas_cache_root)
 
     @classmethod
     def load(cls) -> UserConfig:
-        for config_path in (
-            Path.home() / ".mas" / "config.yaml",
-            Path.home() / ".config" / "mas" / "config.yaml",
-        ):
-            if not config_path.is_file():
-                continue
-            try:
-                data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
-            except Exception:
-                continue
-            cache = data.get("cache_dir")
-            return cls(
-                default_infra=data.get("default_infra"),
-                cache_dir=Path(cache).expanduser() if cache else Path.home() / ".mas" / "cache",
-            )
-        return cls(default_infra="standard:production")
+        config_path = _user_config_path()
+        if not config_path.is_file():
+            return cls(default_infra="standard:production")
+        try:
+            data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        except Exception:
+            return cls(default_infra="standard:production")
+        cache = data.get("cache_dir")
+        if not cache and isinstance(data.get("paths"), dict):
+            cache = data["paths"].get("cache_dir")
+        if cache:
+            cache_dir = resolve_config_relative(str(cache), config_path)
+        else:
+            cache_dir = mas_cache_root()
+        return cls(
+            default_infra=data.get("default_infra"),
+            cache_dir=cache_dir,
+        )
 
 
 def _find_workspace_file(start: Path) -> Path | None:
-    env_root = os.environ.get("MAS_WORKSPACE_ROOT")
-    if env_root:
-        candidate = Path(env_root).expanduser().resolve() / _WORKSPACE_FILE
-        if candidate.is_file():
-            return candidate
-        return None
-
-    current = start.resolve()
-    for directory in [current, *current.parents]:
-        candidate = directory / _WORKSPACE_FILE
-        if candidate.is_file():
-            return candidate
-        if (directory / ".git").exists():
-            break
-
-    global_cfg = Path.home() / ".mas" / _WORKSPACE_FILE
-    if global_cfg.is_file():
-        return global_cfg
-    return None
+    return find_workspace_file(start)

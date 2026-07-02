@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from mas.lab.inputs import RunInput
+from mas.lab.runners.constants import DEFAULT_LAB_RUNNER_ID
 from mas.lab.runners.protocol import ApplicationRunnerProtocol, RunResult
 from mas.runtime.run_artifact import RunArtifact
 
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 class MasRuntimeRunner(ApplicationRunnerProtocol):
     """Lab adapter delegating to :class:`mas.ctl.benchmark.runner.MasBenchRunner`."""
 
-    runner_id: str = "mas"
+    runner_id: str = DEFAULT_LAB_RUNNER_ID
 
     def run(
         self,
@@ -36,6 +37,7 @@ class MasRuntimeRunner(ApplicationRunnerProtocol):
         **kwargs: Any,
     ) -> RunResult:
         from mas.ctl.benchmark.runner import MasBenchRunner
+        from mas.ctl.deployment.runtime_id import DEFAULT_RUNTIME_ID
         from mas.lab.manifest.load import load_agent_for_bench
         from mas.ctl.runtime_cli import load_merged_agent_manifest
 
@@ -83,7 +85,7 @@ class MasRuntimeRunner(ApplicationRunnerProtocol):
             if isinstance(candidate, RunInput):
                 ri = candidate
 
-        v2 = MasBenchRunner().run(
+        bench_result = MasBenchRunner().run(
             prompt,
             config=agent_cfg,
             spec_path=agent_path,
@@ -98,16 +100,16 @@ class MasRuntimeRunner(ApplicationRunnerProtocol):
                 path=Path(a["path"]) if a.get("path") else None,
                 meta={"agent_id": a.get("agent_id", "")},
             )
-            for a in v2.artifacts
+            for a in bench_result.artifacts
         ]
         return RunResult(
-            content=v2.content,
-            status=v2.status if v2.status in ("ok", "error") else "ok",
-            error=v2.error,
+            content=bench_result.content,
+            status=bench_result.status if bench_result.status in ("ok", "error") else "ok",
+            error=bench_result.error,
             artifacts=artifacts,
             metadata={
-                **v2.metadata,
-                "runtime_id": "python-v2",
+                **bench_result.metadata,
+                "runtime_id": DEFAULT_RUNTIME_ID,
                 "run_seed": run_seed,
                 "adapter_plugin": "mas-lab-bench.plugins.mas",
             },

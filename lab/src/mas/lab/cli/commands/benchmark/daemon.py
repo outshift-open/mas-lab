@@ -12,7 +12,9 @@ from pathlib import Path
 
 import click
 
-_DAEMON_DIR = Path.home() / ".mas-lab"
+from mas.runtime.xdg import mas_state_root
+
+_DAEMON_DIR = mas_state_root()
 _DAEMON_PID = _DAEMON_DIR / "daemon.pid"
 
 
@@ -40,14 +42,14 @@ def daemon_group() -> None:
     """Manage the MAS Lab UI server as a background daemon.
 
     The daemon runs ``mas-lab serve`` as a detached background process
-    and writes ``~/.mas-lab/daemon.pid`` so subsequent CLI/UI invocations can
+    and writes a PID file under ``$XDG_STATE_HOME/mas/`` so subsequent CLI/UI invocations can
     find it.
 
     \b
     Examples
     --------
-    mas-lab benchmark daemon start -o ~/.mas-lab             # start on port 8090
-    mas-lab benchmark daemon start --port 9000 -o ~/data     # custom port
+    mas-lab benchmark daemon start                         # start on port 8090
+    mas-lab benchmark daemon start --port 9000 -o ~/data   # custom port
     mas-lab benchmark daemon status
     mas-lab benchmark daemon stop
     """

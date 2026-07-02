@@ -56,9 +56,9 @@ Entry: `mas-lab benchmark run`.
 |----------|------|
 | `flavour/*.yaml` | Model id, infra ref, log level |
 | `infra/*.yaml` | Proxy URL, allowed models, interceptors |
-| `mas-workspace.yaml` | `MAS_INFRA_REFS`, default flavour |
+| `config.yaml` | `MAS_INFRA_REFS`, default flavour |
 
-Schema: [docs/schemas/mas-workspace.schema.yaml](../../../docs/schemas/mas-workspace.schema.yaml).
+Schema: [docs/schemas/config.schema.yaml](../../../docs/schemas/config.schema.yaml).
 
 ---
 

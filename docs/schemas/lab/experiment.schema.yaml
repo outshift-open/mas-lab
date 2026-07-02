@@ -223,7 +223,8 @@ properties:
         type: string
         description: >
           Override the global trace-cache directory for this experiment.
-          Falls back to env var MAS_TRACE_CACHE, then ~/.mas/cache/traces.
+          Falls back to env var MAS_TRACE_CACHE, then $XDG_CACHE_HOME/mas/traces
+          (see docs/user-config.md).
 
       # ── Execution ─────────────────────────────────────────────────────────
       execution:
@@ -257,7 +258,7 @@ properties:
           runner:
             type: string
             minLength: 1
-            default: mas
+            default: native
             description: >
               Lab adapter id (mas.lab.runners entry point). Optional override —
               when omitted, inferred from applications[].app / mas.manifest

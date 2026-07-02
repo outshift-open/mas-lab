@@ -19,7 +19,8 @@ from mas.lab.benchmark.run_manager.display import format_run_summary as _format_
 from mas.lab.benchmark.run_manager.models import BenchmarkRunInfo
 from mas.lab.benchmark.run_manager.persistence import load_state as _load_state
 from mas.lab.benchmark.run_manager.persistence import save_state as _save_state
-from mas.lab.benchmark.run_manager.pointer import _LAST_RUN_FILE
+from mas.lab.benchmark.run_manager.discovery import default_search_roots, iter_metadata_locations
+from mas.lab.benchmark.run_manager.pointer import last_run_write_path, resolve_last_run_file
 from mas.lab.benchmark.state import EnhancedBenchmarkState
 
 logger = logging.getLogger(__name__)
@@ -31,17 +32,22 @@ class BenchmarkRunManager:
         """Initialize run manager.
 
         Args:
-            benchmarks_root: Root directory for benchmarks.
-                Defaults to ``paths.benchmark_root()`` (``~/.mas-lab/benchmarks``
-                unless ``MAS_DATA_ROOT`` or ``MAS_LABS_ROOT`` is set).
+            benchmarks_root: Primary output root (CLI ``-o``). When omitted, uses
+                :func:`mas.lab.paths.labs_root` from the active config. Listing
+                also scans :func:`mas.lab.paths.runs_root` when it differs.
         """
         if benchmarks_root is None:
-            benchmarks_root = _paths.benchmark_root()
-        
+            benchmarks_root = _paths.labs_root()
+
         self.benchmarks_root = benchmarks_root
+        self._search_roots = default_search_roots(extra=benchmarks_root)
         self.benchmarks_root.mkdir(parents=True, exist_ok=True)
-        
-        logger.debug(f"Benchmark run manager initialized: {self.benchmarks_root}")
+
+        logger.debug("Benchmark run manager initialized: roots=%s", self._search_roots)
+
+    def _iter_run_dirs(self):
+        """Yield ``(run_dir, metadata_path)`` from all configured search roots."""
+        yield from iter_metadata_locations(*self._search_roots)
     
     def create_run(
         self,
@@ -115,34 +121,31 @@ class BenchmarkRunManager:
             List of run info, sorted by timestamp (newest first)
         """
         runs = []
-        
-        # Scan all directories in benchmarks root
-        for run_dir in sorted(self.benchmarks_root.iterdir(), reverse=True):
-            if not run_dir.is_dir():
-                continue
-            
-            metadata_path = run_dir / "metadata.yaml"
-            if not metadata_path.exists():
-                continue
-            
+        locations = list(self._iter_run_dirs())
+
+        # Sort by metadata timestamp (newest first), not directory name.
+        parsed: list[tuple[datetime, BenchmarkMetadata, Path]] = []
+        for run_dir, metadata_path in locations:
             try:
                 metadata = BenchmarkMetadata.from_yaml(metadata_path)
-                
-                # Apply status filter
-                if status_filter and metadata.status != status_filter:
-                    continue
-                
-                run_info = BenchmarkRunInfo.from_metadata(metadata, run_dir)
-                runs.append(run_info)
-                
-                # Apply limit
-                if limit and len(runs) >= limit:
-                    break
-                
+                ts = metadata.timestamp
+                if isinstance(ts, str):
+                    ts_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                else:
+                    ts_dt = ts
+                parsed.append((ts_dt, metadata, run_dir))
             except Exception as e:
-                logger.warning(f"Failed to load metadata from {run_dir}: {e}")
+                logger.warning("Failed to load metadata from %s: %s", metadata_path, e)
+
+        parsed.sort(key=lambda row: row[0], reverse=True)
+
+        for _ts, metadata, run_dir in parsed:
+            if status_filter and metadata.status != status_filter:
                 continue
-        
+            runs.append(BenchmarkRunInfo.from_metadata(metadata, run_dir))
+            if limit and len(runs) >= limit:
+                break
+
         return runs
     
     def get_run(self, benchmark_id: str) -> Optional[tuple[BenchmarkMetadata, Path]]:
@@ -154,24 +157,16 @@ class BenchmarkRunManager:
         Returns:
             Tuple of (metadata, run_dir) or None if not found
         """
-        # Search for matching run
-        for run_dir in self.benchmarks_root.iterdir():
-            if not run_dir.is_dir():
-                continue
-            
-            metadata_path = run_dir / "metadata.yaml"
-            if not metadata_path.exists():
-                continue
-            
+        for run_dir, metadata_path in self._iter_run_dirs():
             try:
                 metadata = BenchmarkMetadata.from_yaml(metadata_path)
-                
+
                 # Match full or short ID
                 if metadata.benchmark_id == benchmark_id or metadata.short_id == benchmark_id:
                     return metadata, run_dir
-                
+
             except Exception as e:
-                logger.warning(f"Failed to load metadata from {run_dir}: {e}")
+                logger.warning("Failed to load metadata from %s: %s", metadata_path, e)
                 continue
         
         # Fallback: check last-run pointer (catches MAS runs outside benchmarks_root)
@@ -179,10 +174,11 @@ class BenchmarkRunManager:
 
     def _check_pointer_for_id(self, benchmark_id: str) -> Optional[tuple[BenchmarkMetadata, Path]]:
         """Check the last-run pointer file for a matching benchmark ID (MAS runs live outside benchmarks_root)."""
-        if not _LAST_RUN_FILE.exists():
+        ptr_path = resolve_last_run_file()
+        if ptr_path is None:
             return None
         try:
-            ptr = json.loads(_LAST_RUN_FILE.read_text())
+            ptr = json.loads(ptr_path.read_text())
             ptr_id = ptr.get("benchmark_id", "")
             if ptr_id == benchmark_id or ptr_id[:8] == benchmark_id:
                 run_dir = Path(ptr["run_dir"])
@@ -211,10 +207,11 @@ class BenchmarkRunManager:
             Tuple of (metadata, run_dir) or None if no runs found
         """
         # Try pointer file first — covers MAS experiments outside benchmarks_root
-        if status_filter is None and _LAST_RUN_FILE.exists():
+        ptr_path = resolve_last_run_file()
+        if status_filter is None and ptr_path is not None:
             try:
                 import json as _json
-                ptr = _json.loads(_LAST_RUN_FILE.read_text())
+                ptr = _json.loads(ptr_path.read_text())
                 run_dir = Path(ptr["run_dir"])
                 metadata_path = run_dir / "metadata.yaml"
                 if metadata_path.exists():
@@ -239,8 +236,9 @@ class BenchmarkRunManager:
         """
         import json as _json
         try:
-            _LAST_RUN_FILE.parent.mkdir(parents=True, exist_ok=True)
-            _LAST_RUN_FILE.write_text(_json.dumps({
+            ptr_path = last_run_write_path()
+            ptr_path.parent.mkdir(parents=True, exist_ok=True)
+            ptr_path.write_text(_json.dumps({
                 "run_dir": str(run_dir),
                 "benchmark_id": metadata.benchmark_id,
                 "experiment_name": metadata.experiment_name,
@@ -268,19 +266,21 @@ class BenchmarkRunManager:
             Tuple of (metadata, run_dir) or None if not found.
         """
         canonical = str(experiment_yaml_path.resolve())
-        for run_dir in sorted(self.benchmarks_root.iterdir(), reverse=True):
-            if not run_dir.is_dir():
-                continue
-            metadata_path = run_dir / "metadata.yaml"
-            if not metadata_path.exists():
-                continue
+        best: tuple[datetime, BenchmarkMetadata, Path] | None = None
+        for run_dir, metadata_path in self._iter_run_dirs():
             try:
                 metadata = BenchmarkMetadata.from_yaml(metadata_path)
-                if str(Path(metadata.experiment_yaml_path).resolve()) == canonical:
-                    return metadata, run_dir
+                if str(Path(metadata.experiment_yaml_path).resolve()) != canonical:
+                    continue
+                ts = metadata.timestamp
+                ts_dt = datetime.fromisoformat(ts.replace("Z", "+00:00")) if isinstance(ts, str) else ts
+                if best is None or ts_dt > best[0]:
+                    best = (ts_dt, metadata, run_dir)
             except Exception:
                 continue
-        return None
+        if best is None:
+            return None
+        return best[1], best[2]
     
     def load_state(self, run_dir: Path) -> Optional[EnhancedBenchmarkState]:
         """Load state from run directory.

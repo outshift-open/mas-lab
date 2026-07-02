@@ -15,7 +15,7 @@ Human-readable field docs are in [Specifications](index.md#specifications).
 
 | Schema | Purpose |
 | --- | --- |
-| [`mas-workspace.schema.yaml`](../schemas/mas-workspace.schema.yaml) | Root `mas-workspace.yaml` — defaults, flavour, infra refs |
+| [`config.schema.yaml`](../schemas/config.schema.yaml) | Root `config.yaml` — defaults, flavour, infra refs |
 | [`deployment.schema.yaml`](../schemas/deployment.schema.yaml) | Deployment / placement descriptors |
 | [`runtime-profile.schema.yaml`](../schemas/runtime-profile.schema.yaml) | Runtime profile flags (governance, observability) |
 | [`placement-plan.schema.yaml`](../schemas/placement-plan.schema.yaml) | Component placement plan |

@@ -9,12 +9,12 @@ from typing import Any
 
 from mas.runtime.spec.source import load_yaml_mapping
 
-from mas.ctl.deployment.runtime_id import normalize_runtime_id, runtime_id_from_deployment
+from mas.ctl.deployment.runtime_id import DEFAULT_RUNTIME_ID, normalize_runtime_id, runtime_id_from_deployment
 from mas.ctl.registry.catalog import validate_runtime_id
 from mas.ctl.workspace.config import WorkspaceConfig
 
 
-def default_deployment(*, runtime_id: str = "python-v2", name: str = "local-inproc") -> dict[str, Any]:
+def default_deployment(*, runtime_id: str = DEFAULT_RUNTIME_ID, name: str = "local-inproc") -> dict[str, Any]:
     rid = validate_runtime_id(normalize_runtime_id(runtime_id))
     return {
         "apiVersion": "deployment/v1",
@@ -73,7 +73,7 @@ def resolve_runtime_id(
     workspace: WorkspaceConfig | None = None,
     cli_override: str | None = None,
 ) -> str:
-    """Resolve runtime_id: CLI override → deployment → runtime profile → workspace → python-v2."""
+    """Resolve runtime_id: CLI override → deployment → runtime profile → workspace → default runtime."""
     if cli_override:
         return validate_runtime_id(normalize_runtime_id(cli_override))
 
@@ -93,7 +93,7 @@ def resolve_runtime_id(
         if rid:
             return validate_runtime_id(normalize_runtime_id(rid))
 
-    return validate_runtime_id("python-v2")
+    return validate_runtime_id(DEFAULT_RUNTIME_ID)
 
 
 def load_deployment_for_run(

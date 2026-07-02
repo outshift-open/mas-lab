@@ -135,8 +135,9 @@ def message_graph_cmd(
             sys.exit(1)
         resolved_path = kg_path
     else:
-        # Try ~/.mas-lab/labs/<source> directory first
-        lab_dir = Path.home() / ".mas-lab" / "labs" / resolved
+        from mas.lab import paths as lab_paths
+
+        lab_dir = lab_paths.labs_root() / resolved
         if lab_dir.is_dir():
             candidates = list(lab_dir.rglob("kg.json"))
             if not candidates:

@@ -6,10 +6,10 @@ kind: Deployment
 
 metadata:
   name: local-inproc
-  description: Python v2 Mealy kernel, in-process bus.
+  description: Default OSS Mealy kernel, in-process bus.
 
 spec:
-  runtime_id: python-v2
+  runtime_id: mas-runtime-py
   strategy: local-inproc
 
   framework:

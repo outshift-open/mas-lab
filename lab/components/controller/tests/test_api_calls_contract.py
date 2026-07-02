@@ -488,12 +488,14 @@ def test_contract_registry_defaults_discovery_info(client, monkeypatch):
 
 
 def test_contract_runtime_runners(client):
+    from mas.lab.runners.constants import DEFAULT_LAB_RUNNER_ID
+
     resp = client.get("/api/runtime-runners")
     assert resp.status_code == 200
     body = resp.json()
     assert "runners" in body
     ids = {r["id"] for r in body["runners"]}
-    assert "mas" in ids
+    assert DEFAULT_LAB_RUNNER_ID in ids
 
 
 def test_contract_experiment_definitions(client):

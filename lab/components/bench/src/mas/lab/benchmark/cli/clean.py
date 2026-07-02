@@ -21,7 +21,7 @@ def clean_command(args) -> int:
 
     * All ``item*/r*`` run directories (``run_info.json``, ``metrics.json``,
       symlinked ``traces/``, ``.run_ref``) are removed.
-    * The corresponding global trace-cache entry (``~/.mas/cache/traces/<hash>/``)
+    * The corresponding global trace-cache entry (``trace_cache()/<hash>/``)
       is removed, unless ``--keep-traces`` is given.
 
     After the run dirs are gone, the next ``mas-lab benchmark run`` will

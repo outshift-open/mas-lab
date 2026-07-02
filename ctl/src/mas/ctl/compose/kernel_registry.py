@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from mas.ctl.compose.models import EffectiveBindManifest, RuntimeId
+from mas.ctl.deployment.runtime_id import DEFAULT_RUNTIME_ID
 from mas.ctl.registry.catalog import UnknownComponentError, get_runtime, import_class, list_runtime_ids
 
 
@@ -46,7 +47,7 @@ def get_runtime_backend(
     if runtime_id not in _BACKENDS:
         raise KeyError(f"runtime {runtime_id!r} not registered (see component-registry.yaml)")
     cls = _BACKENDS[runtime_id]
-    if runtime_id == "python-v2":
+    if runtime_id == DEFAULT_RUNTIME_ID:
         return cls(resolved_infra=resolved_infra)  # type: ignore[call-arg]
     return cls()  # type: ignore[call-arg]
 

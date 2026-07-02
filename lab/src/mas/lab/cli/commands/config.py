@@ -50,8 +50,10 @@ def config_cmd(as_json: bool) -> None:
     """
     cwd = Path.cwd().resolve()
 
-    labs_root = _paths.labs_root()
-    data_dir = _paths.data_dir()
+    summary = _paths.path_resolution_summary()
+    labs_root = summary["labs_dir"].path
+    data_dir = summary["data_dir"].path
+    trace_cache_path = summary["trace_cache"].path
     lab_output = _resolve_lab_output()
     lout_source_override: str | None = None
     lab_slug: str | None = None
@@ -77,28 +79,43 @@ def config_cmd(as_json: bool) -> None:
     # Workspace config
     workspace_config_path: Path | None = None
     try:
-        from mas.lab.workspace import _find_config
-        found = _find_config(cwd)
+        from mas.runtime.workspace_config import find_workspace_file
+
+        found = find_workspace_file(cwd)
         if found:
             workspace_config_path = found.resolve()
-    except (ImportError, Exception):
-        pass
+    except ImportError:
+        try:
+            from mas.lab.workspace import _find_config
+            found = _find_config(cwd)
+            if found:
+                workspace_config_path = found.resolve()
+        except (ImportError, Exception):
+            pass
 
     if as_json:
         import json as _json
         data = {
             "cwd": str(cwd),
             "data_root": {
-                "path": str(_paths.data_root()),
-                "source": _paths.MAS_DATA_ROOT_ENV if os.environ.get(_paths.MAS_DATA_ROOT_ENV) else "default",
+                "path": str(summary["data_root"].path),
+                "source": summary["data_root"].source,
             },
             "labs_root": {
                 "path": str(labs_root),
-                "source": _paths.source_tag(specific_env=_paths.MAS_LABS_ROOT_ENV),
+                "source": summary["labs_dir"].source,
             },
             "data_dir": {
                 "path": str(data_dir),
-                "source": _paths.source_tag(specific_env=_paths.MAS_LAB_DATA_ENV),
+                "source": summary["data_dir"].source,
+            },
+            "trace_cache": {
+                "path": str(trace_cache_path),
+                "source": summary["trace_cache"].source,
+            },
+            "runs_root": {
+                "path": str(summary["runs_dir"].path),
+                "source": summary["runs_dir"].source,
             },
             "lab_output": {
                 "path": str(lab_output),
@@ -121,19 +138,25 @@ def config_cmd(as_json: bool) -> None:
 
     click.echo(f"\n  {'cwd':<22} {cwd}")
 
-    _data_root = _paths.data_root()
-    _droot_source = _paths.MAS_DATA_ROOT_ENV if os.environ.get(_paths.MAS_DATA_ROOT_ENV) else "default"
+    _data_root = summary["data_root"].path
+    _droot_source = summary["data_root"].source
     click.echo(f"\n  {'data root':<22} {_data_root}  {_tag(_droot_source)}")
 
-    lroot_source = _paths.source_tag(specific_env=_paths.MAS_LABS_ROOT_ENV)
+    lroot_source = summary["labs_dir"].source
     click.echo(f"\n  {'labs root':<22} {labs_root}  {_tag(lroot_source)}")
-    click.echo(f"  {'  (experiments)':<22} {click.style('<labs_root>/<lab>/<experiment>/<scenario>[.vN]/', dim=True)}")
+    click.echo(f"  {'  (experiments)':<22} {click.style('<labs_root>/<experiment>/ or flat metadata.yaml', dim=True)}")
     click.echo(f"  {'  exists':<22} {click.style('yes', fg='green') if labs_root.exists() else click.style('no (will be created on first run)', fg='yellow')}")
 
-    ddir_source = _paths.source_tag(specific_env=_paths.MAS_LAB_DATA_ENV)
+    ddir_source = summary["data_dir"].source
     click.echo(f"\n  {'data dir':<22} {data_dir}  {_tag(ddir_source)}")
-    click.echo(f"  {'  (cache, traces, runs)':<22} {click.style('<data_dir>/trace-cache/, runs/, standalone-runs/', dim=True)}")
-    click.echo(f"  {'  exists':<22} {click.style('yes', fg='green') if data_dir.exists() else click.style('no (will be created on first run)', fg='yellow')}")
+    click.echo(f"  {'  (scratch)':<22} {click.style('<data_dir>/lab-output/, standalone-runs/', dim=True)}")
+
+    tc_source = summary["trace_cache"].source
+    click.echo(f"\n  {'trace cache':<22} {trace_cache_path}  {_tag(tc_source)}")
+    click.echo(f"  {'  exists':<22} {click.style('yes', fg='green') if trace_cache_path.exists() else click.style('no (will be created on first run)', fg='yellow')}")
+
+    runs_source = summary["runs_dir"].source
+    click.echo(f"\n  {'runs root':<22} {summary['runs_dir'].path}  {_tag(runs_source)}")
 
     lout_source = "lab-config.yaml" if lout_source_override == "lab-config.yaml" else "default"
     _lout_label = _lab_output_label(lab_output, lab_slug or lab_output.parent.name)
@@ -162,6 +185,6 @@ def config_cmd(as_json: bool) -> None:
     if workspace_config_path:
         click.echo(f"  {'workspace config':<22} {click.style(str(workspace_config_path), fg='green')}")
     else:
-        click.echo(f"  {'workspace config':<22} {click.style('not found', dim=True)}")
+        click.echo(f"  {'workspace config':<22} {click.style('not found (using XDG defaults)', dim=True)}")
 
     click.echo()

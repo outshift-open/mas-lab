@@ -13,7 +13,7 @@ also explains them in context; this page is the single reference list.
 | **MAS** | Multi-agent system — several agents with a workflow (who talks to whom). Configured in a `mas.yaml` manifest. |
 | **Agent** | Single LLM actor with tools, skills, and plugins. Configured in an `agent.yaml` manifest. |
 | **Overlay** | A small YAML patch (`kind: Overlay`) merged on top of a manifest. CLI: `-o path/to/overlay.yaml`. Used to vary one knob (tools, memory, governance) without copying the whole file. |
-| **Flavour** | Deployment preset: model endpoint, instrumentation, transport. Referenced from experiments or `mas-workspace.yaml` (e.g. `standard:openai`). |
+| **Flavour** | Deployment preset: model endpoint, instrumentation, transport. Referenced from experiments or `config.yaml` (e.g. `standard:openai`). |
 | **Lab (definition)** | A folder `*.lab/` (under `labs/`) with `experiment.yaml`, datasets, overlays, and optional custom pipeline steps. Data/config, not code. |
 | **Package** | A published wheel (`mas-runtime`, `mas-ctl`, `mas-lab`, …). See [packages reference](packages-reference.md). |
 | **Component** | One of the four lab sub-wheels under `lab/components/` (`mas-lab-core`, `mas-lab-bench`, `mas-lab-controller`, `mas-lab-content`). The interactive tutorial runner (`mas-lab-tutorial`) is internal-only — see `mas-lab-internal`. Distinct from the internal `mas.lab.*` runtime modules — see [ADR 0001](references/adr-0001-lab-terminology.md). |

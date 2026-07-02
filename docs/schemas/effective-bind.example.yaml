@@ -7,7 +7,7 @@ kind: EffectiveBind
 metadata:
   mas_id: trip-planner
   spec_revision: sha256:deadbeef...
-  runtime_id: python-v2
+  runtime_id: mas-runtime-py
   deployment: local-inproc
   run_id: run-20260619-001
 

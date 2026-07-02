@@ -7,10 +7,10 @@ kind: Deployment
 metadata:
   name: local-inproc
   description: >
-    OSS default: python-v2 kernel with in-process placement (mas-ctl compose / run-mas).
+    OSS default: in-process placement with the default Python runtime (mas-ctl compose / run-mas).
 
 spec:
-  runtime_id: python-v2
+  runtime_id: mas-runtime-py
   strategy: local-inproc
 
   agents:

@@ -61,10 +61,11 @@ def test_registry_unknown_runner():
     ApplicationRunnerRegistry.reset()
 
 
-def test_registry_mas_runner_available():
+def test_registry_mas_lab_runner_available():
+    from mas.lab.runners.constants import DEFAULT_LAB_RUNNER_ID
     from mas.lab.runners.registry import ApplicationRunnerRegistry
 
     ApplicationRunnerRegistry.reset()
     ApplicationRunnerRegistry._ensure_initialized()
-    assert "mas" in ApplicationRunnerRegistry.available()
+    assert DEFAULT_LAB_RUNNER_ID in ApplicationRunnerRegistry.available()
     ApplicationRunnerRegistry.reset()

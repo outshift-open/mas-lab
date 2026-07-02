@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from mas.runtime.spec.source import load_yaml_file, resolve_ref_with_search
+from mas.runtime.xdg import mas_infra_dir
 from mas.ctl.compose.models import ResolvedInfra
 from mas.ctl.infra.env_resolve import resolve_manifest_values
 from mas.ctl.infra.models import InfraManifest, ModelsSpec, ProxySpec
@@ -175,8 +176,7 @@ def _infra_search_dirs(anchor: Path, workspace: WorkspaceConfig) -> list[Path]:
         [
             anchor,
             anchor.parent,
-            Path.home() / ".config" / "mas" / "infra",
-            Path.home() / ".mas" / "infra",
+            mas_infra_dir(),
         ]
     )
     return dirs

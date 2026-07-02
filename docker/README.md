@@ -25,7 +25,7 @@ Two host folders are mounted into every backend/cli container:
 
 | Container path | Env var (host path) | Purpose |
 |----------------|---------------------|---------|
-| `/workspace` | `MAS_WORKSPACE_MOUNT` (default: `..`) | `labs/`, `infra/`, project `.env` (optional `mas-workspace.yaml`) |
+| `/workspace` | `MAS_WORKSPACE_MOUNT` (default: `..`) | `labs/`, `infra/`, project `.env` (optional `config.yaml`) |
 | `/data` | `MAS_DATA_MOUNT` (default: `./data`) | Trace cache, benchmark outputs, run artifacts |
 
 Example `.env` for a custom project:
@@ -42,19 +42,19 @@ contents; only `.gitkeep` is tracked).
 ### Workspace config priority
 
 Inside the container, `MAS_WORKSPACE_ROOT=/workspace` is set. The runtime loads
-`mas-workspace.yaml` from the mounted workspace when present; otherwise the
+`config.yaml` from the mounted workspace when present; otherwise the
 entrypoint falls back to the baked copy from
-[`examples/sample-workspace/mas-workspace.yaml`](../examples/sample-workspace/mas-workspace.yaml)
-at `/opt/mas-lab/mas-workspace.yaml`. Project config wins over `~/.mas` fallback.
+[`examples/sample-workspace/config.yaml`](../examples/sample-workspace/config.yaml)
+at `/opt/mas-lab/config.yaml`. Project config wins over `$XDG_CONFIG_HOME/mas/config.yaml` fallback.
 
-To also use a host `~/.mas/config.yaml`, bind-mount it:
+To also use a host user config, bind-mount the XDG config tree:
 
 ```yaml
 # compose override
 services:
   backend:
     volumes:
-      - ~/.mas:/root/.mas
+      - ${XDG_CONFIG_HOME:-~/.config}/mas:/root/.config/mas
 ```
 
 ## Environment variables
@@ -62,7 +62,7 @@ services:
 | Variable | Default (container) | Purpose |
 |----------|---------------------|---------|
 | `OPENAI_API_KEY` | — | LLM API key in `docker/.env` (canonical; shell exports are ignored) |
-| `MAS_WORKSPACE_ROOT` | `/workspace` | Directory for `mas-workspace.yaml` discovery |
+| `MAS_WORKSPACE_ROOT` | `/workspace` | Directory for `config.yaml` discovery |
 | `MAS_DATA_ROOT` | `/data` | Root for lab data |
 | `MAS_TRACE_CACHE` | `/data/trace-cache` | Benchmark trace cache |
 | `MAS_LABS_ROOT` | `/data/labs` | Experiment outputs under labs hierarchy |
@@ -113,7 +113,7 @@ docker compose run --rm backend mas-lab config
 
 ### Configure from inside Docker
 
-1. Copy [`examples/sample-workspace/mas-workspace.yaml`](../examples/sample-workspace/mas-workspace.yaml)
+1. Copy [`examples/sample-workspace/config.yaml`](../examples/sample-workspace/config.yaml)
    to your project root, or edit an existing copy under `MAS_WORKSPACE_MOUNT`.
 2. Put secrets in `docker/.env` or `/workspace/.env`.
 3. Restart: `task restart` from the repo root (rebuild + recreate both services).

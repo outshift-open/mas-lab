@@ -18,7 +18,7 @@ By default (CI / offline) only steps that list ``offline`` (or have no
 ``TUTORIAL_ONLINE=1`` to also run ``online``-only steps.
 
 Online steps use ``gpt-4o-mini`` via ``MAS_CTL_MODEL`` and expect ``Paris`` in the
-agent reply.  Infra is resolved from ``mas-workspace.yaml``; override without
+agent reply.  Infra is resolved from ``config.yaml``; override without
 editing YAML via ``MAS_INFRA_REFS`` (e.g. ``MAS_INFRA_REFS=standard:llm-proxy``
 for the Outshift OpenAI-compatible proxy).  Set ``LLM_PROXY_API_BASE`` and
 ``OPENAI_API_KEY`` in ``.env`` (see Tutorial 0).

@@ -140,7 +140,7 @@ class TestOverlayMerging:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 4. Agent instantiation (python-v2 — mock infra)
+# 4. Agent instantiation (default runtime — mock infra)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _mock_merged_agent(*extra_overlays: str) -> dict:

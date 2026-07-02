@@ -107,7 +107,7 @@ def dump_cmd(
     Use --by trace to match against the TraceId column directly (hex string,
     with or without the 0x prefix).
 
-    Connection parameters are resolved: CLI flags → ~/.mas-lab/connections.yaml
+    Connection parameters are resolved: CLI flags → $XDG_CONFIG_HOME/mas/connections.yaml
     → CLICKHOUSE_* env vars → built-in defaults (localhost:8123).
 
     \b

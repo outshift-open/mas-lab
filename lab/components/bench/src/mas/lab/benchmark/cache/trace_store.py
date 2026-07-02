@@ -13,19 +13,11 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 def trace_cache_roots(explicit: Optional[Path] = None) -> list[Path]:
-    """Return trace-cache directories to probe, newest/canonical first."""
+    """Return trace-cache directories to probe (canonical only)."""
     from mas.lab import paths as _paths
 
-    roots: list[Path] = []
-    for candidate in (
-        _paths.trace_cache(explicit=str(explicit)) if explicit else _paths.trace_cache(),
-        Path.home() / ".mas" / "cache" / "traces",
-        Path.home() / ".mas-lab" / "data" / "trace-cache",
-    ):
-        resolved = candidate.expanduser().resolve()
-        if resolved not in roots:
-            roots.append(resolved)
-    return roots
+    canonical = _paths.trace_cache(explicit=str(explicit)) if explicit else _paths.trace_cache()
+    return [canonical.expanduser().resolve()]
 
 
 def resolve_run_events_path(run_dir: Path) -> Optional[Path]:
@@ -63,8 +55,6 @@ def resolve_run_events_path(run_dir: Path) -> Optional[Path]:
 
 def get_trace_cache_dir(explicit: Optional[Path] = None) -> Path:
     """Global content-addressed trace store.
-
-    Priority: explicit (CLI / YAML) > ``MAS_TRACE_CACHE`` env > ``~/.mas-lab/data/trace-cache``.
 
     Pass *explicit* = ``cli_value or yaml_value`` to get the full
     ``CLI > YAML > env > default`` chain.

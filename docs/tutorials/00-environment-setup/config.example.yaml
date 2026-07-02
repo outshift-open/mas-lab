@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-# Copy to ~/.mas/config.yaml (Tutorial 0 §2a)
+# Copy to $XDG_CONFIG_HOME/mas/config.yaml (Tutorial 0 §2a)
 # Secrets go in .env — never in this file.
 
 apiVersion: mas.config/v1
@@ -10,6 +10,6 @@ kind: UserConfig
 # Team libs: my-org:bundle-id after uv pip install -e …
 default_infra: standard:production
 
-runs_dir: ~/.mas/runs
-cache_dir: ~/.mas/cache
-labs_dir: ~/.mas/labs
+runs_dir: ~/.local/share/mas/runs
+cache_dir: ~/.cache/mas
+labs_dir: ~/.local/share/mas/labs

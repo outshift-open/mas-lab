@@ -9,7 +9,7 @@ metadata:
   description: Full MAS in one OS process; N RuntimeInstances + InProcessCommBus.
 
 spec:
-  runtime_id: python-v2
+  runtime_id: mas-runtime-py
   strategy: local-inproc
 
   framework:

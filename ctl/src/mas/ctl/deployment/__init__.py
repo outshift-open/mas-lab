@@ -10,12 +10,12 @@ from mas.ctl.deployment.load import (
     resolve_runtime_id_for_run,
     runtime_id_from_deployment,
 )
-from mas.ctl.deployment.runtime_id import is_v2_runtime, normalize_runtime_id
+from mas.ctl.deployment.runtime_id import is_default_runtime, normalize_runtime_id
 from mas.ctl.registry.catalog import list_runtime_ids, validate_runtime_id
 
 __all__ = [
     "default_deployment",
-    "is_v2_runtime",
+    "is_default_runtime",
     "list_runtime_ids",
     "load_deployment",
     "load_deployment_for_run",

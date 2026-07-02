@@ -7,7 +7,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-"""Benchmark run migration — move a benchmark output folder to ``~/.mas/labs/``.
+"""Benchmark run migration — move a benchmark output folder to ``labs_root()/``.
 
 This module implements the logic for ``mas-lab benchmark migrate``.
 
@@ -15,7 +15,7 @@ Workflow
 --------
 1. Validate that ``source_dir`` contains a ``metadata.yaml``.
 2. Determine ``target_dir`` (explicit, or auto-derived from the experiment name
-   and ``~/.mas/labs/``).
+   and ``labs_root()/``).
 3. Copy the entire directory tree from ``source_dir`` to ``target_dir``.
 4. Patch absolute paths in the copied ``metadata.yaml``
    (``run_dir``, ``results_file``, ``plots_dir``).
@@ -68,11 +68,11 @@ class MigrateResult:
 
 
 # ---------------------------------------------------------------------------
-# Auto-derive target from ~/.mas/labs/ convention
+# Auto-derive target from labs_root()/ convention
 # ---------------------------------------------------------------------------
 
 def default_target(source: Path, root: Path | None = None) -> Path:
-    """Propose a canonical ``~/.mas/labs/`` target for *source*.
+    """Propose a canonical ``labs_root()/`` target for *source*.
 
     Heuristic — reads ``metadata.yaml`` if present and uses ``experiment_name``
     as the leaf.  Falls back to ``source.name``.
@@ -80,10 +80,10 @@ def default_target(source: Path, root: Path | None = None) -> Path:
     Examples::
 
         my-lab/output/01-experiment
-          → ~/.mas/labs/trip-planner/01-semantic-grouping
+          → labs_root()/trip-planner/01-semantic-grouping
 
         library-samples/apps/trip-planner/experiments/01-exploration/output
-          → ~/.mas/labs/trip-planner/01-exploration
+          → labs_root()/trip-planner/01-exploration
     """
     if root is None:
         from mas.lab import paths as _paths

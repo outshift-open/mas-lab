@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from mas.lab.runners.constants import DEFAULT_LAB_RUNNER_ID
+
 try:
     from mas.lab.inputs import RunInput
 except ImportError:  # pragma: no cover - core importable without bench
@@ -21,7 +23,7 @@ class RunContext:
     config: Dict[str, Any]
     spec_path: Path
     output_dir: Path
-    runner_id: str = "mas"
+    runner_id: str = DEFAULT_LAB_RUNNER_ID
     run_input: Optional[RunInput] = None
     flavour: Any = None
     run_seed: int = 0

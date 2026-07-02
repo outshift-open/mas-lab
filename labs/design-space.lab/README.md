@@ -34,7 +34,7 @@ mas-lab benchmark run labs/design-space.lab/02-topologies/experiment.yaml --prog
 mas-lab benchmark run labs/design-space.lab/01-design-patterns/experiment.yaml --max-items 5 --progress
 ```
 
-Results and figures are written to `~/.mas/labs/<experiment-name>/results/` (see `mas-lab config`).
+Results and figures are written to `$XDG_DATA_HOME/mas/labs/<experiment-name>/results/` (see `mas-lab config`).
 
 ---
 

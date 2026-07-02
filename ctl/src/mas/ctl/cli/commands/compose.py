@@ -9,7 +9,9 @@ from pathlib import Path
 import click
 import yaml
 
+from mas.ctl.cli.runtime_flags import runtime_id_choice
 from mas.ctl.compose.runner import ComposeRequest, compose_run
+from mas.ctl.deployment.runtime_id import DEFAULT_RUNTIME_ID
 from mas.ctl.paths import manifest_cwd, resolve_overlay_path
 
 
@@ -56,8 +58,8 @@ def _compose_run(
 @click.option(
     "--kernel",
     "kernel_backend",
-    default="python-v2",
-    type=click.Choice(["python-v2"], case_sensitive=False),
+    default=DEFAULT_RUNTIME_ID,
+    type=runtime_id_choice(),
 )
 @click.option("--output", "-O", "output_path", default=None, type=click.Path())
 @click.option("--no-validate", is_flag=True, help="Skip manifest validation")
@@ -90,7 +92,7 @@ def compose_cmd(
 @click.command("plan")
 @click.argument("manifest", type=click.Path())
 @click.option("--deployment", "-d", "deployment_path", default=None, type=click.Path())
-@click.option("--kernel", "kernel_backend", default="python-v2")
+@click.option("--kernel", "kernel_backend", default=DEFAULT_RUNTIME_ID, type=runtime_id_choice())
 @click.option("--no-validate", is_flag=True)
 def plan_cmd(
     manifest: str,

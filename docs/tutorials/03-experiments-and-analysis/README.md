@@ -50,7 +50,7 @@ pytest tests/tutorials/test_scenario_commands.py -v -k tuto-03
 The runner **auto-derives** the output directory from the experiment's
 `name:` field.  No `output_dir:` is needed in `experiment.yaml`.
 
-**Check your machine first** (paths depend on `~/.mas/config.yaml`):
+**Check your machine first** (paths depend on `--8<-- "includes/mas-paths.md:xdg-user-config"`):
 
 ```bash
 mas-lab config
@@ -58,9 +58,9 @@ mas-lab config
 
 | Config | Labs root | Trace cache |
 |--------|-----------|---------------|
-| `~/.mas/config.yaml` with `labs_dir` / `cache_dir` | `~/.mas/labs/` | `~/.mas/cache/traces/` |
+| `--8<-- "includes/mas-paths.md:xdg-user-config"` with `labs_dir` / `cache_dir` | `--8<-- "includes/mas-paths.md:xdg-labs-dir"` | `--8<-- "includes/mas-paths.md:xdg-trace-cache"` |
 
-Create `~/.mas/config.yaml` if it does not exist — see [Tutorial 0](tutorials/00-environment-setup/README.md) or run `mas-lab config` to inspect paths.
+Create `--8<-- "includes/mas-paths.md:xdg-user-config"` if it does not exist — see [Tutorial 0](../00-environment-setup/README.md) or run `mas-lab config` to inspect paths.
 
 Tutorial 3's experiment (`name: "t3-observability-patterns"`) writes to:
 
@@ -68,13 +68,13 @@ Tutorial 3's experiment (`name: "t3-observability-patterns"`) writes to:
 <labs_root>/t3-observability-patterns/
 ```
 
-For example, with default user config: `~/.mas/labs/t3-observability-patterns/`.
+For example, with default user config: `--8<-- "includes/mas-paths.md:xdg-labs-dir"`/t3-observability-patterns/.
 
-> **Override:** `labs_dir` / `cache_dir` in `~/.mas/config.yaml`, or env vars
+> **Override:** `labs_dir` / `cache_dir` in `--8<-- "includes/mas-paths.md:xdg-user-config"`, or env vars
 > `$MAS_LABS_ROOT`, `$MAS_TRACE_CACHE`, `$MAS_DATA_CACHE`.  Inside a `.lab`
 > workspace the path becomes `<labs_root>/<lab_name>/<experiment_name>/`.
 
-Resolve paths once per shell session (values depend on your `~/.mas/config.yaml`):
+Resolve paths once per shell session (values depend on your `--8<-- "includes/mas-paths.md:xdg-user-config"`):
 
 ```bash
 export LABS_ROOT="$(python -c 'from mas.lab.paths import labs_root; print(labs_root())')"
@@ -105,7 +105,7 @@ $LABS_ROOT/t3-observability-patterns/                  ← auto-derived from nam
 
 **(\*) `traces/` is a symlink.** The actual `events.jsonl` lives in a
 content-addressed **trace cache** (see `mas-lab config` for the path, typically
-`~/.mas/cache/traces/<hash>/traces/`).
+`--8<-- "includes/mas-paths.md:xdg-trace-cache"`/<hash>/traces/).
 The runner hashes deterministic inputs (resolved config, prompt, model, run
 index) and stores the trace once. The symlink in the output dir points to the
 cache entry:
@@ -338,7 +338,7 @@ For larger sweeps (100-item QA dataset, trip-planner topologies), see
 | `experiment-topology.yaml` | `t3-topology-comparison` | `$LABS_ROOT/t3-topology-comparison/` |
 
 The experiment `name:` field drives the auto-derived output directory under
-`labs_dir` from `~/.mas/config.yaml`.
+`labs_dir` from `--8<-- "includes/mas-paths.md:xdg-user-config"`.
 
 ---
 

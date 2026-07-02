@@ -40,7 +40,7 @@ mas-ctl tui agent.yaml \
   -o overlays/governance-hitl.yaml
 ```
 
-Deployment: `deployments/local-inproc.yaml` with `runtime_id: python-v2`.
+Deployment: `deployments/local-inproc.yaml` (default runtime).
 
 ---
 
@@ -48,7 +48,7 @@ Deployment: `deployments/local-inproc.yaml` with `runtime_id: python-v2`.
 > **Time:** ~30 min hands-on
 > **Goal:** Go from an empty YAML file to a working QA agent with tools, a skill, and memory — then run it via CLI and API.
 > **Prerequisite:** complete [Tutorial 0](../00-environment-setup/) first. It
-> covers `task install`, `~/.mas/config.yaml`, infra bundles, data/trace cache
+> covers `task install`, `$XDG_CONFIG_HOME/mas/config.yaml`, infra bundles, data/trace cache
 > paths, and API keys.  Offline validation steps run without an LLM; live runs
 > need `default_infra` or `--infra-ref` plus `OPENAI_API_KEY` in `.env`.
 
@@ -172,7 +172,7 @@ echo 'OPENAI_API_KEY=sk-…' >> .env    # gitignored — never commit
 source .env
 ```
 
-With `default_infra: standard:production` in `~/.mas/config.yaml`, you do not
+With `default_infra: standard:production` in `$XDG_CONFIG_HOME/mas/config.yaml`, you do not
 need `--infra-ref` on every command.  Use `--flavour mock` for offline runs.
 
 ### Run it
@@ -315,7 +315,7 @@ Two memory modes are available:
 | Name | Storage | Use when |
 |------|---------|----------|
 | `semantic` | In-memory (`:memory:`) | Tests, benchmarks, CI — each run starts clean |
-| `semantic-persistent` | `~/.mas/memory/{agent_id}.sqlite` | Interactive demos where memory must survive across sessions |
+| `semantic-persistent` | `$XDG_DATA_HOME/mas/memory/{agent_id}.sqlite` | Interactive demos where memory must survive across sessions |
 
 Both wire the same **SemanticMemoryPlugin** — hybrid search (vector + FTS),
 proactive RAG injection into the user message, and the `memory-search` tool
@@ -443,7 +443,7 @@ The seeded memory resolved the ambiguity on the **first turn**.
 Without the seed overlay, the agent defaults to stock (as seen in Run 1).
 
 > For cross-session persistence (memory survives across processes), use
-> `memory: semantic-persistent` — stores at `~/.mas/memory/{agent_id}.sqlite`.
+> `memory: semantic-persistent` — stores at `$XDG_DATA_HOME/mas/memory/{agent_id}.sqlite`.
 > See the [memory modes table](#step-4--adding-memory-and-event-tracing) above.
 
 > For deeper implementation details on runtime behavior and manifests,

@@ -107,15 +107,10 @@ def _load_item_groups(dataset_path: Path) -> dict[str, str]:
 
 def _load_events(run_dir: Path) -> list[dict]:
     """Load events.jsonl, following .run_ref symlinks if needed."""
-    events_path = run_dir / "traces" / "events.jsonl"
-    if not events_path.exists():
-        # Try to follow .run_ref → trace-cache
-        run_ref = run_dir / ".run_ref"
-        if run_ref.exists():
-            trace_hash = run_ref.read_text(encoding="utf-8").strip()
-            cache_root = Path.home() / ".mas-lab" / "data" / "trace-cache"
-            events_path = cache_root / trace_hash / "traces" / "events.jsonl"
-    if not events_path.exists():
+    from mas.lab.benchmark.cache.trace_store import resolve_run_events_path
+
+    events_path = resolve_run_events_path(run_dir)
+    if events_path is None:
         return []
     out: list[dict] = []
     for line in events_path.read_text(encoding="utf-8", errors="replace").splitlines():

@@ -22,7 +22,7 @@ description: >
       telemetry: {backend: file, path: logs/}
 
   Infrastructure references (infra_refs) are NOT part of the Flavour — they
-  belong in mas-workspace.yaml or on the CLI (--infra-ref).  This separation
+  belong in config.yaml or on the CLI (--infra-ref).  This separation
   keeps flavours portable and reusable across deployments.
 
   The optional spec.llm block is limited to *provider type* and inference
@@ -70,7 +70,7 @@ properties:
       remain forward-compatible as new sections are added.
 
       NOTE: infra_refs / infra_ref are NOT allowed here — infrastructure
-      references belong in mas-workspace.yaml or on the CLI (--infra-ref). The
+      references belong in config.yaml or on the CLI (--infra-ref). The
       separation validator rejects flavours that include them.
     properties:
       llm:

@@ -68,7 +68,7 @@ def test_application_worker():
             "prompt": "hi",
             "spec_path": __import__("pathlib").Path(__file__),
             "config": {},
-            "runner_id": "mas",
+            "runner_id": "native",
         },
     )
     for _ in range(100):

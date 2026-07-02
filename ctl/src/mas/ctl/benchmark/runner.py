@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""MAS bench integration — python-v2 kernel path for mas-lab benchmark."""
+"""MAS bench integration — default ctl runtime path for mas-lab benchmark."""
 
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
 from mas.ctl.session.controller import ConversationConfig, SessionController
 from mas.ctl.ui.stdout import StdoutConversationDisplay
 from mas.ctl.workspace.config import UserConfig, WorkspaceConfig, collect_mas_infra_refs, merge_infra_refs
+
+from mas.lab.runners.constants import DEFAULT_LAB_RUNNER_ID
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +58,7 @@ def _memory_seeds_from_run_input(
 class MasBenchRunner:
     """Execute agent prompts via v2 SessionController (bench harness integration)."""
 
-    runner_id: str = "mas-v2"
+    runner_id: str = DEFAULT_LAB_RUNNER_ID
 
     def run(
         self,
@@ -171,11 +173,11 @@ class MasBenchRunner:
             content=text,
             status="ok",
             artifacts=artifacts,
-            metadata={"run_seed": run_seed, "kernel": "python-v2", "turns": len(queries)},
+            metadata={"run_seed": run_seed, "turns": len(queries)},
         )
 
 
 def select_mas_runner(*, runtime_id: str | None = None) -> MasBenchRunner:
-    """Return the v2 bench runner."""
+    """Return the default MAS bench runner."""
     _ = runtime_id
     return MasBenchRunner()

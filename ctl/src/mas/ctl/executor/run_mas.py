@@ -13,6 +13,7 @@ from mas.ctl.compose.models import ResolvedInfra
 from mas.ctl.compose.pipeline import compose_application, compose_effective_bind, compose_placement_from_deployment
 from mas.ctl.compose.placement_registry import get_placement_backend
 from mas.ctl.compose.runner import ComposeRequest, compose_run
+from mas.ctl.deployment.runtime_id import DEFAULT_RUNTIME_ID
 from mas.ctl.orchestration.sequential import SequentialWorkflow
 from mas.ctl.ui.turn_result import turn_failed
 
@@ -28,7 +29,7 @@ def execute_run_mas(
     overlay_ids: list[str] | None = None,
     infra_refs: list[str] | None = None,
     deployment_path: Path | None = None,
-    kernel_backend: str = "python-v2",
+    kernel_backend: str = DEFAULT_RUNTIME_ID,
     single_turn: bool = False,
     interactive: bool = False,
     auto_hitl: bool = True,

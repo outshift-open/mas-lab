@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
+from mas.runtime.constants import WORKSPACE_CONFIG_FILENAME
 from mas.lab.controller.lab_registry import LabRegistry, _library_description
 from mas.lab.controller.lab_registry import get_lab_registry
 from mas.runtime.spec.source import load_yaml_file
@@ -152,13 +153,13 @@ class ManifestStore:
 
         workspace: Dict[str, str] = {}
         if ws_root is not None:
-            ws_file = ws_root / "mas-workspace.yaml"
+            ws_file = ws_root / WORKSPACE_CONFIG_FILENAME
             if ws_file.is_file():
-                workspace["mas-workspace.yaml"] = ws_file.read_text(encoding="utf-8")
+                workspace[WORKSPACE_CONFIG_FILENAME] = ws_file.read_text(encoding="utf-8")
         if not workspace:
-            local_ws = root / "mas-workspace.yaml"
+            local_ws = root / WORKSPACE_CONFIG_FILENAME
             if local_ws.is_file():
-                workspace["mas-workspace.yaml"] = local_ws.read_text(encoding="utf-8")
+                workspace[WORKSPACE_CONFIG_FILENAME] = local_ws.read_text(encoding="utf-8")
 
         return {
             "infra": infra,

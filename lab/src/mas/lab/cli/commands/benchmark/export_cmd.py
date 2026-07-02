@@ -18,7 +18,7 @@ import click
 @click.option("--output-dir", type=Path, default=None,
               help="Benchmark runs root (default: auto-detect).")
 @click.option("--trace-cache", "trace_cache_dir", type=Path, default=None,
-              help="Trace-cache directory to read from (default: ~/.mas-lab/data/trace-cache).")
+              help="Trace-cache directory to read from (default: $XDG_CACHE_HOME/mas/traces).")
 def export_cmd(benchmark_id: str, output: Path | None, no_trace_cache: bool,
                output_dir: Path | None, trace_cache_dir: Path | None) -> None:
     """Pack a benchmark run into a portable .tar.gz archive.

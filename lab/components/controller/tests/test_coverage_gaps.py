@@ -178,9 +178,10 @@ def test_serve_http_mock(monkeypatch):
 
 
 def test_runner_get_supported_contracts():
+    from mas.lab.runners.constants import DEFAULT_LAB_RUNNER_ID
     from mas.lab.runners.registry import ApplicationRunnerRegistry
 
-    runner = ApplicationRunnerRegistry.get("mas")
+    runner = ApplicationRunnerRegistry.get(DEFAULT_LAB_RUNNER_ID)
     assert "memory" in runner.get_supported_contracts()
 
 

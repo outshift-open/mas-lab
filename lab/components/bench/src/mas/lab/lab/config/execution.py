@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from mas.lab.runners.constants import DEFAULT_LAB_RUNNER_ID
+
 @dataclass
 class InfraEmulationSpec:
     """L1 infrastructure emulation: which backing resources are live vs controlled.
@@ -229,7 +231,7 @@ class MASExecutionSpec:
     strategy: str = "coverage"
     """Execution ordering: coverage (breadth-first) or depth."""
 
-    runner: str = "mas"
+    runner: str = DEFAULT_LAB_RUNNER_ID
     """Application runner registry id."""
 
     design: Optional[Dict[str, Any]] = None
@@ -257,7 +259,7 @@ class MASExecutionSpec:
             timeout=data.get("timeout", 300),
             pause_between_runs=data.get("pause_between_runs", 1.0),
             strategy=data.get("strategy", "coverage"),
-            runner=data.get("runner", "mas"),
+            runner=data.get("runner", DEFAULT_LAB_RUNNER_ID),
             design=data.get("design"),
             replay=ReplaySpec.from_dict(replay_data) if replay_data else None,
             emulation=EmulationSpec.from_dict(emulation_data),

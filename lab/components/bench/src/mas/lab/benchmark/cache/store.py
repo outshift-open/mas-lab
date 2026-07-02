@@ -73,7 +73,7 @@ class UnifiedCacheStore:
         Initialize cache store.
         
         Args:
-            cache_root: Root directory for cache (e.g., ~/.mas-lab/cache)
+            cache_root: Root directory for cache (e.g., $XDG_CACHE_HOME/mas)
         """
         self.cache_root = Path(cache_root)
         self.cache_root.mkdir(parents=True, exist_ok=True)

@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Tests for mas-workspace env overrides."""
+"""Tests for config env overrides."""
 
 from mas.ctl.workspace.config import WorkspaceConfig, infra_refs_from_env
 

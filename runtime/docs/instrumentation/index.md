@@ -13,9 +13,7 @@ OpenTelemetry export via manifest `observability` config — see
 [architecture-instrumentation.md](../architecture-instrumentation.md).
 
 The following MITM-style proxy docs are **reference only**; running them is **not**
-part of the open-source release (see org-level `outshift-open/ROADMAP.md` non-goals):
-
-- [OTel MITM](otel-mitm.md) — internal / non-OSS operational tooling
+part of the open-source release (see org-level `outshift-open/ROADMAP.md` non-goals).
 
 ## Not in OSS (do not expect these paths in the repo)
 

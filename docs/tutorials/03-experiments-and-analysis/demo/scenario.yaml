@@ -10,7 +10,7 @@ authors: ["MAS Framework Team"]
 tags: ["observability", "graph", "otel", "trajectory", "pipeline"]
 estimated_duration_min: 30
 prerequisites:
-  - "Tutorial 0: labs_dir / cache_dir in ~/.mas/config.yaml"
+  - "Tutorial 0: labs_dir / cache_dir in $XDG_CONFIG_HOME/mas/config.yaml"
   - "mas-lab on PATH (telemetry, plot, benchmark — OSS only)"
   - "Offline: pytest tests/tutorials/test_scenario_commands.py -k tuto-03"
 working_dir: docs/tutorials/03-experiments-and-analysis # relative to repo root when running mas-tutorial from outshift-open/mas-lab
