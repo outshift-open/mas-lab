@@ -27,7 +27,7 @@ spec:
       egress: [EngineIoReturn]
       implementations:
         - SimulatedEngine
-        - ConversationEngine
+        - LiveLlmEngine
 
     - id: CtxAssembler
       alias: [CtxAssemblerContract, M_ctx]

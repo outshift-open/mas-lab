@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import os
@@ -12,9 +11,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from mas.runtime.engine.llm_http import classify_llm_http_error, resolve_ssl_verify
-from mas.runtime.engine.tools import openai_tools
-from mas.runtime.engine.exchange_preview import format_llm_messages, format_tool_invoke
 from mas.runtime.boundary.context.assemble import (
     assemble_llm_messages,
     has_tool_results,
@@ -22,7 +18,11 @@ from mas.runtime.boundary.context.assemble import (
     llm_tool_choice,
 )
 from mas.runtime.boundary.gov.budget import BudgetTracker, budget_from_manifest
+from mas.runtime.engine.exchange_preview import format_llm_messages, format_tool_invoke
+from mas.runtime.engine.llm_cache import load_cache, llm_cache_key, persist_cache
+from mas.runtime.engine.llm_http import classify_llm_http_error, resolve_ssl_verify
 from mas.runtime.engine.tool_dispatch import execute_engine_tool
+from mas.runtime.engine.tools import openai_tools
 from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.ingress import EngineIoReturn
 
@@ -50,13 +50,15 @@ class LiveLlmEngine:
     llm_proxy: dict[str, Any] | None = None
     manifest_dir: Path | None = None
     delegation: Any | None = None
-    _cache: dict[str, str] = field(default_factory=dict, init=False)
+    tool_provider: Any | None = None
+    _cache: dict[str, Any] = field(default_factory=dict, init=False)
     _pending_tool: str = field(default="", init=False)
     _pending_tool_args: dict[str, Any] = field(default_factory=dict, init=False)
     _pending_tools_by_cid: dict[int, tuple[str, dict[str, Any]]] = field(
         default_factory=dict, init=False
     )
     _budget: BudgetTracker = field(default_factory=BudgetTracker, init=False)
+    _model_access: Any | None = field(default=None, init=False)
 
     def set_scheduled_tool(self, name: str, arguments: dict[str, Any] | None = None) -> None:
         """Kernel-scheduled tool (e.g. plan-execute) — TLA: ToolMachine.tla."""
@@ -70,9 +72,18 @@ class LiveLlmEngine:
 
     def __post_init__(self) -> None:
         self._budget = budget_from_manifest(self.manifest)
-        if self.cache_path and self.cache_path.is_file():
-            with contextlib.suppress(Exception):
-                self._cache = json.loads(self.cache_path.read_text(encoding="utf-8"))
+        if self.cache_path:
+            self._cache = load_cache(self.cache_path)
+        from mas.runtime.engine.model_access import load_model_access
+
+        ma_cfg = (self.llm_proxy or {}).get("model_access")
+        self._model_access = load_model_access(ma_cfg if isinstance(ma_cfg, dict) else None)
+        if self._uses_model_access():
+            # MockModelAccess owns cache lookup; avoid shadowing it with engine cache.
+            self.use_cache = False
+
+    def _uses_model_access(self) -> bool:
+        return self._model_access is not None
 
     def reset_turn_state(self) -> None:
         self._pending_tool = ""
@@ -86,7 +97,11 @@ class LiveLlmEngine:
                 self.ctx._assembly_correlation_id = 0
             messages = self._build_messages()
             tool_defs = (
-                openai_tools(self.manifest, base_dir=self.manifest_dir)
+                openai_tools(
+                    self.manifest,
+                    base_dir=self.manifest_dir,
+                    tool_provider=self.tool_provider,
+                )
                 if self.use_tool_loop
                 else []
             )
@@ -131,6 +146,7 @@ class LiveLlmEngine:
                     ctx=self.ctx,
                     user=user,
                     arguments=args,
+                    tool_provider=self.tool_provider,
                 ),
             )
         if io.op == "MEMORY_OP":
@@ -160,12 +176,18 @@ class LiveLlmEngine:
             self.ctx._assembly_correlation_id = io.correlation_id
         messages = self._build_messages()
         tool_defs = (
-            openai_tools(self.manifest, base_dir=self.manifest_dir) if self.use_tool_loop else []
+            openai_tools(
+                self.manifest,
+                base_dir=self.manifest_dir,
+                tool_provider=self.tool_provider,
+            )
+            if self.use_tool_loop
+            else []
         )
         tools = llm_request_tools(messages, tools=tool_defs or None)
         answering_from_tools = has_tool_results(messages)
 
-        cache_key = self._cache_key(messages, tool_defs)
+        cache_key = llm_cache_key(self.model, messages, tool_defs or None)
         if self.use_cache and not answering_from_tools and cache_key in self._cache:
             text = self._cache[cache_key]
             return EngineIoReturn(
@@ -175,31 +197,57 @@ class LiveLlmEngine:
                 text=text,
             )
 
-        api_key = os.environ.get(self.api_key_env, "")
-        if not api_key:
-            return EngineIoReturn(
-                correlation_id=io.correlation_id,
-                response_kind="ERROR",
-                next_step="STOP",
-                text=f"Missing API key env {self.api_key_env} for live LLM.",
-            )
+        if self._uses_model_access():
+            try:
+                message = self._model_access_chat(
+                    messages,
+                    tools=tools,
+                    temperature=0.0 if answering_from_tools else self.temperature,
+                )
+            except Exception as exc:
+                logger.debug("model access call failed", exc_info=True)
+                return EngineIoReturn(
+                    correlation_id=io.correlation_id,
+                    response_kind="ERROR",
+                    next_step="STOP",
+                    text=str(exc),
+                )
+        else:
+            api_key = os.environ.get(self.api_key_env, "")
+            if not api_key:
+                return EngineIoReturn(
+                    correlation_id=io.correlation_id,
+                    response_kind="ERROR",
+                    next_step="STOP",
+                    text=f"Missing API key env {self.api_key_env} for live LLM.",
+                )
 
-        try:
-            message = self._chat_completion(
-                messages,
-                api_key=api_key,
-                tools=tools,
-                temperature=0.0 if answering_from_tools else self.temperature,
-            )
-        except Exception as exc:
-            logger.debug("live LLM call failed", exc_info=True)
-            return EngineIoReturn(
-                correlation_id=io.correlation_id,
-                response_kind="ERROR",
-                next_step="STOP",
-                text=classify_llm_http_error(exc),
-            )
+            try:
+                message = self._chat_completion(
+                    messages,
+                    api_key=api_key,
+                    tools=tools,
+                    temperature=0.0 if answering_from_tools else self.temperature,
+                )
+            except Exception as exc:
+                logger.debug("live LLM call failed", exc_info=True)
+                return EngineIoReturn(
+                    correlation_id=io.correlation_id,
+                    response_kind="ERROR",
+                    next_step="STOP",
+                    text=classify_llm_http_error(exc),
+                )
 
+        return self._message_to_engine_return(io, message, messages, tool_defs, answering_from_tools)
+
+    def _message_to_engine_return(
+        self,
+        io: InvokeEngineIo,
+        message: dict[str, Any],
+        messages: list[dict[str, Any]],
+        tool_defs: list[dict[str, Any]],
+        answering_from_tools: bool,
+    ) -> EngineIoReturn:
         tool_calls = message.get("tool_calls") or []
         if tool_calls and self.use_tool_loop:
             parsed: list[tuple[str, dict[str, Any]]] = []
@@ -237,6 +285,7 @@ class LiveLlmEngine:
             )
 
         text = str(message.get("content") or "").strip()
+        cache_key = llm_cache_key(self.model, messages, tool_defs or None)
         if self.use_cache and not answering_from_tools:
             self._cache[cache_key] = text
             self._persist_cache()
@@ -247,6 +296,42 @@ class LiveLlmEngine:
             next_step="STOP",
             text=text,
         )
+
+    def _model_access_chat(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tools: list[dict[str, Any]] | None,
+        temperature: float,
+    ) -> dict[str, Any]:
+        ma = self._model_access
+        if ma is None:
+            raise RuntimeError("model access not configured")
+        if hasattr(ma, "chat_completion"):
+            return ma.chat_completion(
+                model=self.model,
+                messages=messages,
+                tools=tools,
+                temperature=temperature,
+                max_tokens=self.max_tokens,
+            )
+        if hasattr(ma, "complete"):
+            resp = ma.complete(
+                self.model,
+                messages,
+                temperature=temperature,
+                max_tokens=self.max_tokens,
+                tools=tools,
+            )
+            if isinstance(resp, dict):
+                return resp
+            content = getattr(resp, "content", None)
+            tool_calls = getattr(resp, "tool_calls", None)
+            out: dict[str, Any] = {"role": "assistant", "content": content}
+            if tool_calls:
+                out["tool_calls"] = tool_calls
+            return out
+        raise RuntimeError(f"model access {type(ma).__name__} has no chat_completion/complete")
 
     def _build_messages(self) -> list[dict[str, Any]]:
         if self.ctx:
@@ -289,14 +374,7 @@ class LiveLlmEngine:
             return {}
         return choices[0].get("message") or {}
 
-    def _cache_key(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> str:
-        import hashlib
-
-        blob = json.dumps({"model": self.model, "messages": messages, "tools": tools}, sort_keys=True)
-        return hashlib.sha256(blob.encode()).hexdigest()
-
     def _persist_cache(self) -> None:
         if not self.cache_path:
             return
-        self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-        self.cache_path.write_text(json.dumps(self._cache, indent=2), encoding="utf-8")
+        persist_cache(self.cache_path, self._cache)

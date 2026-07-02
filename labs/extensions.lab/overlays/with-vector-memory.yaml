@@ -47,7 +47,7 @@ spec:
       concierge_agent:
         # Add memory-search tool to the concierge only.
         tools:
-          - memory-search
+          - ref: ../tools/memory-search.tool.yaml
 
         # Extend role instructions: keep original fare/calc guidance and add
         # the IMPORTANT memory_usage directive.

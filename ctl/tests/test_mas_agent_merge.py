@@ -59,8 +59,6 @@ def test_resolve_tool_refs_from_yaml(tmp_path: Path):
     agent = {"spec": {"tools": [{"ref": "run_action.tool.yaml"}]}}
     resolved = resolve_manifest_tool_refs(agent, tmp_path)
     assert resolved["spec"]["tools"][0]["name"] == "run_action"
-    names = [t["function"]["name"] for t in openai_tools(resolved, base_dir=tmp_path)]
-    assert "run_action" in names
 
 
 def test_resolve_tool_refs_rejects_path_outside_base_dir(tmp_path: Path):

@@ -407,8 +407,11 @@ class ExperimentConfig:
                     app_manifest = base_dir / mas_config["manifest"]
                 elif app_name:
                     try:
-                        from mas.apps import get_app as _get_app
-                        app_manifest = _get_app(app_name) / "mas.yaml"
+                        from mas.apps import get_app, resolve_app_manifest
+
+                        app_manifest = resolve_app_manifest(
+                            get_app(app_name), app_id=str(app_name)
+                        )
                     except Exception:
                         app_manifest = base_dir / "agent.yaml"
                 else:

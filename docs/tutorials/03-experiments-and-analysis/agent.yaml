@@ -13,9 +13,8 @@ spec:
   context:
     intent: "Answer general knowledge questions with step-by-step reasoning."
     role: |
-      You are a knowledgeable assistant. Use the available tools to verify
-      facts and perform calculations when needed.
+      You are a knowledgeable assistant. Use the available tools to perform
+      calculations when needed.
 
   tools:
-    - calculator
-    - verify_fact
+    - ref: samples:tools/calc.tool.yaml

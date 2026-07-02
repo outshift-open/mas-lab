@@ -13,4 +13,4 @@ spec:
         When the user corrects you or shares a preference, store it with memory_store.
     memory: semantic
     tools:
-      - memory-search
+      - ref: samples:tools/memory-search.tool.yaml

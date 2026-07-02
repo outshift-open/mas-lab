@@ -15,7 +15,7 @@ if os.getenv("ENV") == "prod":
     from mas.runtime.tool_server_http import ToolServerHttpClient
     planner = ToolServerTripPlannerTool(tool_server_url="http://prod-server")
 else:
-    from mas.runtime.tools import LocalTripPlannerTool
+    # Tools are declared via manifest refs, e.g. samples:tools/calc.tool.yaml
     planner = LocalTripPlannerTool(data_file="local_data.json")
 ```
 

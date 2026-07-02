@@ -47,14 +47,12 @@ Each plugin has a canonical **`plugin_id@version`**. Short names resolve via [`l
 | `workflow-graph@v1` | workflow-graph | 2026.1 | Graph topology |
 | `workflow-supervised@v1` | workflow-supervised | 2026.1 | Operator approve between nodes |
 
-## Tools (native registry)
+## Tools (library-samples)
 
-| Name | Source | Notes |
-|------|--------|-------|
-| calculator | `tools/registry.py` | Native |
-| web-search | `tools/registry.py` | ddgs + file cache |
-| verify_fact | `tools/registry.py` | Tutorial apple scenario |
-| memory-search | `tools/registry.py` | Uses semantic FTS store |
+Tutorial and benchmark tools live in **`mas-library-samples`** as `kind: Tool` manifests
+(e.g. `samples:tools/calc.tool.yaml`, `samples:tools/memory-search.tool.yaml`).
+Agents reference them via ``spec.tools[].ref``; the runtime loads implementations
+from the manifest, not from `mas.runtime`.
 
 ## Deferred (not in this OSS release)
 

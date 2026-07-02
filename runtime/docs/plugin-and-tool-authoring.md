@@ -200,10 +200,12 @@ execute_tool hook
 
 ---
 
-## 4. Built-in Tool Library
+## 4. Sample Tool Library (`mas-library-samples`)
 
-All tools live in `mas.runtime.tools` and use `@plugin`.  Zero external
-dependencies — they use only the Python standard library.
+Tutorial and benchmark tools live in **`library-samples/tools/`** as `kind: Tool`
+manifests. Agents reference them via ``spec.tools[].ref`` (e.g.
+``samples:tools/memory-search.tool.yaml``). The runtime loads tool classes from
+those manifests — there is no built-in tool package in ``mas.runtime``.
 
 ### DateTimeTool
 

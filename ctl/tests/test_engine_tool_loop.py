@@ -10,7 +10,7 @@ from mas.ctl.session.manifest_config import engine_use_tool_loop, kernel_config_
 def test_declared_tools_enable_llm_tool_catalog():
     manifest = {
         "spec": {
-            "tools": ["web-search", "calculator"],
+            "tools": ["lookup", "summarize"],
         }
     }
     kernel = kernel_config_from_manifest(manifest)
@@ -24,6 +24,6 @@ def test_no_tools_means_no_llm_tool_catalog():
 
 
 def test_plan_execute_pattern_uses_dp_tool_scheduling():
-    manifest = {"spec": {"tools": ["calculator"]}}
+    manifest = {"spec": {"tools": ["lookup"]}}
     kernel = kernel_config_from_manifest(manifest, pattern_plugin_id="plan_execute@v1")
     assert engine_use_tool_loop(manifest, kernel) is False

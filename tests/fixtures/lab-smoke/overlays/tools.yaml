@@ -9,6 +9,7 @@ spec:
   patch:
     context:
       tool_usage: |
-        When you need to perform calculations, use the calculator tool.
+        When you need to perform calculations, use the calc tool.
     tools:
-      - calculator
+      - ref: samples:tools/web-search.tool.yaml
+      - ref: samples:tools/calc.tool.yaml

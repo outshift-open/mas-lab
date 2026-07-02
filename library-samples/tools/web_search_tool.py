@@ -30,7 +30,7 @@ class WebSearchTool(ToolContract):
         self.max_results = max_results
 
     def get_name(self) -> str:
-        return "web_search"
+        return "web-search"
 
     def get_description(self) -> str:
         return "Search the web for current information. Returns real results from DuckDuckGo."

@@ -40,5 +40,5 @@ spec:
 
   impl:
     kind: python
-    module_path: mas.library.standard.tools.web_search_tool
+    module_path: ./web_search_tool.py
     class_name: WebSearchTool

@@ -104,7 +104,7 @@ Datasets resolve from the **`samples`** library locator (see `library.yaml` ids)
 
 MAS apps resolve via **`mas.app`** registry (`library.yaml` → `app:` in experiment):
 
-- `qa-agent` → `apps/qa-mas/mas.yaml` (Exp 1.1)
+- `qa-agent` → `apps/qa-agent/agents/qa-agent.yaml` (Exp 1.1)
 - `trip-planner` → `apps/trip-planner/mas.yaml` (Exp 1.2)
 
 For details on metadata capture, cross-model re-evaluation, and output validation see [docs/reproducibility.md](../../docs/reproducibility.md).

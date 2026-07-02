@@ -11,12 +11,14 @@ metadata:
 
 spec:
   tools:
-    calculator:
+    calc:
       kind: python
-      module: mas.runtime.tools.calculator_tool
+      module_path: library-samples/tools/calc.py
+      class_name: CalcTool
     web-search:
       kind: python
-      module: mas.library.standard.tools.web_search_tool
+      module_path: library-samples/tools/web_search_tool.py
+      class_name: WebSearchTool
     query_graph_database:
       kind: python
       module_path: library-samples/tools/query_graph_database.py
@@ -59,7 +61,3 @@ spec:
       class_name: GetFaresTool
       params:
         dataset_path: datasets/arborian-network.yaml
-    calc:
-      kind: python
-      module_path: library-samples/tools/calc.py
-      class_name: CalcTool

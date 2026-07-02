@@ -10,7 +10,7 @@ into context or tool responses.
 Tagged implementations:
 - ``NoCitationsFormatter``   — strip source info (mode="off")
 - ``FullCitationsFormatter``  — always include source (mode="on")
-- ``AutoCitationsFormatter``  — include when useful (mode="auto", OpenClaw default)
+- ``AutoCitationsFormatter``  — include when useful (mode="auto", default)
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# OpenClaw default
+# Default citation mode
 DEFAULT_CITATIONS_MODE = "auto"
 DEFAULT_MAX_SNIPPET_CHARS = 700
 
@@ -88,7 +88,7 @@ class FullCitationsFormatter(CitationFormatter):
 
 
 class AutoCitationsFormatter(CitationFormatter):
-    """Include citations when useful (mode='auto', OpenClaw default).
+    """Include citations when useful (mode='auto', the default).
 
     Includes source when score is above threshold or when multiple
     sources are present, omits for single high-confidence matches.

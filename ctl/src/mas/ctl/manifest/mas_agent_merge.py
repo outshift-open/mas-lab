@@ -21,17 +21,7 @@ logger = logging.getLogger(__name__)
 RunTurnFn = Callable[[str, str], str]
 
 
-def _leaf_engine(engine: Any) -> Any:
-    """Unwrap infra pipeline facades to the engine that handles LLM/tool IO."""
-    seen: set[int] = set()
-    current = engine
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        inner = getattr(current, "inner", None)
-        if inner is None:
-            return current
-        current = inner
-    return current
+from mas.runtime.engine.leaf import leaf_engine
 
 
 def enrich_entry_agent_for_delegation(
@@ -75,7 +65,7 @@ def wire_entry_engine_delegation(
     """
     if engine is None:
         return
-    leaf = _leaf_engine(engine)
+    leaf = leaf_engine(engine)
     leaf.manifest = manifest
     if isinstance(leaf, LiveLlmEngine):
         leaf.manifest_dir = manifest_dir

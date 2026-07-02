@@ -13,5 +13,5 @@ spec:
       config:
         max_steps: 3
     tools:
-      - web-search
-      - calculator
+      - ref: samples:tools/web-search.tool.yaml
+      - ref: samples:tools/calc.tool.yaml

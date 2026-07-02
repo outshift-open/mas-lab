@@ -1,13 +1,29 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Engine tool loop — single dispatch: delegation plugin, registry tools, mock fallbacks."""
+"""Engine tool loop — delegation plugin and manifest tool provider dispatch."""
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING, Any
+
+from mas.runtime.engine.manifest_tool_provider import ManifestToolLoadError
 
 if TYPE_CHECKING:
     from mas.runtime.boundary.delegation.protocol import DelegationContract
+    from mas.runtime.engine.manifest_tool_provider import ManifestToolProvider
+
+
+class ToolExecutionError(RuntimeError):
+    """Raised when a tool cannot be executed."""
+
+
+def format_tool_result(result: Any) -> str:
+    if isinstance(result, str):
+        return result
+    if isinstance(result, dict):
+        return json.dumps(result, indent=2)
+    return str(result)
 
 
 def execute_engine_tool(
@@ -17,33 +33,21 @@ def execute_engine_tool(
     ctx: Any = None,
     user: str = "",
     arguments: dict[str, Any] | None = None,
+    tool_provider: ManifestToolProvider | None = None,
 ) -> str:
     if delegation is not None and delegation.is_delegate_tool(tool):
         return delegation.call_delegate_tool(tool, arguments)
-    return _execute_registered_or_mock_tool(tool, ctx=ctx, user=user, arguments=arguments)
-
-
-def _execute_registered_or_mock_tool(
-    tool: str,
-    *,
-    ctx: Any = None,
-    user: str = "",
-    arguments: dict[str, Any] | None = None,
-) -> str:
+    if tool_provider is None:
+        raise ToolExecutionError(
+            f"No manifest tool provider configured; cannot execute {tool!r}"
+        )
     try:
-        from mas.library.standard.tools import execute_tool
-
-        out = execute_tool(tool, arguments=arguments, user=user, ctx=ctx)
-        if out is not None:
-            return out
-    except ImportError:
-        pass
-
-    from mas.runtime.engine.mock_fixtures import apple_is_fruit, apple_price_reply
-
-    fruit = apple_is_fruit(ctx, user)
-    if tool == "calculator":
-        return "[calculator] 65536"
-    if tool == "verify_fact" or "apple" in user.lower():
-        return apple_price_reply(fruit=fruit)
-    return f"[{tool}] verified"
+        result = tool_provider.call_tool(
+            tool,
+            arguments or {},
+            ctx=ctx,
+            user=user,
+        )
+    except ManifestToolLoadError as exc:
+        raise ToolExecutionError(str(exc)) from exc
+    return format_tool_result(result)

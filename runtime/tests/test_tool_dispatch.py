@@ -2,8 +2,11 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Engine tool dispatch — delegation contract routing."""
 
+import pytest
+
 from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
-from mas.runtime.engine.tool_dispatch import execute_engine_tool
+from mas.runtime.engine.manifest_tool_provider import build_manifest_tool_provider
+from mas.runtime.engine.tool_dispatch import ToolExecutionError, execute_engine_tool
 
 
 def test_execute_engine_tool_routes_delegate_tools():
@@ -16,6 +19,78 @@ def test_execute_engine_tool_routes_delegate_tools():
     assert out == "delegated:db:check connections"
 
 
-def test_execute_engine_tool_falls_through_to_registered_tools():
-    out = execute_engine_tool("calculator", arguments={"expression": "2**16"})
+def test_execute_engine_tool_uses_manifest_provider(tmp_path):
+    tool_dir = tmp_path / "tools"
+    tool_dir.mkdir()
+    (tool_dir / "calc.py").write_text(
+        """
+class CalcTool:
+    def on_collect_tools(self, **_):
+        return [{"name": "calculator", "description": "calc", "parameters": {"type": "object", "properties": {}}}]
+    def on_execute_tool(self, name, args, **_):
+        if name != "calculator":
+            return None
+        return {"result": 65536}
+""",
+        encoding="utf-8",
+    )
+    import yaml
+
+    (tool_dir / "calculator.tool.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "kind": "Tool",
+                "metadata": {"name": "calculator"},
+                "spec": {
+                    "description": "calc",
+                    "impl": {"module_path": "./calc.py", "class_name": "CalcTool"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    provider = build_manifest_tool_provider(
+        [{"ref": "tools/calculator.tool.yaml"}],
+        tmp_path,
+    )
+    out = execute_engine_tool(
+        "calculator",
+        arguments={"expression": "2**16"},
+        tool_provider=provider,
+    )
     assert "65536" in out
+
+
+def test_unknown_tool_raises(tmp_path):
+    tool_dir = tmp_path / "tools"
+    tool_dir.mkdir()
+    (tool_dir / "calc.py").write_text(
+        """
+class CalcTool:
+    def on_collect_tools(self, **_):
+        return [{"name": "calculator", "description": "calc", "parameters": {"type": "object", "properties": {}}}]
+    def on_execute_tool(self, name, args, **_):
+        if name != "calculator":
+            return None
+        return {"ok": True}
+""",
+        encoding="utf-8",
+    )
+    import yaml
+
+    (tool_dir / "calculator.tool.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "kind": "Tool",
+                "metadata": {"name": "calculator"},
+                "spec": {"impl": {"module_path": "./calc.py", "class_name": "CalcTool"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    provider = build_manifest_tool_provider(
+        [{"ref": "tools/calculator.tool.yaml"}],
+        tmp_path,
+    )
+    with pytest.raises(ToolExecutionError, match="not found"):
+        execute_engine_tool("missing", tool_provider=provider)

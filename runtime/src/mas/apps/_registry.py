@@ -43,5 +43,32 @@ def get_app(name: str) -> Path:
     return apps[name]
 
 
+def resolve_app_manifest(app_root: Path, app_id: str | None = None) -> Path:
+    """Resolve the primary manifest for an app directory (MAS or standalone agent)."""
+    root = Path(app_root)
+    for name in ("mas.yaml", "mas-bench.yaml"):
+        candidate = root / name
+        if candidate.is_file():
+            return candidate
+    agents_dir = root / "agents"
+    if app_id:
+        agent_path = agents_dir / f"{app_id}.yaml"
+        if agent_path.is_file():
+            return agent_path
+    if agents_dir.is_dir():
+        agent_yamls = sorted(agents_dir.glob("*.yaml"))
+        if app_id:
+            for path in agent_yamls:
+                if path.stem == app_id:
+                    return path
+        if len(agent_yamls) == 1:
+            return agent_yamls[0]
+    for name in ("agent.yaml", f"{root.name}.yaml"):
+        candidate = root / name
+        if candidate.is_file():
+            return candidate
+    raise AppNotFoundError(f"No manifest found under app root {root}")
+
+
 def list_apps() -> list[str]:
     return sorted(_discover_apps())

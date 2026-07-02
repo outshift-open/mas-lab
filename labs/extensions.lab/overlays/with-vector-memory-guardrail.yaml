@@ -43,7 +43,7 @@ spec:
     agents:
       concierge_agent:
         tools:
-          - memory-search
+          - ref: ../tools/memory-search.tool.yaml
         role:
           instructions: |
             You can look up the prices (fares) for trains and air routes.

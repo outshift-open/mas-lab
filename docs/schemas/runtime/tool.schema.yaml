@@ -162,7 +162,7 @@ properties:
           module_path:
             type: string
             description: >
-              Dotted Python module path, e.g. mas.runtime.tools.calculator_tool.
+              Dotted Python module path, e.g. library-samples/tools/calc.py.
               May also be a relative filesystem path (./tools/my_tool.py).
           class_name:
             type: [string, "null"]

@@ -1,4 +1,4 @@
 {"agent_id": "moderator", "call_id": "<stripped>", "input": "What is 2+2? Use the calculator if helpful.", "kind": "execution_start", "run_id": "<stripped>", "timestamp": "<stripped>", "turn_id": "<stripped>"}
 {"agent_id": "moderator", "correlation_id": 0, "finish_reason": "stop", "kind": "context_assembled", "run_id": "<stripped>", "timestamp": "<stripped>"}
-{"agent_id": "moderator", "call_id": "<stripped>", "content": "Understood. Regarding your question \u2014 What is 2+2? Use the calculator if helpful. \u2014 here is my best answer based on the available context.", "finish_reason": "stop", "kind": "user_response", "run_id": "<stripped>", "timestamp": "<stripped>", "turn_id": "<stripped>"}
+{"agent_id": "moderator", "call_id": "<stripped>", "content": "[mock] What is 2+2? Use the calculator if helpful.", "finish_reason": "stop", "kind": "user_response", "run_id": "<stripped>", "timestamp": "<stripped>", "turn_id": "<stripped>"}
 {"agent_id": "moderator", "call_id": "<stripped>", "kind": "execution_end", "run_id": "<stripped>", "status": "ok", "timestamp": "<stripped>", "turn_id": "<stripped>"}

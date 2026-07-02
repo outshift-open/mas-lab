@@ -12,7 +12,7 @@ Reusable **artefacts** for tutorials and labs — not runnable experiments.
 
 | Kind | Examples |
 |------|----------|
-| **apps** | `apps/trip-planner/`, `apps/qa-mas/` (mas, agents, local tools/skills) |
+| **apps** | `apps/trip-planner/`, `apps/qa-agent/` (agents, local tools/skills) |
 | **datasets** | `datasets/trip-planner/`, `datasets/generic/` |
 | **tools** | `tools/calc.py`, `tools/*.tool.yaml` |
 | **skills** | (under app trees or top-level when shared) |

@@ -11,7 +11,7 @@ version: "0.0.2"
 
 apps:
   trip-planner: apps/trip-planner
-  qa-agent: apps/qa-mas
+  qa-agent: apps/qa-agent
 
 datasets:
   mas-necessity: datasets/generic/mas-necessity.yaml
@@ -22,4 +22,6 @@ datasets:
   trip-planner-queries: datasets/trip-planner/queries.yaml
 
 tools:
-  calculator: tools/calculator
+  web-search: tools/web-search.tool.yaml
+  calc: tools/calc.tool.yaml
+  memory-search: tools/memory-search.tool.yaml

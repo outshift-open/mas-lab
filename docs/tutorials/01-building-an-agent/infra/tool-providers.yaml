@@ -6,19 +6,20 @@ kind: ToolProvider
 metadata:
   name: tutorial-tools
   description: >
-    Local Python implementations for Tutorial 1 tools. Each entry maps a
-    semantic tool name (used in agent.yaml) to the Python module that implements
-    it. In production, replace kind: python with kind: remote_tool and point to a remote
-    tool server — the agent manifest stays the same.
+    Legacy ToolProvider bindings for Tutorial 1. Prefer manifest ``tools[].ref``
+    entries (e.g. ``samples:tools/calc.tool.yaml``) — agent manifests stay the same.
 
 spec:
   tools:
-    calculator:
+    calc:
       kind: python
-      module: mas.runtime.tools.calculator_tool
+      module_path: library-samples/tools/calc.py
+      class_name: CalcTool
     web-search:
       kind: python
-      module: mas.library.standard.tools.web_search_tool
+      module_path: library-samples/tools/web_search_tool.py
+      class_name: WebSearchTool
     memory-search:
       kind: python
-      module: mas.runtime.tools.memory_search_tool
+      module_path: library-samples/tools/memory_search.py
+      class_name: MemorySearchTool

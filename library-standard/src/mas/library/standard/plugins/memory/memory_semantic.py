@@ -99,8 +99,8 @@ class SemanticMemoryPlugin(MemoryProviderPlugin, ContextContract):
     retriever:
         Optional pre-built ``Retriever``.  If provided, ``embed_fn`` and
         search params are ignored (retriever is used as-is).
-    chunk_tokens / chunk_overlap / max_results / min_score / ...:
-        OpenClaw-equivalent defaults, forwarded to auto-created retriever.
+        chunk_tokens / chunk_overlap / max_results / min_score / ...:
+        Default retriever tuning parameters, forwarded to auto-created retriever.
     """
 
     plugin_id = "semantic_memory@v1"

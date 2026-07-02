@@ -4,6 +4,6 @@
 
 from __future__ import annotations
 
-from ._registry import AppNotFoundError, get_app, list_apps
+from ._registry import AppNotFoundError, get_app, list_apps, resolve_app_manifest
 
-__all__ = ["get_app", "list_apps", "AppNotFoundError"]
+__all__ = ["get_app", "list_apps", "AppNotFoundError", "resolve_app_manifest"]

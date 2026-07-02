@@ -12,8 +12,10 @@ def test_discover_sample_apps() -> None:
     apps = list_apps()
     assert "trip-planner" in apps
     assert "qa-agent" in apps
-    root = get_app("trip-planner")
-    assert (root / "mas.yaml").is_file()
+    trip_root = get_app("trip-planner")
+    assert (trip_root / "mas.yaml").is_file()
+    qa_root = get_app("qa-agent")
+    assert (qa_root / "agents" / "qa-agent.yaml").is_file()
 
 
 def test_discover_sample_datasets() -> None:

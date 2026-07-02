@@ -25,7 +25,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
-# OpenClaw defaults (from memory-search.ts)
+# Default retriever tuning
 DEFAULT_CHUNK_TOKENS = 400
 DEFAULT_CHUNK_OVERLAP = 80
 DEFAULT_MAX_RESULTS = 6

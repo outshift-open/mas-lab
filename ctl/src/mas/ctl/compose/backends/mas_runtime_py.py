@@ -53,6 +53,7 @@ class MasRuntimePyKernelBackend:
                 pattern_plugin_id=slice_.pattern_plugin_id,
                 agent_manifest=agent_manifest,
                 manifest_dir=manifest_dir,
+                app_root=bind.mas_base_dir,
                 resolved_infra=self._infra or ResolvedInfra(),
             ),
         )

@@ -168,19 +168,10 @@ for line in sys.stdin:
 "
 ```
 
-On the bundled ReAct trace you should see a multiply step followed by systematic
-trial division (nine tool calls for primality checking).
+On the bundled ReAct trace you should see a multiply step (`17 * 23`) followed
+by a modulo check (`391 % 17`) before the final answer.
 
-### A.3 — Knowledge graph (proprietary extension)
-
-Graph normalization (`mas-lab graph normalize`), structural validation, and
-OTel span export (`mas-lab graph events-to-otel`) are **not** part of this
-open-source repository.
-
-This OSS tutorial continues with **telemetry**, **plots**, and **benchmarks**
-on `events.jsonl` directly.
-
-### A.4 — Evaluation (MCEv1)
+### A.3 — Evaluation (MCEv1)
 
 Evaluation measures **answer quality**. The `AnswerRelevancyMetric` uses an
 LLM-as-judge to score how well the agent's response addresses the input:
@@ -205,7 +196,7 @@ and metadata:
 }
 ```
 
-### A.5 — Trajectory plots
+### A.4 — Trajectory plots
 
 #### Compact delegation diagram (SVG)
 

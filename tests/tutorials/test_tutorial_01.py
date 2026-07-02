@@ -213,22 +213,46 @@ class TestAgentInstantiation:
 # ═══════════════════════════════════════════════════════════════════════════
 
 class TestBuiltinTools:
-    """Test calculator and web-search via library-standard tool registry."""
+    """Test web-search and calc via library-samples manifest tool refs."""
+
+    @staticmethod
+    def _tutorial_tools_provider():
+        from pathlib import Path
+
+        from mas.runtime.engine.manifest_tool_provider import build_manifest_tool_provider
+
+        root = Path(__file__).resolve().parents[2] / "docs/tutorials/01-building-an-agent"
+        return build_manifest_tool_provider(
+            [
+                {"ref": "samples:tools/calc.tool.yaml"},
+                {"ref": "samples:tools/web-search.tool.yaml"},
+            ],
+            root,
+        )
 
     def test_calculator_tool(self):
-        from mas.library.standard.tools import execute_tool
+        from mas.runtime.engine.tool_dispatch import execute_engine_tool
 
-        result = execute_tool("calculator", arguments={"expression": "27 ** 0.5"})
+        provider = self._tutorial_tools_provider()
+        result = execute_engine_tool(
+            "calc",
+            arguments={"expression": "9 * 3"},
+            tool_provider=provider,
+        )
         assert result
 
     def test_calculator_basic_arithmetic(self):
-        from mas.library.standard.tools import execute_tool
+        from mas.runtime.engine.tool_dispatch import execute_engine_tool
 
-        result = execute_tool("calculator", arguments={"expression": "2 ** 16"})
-        assert result
+        provider = self._tutorial_tools_provider()
+        result = execute_engine_tool(
+            "calc",
+            arguments={"expression": "32768 * 2"},
+            tool_provider=provider,
+        )
+        assert "65536" in str(result)
 
     def test_web_search_tool_exists(self):
-        from mas.library.standard.tools import execute_tool
-
-        out = execute_tool("web-search", arguments={"query": "test query"})
-        assert out
+        provider = self._tutorial_tools_provider()
+        names = [t["name"] for t in provider.list_tools()]
+        assert "web-search" in names
