@@ -216,6 +216,16 @@ def parse_collaboration(raw: Any) -> None:
     if not isinstance(raw, dict):
         raise SpecBindingError(f"spec.collaboration must be an object, got {type(raw).__name__}")
     _reject_unknown_keys(raw, allowed=_COLLABORATION_KEYS, field="spec.collaboration")
+    if raw.get("ref"):
+        raise SpecBindingError(
+            "spec.collaboration.ref is not supported in this release; omit spec.collaboration"
+        )
+    typ = raw.get("type")
+    if isinstance(typ, str) and typ.strip() and typ.strip().lower() != "none":
+        raise SpecBindingError(
+            f"spec.collaboration.type {typ.strip()!r} is not supported in this release; "
+            "omit spec.collaboration or set type: none"
+        )
 
 
 def parse_context_manager(raw: Any) -> None:

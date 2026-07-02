@@ -208,25 +208,24 @@ properties:
       collaboration:
         type: object
         description: >
-          How this agent decides where to delegate at runtime.
-          The topology (reachable peers) is declared in the MAS manifest via
-          workflow.nodes[].delegates_to.  This block declares the decision
-          engine that operates on that topology.
-          Builtin types: llm-delegator | none (default).
-          Omit entirely for leaf / specialist agents — equivalent to type: none.
+          Coordination plugin binding for DelegationContract (how peer delegation
+          executes — transport, limits, parallel policy). The delegation *graph*
+          (which peers) lives on MAS spec.workflow (delegates_to), not here.
+
+          This release: omit entirely or set type: none. Other type/ref values are
+          rejected at validate/compose. When workflow.type is dynamic, ctl wires
+          the default LlmDelegator at run-mas and exposes delegate_to_<id> tools
+          derived from workflow topology.
         additionalProperties: false
         properties:
           type:
             type: string
             description: >
-              Builtin shorthand — mutually exclusive with ref.
-              llm-delegator: the LLM picks which neighbor to call via tool calling (moderator pattern).
-              none: no active delegation; the agent executes its own task and returns.
+              Only ``none`` is supported in this release.
           ref:
             type: string
             description: >
-              Unified plugin locator — mutually exclusive with type.
-              Same forms as design_pattern.ref (bare-name, ./local/path, module://pkg.Class).
+              Not supported in this release.
           params:
             $ref: "./fragments/collaboration-params.schema.yaml"
             default: {}
@@ -785,22 +784,18 @@ properties:
               where context leakage is acceptable.
           delegation_style:
             type: string
-            enum: [typed, generic]
+            enum: [typed]
             default: typed
             description: >
               Controls which delegation tools are registered for this agent.
 
-              typed (default): Only delegate_to_<id> tools are available.
-                The set of reachable agent IDs is static (registered by MasRuntime
-                from the workflow topology).  The LLM cannot hallucinate an agent_id
-                that does not exist in the topology.  Preferred for production MAS.
+              typed (only value in this release): delegate_to_<id> tools derived
+              from MAS workflow.delegates_to when workflow.type is dynamic. Peer
+              IDs are fixed at compose time — the LLM cannot call agents outside
+              the topology.
 
-              generic: In addition to typed tools (if any), GenericDelegationPlugin
-                is registered, exposing delegate_task(agent_id, task).  The LLM
-                provides the agent_id as a free string — no static validation.
-                Used by LangChain, ADK, AutoGen, Bedrock.  Acceptable for fully
-                dynamic / open-world topologies where agent IDs are not known at
-                manifest-load time.
+              generic (delegate_task with free-form agent_id) is a design target
+              — not implemented in OSS; see ROADMAP.
 
       governance:
         $ref: "./fragments/governance-binding.schema.yaml"

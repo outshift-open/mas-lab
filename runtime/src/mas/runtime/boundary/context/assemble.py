@@ -113,10 +113,16 @@ def llm_request_tools(
     *,
     tools: list[dict[str, Any]] | None,
 ) -> list[dict[str, Any]] | None:
-    """Tools for the API payload — omitted on answer-from-tool-result turns."""
+    """Tools for the API payload.
+
+    Tools stay available after tool results so ReAct loops can issue further
+    ``tool_calls`` (e.g. chained ``delegate_to_*``).
+
+    ``messages`` is retained for call-site compatibility and future guards
+    (e.g. post-tool synthesis); it is not read in the current ReAct-only path.
+    """
+    _ = messages
     if not tools:
-        return None
-    if _has_tool_results(messages):
         return None
     return tools
 
@@ -126,8 +132,12 @@ def llm_tool_choice(
     *,
     tools: list[dict[str, Any]] | None,
 ) -> str | None:
-    """OpenAI tool_choice when tools are included."""
-    if not tools or _has_tool_results(messages):
+    """OpenAI tool_choice when tools are included.
+
+    ``messages`` is retained for call-site compatibility; not read currently.
+    """
+    _ = messages
+    if not tools:
         return None
     return "auto"
 

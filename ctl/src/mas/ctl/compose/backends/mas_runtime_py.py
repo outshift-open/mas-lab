@@ -41,6 +41,12 @@ class MasRuntimePyKernelBackend:
             if mp.is_file():
                 agent_manifest = yaml.safe_load(mp.read_text(encoding="utf-8"))
                 manifest_dir = mp.parent
+                if agent_manifest:
+                    from mas.ctl.manifest.spec_bindings import parse_collaboration
+                    from mas.runtime.engine.tools import resolve_manifest_tool_refs
+
+                    parse_collaboration((agent_manifest.get("spec") or {}).get("collaboration"))
+                    agent_manifest = resolve_manifest_tool_refs(agent_manifest, manifest_dir)
 
         instance, _ = instantiate_runtime(
             InstantiationOptions(

@@ -32,8 +32,6 @@ spec:
     max_tokens: 2000
   design_pattern:
     type: react
-  collaboration:
-    type: llm-delegator
   skills:
   - trip-orchestration
   intent: Trip Planner Moderator — entry point agent that receives a TripRequest, classifies its complexity (schedule-only,

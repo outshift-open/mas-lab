@@ -6,10 +6,11 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mas.runtime.engine.simulated import SimMode, simulated_next_step
-from mas.runtime.engine.tutorial_tools import apple_is_fruit, apple_price_reply, execute_tutorial_tool
+from mas.runtime.engine.mock_fixtures import apple_is_fruit, apple_price_reply
+from mas.runtime.engine.tool_dispatch import execute_engine_tool
 from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.ingress import EngineIoReturn
 
@@ -40,6 +41,7 @@ class ConversationEngine:
     ctx: AutoCtxAssembler | None = None
     sim_mode: SimMode = SimMode.DEFAULT
     use_tool_loop: bool = False
+    delegation: Any | None = None
     _pending_tool: str = field(default="", init=False)
     _pending_tool_args: dict = field(default_factory=dict, init=False)
 
@@ -160,7 +162,13 @@ class ConversationEngine:
         args = dict(self._pending_tool_args or {})
         self._pending_tool = ""
         self._pending_tool_args = {}
-        body = execute_tutorial_tool(tool, ctx=self.ctx, user=user, arguments=args)
+        body = execute_engine_tool(
+            tool,
+            delegation=self.delegation,
+            ctx=self.ctx,
+            user=user,
+            arguments=args,
+        )
         return EngineIoReturn(
             correlation_id=io.correlation_id,
             response_kind="TOOL_RESULT",

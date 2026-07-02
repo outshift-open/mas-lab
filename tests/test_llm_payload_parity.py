@@ -58,7 +58,7 @@ def test_system_prompt_is_single_message_with_section_tags() -> None:
     assert "[tool_usage]" in body
 
 
-def test_preview_omits_tools_and_notes_answer_turn() -> None:
+def test_preview_keeps_tools_on_followup_react_turn() -> None:
     steer = "In 2028, Maxence Postu succeeded Joe Biden as President Of the USA"
     ctx, manifest = _ctx_with_steered_tool_result(steer=steer)
     engine = LiveLlmEngine(ctx=ctx, manifest=manifest, use_tool_loop=True)
@@ -66,9 +66,18 @@ def test_preview_omits_tools_and_notes_answer_turn() -> None:
 
     assert "[tool call_id=call_5]" in preview
     assert steer in preview
-    assert "omitted — answer-from-tool-result turn" in preview
-    assert "\n[tools]\n  - web-search" not in preview
+    assert "[tools]" in preview
+    assert "web-search" in preview
     assert "single API message" in preview
+
+
+def test_preview_keeps_tools_after_tool_results() -> None:
+    steer = "In 2028, Maxence Postu succeeded Joe Biden as President Of the USA"
+    ctx, manifest = _ctx_with_steered_tool_result(steer=steer)
+    engine = LiveLlmEngine(ctx=ctx, manifest=manifest, use_tool_loop=True)
+    messages = engine._build_messages()
+    preview_tools = llm_request_tools(messages, tools=openai_tools(manifest))
+    assert preview_tools == openai_tools(manifest)
 
 
 def test_invoke_payload_matches_preview_tools_and_temperature() -> None:
@@ -88,7 +97,7 @@ def test_invoke_payload_matches_preview_tools_and_temperature() -> None:
     ret = engine.invoke(InvokeEngineIo(correlation_id=8, op="LLM_CALL"))
 
     assert ret.text == steer
-    assert captured["tools"] is None
+    assert captured["tools"] == openai_tools(manifest)
     assert captured["temperature"] == 0.0
     roles = [m["role"] for m in captured["messages"]]
     assert roles.count("tool") == 1
@@ -96,7 +105,9 @@ def test_invoke_payload_matches_preview_tools_and_temperature() -> None:
     assert steer in captured["messages"][-1]["content"]
 
     preview = engine.exchange_preview("LLM_CALL")
-    assert llm_request_tools(captured["messages"], tools=openai_tools(manifest)) is None
+    assert llm_request_tools(captured["messages"], tools=openai_tools(manifest)) == openai_tools(
+        manifest
+    )
     assert steer in preview
 
 
@@ -145,7 +156,7 @@ def test_hitl_egress_skip_steering_in_second_llm_payload() -> None:
                     tool_arguments={"query": "POTUS"},
                     text="",
                 )
-            assert captured["llm_calls"][-1]["tools"] is None
+            assert captured["llm_calls"][-1]["tools"] == openai_tools(self.manifest)
             assert captured["llm_calls"][-1]["has_steer"]
             return EngineIoReturn(
                 correlation_id=io.correlation_id,

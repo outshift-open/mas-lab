@@ -3,7 +3,9 @@
 $schema: "https://json-schema.org/draft-07/schema#"
 $id: "mas/v1#collaboration-params"
 title: CollaborationParams
-description: CollaborationPlugin constructor kwargs.
+description: >
+  CollaborationPlugin constructor kwargs (design). Not used when
+  spec.collaboration is omitted or type is none in this release.
 type: object
 additionalProperties: false
 properties:

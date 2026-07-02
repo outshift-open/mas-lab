@@ -142,6 +142,9 @@ class SessionController:
         return self._run_user_turn(text, turn_id=turn_id, auto_hitl=auto_hitl)
 
     def _run_user_turn(self, text: str, *, turn_id: str | None = None, auto_hitl: bool = True) -> TurnResult:
+        from mas.ctl.manifest.mas_agent_merge import reset_engine_delegation
+
+        reset_engine_delegation(getattr(self.instance.driver, "engine", None))
         self._turn += 1
         tid = turn_id or f"u{self._turn}"
         self.display.on_user(text, turn_id=tid)
