@@ -6,6 +6,7 @@ metadata:
   name: t3-topo-single
 spec:
   workflow:
+    type: single
     entry: planner
     nodes:
       - id: planner

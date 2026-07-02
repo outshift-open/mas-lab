@@ -246,9 +246,9 @@ moderator ──▶ schedule_agent
           ──▶ concierge_agent
 ```
 
-Each delegation is a tool call (`delegate_task`) routed by the transport
-plugin. The moderator's ReAct loop decides the order, frequency, and
-whether to call one or all specialists.
+Each delegation is a tool call (`delegate_to_<agent_id>` with a `task` argument)
+executed over the materialized in-process CommBus. The moderator's ReAct loop
+decides the order, frequency, and whether to call one or all specialists.
 
 ### Topology overlays
 
@@ -407,16 +407,17 @@ Every run writes `events.jsonl` to the telemetry path. Each line is a
 structured event:
 
 ```json
-{"event": "llm_call_start", "agent": "moderator", "timestamp": "...", "trace_id": "..."}
-{"event": "delegation_start", "from": "moderator", "to": "schedule_agent", ...}
-{"event": "tool_call", "agent": "schedule_agent", "tool": "lookup_schedule", ...}
-{"event": "delegation_end", "from": "moderator", "to": "schedule_agent", ...}
-{"event": "llm_call_end", "agent": "moderator", ...}
+{"kind": "llm_call_start", "agent_id": "moderator", "timestamp": "...", "trace_id": "..."}
+{"kind": "tool_call_start", "agent_id": "moderator", "tool_name": "delegate_to_schedule_agent", "arguments": {"task": "..."}, ...}
+{"kind": "tool_call_start", "agent_id": "schedule_agent", "tool_name": "lookup_schedule", ...}
+{"kind": "tool_call_end", "agent_id": "schedule_agent", "tool_name": "lookup_schedule", ...}
+{"kind": "tool_call_end", "agent_id": "moderator", "tool_name": "delegate_to_schedule_agent", ...}
+{"kind": "llm_call_end", "agent_id": "moderator", ...}
 ```
 
-Compared to Tutorial 1's single-agent trace, a MAS trace shows
-**delegation events** between agents — you can see which specialist was
-called, with what task, and what it returned.
+Compared to Tutorial 1's single-agent trace, a MAS trace shows **peer delegation**
+as `tool_call_*` events on `delegate_to_<agent_id>` from the entry agent, then
+tool calls on the specialist agents.
 
 To quickly inspect the trace:
 
@@ -477,7 +478,7 @@ Live `mas-ctl run-mas` steps need `TUTORIAL_ONLINE=1` and LLM credentials (Tutor
 3. **Separation of concerns**: agents (nodes) and workflow (edges) are distinct YAML sections
 4. **Overlays switch topologies**: a single overlay can collapse to one agent or chain into a pipeline — agent tool declarations stay unchanged
 5. **Dynamic delegation**: the moderator's ReAct loop drives delegation dynamically
-6. **Event stream captures delegation**: `delegation_start/end` events trace the handoff chain
+6. **Event stream captures delegation**: `tool_call_start` / `tool_call_end` on `delegate_to_<id>` trace peer handoffs
 
 ---
 
@@ -498,10 +499,10 @@ If you present this tutorial (~20 min), a useful slide arc:
 1. From one agent to many — when multiple agents help
 2. Delegation graph — moderator and specialists (declared in YAML, not code)
 3. MAS manifest vs agent manifest — same `apiVersion` / `kind` / `spec` shape
-4. Workflow types — `llm-routed`, `sequential`, `parallel`
+4. Workflow types — `dynamic`, `sequential`, `single`
 5. Flavour decoupling — same `mas.yaml`, different runtime flavours
 6. Live demo — `mas-ctl run-mas` or lab UI with delegation visible
-7. Event stream — `delegation_start` / `delegation_end` in `events.jsonl`
+7. Event stream — `tool_call_start` / `tool_call_end` on `delegate_to_<id>` in `events.jsonl`
 8. Teaser — from observability to experiments (Tutorial 3)
 
 ---

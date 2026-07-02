@@ -29,6 +29,7 @@ class AutoCtxAssembler:
     working_memory: WorkingMemoryStore = field(default_factory=WorkingMemoryStore)
     apple_topic: str = "unset"  # unset | fruit | company
     pattern_plugin_id: str = "react@v1"
+    runtime_params: dict[str, Any] = field(default_factory=dict)
     q_product: QProduct | None = None
     observability: Any | None = None
     _assembly_correlation_id: int = 0
@@ -48,6 +49,7 @@ class AutoCtxAssembler:
         self.last_user_text = ""
         self.turn_index = 0
         self.apple_topic = "unset"
+        self.runtime_params = {}
         from mas.runtime.boundary.context.telemetry import record_context_mutation
 
         record_context_mutation(

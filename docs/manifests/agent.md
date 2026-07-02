@@ -22,7 +22,8 @@ sees, and which plugins hook its execution.
 | Area | `spec` fields | Trajectory impact |
 |------|---------------|-------------------|
 | Reasoning loop | `design_pattern` | Selects DesignPatternContract (ReAct, CoT, …) — intra-agent δ transitions |
-| Delegation | `collaboration` | How to pick among `delegates_to` peers (topology is on MAS) |
+| Peer delegation | MAS `workflow` (when embedded in a MAS) | `delegates_to` graph + `workflow.type`; see [mas.md](mas.md) |
+| Collaboration plugin | `collaboration` | *Design:* `DelegationContract` binding (how delegation executes). *This release:* omit or `type: none` — see below |
 | Context window | `context_manager` | Stack / sliding-window / summarising |
 | Prompt / role | `role`, `context`, `intent` | System prompt assembly |
 | Models | `models[]` | LLM routing (ids, temperature, max_tokens) |
@@ -31,6 +32,33 @@ sees, and which plugins hook its execution.
 | Memory | `memory`, `memory_seed` | Stores + startup seeds |
 | Kernel plugins | `plugins[]`, `governance[]`, `observability[]` | Governance and observability on Mealy envelope chokepoints (not a hook plane) |
 | Execution bounds | `execution` | Timeouts, retries |
+
+---
+
+## Delegation and collaboration
+
+**Who** an agent may delegate to is declared on the **MAS** manifest, not on the agent alone:
+
+| Concern | Manifest | Field |
+|---------|----------|-------|
+| Delegation graph (peers) | MAS | `spec.workflow.nodes[].delegates_to`, `workflow.entry` |
+| Workflow driver | MAS | `spec.workflow.type` — `dynamic` (LLM picks peers), `sequential`, or `single` |
+| Per-peer tool text | Agent | `spec.role.description` — surfaced on `delegate_to_<id>` tools for the entry agent |
+
+When `workflow.type` is **dynamic**, the entry agent's LLM receives one OpenAI tool per allowed peer:
+`delegate_to_<agent_id>` with a `task` argument. `mas-ctl run-mas` executes those calls over the
+materialized in-process CommBus via the default `LlmDelegator` plugin.
+
+**`spec.collaboration`** is the reserved **coordination plugin binding** (1 spec attribute →
+`DelegationContract` → 0/1/N plugins in the target model). It will select *how* delegation runs
+(for example in-proc bus vs remote transport) and optional collaboration params. It does **not**
+replace the MAS workflow graph.
+
+**This release:** omit `spec.collaboration` entirely, or set `type: none`. Other `type` / `ref`
+values are rejected at validate/compose time. Routing among `delegates_to` peers is performed by
+the entry agent's design pattern (ReAct tool loop), not by a separate collaboration plugin.
+
+See [topology-and-workflow.md](topology-and-workflow.md) and [mas.md](mas.md).
 
 ---
 

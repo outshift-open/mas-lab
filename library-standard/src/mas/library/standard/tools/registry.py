@@ -45,7 +45,7 @@ def _calculator(*, arguments: dict[str, Any] | None = None, user: str = "", **_:
 
 
 def _verify_fact(*, arguments: dict[str, Any] | None = None, user: str = "", **ctx: Any) -> str:
-    from mas.runtime.engine.tutorial_tools import apple_is_fruit, apple_price_reply
+    from mas.runtime.engine.mock_fixtures import apple_is_fruit, apple_price_reply
 
     ctx_asm = ctx.get("ctx")
     query = (arguments or {}).get("query") or user

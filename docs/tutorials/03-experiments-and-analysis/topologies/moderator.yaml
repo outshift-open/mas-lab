@@ -6,9 +6,11 @@ metadata:
   name: t3-topo-moderator
 spec:
   workflow:
+    type: dynamic
     entry: moderator
     nodes:
       - id: moderator
+        delegates_to: [schedule_agent, itinerary_agent, concierge_agent]
       - id: schedule_agent
       - id: itinerary_agent
       - id: concierge_agent

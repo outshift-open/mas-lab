@@ -413,18 +413,18 @@ Now for a real experiment. The trip planner MAS
 (`ctl/examples/trip-planner/`) uses a moderator + 3 specialists. But is
 that topology actually better? Let's compare three approaches:
 
-| Topology | `routing.type` | Description | Config |
-|----------|---------------|-------------|--------|
+| Topology | `spec.workflow.type` | Description | Config |
+|----------|---------------------|-------------|--------|
 | **Single-agent** | `single` | One agent with all tools — no delegation | `topologies/single-agent.yaml` |
 | **Sequential** | `sequential` | Automaton walks agents in order, accumulating context | `topologies/linear.yaml` |
-| **Moderator** | `llm-routed` | Moderator LLM orchestrates 3 specialists dynamically | `topologies/moderator.yaml` |
+| **Moderator** | `dynamic` | Entry agent LLM orchestrates specialists via `delegate_to_*` | `topologies/moderator.yaml` |
 
 ### C.1 — The three topologies
 
-#### Single-agent (`routing.type: single`)
+#### Single-agent (`spec.workflow.type: single`)
 
 One agent receives all tools and handles the entire trip planning request.
-No delegation, no routing logic — the agent's ReAct loop does everything:
+No delegation — the agent's ReAct loop does everything:
 
 ```yaml
 # topologies/single-agent.yaml
@@ -434,22 +434,22 @@ metadata:
   name: trip-planner-single
 
 spec:
-  agents:
-    - id: generalist
-      ref: agents/moderator/agent.yaml
-      tools: [lookup_schedule, query_graph_database, get_fares, calc]
-      skills: [trip-orchestration, transport-schedule-lookup,
-               route-planning, fare-and-itinerary-assembly]
+  agency:
+    agents:
+      - id: generalist
+        ref: agents/moderator/agent.yaml
+        tools: [lookup_schedule, query_graph_database, get_fares, calc]
+        skills: [trip-orchestration, transport-schedule-lookup,
+                 route-planning, fare-and-itinerary-assembly]
 
-  routing:
+  workflow:
     type: single
     entry: generalist
     nodes:
       - id: generalist
-        role: specialist
 ```
 
-#### Sequential (`routing.type: sequential`)
+#### Sequential (`spec.workflow.type: sequential`)
 
 Three specialists in a fixed order. An **automaton** (not an LLM) drives
 the pipeline: schedule → itinerary → concierge. Each agent's output is
@@ -463,21 +463,22 @@ metadata:
   name: trip-planner-linear
 
 spec:
-  agents:
-    - id: schedule_agent
-      ref: agents/schedule-agent/agent.yaml
-      tools: [lookup_schedule]
-      skills: [transport-schedule-lookup]
-    - id: itinerary_agent
-      ref: agents/itinerary-agent/agent.yaml
-      tools: [query_graph_database]
-      skills: [route-planning]
-    - id: concierge_agent
-      ref: agents/concierge-agent/agent.yaml
-      tools: [get_fares, calc]
-      skills: [fare-and-itinerary-assembly]
+  agency:
+    agents:
+      - id: schedule_agent
+        ref: agents/schedule-agent/agent.yaml
+        tools: [lookup_schedule]
+        skills: [transport-schedule-lookup]
+      - id: itinerary_agent
+        ref: agents/itinerary-agent/agent.yaml
+        tools: [query_graph_database]
+        skills: [route-planning]
+      - id: concierge_agent
+        ref: agents/concierge-agent/agent.yaml
+        tools: [get_fares, calc]
+        skills: [fare-and-itinerary-assembly]
 
-  routing:
+  workflow:
     type: sequential
     entry: schedule_agent
     edges:
@@ -485,37 +486,41 @@ spec:
         to: [itinerary_agent]
       - from: itinerary_agent
         to: [concierge_agent]
+    nodes:
+      - id: schedule_agent
+      - id: itinerary_agent
+      - id: concierge_agent
 ```
 
-#### Moderator (`routing.type: llm-routed`)
+#### Moderator (`spec.workflow.type: dynamic`)
 
-The canonical moderator-based topology from `ctl/examples/trip-planner/mas.yaml`.
-The moderator's LLM decides which specialist to call, in what order, and
-how many times:
+The canonical moderator-based topology from `library-samples/apps/trip-planner/mas.yaml`.
+The entry agent's LLM receives `delegate_to_<peer>` tools (from `delegates_to`)
+and decides which specialist to call, in what order, and how many times:
 
 ```yaml
-# topologies/moderator.yaml (mirrors ctl/examples/trip-planner/mas.yaml)
+# topologies/moderator.yaml (mirrors library-samples/apps/trip-planner/mas.yaml)
 spec:
-  agents:
-    - id: moderator
-      ref: agents/moderator/agent.yaml
-    - id: schedule_agent
-      ref: agents/schedule-agent/agent.yaml
-    - id: itinerary_agent
-      ref: agents/itinerary-agent/agent.yaml
-    - id: concierge_agent
-      ref: agents/concierge-agent/agent.yaml
+  agency:
+    agents:
+      - id: moderator
+        ref: agents/moderator/agent.yaml
+      - id: schedule_agent
+        ref: agents/schedule-agent/agent.yaml
+      - id: itinerary_agent
+        ref: agents/itinerary-agent/agent.yaml
+      - id: concierge_agent
+        ref: agents/concierge-agent/agent.yaml
 
-  routing:
-    type: llm-routed
+  workflow:
+    type: dynamic
     entry: moderator
     nodes:
       - id: moderator
-        role: broker
         delegates_to: [schedule_agent, itinerary_agent, concierge_agent]
       - id: schedule_agent
-        role: specialist
-      # ...
+      - id: itinerary_agent
+      - id: concierge_agent
 ```
 
 ### C.2 — The dataset (subset)
@@ -555,15 +560,15 @@ experiment:
 
   scenarios:
     - id: single-agent
-      description: "One agent with all tools — no delegation (routing.type: single)"
+      description: "One agent with all tools — no delegation (workflow.type: single)"
       tags: [single, baseline]
 
     - id: linear
-      description: "Automaton-driven pipeline: schedule → itinerary → concierge (routing.type: sequential)"
+      description: "Automaton-driven pipeline: schedule → itinerary → concierge (workflow.type: sequential)"
       tags: [linear, sequential]
 
     - id: moderator
-      description: "LLM-routed moderator orchestrates 3 specialists (routing.type: llm-routed)"
+      description: "Entry agent orchestrates 3 specialists via delegate_to_* (workflow.type: dynamic)"
       tags: [moderator, broker]
 
   dataset:

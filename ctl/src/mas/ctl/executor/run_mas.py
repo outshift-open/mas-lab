@@ -59,6 +59,16 @@ def execute_run_mas(
         validate=validate,
     )
     result = compose_run(req)
+    from mas.ctl.session.params_sidecar import (
+        apply_runtime_params_to_instance,
+        params_from_mas_config,
+        stage_runtime_params,
+    )
+
+    runtime_params = params_from_mas_config(result.mas_config)
+    if runtime_params:
+        stage_runtime_params(runtime_params)
+
     composed = compose_application(result.mas_config, mas_id=result.mas_id)
     plan = compose_placement_from_deployment(result.deployment, composed)
     bind = compose_effective_bind(
@@ -106,8 +116,31 @@ def execute_run_mas(
         instance.driver.agent_id = str(entry or "agent")
 
     agent_manifest = _load_agent_manifest(bind, str(entry or ""))
+    agent_manifest_path = _agent_manifest_path(bind, str(entry or ""))
+    entry_manifest_dir = agent_manifest_path.parent if agent_manifest_path else base
+    from mas.ctl.manifest.mas_agent_merge import enrich_entry_agent_for_delegation, wire_entry_engine_delegation
+
+    enriched_manifest = enrich_entry_agent_for_delegation(
+        agent_manifest or {},
+        result.mas_config,
+        manifest_dir=entry_manifest_dir,
+    )
+    wire_entry_engine_delegation(
+        getattr(getattr(instance, "driver", None), "engine", None),
+        enriched_manifest,
+        entry_manifest_dir,
+        run_turn=_make_workflow_send(
+            materialized,
+            display=display,
+            verbose=verbose,
+            from_agent=str(entry or ""),
+        ),
+        entry_agent_id=str(entry or ""),
+    )
+    if runtime_params:
+        apply_runtime_params_to_instance(runtime_params, instance)
     hitl_responder, _ = resolve_hitl_from_manifest(
-        agent_manifest,
+        enriched_manifest,
         session_interactive=interactive or not auto_hitl,
     )
     if hitl_responder is not None:
@@ -299,8 +332,15 @@ def _entry_agent(mas_config: dict) -> str | None:
 
 
 def _load_agent_manifest(bind: Any, agent_id: str) -> dict | None:
+    mp = _agent_manifest_path(bind, agent_id)
+    if mp is None or not mp.is_file():
+        return None
     import yaml
 
+    return yaml.safe_load(mp.read_text(encoding="utf-8"))
+
+
+def _agent_manifest_path(bind: Any, agent_id: str) -> Path | None:
     for agent in bind.agents:
         if agent.agent_id != agent_id:
             continue
@@ -311,6 +351,6 @@ def _load_agent_manifest(bind: Any, agent_id: str) -> dict | None:
         if not mp.is_absolute():
             base = bind.mas_base_dir or Path.cwd()
             mp = (base / mp).resolve()
-        if mp.is_file():
-            return yaml.safe_load(mp.read_text(encoding="utf-8"))
+        return mp
     return None
+

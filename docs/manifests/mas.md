@@ -29,8 +29,9 @@ Declares multi-agent composition: participants, control flow, and system-level h
 | Telemetry | `telemetry.path` | Default events.jsonl location |
 | System intent | `intent` (top-level) | Summary for emulation / agent cards |
 
-Inter-agent **delegation graph** lives here; per-agent **delegation policy** lives on
-Agent `collaboration`.
+Inter-agent **delegation graph** lives on MAS ``workflow``. Agent ``spec.collaboration``
+is the reserved ``DelegationContract`` plugin binding (how delegation executes) — omit or
+``type: none`` in this release; see [agent.md](agent.md#delegation-and-collaboration).
 
 ---
 

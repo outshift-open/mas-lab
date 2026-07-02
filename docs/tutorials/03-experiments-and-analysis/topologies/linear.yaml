@@ -6,7 +6,14 @@ metadata:
   name: t3-topo-linear
 spec:
   workflow:
+    type: sequential
     entry: schedule_agent
+    edges:
+      - from: schedule_agent
+        to: [itinerary_agent]
+      - from: itinerary_agent
+        to: [concierge_agent]
     nodes:
       - id: schedule_agent
       - id: itinerary_agent
+      - id: concierge_agent

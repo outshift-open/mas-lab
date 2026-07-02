@@ -22,7 +22,7 @@ from mas.runtime.boundary.context.assemble import (
     llm_tool_choice,
 )
 from mas.runtime.boundary.gov.budget import BudgetTracker, budget_from_manifest
-from mas.runtime.engine.tutorial_tools import execute_tutorial_tool
+from mas.runtime.engine.tool_dispatch import execute_engine_tool
 from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.ingress import EngineIoReturn
 
@@ -48,6 +48,8 @@ class LiveLlmEngine:
     use_tool_loop: bool = False
     parallel_tool_calls: bool = True
     llm_proxy: dict[str, Any] | None = None
+    manifest_dir: Path | None = None
+    delegation: Any | None = None
     _cache: dict[str, str] = field(default_factory=dict, init=False)
     _pending_tool: str = field(default="", init=False)
     _pending_tool_args: dict[str, Any] = field(default_factory=dict, init=False)
@@ -83,7 +85,11 @@ class LiveLlmEngine:
             if self.ctx is not None:
                 self.ctx._assembly_correlation_id = 0
             messages = self._build_messages()
-            tool_defs = openai_tools(self.manifest) if self.use_tool_loop else []
+            tool_defs = (
+                openai_tools(self.manifest, base_dir=self.manifest_dir)
+                if self.use_tool_loop
+                else []
+            )
             api_tools = llm_request_tools(messages, tools=tool_defs or None)
             tools_note = ""
             if tool_defs and api_tools is None and has_tool_results(messages):
@@ -119,7 +125,13 @@ class LiveLlmEngine:
                 correlation_id=io.correlation_id,
                 response_kind="TOOL_RESULT",
                 next_step="LLM_CALL" if self.use_tool_loop else "STOP",
-                text=execute_tutorial_tool(tool, ctx=self.ctx, user=user, arguments=args),
+                text=execute_engine_tool(
+                    tool,
+                    delegation=self.delegation,
+                    ctx=self.ctx,
+                    user=user,
+                    arguments=args,
+                ),
             )
         if io.op == "MEMORY_OP":
             return EngineIoReturn(
@@ -147,7 +159,9 @@ class LiveLlmEngine:
         if self.ctx is not None:
             self.ctx._assembly_correlation_id = io.correlation_id
         messages = self._build_messages()
-        tool_defs = openai_tools(self.manifest) if self.use_tool_loop else []
+        tool_defs = (
+            openai_tools(self.manifest, base_dir=self.manifest_dir) if self.use_tool_loop else []
+        )
         tools = llm_request_tools(messages, tools=tool_defs or None)
         answering_from_tools = has_tool_results(messages)
 
