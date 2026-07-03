@@ -78,21 +78,6 @@ properties:
           discovery. Not injected into the LLM system prompt — use spec.context.*
           for prompt text. Write from the delegator's perspective.
 
-      delegation:
-        type: object
-        description: >
-          Peer-agent delegation policy for this agent when invoked as a delegate.
-          Completion checks gate whether a delegate turn is accepted or retried.
-        additionalProperties: false
-        properties:
-          completion_check:
-            type: string
-            enum: [verification_line]
-            description: >
-              Require delegate output to satisfy a structured completion pattern
-              before returning to the orchestrator. verification_line — response
-              must end with VERIFICATION: APPROVED|FLAGGED|REJECTED.
-
       models:
         type: array
         description: >

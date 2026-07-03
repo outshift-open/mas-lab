@@ -11,6 +11,14 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def _agency_entry_key(entry: dict[str, Any]) -> str | None:
+    key = entry.get("id") or entry.get("name")
+    if key is None:
+        return None
+    text = str(key).strip()
+    return text or None
+
+
 def apply_merge_patch(target: Any, patch: Any) -> Any:
     if not isinstance(patch, dict):
         return patch
@@ -220,6 +228,7 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
         else:
             base_spec[key] = deepcopy(value)
 
+    global_dp = patch.get("design_pattern")
     overlay_agents = patch.get("agents")
     if isinstance(overlay_agents, dict):
         agency = base_spec.setdefault("agency", {})
@@ -271,6 +280,8 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
                 else:
                     # Top-level agency entry fields (apply_agency_entry_overlay checks entry + entry["spec"])
                     target[field] = deepcopy(val)
+            if global_dp is not None and "design_pattern" not in per_agent:
+                target["design_pattern"] = deepcopy(global_dp)
             if "memory_seed" in per_agent:
                 existing_seed = list(agent_spec.get("memory_seed") or [])
                 agent_spec["memory_seed"] = existing_seed + list(
@@ -278,18 +289,35 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
                 )
 
     if patch.get("agents_remove"):
-        rm = set(patch["agents_remove"])
+        rm = {str(x) for x in patch["agents_remove"]}
         agency = base_spec.get("agency") or {}
         agents_list = agency.get("agents") or []
-        agency["agents"] = [a for a in agents_list if a.get("id") not in rm]
+        agency["agents"] = [
+            a for a in agents_list if not (isinstance(a, dict) and _agency_entry_key(a) in rm)
+        ]
         base_spec["agency"] = agency
 
     if patch.get("agents_add"):
         agency = base_spec.setdefault("agency", {})
-        existing = {a.get("id") for a in agency.get("agents") or []}
+        existing = {
+            _agency_entry_key(a)
+            for a in agency.get("agents") or []
+            if isinstance(a, dict) and _agency_entry_key(a) is not None
+        }
         for entry in patch["agents_add"]:
-            if isinstance(entry, dict) and entry.get("id") not in existing:
+            if not isinstance(entry, dict):
+                continue
+            key = _agency_entry_key(entry)
+            if key is not None and key not in existing:
                 agency.setdefault("agents", []).append(deepcopy(entry))
+                existing.add(key)
+
+    if global_dp is not None:
+        agency_agents = (base_spec.get("agency") or {}).get("agents") or []
+        spec_agents = base_spec.get("agents") or []
+        for entry in list(agency_agents) + list(spec_agents):
+            if isinstance(entry, dict) and "design_pattern" not in entry:
+                entry["design_pattern"] = deepcopy(global_dp)
 
     return merged
 

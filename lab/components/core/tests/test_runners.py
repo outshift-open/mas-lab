@@ -62,3 +62,21 @@ def test_registry_entry_point_load_warning(monkeypatch):
     )
     ApplicationRunnerRegistry._ensure_initialized()
     assert "broken" not in ApplicationRunnerRegistry.available()
+
+
+def test_registry_concurrent_init_is_thread_safe():
+    import concurrent.futures
+
+    from mas.lab.runners.constants import DEFAULT_LAB_RUNNER_ID
+
+    ApplicationRunnerRegistry.reset()
+
+    def _probe(_: int) -> list[str]:
+        ApplicationRunnerRegistry._ensure_initialized()
+        return ApplicationRunnerRegistry.available()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(_probe, range(32)))
+
+    assert all(DEFAULT_LAB_RUNNER_ID in r for r in results)
+    assert DEFAULT_LAB_RUNNER_ID in ApplicationRunnerRegistry.available()

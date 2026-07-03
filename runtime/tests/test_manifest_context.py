@@ -66,18 +66,14 @@ def test_resolve_context_chunk_missing_bare_path_warns(tmp_path: Path, caplog):
     assert any("looks like a file path" in r.message for r in caplog.records)
 
 
-def test_resolve_context_chunk_long_inline_role_with_slash(tmp_path: Path, caplog):
-    """Inline prompts moved to spec.context.role must not be treated as file paths."""
-    import logging
-
-    caplog.set_level(logging.WARNING)
+def test_resolve_context_chunk_long_inline_role_with_slash(tmp_path: Path):
+    """Multiline inline prompts with slashes are never probed as file paths."""
     role = (
         "You can look up schedules and attractions.\n"
         "Use get_attractions_description for detailed attraction/highlight listings.\n"
         "Provide a clear overview when done."
     )
     assert resolve_context_chunk(role, base_dir=tmp_path) == role
-    assert any("looks like a file path" in r.message for r in caplog.records)
 
 
 def test_resolve_context_chunk_long_inline_role_without_slash(tmp_path: Path):

@@ -5,9 +5,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from mas.lab.runners.constants import DEFAULT_LAB_RUNNER_ID
+
+OverlayRef = Union[str, Dict[str, Any]]
 
 try:
     from mas.lab.inputs import RunInput
@@ -27,7 +29,9 @@ class RunContext:
     run_input: Optional[RunInput] = None
     flavour: Any = None
     run_seed: int = 0
-    overlay_paths: List[str] = field(default_factory=list)
+    overlay_refs: List[OverlayRef] = field(default_factory=list)
+    overlays_dir: Optional[Path] = None
+    overlay_base_dir: Optional[Path] = None
     infra_refs: List[str] = field(default_factory=list)
     session_id: Optional[str] = None
     emulation_plugins: Optional[List[Any]] = None
@@ -41,11 +45,13 @@ class RunContext:
             "flavour": self.flavour,
             "output_dir": self.output_dir,
             "run_input": self.run_input,
-            "session_id": self.session_id or (
+            "session_id": self.session_id if self.session_id is not None else (
                 self.run_input.session_id if self.run_input is not None else None
             ),
             "run_seed": self.run_seed,
-            "overlay_paths": self.overlay_paths,
+            "overlay_refs": self.overlay_refs,
+            "overlays_dir": self.overlays_dir,
+            "overlay_base_dir": self.overlay_base_dir,
             "infra_refs": self.infra_refs,
             "emulation_plugins": self.emulation_plugins,
         }

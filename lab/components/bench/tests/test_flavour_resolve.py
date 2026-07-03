@@ -23,3 +23,9 @@ def test_unknown_flavour_raises() -> None:
 
 def test_bundled_flavour_path_local() -> None:
     assert bundled_flavour_path("local") is not None
+
+
+def test_resolve_flavour_path_accepts_yaml_file(tmp_path) -> None:
+    flavour = tmp_path / "outshift.yaml"
+    flavour.write_text("kind: Flavour\nmetadata:\n  name: outshift\n", encoding="utf-8")
+    assert resolve_flavour_path(str(flavour)) == flavour.resolve()

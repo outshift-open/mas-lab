@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Dict, Type
 
 from mas.lab.runners.constants import normalize_runner_id
@@ -11,6 +12,7 @@ from mas.lab.runners.constants import normalize_runner_id
 logger = logging.getLogger(__name__)
 
 _ENTRY_POINT_GROUP = "mas.lab.runners"
+_INIT_LOCK = threading.RLock()
 
 
 class ApplicationRunnerRegistry:
@@ -23,20 +25,22 @@ class ApplicationRunnerRegistry:
     def _ensure_initialized(cls) -> None:
         if cls._initialized:
             return
-        cls._initialized = True
+        with _INIT_LOCK:
+            if cls._initialized:
+                return
+            try:
+                from importlib.metadata import entry_points
 
-        try:
-            from importlib.metadata import entry_points
-
-            for ep in entry_points(group=_ENTRY_POINT_GROUP):
-                if ep.name in cls._runners:
-                    continue
-                try:
-                    cls._runners[ep.name] = ep.load()
-                except Exception as load_exc:
-                    logger.warning("Failed to load runner %r: %s", ep.name, load_exc)
-        except Exception as exc:
-            logger.debug("Runner entry-point discovery failed: %s", exc)
+                for ep in entry_points(group=_ENTRY_POINT_GROUP):
+                    if ep.name in cls._runners:
+                        continue
+                    try:
+                        cls._runners[ep.name] = ep.load()
+                    except Exception as load_exc:
+                        logger.warning("Failed to load runner %r: %s", ep.name, load_exc)
+            except Exception as exc:
+                logger.debug("Runner entry-point discovery failed: %s", exc)
+            cls._initialized = True
 
     @classmethod
     def register(cls, runner_id: str, runner_cls: Type[ApplicationRunnerProtocol]) -> None:

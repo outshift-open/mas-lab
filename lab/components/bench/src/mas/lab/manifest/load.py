@@ -11,9 +11,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from mas.ctl.compose.runner import ComposeRequest, compose_run
-from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
+from mas.ctl.compose.runner import ComposeRequest, ComposeResult, compose_run
+from mas.ctl.executor.mas_session import entry_agent_id
+from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay, find_agency_entry
 from mas.ctl.overlay import apply_merge_patch
+from mas.ctl.paths import OverlayRefEntry, resolve_overlay_ref_entries
 from mas.ctl.runtime_cli import load_merged_agent_manifest
 from mas.ctl.validate import validate_file, validation_enabled
 from mas.runtime.spec.source import load_yaml_mapping, resolve_yaml_path
@@ -27,21 +29,107 @@ class LoadedMAS:
     path: Path
 
 
-def _entry_agent_id(mas: dict[str, Any]) -> str:
-    spec = mas.get("spec") or mas
-    if isinstance(spec.get("entry_agent"), str):
-        return spec["entry_agent"]
-    wf = spec.get("workflow") or {}
-    if isinstance(wf, dict) and wf.get("entry"):
-        return str(wf["entry"])
-    agency = spec.get("agency") or {}
-    agents = agency.get("agents") or []
-    if agents and isinstance(agents[0], dict):
-        return str(agents[0].get("id") or agents[0].get("name") or "agent")
-    agents_list = mas.get("agents") or []
-    if agents_list and isinstance(agents_list[0], dict):
-        return str(agents_list[0].get("id") or agents_list[0].get("name") or "agent")
-    return "agent"
+LOADED_MAS_RAW_KEY = "_loaded_mas_raw"
+
+
+def is_loaded_mas_raw(config: dict[str, Any]) -> bool:
+    """True when *config* is :attr:`LoadedMAS._raw` from :func:`load_mas_config`."""
+    return bool(config.get(LOADED_MAS_RAW_KEY))
+
+
+def should_merge_stacked_entry_agent_config(config: dict[str, Any]) -> bool:
+    """Whether bench stacked agent rows should overlay the entry manifest."""
+    return bool(config.get("agents")) and not is_loaded_mas_raw(config)
+
+
+def agent_manifest_from_path(
+    agent_path: Path,
+    overlay_refs: list[OverlayRefEntry] | None = None,
+    *,
+    overlays_dir: Path | None = None,
+    overlay_base_dir: Path | None = None,
+    validate: bool = False,
+) -> tuple[dict[str, Any], Path]:
+    """Load a standalone agent manifest (with overlay refs) for bench bootstrap."""
+    manifest_dir = agent_path.parent.parent if agent_path.parent.name == "agents" else agent_path.parent
+    overlay_paths = resolve_overlay_ref_entries(
+        overlay_refs or [],
+        manifest_dir=manifest_dir,
+        overlays_dir=overlays_dir,
+        base_dir=overlay_base_dir,
+    )
+    overlays = tuple(str(p) for p in overlay_paths)
+    agent, _ = load_merged_agent_manifest(
+        agent_path,
+        overlays=overlays,
+        validate=validate,
+        manifest_dir=manifest_dir,
+    )
+    return agent or {}, agent_path
+
+
+def entry_agent_from_compose(
+    result: ComposeResult,
+    mas_path: Path,
+    *,
+    validate: bool = False,
+) -> tuple[dict[str, Any], Path]:
+    """Extract entry agent manifest + path from an already-run compose result."""
+    entry = entry_agent_id(result.mas_config)
+    agent_path = _agent_path_for_entry(result.mas_config, mas_path, entry)
+    agent, _ = load_merged_agent_manifest(
+        agent_path,
+        overlays=(),
+        validate=validate,
+        manifest_dir=mas_path.parent,
+    )
+    agency_entry = find_agency_entry(result.mas_config, entry)
+    if agency_entry is not None and agent:
+        agent = apply_agency_entry_overlay(agent, agency_entry)
+    return agent or {}, agent_path
+
+
+def _stacked_row_to_agency_entry(row: dict[str, Any]) -> dict[str, Any]:
+    """Map legacy stacked bench agent rows onto agency-entry overlay shape."""
+    agency_entry = deepcopy(row)
+    spec = agency_entry.setdefault("spec", {})
+    if not isinstance(spec, dict):
+        spec = {}
+        agency_entry["spec"] = spec
+
+    if isinstance(row.get("context"), dict) and "context" not in spec:
+        spec["context"] = deepcopy(row["context"])
+
+    if row.get("spec_tools") and "tools" not in spec:
+        spec["tools"] = list(row["spec_tools"])
+
+    dp = row.get("design_pattern")
+    if not isinstance(dp, dict) and row.get("pattern_framework"):
+        dp = {"type": row["pattern_framework"]}
+        params = row.get("pattern_params")
+        if isinstance(params, dict) and params:
+            dp["config"] = params
+    if isinstance(dp, dict) and "design_pattern" not in spec:
+        spec["design_pattern"] = deepcopy(dp)
+
+    return agency_entry
+
+
+def merge_stacked_entry_agent_manifest(
+    agent_cfg: dict[str, Any],
+    stacked_config: dict[str, Any],
+) -> dict[str, Any]:
+    """Apply stacked MAS entry-agent overrides onto an agent manifest for bootstrap."""
+    entry_id = (stacked_config.get("mas") or {}).get("entry_agent")
+    if not entry_id:
+        return agent_cfg
+    row = next(
+        (a for a in (stacked_config.get("agents") or []) if a.get("id") == entry_id),
+        None,
+    )
+    if not isinstance(row, dict):
+        return agent_cfg
+    return apply_agency_entry_overlay(agent_cfg, _stacked_row_to_agency_entry(row))
 
 
 def _agent_path_for_entry(mas: dict[str, Any], mas_path: Path, entry_id: str) -> Path:
@@ -89,63 +177,11 @@ def _agent_runtime_dict(doc: dict[str, Any], *, agent_id: str, agent_dir: Path) 
     return raw
 
 
-def merge_stacked_entry_agent_manifest(
-    agent_cfg: dict[str, Any],
-    stacked_config: dict[str, Any],
-) -> dict[str, Any]:
-    """Apply stacked MAS entry-agent overrides onto an agent manifest for bootstrap."""
-    entry_id = (stacked_config.get("mas") or {}).get("entry_agent")
-    if not entry_id:
-        return agent_cfg
-    row = next(
-        (a for a in (stacked_config.get("agents") or []) if a.get("id") == entry_id),
-        None,
-    )
-    if not isinstance(row, dict):
-        return agent_cfg
-
-    merged = deepcopy(agent_cfg)
-    spec = merged.setdefault("spec", {})
-
-    ctx = row.get("context")
-    if isinstance(ctx, dict) and ctx:
-        base_ctx = spec.get("context")
-        if isinstance(base_ctx, dict):
-            spec["context"] = {**base_ctx, **deepcopy(ctx)}
-        else:
-            spec["context"] = deepcopy(ctx)
-
-    if row.get("description"):
-        spec["description"] = row["description"]
-
-    plugins = row.get("plugins")
-    if plugins:
-        existing = list(spec.get("plugins") or [])
-        spec["plugins"] = existing + list(plugins)
-
-    spec_tools = row.get("spec_tools")
-    if spec_tools:
-        tools = list(spec.get("tools") or [])
-        seen = {t if isinstance(t, str) else str(t.get("ref", "")) for t in tools}
-        for tool in spec_tools:
-            key = tool if isinstance(tool, str) else str(tool.get("ref", ""))
-            if key and key not in seen:
-                tools.append(tool)
-                seen.add(key)
-        spec["tools"] = tools
-
-    memory_seed = row.get("memory_seed")
-    if memory_seed:
-        existing_seed = list(spec.get("memory_seed") or [])
-        spec["memory_seed"] = existing_seed + list(memory_seed)
-
-    return merged
-
-
 def load_mas_config(
     mas_path: Path,
     *,
     overlay_paths: list[Path] | None = None,
+    infra_refs: list[str] | None = None,
     validate: bool = False,
 ) -> LoadedMAS:
     """Load mas.yaml via compose; expand agency refs into runtime ``_raw`` dict."""
@@ -159,13 +195,14 @@ def load_mas_config(
         ComposeRequest(
             manifest=mas_path,
             overlay_paths=list(overlay_paths or []),
+            infra_refs=list(infra_refs or []),
             validate=validate,
         )
     )
     mas = result.mas_config
     base_dir = mas_path.parent
     raw_agents: list[dict[str, Any]] = []
-    entry_id = _entry_agent_id(mas)
+    entry_id = entry_agent_id(mas)
     spec = mas.get("spec") or mas
     agency = spec.get("agency") or {}
     for entry in agency.get("agents") or []:
@@ -185,6 +222,7 @@ def load_mas_config(
         raw_agents.append(_agent_runtime_dict(mas, agent_id=entry_id, agent_dir=base_dir))
 
     raw = {
+        LOADED_MAS_RAW_KEY: True,
         "mas": {
             "id": mas.get("metadata", {}).get("name") or mas_path.stem,
             "version": mas.get("metadata", {}).get("version", "0.1.0"),
@@ -199,10 +237,12 @@ def load_mas_config(
 
 
 def _loaded_mas_from_agent(agent_path: Path, doc: dict[str, Any]) -> LoadedMAS:
+    """Legacy compat: synthesize a MAS-shaped runtime dict from a lone agent manifest."""
     base_dir = agent_path.parent
     entry_id = str((doc.get("metadata") or {}).get("name") or agent_path.stem)
     agent_row = _agent_runtime_dict(doc, agent_id=entry_id, agent_dir=base_dir)
     raw = {
+        LOADED_MAS_RAW_KEY: True,
         "mas": {
             "id": entry_id,
             "version": (doc.get("metadata") or {}).get("version", "0.1.0"),
@@ -218,45 +258,6 @@ def _loaded_mas_from_agent(agent_path: Path, doc: dict[str, Any]) -> LoadedMAS:
         "capabilities": (doc.get("spec") or {}).get("capabilities") or {},
     }
     return LoadedMAS(_raw=raw, path=agent_path)
-
-
-def load_agent_for_bench(
-    mas_path: Path,
-    overlay_paths: list[Path] | None = None,
-    *,
-    validate: bool = False,
-) -> tuple[dict[str, Any], Path]:
-    """Return agent manifest dict + path for MasBenchRunner / SessionController."""
-    doc = load_yaml_mapping(mas_path)
-    if str((doc or {}).get("kind", "")).lower() == "agent":
-        overlays = tuple(str(p) for p in (overlay_paths or []))
-        agent, _ = load_merged_agent_manifest(
-            mas_path,
-            overlays=overlays,
-            validate=validate,
-            manifest_dir=mas_path.parent.parent
-            if mas_path.parent.name == "agents"
-            else mas_path.parent,
-        )
-        return agent or {}, mas_path
-
-    overlays = tuple(str(p) for p in (overlay_paths or []))
-    result = compose_run(
-        ComposeRequest(
-            manifest=mas_path,
-            overlay_paths=list(overlay_paths or []),
-            validate=validate,
-        )
-    )
-    entry = _entry_agent_id(result.mas_config)
-    agent_path = _agent_path_for_entry(result.mas_config, mas_path, entry)
-    agent, _ = load_merged_agent_manifest(
-        agent_path,
-        overlays=overlays,
-        validate=validate,
-        manifest_dir=mas_path.parent,
-    )
-    return agent or {}, agent_path
 
 
 def load_overlay_as_spec(overlay_path: Path, overlay: dict[str, Any] | None = None) -> dict[str, Any]:

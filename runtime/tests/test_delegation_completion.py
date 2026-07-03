@@ -2,10 +2,7 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Delegation completion helpers."""
 
-from mas.runtime.boundary.delegation.completion import (
-    continuation_prompt_for_verification,
-    verification_status,
-)
+from mas.runtime.boundary.delegation.completion import verification_status
 
 
 def test_verification_status_parses_approved():
@@ -14,9 +11,3 @@ def test_verification_status_parses_approved():
 
 def test_verification_status_missing():
     assert verification_status("partial output only") is None
-
-
-def test_continuation_prompt_for_verifier():
-    prompt = continuation_prompt_for_verification("partial")
-    assert "VERIFICATION:" in prompt
-    assert "partial" in prompt
