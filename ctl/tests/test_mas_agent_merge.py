@@ -72,45 +72,6 @@ def test_enrich_entry_agent_injects_workflow(tmp_path: Path):
     assert by_name["delegate_to_beta"]["function"]["description"] == "Delegate a sub-task to agent beta."
 
 
-def test_wire_entry_engine_delegation_loads_peer_completion_checks(tmp_path: Path):
-    verifier_yaml = tmp_path / "agents" / "verifier.yaml"
-    verifier_yaml.parent.mkdir(parents=True)
-    verifier_yaml.write_text(
-        yaml.safe_dump(
-            {
-                "metadata": {"name": "verifier"},
-                "spec": {
-                    "description": "Verifier peer.",
-                    "delegation": {"completion_check": "verification_line"},
-                },
-            }
-        ),
-        encoding="utf-8",
-    )
-    manifest = {
-        "metadata": {"name": "entry"},
-        "spec": {
-            "workflow": {
-                "entry": "entry",
-                "nodes": [{"id": "entry", "delegates_to": ["verifier"]}],
-            },
-        },
-    }
-    mas = {"spec": {"agents": [{"id": "verifier", "ref": "agents/verifier.yaml"}]}}
-    engine = LiveLlmEngine(manifest=manifest, use_tool_loop=True)
-    wire_entry_engine_delegation(
-        engine,
-        manifest,
-        tmp_path,
-        run_turn=lambda _a, _t: "ok",
-        entry_agent_id="entry",
-        mas_config=mas,
-        mas_base_dir=tmp_path,
-    )
-    assert engine.delegation is not None
-    assert engine.delegation._peer_completion_checks == {"verifier": "verification_line"}
-
-
 def test_enrich_rejects_unsupported_collaboration():
     agent = {
         "metadata": {"name": "entry"},

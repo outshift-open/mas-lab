@@ -45,12 +45,9 @@ def _looks_like_bare_path(text: str) -> bool:
     return "/" in text or text.endswith((".md", ".yaml", ".yml", ".txt"))
 
 
-def _safe_is_file(path: Path) -> bool:
-    """Return whether path is a regular file, treating overlong names as non-files."""
-    try:
-        return path.is_file()
-    except OSError:
-        return False
+def _is_probeable_path_candidate(text: str) -> bool:
+    """Single-line values short enough to be relative file refs under base_dir."""
+    return "\n" not in text and len(text) <= 512
 
 
 def resolve_context_chunk(value: Any, *, base_dir: Path) -> str | None:
@@ -59,10 +56,15 @@ def resolve_context_chunk(value: Any, *, base_dir: Path) -> str | None:
         text = value.strip()
         if not text:
             return None
-        path = (base_dir / text).resolve()
-        if _looks_like_path_ref(text) or _safe_is_file(path):
-            return _read_context_file(path)
-        if _looks_like_bare_path(text):
+        if _looks_like_path_ref(text):
+            return _read_context_file((base_dir / text).resolve())
+        if _is_probeable_path_candidate(text) and _looks_like_bare_path(text):
+            path = (base_dir / text).resolve()
+            try:
+                if path.is_file():
+                    return _read_context_file(path)
+            except OSError:
+                pass
             logger.warning(
                 "context chunk %r looks like a file path but was not found under %s; "
                 "treating as inline text",
@@ -92,16 +94,3 @@ def context_chunks_from_spec(spec: dict[str, Any], *, base_dir: Path) -> list[st
         if text:
             out.append(f"[{key}] {text}")
     return out
-
-
-def completion_check_type_from_agent(manifest: dict | None) -> str | None:
-    """Return spec.delegation.completion_check when declared on a peer agent."""
-    if not manifest:
-        return None
-    delegation = (manifest.get("spec") or {}).get("delegation") or {}
-    if not isinstance(delegation, dict):
-        return None
-    check = delegation.get("completion_check")
-    if isinstance(check, str) and check.strip():
-        return check.strip()
-    return None

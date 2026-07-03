@@ -9,6 +9,7 @@ import importlib.util as importlib_util
 import inspect
 import logging
 import sys
+import threading
 import types
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,11 @@ from mas.runtime.contracts.tool_contract import ToolContract
 from mas.runtime.manifest.schema import ToolDocument
 
 logger = logging.getLogger(__name__)
+
+# Parallel bench runs (e.g. parallel_scenarios > 1) materialize agents concurrently.
+# Without a lock, two threads can race on sys.modules registration before exec_module
+# finishes — producing "module has no attribute 'RunActionTool'" intermittently.
+_TOOL_MODULE_LOAD_LOCK = threading.RLock()
 
 
 class ManifestToolLoadError(RuntimeError):
@@ -344,32 +350,33 @@ def _load_tool_instance(
         )
         if not resolved.is_file():
             raise ManifestToolLoadError(f"Tool module file not found: {resolved}")
-        pkg_init = resolved.parent / "__init__.py"
-        if pkg_init.exists():
-            pkg_dir = resolved.parent
-            pkg_hash = hashlib.sha1(str(pkg_dir).encode()).hexdigest()[:10]
-            pkg_name = f"_mas_toolpkg_{pkg_dir.name}_{pkg_hash}"
-            if pkg_name not in sys.modules:
-                pkg_mod = types.ModuleType(pkg_name)
-                pkg_mod.__path__ = [str(pkg_dir)]  # type: ignore[attr-defined]
-                pkg_mod.__package__ = pkg_name
-                sys.modules[pkg_name] = pkg_mod
-            key = f"{pkg_name}.{resolved.stem}"
-            package_name = pkg_name
-        else:
-            key = f"_mas_tool_{resolved}"
-            package_name = None
-        if key in sys.modules:
-            module = sys.modules[key]
-        else:
-            spec = importlib_util.spec_from_file_location(key, resolved)
-            if spec is None or spec.loader is None:
-                raise ManifestToolLoadError(f"Cannot load tool module: {resolved}")
-            module = importlib_util.module_from_spec(spec)
-            if package_name is not None:
-                module.__package__ = package_name
-            sys.modules[key] = module
-            spec.loader.exec_module(module)
+        with _TOOL_MODULE_LOAD_LOCK:
+            pkg_init = resolved.parent / "__init__.py"
+            if pkg_init.exists():
+                pkg_dir = resolved.parent
+                pkg_hash = hashlib.sha1(str(pkg_dir).encode()).hexdigest()[:10]
+                pkg_name = f"_mas_toolpkg_{pkg_dir.name}_{pkg_hash}"
+                if pkg_name not in sys.modules:
+                    pkg_mod = types.ModuleType(pkg_name)
+                    pkg_mod.__path__ = [str(pkg_dir)]  # type: ignore[attr-defined]
+                    pkg_mod.__package__ = pkg_name
+                    sys.modules[pkg_name] = pkg_mod
+                key = f"{pkg_name}.{resolved.stem}"
+                package_name = pkg_name
+            else:
+                key = f"_mas_tool_{resolved}"
+                package_name = None
+            if key in sys.modules:
+                module = sys.modules[key]
+            else:
+                spec = importlib_util.spec_from_file_location(key, resolved)
+                if spec is None or spec.loader is None:
+                    raise ManifestToolLoadError(f"Cannot load tool module: {resolved}")
+                module = importlib_util.module_from_spec(spec)
+                if package_name is not None:
+                    module.__package__ = package_name
+                sys.modules[key] = module
+                spec.loader.exec_module(module)
     else:
         fromlist = [class_name] if class_name else [""]
         try:

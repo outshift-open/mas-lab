@@ -113,7 +113,12 @@ def instantiate_runtime(
     )
     apply_memory_seeds(instance, seeds)
     if seeds and options.agent_manifest:
-        agent_id = str((options.agent_manifest.get("metadata") or {}).get("name") or "agent")
+        from mas.ctl.executor.mas_session import agent_manifest_label
+
+        agent_id = agent_manifest_label(
+            options.agent_manifest,
+            options.manifest_dir or Path.cwd(),
+        )
         from mas.ctl.adapters.memory_seed import index_seeds_in_semantic_memory
 
         index_seeds_in_semantic_memory(seeds, agent_id=agent_id)

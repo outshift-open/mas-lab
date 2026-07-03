@@ -7,13 +7,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from mas.runtime.boundary.delegation.completion import (
-    completion_check_for_type,
-    continuation_prompt_for_verification,
-    incomplete_verification_fallback,
-    max_completion_attempts,
-)
-
 RunTurnFn = Callable[[str, str], str]
 
 
@@ -24,10 +17,8 @@ class LlmDelegator:
         self,
         *,
         run_turn: RunTurnFn,
-        peer_completion_checks: dict[str, str] | None = None,
     ) -> None:
         self._run_turn = run_turn
-        self._peer_completion_checks = dict(peer_completion_checks or {})
         self._completed_peers: dict[tuple[str, str], str] = {}
 
     def reset_session(self) -> None:
@@ -53,29 +44,12 @@ class LlmDelegator:
                 f"{self._completed_peers[cache_key]}"
             )
         try:
-            result = self._run_peer_turn(target_agent_id, task_key)
+            result = self._run_turn(target_agent_id, task_key)
         except KeyError:
             return f"[delegation] agent {target_agent_id!r} not available on bus"
         except RuntimeError as exc:
             return f"[delegation] agent {target_agent_id!r} failed: {exc}"
         self._completed_peers[cache_key] = result
-        return result
-
-    def _run_peer_turn(self, target_agent_id: str, task: str) -> str:
-        check_type = self._peer_completion_checks.get(target_agent_id)
-        checker = completion_check_for_type(check_type)
-        result = self._run_turn(target_agent_id, task)
-        if checker is None:
-            return result
-        attempts = 1
-        while not checker(result) and attempts < max_completion_attempts():
-            result = self._run_turn(
-                target_agent_id,
-                continuation_prompt_for_verification(result),
-            )
-            attempts += 1
-        if not checker(result):
-            return incomplete_verification_fallback(result)
         return result
 
     def call_delegate_tool(self, tool_name: str, arguments: dict[str, Any] | None) -> str:

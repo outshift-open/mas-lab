@@ -1,4 +1,0 @@
-{"kind": "execution_start", "agent_id": "moderator", "run_id": "run-a77f2e3b59bc", "turn_id": "u1", "call_id": "u1-exec", "input": "What is 2+2? Use the calculator if helpful.", "timestamp": 1783039992.380228}
-{"kind": "context_assembled", "agent_id": "moderator", "run_id": "run-a77f2e3b59bc", "correlation_id": 0, "timestamp": 1783039992.380785, "finish_reason": "stop"}
-{"kind": "user_response", "agent_id": "moderator", "run_id": "run-a77f2e3b59bc", "turn_id": "u1", "call_id": "u1-resp", "content": "[mock] What is 2+2? Use the calculator if helpful.", "finish_reason": "stop", "timestamp": 1783039992.380886}
-{"kind": "execution_end", "agent_id": "moderator", "run_id": "run-a77f2e3b59bc", "turn_id": "u1", "call_id": "u1-exec", "status": "ok", "timestamp": 1783039992.380935}

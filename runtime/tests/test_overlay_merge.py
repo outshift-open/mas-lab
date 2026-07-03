@@ -185,54 +185,84 @@ def test_merge_mas_overlay_keeps_name_only_agents():
     assert by_key["helper"]["ref"] == "agents/helper.yaml"
 
 
-def test_merge_mas_overlay_patches_agency_agent_delegation():
+def test_merge_mas_overlay_agents_remove_by_name():
     base = {
         "kind": "MAS",
         "spec": {
             "agency": {
                 "agents": [
-                    {
-                        "id": "verifier",
-                        "ref": "agents/verifier.yaml",
-                        "spec": {"delegation": {"completion_check": "base"}},
-                    }
+                    {"id": "moderator", "ref": "agents/moderator.yaml"},
+                    {"name": "helper", "ref": "agents/helper.yaml"},
                 ]
             }
+        },
+    }
+    merged = merge_overlay(base, _overlay({"agents_remove": ["helper"]}))
+    agents = merged["spec"]["agency"]["agents"]
+    assert len(agents) == 1
+    assert agents[0]["id"] == "moderator"
+
+
+def test_merge_mas_overlay_global_design_pattern_on_all_agents():
+    base = {
+        "kind": "MAS",
+        "spec": {
+            "agency": {
+                "agents": [
+                    {"id": "a", "ref": "agents/a.yaml"},
+                    {"id": "b", "ref": "agents/b.yaml"},
+                ]
+            }
+        },
+    }
+    overlay = _overlay({"design_pattern": {"type": "cot", "config": {"max_steps": 5}}})
+    merged = merge_overlay(base, overlay)
+    for agent in merged["spec"]["agency"]["agents"]:
+        assert agent["design_pattern"]["type"] == "cot"
+        assert agent["design_pattern"]["config"]["max_steps"] == 5
+
+
+def test_merge_mas_overlay_global_design_pattern_survives_agency_patch():
+    base = {
+        "kind": "MAS",
+        "spec": {
+            "agency": {
+                "agents": [
+                    {"id": "a", "ref": "agents/a.yaml"},
+                    {"id": "b", "ref": "agents/b.yaml"},
+                ]
+            },
+            "workflow": {"entry": "a", "type": "dynamic"},
         },
     }
     overlay = _overlay(
         {
-            "agents": {
-                "verifier": {
-                    "delegation": {"completion_check": "overlay_check"},
-                }
-            }
+            "design_pattern": {"type": "cot", "config": {"max_steps": 3}},
+            "agency": {
+                "agents": [
+                    {"id": "a", "ref": "agents/a.yaml"},
+                    {"id": "c", "ref": "agents/c.yaml"},
+                ]
+            },
         }
     )
     merged = merge_overlay(base, overlay)
-    agent = merged["spec"]["agency"]["agents"][0]
-    assert agent["spec"]["delegation"]["completion_check"] == "overlay_check"
+    for agent in merged["spec"]["agency"]["agents"]:
+        assert agent["design_pattern"]["type"] == "cot"
+        assert agent["design_pattern"]["config"]["max_steps"] == 3
 
 
-def test_merge_mas_overlay_delegation_shallow_merge_preserves_null():
+def test_merge_mas_overlay_global_design_pattern_on_spec_agents():
     base = {
         "kind": "MAS",
         "spec": {
-            "agency": {
-                "agents": [
-                    {
-                        "id": "verifier",
-                        "ref": "agents/verifier.yaml",
-                        "spec": {"delegation": {"completion_check": "base"}},
-                    }
-                ]
-            }
+            "agents": [
+                {"id": "x", "ref": "agents/x.yaml"},
+                {"id": "y", "ref": "agents/y.yaml"},
+            ]
         },
     }
-    overlay = _overlay(
-        {"agents": {"verifier": {"delegation": {"completion_check": None}}}}
-    )
+    overlay = _overlay({"design_pattern": {"type": "plan-execute"}})
     merged = merge_overlay(base, overlay)
-    delegation = merged["spec"]["agency"]["agents"][0]["spec"]["delegation"]
-    assert "completion_check" in delegation
-    assert delegation["completion_check"] is None
+    for agent in merged["spec"]["agents"]:
+        assert agent["design_pattern"]["type"] == "plan-execute"

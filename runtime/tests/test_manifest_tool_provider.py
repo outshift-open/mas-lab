@@ -253,6 +253,46 @@ def test_module_loaded_once_for_same_path(calculator_tool_tree: Path):
     assert provider_a.list_openai_tools() == provider_b.list_openai_tools()
 
 
+def test_concurrent_package_tool_load_is_thread_safe(tmp_path: Path):
+    import concurrent.futures
+
+    tool_dir = tmp_path / "pkg_tools"
+    tool_dir.mkdir()
+    (tool_dir / "__init__.py").write_text("", encoding="utf-8")
+    (tool_dir / "run_action.py").write_text(
+        """
+class RunActionTool:
+    def on_collect_tools(self, **_):
+        return [{"name": "run_action", "description": "act", "parameters": {"type": "object", "properties": {}}}]
+    def on_execute_tool(self, name, args, **_):
+        if name != "run_action":
+            return None
+        return {"ok": True}
+""",
+        encoding="utf-8",
+    )
+    (tool_dir / "run_action.tool.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "kind": "Tool",
+                "metadata": {"name": "run_action"},
+                "spec": {"impl": {"module_path": "./run_action.py", "class_name": "RunActionTool"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def _load_once(_: int) -> None:
+        provider = build_manifest_tool_provider(
+            [{"ref": "pkg_tools/run_action.tool.yaml"}],
+            tmp_path,
+        )
+        assert provider.call_tool("run_action", {}) == {"ok": True}
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(_load_once, range(32)))
+
+
 def test_package_tool_load_does_not_mutate_sys_path(tmp_path: Path):
     import sys
 

@@ -98,7 +98,7 @@ spec:
 
 
 def test_is_sequential_workflow_dynamic_delegates_not_sequential():
-    from mas.ctl.executor.run_mas import _is_sequential_workflow
+    from mas.ctl.executor.mas_session import is_sequential_workflow
 
     dynamic = {
         "spec": {
@@ -112,7 +112,7 @@ def test_is_sequential_workflow_dynamic_delegates_not_sequential():
             }
         }
     }
-    assert _is_sequential_workflow(dynamic, 3) is False
+    assert is_sequential_workflow(dynamic, 3) is False
 
     linear = {
         "spec": {
@@ -123,7 +123,7 @@ def test_is_sequential_workflow_dynamic_delegates_not_sequential():
             }
         }
     }
-    assert _is_sequential_workflow(linear, 2) is True
+    assert is_sequential_workflow(linear, 2) is True
 
 
 def test_inproc_bus_transport_handoff():

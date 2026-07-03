@@ -272,9 +272,12 @@ async def execute_batch(
                         agent_config=config,
                         flavour=_sc_flavour if isinstance(_sc_flavour, dict) else None,
                     )
-                    _overlay_paths = [
-                        str(p) for p in prepared.scenario_overlay_paths.get(scenario_id, [])
-                    ]
+                    _overlay_refs = list(prepared.scenario_overlay_stacks.get(scenario_id, []))
+                    _infra_refs = list(prepared.infra_refs)
+                    if isinstance(_sc_flavour, dict):
+                        _flavour_infra = list(_sc_flavour.get("infra_refs") or [])
+                        if _flavour_infra:
+                            _infra_refs = _flavour_infra
                     ctx = RunContext(
                         prompt=prompt,
                         config=config,
@@ -284,7 +287,10 @@ async def execute_batch(
                         run_input=_run_input,
                         flavour=_sc_flavour,
                         run_seed=run_idx,
-                        overlay_paths=_overlay_paths,
+                        overlay_refs=_overlay_refs,
+                        overlays_dir=prepared.overlays_dir,
+                        overlay_base_dir=prepared.overlay_base_dir,
+                        infra_refs=_infra_refs,
                         session_id=_run_input.session_id,
                         emulation_plugins=_emulation_plugins,
                     )

@@ -14,7 +14,6 @@ import yaml
 
 from mas.ctl.manifest.spec_bindings import parse_collaboration
 from mas.runtime.boundary.context.manifest_context import routing_description_from_agent
-from mas.runtime.boundary.delegation.completion import peer_completion_checks_from_manifests
 from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
 from mas.runtime.boundary.delegation.policy import delegation_targets
 from mas.runtime.engine.llm_live import LiveLlmEngine
@@ -151,27 +150,6 @@ def apply_agency_entry_overlay(
     return out
 
 
-def apply_agency_routing_overlay(
-    agent_manifest: dict[str, Any],
-    agency_entry: dict[str, Any],
-) -> dict[str, Any]:
-    """Merge agency fields used for delegation routing (description, completion_check)."""
-    out = copy.deepcopy(agent_manifest)
-    spec = out.setdefault("spec", {})
-    entry_spec = agency_entry.get("spec") or {}
-    if not isinstance(entry_spec, dict):
-        entry_spec = {}
-
-    _apply_description_overlay(spec, agency_entry, entry_spec)
-
-    delegation = _entry_val(agency_entry, entry_spec, "delegation")
-    if isinstance(delegation, dict) and delegation:
-        base_del = spec.get("delegation") if isinstance(spec.get("delegation"), dict) else {}
-        spec["delegation"] = {**base_del, **copy.deepcopy(delegation)}
-
-    return out
-
-
 def _peer_manifests_for_ids(
     mas_config: dict[str, Any],
     *,
@@ -192,7 +170,7 @@ def _peer_manifests_for_ids(
         if peer_manifest is None:
             logger.warning("peer agent %r manifest not found: %s", peer_id, path)
             continue
-        out[peer_id] = apply_agency_routing_overlay(peer_manifest, entry)
+        out[peer_id] = apply_agency_entry_overlay(peer_manifest, entry)
     return out
 
 
@@ -259,13 +237,7 @@ def wire_entry_engine_delegation(
     if not peers:
         leaf.delegation = None
         return
-    peer_completion_checks = (
-        peer_completion_checks_from_manifests(peer_manifests) if peer_manifests else None
-    )
-    leaf.delegation = LlmDelegator(
-        run_turn=run_turn,
-        peer_completion_checks=peer_completion_checks,
-    )
+    leaf.delegation = LlmDelegator(run_turn=run_turn)
     if hasattr(leaf, "use_tool_loop"):
         if not leaf.use_tool_loop:
             logger.warning(

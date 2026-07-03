@@ -556,33 +556,36 @@ class ExperimentConfig:
                         for run_id in range(1, n_runs + 1):
                             scenario_config = agent_spec.scenarios[scen_name]
                             
-                            # Resolve overlay references:
-                            # - Bare string: registry lookup by id
-                            # - {"id": "xxx"}: explicit registry lookup
-                            # - {"ref": "path/to/file.yaml"}: path relative to overlays_dir
                             overlay_refs = scenario_config.get("overlays", [])
+                            if isinstance(overlay_refs, str):
+                                overlay_refs = [overlay_refs]
+
                             overlay_paths: List[str] = []
                             if overlay_refs:
                                 try:
-                                    from mas.lab.lab.config import resolve_overlay_refs
-                                    # manifest_dir for ref resolution: overlays_dir or experiment base
-                                    manifest_dir = self.overlays_dir or self.base_dir
-                                    entries = resolve_overlay_refs(
-                                        overlay_refs,
-                                        self.overlay_registry,
-                                        manifest_dir=manifest_dir,
-                                        scenario_id=scen_name,
-                                    )
-                                    overlay_paths = [str(e.path) for e in entries]
+                                    from mas.ctl.paths import resolve_overlay_ref_entries
+
+                                    manifest_dir = self.base_dir
+                                    overlay_paths = [
+                                        str(p)
+                                        for p in resolve_overlay_ref_entries(
+                                            overlay_refs,
+                                            manifest_dir=manifest_dir,
+                                            overlays_dir=self.overlays_dir,
+                                            base_dir=self.base_dir,
+                                        )
+                                    ]
                                 except Exception as e:
                                     logger.warning(
                                         "Failed to resolve overlays %s for scenario %s: %s",
-                                        overlay_refs, scen_name, e,
+                                        overlay_refs,
+                                        scen_name,
+                                        e,
                                     )
-                            
+
                             # Backward compatibility: manifest_path takes precedence
                             legacy_manifest = scenario_config.get("manifest_path")
-                            
+
                             scenarios.append({
                                 "scenario_name": scenario_name,
                                 "scenario": scen_name,
@@ -592,7 +595,7 @@ class ExperimentConfig:
                                 "scenario_config": scenario_config,
                                 "flavour_config": flavour.config,
                                 "base_manifest": str(agent_spec.base_manifest),
-                                # New: list of overlay paths (can be multiple)
+                                "overlay_refs": list(overlay_refs),
                                 "overlay_paths": overlay_paths,
                                 # Legacy: single overlay manifest (deprecated)
                                 "overlay_manifest": legacy_manifest,

@@ -9,8 +9,11 @@ from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from mas.ctl.env import load_dotenv
+
+OverlayRefEntry = str | dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -93,6 +96,35 @@ def resolve_overlay_paths(
     return tuple(
         resolve_overlay_path(p, orig_cwd=orig_cwd, manifest_dir=manifest_dir) for p in paths
     )
+
+
+def resolve_overlay_ref_entries(
+    entries: Sequence[OverlayRefEntry],
+    *,
+    manifest_dir: Path,
+    overlays_dir: Path | None = None,
+    base_dir: Path | None = None,
+    orig_cwd: Path | None = None,
+) -> tuple[Path, ...]:
+    """Resolve scenario overlay refs (registry ids or ``{ref: path}``) to overlay files."""
+    _overlays_dir = overlays_dir if overlays_dir is not None else manifest_dir / "overlays"
+    _base_dir = base_dir if base_dir is not None else manifest_dir
+    _orig = orig_cwd or _base_dir
+    resolved: list[Path] = []
+    for entry in entries:
+        if isinstance(entry, dict) and "ref" in entry:
+            path = (_base_dir / str(entry["ref"])).resolve()
+            if not path.is_file():
+                raise FileNotFoundError(f"overlay ref not found: {entry['ref']} -> {path}")
+            resolved.append(path)
+            continue
+        overlay_id = str(entry)
+        stem_path = (_overlays_dir / f"{overlay_id}.yaml").resolve()
+        if stem_path.is_file():
+            resolved.append(stem_path)
+            continue
+        resolved.append(resolve_overlay_path(overlay_id, orig_cwd=_orig, manifest_dir=manifest_dir))
+    return tuple(resolved)
 
 
 @contextmanager

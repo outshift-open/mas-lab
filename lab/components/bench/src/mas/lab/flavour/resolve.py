@@ -31,9 +31,16 @@ def bundled_flavour_path(name: str) -> Path | None:
 def resolve_flavour_path(name: str) -> Path:
     """Resolve a flavour name to the bundled library-standard file.
 
+    *name* may also be an absolute or relative path to a ``.yaml`` / ``.yml``
+    flavour manifest (e.g. a lab-local ``flavours/outshift.yaml``).
+
     Raises FileNotFoundError when the flavour is not shipped in library-standard.
     Experiment and lab directories must not ship duplicate flavour YAML.
     """
+    path_candidate = Path(name).expanduser()
+    if path_candidate.suffix in (".yaml", ".yml") and path_candidate.is_file():
+        return path_candidate.resolve()
+
     path = bundled_flavour_path(name)
     if path is None:
         bare = name[4:] if name.startswith("lib:") else name

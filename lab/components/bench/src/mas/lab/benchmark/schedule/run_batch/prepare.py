@@ -18,6 +18,16 @@ from mas.lab.benchmark.schedule.run_batch.load import LoadedExperiment
 logger = logging.getLogger(__name__)
 
 
+def _execution_infra_refs(exp: Any) -> list[str]:
+    execution = getattr(exp, "execution", None)
+    if execution is None:
+        return []
+    raw = getattr(execution, "infra_refs", None)
+    if raw is None and isinstance(execution, dict):
+        raw = execution.get("infra_refs")
+    return list(raw or [])
+
+
 @dataclass
 class PreparedBatch:
     """Runtime state after output and scenario preparation."""
@@ -27,12 +37,15 @@ class PreparedBatch:
     mas_meta: Any
     loaded_ids: list[str]
     scenario_configs: dict
-    scenario_overlay_paths: dict
+    scenario_overlay_stacks: dict
     scenario_flavours: dict
     mas_app: str = ""
     mas_app_version: str = ""
     mas_ref: str = ""
     scenario_overlay_refs: dict = field(default_factory=dict)
+    overlays_dir: Optional[Path] = None
+    overlay_base_dir: Optional[Path] = None
+    infra_refs: list[str] = field(default_factory=list)
     dataset_items: list = field(default_factory=list)
 
 
@@ -77,9 +90,10 @@ def preload_scenario_configs(loaded: LoadedExperiment) -> tuple[dict, dict, list
     configs_dir = loaded.configs_dir
     experiment_yaml = loaded.experiment_yaml
     scenario_ids = loaded.scenario_ids
+    infra_refs = _execution_infra_refs(exp)
 
     _scenario_configs: dict = {}
-    _scenario_overlay_paths: dict = {}
+    _scenario_overlay_stacks: dict = {}
     for _sid in scenario_ids:
         try:
             _scenario_spec = exp.get_scenario(_sid)
@@ -93,23 +107,19 @@ def preload_scenario_configs(loaded: LoadedExperiment) -> tuple[dict, dict, list
                     exp.mas.manifest, _scenario_spec.overlays.flattened(),
                     overlays_dir=configs_dir,
                     base_dir=experiment_yaml.parent,
+                    infra_refs=infra_refs,
                 )
-                _ov_paths: list = []
-                _ov_dir = configs_dir if configs_dir is not None else Path(exp.mas.manifest).parent / "overlays"
-                for _overlay_entry in _scenario_spec.overlays.flattened():
-                    if isinstance(_overlay_entry, dict) and "ref" in _overlay_entry:
-                        _ov_paths.append((experiment_yaml.parent / _overlay_entry["ref"]).resolve())
-                    else:
-                        _ov_paths.append((_ov_dir / f"{_overlay_entry}.yaml").resolve())
-                _scenario_overlay_paths[_sid] = _ov_paths
+                _scenario_overlay_stacks[_sid] = list(_scenario_spec.overlays.flattened())
             elif configs_dir is None and exp.mas and exp.mas.manifest:
                 from mas.lab.manifest.load import load_mas_config
-                _mas_man = load_mas_config(exp.mas.manifest, validate=False)
+                _mas_man = load_mas_config(
+                    exp.mas.manifest, validate=False, infra_refs=infra_refs
+                )
                 _cfg, _bp = dict(_mas_man._raw), exp.mas.manifest
             else:
                 _explicit_mas = exp.mas.manifest if (exp.mas and exp.mas.manifest) else None
                 _cfg, _bp = load_scenario_config(
-                    configs_dir, _sid, mas_yaml=_explicit_mas
+                    configs_dir, _sid, mas_yaml=_explicit_mas, infra_refs=infra_refs
                 )
             _scenario_configs[_sid] = (_cfg, _bp)
         except FileNotFoundError:
@@ -120,7 +130,7 @@ def preload_scenario_configs(loaded: LoadedExperiment) -> tuple[dict, dict, list
         _skipped = len(scenario_ids) - len(_loaded_ids)
         logger.warning(f"{_skipped} scenario(s) skipped (config not found)")
 
-    return _scenario_configs, _scenario_overlay_paths, _loaded_ids
+    return _scenario_configs, _scenario_overlay_stacks, _loaded_ids
 
 
 def resolve_scenario_flavours(
@@ -239,10 +249,11 @@ async def prepare_batch(
     from mas.lab.benchmark.schedule.pipeline import run_pipeline_phase
 
     output_dir, csv_path, mas_meta = setup_output_dir(loaded, output_dir=output_dir, force=force)
-    scenario_configs, scenario_overlay_paths, loaded_ids = preload_scenario_configs(loaded)
+    scenario_configs, scenario_overlay_stacks, loaded_ids = preload_scenario_configs(loaded)
     scenario_flavours = resolve_scenario_flavours(loaded, loaded_ids, loaded.flavour_name)
     mas_app, mas_app_version, mas_ref = extract_mas_provenance(loaded)
     scenario_overlay_refs = build_scenario_overlay_refs(loaded, loaded_ids)
+    infra_refs = _execution_infra_refs(loaded.exp)
 
     dataset_items = list(loaded.dataset_items)
     _pre_dataset = await run_pipeline_phase(
@@ -265,11 +276,14 @@ async def prepare_batch(
         mas_meta=mas_meta,
         loaded_ids=loaded_ids,
         scenario_configs=scenario_configs,
-        scenario_overlay_paths=scenario_overlay_paths,
+        scenario_overlay_stacks=scenario_overlay_stacks,
         scenario_flavours=scenario_flavours,
         mas_app=mas_app,
         mas_app_version=mas_app_version,
         mas_ref=mas_ref,
         scenario_overlay_refs=scenario_overlay_refs,
+        overlays_dir=loaded.configs_dir,
+        overlay_base_dir=loaded.experiment_yaml.parent,
+        infra_refs=infra_refs,
         dataset_items=dataset_items,
     )

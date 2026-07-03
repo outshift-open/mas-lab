@@ -12,7 +12,8 @@ For versioned **experiment** and **pipeline** YAML, use ``mas.lab.manifests`` in
 
 from mas.lab.manifest.load import (
     LoadedMAS,
-    load_agent_for_bench,
+    agent_manifest_from_path,
+    entry_agent_from_compose,
     load_agent_runtime_entry,
     load_mas_config,
     load_overlay_as_spec,
@@ -20,8 +21,9 @@ from mas.lab.manifest.load import (
 
 __all__ = [
     "LoadedMAS",
+    "agent_manifest_from_path",
+    "entry_agent_from_compose",
     "load_mas_config",
-    "load_agent_for_bench",
     "load_agent_runtime_entry",
     "load_overlay_as_spec",
 ]

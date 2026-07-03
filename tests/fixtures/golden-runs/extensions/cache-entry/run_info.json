@@ -1,10 +1,10 @@
 {
-  "run_hash": "782e2f647e4f138e2191",
+  "run_hash": "e9707f917f093365933a",
   "experiment": "golden-extensions",
   "scenario": "golden",
   "item_id": "1",
   "run_idx": 0,
-  "referenced_at": "2026-07-03T00:53:12.382322Z",
+  "referenced_at": "2026-07-03T09:06:55.745596Z",
   "mas": {
     "app": "trip-planner",
     "mas_ref": "/Users/augjorda/repos/outshift-open/mas-lab/library-samples/apps/trip-planner/mas.yaml",
