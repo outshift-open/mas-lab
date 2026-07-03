@@ -39,7 +39,7 @@ spec:
     agents:
       moderator:
         tools:
-          - memory-search
+          - ref: ../tools/memory-search.tool.yaml
 
         role:
           instructions: |

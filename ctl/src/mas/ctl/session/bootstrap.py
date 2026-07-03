@@ -38,6 +38,7 @@ class InstantiationOptions:
     validate_manifests: bool = True
     agent_manifest: dict | None = None
     manifest_dir: Path | None = None
+    app_root: Path | None = None
     resolved_infra: ResolvedInfra | None = None
     workspace: WorkspaceConfig | None = None
     enable_observability: bool = True
@@ -68,14 +69,20 @@ def instantiate_runtime(
         store.memory_seeds = [{"key": s.key, "content": s.content} for s in seeds]
 
     ctx = AutoCtxAssembler(pattern_plugin_id=options.pattern_plugin_id)
-    _apply_manifest_context(ctx, options.agent_manifest, options.manifest_dir)
-    if options.agent_manifest and options.manifest_dir:
+    skill_base = options.app_root or options.manifest_dir
+    _apply_manifest_context(
+        ctx,
+        options.agent_manifest,
+        options.manifest_dir,
+        app_root=options.app_root,
+    )
+    if options.agent_manifest and skill_base:
         from mas.runtime.boundary.context.skills import inject_skills_into_context
 
         ctx.injected_context = inject_skills_into_context(
             ctx.injected_context,
             options.agent_manifest,
-            base_dir=options.manifest_dir,
+            base_dir=skill_base,
         )
     ctx.capture_baseline()
     kernel_cfg = kernel_config_from_manifest(
@@ -89,6 +96,8 @@ def instantiate_runtime(
         options.resolved_infra,
         pattern_plugin_id=options.pattern_plugin_id,
         workspace_default_model=ws.default_model,
+        anchor=options.manifest_dir or Path.cwd(),
+        workspace=ws,
     )
     logger.info("Engine mode=%s (%s)", selection.mode, selection.reason)
 
@@ -119,6 +128,16 @@ def instantiate_runtime(
             )
 
     instance.capture_session_baseline()
+    if options.agent_manifest and options.manifest_dir:
+        from mas.runtime.engine.manifest_tool_provider import attach_manifest_tools_to_instance
+
+        attach_manifest_tools_to_instance(
+            instance,
+            options.agent_manifest,
+            options.manifest_dir,
+            app_root=options.app_root or options.manifest_dir,
+            workspace_root=ws.root if ws.found else None,
+        )
     return instance, store
 
 
@@ -126,22 +145,27 @@ def _apply_manifest_context(
     ctx: AutoCtxAssembler,
     manifest: dict | None,
     manifest_dir: Path | None,
+    *,
+    app_root: Path | None = None,
 ) -> None:
     if not manifest:
         return
+    from mas.runtime.boundary.context.chunks import resolve_context_chunk
+
     spec = manifest.get("spec") or {}
-    base = manifest_dir or Path.cwd()
+    base = app_root or manifest_dir or Path.cwd()
     for ref_key in ("instructions_ref", "system_prompt_ref"):
         ref = spec.get(ref_key)
         if isinstance(ref, str) and ref:
             path = (base / ref).resolve()
-            if path.is_file():
-                ctx.injected_context.append(path.read_text(encoding="utf-8").strip())
+            if not path.is_file():
+                raise FileNotFoundError(f"{ref_key} file not found: {path}")
+            ctx.injected_context.append(path.read_text(encoding="utf-8").strip())
     prompt = spec.get("system_prompt") or spec.get("instructions")
     if isinstance(prompt, str) and prompt.strip():
         ctx.injected_context.append(prompt.strip())
     context = spec.get("context") or {}
     if isinstance(context, dict):
         for key, val in context.items():
-            if isinstance(val, str):
-                ctx.injected_context.append(f"[{key}] {val}")
+            text = resolve_context_chunk(val, base_dir=base)
+            ctx.injected_context.append(f"[{key}] {text}")

@@ -80,8 +80,8 @@ def _installed_library_roots() -> list[Path]:
     return roots
 
 
-def discover_library_roots() -> list[Path]:
-    """Return library roots from installed packages and optional workspace paths."""
+def discover_library_roots(*anchors: Path | None) -> list[Path]:
+    """Return library roots from packages, workspace config, and manifest anchors."""
     roots: list[Path] = []
     seen: set[Path] = set()
 
@@ -101,5 +101,20 @@ def discover_library_roots() -> list[Path]:
         for rel in ws.manifest_libraries.values():
             if isinstance(rel, str) and rel.strip():
                 _add(ws.root / rel)
+
+    for anchor in anchors:
+        if anchor is None:
+            continue
+        here = anchor.resolve()
+        if not here.is_dir():
+            here = here.parent
+        for parent in (here, *here.parents):
+            if (parent / "library.yaml").is_file():
+                _add(parent)
+            samples = parent / "library-samples"
+            if (samples / "library.yaml").is_file():
+                _add(samples)
+            if (parent / ".git").is_dir():
+                break
 
     return roots

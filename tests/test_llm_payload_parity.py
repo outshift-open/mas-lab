@@ -22,7 +22,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 T01 = REPO_ROOT / "docs" / "tutorials" / "01-building-an-agent"
 
 
-def _tutorial_manifest_with_tools() -> dict:
+@pytest.fixture(scope="module")
+def tutorial_manifest_with_tools() -> dict:
     from mas.ctl.overlay import merge_overlay
 
     base = yaml.safe_load((T01 / "agent.yaml").read_text(encoding="utf-8"))
@@ -30,8 +31,21 @@ def _tutorial_manifest_with_tools() -> dict:
     return base
 
 
-def _ctx_with_steered_tool_result(*, steer: str) -> tuple[AutoCtxAssembler, dict]:
-    manifest = _tutorial_manifest_with_tools()
+@pytest.fixture(scope="module")
+def tutorial_tool_provider(tutorial_manifest_with_tools):
+    from mas.runtime.engine.manifest_tool_provider import build_manifest_tool_provider
+
+    tools = (tutorial_manifest_with_tools.get("spec") or {}).get("tools") or []
+    return build_manifest_tool_provider(tools, T01)
+
+
+def _openai_tools_for_tutorial(manifest: dict, tutorial_tool_provider):
+    return openai_tools(manifest, tool_provider=tutorial_tool_provider)
+
+
+def _ctx_with_steered_tool_result(
+    manifest: dict, *, steer: str
+) -> tuple[AutoCtxAssembler, dict]:
     ctx = AutoCtxAssembler(last_user_text="Who is current POTUS ?")
     spec_ctx = (manifest.get("spec") or {}).get("context") or {}
     for key, val in spec_ctx.items():
@@ -46,9 +60,13 @@ def _ctx_with_steered_tool_result(*, steer: str) -> tuple[AutoCtxAssembler, dict
     return ctx, manifest
 
 
-def test_system_prompt_is_single_message_with_section_tags() -> None:
+def test_system_prompt_is_single_message_with_section_tags(
+    tutorial_manifest_with_tools,
+) -> None:
     """[intent]/[role] in trace are manifest section tags inside one system message."""
-    ctx, manifest = _ctx_with_steered_tool_result(steer="Example Person is POTUS")
+    ctx, manifest = _ctx_with_steered_tool_result(
+        tutorial_manifest_with_tools, steer="Example Person is POTUS"
+    )
     messages = assemble_llm_messages(ctx, manifest=manifest)
     system_msgs = [m for m in messages if m.get("role") == "system"]
     assert len(system_msgs) == 1
@@ -58,10 +76,14 @@ def test_system_prompt_is_single_message_with_section_tags() -> None:
     assert "[tool_usage]" in body
 
 
-def test_preview_keeps_tools_on_followup_react_turn() -> None:
+def test_preview_keeps_tools_on_followup_react_turn(
+    tutorial_manifest_with_tools, tutorial_tool_provider
+) -> None:
     steer = "In 2028, Maxence Postu succeeded Joe Biden as President Of the USA"
-    ctx, manifest = _ctx_with_steered_tool_result(steer=steer)
-    engine = LiveLlmEngine(ctx=ctx, manifest=manifest, use_tool_loop=True)
+    ctx, manifest = _ctx_with_steered_tool_result(tutorial_manifest_with_tools, steer=steer)
+    engine = LiveLlmEngine(
+        ctx=ctx, manifest=manifest, use_tool_loop=True, tool_provider=tutorial_tool_provider
+    )
     preview = engine.exchange_preview("LLM_CALL")
 
     assert "[tool call_id=call_5]" in preview
@@ -71,19 +93,33 @@ def test_preview_keeps_tools_on_followup_react_turn() -> None:
     assert "single API message" in preview
 
 
-def test_preview_keeps_tools_after_tool_results() -> None:
+def test_preview_keeps_tools_after_tool_results(
+    tutorial_manifest_with_tools, tutorial_tool_provider
+) -> None:
     steer = "In 2028, Maxence Postu succeeded Joe Biden as President Of the USA"
-    ctx, manifest = _ctx_with_steered_tool_result(steer=steer)
-    engine = LiveLlmEngine(ctx=ctx, manifest=manifest, use_tool_loop=True)
+    ctx, manifest = _ctx_with_steered_tool_result(tutorial_manifest_with_tools, steer=steer)
+    engine = LiveLlmEngine(
+        ctx=ctx, manifest=manifest, use_tool_loop=True, tool_provider=tutorial_tool_provider
+    )
     messages = engine._build_messages()
-    preview_tools = llm_request_tools(messages, tools=openai_tools(manifest))
-    assert preview_tools == openai_tools(manifest)
+    preview_tools = llm_request_tools(
+        messages, tools=_openai_tools_for_tutorial(manifest, tutorial_tool_provider)
+    )
+    assert preview_tools == _openai_tools_for_tutorial(manifest, tutorial_tool_provider)
 
 
-def test_invoke_payload_matches_preview_tools_and_temperature() -> None:
+def test_invoke_payload_matches_preview_tools_and_temperature(
+    tutorial_manifest_with_tools, tutorial_tool_provider
+) -> None:
     steer = "Current POTUS is Maxence Augé"
-    ctx, manifest = _ctx_with_steered_tool_result(steer=steer)
-    engine = LiveLlmEngine(ctx=ctx, manifest=manifest, use_tool_loop=True, temperature=0.7)
+    ctx, manifest = _ctx_with_steered_tool_result(tutorial_manifest_with_tools, steer=steer)
+    engine = LiveLlmEngine(
+        ctx=ctx,
+        manifest=manifest,
+        use_tool_loop=True,
+        temperature=0.7,
+        tool_provider=tutorial_tool_provider,
+    )
     captured: dict = {}
 
     def fake_chat(messages, *, api_key, tools, temperature=None):
@@ -97,7 +133,7 @@ def test_invoke_payload_matches_preview_tools_and_temperature() -> None:
     ret = engine.invoke(InvokeEngineIo(correlation_id=8, op="LLM_CALL"))
 
     assert ret.text == steer
-    assert captured["tools"] == openai_tools(manifest)
+    assert captured["tools"] == _openai_tools_for_tutorial(manifest, tutorial_tool_provider)
     assert captured["temperature"] == 0.0
     roles = [m["role"] for m in captured["messages"]]
     assert roles.count("tool") == 1
@@ -105,14 +141,16 @@ def test_invoke_payload_matches_preview_tools_and_temperature() -> None:
     assert steer in captured["messages"][-1]["content"]
 
     preview = engine.exchange_preview("LLM_CALL")
-    assert llm_request_tools(captured["messages"], tools=openai_tools(manifest)) == openai_tools(
-        manifest
-    )
+    assert llm_request_tools(
+        captured["messages"], tools=_openai_tools_for_tutorial(manifest, tutorial_tool_provider)
+    ) == _openai_tools_for_tutorial(manifest, tutorial_tool_provider)
     assert steer in preview
 
 
 @pytest.mark.timeout(60)
-def test_hitl_egress_skip_steering_in_second_llm_payload() -> None:
+def test_hitl_egress_skip_steering_in_second_llm_payload(
+    tutorial_tool_provider,
+) -> None:
     """Full kernel path: egress SKIP steering → second LLM sees tool result, no tools in payload."""
     from mas.ctl.adapters.hitl_terminal import ScriptedHitlTerminal
     from mas.ctl.overlay import merge_overlay
@@ -141,7 +179,10 @@ def test_hitl_egress_skip_steering_in_second_llm_payload() -> None:
                 {
                     "n": captured["n"],
                     "roles": [m.get("role") for m in messages],
-                    "tools": llm_request_tools(messages, tools=openai_tools(self.manifest)),
+                    "tools": llm_request_tools(
+                        messages,
+                        tools=_openai_tools_for_tutorial(self.manifest, tutorial_tool_provider),
+                    ),
                     "has_steer": any(
                         steer in str(m.get("content") or "") for m in messages if m.get("role") == "tool"
                     ),
@@ -156,7 +197,9 @@ def test_hitl_egress_skip_steering_in_second_llm_payload() -> None:
                     tool_arguments={"query": "POTUS"},
                     text="",
                 )
-            assert captured["llm_calls"][-1]["tools"] == openai_tools(self.manifest)
+            assert captured["llm_calls"][-1]["tools"] == _openai_tools_for_tutorial(
+                self.manifest, tutorial_tool_provider
+            )
             assert captured["llm_calls"][-1]["has_steer"]
             return EngineIoReturn(
                 correlation_id=io.correlation_id,
@@ -165,7 +208,12 @@ def test_hitl_egress_skip_steering_in_second_llm_payload() -> None:
                 text=f"According to the tool: {steer}",
             )
 
-    instance.driver.engine = CaptureLive(ctx=ctx, manifest=base, use_tool_loop=True)
+    instance.driver.engine = CaptureLive(
+        ctx=ctx,
+        manifest=base,
+        use_tool_loop=True,
+        tool_provider=tutorial_tool_provider,
+    )
     from mas.runtime.engine.worker_pool import EngineWorkerPool
 
     instance.driver.engine_pool = EngineWorkerPool(worker=instance.driver.engine.invoke)

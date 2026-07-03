@@ -224,7 +224,7 @@ export interface AgentManifest {
            */
           compaction?: {
             /**
-             * Compaction strategy name: keep_recent | summarize | chunked_summarize. chunked_summarize is the OpenClaw-equivalent multi-part strategy.
+             * Compaction strategy name: keep_recent | summarize | chunked_summarize. chunked_summarize splits long context into multiple summarized chunks.
              *
              */
             strategy?: string;
@@ -245,7 +245,7 @@ export interface AgentManifest {
              */
             safety_margin?: number;
             /**
-             * Preserve opaque identifiers (UUIDs, hashes, URLs, file names) during summarization.  Matches OpenClaw compaction.ts behavior.
+             * Preserve opaque identifiers (UUIDs, hashes, URLs, file names) during summarization.
              *
              */
             identifier_preservation?: boolean;
@@ -330,7 +330,7 @@ export interface AgentManifest {
            */
           citations?: {
             /**
-             * Citation mode: auto (include when useful), on (always include), off (strip source info).  Mirrors OpenClaw MemoryCitationsMode.
+             * Citation mode: auto (include when useful), on (always include), off (strip source info). Controls citation presentation for memory results.
              *
              */
             mode?: "auto" | "on" | "off";
@@ -384,7 +384,7 @@ export interface AgentManifest {
             };
           };
           /**
-           * Compaction retry on context overflow.  When an LLM call fails because the context exceeds the window, automatically compact and retry.  Mirrors OpenClaw waitForCompactionRetryWithAggregateTimeout.
+           * Compaction retry on context overflow.  When an LLM call fails because the context exceeds the window, automatically compact and retry.
            *
            */
           overflow_retry?: {
@@ -431,7 +431,7 @@ export interface AgentManifest {
           };
         };
     /**
-     * Flat list of skill names (snake_case) to load from skills_dir. Each name must match an AgentSkills.io directory name with hyphens replaced by underscores, e.g. memory-protocol → memory_protocol. When empty or absent, all skills in skills_dir are loaded. E.g. [triage_protocol, severity_classification, memory_protocol]
+     * Skill ids to activate (hyphenated names matching skills/<name>/SKILL.md under the app root). E.g. triage-protocol, memory-protocol. Library skills use @library/name.
      *
      */
     skills?: string[];
@@ -449,7 +449,7 @@ export interface AgentManifest {
      *
      * Form B — inline anonymous (backward-compatible):
      *   tools:
-     *     - module_path: mas.runtime.tools.calculator_tool
+     *     - module_path: library-samples/tools/calc.py
      *       class_name: CalculatorTool
      *
      * Additive with tools_ref — both may be set simultaneously.
@@ -475,7 +475,7 @@ export interface AgentManifest {
            */
           kind?: "python" | "remote_tool" | "openapi";
           /**
-           * Dotted Python module path, e.g. mas.runtime.tools.calculator_tool. May also be a relative filesystem path (./tools/my_tool.py).
+           * Dotted Python module path, e.g. library-samples/tools/calc.py. May also be a relative filesystem path (./tools/my_tool.py).
            *
            */
           module_path: string;

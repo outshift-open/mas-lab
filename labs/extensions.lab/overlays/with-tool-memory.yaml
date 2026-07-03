@@ -30,7 +30,7 @@ metadata:
 #      NOTE: auto-seeding is not applied in the MAS benchmark path; seed the DB
 #      manually before running or via a pipeline pre-step:
 #        python -c "
-#          from mas.runtime.tools.memory_search_tool import MemoryToolProvider
+#          from mas.library.samples... or manifest ref samples:tools/memory-search.tool.yaml
 #          MemoryToolProvider.seed('$XDG_DATA_HOME/mas/memory/concierge_agent.sqlite', seeds)
 #        "
 #      The seed entries are documented here for reproducibility.
@@ -75,7 +75,7 @@ spec:
         # Add memory-search tool to the concierge only.
         # String name resolved via resolve_standard_tool() → MemoryToolProvider.
         tools:
-          - memory-search
+          - ref: ../tools/memory-search.tool.yaml
         # Override role instructions: add the IMPORTANT memory_usage directive.
         role:
           instructions: |

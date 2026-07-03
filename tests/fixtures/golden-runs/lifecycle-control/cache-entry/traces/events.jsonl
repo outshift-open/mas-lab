@@ -1,4 +1,4 @@
-{"kind": "execution_start", "agent_id": "moderator", "run_id": "run-75e21b81b580", "turn_id": "u1", "call_id": "u1-exec", "input": "What is 2+2? Use the calculator if helpful.", "timestamp": 1782390258.3998568}
-{"kind": "context_assembled", "agent_id": "moderator", "run_id": "run-75e21b81b580", "correlation_id": 0, "timestamp": 1782390258.400413, "finish_reason": "stop"}
-{"kind": "user_response", "agent_id": "moderator", "run_id": "run-75e21b81b580", "turn_id": "u1", "call_id": "u1-resp", "content": "Understood. Regarding your question \u2014 What is 2+2? Use the calculator if helpful. \u2014 here is my best answer based on the available context.", "finish_reason": "stop", "timestamp": 1782390258.4005718}
-{"kind": "execution_end", "agent_id": "moderator", "run_id": "run-75e21b81b580", "turn_id": "u1", "call_id": "u1-exec", "status": "ok", "timestamp": 1782390258.4006279}
+{"kind": "execution_start", "agent_id": "moderator", "run_id": "run-4b10cf77a1fc", "turn_id": "u1", "call_id": "u1-exec", "input": "What is 2+2? Use the calculator if helpful.", "timestamp": 1783039991.237365}
+{"kind": "context_assembled", "agent_id": "moderator", "run_id": "run-4b10cf77a1fc", "correlation_id": 0, "timestamp": 1783039991.241009, "finish_reason": "stop"}
+{"kind": "user_response", "agent_id": "moderator", "run_id": "run-4b10cf77a1fc", "turn_id": "u1", "call_id": "u1-resp", "content": "[mock] What is 2+2? Use the calculator if helpful.", "finish_reason": "stop", "timestamp": 1783039991.24117}
+{"kind": "execution_end", "agent_id": "moderator", "run_id": "run-4b10cf77a1fc", "turn_id": "u1", "call_id": "u1-exec", "status": "ok", "timestamp": 1783039991.24124}

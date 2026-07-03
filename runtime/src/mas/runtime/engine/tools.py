@@ -6,50 +6,16 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
-from mas.runtime.boundary.delegation import delegation_targets, openai_delegation_tools
+from mas.runtime.boundary.delegation import openai_delegation_tools
 
-_TUTORIAL_TOOLS: dict[str, dict[str, Any]] = {
-    "calculator": {
-        "type": "function",
-        "function": {
-            "name": "calculator",
-            "description": "Evaluate a mathematical expression.",
-            "parameters": {
-                "type": "object",
-                "properties": {"expression": {"type": "string"}},
-                "required": ["expression"],
-            },
-        },
-    },
-    "verify_fact": {
-        "type": "function",
-        "function": {
-            "name": "verify_fact",
-            "description": "Verify a factual claim (prices, stocks, market data).",
-            "parameters": {
-                "type": "object",
-                "properties": {"query": {"type": "string"}},
-                "required": ["query"],
-            },
-        },
-    },
-    "web-search": {
-        "type": "function",
-        "function": {
-            "name": "web-search",
-            "description": "Search the web for current information.",
-            "parameters": {
-                "type": "object",
-                "properties": {"query": {"type": "string"}},
-                "required": ["query"],
-            },
-        },
-    },
-}
+if TYPE_CHECKING:
+    from mas.runtime.engine.manifest_tool_provider import ManifestToolProvider
+else:
+    ManifestToolProvider = Any
 
 
 def tool_name_from_ref(ref: str, *, base_dir: Path | None) -> str | None:
@@ -140,25 +106,16 @@ def openai_tools(
     *,
     base_dir: Path | None = None,
     agent_id: str | None = None,
+    tool_provider: ManifestToolProvider | None = None,
 ) -> list[dict[str, Any]]:
-    """Build OpenAI ``tools`` from manifest ``spec.tools`` and MAS delegation topology."""
+    """Build OpenAI ``tools`` from loaded manifest tools and MAS delegation topology."""
     aid = _manifest_agent_id(manifest, agent_id)
     out: list[dict[str, Any]] = list(openai_delegation_tools(manifest, agent_id=aid))
     seen = {t["function"]["name"] for t in out if t.get("function")}
-    for name in tool_names_from_manifest(manifest, base_dir=base_dir):
-        if name in seen:
-            continue
-        if name in _TUTORIAL_TOOLS:
-            out.append(_TUTORIAL_TOOLS[name])
-        else:
-            out.append(
-                {
-                    "type": "function",
-                    "function": {
-                        "name": name,
-                        "description": f"Invoke tool {name}.",
-                        "parameters": {"type": "object", "properties": {}},
-                    },
-                }
-            )
+    if tool_provider is not None:
+        for tool in tool_provider.list_openai_tools():
+            name = tool.get("function", {}).get("name")
+            if name and name not in seen:
+                out.append(tool)
+                seen.add(name)
     return out

@@ -33,6 +33,16 @@ def _resolve_manifest_entry(root: Path, rel: str) -> Path | None:
     return candidate if candidate.exists() else None
 
 
+def _is_app_directory(path: Path) -> bool:
+    """True when *path* is a MAS app root (``mas.yaml`` or standalone agent layout)."""
+    if (path / "mas.yaml").is_file() or (path / "mas-bench.yaml").is_file():
+        return True
+    if (path / "agent.yaml").is_file():
+        return True
+    agents_dir = path / "agents"
+    return agents_dir.is_dir() and any(agents_dir.glob("*.yaml"))
+
+
 def _dataset_keys(path: Path, datasets_dir: Path) -> list[str]:
     keys: list[str] = []
     try:
@@ -62,7 +72,7 @@ def _discover_apps_from_manifest(root: Path, manifest: dict[str, Any]) -> dict[s
         if not isinstance(name, str):
             continue
         path = _resolve_manifest_entry(root, rel)
-        if path is not None and path.is_dir() and (path / "mas.yaml").is_file():
+        if path is not None and path.is_dir() and _is_app_directory(path):
             found[name] = path
     return found
 
@@ -73,7 +83,7 @@ def _discover_apps_from_scan(root: Path) -> dict[str, Path]:
     if not apps_dir.is_dir():
         return found
     for app_dir in sorted(apps_dir.iterdir()):
-        if app_dir.is_dir() and (app_dir / "mas.yaml").is_file():
+        if app_dir.is_dir() and _is_app_directory(app_dir):
             found[app_dir.name] = app_dir.resolve()
     return found
 

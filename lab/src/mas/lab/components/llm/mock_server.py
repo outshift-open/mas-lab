@@ -13,7 +13,12 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from mas.library.standard.mock_llm import load_cache, lookup_response, resolve_cache_path
+from mas.runtime.engine.llm_cache import (
+    assistant_message_from_cache_content,
+    load_cache,
+    lookup_response,
+    resolve_cache_path,
+)
 
 
 def _json_response(handler: BaseHTTPRequestHandler, status: int, payload: Dict[str, Any]) -> None:
@@ -44,13 +49,16 @@ class MockLLMHandler(BaseHTTPRequestHandler):
             payload = {}
         model = str(payload.get("model", "mock"))
         messages = payload.get("messages") if isinstance(payload.get("messages"), list) else []
+        tools = payload.get("tools") if isinstance(payload.get("tools"), list) else None
 
         cache_path = resolve_cache_path()
         cache = load_cache(cache_path)
-        content, usage, source = lookup_response(cache, model, messages)
-        if not content:
-            content = "Mock response missing from cache."
+        content, usage, source = lookup_response(cache, model, messages, tools=tools)
         usage_payload = usage if isinstance(usage, dict) else {}
+        message = assistant_message_from_cache_content(content)
+        if message is None:
+            message = {"role": "assistant", "content": "Mock response missing from cache."}
+        finish_reason = "tool_calls" if message.get("tool_calls") else "stop"
 
         response = {
             "id": "mock-llm",
@@ -60,8 +68,8 @@ class MockLLMHandler(BaseHTTPRequestHandler):
             "choices": [
                 {
                     "index": 0,
-                    "message": {"role": "assistant", "content": content},
-                    "finish_reason": "stop",
+                    "message": message,
+                    "finish_reason": finish_reason,
                 }
             ],
             "usage": usage_payload,

@@ -114,7 +114,7 @@ sections:
 
           `overlays/tools.yaml` patches the base manifest to inject:
           - **`calculator`** — safe arithmetic evaluator
-          - **`verify_fact`** — lightweight fact-checking stub
+          - **`web-search`** — current information lookup
 
           The agent can now call these tools inside its ReAct loop.
 
@@ -307,7 +307,7 @@ sections:
 
           ```
           agent.yaml          minimal agent — model + system prompt
-           + overlays/tools.yaml          → calculator + verify_fact
+           + overlays/tools.yaml          → calculator + web-search
            + overlays/skills.yaml         → structured formatting
            + overlays/memory.yaml         → semantic read/write
            + overlays/memory-seed.yaml    → pre-loaded preferences

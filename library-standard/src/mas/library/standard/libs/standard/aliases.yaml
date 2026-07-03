@@ -12,4 +12,4 @@ spec:
     reflection: introspection@v1
     plan_execute: plan_execute@v1
     tot: tree_of_thoughts@v1
-    memory: memory-semantic@v1
+    memory: semantic_memory@v1

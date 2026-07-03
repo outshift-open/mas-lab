@@ -1,9 +1,0 @@
-{
-  "run_hash": "cd0d75b6da3b1ca0e617",
-  "created_at": "2026-06-25T12:37:18.431213Z",
-  "item_id": "1",
-  "run_idx": 0,
-  "model": "",
-  "api_base": "",
-  "prompt": "What is 2+2? Use the calculator if helpful."
-}

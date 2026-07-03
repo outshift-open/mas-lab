@@ -72,7 +72,7 @@
         },
         "source": {
           "type": "string",
-          "description": "Origin of this manifest (e.g., 'openclaw_workspace' for auto-generated manifests)."
+          "description": "Origin of this manifest (e.g., 'imported_workspace' for auto-generated manifests)."
         },
         "workspace_root": {
           "type": "string",

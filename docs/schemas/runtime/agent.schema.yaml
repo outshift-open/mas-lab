@@ -341,7 +341,7 @@ properties:
                     type: string
                     description: >
                       Compaction strategy name: keep_recent | summarize | chunked_summarize.
-                      chunked_summarize is the OpenClaw-equivalent multi-part strategy.
+                      chunked_summarize splits long context into multiple summarized chunks.
                     default: "keep_recent"
                   reserve_tokens:
                     type: integer
@@ -367,7 +367,8 @@ properties:
                     type: boolean
                     description: >
                       Preserve opaque identifiers (UUIDs, hashes, URLs, file names)
-                      during summarization.  Matches OpenClaw compaction.ts behavior.
+                      Preserve opaque identifiers (UUIDs, hashes, URLs, file names)
+                      during summarization.
                     default: true
                   summarize_instructions:
                     type: string
@@ -484,7 +485,7 @@ properties:
                     enum: [auto, "on", "off"]
                     description: >
                       Citation mode: auto (include when useful), on (always include),
-                      off (strip source info).  Mirrors OpenClaw MemoryCitationsMode.
+                      off (strip source info).  Controls citation presentation for memory results.
                     default: "auto"
                   max_snippet_chars:
                     type: integer
@@ -547,7 +548,7 @@ properties:
                 description: >
                   Compaction retry on context overflow.  When an LLM call fails
                   because the context exceeds the window, automatically compact
-                  and retry.  Mirrors OpenClaw waitForCompactionRetryWithAggregateTimeout.
+                  and retry when context exceeds the model window.
                 additionalProperties: false
                 properties:
                   enabled:
@@ -645,8 +646,8 @@ properties:
 
           Form B — inline anonymous (backward-compatible):
             tools:
-              - module_path: mas.runtime.tools.calculator_tool
-                class_name: CalculatorTool
+              - module_path: library-samples/tools/calc.py
+                class_name: CalcTool
 
           Additive with tools_ref — both may be set simultaneously.
         default: []
@@ -700,7 +701,7 @@ properties:
                 module_path:
                   type: string
                   description: >
-                    Dotted Python module path, e.g. mas.runtime.tools.calculator_tool.
+                    Dotted Python module path, e.g. library-samples/tools/calc.py.
                     May also be a relative filesystem path (./tools/my_tool.py).
                 class_name:
                   type: string

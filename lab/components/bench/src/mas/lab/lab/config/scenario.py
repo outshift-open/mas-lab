@@ -176,8 +176,10 @@ class MASSpec:
     def from_dict(cls, data: Dict[str, Any], base_dir: Path) -> "MASSpec":
         # ── app: <name>  (preferred — resolves from mas.apps registry) ──────
         if "app" in data:
-            from mas.apps import get_app
-            manifest = get_app(data["app"]) / "mas.yaml"
+            from mas.apps import get_app, resolve_app_manifest
+
+            app_root = get_app(data["app"])
+            manifest = resolve_app_manifest(app_root, app_id=str(data["app"]))
             configs_dir: Optional[Path] = None
             if "configs_dir" in data:
                 configs_dir = resolve_path_ref(str(data["configs_dir"]), base_dir)

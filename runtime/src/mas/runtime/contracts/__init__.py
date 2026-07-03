@@ -30,6 +30,7 @@ from mas.runtime.contracts.protocols import (
     MealyPlugin,
     ObservabilitySink,
 )
+from mas.runtime.contracts.tool_contract import ToolContract
 
 __all__ = [
     "BasePlugin",
@@ -54,4 +55,5 @@ __all__ = [
     "ObservabilitySink",
     "OrchestrationContract",
     "PolicyViolation",
+    "ToolContract",
 ]

@@ -7,7 +7,7 @@ description: >
   reproducible analysis pipelines on events.jsonl.
 version: "1.0"
 authors: ["MAS Framework Team"]
-tags: ["observability", "graph", "otel", "trajectory", "pipeline"]
+tags: ["observability", "trajectory", "pipeline"]
 estimated_duration_min: 30
 prerequisites:
   - "Tutorial 0: labs_dir / cache_dir in $XDG_CONFIG_HOME/mas/config.yaml"
@@ -54,7 +54,7 @@ sections:
           - `tool_call_start` / `tool_call_end` — every tool invocation
 
           The fixture below was captured from a **ReAct** agent running two tools:
-          `calculator` and `verify_fact`.
+          `calculator`.
 
       - type: command
         title: "telemetry show — event summary"
@@ -116,11 +116,8 @@ sections:
         title: "From manual to pipeline"
         content: |
           Part A showed telemetry and plot commands on `events.jsonl`.
-          **Part B** captures post-benchmark analysis in `pipelines/analysis.yaml`.
-
-          Knowledge-graph normalization and OTel export (`mas-lab graph`) are
-          not part of this open-source repository. OSS pipelines use telemetry,
-          plots, and benchmarks on `events.jsonl` directly.
+          **Part B** captures post-benchmark analysis in `pipelines/analysis.yaml`
+          (telemetry, plots, and eval steps on `events.jsonl` directly).
 
           Run once, re-run consistently for every new benchmark.
 

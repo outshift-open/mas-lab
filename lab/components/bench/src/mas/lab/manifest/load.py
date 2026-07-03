@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from mas.ctl.compose.runner import ComposeRequest, compose_run
-from mas.ctl.overlay import apply_merge_patch, merge_agent_overlay, normalize_overlay
+from mas.ctl.overlay import apply_merge_patch
 from mas.ctl.runtime_cli import load_merged_agent_manifest
 from mas.ctl.validate import validate_file, validation_enabled
 from mas.runtime.spec.source import load_yaml_mapping, resolve_yaml_path
@@ -90,6 +90,10 @@ def load_mas_config(
     validate: bool = False,
 ) -> LoadedMAS:
     """Load mas.yaml via compose; expand agency refs into runtime ``_raw`` dict."""
+    doc = load_yaml_mapping(mas_path)
+    if str((doc or {}).get("kind", "")).lower() == "agent":
+        return _loaded_mas_from_agent(mas_path, doc or {})
+
     if validate and validation_enabled():
         validate_file(mas_path, kind="mas").raise_if_failed()
     result = compose_run(
@@ -134,6 +138,28 @@ def load_mas_config(
     return LoadedMAS(_raw=raw, path=mas_path)
 
 
+def _loaded_mas_from_agent(agent_path: Path, doc: dict[str, Any]) -> LoadedMAS:
+    base_dir = agent_path.parent
+    entry_id = str((doc.get("metadata") or {}).get("name") or agent_path.stem)
+    agent_row = _agent_runtime_dict(doc, agent_id=entry_id, agent_dir=base_dir)
+    raw = {
+        "mas": {
+            "id": entry_id,
+            "version": (doc.get("metadata") or {}).get("version", "0.1.0"),
+            "description": (doc.get("metadata") or {}).get("description", ""),
+            "entry_agent": entry_id,
+        },
+        "agents": [agent_row],
+        "workflow": {
+            "type": "dynamic",
+            "entry": entry_id,
+            "nodes": [{"id": entry_id, "role": "specialist"}],
+        },
+        "capabilities": (doc.get("spec") or {}).get("capabilities") or {},
+    }
+    return LoadedMAS(_raw=raw, path=agent_path)
+
+
 def load_agent_for_bench(
     mas_path: Path,
     overlay_paths: list[Path] | None = None,
@@ -141,6 +167,19 @@ def load_agent_for_bench(
     validate: bool = False,
 ) -> tuple[dict[str, Any], Path]:
     """Return agent manifest dict + path for MasBenchRunner / SessionController."""
+    doc = load_yaml_mapping(mas_path)
+    if str((doc or {}).get("kind", "")).lower() == "agent":
+        overlays = tuple(str(p) for p in (overlay_paths or []))
+        agent, _ = load_merged_agent_manifest(
+            mas_path,
+            overlays=overlays,
+            validate=validate,
+            manifest_dir=mas_path.parent.parent
+            if mas_path.parent.name == "agents"
+            else mas_path.parent,
+        )
+        return agent or {}, mas_path
+
     overlays = tuple(str(p) for p in (overlay_paths or []))
     result = compose_run(
         ComposeRequest(
@@ -157,10 +196,6 @@ def load_agent_for_bench(
         validate=validate,
         manifest_dir=mas_path.parent,
     )
-    for ov in overlay_paths or []:
-        ov_doc = normalize_overlay(load_yaml_mapping(ov))
-        if ov_doc.get("kind", "").lower() == "overlay":
-            agent = merge_agent_overlay(agent or {}, ov_doc)
     return agent or {}, agent_path
 
 

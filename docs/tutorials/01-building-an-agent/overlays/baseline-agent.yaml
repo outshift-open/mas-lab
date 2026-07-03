@@ -8,5 +8,5 @@ metadata:
 spec:
   patch:
     tools:
-      - web-search
-      - calculator
+      - ref: samples:tools/web-search.tool.yaml
+      - ref: samples:tools/calc.tool.yaml

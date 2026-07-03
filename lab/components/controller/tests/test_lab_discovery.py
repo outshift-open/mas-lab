@@ -47,8 +47,10 @@ def nested_lab(tmp_path: Path) -> Path:
 
     app_dir = lab / "apps" / "qa-agent"
     app_dir.mkdir(parents=True)
-    (app_dir / "mas.yaml").write_text(
-        "apiVersion: mas/v1\nkind: MAS\nmetadata:\n  name: qa-agent\nspec:\n  agents: []\n",
+    agents = app_dir / "agents"
+    agents.mkdir()
+    (agents / "qa-agent.yaml").write_text(
+        "apiVersion: mas/v1\nkind: Agent\nmetadata:\n  name: qa-agent\nspec:\n  models: []\n",
         encoding="utf-8",
     )
     return lab
@@ -115,7 +117,7 @@ def test_nested_mas_yaml_discovery(nested_lab: Path):
 
     resources = reg.collect_mas_resources("design-space")
     assert "qa-agent" in resources
-    assert resources["qa-agent"]["path"] == "apps/qa-agent/mas.yaml"
+    assert resources["qa-agent"]["path"] == "apps/qa-agent/agents/qa-agent.yaml"
     reset_lab_registry()
 
 

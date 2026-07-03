@@ -472,7 +472,23 @@ class LabRegistry:
                 if not app_folder.is_dir():
                     continue
                 mas_file = app_folder / "mas.yaml"
+                agents_dir = app_folder / "agents"
                 if not mas_file.exists():
+                    from mas.apps import resolve_app_manifest
+
+                    try:
+                        agent_manifest = resolve_app_manifest(app_folder, app_id=app_folder.name)
+                    except Exception:
+                        continue
+                    entry = {
+                        "agents": {},
+                        "path": str(agent_manifest.relative_to(lib_dir)),
+                    }
+                    if agent_manifest.is_file():
+                        entry["agents"][agent_manifest.stem] = agent_manifest.read_text(
+                            encoding="utf-8"
+                        )
+                    result[app_folder.name] = entry
                     continue
                 mas_name = app_folder.name
                 entry: Dict[str, Any] = {

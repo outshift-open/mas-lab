@@ -77,7 +77,7 @@ properties:
               type: [string, "null"]
               description: >
                 Fully-qualified Python module path (importlib-style).
-                E.g. mas.runtime.tools.calculator_tool.
+                E.g. library-samples/tools/calc.py or ./calc.py.
                 Required unless the tool is mock-only (testing).
               default: null
 

@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Any
+from typing import TYPE_CHECKING, Any
 
 from mas.runtime.boundary.context.dp_inject import inject_dp_protocol
 from mas.runtime.boundary.context.working_memory import WorkingMemoryStore
@@ -27,7 +27,6 @@ class AutoCtxAssembler:
     turn_history: list[tuple[str, str]] = field(default_factory=list)
     committed_messages: list[dict[str, Any]] = field(default_factory=list)
     working_memory: WorkingMemoryStore = field(default_factory=WorkingMemoryStore)
-    apple_topic: str = "unset"  # unset | fruit | company
     pattern_plugin_id: str = "react@v1"
     runtime_params: dict[str, Any] = field(default_factory=dict)
     q_product: QProduct | None = None
@@ -48,7 +47,6 @@ class AutoCtxAssembler:
         self.working_memory.clear()
         self.last_user_text = ""
         self.turn_index = 0
-        self.apple_topic = "unset"
         self.runtime_params = {}
         from mas.runtime.boundary.context.telemetry import record_context_mutation
 
@@ -78,7 +76,6 @@ class AutoCtxAssembler:
             turn_index=self.turn_index,
             committed_count=len(self.committed_messages),
         )
-        self._infer_topic_from_user(text)
 
     def note_agent_response(self, text: str) -> None:
         from mas.runtime.boundary.context.telemetry import record_context_mutation
@@ -153,21 +150,6 @@ class AutoCtxAssembler:
 
     def record_assistant_message(self, content: str) -> None:
         self.working_memory.record_assistant_message(content)
-
-    def _infer_topic_from_user(self, text: str) -> None:
-        t = text.lower()
-        if any(p in t for p in ("meant the company", "the company", "not the fruit", "aapl", "stock price")):
-            self.apple_topic = "company"
-        elif any(p in t for p in ("meant the fruit", "the fruit", "not the company", "per pound", "grocery")):
-            self.apple_topic = "fruit"
-
-    def last_apple_question(self) -> str:
-        for user_q, _ in reversed(self.turn_history):
-            if "apple" in user_q.lower():
-                return user_q
-        if "apple" in self.last_user_text.lower():
-            return self.last_user_text
-        return ""
 
     def complete(self, request: RequestCtxAssembly) -> CtxAssemblyComplete:
         if request.operator_context:

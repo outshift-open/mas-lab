@@ -11,7 +11,7 @@ intent:
   summary: >
     Single-agent QA system for Tutorial 03 — Plugins & Observability.
     The qa-agent-t3 answers general knowledge questions using the
-    calculator and verify_fact tools, with configurable design patterns.
+    calculator tool, with configurable design patterns.
 
 spec:
   agency:

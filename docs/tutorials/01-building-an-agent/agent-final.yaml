@@ -31,7 +31,7 @@ spec:
     role: |
       Answer questions clearly and concisely.
     tool_usage: |
-      When you need to perform calculations, use the calculator tool.
+      When you need to perform calculations, use the calc tool.
       When you need current information from the web, use the web_search tool.
     memory_usage: |
       IMPORTANT — You have a long-term memory.  Relevant memories are shown
@@ -52,9 +52,9 @@ spec:
   # ── Tools (from tools overlay + memory overlay, deduplicated) ─────────────
   # memory-search provider exposes: memory_search, memory_get, memory_store
   tools:
-    - web-search
-    - calculator
-    - memory-search
+    - ref: samples:tools/web-search.tool.yaml
+    - ref: samples:tools/calc.tool.yaml
+    - ref: samples:tools/memory-search.tool.yaml
 
   # ── Memory (from memory overlay) ─── ephemeral (in-memory, no filesystem)
   memory: semantic
