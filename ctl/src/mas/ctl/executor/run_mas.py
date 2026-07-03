@@ -9,8 +9,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from mas.ctl.compose.models import ResolvedInfra
-from mas.ctl.compose.pipeline import compose_application, compose_effective_bind, compose_placement_from_deployment
 from mas.ctl.compose.placement_registry import get_placement_backend
 from mas.ctl.compose.runner import ComposeRequest, compose_run
 from mas.ctl.deployment.runtime_id import DEFAULT_RUNTIME_ID
@@ -69,15 +67,8 @@ def execute_run_mas(
     if runtime_params:
         stage_runtime_params(runtime_params)
 
-    composed = compose_application(result.mas_config, mas_id=result.mas_id)
-    plan = compose_placement_from_deployment(result.deployment, composed)
-    bind = compose_effective_bind(
-        composed,
-        result.resolved_infra or ResolvedInfra(refs=result.infra_refs),
-        plan,
-        deployment_name=result.deployment.get("metadata", {}).get("name", "local-inproc"),
-        mas_base_dir=manifest.parent,
-    )
+    bind = result.bind
+    plan = result.plan
     materialized = get_placement_backend(plan.strategy).materialize(bind, plan)
 
     if getattr(materialized, "bus", None) is not None:
@@ -124,6 +115,7 @@ def execute_run_mas(
         agent_manifest or {},
         result.mas_config,
         manifest_dir=entry_manifest_dir,
+        mas_base_dir=base,
     )
     wire_entry_engine_delegation(
         getattr(getattr(instance, "driver", None), "engine", None),
@@ -136,6 +128,8 @@ def execute_run_mas(
             from_agent=str(entry or ""),
         ),
         entry_agent_id=str(entry or ""),
+        mas_config=result.mas_config,
+        mas_base_dir=base,
     )
     if runtime_params:
         apply_runtime_params_to_instance(runtime_params, instance)
@@ -241,9 +235,24 @@ def _make_workflow_send(
             raise KeyError(f"agent {agent_id!r} not materialized (have: {list(materialized.instances)})")
         if hasattr(instance.driver, "agent_id"):
             instance.driver.agent_id = agent_id
+        sub_display = display
+        if from_agent and agent_id != from_agent:
+            import sys
+
+            from mas.ctl.ui.stdout import StdoutConversationDisplay
+
+            base = display if isinstance(display, StdoutConversationDisplay) else None
+            sub_display = StdoutConversationDisplay(
+                out=getattr(base, "_out", sys.stdout),
+                err=getattr(base, "_err", sys.stderr),
+                agent_label=agent_id,
+                verbose=verbose,
+                show_labels=True,
+                user_prompt_echoed=True,
+            )
         controller = SessionController(
             instance=instance,
-            display=display,
+            display=sub_display,
             verbose=verbose,
             agent_id=agent_id,
             config=ConversationConfig(single_turn=True),

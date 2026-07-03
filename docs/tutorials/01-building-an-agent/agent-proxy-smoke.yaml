@@ -4,15 +4,14 @@
 # (provider-prefixed model ids such as azure/* are passed through).
 apiVersion: mas/v1
 kind: Agent
-
 metadata:
   name: qa-agent
-
 spec:
   models:
-    - model: azure/gpt-4o-mini
-
+  - model: azure/gpt-4o-mini
   context:
-    intent: "Answer general knowledge questions."
-    role: |
-      Answer questions clearly and concisely.
+    intent: Answer general knowledge questions.
+    role: 'Answer questions clearly and concisely.
+
+      '
+  description: Answer general knowledge questions.

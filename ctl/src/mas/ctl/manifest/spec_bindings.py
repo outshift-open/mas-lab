@@ -291,20 +291,11 @@ def _as_str_list(raw: Any, *, field: str) -> list[str]:
 
 
 def validate_agent_spec_bindings(spec: Any) -> None:
-    """Reject unknown top-level spec keys that are not contract bindings."""
+    """Validate shapes of present contract bindings (schema defines allowed keys)."""
     if spec is None:
         return
     if not isinstance(spec, dict):
         raise SpecBindingError(f"spec must be an object, got {type(spec).__name__}")
-    allowed = _AGENT_SPEC_KEYS
-    for key in spec:
-        if key.startswith("x-"):
-            continue
-        if key not in allowed:
-            raise SpecBindingError(
-                f"spec.{key}: not a recognized contract binding "
-                "(see docs/design/spec-contract-bindings.md)"
-            )
     if "governance" in spec:
         parse_governance(spec["governance"])
     if "observability" in spec:
@@ -322,43 +313,3 @@ def validate_agent_spec_bindings(spec: Any) -> None:
     if "context_manager" in spec:
         parse_context_manager(spec["context_manager"])
     parse_infra_lists(spec)
-
-
-_AGENT_SPEC_KEYS = frozenset(
-    {
-        "context",
-        "description",
-        "intent",
-        "role",
-        "models",
-        "model",
-        "system_prompt",
-        "tools",
-        "skills",
-        "tools_remove",
-        "plugins",
-        "memory",
-        "memory_params",
-        "memory_seed",
-        "design_pattern",
-        "capabilities",
-        "delegation",
-        "collaboration",
-        "context_manager",
-        "behavior",
-        "governance",
-        "llm",
-        "execution",
-        "control",
-        "observability",
-        "infra_refs",
-        "infra_interceptors",
-        "mocking",
-        "params",
-        "context_policy",
-        "telemetry",
-        "workflow",
-        "agents",
-        "tool_usage",
-    }
-)

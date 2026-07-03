@@ -35,7 +35,7 @@ def test_validate_manifest_in_process(client):
         json={
             "manifest_yaml": (
                 "apiVersion: mas/v1\nkind: Agent\nmetadata: {}\n"
-                "spec:\n  role:\n    description: d\n    instructions: i\n"
+                "spec:\n  description: d\n  context:\n    role: i\n"
                 "  design_pattern:\n    type: react\n"
             ),
         },

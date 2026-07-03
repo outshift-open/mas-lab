@@ -11,6 +11,7 @@ from typing import Any
 
 import yaml
 
+from mas.ctl.validate.schema_errors import humanize_schema_error
 from mas.ctl.validate.schemas import declared_kind, load_schema, schema_path_for_kind
 from mas.ctl.validate.refs import check_refs, resolve_refs_enabled
 from mas.ctl.validate.separation import check_separation
@@ -54,7 +55,7 @@ def validate_data(
     base_dir: Path | None = None,
     resolve_refs: bool | None = None,
 ) -> ValidationResult:
-    """Validate manifest dict against JSON Schema Draft-07 + separation + refs."""
+    """Validate manifest dict against JSON Schema Draft-07, binding shapes, separation, refs."""
     if strict is None:
         strict = strict_mode()
     resolved_kind = kind or declared_kind(data)
@@ -85,7 +86,7 @@ def validate_data(
     for err in sorted(validator.iter_errors(data), key=lambda e: list(e.path)):
         path = ".".join(str(p) for p in err.path) or "(root)"
         level = "error" if strict else "warning"
-        result.issues.append(ValidationIssue(level, err.message, path=path))
+        result.issues.append(ValidationIssue(level, humanize_schema_error(err), path=path))
 
     if any(i.level == "error" for i in result.issues):
         result.ok = False

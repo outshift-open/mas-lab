@@ -6,11 +6,11 @@ metadata:
   name: generalist
   version: 0.1.0
 spec:
-  role:
-    description: >
-      Single generalist trip planner — handles schedule lookups, route planning,
-      fare estimation, and itinerary assembly without delegation.
-    instructions: |
+  description: |
+    Single generalist trip planner — handles schedule lookups, route planning,
+    fare estimation, and itinerary assembly without delegation.
+  context:
+    role: |
       You are an all-in-one trip planner for the Arborian Network.
 
       You have four tools at your disposal:
@@ -44,7 +44,3 @@ spec:
     - transport-schedule-lookup
     - route-planning
     - fare-and-itinerary-assembly
-  intent: >
-    Trip Planner Generalist — single agent that handles the entire trip planning
-    workflow: schedule lookup, route planning, fare estimation, and itinerary
-    assembly for cities in the Arborian Network.

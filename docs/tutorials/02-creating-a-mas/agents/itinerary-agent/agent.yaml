@@ -6,17 +6,6 @@ metadata:
   name: itinerary_agent
   version: 0.1.0
 spec:
-  role:
-    description: 'Route planner and itinerary specialist.
-
-      '
-    instructions: |
-      You are an itinerary specialist. You have access to the query_graph_database
-      tool which queries a graph of cities and returns feasible paths with their
-      travel times.
-
-      Use this tool to find feasible routes and their corresponding average travel
-      times. Present your findings clearly.
   models:
   - id: main
     model: gpt-4o
@@ -28,5 +17,15 @@ spec:
   - route-planning
   tools:
   - ref: ../../tools/query_graph_database.tool.yaml
-  intent: Itinerary Agent — performs graph-based route planning across the Arborian Network. Receives a RouteRequest and enumerates
-    optimal paths between origin and destination, comparing connections on travel time or total cost.
+  description: Route planner and itinerary specialist.
+  context:
+    role: 'You are an itinerary specialist. You have access to the query_graph_database
+
+      tool which queries a graph of cities and returns feasible paths with their
+
+      travel times.
+
+
+      Use this tool to find feasible routes and their corresponding average travel
+
+      times. Present your findings clearly.'

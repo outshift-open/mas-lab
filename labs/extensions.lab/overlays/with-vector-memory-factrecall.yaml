@@ -40,8 +40,8 @@ spec:
         tools:
           - ref: ../tools/memory-search.tool.yaml
 
-        role:
-          instructions: |
+        context:
+          role: |
             You are a moderator coordinating a team of specialized agents:
             schedule_agent (timetables), itinerary_agent (routes and plans),
             and concierge_agent (fares and prices).

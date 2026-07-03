@@ -37,7 +37,7 @@ API id (controller): `agent`, `mas`, `overlay`, `workflow`, `flavour`, `tool`, `
 |------|---------|
 | `Tool` | Single tool definition (parameters, implementation ref) |
 | `ToolBundle` | Bundle of tool entries |
-| `PromptBundle` | Named prompts for `instructions_ref` XPointer / `@lib#key` |
+| `PromptBundle` | Named prompts for `context.*` `{ref: ...}` / `@lib#key` |
 
 Agents reference tools by **semantic name** or inline definition; infra `ToolRegistry` maps
 logical ids to JSON index files.

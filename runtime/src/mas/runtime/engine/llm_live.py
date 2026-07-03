@@ -50,6 +50,7 @@ class LiveLlmEngine:
     llm_proxy: dict[str, Any] | None = None
     manifest_dir: Path | None = None
     delegation: Any | None = None
+    delegation_peer_descriptions: dict[str, str] | None = None
     tool_provider: Any | None = None
     _cache: dict[str, Any] = field(default_factory=dict, init=False)
     _pending_tool: str = field(default="", init=False)
@@ -101,6 +102,7 @@ class LiveLlmEngine:
                     self.manifest,
                     base_dir=self.manifest_dir,
                     tool_provider=self.tool_provider,
+                    peer_descriptions=self.delegation_peer_descriptions,
                 )
                 if self.use_tool_loop
                 else []
@@ -180,6 +182,7 @@ class LiveLlmEngine:
                 self.manifest,
                 base_dir=self.manifest_dir,
                 tool_provider=self.tool_provider,
+                peer_descriptions=self.delegation_peer_descriptions,
             )
             if self.use_tool_loop
             else []

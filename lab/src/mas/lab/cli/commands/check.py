@@ -16,7 +16,7 @@ import click
               help="Base directory for resolving relative file references.")
 @click.option("--strict/--no-strict", default=True, show_default=True,
               help="Strict mode (default): warn on missing recommended fields "
-                   "(spec.role.description, spec.design_pattern, metadata.description). "
+                   "(spec.description, spec.design_pattern, metadata.description). "
                    "Use --no-strict to suppress those warnings.")
 def check_cmd(mas_spec: Path, verbose: int, base_dir: Path | None,
               strict: bool) -> None:

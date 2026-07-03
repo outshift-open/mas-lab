@@ -21,6 +21,8 @@ metadata:
   description: "Tutorial 1 — Q&A agent"
 
 spec:
+  description: Answer general knowledge questions.
+
   # ── Model (from agent.yaml) ─────────────────────────────────────────────
   models:
     - model: gpt-4o-mini
@@ -32,7 +34,7 @@ spec:
       Answer questions clearly and concisely.
     tool_usage: |
       When you need to perform calculations, use the calc tool.
-      When you need current information from the web, use the web_search tool.
+      When you need current information from the web, use the web-search tool.
     memory_usage: |
       IMPORTANT — You have a long-term memory.  Relevant memories are shown
       in the "Semantic Memory" section of this system prompt.  You MUST read

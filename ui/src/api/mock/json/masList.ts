@@ -2,7 +2,7 @@
 //  SPDX-License-Identifier: Apache-2.0
 import type { MASManifest } from "@/types/mas-types";
 
-export const masList: MASManifest[] = [
+export const masList = [
   {
     apiVersion: "mas/v1",
     kind: "MAS",
@@ -51,9 +51,10 @@ export const masList: MASManifest[] = [
       workflow: {
         type: "sequential",
         entry: "schedule_agent",
-        edges: [
-          { from: "schedule_agent", to: ["itinerary_agent"] },
-          { from: "itinerary_agent", to: ["concierge_agent"] },
+        nodes: [
+          { id: "schedule_agent" },
+          { id: "itinerary_agent" },
+          { id: "concierge_agent" },
         ],
       },
     },
@@ -104,4 +105,4 @@ export const masList: MASManifest[] = [
       },
     },
   },
-];
+] satisfies MASManifest[];

@@ -71,7 +71,7 @@ export interface OverlayData {
     string,
     {
       design_pattern?: { type: string; config?: { max_steps?: number } };
-      role?: { instructions?: string };
+      context?: { role?: string; intent?: string; tool_usage?: string };
       tools?: ToolRefEntry[];
       tools_remove?: ToolRefEntry[];
     }

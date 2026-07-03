@@ -38,7 +38,10 @@ class MasRuntimeRunner(ApplicationRunnerProtocol):
     ) -> RunResult:
         from mas.ctl.benchmark.runner import MasBenchRunner
         from mas.ctl.deployment.runtime_id import DEFAULT_RUNTIME_ID
-        from mas.lab.manifest.load import load_agent_for_bench
+        from mas.lab.manifest.load import (
+            load_agent_for_bench,
+            merge_stacked_entry_agent_manifest,
+        )
         from mas.ctl.runtime_cli import load_merged_agent_manifest
 
         self._write_params_sidecar(config, spec_path)
@@ -73,6 +76,9 @@ class MasRuntimeRunner(ApplicationRunnerProtocol):
             else:
                 agent_path = spec_path
                 agent_cfg, _ = load_merged_agent_manifest(spec_path, validate=False)
+
+        if config.get("agents"):
+            agent_cfg = merge_stacked_entry_agent_manifest(agent_cfg, config)
 
         _spec = agent_cfg.get("spec") or {}
         _infra = list(kwargs.get("infra_refs") or [])

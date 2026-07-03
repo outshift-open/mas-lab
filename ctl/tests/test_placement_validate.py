@@ -40,8 +40,7 @@ kind: Agent
 metadata:
   name: solo
 spec:
-  role:
-    description: test
+  description: test
   models:
     - model: mock
 """,

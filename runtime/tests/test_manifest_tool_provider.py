@@ -2,6 +2,7 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Manifest tool provider tests."""
 
+import copy
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ import yaml
 
 from mas.runtime.engine.manifest_tool_provider import (
     ManifestToolLoadError,
+    attach_manifest_tools,
     build_manifest_tool_provider,
 )
 from mas.runtime.engine.tool_dispatch import ToolExecutionError, execute_engine_tool
@@ -70,6 +72,63 @@ def test_openai_tools_uses_provider(calculator_tool_tree: Path):
     provider = build_manifest_tool_provider(manifest["spec"]["tools"], calculator_tool_tree)
     tools = openai_tools(manifest, tool_provider=provider)
     assert tools[0]["function"]["name"] == "calculator"
+
+
+def test_attach_manifest_tools_respects_tools_remove(calculator_tool_tree: Path):
+    from mas.runtime.engine.llm_live import LiveLlmEngine
+
+    manifest = {
+        "spec": {
+            "tools": [{"ref": "tools/calculator.tool.yaml"}],
+            "tools_remove": ["calculator"],
+        }
+    }
+    original = copy.deepcopy(manifest)
+    engine = LiveLlmEngine(manifest=manifest)
+    provider = attach_manifest_tools(engine, manifest, calculator_tool_tree)
+    assert provider is None
+    assert engine.tool_provider is None
+    assert manifest == original
+
+    manifest_by_ref = {
+        "spec": {
+            "tools": [{"ref": "tools/calculator.tool.yaml"}],
+            "tools_remove": [{"ref": "tools/calculator.tool.yaml"}],
+        }
+    }
+    engine2 = LiveLlmEngine(manifest=manifest_by_ref)
+    assert attach_manifest_tools(engine2, manifest_by_ref, calculator_tool_tree) is None
+
+
+def test_tools_with_resolved_names_deep_copies_when_unchanged():
+    from mas.runtime.engine.tools import tools_with_resolved_names
+
+    original = [{"name": "calc"}]
+    result = tools_with_resolved_names(original, Path.cwd())
+    assert result == original
+    assert result is not original
+    assert result[0] is not original[0]
+
+
+def test_tool_name_from_ref_resolves_library_scheme(require_samples_library):
+    from mas.runtime.engine.tools import tool_name_from_ref
+
+    assert tool_name_from_ref("samples:tools/calc.tool.yaml", base_dir=Path.cwd()) == "calc"
+
+
+def test_attach_manifest_tools_removes_library_scheme_tool_by_name(require_samples_library):
+    from mas.runtime.engine.llm_live import LiveLlmEngine
+
+    manifest = {
+        "spec": {
+            "tools": [{"ref": "samples:tools/calc.tool.yaml"}],
+            "tools_remove": ["calc"],
+        }
+    }
+    original = copy.deepcopy(manifest)
+    engine = LiveLlmEngine(manifest=manifest)
+    assert attach_manifest_tools(engine, manifest, Path(__file__).resolve().parent) is None
+    assert manifest == original
 
 
 def test_bare_tool_name_rejected(tmp_path: Path):

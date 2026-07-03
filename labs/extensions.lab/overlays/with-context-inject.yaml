@@ -13,11 +13,11 @@ metadata:
 # Corresponds to the overlay/context-manager pattern from Tutorial 1:
 #   docs/tutorials/01-building-an-agent/overlays/context-manager.yaml
 # which adds static background to the system prompt via spec.context.background.
-# Here we use the MAS per-agent override path (spec.patch.agents.<id>.role)
+# Here we use the MAS per-agent override path (spec.patch.agents.<id>.context.role)
 # because the tutorial overlay format works for single-agent manifests only.
 #
 # What this overlay does:
-#   spec.patch.agents.concierge_agent.role.instructions → extends the concierge
+#   spec.patch.agents.concierge_agent.context.role → extends the concierge
 #   system prompt with Alex's full traveler profile as a hardcoded block.
 #   No SemanticMemoryPlugin.  No memory_search.  No tool overhead.
 #
@@ -34,8 +34,8 @@ spec:
   patch:
     agents:
       concierge_agent:
-        role:
-          instructions: |
+        context:
+          role: |
             You can look up the prices (fares) for trains and air routes.
             You have access to two tools: get_fares for looking up fares,
             and calc for calculations.

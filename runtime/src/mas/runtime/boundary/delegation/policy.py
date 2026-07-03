@@ -76,13 +76,22 @@ def parse_delegate_tool_name(tool_name: str) -> str | None:
     return target or None
 
 
-def openai_delegation_tools(manifest: dict | None, *, agent_id: str | None = None) -> list[dict[str, Any]]:
+def openai_delegation_tools(
+    manifest: dict | None,
+    *,
+    agent_id: str | None = None,
+    peer_descriptions: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    descriptions: dict[str, str] = {}
+    if peer_descriptions:
+        descriptions.update({str(k): str(v) for k, v in peer_descriptions.items() if v})
     return [
         {
             "type": "function",
             "function": {
                 "name": delegate_tool_name(peer),
-                "description": f"Delegate a sub-task to agent {peer}.",
+                "description": descriptions.get(peer)
+                or f"Delegate a sub-task to agent {peer}.",
                 "parameters": _DELEGATE_PARAMS,
             },
         }

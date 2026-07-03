@@ -162,8 +162,8 @@ def materialize_config(config: dict, base_path: "Path | None") -> dict:
             → stripped (machine-local absolute path, not part of behaviour).
       - ``agents[*].spec_tools[*]`` where entry has a ``ref`` key
             → ``{_ref: <original-ref>, _content: <parsed-YAML>}``.
-      - ``agents[*].role_instructions_ref``
-            → inlined as ``role_instructions`` (raw text); ref key removed.
+      - ``agents[*].context.role`` where value is ``{ref: …}``
+            → inlined as raw text on ``context.role``; ref object removed.
       - ``agents[*].skills_dir``
             → inlined as ``_skills: {"rel/path.md": text, …}`` (sorted);
               ``skills_dir`` key removed.
@@ -220,12 +220,24 @@ def materialize_config(config: dict, base_path: "Path | None") -> dict:
                     inlined.append(entry)
             agent["spec_tools"] = inlined
 
-        # role_instructions_ref → inline as role_instructions text.
-        instr_ref = agent.pop("role_instructions_ref", None)
-        if instr_ref and "role_instructions" not in agent:
-            text = _read_text(_resolve(instr_ref, agent_dir))
-            if text is not None:
-                agent["role_instructions"] = text
+        # context.role {ref: …} → inline text for stable trace fingerprint.
+        ctx = agent.get("context")
+        if isinstance(ctx, dict):
+            role = ctx.get("role")
+            if isinstance(role, dict) and role.get("ref"):
+                text = _read_text(_resolve(str(role["ref"]), agent_dir))
+                if text is not None:
+                    inlined_ctx = dict(ctx)
+                    inlined_ctx["role"] = text
+                    agent["context"] = inlined_ctx
+            elif isinstance(role, str) and (
+                role.startswith("./") or role.startswith("../")
+            ):
+                text = _read_text(_resolve(role, agent_dir))
+                if text is not None:
+                    inlined_ctx = dict(ctx)
+                    inlined_ctx["role"] = text
+                    agent["context"] = inlined_ctx
 
         # skills_dir → inline all .md files as a sorted content map.
         skills_dir_ref = agent.pop("skills_dir", None)

@@ -21,9 +21,9 @@ kind: Agent
 metadata:
   name: t
 spec:
-  role:
-    description: d
-    instructions: i
+  description: d
+  context:
+    role: i
   design_pattern:
     type: react
 """
@@ -39,9 +39,9 @@ apiVersion: mas/v1
 kind: Agent
 metadata: {}
 spec:
-  role:
-    description: d
-    instructions: i
+  description: d
+  context:
+    role: i
   design_pattern:
     type: react
 """

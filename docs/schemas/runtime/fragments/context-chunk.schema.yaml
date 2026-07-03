@@ -1,0 +1,26 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#context-chunk"
+title: ContextChunk
+description: >
+  One named system-prompt chunk under spec.context.
+
+  Inline string — injected as literal text unless it resolves to an existing file
+  under the agent manifest directory (e.g. ./prompts/role.md, prompts/role.md, or
+  any path where base_dir/value is a regular file). Missing explicit path strings
+  (./ or ../ prefix, or an existing file match) are treated as inline text.
+
+  Object form — {ref: path} always loads the file; raises at bootstrap when the
+  path is missing.
+oneOf:
+  - type: string
+  - type: object
+    additionalProperties: false
+    required: [ref]
+    properties:
+      ref:
+        type: string
+        description: >
+          File path relative to the agent manifest directory. Must exist;
+          missing refs fail bootstrap with ContextRefNotFoundError.

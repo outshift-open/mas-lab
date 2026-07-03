@@ -39,11 +39,13 @@ def test_resolve_skill_exact_name_under_skills_dir(tmp_path):
     assert path.name == "SKILL.md"
 
 
-def test_resolve_skill_rejects_name_mismatch(tmp_path):
+def test_resolve_skill_normalizes_underscore_slug(tmp_path):
     skill_dir = tmp_path / "skills" / "triage-protocol"
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text("# Triage", encoding="utf-8")
-    assert resolve_skill_path("triage_protocol", base_dir=tmp_path) is None
+    path = resolve_skill_path("triage_protocol", base_dir=tmp_path)
+    assert path is not None
+    assert path.name == "SKILL.md"
 
 
 def test_inject_skills_raises_when_missing(tmp_path):

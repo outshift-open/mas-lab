@@ -226,9 +226,21 @@ export const MasTable = ({
               }}
             >
               <Tags
-                tags={((spec?.agency?.agents ?? spec?.agents)?.map((agent: { id?: string }) => agent.id ?? "") ?? [])
-                  .filter((agent: string) => Boolean(agent))
-                  .map((agent: string) => ({ name: agent }))}
+                tags={((spec?.agency?.agents ?? spec?.agents)
+                  ?.map((agent) =>
+                    typeof agent === "object" && agent !== null && "id" in agent
+                      ? (agent.id ?? "")
+                      : typeof agent === "object" &&
+                          agent !== null &&
+                          "metadata" in agent
+                        ? String(
+                            (agent as { metadata?: { name?: string } }).metadata
+                              ?.name ?? "",
+                          )
+                        : "",
+                  )
+                  .filter((id): id is string => typeof id === "string" && Boolean(id))
+                  .map((id) => ({ name: id })) ?? [])}
                 minDisplayed={1}
               />
             </Stack>

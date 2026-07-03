@@ -139,7 +139,7 @@ def load_scenario_config(
         # that RFC 7396 Merge Patch cannot express natively).
         if "skills_include" in overlay_spec:
             config["skills_include"] = overlay_spec["skills_include"]
-        # Per-agent overrides: spec.agents.<id>.role.instructions / design_pattern / tools_remove
+        # Per-agent overrides: spec.patch.agents.<id>.context / design_pattern / tools_remove
         if "agents" in overlay_spec:
             overlay_agents: dict = overlay_spec["agents"]
             agents_list: list = config.get("agents", [])
@@ -148,13 +148,13 @@ def load_scenario_config(
                 per_agent = overlay_agents.get(agent_id, {})
                 if not per_agent:
                     continue
-                # New schema: role.instructions → written to role_instructions for runtime
-                _role_override = per_agent.get("role") or {}
-                if isinstance(_role_override, dict) and _role_override.get("instructions"):
-                    agent_cfg["role_instructions"] = _role_override["instructions"]
-                    logger.info("[overlay] agent '%s': role.instructions overridden (scenario=%s)", agent_id, scenario_id)
-                # Legacy flat key (kept for backward compat)
-                for key in ("role_instructions", "design_pattern"):
+                ctx_override = per_agent.get("context") or {}
+                if isinstance(ctx_override, dict) and ctx_override:
+                    merged = dict(agent_cfg.get("context") or {})
+                    merged.update(ctx_override)
+                    agent_cfg["context"] = merged
+                    logger.info("[overlay] agent '%s': context overridden (scenario=%s)", agent_id, scenario_id)
+                for key in ("design_pattern",):
                     if key in per_agent:
                         agent_cfg[key] = per_agent[key]
                         logger.info("[overlay] agent '%s': %s overridden (scenario=%s)", agent_id, key, scenario_id)
@@ -194,6 +194,16 @@ def load_scenario_config(
                     else:
                         agent_cfg["llm"] = per_agent["llm"]
                     logger.info("[overlay] agent '%s': llm overridden (scenario=%s)", agent_id, scenario_id)
+                if "memory_seed" in per_agent:
+                    existing_seed = list(agent_cfg.get("memory_seed") or [])
+                    existing_seed.extend(per_agent["memory_seed"] or [])
+                    agent_cfg["memory_seed"] = existing_seed
+                    logger.info(
+                        "[overlay] agent '%s': memory_seed += %d items (scenario=%s)",
+                        agent_id,
+                        len(per_agent["memory_seed"] or []),
+                        scenario_id,
+                    )
             unresolved = set(overlay_agents) - {a.get("id") for a in agents_list}
             if unresolved:
                 logger.warning(
@@ -228,8 +238,8 @@ def load_scenario_config(
                 _ref = _new_agent.get("ref")
                 if _ref:
                     # Resolve ref relative to mas.yaml parent and expand into
-                    # a fully-materialised runtime dict (role_instructions,
-                    # llm_model, spec_tools, _agent_dir, …).
+                    # a fully-materialised runtime dict (context, llm_model,
+                    # spec_tools, _agent_dir, …).
                     _ref_path = resolve_yaml_path(str(_ref), _mas_base)
                     try:
                         _expanded = load_agent_runtime_entry(_ref_path, agent_id=_aid)
@@ -387,7 +397,7 @@ def load_stacked_config(
             config["skills_exclude"] = overlay_spec["skills_exclude"]
         if "skills_include" in overlay_spec:
             config["skills_include"] = overlay_spec["skills_include"]
-        # Per-agent overrides: spec.agents.<id>.role.instructions / design_pattern / tools_remove
+        # Per-agent overrides: spec.patch.agents.<id>.context / design_pattern / tools_remove
         if "agents" in overlay_spec:
             overlay_agents: dict = overlay_spec["agents"]
             agents_list: list = config.get("agents", [])
@@ -396,12 +406,12 @@ def load_stacked_config(
                 per_agent = overlay_agents.get(agent_id, {})
                 if not per_agent:
                     continue
-                # New schema: role.instructions → written to role_instructions for runtime
-                _role_override = per_agent.get("role") or {}
-                if isinstance(_role_override, dict) and _role_override.get("instructions"):
-                    agent_cfg["role_instructions"] = _role_override["instructions"]
-                # Legacy flat key (kept for backward compat)
-                for key in ("role_instructions", "design_pattern"):
+                ctx_override = per_agent.get("context") or {}
+                if isinstance(ctx_override, dict) and ctx_override:
+                    merged = dict(agent_cfg.get("context") or {})
+                    merged.update(ctx_override)
+                    agent_cfg["context"] = merged
+                for key in ("design_pattern",):
                     if key in per_agent:
                         agent_cfg[key] = per_agent[key]
                 if "tools_remove" in per_agent:
@@ -430,6 +440,10 @@ def load_stacked_config(
                             agent_cfg["llm_model"] = per_agent["llm"]["model"]
                     else:
                         agent_cfg["llm"] = per_agent["llm"]
+                if "memory_seed" in per_agent:
+                    existing_seed = list(agent_cfg.get("memory_seed") or [])
+                    existing_seed.extend(per_agent["memory_seed"] or [])
+                    agent_cfg["memory_seed"] = existing_seed
 
         # agents_remove: strip agents by ID.
         _agents_remove: list = overlay_spec.get("agents_remove", []) or []

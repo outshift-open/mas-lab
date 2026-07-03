@@ -32,18 +32,17 @@ class BudgetTracker:
 
 
 def budget_from_manifest(manifest: dict | None) -> BudgetTracker:
+    """Build a budget tracker from explicit manifest config only.
+
+    Ceilings are not applied by default. When no ``spec.budget`` is set,
+    tool and LLM calls are unlimited until a control plugin (``BudgetContract``)
+    is wired via ``spec.control`` — see ROADMAP control/budget explicitness.
+    """
     spec = (manifest or {}).get("spec") or {}
     budget = spec.get("budget") or {}
-    tools = spec.get("tools") or []
-    has_tools = isinstance(tools, list) and bool(tools)
-    max_tool_calls = budget.get("max_tool_calls")
-    max_llm_calls = budget.get("max_llm_calls")
-    if has_tools:
-        if max_tool_calls is None:
-            max_tool_calls = 10
-        if max_llm_calls is None:
-            max_llm_calls = 15
+    if not isinstance(budget, dict):
+        budget = {}
     return BudgetTracker(
-        max_tool_calls=max_tool_calls,
-        max_llm_calls=max_llm_calls,
+        max_tool_calls=budget.get("max_tool_calls"),
+        max_llm_calls=budget.get("max_llm_calls"),
     )
