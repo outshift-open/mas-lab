@@ -37,48 +37,6 @@ class SeparationValidator(ABC):
         ...
 
 
-class AgentSeparationValidator(SeparationValidator):
-    kind = "agent"
-
-    @classmethod
-    def _collect_violations(cls, data: dict[str, Any]) -> list[str]:
-        spec = data.get("spec", {}) or {}
-        models = spec.get("models", []) or []
-        violations: list[str] = []
-        for i, entry in enumerate(models):
-            if not isinstance(entry, dict):
-                continue
-            if "api_base" in entry:
-                violations.append(
-                    f"spec.models[{i}].api_base is an access concern — move to workspace/CLI infra_refs"
-                )
-            if "api_key_env" in entry:
-                violations.append(
-                    f"spec.models[{i}].api_key_env is an access concern — move to workspace/CLI infra_refs"
-                )
-            if "provider" in entry:
-                violations.append(
-                    f"spec.models[{i}].provider is an access concern — remove from agent manifest"
-                )
-
-        if "system_prompt" in spec:
-            violations.append(
-                "spec.system_prompt is no longer valid — use spec.role.instructions or instructions_ref"
-            )
-        if "prompt_ref" in spec:
-            violations.append("spec.prompt_ref is no longer valid — use spec.role.instructions_ref")
-
-        role = spec.get("role", {}) or {}
-        if isinstance(role, dict):
-            has_inline = _is_set(role.get("instructions"))
-            has_ref = _is_set(role.get("instructions_ref"))
-            if has_inline and has_ref:
-                violations.append(
-                    "spec.role.instructions and spec.role.instructions_ref are mutually exclusive"
-                )
-        return violations
-
-
 class FlavourSeparationValidator(SeparationValidator):
     kind = "flavour"
 
@@ -113,7 +71,6 @@ class MASSeparationValidator(SeparationValidator):
     def _collect_violations(cls, data: dict[str, Any]) -> list[str]:
         violations: list[str] = []
         for path, val in _iter_paths(data):
-            # Inlined agents under agency are validated separately as kind: Agent.
             if path.startswith("spec.agency.agents["):
                 continue
             key = path.rsplit(".", 1)[-1].split("[")[0]
@@ -129,8 +86,6 @@ class OverlaySeparationValidator(MASSeparationValidator):
 
 
 class PlacementPlanSeparationValidator(SeparationValidator):
-    """PlacementPlan must not carry agent logic or infra bind fields."""
-
     kind = "placement_plan"
 
     @classmethod
@@ -151,14 +106,10 @@ class PlacementPlanSeparationValidator(SeparationValidator):
                 violations.append(
                     f"spec.agents[{aid!r}].engine belongs in EffectiveBind (infra bind), not PlacementPlan"
                 )
-        text = str(data)
-        if "pattern_plugin_id" in text and "PlacementPlan" in str(data.get("kind", "")):
-            pass  # covered per-agent above
         return violations
 
 
 _SEPARATION: dict[str, type[SeparationValidator]] = {
-    "agent": AgentSeparationValidator,
     "flavour": FlavourSeparationValidator,
     "mas": MASSeparationValidator,
     "overlay": OverlaySeparationValidator,

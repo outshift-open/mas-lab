@@ -85,28 +85,31 @@ def _extract_system_prompt(source_path: Path) -> str:
     with open(source_path) as fh:
         data = yaml.safe_load(fh)
 
-    # Try spec.agents[0].system_prompt
     spec = data.get("spec") or {}
+    context = spec.get("context") or {}
+    if isinstance(context, dict):
+        role = context.get("role")
+        if isinstance(role, str) and role.strip():
+            return role.strip()
+
     agents = spec.get("agents") or []
     if agents and isinstance(agents, list):
         first = agents[0] if isinstance(agents[0], dict) else {}
-        prompt = first.get("system_prompt") or first.get("systemPrompt")
-        if prompt:
-            return prompt
+        first_ctx = first.get("context") or {}
+        if isinstance(first_ctx, dict):
+            role = first_ctx.get("role")
+            if isinstance(role, str) and role.strip():
+                return role.strip()
 
-    # Try spec.system_prompt
-    sp = spec.get("system_prompt") or spec.get("systemPrompt")
-    if sp:
-        return sp
+    desc = spec.get("description")
+    if isinstance(desc, str) and desc.strip():
+        return desc.strip()
 
-    # Try metadata.description
     meta = data.get("metadata") or {}
-    desc = meta.get("description")
-    if desc:
-        return desc
+    if isinstance(meta.get("description"), str) and meta["description"].strip():
+        return meta["description"].strip()
 
-    # Top-level description
-    return data.get("description") or data.get("name") or "A general-purpose AI assistant."
+    return data.get("name") or "A general-purpose AI assistant."
 
 
 def _call_llm(

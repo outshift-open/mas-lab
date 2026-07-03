@@ -2,19 +2,18 @@
 #  SPDX-License-Identifier: Apache-2.0
 apiVersion: mas/v1
 kind: Agent
-
 metadata:
   name: qa-agent-t3
-
 spec:
   models:
-    - model: gpt-4o-mini
-
+  - model: gpt-4o-mini
   context:
-    intent: "Answer general knowledge questions with step-by-step reasoning."
-    role: |
-      You are a knowledgeable assistant. Use the available tools to perform
-      calculations when needed.
+    intent: Answer general knowledge questions with step-by-step reasoning.
+    role: 'You are a knowledgeable assistant. Use the available tools to verify
 
+      facts and perform calculations when needed.
+
+      '
   tools:
-    - ref: samples:tools/calc.tool.yaml
+  - ref: samples:tools/calc.tool.yaml
+  description: Answer general knowledge questions with step-by-step reasoning.

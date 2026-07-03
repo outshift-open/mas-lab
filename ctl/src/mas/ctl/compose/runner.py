@@ -10,6 +10,7 @@ from typing import Any
 
 from mas.ctl.compose.models import EffectiveBindManifest, ResolvedInfra
 from mas.ctl.compose.pipeline import (
+    PlacementPlan,
     compose_application,
     compose_effective_bind,
     compose_placement_from_deployment,
@@ -49,6 +50,8 @@ class ComposeResult:
     placement_plan: dict[str, Any]
     deployment: dict[str, Any]
     infra_refs: list[str]
+    bind: EffectiveBindManifest
+    plan: PlacementPlan
     resolved_infra: ResolvedInfra | None = None
 
 
@@ -163,4 +166,6 @@ def compose_run(req: ComposeRequest) -> ComposeResult:
         deployment=deployment,
         infra_refs=merged_refs,
         resolved_infra=resolved,
+        bind=bind,
+        plan=plan,
     )

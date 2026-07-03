@@ -6,20 +6,6 @@ metadata:
   name: schedule_agent
   version: 0.1.0
 spec:
-  role:
-    description: 'Transport schedule and attractions specialist.
-
-      '
-    instructions: |
-      You can look up train and airplane schedules and attractions inside cities.
-      You have access to the lookup_schedule tool. Use it to search for train and
-      airplane schedules between cities in the Arborian Network.
-
-      Use this tool to find train and airplane schedules. When you have gathered
-      sufficient information, provide a clear overview of relevant train and airplane
-      schedules. Further, use the same tool to find attractions in each city on the
-      itinerary and provide a brief description of each, together with a plan for
-      visiting them.
   models:
   - id: main
     model: gpt-4o
@@ -31,6 +17,21 @@ spec:
   - transport-schedule-lookup
   tools:
   - ref: ../../tools/lookup_schedule.tool.yaml
-  intent: Schedule Agent — looks up train and air departure times, frequencies, and attraction opening hours for cities in
-    the Arborian Network. Receives a ScheduleQuery from the moderator and returns a ScheduleResult containing departures and
-    travel times grounded in arborian-network.yaml.
+  description: Transport schedule and attractions specialist.
+  context:
+    role: 'You can look up train and airplane schedules and attractions inside cities.
+
+      You have access to the lookup_schedule tool. Use it to search for train and
+
+      airplane schedules between cities in the Arborian Network.
+
+
+      Use this tool to find train and airplane schedules. When you have gathered
+
+      sufficient information, provide a clear overview of relevant train and airplane
+
+      schedules. Further, use the same tool to find attractions in each city on the
+
+      itinerary and provide a brief description of each, together with a plan for
+
+      visiting them.'

@@ -86,7 +86,7 @@ class MASSpecValidator:
             base_dir: Base directory for resolving relative file references
                       (defaults to the application root directory).
             strict: When True (default), warn on missing *recommended* fields
-                    (spec.role.description, spec.design_pattern,
+                    (spec.description, spec.design_pattern,
                     metadata.description).  Use --no-strict to suppress.
         """
         self.spec_path = Path(spec_path)
@@ -126,7 +126,7 @@ class MASSpecValidator:
           3. Semantic checks — things JSON Schema cannot express:
              cross-references (entry_agent in agents list), duplicate IDs,
              missing file refs, ontology info.
-          4. Strict-mode recommended-field warnings (role.description, etc.)
+          4. Strict-mode recommended-field warnings (spec.description, etc.)
              are emitted during step 2, on the source YAML, not on _raw.
           5. Manifest separation rules (model/access isolation).
 
@@ -290,13 +290,13 @@ class MASSpecValidator:
         spec = data.get("spec", {})
         agent_id = meta.get("name", source)
 
-        if not spec.get("role", {}).get("description"):
+        if not spec.get("description"):
             self.warnings.append(ValidationError(
                 "warning", "agent",
-                f"Agent '{agent_id}' has no spec.role.description — "
+                f"Agent '{agent_id}' has no spec.description — "
                 "add a routing-optimised one-liner so the orchestrator LLM "
                 "knows when to delegate to this agent.",
-                path=f"{source}: $.spec.role.description",
+                path=f"{source}: $.spec.description",
             ))
 
         if not spec.get("design_pattern"):

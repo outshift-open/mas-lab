@@ -10,6 +10,7 @@ spec:
   models:
     - model: gpt-4o
 
+  description: Answer general knowledge questions.
   context:
     intent: "Answer general knowledge questions."
     role: |

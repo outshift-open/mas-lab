@@ -51,7 +51,7 @@ const NODE_ITEMS: Array<{
     icon: "📝",
     color: mediumBlue[40],
     tooltip:
-      "Override the role instructions for the connected agent.",
+      "Override spec.context.role for the connected agent.",
   },
 ];
 

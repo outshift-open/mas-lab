@@ -87,7 +87,7 @@ def test_composed_mas_tree_rejects_workflow_agent_mismatch() -> None:
                         "apiVersion": "mas/v1",
                         "kind": "Agent",
                         "metadata": {"name": "schedule"},
-                        "spec": {"design_pattern": {"type": "react"}, "role": {"description": "d"}},
+                        "spec": {"design_pattern": {"type": "react"}, "description": "d"},
                     }
                 ]
             },

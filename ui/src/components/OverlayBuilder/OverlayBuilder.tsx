@@ -219,7 +219,10 @@ function serializeOverlayToYaml(nodes: Node[], edges: Edge[], name?: string, des
           nodeIdMap.inputPrompt = sourceNode.id;
           const text = sourceData.text as string;
           if (text) {
-            agentOverride.role = { instructions: text };
+            agentOverride.context = {
+              ...((agentOverride.context as Record<string, string> | undefined) ?? {}),
+              role: text,
+            };
           }
           break;
         }
@@ -375,10 +378,9 @@ function deserializeYamlToGraph(yaml: string): { nodes: Node[]; edges: Edge[]; d
       inputOffset += NODE_Y_GAP;
     }
 
-    const role = agentCfg.role as Record<string, unknown> | undefined;
+    const context = agentCfg.context as Record<string, unknown> | undefined;
     const instructions =
-      (role?.instructions as string) ??
-      (agentCfg.role_instructions as string | undefined);
+      typeof context?.role === "string" ? (context.role as string) : undefined;
     if (instructions) {
       const promptNodeId = savedIds.inputPrompt ?? generateNodeId();
       const defaultPos = { x: DEFAULT_INPUT_X, y: defaultAgentY + inputOffset };

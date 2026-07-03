@@ -1,0 +1,22 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Tool
+
+metadata:
+  name: memory-search
+  description: "Search agent semantic memory."
+
+spec:
+  description: Search indexed memory for facts relevant to the user query.
+
+  parameters:
+    - name: query
+      type: string
+      description: "Natural language memory search query."
+      required: true
+
+  impl:
+    kind: python
+    module_path: ./memory_search.py
+    class_name: MemorySearchTool

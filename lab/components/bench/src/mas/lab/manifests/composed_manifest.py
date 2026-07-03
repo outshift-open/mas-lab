@@ -68,9 +68,9 @@ def _apply_patch_to_agents(
             if agent_id not in agents_by_id or not isinstance(fragment, dict):
                 continue
             stub: dict[str, Any] = {"spec": {}}
-            role = fragment.get("role")
-            if isinstance(role, dict) and role.get("instructions"):
-                stub["spec"]["role"] = {"instructions": role["instructions"]}
+            ctx = fragment.get("context")
+            if isinstance(ctx, dict):
+                stub["spec"]["context"] = copy.deepcopy(ctx)
             for key in ("design_pattern", "tools", "tools_remove", "skills", "llm"):
                 if key in fragment:
                     stub["spec"][key] = copy.deepcopy(fragment[key])

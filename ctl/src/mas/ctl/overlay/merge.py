@@ -225,7 +225,9 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
         agency = base_spec.setdefault("agency", {})
         agents_list = list(agency.get("agents") or [])
         by_id = {
-            str(a.get("id")): a for a in agents_list if isinstance(a, dict) and a.get("id")
+            str(a.get("id") or a.get("name")): a
+            for a in agents_list
+            if isinstance(a, dict) and (a.get("id") or a.get("name"))
         }
         for agent_id, per_agent in overlay_agents.items():
             if not isinstance(per_agent, dict):
@@ -235,13 +237,45 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
                 continue
             if "ref" in per_agent:
                 target["ref"] = per_agent["ref"]
-            role = per_agent.get("role")
-            if isinstance(role, dict) and role.get("instructions"):
-                target.setdefault("role", {})["instructions"] = role["instructions"]
-            for field in ("design_pattern", "tools", "tools_remove", "skills"):
-                if field in per_agent:
-                    target[field] = deepcopy(per_agent[field])
-        agency["agents"] = list(by_id.values()) if by_id else agents_list
+            agent_spec = target.setdefault("spec", {})
+            ctx = per_agent.get("context")
+            if isinstance(ctx, dict):
+                base_ctx = agent_spec.get("context")
+                if isinstance(base_ctx, dict):
+                    agent_spec["context"] = {**base_ctx, **deepcopy(ctx)}
+                else:
+                    agent_spec["context"] = deepcopy(ctx)
+            for field in (
+                "description",
+                "design_pattern",
+                "tools",
+                "tools_remove",
+                "skills",
+                "memory",
+                "plugins",
+                "delegation",
+            ):
+                if field not in per_agent:
+                    continue
+                val = per_agent[field]
+                if field == "delegation" and isinstance(val, dict):
+                    base_del = (
+                        agent_spec.get("delegation")
+                        if isinstance(agent_spec.get("delegation"), dict)
+                        else {}
+                    )
+                    agent_spec["delegation"] = {**base_del, **deepcopy(val)}
+                elif field in ("description", "memory", "plugins"):
+                    # Nested agent manifest spec (apply_agency_entry_overlay reads agent_spec)
+                    agent_spec[field] = deepcopy(val)
+                else:
+                    # Top-level agency entry fields (apply_agency_entry_overlay checks entry + entry["spec"])
+                    target[field] = deepcopy(val)
+            if "memory_seed" in per_agent:
+                existing_seed = list(agent_spec.get("memory_seed") or [])
+                agent_spec["memory_seed"] = existing_seed + list(
+                    deepcopy(per_agent["memory_seed"] or [])
+                )
 
     if patch.get("agents_remove"):
         rm = set(patch["agents_remove"])

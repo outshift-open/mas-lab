@@ -54,6 +54,7 @@ properties:
 
   spec:
     type: object
+    required: [description]
     additionalProperties: false
     patternProperties:
       "^x-":
@@ -62,92 +63,35 @@ properties:
       context:
         type: object
         description: >
-          Flat key-value context dict injected into the system prompt by
-          DefaultContextPlugin.  Well-known keys: intent, role.  Values
-          starting with ./ are treated as file references resolved relative
-          to the agent manifest directory.
+          Named chunks injected into the system prompt as [key] content.
+          Keys are author-defined (role, intent, tool_usage, …). Values may be
+          inline text, a path to an existing file (./prompts/role.md or
+          prompts/role.md), or {ref: path} which always loads the file.
         additionalProperties:
-          type: string
+          $ref: "./fragments/context-chunk.schema.yaml"
 
       description:
         type: string
+        minLength: 1
         description: >
-          Routing-facing description for delegation tools and AgentCard.
-          Write from the delegator's perspective.
-          Priority: spec.description > spec.role.description > spec.context.intent.
-        default: ""
+          Routing-facing one-liner for delegation tools, AgentCard, and registry
+          discovery. Not injected into the LLM system prompt — use spec.context.*
+          for prompt text. Write from the delegator's perspective.
 
-      intent:
-        type: string
-        description: >
-          Application-level purpose of this agent — shared context injected into the system prompt.
-          In single-agent deployments, written directly here.
-          In multi-agent deployments, defined once in the MAS config and injected via overlay.
-          Used as the AgentCard description fallback when role.description is empty.
-        default: ""
-
-      role:
+      delegation:
         type: object
         description: >
-          The ONLY place for system prompt configuration in kind: Agent.
-          role.description  → routing-facing one-liner for orchestrator LLMs; falls back to intent.
-          role.instructions → inline system prompt (mutually exclusive with instructions_ref).
-          role.instructions_ref → external reference (mutually exclusive with instructions).
+          Peer-agent delegation policy for this agent when invoked as a delegate.
+          Completion checks gate whether a delegate turn is accepted or retried.
         additionalProperties: false
-        not:
-          allOf:
-            - required: [instructions]
-            - required: [instructions_ref] # both present → validation error
         properties:
-          description:
+          completion_check:
             type: string
+            enum: [verification_line]
             description: >
-              Routing-optimised one-liner surfaced as the delegate_to_<id> tool
-              description seen by the orchestrator's LLM.
-              Write it from the delegator's perspective: "Call me when you need X. I return Y."
-              Used for AgentCard; falls back to spec.intent when empty.
-            default: ""
-          instructions:
-            type: string
-            description: >
-              Inline system prompt — the full text injected before every LLM call.
-              Mutually exclusive with instructions_ref.
-            default: ""
-          instructions_ref:
-            type: [string, "null"]
-            description: >
-              External reference to the system prompt.  Three forms:
-              - Plain text file:  "./prompts/broker.md"  (Markdown / plain text, Jinja2 ok)
-              - XPointer:  "./prompts/sre-prompts.yaml#broker-role"
-                File must be a kind: PromptBundle YAML; the fragment selects the entry key.
-              - Library ref:  "@sre-prompts#broker-role"
-                Searches for sre-prompts.yaml in prompts/ then manifest directory.
-              Mutually exclusive with instructions.
-            default: null
-
-          examples:
-            type: array
-            description: >
-              Few-shot examples for this agent's role, injected before the first user message.
-              Each entry is inline (prompt + response), a plain YAML list file
-              (ref: ./examples/qa.yaml), an XPointer (ref: ./prompts/sre.yaml#broker-examples),
-              or a library ref (ref: @sre-prompts#broker-examples).
-            default: []
-            items:
-              type: object
-              additionalProperties: false
-              properties:
-                ref:
-                  type: string
-                  description: >
-                    Ref forms: ./path/file.yaml (plain list), ./bundle.yaml#key (XPointer),
-                    or @lib-name#key (library ref).
-                prompt:
-                  type: string
-                  description: "Inline user-side prompt text."
-                response:
-                  type: string
-                  description: "Inline expected response text."
+              Require delegate output to satisfy a structured completion pattern
+              before returning to the orchestrator. verification_line — response
+              must end with VERIFICATION: APPROVED|FLAGGED|REJECTED.
 
       models:
         type: array

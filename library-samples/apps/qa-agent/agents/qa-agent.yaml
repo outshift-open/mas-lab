@@ -8,18 +8,22 @@ metadata:
 spec:
   context:
     intent: Answer general knowledge questions.
-    role: |
-      Answer questions clearly and concisely.
+    role: 'Answer questions clearly and concisely.
+
       When you need to perform calculations, use the calc tool.
+
       When you need current information from the web, use the web-search tool.
+
+      '
   x-text-input: what is the weather in Paris today?
   models:
-    - model: azure/gpt-4o-mini
-      temperature: 0.7
-      max_tokens: 4096
+  - model: azure/gpt-4o-mini
+    temperature: 0.7
+    max_tokens: 4096
   tools:
-    - ref: samples:tools/web-search.tool.yaml
-    - ref: samples:tools/calc.tool.yaml
+  - ref: ../../../tools/web-search.tool.yaml
+  - ref: ../../../tools/calc.tool.yaml
+  description: Answer general knowledge questions.
 x-canvas-node-ids:
   role: node_515c961a
   model: node_cb0e6f39

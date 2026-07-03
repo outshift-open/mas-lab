@@ -48,6 +48,7 @@ tasks:
         {{.VENV}}/pytest \
           tests/test_tutorial_manifests_strict.py \
           tests/test_tutorial_manifests_resolve_refs.py \
+          tests/test_oss_agent_manifests_strict.py \
           tests/test_lab_manifests_strict.py \
           tests/test_workspace_imports.py \
           runtime/tests/test_flavour_separation.py \

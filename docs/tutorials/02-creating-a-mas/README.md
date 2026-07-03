@@ -5,7 +5,7 @@
 # Tutorial 2 — Creating a Multi-Agent System
 
 > **Packages:** `mas-ctl` (run-mas, validate), `mas-lab` (telemetry/plots)
-> **Deployment:** `deployments/local-inproc.yaml` (default runtime)
+> **Deployment:** `deployments/local-inproc.yaml` with `runtime_id: python-v2`
 > **Time:** ~30 min hands-on
 > **Goal:** Compose a multi-agent trip planner with a declarative `kind: MAS` manifest and run it interactively.
 > **Prerequisite:** [Tutorial 0](../00-environment-setup/) (config + infra) and
@@ -82,9 +82,9 @@ kind: Agent
 metadata:
   name: schedule_agent
 spec:
-  role:
-    description: "Transport schedule and attractions specialist."
-    instructions: |
+  description: "Transport schedule and attractions specialist."
+  context:
+    role: |
       You can look up train and airplane schedules and attractions inside cities.
       Use the lookup_schedule tool to search for schedules between cities in the
       Arborian Network. Also find attractions in each city on the itinerary.
@@ -103,9 +103,9 @@ kind: Agent
 metadata:
   name: itinerary_agent
 spec:
-  role:
-    description: "Route planner and itinerary specialist."
-    instructions: |
+  description: "Route planner and itinerary specialist."
+  context:
+    role: |
       You have access to the query_graph_database tool which queries a graph
       of cities and returns feasible paths with their travel times.
   tools:
@@ -123,9 +123,9 @@ kind: Agent
 metadata:
   name: concierge_agent
 spec:
-  role:
-    description: "Fare lookup specialist."
-    instructions: |
+  description: "Fare lookup specialist."
+  context:
+    role: |
       Use get_fares for looking up fares and calc for calculations.
       Provide a clear overview of prices for each itinerary.
   tools:
@@ -154,10 +154,9 @@ kind: Agent
 metadata:
   name: moderator
 spec:
-  role:
-    description: "Trip planner moderator. Coordinates schedule_agent,
-      itinerary_agent, and concierge_agent."
-    instructions: |
+  description: "Trip planner moderator. Coordinates schedule_agent, itinerary_agent, and concierge_agent."
+  context:
+    role: |
       You are a moderator coordinating a team of specialized agents.
       Based on the conversation so far, decide:
       1. If you need to call an agent, call the appropriate delegation tool

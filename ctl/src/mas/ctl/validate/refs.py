@@ -14,7 +14,6 @@ REF_KEYS = frozenset(
         "manifest",
         "mas_ref",
         "configs_dir",
-        "instructions_ref",
         "tools_ref",
         "workflow",
         "deployment_ref",
@@ -49,8 +48,6 @@ def is_path_ref(key: str, value: Any) -> bool:
             or "/" in value
             or value.endswith((".yaml", ".yml", ".json", ".md", ".py"))
         )
-    if key == "instructions_ref":
-        return not value.startswith("bundle://")
     return key in REF_KEYS and ("/" in value or value.endswith((".yaml", ".yml")))
 
 

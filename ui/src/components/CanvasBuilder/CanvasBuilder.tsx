@@ -268,21 +268,22 @@ function buildAgentManifest(
   };
   const spec: Record<string, unknown> = {};
   const canvasNodeIds: Record<string, string> = {};
-  if (agentData.intent) spec.intent = agentData.intent;
 
-  const context = agentData.context as Record<string, string> | undefined;
-  if (context && Object.keys(context).length > 0) {
-    spec.context = context;
-  }
-
+  const context = { ...((agentData.context as Record<string, string>) ?? {}) };
   const description = agentData.description as string | undefined;
   const instructions = agentData.instructions as string | undefined;
-  if (description?.trim() || instructions?.trim()) {
-    spec.role = {
-      ...((spec.role as Record<string, unknown>) ?? {}),
-      ...(description?.trim() && { description: description.trim() }),
-      ...(instructions?.trim() && { instructions: instructions.trim() }),
-    };
+  if (description?.trim()) {
+    spec.description = description.trim();
+  }
+  if (instructions?.trim()) {
+    context.role = instructions.trim();
+  }
+  const intent = agentData.intent as string | undefined;
+  if (intent?.trim()) {
+    context.intent = intent.trim();
+  }
+  if (Object.keys(context).length > 0) {
+    spec.context = context;
   }
 
   // TextInput node → x-text-input (used as query for Run MAS)
@@ -724,10 +725,13 @@ function deserializeYamlsToGraph(yamlMap: YamlOutputMap): {
       position,
       data: {
         name: metadata.name ?? "",
-        description: spec.role?.description ?? "",
-        intent: normalizeIntent(spec.intent),
+        description: spec.description ?? "",
+        intent: normalizeIntent((spec.context as Record<string, unknown> | undefined)?.intent),
         role,
-        instructions: spec.role?.instructions ?? "",
+        instructions:
+          typeof (spec.context as Record<string, unknown> | undefined)?.role === "string"
+            ? ((spec.context as Record<string, string>).role ?? "")
+            : "",
         context: spec.context ?? {},
         chatHistory,
         connectedModel: "",

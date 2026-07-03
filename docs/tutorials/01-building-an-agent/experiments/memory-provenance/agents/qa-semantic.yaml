@@ -8,14 +8,14 @@ metadata:
   description: "QA agent with semantic memory (auto-extract + hybrid retrieval)"
 
 spec:
+  description: Answer general knowledge questions.
+
   models:
     - model: gpt-4o
 
   context:
     intent: "Answer general knowledge questions."
-
-  role:
-    instructions: |
+    role: |
       Answer questions clearly and concisely.
       You have semantic memory that automatically extracts and remembers facts.
       Before answering, search your memory for relevant past interactions.

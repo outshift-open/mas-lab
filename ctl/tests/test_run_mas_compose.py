@@ -50,8 +50,7 @@ kind: Agent
 metadata:
   name: {name}
 spec:
-  role:
-    description: test agent
+  description: test agent
   models:
     - model: mock
 """,

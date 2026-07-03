@@ -54,6 +54,7 @@
     "AgentSpec": {
       "type": "object",
       "description": "Core specification of the agent: model, design pattern, tools, skills, memory, and context.",
+      "required": ["description"],
       "properties": {
         "models": {
           "type": "array",
@@ -85,19 +86,13 @@
         "context": {
           "$ref": "#/definitions/AgentContext"
         },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Routing-facing one-liner for delegation tools and AgentCard. Not injected into the LLM system prompt."
+        },
         "context_manager": {
           "$ref": "#/definitions/ContextManager"
-        },
-        "role": {
-          "$ref": "#/definitions/Role"
-        },
-        "intent": {
-          "type": "string",
-          "description": "Natural language description of what this agent does. Used by coordinators to decide delegation."
-        },
-        "system_prompt": {
-          "type": "string",
-          "description": "Full system prompt (alternative to structured context/role). Used in Workflow-kind inline agent definitions."
         },
         "execution": {
           "$ref": "#/definitions/Execution"
@@ -207,6 +202,19 @@
     "AgentContext": {
       "type": "object",
       "description": "Structured context blocks that are assembled into the agent's system prompt.",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string" },
+          {
+            "type": "object",
+            "required": ["ref"],
+            "properties": {
+              "ref": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
       "properties": {
         "intent": {
           "type": "string",
@@ -238,21 +246,6 @@
         }
       },
       "additionalProperties": true
-    },
-    "Role": {
-      "type": "object",
-      "description": "Agent role definition with structured instructions.",
-      "properties": {
-        "instructions": {
-          "type": "string",
-          "description": "Detailed instructions for the agent's behavior and responsibilities."
-        },
-        "description": {
-          "type": "string",
-          "description": "Short role description."
-        }
-      },
-      "additionalProperties": false
     },
     "MemoryConfig": {
       "type": "object",

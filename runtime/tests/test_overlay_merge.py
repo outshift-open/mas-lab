@@ -21,7 +21,7 @@ def test_merge_tools_overlay():
 
 
 def test_merge_patch_format():
-    base = {"spec": {"role": {"instructions": "base"}}}
+    base = {"spec": {"context": {"role": "base"}}}
     merged = merge_overlay(base, _overlay({"tools": ["web"]}))
     assert "web" in merged["spec"]["tools"]
 
@@ -135,3 +135,104 @@ def test_normalize_rejects_shorthand_overlay():
 
     with pytest.raises(ValueError, match="mas/v1"):
         normalize_overlay({"spec": {"tools": ["calc"]}})
+
+
+def test_merge_mas_overlay_patches_agency_agent_context():
+    base = {
+        "kind": "MAS",
+        "spec": {
+            "agency": {
+                "agents": [{"id": "moderator", "ref": "agents/moderator/agent.yaml"}]
+            }
+        },
+    }
+    overlay = _overlay(
+        {
+            "agents": {
+                "moderator": {
+                    "context": {"role": "patched role"},
+                    "memory_seed": [{"key": "f001", "content": "seed"}],
+                }
+            }
+        }
+    )
+    merged = merge_overlay(base, overlay)
+    agent = merged["spec"]["agency"]["agents"][0]
+    assert agent["spec"]["context"]["role"] == "patched role"
+    assert agent["spec"]["memory_seed"] == [{"key": "f001", "content": "seed"}]
+
+
+def test_merge_mas_overlay_keeps_name_only_agents():
+    base = {
+        "kind": "MAS",
+        "spec": {
+            "agency": {
+                "agents": [
+                    {"id": "moderator", "ref": "agents/moderator.yaml"},
+                    {"name": "helper", "ref": "agents/helper.yaml"},
+                ]
+            }
+        },
+    }
+    overlay = _overlay(
+        {"agents": {"moderator": {"context": {"role": "patched role"}}}}
+    )
+    merged = merge_overlay(base, overlay)
+    agents = merged["spec"]["agency"]["agents"]
+    assert len(agents) == 2
+    by_key = {a.get("id") or a.get("name"): a for a in agents}
+    assert by_key["moderator"]["spec"]["context"]["role"] == "patched role"
+    assert by_key["helper"]["ref"] == "agents/helper.yaml"
+
+
+def test_merge_mas_overlay_patches_agency_agent_delegation():
+    base = {
+        "kind": "MAS",
+        "spec": {
+            "agency": {
+                "agents": [
+                    {
+                        "id": "verifier",
+                        "ref": "agents/verifier.yaml",
+                        "spec": {"delegation": {"completion_check": "base"}},
+                    }
+                ]
+            }
+        },
+    }
+    overlay = _overlay(
+        {
+            "agents": {
+                "verifier": {
+                    "delegation": {"completion_check": "overlay_check"},
+                }
+            }
+        }
+    )
+    merged = merge_overlay(base, overlay)
+    agent = merged["spec"]["agency"]["agents"][0]
+    assert agent["spec"]["delegation"]["completion_check"] == "overlay_check"
+
+
+def test_merge_mas_overlay_delegation_shallow_merge_preserves_null():
+    base = {
+        "kind": "MAS",
+        "spec": {
+            "agency": {
+                "agents": [
+                    {
+                        "id": "verifier",
+                        "ref": "agents/verifier.yaml",
+                        "spec": {"delegation": {"completion_check": "base"}},
+                    }
+                ]
+            }
+        },
+    }
+    overlay = _overlay(
+        {"agents": {"verifier": {"delegation": {"completion_check": None}}}}
+    )
+    merged = merge_overlay(base, overlay)
+    delegation = merged["spec"]["agency"]["agents"][0]["spec"]["delegation"]
+    assert "completion_check" in delegation
+    assert delegation["completion_check"] is None

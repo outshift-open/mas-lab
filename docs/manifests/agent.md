@@ -25,7 +25,7 @@ sees, and which plugins hook its execution.
 | Peer delegation | MAS `workflow` (when embedded in a MAS) | `delegates_to` graph + `workflow.type`; see [mas.md](mas.md) |
 | Collaboration plugin | `collaboration` | *Design:* `DelegationContract` binding (how delegation executes). *This release:* omit or `type: none` — see below |
 | Context window | `context_manager` | Stack / sliding-window / summarising |
-| Prompt / role | `role`, `context`, `intent` | System prompt assembly |
+| Prompt / role | `description`, `context` | `description` → delegation tools; `context.*` → system prompt |
 | Models | `models[]` | LLM routing (ids, temperature, max_tokens) |
 | Tools | `tools`, `tools_ref` | ToolContract surface |
 | Skills | `skills`, `context_manager.skills` | Context facets + `consult_skills` |
@@ -43,7 +43,7 @@ sees, and which plugins hook its execution.
 |---------|----------|-------|
 | Delegation graph (peers) | MAS | `spec.workflow.nodes[].delegates_to`, `workflow.entry` |
 | Workflow driver | MAS | `spec.workflow.type` — `dynamic` (LLM picks peers), `sequential`, or `single` |
-| Per-peer tool text | Agent | `spec.role.description` — surfaced on `delegate_to_<id>` tools for the entry agent |
+| Per-peer tool text | Agent | `spec.description` — surfaced on `delegate_to_<id>` tools for the entry agent |
 
 When `workflow.type` is **dynamic**, the entry agent's LLM receives one OpenAI tool per allowed peer:
 `delegate_to_<agent_id>` with a `task` argument. `mas-ctl run-mas` executes those calls over the
@@ -80,8 +80,18 @@ design_pattern:
 skills:
   - triage-protocol
   - "@sre-skills/memory-protocol"       # library id
-role:
-  instructions_ref: "./prompts/broker.md"
+description: "Telemetry analyst. Call for latency baselines and error rates."
+context:
+  role: |
+    You are a telemetry analyst…
+```
+
+Inline prompt file reference:
+
+```yaml
+context:
+  role:
+    ref: "./prompts/broker.md"
 ```
 
 ---

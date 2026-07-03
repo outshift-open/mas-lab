@@ -39,25 +39,30 @@ def _skill_leaf_name(ref: str) -> str:
     return ref.strip().strip("/").removeprefix("skills/")
 
 
+def _skill_name_variants(ref: str) -> list[str]:
+    leaf = _skill_leaf_name(ref)
+    if not leaf:
+        return []
+    return list(dict.fromkeys([leaf, leaf.replace("_", "-"), leaf.replace("-", "_")]))
+
+
 def resolve_skill_path(ref: str, *, base_dir: Path) -> Path | None:
     raw = ref.strip()
     if raw.startswith("@"):
         # @lib/bundle/path — resolved by ctl workspace libraries at bootstrap
         return None
-    name = _skill_leaf_name(raw)
-    if not name:
-        return None
-    for root in _skill_search_roots(base_dir):
-        direct = (root / name).resolve()
-        if direct.is_file():
-            return direct
-        if direct.is_dir():
-            skill_md = direct / "SKILL.md"
+    for name in _skill_name_variants(raw):
+        for root in _skill_search_roots(base_dir):
+            direct = (root / name).resolve()
+            if direct.is_file():
+                return direct
+            if direct.is_dir():
+                skill_md = direct / "SKILL.md"
+                if skill_md.is_file():
+                    return skill_md
+            skill_md = (root / name / "SKILL.md").resolve()
             if skill_md.is_file():
                 return skill_md
-        skill_md = (root / name / "SKILL.md").resolve()
-        if skill_md.is_file():
-            return skill_md
     return None
 
 

@@ -44,8 +44,8 @@ spec:
       concierge_agent:
         tools:
           - ref: ../tools/memory-search.tool.yaml
-        role:
-          instructions: |
+        context:
+          role: |
             You can look up the prices (fares) for trains and air routes.
             You have access to three tools: get_fares for looking up fares,
             calc for calculations, and memory_search for retrieving the

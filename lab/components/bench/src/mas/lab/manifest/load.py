@@ -6,11 +6,13 @@ from __future__ import annotations
 """MAS manifest loading for mas-lab bench — compose + agent resolution."""
 
 
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from mas.ctl.compose.runner import ComposeRequest, compose_run
+from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
 from mas.ctl.overlay import apply_merge_patch
 from mas.ctl.runtime_cli import load_merged_agent_manifest
 from mas.ctl.validate import validate_file, validation_enabled
@@ -80,7 +82,64 @@ def _agent_runtime_dict(doc: dict[str, Any], *, agent_id: str, agent_dir: Path) 
         raw["llm_model"] = models[0].get("model") if isinstance(models[0], dict) else None
     if spec.get("tools"):
         raw["spec_tools"] = spec["tools"]
+    if spec.get("description"):
+        raw["description"] = spec["description"]
+    if spec.get("context"):
+        raw["context"] = spec["context"]
     return raw
+
+
+def merge_stacked_entry_agent_manifest(
+    agent_cfg: dict[str, Any],
+    stacked_config: dict[str, Any],
+) -> dict[str, Any]:
+    """Apply stacked MAS entry-agent overrides onto an agent manifest for bootstrap."""
+    entry_id = (stacked_config.get("mas") or {}).get("entry_agent")
+    if not entry_id:
+        return agent_cfg
+    row = next(
+        (a for a in (stacked_config.get("agents") or []) if a.get("id") == entry_id),
+        None,
+    )
+    if not isinstance(row, dict):
+        return agent_cfg
+
+    merged = deepcopy(agent_cfg)
+    spec = merged.setdefault("spec", {})
+
+    ctx = row.get("context")
+    if isinstance(ctx, dict) and ctx:
+        base_ctx = spec.get("context")
+        if isinstance(base_ctx, dict):
+            spec["context"] = {**base_ctx, **deepcopy(ctx)}
+        else:
+            spec["context"] = deepcopy(ctx)
+
+    if row.get("description"):
+        spec["description"] = row["description"]
+
+    plugins = row.get("plugins")
+    if plugins:
+        existing = list(spec.get("plugins") or [])
+        spec["plugins"] = existing + list(plugins)
+
+    spec_tools = row.get("spec_tools")
+    if spec_tools:
+        tools = list(spec.get("tools") or [])
+        seen = {t if isinstance(t, str) else str(t.get("ref", "")) for t in tools}
+        for tool in spec_tools:
+            key = tool if isinstance(tool, str) else str(tool.get("ref", ""))
+            if key and key not in seen:
+                tools.append(tool)
+                seen.add(key)
+        spec["tools"] = tools
+
+    memory_seed = row.get("memory_seed")
+    if memory_seed:
+        existing_seed = list(spec.get("memory_seed") or [])
+        spec["memory_seed"] = existing_seed + list(memory_seed)
+
+    return merged
 
 
 def load_mas_config(
@@ -115,6 +174,7 @@ def load_mas_config(
         if "ref" in entry:
             ap = resolve_yaml_path(str(entry["ref"]), base_dir)
             agent_doc, _ = load_merged_agent_manifest(ap, validate=False)
+            agent_doc = apply_agency_entry_overlay(agent_doc or {}, entry)
             aid = str(entry.get("id") or (agent_doc or {}).get("metadata", {}).get("name") or ap.stem)
             raw_agents.append(_agent_runtime_dict(agent_doc or {}, agent_id=aid, agent_dir=ap.parent))
         elif entry.get("kind", "").lower() == "agent" or "metadata" in entry:

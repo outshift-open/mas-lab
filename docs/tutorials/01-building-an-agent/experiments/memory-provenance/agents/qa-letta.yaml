@@ -8,14 +8,14 @@ metadata:
   description: "QA agent with Letta/MemGPT core memory blocks"
 
 spec:
+  description: Answer general knowledge questions.
+
   models:
     - model: gpt-4o
 
   context:
     intent: "Answer general knowledge questions."
-
-  role:
-    instructions: |
+    role: |
       Answer questions clearly and concisely.
       You have editable core memory blocks (persona, human).
       ALWAYS store important user facts using core_memory_append on the 'human' block.

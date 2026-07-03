@@ -25,6 +25,7 @@ from mas.ctl.session.manifest_config import kernel_config_from_manifest
 from mas.ctl.validate import validate_file, validation_enabled
 from mas.ctl.workspace.config import WorkspaceConfig
 from mas.runtime.agent_defaults import default_pattern_plugin_id
+from mas.runtime.boundary.context.manifest_context import context_chunks_from_spec
 
 logger = logging.getLogger(__name__)
 
@@ -150,22 +151,6 @@ def _apply_manifest_context(
 ) -> None:
     if not manifest:
         return
-    from mas.runtime.boundary.context.chunks import resolve_context_chunk
-
     spec = manifest.get("spec") or {}
     base = app_root or manifest_dir or Path.cwd()
-    for ref_key in ("instructions_ref", "system_prompt_ref"):
-        ref = spec.get(ref_key)
-        if isinstance(ref, str) and ref:
-            path = (base / ref).resolve()
-            if not path.is_file():
-                raise FileNotFoundError(f"{ref_key} file not found: {path}")
-            ctx.injected_context.append(path.read_text(encoding="utf-8").strip())
-    prompt = spec.get("system_prompt") or spec.get("instructions")
-    if isinstance(prompt, str) and prompt.strip():
-        ctx.injected_context.append(prompt.strip())
-    context = spec.get("context") or {}
-    if isinstance(context, dict):
-        for key, val in context.items():
-            text = resolve_context_chunk(val, base_dir=base)
-            ctx.injected_context.append(f"[{key}] {text}")
+    ctx.injected_context.extend(context_chunks_from_spec(spec, base_dir=base))

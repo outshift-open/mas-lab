@@ -91,6 +91,7 @@ metadata:
   name: qa-agent
 
 spec:
+  description: "Answer general knowledge questions."
   context:
     intent: "Answer general knowledge questions."
     role: |
@@ -225,7 +226,7 @@ mas-ctl chat agent.yaml -v \
   -q "If Tokyo has 14 million people and Paris has 2.1 million, how many times larger is Tokyo?"
 ```
 
-`overlays/tools.yaml` adds tools and updates the role instructions:
+`overlays/tools.yaml` adds tools and updates the role prompt (`spec.context.role`):
 
 ```yaml
 # overlays/tools.yaml
@@ -233,8 +234,8 @@ spec:
   context:
     role: |
       Answer questions clearly and concisely.
-      When you need to perform calculations, use the calculator tool.
-      When you need current information from the web, use the web_search tool.
+      When you need to perform calculations, use the calc tool.
+      When you need current information from the web, use the web-search tool.
 
   tools:
     - web-search

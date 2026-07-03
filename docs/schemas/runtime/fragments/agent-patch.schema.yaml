@@ -64,6 +64,12 @@ properties:
     type: array
     items:
       type: string
+  context:
+    type: object
+    additionalProperties:
+      $ref: "./context-chunk.schema.yaml"
+  description:
+    type: string
   ref:
     type: string
     description: Agent manifest path when replacing agent list entry.
