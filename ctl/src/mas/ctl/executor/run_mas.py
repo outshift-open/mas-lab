@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from mas.ctl.compose.runner import ComposeRequest, compose_run
 from mas.ctl.deployment.runtime_id import DEFAULT_RUNTIME_ID
@@ -19,7 +20,23 @@ from mas.ctl.executor.mas_session import (
     run_sequential_workflow_queries,
 )
 
+if TYPE_CHECKING:
+    from mas.runtime.boundary.obs.loader import ObsPluginSet
+
 logger = logging.getLogger(__name__)
+
+
+def _log_obs_output_paths(plugin_set: "ObsPluginSet") -> None:
+    for plugin in plugin_set.plugins:
+        get_paths = getattr(plugin, "output_file_paths", None)
+        if callable(get_paths):
+            for p in get_paths():
+                logger.info("events: %s", p)
+        else:
+            for em in getattr(plugin, "emitters", []):
+                path = getattr(em, "path", None)
+                if path:
+                    logger.info("events: %s", path)
 
 
 def execute_run_mas(
@@ -43,7 +60,6 @@ def execute_run_mas(
     """Compose → materialize → workflow or SessionController on entry agent."""
     from mas.ctl.session.controller import ConversationConfig, SessionController, close_observability
     from mas.ctl.session.hitl_config import resolve_hitl_from_manifest
-    from mas.ctl.session.observability import setup_observability
     from mas.ctl.session.controller import run_session_loop
     from mas.ctl.ui.stdout import StdoutConversationDisplay
 
@@ -125,19 +141,22 @@ def execute_run_mas(
     if hitl_responder is not None:
         instance.driver.hitl = hitl_responder
 
-    obs_rec = None
+    plugin_set = None
     if obs_config is not None:
-        from dataclasses import replace
+        from mas.ctl.session.observability import setup_instance_obs
 
-        obs_config = replace(obs_config, agent_id=str(entry or "agent"))
-        obs_rec = setup_observability(instance, obs_config, base_dir=base)
+        plugin_set = setup_instance_obs(
+            instance,
+            obs_config,
+            base_dir=base,
+            agent_id=str(entry or "agent"),
+        )
 
     controller = SessionController(
         instance=instance,
         display=display,
         verbose=verbose,
         agent_id=str(entry or "agent"),
-        obs_recorder=obs_rec,
         config=ConversationConfig(
             single_turn=single_turn or (bool(scripted) and not interactive),
         ),
@@ -148,12 +167,8 @@ def execute_run_mas(
         scripted=scripted,
     )
     close_observability(controller)
-    if obs_rec is not None and obs_rec.pipeline.emitters:
-        from mas.ctl.adapters.obs.emit import JsonlFileEmitter
-
-        for em in obs_rec.pipeline.emitters:
-            if isinstance(em, JsonlFileEmitter):
-                logger.info("events: %s", em.path)
+    if plugin_set is not None:
+        _log_obs_output_paths(plugin_set)
     return exit_code
 
 
@@ -175,15 +190,18 @@ def _run_sequential_workflow(
 
     display = StdoutConversationDisplay(agent_label="Workflow", verbose=verbose, show_labels=True)
 
-    def _obs_setup(instance: object, agent_id: str):
-        if obs_config is None:
-            return None
-        from dataclasses import replace
+    shared_plugin_set = None
+    if obs_config is not None:
+        from mas.ctl.session.observability import setup_shared_obs
 
-        from mas.ctl.session.observability import setup_observability
-
-        cfg = replace(obs_config, agent_id=agent_id)
-        return setup_observability(instance, cfg, base_dir=base)
+        instances = dict(materialized.materialized.instances)
+        entry = entry_agent_id(mas_config)
+        shared_plugin_set = setup_shared_obs(
+            instances,
+            obs_config,
+            base_dir=base,
+            entry_agent_id=entry,
+        )
 
     try:
         text = run_sequential_workflow_queries(
@@ -192,27 +210,19 @@ def _run_sequential_workflow(
             scripted,
             display=display,
             verbose=verbose,
-            obs_setup=_obs_setup if obs_config is not None else None,
         )
     except (KeyError, RuntimeError, ValueError) as exc:
         logger.error("sequential workflow failed: %s", exc)
         return 1
+    finally:
+        if shared_plugin_set is not None:
+            shared_plugin_set.close()
     if text.strip():
         display.on_agent(text)
+    if shared_plugin_set is not None:
+        _log_obs_output_paths(shared_plugin_set)
     return 0
 
-
-# Backward-compatible re-exports for tests and internal callers.
-_is_sequential_workflow = is_sequential_workflow
-_entry_agent = entry_agent_id
-_make_workflow_send = make_workflow_send
-_load_agent_manifest = load_agent_manifest_from_bind
-
-
-def _sequential_workflow_payload(mas_config: dict) -> dict:
-    from mas.ctl.executor.mas_session import sequential_workflow_payload
-
-    return sequential_workflow_payload(mas_config)
 
 
 def _agent_manifest_path(bind, agent_id: str) -> Path | None:

@@ -166,35 +166,90 @@ def _collect_context_provenance(
 ) -> dict[str, list[dict]]:
     """Return ``call_id → [cpr_event, …]`` for L4 context provenance hover enrichment.
 
-    ``context_part_contributed`` events are matched to LLM call records either
-    by explicit ``llm_call_id`` or by timestamp containment.
+    ``context_part_contributed`` events are matched to LLM call records using
+    three strategies in priority order:
+
+    1. **Explicit UUID match**: ``ev.llm_call_id`` directly equals a record's
+       ``call_id`` (best case — runtime emits the UUID).
+
+    2. **Synthetic-ID mapping**: The runtime's inner layer emits
+       ``context_assembled`` events with a synthetic ``call_id`` like "llm-1"
+       at the same timestamp as the outer ``llm_call_start``.  We build a
+       ``synthetic_id → real_uuid`` map from these events so that CPR events
+       with ``llm_call_id="llm-1"`` are redirected to the correct record.
+
+    3. **"Next LLM call" containment**: CPR events fire *during context
+       assembly*, which happens just before the LLM call starts — so their
+       timestamp is slightly earlier than the LLM call's ``start_ts``.
+       We find the nearest LLM record that starts within a short window after
+       the CPR event.  The agent_id filter is relaxed for generic ``"agent"``
+       values (the runtime emits a placeholder when the per-turn agent id is
+       not yet known at context-assembly time).
     """
     cpr_events = [e for e in events if e.get("kind") == "context_part_contributed"]
     if not cpr_events:
         return {}
 
+    llm_records = [r for r in records if r.get("call_type") == "LLMCall"]
+
+    # --- Strategy 2: build synthetic→real mapping from context_assembled ----
+    # context_assembled inner events carry call_id="llm-N" (synthetic) at
+    # roughly the same timestamp as the matching outer llm_call_start (UUID).
+    synth_to_real: dict[str, str] = {}
+    ca_events = [e for e in events if e.get("kind") == "context_assembled" and e.get("llm_call_id")]
+    for ca in ca_events:
+        synth_id = str(ca["llm_call_id"])
+        if not synth_id:
+            continue
+        ca_ts = float(ca.get("timestamp") or 0)
+        # Find the closest LLM record by start timestamp (50 ms tolerance).
+        best = min(
+            llm_records,
+            key=lambda r: abs(r["start_ts"] - ca_ts),
+            default=None,
+        )
+        if best is not None and abs(best["start_ts"] - ca_ts) <= 0.05:
+            synth_to_real[synth_id] = best["call_id"]
+
     result: dict[str, list[dict]] = defaultdict(list)
 
     for ev in cpr_events:
-        cid = ev.get("llm_call_id")
-        if cid:
-            result[cid].append(ev)
+        raw_cid = ev.get("llm_call_id") or ""
+
+        # Strategy 1: direct UUID match
+        if raw_cid:
+            matched = next((r for r in llm_records if r["call_id"] == raw_cid), None)
+            if matched:
+                result[matched["call_id"]].append(ev)
+                continue
+
+        # Strategy 2: synthetic-ID → real UUID
+        if raw_cid and raw_cid in synth_to_real:
+            result[synth_to_real[raw_cid]].append(ev)
             continue
-        # Fallback: timestamp containment — find narrowest LLMCall record
-        ev_ts = float(ev.get("timestamp") or 0)
+
+        # Strategy 3: nearest LLM call that starts *after* this CPR event.
+        # Context assembly fires just before the LLM call that will consume it.
+        # Use a generous look-ahead window (500 ms) and relax the agent_id
+        # filter when agent_id is the generic placeholder "agent".
+        ev_ts    = float(ev.get("timestamp") or 0)
         ev_agent = ev.get("agent_id", "")
+        _generic_agent = ev_agent in ("", "agent")
+
         best_rec: Optional[dict] = None
-        best_dur = float("inf")
-        for rec in records:
-            if rec.get("call_type") != "LLMCall":
+        best_gap  = float("inf")
+        for rec in llm_records:
+            if not _generic_agent and rec.get("agent_id") != ev_agent:
                 continue
-            if rec.get("agent_id") != ev_agent:
-                continue
-            s = float(rec.get("start_ts") or 0)
-            e = float(rec.get("end_ts") or 0)
-            if s - _TS_TOL <= ev_ts <= e + _TS_TOL and (e - s) < best_dur:
-                best_dur = e - s
+            gap = rec["start_ts"] - ev_ts
+            # Accept records whose start is within [−_TS_TOL, +0.5s] of the
+            # CPR event: negative gap (CPR fires slightly after start) is
+            # possible when the runtime emits context_part_contributed events
+            # during the first few ms of the LLM call window.
+            if -_TS_TOL <= gap <= 0.5 and gap < best_gap:
+                best_gap = gap
                 best_rec = rec
+
         if best_rec:
             result[best_rec["call_id"]].append(ev)
 
@@ -292,12 +347,13 @@ def _stagger_coinc_processing_calls(seq: list[dict]) -> list[dict]:
                 staggered["start_ts"] = ts + idx * _STAGGER_DUR
                 staggered["end_ts"]   = ts + (idx + 1) * _STAGGER_DUR
                 result.append(staggered)
-            # Snap the next record's start_ts so it doesn't overlap the
-            # staggered group (the original was aligned to the pre-stagger ts).
+            # Snap the next record's start_ts forward if it falls inside the
+            # staggered group.  Only advance — never move it backward.
             _group_end = ts + len(group) * _STAGGER_DUR
             if j < len(seq):
                 nxt_copy = dict(seq[j])
-                nxt_copy["start_ts"] = _group_end
+                if nxt_copy.get("start_ts", _group_end) < _group_end:
+                    nxt_copy["start_ts"] = _group_end
                 result.append(nxt_copy)
                 i = j + 1
             else:

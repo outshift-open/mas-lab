@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 @dataclass
@@ -46,6 +47,9 @@ class PipelineStepSpec:
     per_scenario: bool = False
     """(v1) When True, expand this step once for each scenario."""
 
+    per_run: bool = False
+    """(v1) When True, expand this step once for each benchmark run folder."""
+
     phase: str = "post"
     """Execution phase: ``pre`` (before benchmark loop) or ``post`` (after)."""
 
@@ -80,6 +84,7 @@ class PipelineStepSpec:
             type=data["type"],
             name=data.get("name"),
             per_scenario=data.get("per_scenario", False),
+            per_run=data.get("per_run", False),
             phase=data.get("phase", "post"),
             scope=data.get("scope", ""),
             config=data.get("config", {}),
@@ -244,13 +249,33 @@ def _expand_pipeline_entries(
     *,
     level: str,
     phase: str,
+    base_dir: Optional[Path] = None,
 ) -> List[PipelineStepSpec]:
     if not entries:
         return []
+    if isinstance(entries, str):
+        entries = [{"ref": entries}]
     if not isinstance(entries, list):
-        raise ValueError(f"{level}.{phase} must be a list")
+        raise ValueError(f"{level}.{phase} must be a list or pipeline file path")
     steps: List[PipelineStepSpec] = []
     for entry in entries:
+        if isinstance(entry, dict) and "ref" in entry:
+            ref_path = Path(entry["ref"])
+            if not ref_path.is_absolute() and base_dir is not None:
+                ref_path = (base_dir / ref_path).resolve()
+            from mas.lab.benchmark.schedule.pipeline_resolve import (
+                resolve_pipeline_specs_from_yaml,
+            )
+
+            for step in resolve_pipeline_specs_from_yaml(ref_path):
+                if not step.scope:
+                    step.scope = level
+                if step.phase == "post" and phase == "pre":
+                    step.phase = phase
+                elif not step.phase:
+                    step.phase = phase
+                steps.append(step)
+            continue
         if isinstance(entry, dict) and "steps" in entry:
             for step in entry["steps"]:
                 steps.append(
@@ -262,7 +287,8 @@ def _expand_pipeline_entries(
             )
         else:
             raise ValueError(
-                f"{level}.{phase}: each entry must be a step object or {{steps: [...]}}"
+                f"{level}.{phase}: each entry must be a step object, "
+                f"{{ref: path}}, {{steps: [...]}}, or a pipeline file path string"
             )
     return steps
 
@@ -288,7 +314,13 @@ class LevelSpec:
     """Run count (``run`` level only)."""
 
     @classmethod
-    def from_dict(cls, level: str, data: Dict[str, Any]) -> "LevelSpec":
+    def from_dict(
+        cls,
+        level: str,
+        data: Dict[str, Any],
+        *,
+        base_dir: Optional[Path] = None,
+    ) -> "LevelSpec":
         if "pipeline" in data:
             raise ValueError(
                 f"experiment.{level}.pipeline is removed; use {level}.pre or {level}.post"
@@ -298,8 +330,19 @@ class LevelSpec:
             for name, value in data.get("artifacts", {}).items()
         ]
         pipeline: List[PipelineStepSpec] = []
-        pipeline.extend(_expand_pipeline_entries(data.get("pre", []), level=level, phase="pre"))
-        pipeline.extend(_expand_pipeline_entries(data.get("post", []), level=level, phase="post"))
+        pipeline.extend(
+            _expand_pipeline_entries(
+                data.get("pre", []), level=level, phase="pre", base_dir=base_dir
+            )
+        )
+        pipeline.extend(
+            _expand_pipeline_entries(
+                data.get("post", []), level=level, phase="post", base_dir=base_dir
+            )
+        )
+        for step in pipeline:
+            if not step.scope:
+                step.scope = level
         n_runs = data.get("n_runs") if level == "run" else None
         return cls(level=level, artifacts=artifacts, pipeline=pipeline, n_runs=n_runs)
 

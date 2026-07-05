@@ -244,7 +244,6 @@ def make_workflow_send(
     display: Any,
     verbose: int,
     from_agent: str = "",
-    obs_setup: Callable[[Any, str], Any] | None = None,
 ) -> RunTurnFn:
     """Run one agent turn inside a multi-agent workflow (sequential or delegation).
 
@@ -285,20 +284,16 @@ def make_workflow_send(
                 show_labels=True,
                 user_prompt_echoed=True,
             )
-        obs_rec = obs_setup(instance, agent_id) if obs_setup is not None else None
         controller = SessionController(
             instance=instance,
             display=sub_display,
             verbose=verbose,
             agent_id=agent_id,
-            obs_recorder=obs_rec,
             config=ConversationConfig(single_turn=True),
         )
         result = controller.run_turn(prompt)
-        if obs_rec is not None:
-            from mas.ctl.session.controller import close_observability
-
-            close_observability(controller)
+        from mas.ctl.session.controller import close_observability
+        close_observability(controller)
         state["prev_agent"] = agent_id
         if turn_failed(result):
             raise RuntimeError(f"agent {agent_id!r} turn failed")
@@ -314,7 +309,6 @@ def run_sequential_workflow_queries(
     *,
     display: Any,
     verbose: int = 0,
-    obs_setup: Callable[[Any, str], Any] | None = None,
 ) -> str:
     """Execute sequential workflow queries; returns final response text."""
     entry = entry_agent_id(mas_config)
@@ -323,7 +317,6 @@ def run_sequential_workflow_queries(
         display=display,
         verbose=verbose,
         from_agent=entry,
-        obs_setup=obs_setup,
     )
     wf = SequentialWorkflow.from_dict(sequential_workflow_payload(mas_config), send=send)
     text = ""

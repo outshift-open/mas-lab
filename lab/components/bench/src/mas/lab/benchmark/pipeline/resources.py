@@ -91,11 +91,13 @@ class Scope(IntEnum):
 #: Canonical file extensions for artifact formats.
 _FORMAT_EXT: Dict[str, str] = {
     "json": "json",
+    "jsonl": "jsonl",
     "csv": "csv",
     "sqlite": "db",
     "session_store": "",   # directory, no extension
     "png": "png",
     "svg": "svg",
+    "html": "html",
     "parquet": "parquet",
     "txt": "txt",
 }

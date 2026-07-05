@@ -8,7 +8,6 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from mas.runtime.factory.builder import RuntimeBuilder
 from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.driver.mocks import AutoCtxAssembler
 
@@ -21,7 +20,6 @@ from mas.ctl.adapters.memory_seed import (
 )
 from mas.ctl.compose.models import ResolvedInfra
 from mas.ctl.session.engine_factory import build_engine
-from mas.ctl.session.manifest_config import kernel_config_from_manifest
 from mas.ctl.validate import validate_file, validation_enabled
 from mas.ctl.workspace.config import WorkspaceConfig
 from mas.runtime.agent_defaults import default_pattern_plugin_id
@@ -86,11 +84,12 @@ def instantiate_runtime(
             base_dir=skill_base,
         )
     ctx.capture_baseline()
-    kernel_cfg = kernel_config_from_manifest(
-        options.agent_manifest,
-        pattern_plugin_id=options.pattern_plugin_id,
-    )
+    spec = (options.agent_manifest or {}).get("spec") or {}
     ws = options.workspace or WorkspaceConfig.load(options.manifest_dir or Path.cwd())
+    # Pre-parse spec to derive kernel config once; pass to build_engine to avoid double-parsing.
+    from mas.runtime.spec.parser import parse_agent_spec
+
+    _kernel_cfg, _obs_binding = parse_agent_spec(spec)
     selection = build_engine(
         ctx,
         options.agent_manifest,
@@ -99,11 +98,14 @@ def instantiate_runtime(
         workspace_default_model=ws.default_model,
         anchor=options.manifest_dir or Path.cwd(),
         workspace=ws,
+        kernel_config=_kernel_cfg,
     )
     logger.info("Engine mode=%s (%s)", selection.mode, selection.reason)
 
-    instance = RuntimeBuilder.from_config(
-        kernel_cfg,
+    instance = RuntimeInstance.from_spec(
+        spec,
+        base_dir=options.manifest_dir,
+        agent_id=str(options.manifest_dir or "agent"),
         hitl=hitl,
         engine=selection.engine,
         ctx=ctx,

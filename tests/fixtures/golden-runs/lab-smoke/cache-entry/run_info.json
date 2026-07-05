@@ -1,10 +1,10 @@
 {
-  "run_hash": "4adab045cec2b14a8b69",
+  "run_hash": "240c01f5b2a41ca79519",
   "experiment": "verify-lab-smoke",
   "scenario": "mock-tools",
   "item_id": "1",
   "run_idx": 0,
-  "referenced_at": "2026-07-03T00:52:42.989445Z",
+  "referenced_at": "2026-07-06T00:44:43.341271Z",
   "mas": {
     "app": "qa-agent",
     "mas_ref": "/Users/augjorda/repos/outshift-open/mas-lab/docs/tutorials/01-building-an-agent/agent.yaml",

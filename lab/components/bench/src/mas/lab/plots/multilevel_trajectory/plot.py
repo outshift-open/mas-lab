@@ -66,6 +66,10 @@ def plot_multilevel_trajectory(
     if not trace:
         return "(empty trace)"
 
+    trace = [dict(e) for e in trace]
+    from mas.lab.plots.kg_adapter import _normalize_timestamps
+    _normalize_timestamps([], trace)
+
     records = _build_call_records(trace)
     if not records:
         return "(no timed execution records found in trace)"

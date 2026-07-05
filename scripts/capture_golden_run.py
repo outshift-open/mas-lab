@@ -5,11 +5,42 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+logger = logging.getLogger(__name__)
+
+
+def _load_dotenv(root: Path) -> None:
+    """Load ``root/.env`` into ``os.environ`` without overwriting existing vars.
+
+    Direnv is not always active (e.g. when running inside tox, CI, or a bare
+    Python subprocess).  Loading .env here ensures ``LLM_PROXY_API_BASE`` and
+    similar vars are available regardless of the invoking shell.
+    Lines starting with ``#`` and blank lines are skipped.  ``export`` prefix
+    is stripped.  Existing env vars are never overwritten (same semantics as
+    ``source_env_if_exists .env`` in direnv).
+    """
+    env_path = root / ".env"
+    if not env_path.is_file():
+        return
+    for raw in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        line = line.removeprefix("export").strip()
+        if "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key = key.strip()
+        val = val.strip().strip("\"'")
+        if key and key not in os.environ:
+            os.environ[key] = val
+            logger.debug("dotenv: loaded %s from .env", key)
 
 
 def _capture_one(
@@ -38,6 +69,24 @@ def _capture_one(
     mas_home = tmp / "mas-home"
     mas_home.mkdir()
     os.environ["MAS_HOME"] = str(mas_home)
+    # Isolate trace cache: without this, run_benchmark_sync may hit a global
+    # cache entry with stale event counts and return cached results instead of
+    # running the agent.  The test fixture does the same via monkeypatch.
+    os.environ["MAS_TRACE_CACHE"] = str(trace_cache)
+    # Isolate from the user's personal ~/.config/mas/config.yaml so internal
+    # infra refs (e.g. claris:llm-proxy) don't bleed into the OSS capture.
+    os.environ["XDG_CONFIG_HOME"] = str(tmp / "xdg-config")
+    # Default to standard:llm-proxy, which reads LLM_PROXY_API_BASE from the
+    # environment (falling back to https://api.openai.com/v1). The caller can
+    # override by setting MAS_INFRA_REFS before running.
+    if not os.environ.get("MAS_INFRA_REFS"):
+        os.environ["MAS_INFRA_REFS"] = "standard:llm-proxy"
+    print(
+        f"  infra:   MAS_INFRA_REFS={os.environ.get('MAS_INFRA_REFS')!r}",
+        f"  api_base: LLM_PROXY_API_BASE={os.environ.get('LLM_PROXY_API_BASE', '<not set — will use OpenAI default>')!r}",
+        sep="\n",
+        file=sys.stderr,
+    )
 
     ok = run_benchmark_sync(
         experiment,
@@ -70,6 +119,10 @@ def _capture_one(
 
 
 def main() -> int:
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
+    # Load .env before argument parsing so env vars are available for infra resolution.
+    _load_dotenv(ROOT)
+
     from mas.lab.benchmark.golden.labs import DEFAULT_MANIFEST, resolve_lab_targets
 
     parser = argparse.ArgumentParser(description=__doc__)

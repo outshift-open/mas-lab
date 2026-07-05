@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from mas.lab.benchmark.execution import apply_step_overrides
+from mas.lab.benchmark.schedule.run_discovery import discover_benchmark_runs
 from mas.lab.benchmark.schedule.pipeline_resolve import (
     resolve_pipeline_specs,
     spec_to_step_dict,
@@ -45,14 +46,24 @@ def _expand_depends_on(
     depends_on: list[str],
     scenario_id: str,
     per_scenario_names: set[str],
+    *,
+    run_suffix: str | None = None,
+    per_run_names: set[str] | None = None,
 ) -> list[str]:
     expanded: list[str] = []
+    per_run_names = per_run_names or set()
     for dep in depends_on or []:
-        if dep in per_scenario_names:
+        if run_suffix and dep in per_run_names:
+            expanded.append(f"{dep}-{run_suffix}")
+        elif dep in per_scenario_names:
             expanded.append(f"{dep}-{scenario_id}")
         else:
             expanded.append(dep)
     return expanded
+
+
+def _run_step_suffix(scenario: str, test: str, run: str) -> str:
+    return f"{scenario}-{test}-{run}"
 
 
 def materialize_step_dicts(
@@ -76,18 +87,71 @@ def materialize_step_dicts(
     per_scenario_names = {
         _base_step_name(s) for s in phase_specs if getattr(s, "per_scenario", False)
     }
+    per_run_names = {
+        _base_step_name(s) for s in phase_specs if getattr(s, "per_run", False)
+    }
     step_dicts: list[dict] = []
     tmpl = template_vars or {}
+    output_dir = Path(tmpl.get("output_dir", "."))
 
     for spec in phase_specs:
         base_name = _base_step_name(spec)
-        targets = scenario_ids if getattr(spec, "per_scenario", False) else [None]
+        is_per_scenario = getattr(spec, "per_scenario", False)
+        is_per_run = getattr(spec, "per_run", False)
+
+        if is_per_run:
+            scenario_filter = scenario_ids if is_per_scenario else None
+            run_targets = []
+            if is_per_scenario:
+                for sid in scenario_ids:
+                    run_targets.extend(
+                        discover_benchmark_runs(output_dir, scenario=sid)
+                    )
+            else:
+                run_targets = discover_benchmark_runs(output_dir)
+
+            for run_ref in run_targets:
+                cfg = copy.deepcopy(spec.config or {})
+                cfg.setdefault("scenario", run_ref.scenario)
+                cfg.setdefault("test", run_ref.test)
+                cfg.setdefault("run", run_ref.run)
+                cfg.setdefault("run_dir", str(run_ref.path))
+                cfg.setdefault("scenario_dir", str(output_dir / run_ref.scenario))
+                if infra_name and spec.type in _INFRA_STEP_TYPES:
+                    cfg.setdefault("infra", infra_name)
+
+                cfg = apply_step_overrides(cfg, spec.type, step_overrides or {})
+                if tmpl:
+                    cfg = substitute_template_vars(cfg, tmpl)
+                suffix = _run_step_suffix(run_ref.scenario, run_ref.test, run_ref.run)
+                name = f"{base_name}-{suffix}"
+                deps = _expand_depends_on(
+                    list(spec.depends_on or []),
+                    run_ref.scenario,
+                    per_scenario_names,
+                    run_suffix=suffix,
+                    per_run_names=per_run_names,
+                )
+                step_dicts.append(
+                    {
+                        "name": name,
+                        "type": spec.type,
+                        "phase": getattr(spec, "phase", "post"),
+                        "config": cfg,
+                        "depends_on": deps,
+                    }
+                )
+            continue
+
+        targets = scenario_ids if is_per_scenario else [None]
 
         for sid in targets:
             cfg = copy.deepcopy(spec.config or {})
             if sid is not None:
                 cfg.setdefault("scenario", sid)
                 cfg.setdefault("scenarios", [sid])
+                if tmpl.get("output_dir"):
+                    cfg.setdefault("scenario_dir", f"{tmpl['output_dir']}/{sid}")
             if infra_name and spec.type in _INFRA_STEP_TYPES:
                 cfg.setdefault("infra", infra_name)
 
@@ -96,7 +160,12 @@ def materialize_step_dicts(
                 cfg = substitute_template_vars(cfg, tmpl)
             name = f"{base_name}-{sid}" if sid is not None else base_name
             deps = (
-                _expand_depends_on(list(spec.depends_on or []), sid, per_scenario_names)
+                _expand_depends_on(
+                    list(spec.depends_on or []),
+                    sid,
+                    per_scenario_names,
+                    per_run_names=per_run_names,
+                )
                 if sid is not None
                 else list(spec.depends_on or [])
             )

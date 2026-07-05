@@ -16,6 +16,12 @@ dependencies = [
     "ddgs>=9.14.0",
 ]
 
+[project.optional-dependencies]
+otel = [
+    "opentelemetry-sdk>=1.27.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.27.0",
+]
+
 [project.entry-points."mas.runtime.manifest_libraries"]
 standard = "mas.library.standard"
 

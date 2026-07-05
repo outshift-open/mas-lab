@@ -55,6 +55,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from mas.lab.benchmark.pipeline import PipelineStep, StepOutput
+from mas.lab.benchmark.schema.validation import check_trace_integrity
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +116,16 @@ def _extract_stats(events_path: Path) -> Dict[str, Any]:
         if e.get("kind") == "context_part_contributed"
     )
 
+    # Trace integrity — self-referential start events are a runtime emission
+    # bug (inner-layer duplicate frames).  Count them so the metric is visible
+    # in trace_stats.csv for native, OTel-replay, and KG sources alike.
+    n_selfref = len(check_trace_integrity(events, source=events_path.name))
+    if n_selfref:
+        logger.warning(
+            "%s: %d self-referential start event(s) detected (call_id == parent_call_id)",
+            events_path, n_selfref,
+        )
+
     return {
         "duration_s": round(duration_s, 3),
         "n_governance_checks": n_checks,
@@ -124,6 +135,7 @@ def _extract_stats(events_path: Path) -> Dict[str, Any]:
         "n_llm_calls": n_llm_calls,
         "n_context_parts": n_ctx_parts,
         "n_context_tokens": n_ctx_tokens,
+        "n_selfref_events": n_selfref,
     }
 
 
@@ -159,6 +171,7 @@ class ExtractTraceStatsStep(PipelineStep):
             "run_hash",
             "duration_s", "n_governance_checks", "n_governance_fired", "n_checks_passed",
             "n_tool_calls", "n_llm_calls", "n_context_parts", "n_context_tokens",
+            "n_selfref_events",
         ]
 
         rows: List[Dict[str, Any]] = []

@@ -205,8 +205,11 @@ class EvalMceStep(PipelineStep):
                         scenario=scenario,
                         session_scores=session_scores,
                     )
-                    # Embed run_hash + cache_key so collect_metrics can link rows
-                    # to the unified cache without re-reading .run_ref files.
+                    if schema is not None:
+                        _validate_document(doc, schema, trace_path)
+                    # Embed run_hash + cache_key AFTER schema validation —
+                    # these are pipeline-internal fields not declared in the schema.
+                    # collect_metrics reads them from the file directly.
                     run_ref_f = run_folder / ".run_ref"
                     if run_ref_f.exists():
                         try:
@@ -218,8 +221,6 @@ class EvalMceStep(PipelineStep):
                             doc["cache_key"] = _run_hash
                         except Exception:
                             logger.debug('suppressed', exc_info=True)
-                    if schema is not None:
-                        _validate_document(doc, schema, trace_path)
                     metrics_file.write_text(
                         json.dumps(doc, indent=2, ensure_ascii=False),
                         encoding="utf-8",

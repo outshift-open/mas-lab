@@ -40,6 +40,18 @@ def _build_call_records(events: list[dict]) -> list[dict]:
         call_type = _KIND_BASE_TO_TYPE.get(kind_base)
         if call_type is None:
             continue
+        # Skip self-referential start events: these are inner-layer duplicate
+        # emissions where the engine adapter reuses the same call_id that the
+        # ObservabilityOperator wrapper already pushed as a frame.
+        # Symptom: parent_call_id == call_id (a call cannot be its own parent).
+        # Keeping both would produce two records with the same call_id — the
+        # inner (orphaned) record's end_ts defaults to start + 1.0 s and
+        # causes boundary-alignment to corrupt unrelated records' timestamps.
+        if kind.endswith("_start"):
+            _cid = ev.get("call_id")
+            _pid = ev.get("parent_call_id")
+            if _cid and _pid and _cid == _pid:
+                continue
         # Promote MITM processing calls to a dedicated visual type.
         if call_type == "ProcessingCall" and ev.get("processing_type") == "mitm_rewrite":
             call_type = "MITMCall"
@@ -237,6 +249,17 @@ def _build_call_records(events: list[dict]) -> list[dict]:
     for rec in records:
         if rec.get("_end_missing") and rec.get("level") == "agent":
             rec["end_ts"] = _t_final
+
+    # Multiple agents may share the same runtime call_id (e.g. u1-exec); ensure
+    # agent-lane records remain uniquely addressable in the call tree.
+    _seen_ids: set[str] = set()
+    for rec in records:
+        cid = str(rec.get("call_id") or "")
+        if not cid:
+            continue
+        if cid in _seen_ids and rec.get("level") == "agent":
+            rec["call_id"] = f"{cid}-{rec.get('agent_id', 'agent')}"
+        _seen_ids.add(str(rec["call_id"]))
 
     return sorted(records, key=lambda r: r["start_ts"])
 

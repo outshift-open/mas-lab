@@ -59,6 +59,7 @@ def _builtin_step_registry() -> Dict[str, type]:
         EvalTripPlannerGTStep,
         ExperimentStep,
         ExportOtelStep,
+        EventsToOtelStep,
         ExtractMealyStatsStep,
         ExtractSysStatsStep,
         ExtractTraceStatsStep,
@@ -126,6 +127,7 @@ def _builtin_step_registry() -> Dict[str, type]:
         "plot_communication_flow": PlotCommunicationFlowStep,
         "plot_message_graph": PlotMessageGraphStep,
         "export_otel": ExportOtelStep,
+        "events_to_otel": EventsToOtelStep,
     }
 
     registry.update(_entry_point_steps())

@@ -57,6 +57,7 @@ _NODE_TYPE_TO_CALL_TYPE: dict[str, str] = {
     "AgentCall":      "AgentCall",
     "LLMCall":        "LLMCall",
     "ToolCall":       "ToolCall",
+    "SkillCall":      "SkillCall",
     "ProcessingCall": "ProcessingCall",
     "ThinkingCall":   "ThinkingCall",
     "MITMCall":       "MITMCall",
@@ -68,6 +69,7 @@ _CALL_TYPE_TO_LEVEL: dict[str, str] = {
     "AgentCall":      "agent",
     "LLMCall":        "call",
     "ToolCall":       "call",
+    "SkillCall":      "call",
     "ProcessingCall": "call",
     "ThinkingCall":   "call",
     "MITMCall":       "call",
@@ -147,6 +149,12 @@ def kg_to_call_records(kg: dict[str, Any]) -> list[dict[str, Any]]:
             if not record["input"] or record["input"] in ("", "{}", "null", "None"):
                 record["input"] = f"→ {record['tool_name'] or 'tool'}()"
 
+        elif call_type == "SkillCall":
+            record["processing_name"] = node.get("skillName", "")
+            record["input"] = node.get("skillInput", "")
+            record["output"] = node.get("skillOutput", "")
+            record["label"] = record["processing_name"] or "skill"
+
         elif call_type == "ProcessingCall":
             record["processing_name"] = node.get("processingName", "")
             record["input"] = node.get("inputContent", "")
@@ -168,6 +176,275 @@ def kg_to_call_records(kg: dict[str, Any]) -> list[dict[str, Any]]:
 
     records.sort(key=lambda r: r["start_ts"])
     return records
+
+
+def _normalize_timestamps(
+    records: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+) -> float:
+    """Shift all timestamps so the trace starts at t=0. Returns the offset."""
+    candidates: list[float] = []
+    for rec in records:
+        if rec.get("start_ts"):
+            candidates.append(float(rec["start_ts"]))
+        if rec.get("end_ts"):
+            candidates.append(float(rec["end_ts"]))
+    for ev in events:
+        ts = ev.get("timestamp")
+        if ts is not None:
+            candidates.append(float(ts))
+    if not candidates:
+        return 0.0
+    t_max = max(candidates)
+    # Absolute Unix epoch timestamps (not relative offsets) — normalize to t=0.
+    if t_max < 1e6:
+        return 0.0
+    positive = [t for t in candidates if t > 1.0]
+    offset = min(positive) if positive else min(candidates)
+    if offset <= 0.0:
+        return 0.0
+    for rec in records:
+        rec["start_ts"] = float(rec.get("start_ts") or 0) - offset
+        rec["end_ts"] = float(rec.get("end_ts") or 0) - offset
+        rec["start_ts"] = max(0.0, rec["start_ts"])
+        rec["end_ts"] = max(rec["start_ts"], rec["end_ts"])
+    for ev in events:
+        ev["timestamp"] = max(0.0, float(ev.get("timestamp") or 0) - offset)
+    return offset
+
+
+def _synthesize_agent_calls(
+    kg: dict[str, Any],
+    records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Create AgentCall records for agents that only appear as LLM/Tool calls."""
+    nodes = kg.get("nodes", [])
+    edges = kg.get("edges", [])
+
+    existing_agents = {
+        r.get("agent_id")
+        for r in records
+        if r.get("call_type") == "AgentCall" and r.get("agent_id")
+    }
+
+    # Map delegated agent → delegating tool call id (callsAgent edges).
+    delegate_parent: dict[str, str] = {}
+    nodes_by_id = {n.get("id", ""): n for n in nodes}
+    for edge in edges:
+        if (edge.get("edge_type") or edge.get("type")) != "callsAgent":
+            continue
+        tgt = edge.get("target") or edge.get("to_id") or ""
+        src = edge.get("source") or edge.get("from_id") or ""
+        agent_id = tgt
+        if tgt in nodes_by_id:
+            agent_id = (
+                nodes_by_id[tgt].get("agentId")
+                or nodes_by_id[tgt].get("agentName")
+                or tgt
+            )
+        if agent_id and src:
+            delegate_parent[str(agent_id)] = str(src)
+
+    # Root agent AgentCall (entry orchestrator).
+    root_agent_call = next(
+        (r for r in records if r.get("call_type") == "AgentCall" and not r.get("parent_call_id")),
+        None,
+    )
+    if root_agent_call is None:
+        root_agent_call = next(
+            (r for r in records if r.get("call_type") == "AgentCall"),
+            None,
+        )
+    root_parent = root_agent_call.get("call_id") if root_agent_call else None
+
+    work_agents: dict[str, list[dict]] = {}
+    for rec in records:
+        if rec.get("call_type") not in {"LLMCall", "ToolCall", "ProcessingCall"}:
+            continue
+        aid = rec.get("agent_id") or ""
+        if not aid or aid in {"mas", "agent"}:
+            continue
+        work_agents.setdefault(aid, []).append(rec)
+
+    synth: list[dict[str, Any]] = []
+    for agent_id, calls in sorted(work_agents.items()):
+        if agent_id in existing_agents:
+            continue
+        start_ts = min(float(c.get("start_ts") or 0) for c in calls)
+        end_ts = max(float(c.get("end_ts") or 0) for c in calls)
+        parent_tool = delegate_parent.get(agent_id)
+        parent_call_id = root_parent
+        if parent_tool:
+            tool_rec = next((r for r in records if r.get("call_id") == parent_tool), None)
+            if tool_rec and tool_rec.get("parent_call_id"):
+                parent_call_id = tool_rec["parent_call_id"]
+        call_id = f"agent-exec-{agent_id}"
+        synth.append({
+            "call_id": call_id,
+            "parent_call_id": parent_call_id,
+            "_has_ids": True,
+            "call_type": "AgentCall",
+            "level": "agent",
+            "agent_id": agent_id,
+            "start_ts": start_ts,
+            "end_ts": end_ts,
+            "input": "",
+            "output": "",
+            "label": agent_id,
+            "tool_name": "",
+            "model": "",
+            "thinking": "",
+            "processing_name": "",
+            "_synthetic": True,
+        })
+        for c in calls:
+            if not c.get("parent_call_id"):
+                c["parent_call_id"] = call_id
+
+    return synth
+
+
+def _synthesize_context_contributions(
+    kg: dict[str, Any],
+    records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Rebuild ``context_part_contributed`` events from KG ContextContribution nodes."""
+    nodes = kg.get("nodes", [])
+    edges = kg.get("edges", [])
+    nodes_by_id = {n.get("id", ""): n for n in nodes}
+
+    llm_by_id = {
+        r["call_id"]: r
+        for r in records
+        if r.get("call_type") == "LLMCall" and r.get("call_id")
+    }
+    for node in nodes:
+        if node.get("node_type") != "LLMCall":
+            continue
+        cid = node.get("callId") or node.get("id", "")
+        nid = node.get("id", "")
+        if cid and cid not in llm_by_id:
+            # Align shorthand ids (llm-N) with record call_ids when present.
+            match = next((r for r in records if r.get("call_id") == cid), None)
+            if match:
+                llm_by_id[cid] = match
+        if nid and nid not in llm_by_id:
+            match = next((r for r in records if r.get("call_id") == nid), None)
+            if match:
+                llm_by_id[nid] = match
+
+    # contributesTo: ContextContribution → LLMCall
+    cc_to_llm: dict[str, str] = {}
+    for edge in edges:
+        if (edge.get("edge_type") or edge.get("type")) != "contributesTo":
+            continue
+        src = edge.get("source") or edge.get("from_id") or ""
+        tgt = edge.get("target") or edge.get("to_id") or ""
+        if src.startswith("cpr-") or nodes_by_id.get(src, {}).get("node_type") == "ContextContribution":
+            tgt_node = nodes_by_id.get(tgt, {})
+            if tgt_node.get("node_type") == "LLMCall":
+                llm_id = tgt_node.get("callId") or tgt_node.get("id") or tgt
+            else:
+                llm_id = tgt
+            cc_to_llm[src] = llm_id
+
+    events: list[dict[str, Any]] = []
+    for node in nodes:
+        if node.get("node_type") != "ContextContribution":
+            continue
+        cc_id = node.get("id", "")
+        llm_id = cc_to_llm.get(cc_id, "")
+        llm_rec = llm_by_id.get(llm_id)
+        agent_id = node.get("agentId") or (llm_rec or {}).get("agent_id", "")
+        ts = float(node.get("timestamp") or node.get("startTime") or 0)
+        if llm_rec and not ts:
+            ts = float(llm_rec.get("start_ts") or 0)
+
+        events.append({
+            "kind": "context_part_contributed",
+            "timestamp": ts,
+            "agent_id": agent_id,
+            "llm_call_id": llm_id or None,
+            "part_id": node.get("partId") or node.get("id", ""),
+            "source": node.get("source") or node.get("sectionId") or "?",
+            "access_mechanism": node.get("accessMechanism") or node.get("mechanism") or "inject",
+            "cause_type": node.get("causeType") or "deterministic",
+            "token_estimate": node.get("tokenEstimate") or 0,
+            "retained": node.get("retained", True),
+            "content": node.get("content") or "",
+            "content_preview": node.get("contentPreview") or node.get("content") or "",
+            "placement": node.get("sectionId") or "",
+        })
+
+    return events
+
+
+# Reverse of normalizer _ANN_KEY_MAP for plot event synthesis.
+_ANN_CAMEL_TO_SNAKE: dict[str, str] = {
+    "sourceAgentId": "source_agent_id",
+    "targetAgentId": "target_agent_id",
+    "task": "task",
+    "correlationId": "correlation_id",
+    "status": "status",
+    "segments": "segments",
+    "totalTokens": "total_tokens",
+    "operation": "operation",
+    "target": "target",
+    "messageType": "message_type",
+    "policyId": "policy_id",
+}
+
+
+def _synthesize_annotation_events(kg: dict[str, Any]) -> list[dict[str, Any]]:
+    """Rebuild point-in-time annotation events from CallAnnotation KG nodes."""
+    events: list[dict[str, Any]] = []
+    for node in kg.get("nodes", []):
+        if node.get("node_type") != "CallAnnotation":
+            continue
+        kind = node.get("kind") or node.get("annotationKind") or ""
+        if not kind:
+            continue
+        ev: dict[str, Any] = {
+            "kind": kind,
+            "timestamp": float(node.get("timestamp") or node.get("startTime") or 0),
+            "agent_id": node.get("agentId") or "",
+        }
+        if node.get("callId"):
+            ev["call_id"] = node["callId"]
+        if node.get("parentCallId"):
+            ev["parent_call_id"] = node["parentCallId"]
+        for camel, snake in _ANN_CAMEL_TO_SNAKE.items():
+            if node.get(camel) is not None:
+                ev[snake] = node[camel]
+        if node.get("toolName"):
+            ev["tool_name"] = node["toolName"]
+        events.append(ev)
+    return events
+
+
+def _kg_to_plot_inputs(
+    kg: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Reconstruct plotter inputs from kg.json using the same path as events.jsonl."""
+    from mas.lab.plots.multilevel_trajectory.records import _build_call_records
+
+    plot_events = (kg.get("meta") or {}).get("plot_events")
+    if plot_events:
+        events = [dict(e) for e in plot_events]
+        _normalize_timestamps([], events)
+        records = _build_call_records(events)
+        records.sort(key=lambda r: r["start_ts"])
+        return records, events
+
+    events = kg_to_events(kg)
+    events.extend(_synthesize_annotation_events(kg))
+    provisional = _build_call_records([dict(e) for e in events])
+    events.extend(_synthesize_context_contributions(kg, provisional))
+    _normalize_timestamps([], events)
+    records = _build_call_records(events)
+    records.sort(key=lambda r: r["start_ts"])
+    events.sort(key=lambda e: float(e.get("timestamp") or 0))
+    return records, events
 
 
 def kg_to_events(kg: dict[str, Any]) -> list[dict[str, Any]]:
@@ -242,8 +519,10 @@ def kg_to_events(kg: dict[str, Any]) -> list[dict[str, Any]]:
     # -- Call nodes → start/end event pairs --
     _TYPE_TO_KIND: dict[str, str] = {
         "AgentCall":      "execution",
+        "MASCall":        "mas_call",
         "LLMCall":        "llm_call",
         "ToolCall":       "tool_call",
+        "SkillCall":      "skill_execution",
         "ProcessingCall": "processing",
         "ThinkingCall":   "thinking",
         "MITMCall":       "processing",
@@ -255,8 +534,15 @@ def kg_to_events(kg: dict[str, Any]) -> list[dict[str, Any]]:
         if kind_base is None:
             continue
 
-        agent_id = node.get("agentId") or node.get("agentName", "")
         call_id = node.get("callId") or node.get("id", "")
+        # Skip orphan shorthand nodes and KG-only synthesized processing gates.
+        if ntype in {"LLMCall", "ToolCall", "ProcessingCall", "SkillCall"}:
+            if node.get("startTime") is None:
+                continue
+        if ntype == "ProcessingCall" and str(call_id).startswith("synth-pc-"):
+            continue
+
+        agent_id = node.get("agentId") or node.get("agentName", "")
         parent_call_id = node.get("parentCallId")
 
         # Start event
@@ -287,6 +573,10 @@ def kg_to_events(kg: dict[str, Any]) -> list[dict[str, Any]]:
             if not parent_call_id:
                 end_ev["context"] = {"is_entry_agent": True}
 
+        elif ntype == "MASCall":
+            start_ev["mas_name"] = node.get("masName") or node.get("agentId", "")
+            end_ev["output"] = node.get("outputContent", "")
+
         elif ntype == "LLMCall":
             start_ev["model"] = node.get("modelName") or node.get("llmName", "")
             start_ev["messages"] = []  # No raw messages in KG; prompt is in State nodes
@@ -302,6 +592,11 @@ def kg_to_events(kg: dict[str, Any]) -> list[dict[str, Any]]:
             start_ev["arguments"] = node.get("toolArguments", "")
             end_ev["tool_name"] = node.get("toolName", "")
             end_ev["result"] = node.get("toolOutput", "")
+
+        elif ntype == "SkillCall":
+            start_ev["skill_name"] = node.get("skillName", "")
+            start_ev["input"] = node.get("skillInput", "")
+            end_ev["output"] = node.get("skillOutput", "")
 
         elif ntype == "ProcessingCall":
             start_ev["processing_name"] = node.get("processingName", "")
@@ -514,13 +809,23 @@ class KGSource:
     the Python plotter code is required.
     """
 
-    def __init__(self, kg: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        kg: dict[str, Any],
+        *,
+        kg_path: Path | None = None,
+    ) -> None:
         self._kg = kg
+        self._kg_path = kg_path.resolve() if kg_path else None
 
     @classmethod
-    def from_file(cls, path: Union[str, Path]) -> "KGSource":
+    def from_file(
+        cls,
+        path: Union[str, Path],
+    ) -> "KGSource":
         """Load a kg.json file and return a :class:`KGSource`."""
-        return cls(load_kg(path))
+        resolved = Path(path).expanduser().resolve()
+        return cls(load_kg(resolved), kg_path=resolved)
 
     # ------------------------------------------------------------------
     # Overridable data fetch (hook for Neo4j / live sources)
@@ -545,8 +850,7 @@ class KGSource:
         When *query* is ``None`` or all-``None``, the full KG is returned.
         """
         kg = self._fetch_kg()
-        records = kg_to_call_records(kg)
-        events  = kg_to_events(kg)
+        records, events = _kg_to_plot_inputs(kg)
 
         if query is None:
             return records, events

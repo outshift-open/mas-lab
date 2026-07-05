@@ -79,10 +79,6 @@ def _align_record_boundaries(
         if parent is None or not kids:
             continue
         sk = sorted(kids, key=lambda r: r["start_ts"])
-        # Rule 1 — snap the first work item (including ProcessingCall) to the
-        # parent boundary.  The delta between execution_start and the first
-        # child is pure Python/instrumentation overhead and must not appear
-        # as a visible gap column.
         # Governance-orphaned LLM calls (no llm_call_end) have synthetic
         # boundaries; applying Rules 1 & 3 to their children (e.g. ToolCalls
         # for memory_search) would corrupt the children's real event
@@ -91,14 +87,24 @@ def _align_record_boundaries(
         _orphan_llm_parent = (
             parent.get("_end_missing") and parent.get("call_type") == "LLMCall"
         )
+        # Any parent whose end_ts is synthetic (no *_end event was emitted,
+        # so it was set to start + 1.0 s or t_final as a structural fallback)
+        # must not have Rule 3 applied: snapping the last child to an inflated
+        # synthetic boundary corrupts the child's real event timestamp.
+        # Classic case: the entry-agent AgentCall (e.g. "sre") never receives
+        # an execution_end in multi-agent delegation traces; its end_ts is
+        # extended to t_final, and without this guard the last ToolCall
+        # (the delegation tool) would be stretched across the entire trace.
+        _orphan_parent = parent.get("_end_missing", False)
+        # Rule 1 — snap the first work item (including ProcessingCall) to the
+        # parent boundary.  The delta between execution_start and the first
+        # child is pure Python/instrumentation overhead and must not appear
+        # as a visible gap column.
         if not _orphan_llm_parent:
-            # Rule 1 — snap the first work item (including ProcessingCall) to the
-            # parent boundary.  The delta between execution_start and the first
-            # child is pure Python/instrumentation overhead and must not appear
-            # as a visible gap column.
             sk[0]["start_ts"] = parent["start_ts"]
         # Rule 3 — last child shares the parent's end boundary.
-        if not _orphan_llm_parent:
+        # Skip for any parent with a synthetic end_ts (_end_missing).
+        if not _orphan_parent:
             sk[-1]["end_ts"] = parent["end_ts"]
         # Rule 2 (consecutive siblings share boundaries — sequential only).
         # Skip when two children start at the same timestamp (parallel
@@ -221,7 +227,13 @@ def _make_call_sequence(
     result:   list[dict] = []
     seen_ids: set[str]   = set()
 
-    def _collect(call_id: str, ts_start: float, ts_end: float) -> None:
+    def _collect(
+        call_id: str,
+        ts_start: float,
+        ts_end: float,
+        *,
+        _ancestors: frozenset[str] = frozenset(),
+    ) -> None:
         """Collect direct call-level children of ``call_id`` that fall within
         the fragment window ``[ts_start, ts_end]``.
 
@@ -230,6 +242,9 @@ def _make_call_sequence(
         all fragments share the same ``call_id``, but each fragment must only
         claim calls that start within its time slice.
         """
+        if call_id in _ancestors:
+            return
+        next_ancestors = _ancestors | {call_id}
         for child in children_of.get(call_id, []):
             if child["level"] != "call":
                 continue
@@ -262,7 +277,12 @@ def _make_call_sequence(
             # call_id on the stack causing the next step's calls to be parented
             # under it — recurse in that case too so those calls are visible.
             if child["call_type"] != "LLMCall" or children_of.get(child["call_id"]):
-                _collect(child["call_id"], child["start_ts"], child["end_ts"])
+                _collect(
+                    child["call_id"],
+                    child["start_ts"],
+                    child["end_ts"],
+                    _ancestors=next_ancestors,
+                )
 
     for arec in agent_sequence:
         _collect(arec["call_id"], arec["start_ts"], arec["end_ts"])

@@ -103,7 +103,7 @@ def test_context_assembly_logged_per_llm_call() -> None:
 
 
 def test_native_transform_emits_trajectory_events() -> None:
-    from mas.ctl.adapters.obs.transform import NativeObservabilityTransform, TransformContext
+    from mas.library.standard.lib.observability.native.transform import NativeObservabilityTransform, TransformContext
 
     op = ObservabilityOperator()
     ctx = AutoCtxAssembler(observability=op, last_user_text="Q")
@@ -186,7 +186,7 @@ def test_hitl_turn_commit_preserves_history_for_turn_two() -> None:
 
 def test_multilevel_trajectory_consumes_context_events() -> None:
     pytest.importorskip("mas.lab.plots.multilevel_trajectory")
-    from mas.ctl.adapters.obs.transform import NativeObservabilityTransform, TransformContext
+    from mas.library.standard.lib.observability.native.transform import NativeObservabilityTransform, TransformContext
     from mas.lab.plots.multilevel_trajectory import _build_call_records, _collect_context_provenance
 
     op = ObservabilityOperator()

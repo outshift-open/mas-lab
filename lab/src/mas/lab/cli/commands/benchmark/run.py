@@ -69,13 +69,16 @@ import click
               ))
 @click.option("-b", "--background", "background", is_flag=True, default=False,
               help="Submit via controller daemon and return immediately (print worker id).")
+@click.option("--clean-stale", "clean_stale", is_flag=True, default=False,
+              help="Remove benchmark output for scenarios no longer in the experiment YAML "
+                   "(and unreferenced trace-cache entries when enabled in config).")
 def run_cmd(experiment_yaml: Path, force: bool, resume: bool, benchmark_id: str | None,
             progress: bool, dry_run: bool, max_runs: int | None,
             limit_scenarios: int | None, sample_scenarios: int | None,
             single_run: bool, output_dir: Path | None, trace_cache_dir: Path | None,
             data_cache_dir: Path | None,
             force_lock: bool, flavour: str | None, infra: str | None, strategy: str | None,
-            step_overrides: tuple[str, ...], background: bool) -> None:
+            step_overrides: tuple[str, ...], background: bool, clean_stale: bool) -> None:
     """Run a benchmark from an experiment YAML via the controller daemon.
 
     MAS ``--dry-run`` (without ``-b``) validates in-process — no daemon required.
@@ -105,6 +108,7 @@ def run_cmd(experiment_yaml: Path, force: bool, resume: bool, benchmark_id: str 
                 infra_name=infra,
                 strategy=strategy,
                 step_overrides=list(step_overrides),
+                clean_stale=clean_stale or None,
             )
             raise SystemExit(0 if ok else 1)
 
@@ -129,6 +133,7 @@ def run_cmd(experiment_yaml: Path, force: bool, resume: bool, benchmark_id: str 
         "infra_name": infra,
         "strategy": strategy,
         "step_overrides": list(step_overrides),
+        "clean_stale": clean_stale,
     }
 
     client = ControllerClient()

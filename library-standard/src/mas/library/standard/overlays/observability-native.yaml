@@ -8,4 +8,9 @@ metadata:
 spec:
   patch:
     observability:
-      - native
+      - native:
+          path: traces/events.jsonl
+      # Optional dual export (not enabled by default — add otel plugin to enable):
+      # - otel:
+      #     output_path: traces
+      #     otlp_endpoint_env: OTEL_EXPORTER_OTLP_ENDPOINT

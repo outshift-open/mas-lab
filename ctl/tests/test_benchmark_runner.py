@@ -168,11 +168,10 @@ def test_sequential_topology_emits_events_artifact(tmp_path: Path):
     )
 
     def _fake_seq(*_args, **_kwargs):
-        obs_setup = _kwargs.get("obs_setup")
-        if obs_setup is not None:
-            events_path = output_dir / "traces" / "events.jsonl"
-            events_path.parent.mkdir(parents=True, exist_ok=True)
-            events_path.write_text('{"event":"turn"}\n', encoding="utf-8")
+        # Simulate the run writing events.jsonl (runner picks these up as artifacts).
+        events_path = output_dir / "traces" / "events.jsonl"
+        events_path.parent.mkdir(parents=True, exist_ok=True)
+        events_path.write_text('{"event":"turn"}\n', encoding="utf-8")
         return "done"
 
     with patch("mas.ctl.benchmark.runner.compose_run", return_value=compose):

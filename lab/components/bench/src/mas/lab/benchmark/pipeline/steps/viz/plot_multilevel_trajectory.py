@@ -60,7 +60,7 @@ class PlotMultilevelTrajectoryStep(PipelineStep):
         title = str(config.get("title", "MAS Multilevel Trajectory"))
         width_mode = str(config.get("width_mode", "log"))
         show_user_actors = bool(config.get("show_user_actors", True))
-        filename = str(config.get("filename", "multilevel_trajectory"))
+        show_provenance = bool(config.get("show_provenance", True))
 
         pipeline_dir: Path | None = (
             ctx.pipeline.config_path.parent
@@ -69,9 +69,16 @@ class PlotMultilevelTrajectoryStep(PipelineStep):
         )
         annotations = _load_annotations(config, pipeline_dir)
 
-        # --- Resolve trace source ---
-        # Preference: explicit config > native events.jsonl from dependencies
-        log_path: str | None = config.get("log_path")
+        from mas.lab.benchmark.pipeline.run_artifacts import (
+            resolve_run_events,
+            resolve_run_artifact,
+        )
+
+        log_path: str | None = config.get("log_path") or config.get("events_path")
+        if not log_path:
+            resolved = resolve_run_events(ctx, config)
+            if resolved is not None:
+                log_path = str(resolved)
 
         if not log_path:
             for dep_name in self.depends_on:
@@ -112,14 +119,18 @@ class PlotMultilevelTrajectoryStep(PipelineStep):
             title=title,
             width_mode=width_mode,
             show_user_actors=show_user_actors,
+            show_provenance=show_provenance,
             annotations=annotations,
         )
 
-        # --- Write output ---
-        ext = ".html" if fmt == "html" else ".svg"
-        output_dir = ctx.output_dir / "trajectories"
-        output_dir.mkdir(parents=True, exist_ok=True)
-        out_file = output_dir / f"{filename}{ext}"
+        artifact_key = str(config.get("artifact", "trajectory_native"))
+        out_file = resolve_run_artifact(ctx, artifact_key, config)
+        if not (ctx.scope_context.scenario and ctx.scope_context.test and ctx.scope_context.run):
+            output_dir = ctx.output_dir / "trajectories"
+            filename = str(config.get("filename", "trajectory-native"))
+            ext = ".html" if fmt == "html" else ".svg"
+            out_file = output_dir / f"{filename}{ext}"
+        out_file.parent.mkdir(parents=True, exist_ok=True)
         out_file.write_text(rendered, encoding="utf-8")
 
         logger.info(
@@ -128,7 +139,11 @@ class PlotMultilevelTrajectoryStep(PipelineStep):
         )
 
         return StepOutput(
-            data={"trajectory_diagram": rendered, "format": fmt, "filename": filename},
+            data={
+                "trajectory_diagram": rendered,
+                "format": fmt,
+                "trajectory_path": str(out_file),
+            },
             files=[out_file],
             metadata={
                 "format": fmt,

@@ -244,11 +244,21 @@ async def prepare_batch(
     output_dir: Optional[Path] = None,
     force: bool = False,
     data_cache_dir: Optional[Path] = None,
+    clean_stale: Optional[bool] = None,
 ) -> PreparedBatch:
     """Set up output, preload scenarios, run pre-pipeline phase."""
     from mas.lab.benchmark.schedule.pipeline import run_pipeline_phase
+    from mas.lab.benchmark.stale_cleanup import maybe_handle_stale_outputs
 
     output_dir, csv_path, mas_meta = setup_output_dir(loaded, output_dir=output_dir, force=force)
+    if not force:
+        maybe_handle_stale_outputs(
+            output_dir,
+            loaded.scenario_ids,
+            loaded.experiment_yaml,
+            clean_stale=clean_stale,
+            trace_cache_dir=loaded.trace_cache_dir,
+        )
     scenario_configs, scenario_overlay_stacks, loaded_ids = preload_scenario_configs(loaded)
     scenario_flavours = resolve_scenario_flavours(loaded, loaded_ids, loaded.flavour_name)
     mas_app, mas_app_version, mas_ref = extract_mas_provenance(loaded)

@@ -53,6 +53,7 @@ async def run_benchmark(
     data_cache_dir: Optional[Path] = None,
     strategy: Optional[str] = None,
     step_overrides: Optional[list] = None,
+    clean_stale: Optional[bool] = None,
 ) -> bool:
     if not experiment_yaml.exists():
         logger.error("Experiment YAML not found: %s", experiment_yaml)
@@ -94,6 +95,7 @@ async def run_benchmark(
         output_dir=output_dir,
         strategy=strategy,
         step_overrides=step_overrides,
+        clean_stale=clean_stale,
     )
 
 

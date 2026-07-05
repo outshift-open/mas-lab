@@ -93,9 +93,11 @@ def clean_command(args) -> int:
         return 0
 
     tc_root = _get_trace_cache_dir()
+    search_roots = [output_dir.parent]
 
     total_runs = 0
     total_tc_entries = 0
+    pending_removals: list[tuple[Path, str | None]] = []
 
     for sc_dir in scenario_dirs:
         print(f"\nScenario: {sc_dir.name}  ({sc_dir})")
@@ -106,31 +108,51 @@ def clean_command(args) -> int:
                 continue
             total_runs += 1
 
-            # Collect trace-cache hash before we delete anything
             tc_hash: str | None = None
             run_ref = run_dir / ".run_ref"
             if run_ref.exists():
                 tc_hash = run_ref.read_text().strip()
 
             print(f"  {run_dir.relative_to(output_dir)}  hash={tc_hash or '(none)'}")
+            pending_removals.append((run_dir, tc_hash))
 
             if not dry_run:
                 shutil.rmtree(run_dir)
 
-            # Delete the global trace-cache entry
-            if tc_hash and not keep_traces:
-                tc_entry = tc_root / tc_hash
-                if tc_entry.exists():
-                    total_tc_entries += 1
-                    print(f"    trace-cache: {tc_entry}")
-                    if not dry_run:
-                        shutil.rmtree(tc_entry)
-
-        # Remove now-empty item dirs
         if not dry_run:
             for item_dir in sorted(sc_dir.glob("item*")):
                 if item_dir.is_dir() and not any(item_dir.iterdir()):
                     item_dir.rmdir()
+
+    if not keep_traces:
+        from mas.lab.benchmark.stale_cleanup import (
+            collect_trace_cache_refs,
+            hashes_orphaned_after_removal,
+        )
+
+        removed_dirs = [run_dir for run_dir, _ in pending_removals]
+        if dry_run:
+            remaining = collect_trace_cache_refs(search_roots)
+            stale_refs: dict[str, int] = {}
+            for _run_dir, tc_hash in pending_removals:
+                if tc_hash:
+                    stale_refs[tc_hash] = stale_refs.get(tc_hash, 0) + 1
+            for tc_hash, stale_count in stale_refs.items():
+                if remaining.get(tc_hash, 0) == stale_count:
+                    tc_entry = tc_root / tc_hash
+                    if tc_entry.exists():
+                        total_tc_entries += 1
+                        print(f"    trace-cache: {tc_entry}")
+        else:
+            run_dirs_to_remove = removed_dirs
+            for tc_hash in hashes_orphaned_after_removal(
+                run_dirs_to_remove, search_roots
+            ):
+                tc_entry = tc_root / tc_hash
+                if tc_entry.exists():
+                    total_tc_entries += 1
+                    print(f"    trace-cache: {tc_entry}")
+                    shutil.rmtree(tc_entry)
 
     # results.csv is stale once runs are gone — remove it so it gets regenerated
     csv_path = output_dir / "results.csv"

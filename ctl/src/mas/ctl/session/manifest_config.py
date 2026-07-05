@@ -6,14 +6,22 @@ from __future__ import annotations
 
 from typing import Any
 
-from mas.ctl.adapters.obs.pipeline import ObservabilityConfig, parse_sink_from_deployment
-from mas.ctl.manifest.spec_bindings import normalize_obs_plugin, parse_governance, parse_observability
+from mas.ctl.adapters.obs.config import ObservabilityConfig
+from mas.ctl.manifest.spec_bindings import (
+    normalize_obs_plugin,
+    parse_governance,
+    parse_observability,
+    parse_sink_from_deployment,
+)
 from mas.ctl.session.governance_loader import build_governance_plugins
 from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.agent_defaults import default_pattern_plugin_id
 from mas.runtime.schema.governance import GovPolicyProfile
 
 
+# DEPRECATED: kernel_config_from_manifest is superseded by RuntimeInstance.from_spec()
+# (runtime/src/mas/runtime/driver/instance.py). New callers should use from_spec() directly.
+# This function is retained for backward compatibility and will be removed in a future release.
 def kernel_config_from_manifest(
     manifest: dict | None,
     *,
@@ -95,11 +103,43 @@ def kernel_config_from_manifest(
     return KernelConfig(**kwargs)
 
 
+def mas_id_from_manifest(manifest: dict | None) -> str:
+    doc = manifest or {}
+    kind = str(doc.get("kind") or "").lower()
+    meta = doc.get("metadata") or {}
+    if kind == "mas" and meta.get("name"):
+        return str(meta["name"])
+    mas = doc.get("mas") or {}
+    if isinstance(mas, dict) and mas.get("name"):
+        return str(mas["name"])
+    if meta.get("mas_id"):
+        return str(meta["mas_id"])
+    return ""
+
+
+def derive_observability_format(
+    plugins: list[str],
+    *,
+    cli_override: str | None = None,
+) -> str:
+    """Derive export format from manifest plugin list and optional CLI override."""
+    if cli_override:
+        return cli_override
+    has_native = "native" in plugins
+    has_otel = "otel" in plugins
+    if has_native and has_otel:
+        return "both"
+    if has_otel:
+        return "otel"
+    return "native"
+
+
 def observability_config_from_manifest(
     manifest: dict | None,
     *,
     deployment: dict | None = None,
     agent_id: str = "agent",
+    mas_id: str = "",
     cli_events: bool | None = None,
     cli_events_file: str | None = None,
     cli_events_stdout: bool = False,
@@ -118,17 +158,7 @@ def observability_config_from_manifest(
     if cli_events is not None:
         enabled = cli_events
 
-    has_native = "native" in plugins
-    has_otel = "otel" in plugins
-
-    if cli_events_format:
-        fmt = cli_events_format
-    elif has_native and has_otel:
-        fmt = "both"
-    elif has_otel:
-        fmt = "otel"
-    else:
-        fmt = "native"
+    fmt = derive_observability_format(plugins, cli_override=cli_events_format)
 
     otel_cfg = binding.plugin_configs.get("otel") or {}
     otel_file = otel_cfg.get("otel_file")
@@ -152,7 +182,9 @@ def observability_config_from_manifest(
         otel_file=str(otel_file) if otel_file else None,
         sink_ref=str(sink_ref) if sink_ref else None,
         agent_id=agent_id,
+        mas_id=mas_id or mas_id_from_manifest(manifest),
         plugins=plugins,
+        plugin_configs=dict(binding.plugin_configs),
     )
 
 

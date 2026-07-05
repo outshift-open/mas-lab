@@ -3921,11 +3921,20 @@ dependencies = [
     { name = "mas-runtime" },
 ]
 
+[package.optional-dependencies]
+otel = [
+    { name = "opentelemetry-exporter-otlp-proto-http" },
+    { name = "opentelemetry-sdk" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "ddgs", specifier = ">=9.14.0" },
     { name = "mas-runtime", editable = "runtime" },
+    { name = "opentelemetry-exporter-otlp-proto-http", marker = "extra == 'otel'", specifier = ">=1.27.0" },
+    { name = "opentelemetry-sdk", marker = "extra == 'otel'", specifier = ">=1.27.0" },
 ]
+provides-extras = ["otel"]
 
 [[package]]
 name = "mas-runtime"

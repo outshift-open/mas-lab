@@ -12,6 +12,9 @@ from mas.runtime.boundary.gov.sample import SampleGovernancePlugin
 from mas.runtime.kernel.config import KernelConfig
 
 
+# DEPRECATED: build_governance_plugins is superseded by mas.runtime.spec.gov.build_kernel_config().
+# New callers should use RuntimeInstance.from_spec() or parse_gov_spec() + build_kernel_config()
+# from mas.runtime.spec.gov. This function is retained for backward compatibility.
 def build_governance_plugins(
     *,
     plugin_names: list[str],

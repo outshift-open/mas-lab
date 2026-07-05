@@ -20,6 +20,7 @@ from mas.runtime.contracts.context_contract import (
     ContextResolver,
 )
 from mas.runtime.contracts.context_manager_contract import ContextManagerContract
+from mas.runtime.contracts.recorder_contract import RecorderContract
 from mas.runtime.contracts.protocols import (
     CtxAssembler,
     CtxAssemblerContract,
@@ -55,5 +56,6 @@ __all__ = [
     "ObservabilitySink",
     "OrchestrationContract",
     "PolicyViolation",
+    "RecorderContract",
     "ToolContract",
 ]

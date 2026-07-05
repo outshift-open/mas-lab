@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import time
+import uuid
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -220,8 +221,13 @@ class KernelDriver:
         if pool is None and engine is None:
             return []
         direct: list[IngressSymbol] = []
+        parallel_group_id: str | None = None
         if len(ios) > 1 and all(sym.op == "TOOL_CALL" for sym in ios):
             self._record_parallel_tool_calls(ios, q)
+            parallel_group_id = str(uuid.uuid4())
+            self._record_parallel_group_obs(
+                ios, q, boundary="start", group_id=parallel_group_id
+            )
         for sym in ios:
             preview = ""
             if engine is not None:
@@ -296,12 +302,20 @@ class KernelDriver:
                 self._record_engine_return(trace, sym, ret)
                 direct.append(ret)
         if pool is None:
+            if parallel_group_id is not None:
+                self._record_parallel_group_obs(
+                    ios, q, boundary="end", group_id=parallel_group_id
+                )
             return direct
         results = pool.drain()
         out: list[IngressSymbol] = []
         for sym, ret in zip(ios, results, strict=True):
             self._record_engine_return(trace, sym, ret)
             out.append(ret)
+        if parallel_group_id is not None:
+            self._record_parallel_group_obs(
+                ios, q, boundary="end", group_id=parallel_group_id
+            )
         return out
 
     def _record_engine_return(
@@ -469,3 +483,39 @@ class KernelDriver:
             calls.append((f"call_{sym.correlation_id}", str(name), dict(args)))
         if calls:
             store.record_assistant_tool_calls(calls)
+
+    def _record_parallel_group_obs(
+        self,
+        ios: list[InvokeEngineIo],
+        q: Any,
+        *,
+        boundary: str,
+        group_id: str,
+    ) -> None:
+        from mas.runtime.boundary.gov.telemetry import get_bound_observability
+
+        obs = get_bound_observability() or self.observability
+        record = getattr(obs, "record_parallel_group", None)
+        if not callable(record):
+            return
+        tools: list[dict] = []
+        for sym in ios:
+            by_cid = q.pending_tools_by_cid.get(sym.correlation_id)
+            if by_cid is None:
+                continue
+            name, args = by_cid
+            tools.append(
+                {
+                    "correlation_id": sym.correlation_id,
+                    "tool_name": name,
+                    "arguments": dict(args),
+                }
+            )
+        if not tools:
+            return
+        record(
+            boundary=boundary,
+            group_id=group_id,
+            tools=tools,
+            correlation_id=ios[0].correlation_id if ios else 0,
+        )

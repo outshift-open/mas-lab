@@ -55,6 +55,7 @@ class MasRuntimeRunner(ApplicationRunnerProtocol):
             output_dir=output_dir,
             run_input=run_input or kwargs.get("run_input"),
             run_seed=run_seed,
+            flavour=flavour,
             **kwargs,
         )
 

@@ -104,6 +104,7 @@ def run_benchmark_worker(registry: WorkerRegistry, runner: "WorkerRunner", spec:
                     infra_name=spec.get("infra_name"),
                     strategy=spec.get("strategy"),
                     step_overrides=spec.get("step_overrides") or [],
+                    clean_stale=spec.get("clean_stale"),
                 )
             )
         if not ok:

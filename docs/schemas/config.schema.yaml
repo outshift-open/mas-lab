@@ -47,6 +47,23 @@ properties:
       benchmark_flavour:
         type: string
         description: Flavour used when running benchmark experiments.
+      benchmark:
+        type: object
+        additionalProperties: false
+        description: Defaults for ``mas-lab benchmark run`` stale-output handling.
+        properties:
+          clean_stale_outputs:
+            type: boolean
+            default: false
+            description: >-
+              When true, remove benchmark output folders for scenarios no longer
+              declared in experiment.yaml before each run.
+          clean_stale_trace_cache:
+            type: boolean
+            default: true
+            description: >-
+              When cleaning stale benchmark outputs, also remove trace-cache
+              entries (data/cache/traces/<hash>/) whose reference count reaches zero.
       labs_search_paths:
         oneOf:
           - type: string

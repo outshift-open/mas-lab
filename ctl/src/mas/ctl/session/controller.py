@@ -110,8 +110,6 @@ class SessionController:
         if result.awaiting_hitl:
             return
         response_text = result.text
-        if self.obs_recorder is not None and trace is not None:
-            self.obs_recorder.on_agent_turn(trace, response_text=response_text)
         ctx = getattr(self.instance.driver, "ctx", None)
         note_resp = getattr(ctx, "note_agent_response", None)
         if callable(note_resp) and response_text:
@@ -148,8 +146,6 @@ class SessionController:
         self._turn += 1
         tid = turn_id or f"u{self._turn}"
         self.display.on_user(text, turn_id=tid)
-        if self.obs_recorder is not None:
-            self.obs_recorder.on_user_turn(text, turn_id=tid)
         on_working = getattr(self.display, "on_working", None)
         if callable(on_working):
             on_working()
@@ -234,6 +230,8 @@ class SessionController:
 def close_observability(controller: SessionController) -> None:
     if controller.obs_recorder is not None:
         controller.obs_recorder.close()
+    elif hasattr(controller.instance, "obs_plugin_set") and controller.instance.obs_plugin_set:
+        controller.instance.obs_plugin_set.close()
 
 
 def run_session_loop(
