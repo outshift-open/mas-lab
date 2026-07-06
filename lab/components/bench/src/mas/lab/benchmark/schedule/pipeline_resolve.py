@@ -88,22 +88,23 @@ def _load_specs_from_yaml(path: Path) -> list:
     from mas.lab.lab.config import PipelineStepSpec
 
     try:
-        pipeline = Pipeline.from_yaml(path)
+        step_dicts = Pipeline.step_dicts_from_yaml(path)
     except Exception as exc:
         logger.warning("Failed to load pipeline from %s: %s", path, exc)
         return []
 
     specs: list[PipelineStepSpec] = []
-    for step in pipeline.steps:
-        step_type = getattr(step.__class__, "type", None) or step.__class__.__name__
+    for step_data in step_dicts:
         specs.append(
             PipelineStepSpec.from_dict(
                 {
-                    "name": step.name,
-                    "type": step_type,
-                    "phase": getattr(step, "phase", "post"),
-                    "config": dict(step.config or {}),
-                    "depends_on": list(step.depends_on or []),
+                    "name": step_data["name"],
+                    "type": step_data["type"],
+                    "phase": step_data.get("phase", "post"),
+                    "per_scenario": bool(step_data.get("per_scenario", False)),
+                    "per_run": bool(step_data.get("per_run", False)),
+                    "config": dict(step_data.get("config", {})),
+                    "depends_on": list(step_data.get("depends_on", [])),
                 }
             )
         )

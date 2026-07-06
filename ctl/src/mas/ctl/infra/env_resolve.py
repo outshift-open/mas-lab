@@ -20,8 +20,11 @@ that holds the secret, not an ``env:`` lookup.
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 _ENV_PREFIX = "env:"
 _SECRET_KEY_SUFFIX = "_env"
@@ -41,7 +44,17 @@ def resolve_env_string(value: str) -> str:
         var, default = rest, ""
     if not var:
         return default
-    return os.environ.get(var) or default
+    resolved = os.environ.get(var)
+    if resolved:
+        logger.debug("env_resolve: %s -> %s (from env)", var, resolved)
+        return resolved
+    logger.warning(
+        "env_resolve: %s is not set; using default value %r. "
+        "Set this variable in your .env file or shell environment.",
+        var,
+        default,
+    )
+    return default
 
 
 def resolve_manifest_values(data: Any) -> Any:
@@ -57,5 +70,13 @@ def resolve_manifest_values(data: Any) -> Any:
 
 def _resolve_field(key: str, value: Any) -> Any:
     if key.endswith(_SECRET_KEY_SUFFIX):
+        # _env fields hold an env-var NAME (secretKeyRef style), not the secret
+        # value itself.  Allow env: indirection so the key name is itself
+        # configurable at deploy time:
+        #   api_key_env: env:LLM_PROXY_API_KEY_ENV|OPENAI_API_KEY
+        # resolves to the value of LLM_PROXY_API_KEY_ENV (e.g. "MY_TOKEN"),
+        # which the caller then reads to obtain the actual secret.
+        if isinstance(value, str) and value.startswith(_ENV_PREFIX):
+            return resolve_env_string(value)
         return value if not isinstance(value, str) else str(value)
     return resolve_manifest_values(value)

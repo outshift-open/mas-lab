@@ -38,11 +38,15 @@ class PipelineStep(ABC):
         config: Dict[str, Any],
         depends_on: Optional[List[str]] = None,
         phase: str = "post",
+        per_scenario: bool = False,
+        per_run: bool = False,
     ):
         self.name = name
         self.config = config
         self.depends_on = depends_on or []
         self.phase = phase
+        self.per_scenario = per_scenario
+        self.per_run = per_run
 
     def is_persistent(self) -> bool:
         cfg_val = self.config.get("persist")
@@ -80,12 +84,27 @@ class PipelineStep(ABC):
         if step_type == "processor" and "processor" in data:
             cfg.setdefault("processor", data["processor"])
 
-        return step_class(
-            name=data["name"],
-            config=cfg,
-            depends_on=data.get("depends_on", []),
-            phase=data.get("phase", "post"),
-        )
+        per_scenario = bool(data.get("per_scenario", False))
+        per_run = bool(data.get("per_run", False))
+        try:
+            step = step_class(
+                name=data["name"],
+                config=cfg,
+                depends_on=data.get("depends_on", []),
+                phase=data.get("phase", "post"),
+                per_scenario=per_scenario,
+                per_run=per_run,
+            )
+        except TypeError:
+            step = step_class(
+                name=data["name"],
+                config=cfg,
+                depends_on=data.get("depends_on", []),
+                phase=data.get("phase", "post"),
+            )
+            step.per_scenario = per_scenario
+            step.per_run = per_run
+        return step
 
     @classmethod
     def manifest(cls) -> Optional[StepManifest]:
@@ -218,6 +237,26 @@ class Pipeline:
         if not step:
             return []
         return [self._step_map[dep] for dep in step.depends_on if dep in self._step_map]
+
+    @classmethod
+    def step_dicts_from_yaml(cls, path: Union[str, Path]) -> List[Dict[str, Any]]:
+        """Parse step dicts from pipeline YAML without dependency validation."""
+        path = Path(path)
+        with open(path, "r") as f:
+            raw = yaml.load(f, YAMLIncludeLoader)
+
+        from mas.lab.manifests import normalize_manifest_version
+
+        data, _manifest_version = normalize_manifest_version(raw, "pipeline", path)
+        pipeline_data = data.get("pipeline", data)
+        if "spec" in pipeline_data and "metadata" in pipeline_data:
+            pipeline_data = dict(pipeline_data.get("spec", {}))
+
+        return [
+            dict(step_data)
+            for step_data in pipeline_data.get("steps", [])
+            if isinstance(step_data, dict) and "name" in step_data and "type" in step_data
+        ]
 
     @classmethod
     def from_yaml(cls, path: Union[str, Path]) -> Pipeline:

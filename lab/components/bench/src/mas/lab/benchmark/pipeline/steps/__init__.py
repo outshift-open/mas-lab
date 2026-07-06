@@ -37,6 +37,7 @@ from mas.lab.benchmark.pipeline.steps.extract.sys_stats import ExtractSysStatsSt
 from mas.lab.benchmark.pipeline.steps.extract.trace_stats import ExtractTraceStatsStep
 from mas.lab.benchmark.pipeline.steps.extract.trajectories import ExtractTrajectoriesStep
 from mas.lab.benchmark.pipeline.steps.services.export_otel import ExportOtelStep
+from mas.lab.benchmark.pipeline.steps.services.events_to_otel import EventsToOtelStep
 from mas.lab.benchmark.pipeline.steps.services.service_start import ServiceStartStep
 from mas.lab.benchmark.pipeline.steps.services.service_stop import ServiceStopStep
 from mas.lab.benchmark.pipeline.steps.viz.ci_plot import CIPlotStep
@@ -72,6 +73,7 @@ __all__ = [
     "EvalTripPlannerGTStep",
     "ExperimentStep",
     "ExportOtelStep",
+    "EventsToOtelStep",
     "ExtractMealyStatsStep",
     "ExtractSysStatsStep",
     "ExtractTraceStatsStep",

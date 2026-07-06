@@ -14,11 +14,12 @@ from mas.ctl.compose.models import ResolvedInfra
 from mas.ctl.infra.resolve import resolve_infra_refs
 from mas.ctl.infra.resolve import InfraResolveError
 from mas.ctl.infra.resolve import api_key_for_infra
-from mas.ctl.session.manifest_config import engine_use_tool_loop, kernel_config_from_manifest
+from mas.ctl.session.manifest_config import engine_use_tool_loop, kernel_config_from_manifest  # kernel_config_from_manifest: deprecated; prefer RuntimeInstance.from_spec()
 from mas.ctl.workspace.config import UserConfig, WorkspaceConfig, collect_mas_infra_refs, merge_infra_refs
 from mas.runtime.engine.llm_live import LiveLlmEngine
 from mas.runtime.agent_defaults import CANONICAL_DEFAULT_MODEL, default_pattern_plugin_id
 from mas.runtime.driver.mocks import AutoCtxAssembler
+from mas.runtime.kernel.config import KernelConfig
 
 logger = logging.getLogger(__name__)
 
@@ -123,9 +124,11 @@ def build_engine(
     workspace_default_model: str | None = None,
     anchor: Path | None = None,
     workspace: WorkspaceConfig | None = None,
+    kernel_config: KernelConfig | None = None,
 ) -> EngineSelection:
     pid = pattern_plugin_id or default_pattern_plugin_id()
-    kernel_cfg = kernel_config_from_manifest(manifest, pattern_plugin_id=pid)
+    # Use pre-parsed kernel config if provided (spec-aware path); fall back to manifest parsing.
+    kernel_cfg = kernel_config if kernel_config is not None else kernel_config_from_manifest(manifest, pattern_plugin_id=pid)
     tool_loop = engine_use_tool_loop(manifest, kernel_cfg)
     ref_anchor = anchor or Path.cwd()
 

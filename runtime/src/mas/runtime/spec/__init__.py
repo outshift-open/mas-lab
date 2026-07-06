@@ -12,10 +12,12 @@ from mas.runtime.spec.source import (
     resolve_yaml_path,
     resolve_yaml_source,
 )
+from mas.runtime.spec.parser import parse_agent_spec
 
 __all__ = [
     "load_yaml_file",
     "load_yaml_mapping",
+    "parse_agent_spec",
     "resolve_app_resource",
     "resolve_manifest_source",
     "resolve_path",

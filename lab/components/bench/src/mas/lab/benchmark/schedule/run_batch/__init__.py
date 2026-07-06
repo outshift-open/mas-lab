@@ -29,6 +29,7 @@ async def run_mas_benchmark(
     output_dir: Optional[Path] = None,
     strategy: Optional[str] = None,
     step_overrides: Optional[list] = None,
+    clean_stale: Optional[bool] = None,
 ) -> bool:
     """Run a MAS batch benchmark from a *MASExperimentConfig* YAML.
 
@@ -56,6 +57,17 @@ async def run_mas_benchmark(
         return False
 
     if dry_run:
+        from mas.lab.benchmark.stale_cleanup import maybe_handle_stale_outputs
+
+        _out = output_dir.expanduser().resolve() if output_dir else loaded.exp.output_dir
+        maybe_handle_stale_outputs(
+            _out,
+            loaded.scenario_ids,
+            loaded.experiment_yaml,
+            clean_stale=clean_stale,
+            dry_run=True,
+            trace_cache_dir=loaded.trace_cache_dir,
+        )
         print_dry_run(loaded)
         return True
 
@@ -64,6 +76,7 @@ async def run_mas_benchmark(
         output_dir=output_dir,
         force=force,
         data_cache_dir=data_cache_dir,
+        clean_stale=clean_stale,
     )
     execution = await execute_batch(
         loaded,

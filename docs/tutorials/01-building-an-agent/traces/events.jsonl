@@ -1,5 +1,5 @@
-{"kind": "execution_start", "agent_id": "agent", "run_id": "run-11458acb3700", "turn_id": "u1", "call_id": "u1-exec", "input": "hi", "timestamp": 1781856834.195162}
-{"kind": "llm_call_start", "agent_id": "agent", "run_id": "run-11458acb3700", "correlation_id": 1, "call_id": "llm-1", "timestamp": 1781856834.195423}
-{"kind": "context_assembled", "agent_id": "agent", "run_id": "run-11458acb3700", "correlation_id": 0, "finish_reason": "stop", "timestamp": 1781856834.195574}
-{"kind": "user_response", "agent_id": "agent", "run_id": "run-11458acb3700", "turn_id": "u1", "call_id": "u1-resp", "content": "Understood. Regarding your question \u2014 hi \u2014 here is my best answer based on the available context.", "finish_reason": "stop", "timestamp": 1781856834.195634}
-{"kind": "execution_end", "agent_id": "agent", "run_id": "run-11458acb3700", "turn_id": "u1", "call_id": "u1-exec", "status": "ok", "timestamp": 1781856834.1956758}
+{"kind": "execution_start","agent_id": "agent","run_id": "run-11458acb3700","turn_id": "u1","call_id": "u1-exec","input": "hi","timestamp": 1781856834.195162}
+{"kind": "llm_call_start","agent_id": "agent","run_id": "run-11458acb3700","correlation_id": 1,"call_id": "llm-1","timestamp": 1781856834.195423}
+{"kind": "client_response","agent_id": "agent","run_id": "run-11458acb3700","correlation_id": 0,"finish_reason": "stop","timestamp": 1781856834.195574}
+{"kind": "user_response","agent_id": "agent","run_id": "run-11458acb3700","turn_id": "u1","call_id": "u1-resp","content": "Understood. Regarding your question \u2014 hi \u2014 here is my best answer based on the available context.","finish_reason": "stop","timestamp": 1781856834.195634}
+{"kind": "execution_end","agent_id": "agent","run_id": "run-11458acb3700","turn_id": "u1","call_id": "u1-exec","status": "ok","timestamp": 1781856834.1956758}

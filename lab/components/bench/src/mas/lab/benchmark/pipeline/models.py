@@ -14,6 +14,8 @@ from typing import Any, Dict, List
 #: Keys accepted at the step level in a pipeline YAML.
 _STEP_KNOWN_KEYS: frozenset = frozenset({
     "name", "type", "config", "depends_on", "description", "persist", "phase",
+    "per_scenario",
+    "per_run",
 })
 
 #: Keys accepted at the pipeline-config level.

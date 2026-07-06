@@ -8,7 +8,7 @@ from typing import Callable
 
 import click
 
-from mas.ctl.adapters.obs.pipeline import ObservabilityConfig
+from mas.ctl.adapters.obs.config import ObservabilityConfig
 from mas.ctl.session.manifest_config import observability_config_from_manifest
 
 
@@ -50,6 +50,7 @@ def resolve_observability_config(
     events_stdout: bool,
     events_format: str | None,
     agent_id: str = "agent",
+    mas_id: str = "",
     manifest: dict | None = None,
     deployment: dict | None = None,
 ) -> ObservabilityConfig:
@@ -57,6 +58,7 @@ def resolve_observability_config(
         manifest,
         deployment=deployment,
         agent_id=agent_id,
+        mas_id=mas_id,
         cli_events=events,
         cli_events_file=events_file,
         cli_events_stdout=events_stdout,

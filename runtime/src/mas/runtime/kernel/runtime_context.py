@@ -40,8 +40,6 @@ def get_governance_observability() -> ObservabilityOperator | None:
 
 
 def set_governance_observability(recorder: ObservabilityOperator | None) -> Token:
-    if recorder is not None and hasattr(recorder, "operator"):
-        recorder = recorder.operator  # FanOutObservabilitySink
     return _recorder.set(recorder)
 
 

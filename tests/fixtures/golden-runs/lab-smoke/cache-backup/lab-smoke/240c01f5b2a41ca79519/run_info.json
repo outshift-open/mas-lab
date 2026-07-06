@@ -1,0 +1,14 @@
+{
+  "run_hash": "240c01f5b2a41ca79519",
+  "experiment": "verify-lab-smoke",
+  "scenario": "mock-tools",
+  "item_id": "1",
+  "run_idx": 0,
+  "referenced_at": "2026-07-06T01:02:39.915175Z",
+  "mas": {
+    "app": "qa-agent",
+    "mas_ref": "/Users/augjorda/repos/outshift-open/mas-lab/docs/tutorials/01-building-an-agent/agent.yaml",
+    "overlay": "mock-tools",
+    "overlay_ref": "/Users/augjorda/repos/outshift-open/mas-lab/docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml"
+  }
+}

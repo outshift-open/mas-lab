@@ -66,18 +66,25 @@ spec:
 
     - id: EventEmitter
       alias: [obs_terminating_protocol]
-      module: mas.ctl.adapters.obs.emit
-      note: Terminating protocol — JSONL file or stderr (ctl-owned, not kernel)
+      module: mas.library.standard.lib.observability.emit
+      note: Terminating protocol — JSONL file or stderr
       implementations:
         - JsonlFileEmitter
         - StdoutJsonlEmitter
 
+    - id: ObservabilityExportPlugin
+      module: mas.library.standard.plugins.observability
+      mode: read
+      note: Manifest-declared export plugins (native, otel, ioa_observe)
+      implementations:
+        - NativeObservabilityPlugin
+        - OtelObservabilityPlugin
+
     - id: EventTransform
-      module: mas.ctl.adapters.obs.transform
-      note: Pure transforms — boundary→native, native→otel (no I/O)
+      module: mas.library.standard.lib.observability.native.transform
+      note: Pure native projection (OTel via MasOtelConverter, not transform hack)
       implementations:
         - NativeObservabilityTransform
-        - OtelSpanTransform
         - BoundaryPassthroughTransform
 
   v1_migration:

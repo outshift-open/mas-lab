@@ -297,7 +297,9 @@ class MASRunBase:
         levels: Dict[str, LevelSpec] = {}
         for level_name in ("run", "test", "scenario", "application"):
             if level_name in data:
-                levels[level_name] = LevelSpec.from_dict(level_name, data[level_name])
+                levels[level_name] = LevelSpec.from_dict(
+                    level_name, data[level_name], base_dir=base_dir
+                )
 
         # v2 experiment-level artifacts
         artifacts: List[ArtifactSpec] = [

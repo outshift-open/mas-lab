@@ -15,9 +15,7 @@ import pandas as pd
 
 from .normalized import (
     NormalizedEvent,
-    NormalizedMetric,
     NormalizedRunInfo,
-    NORMALIZED_METRICS_COLUMNS,
 )
 
 logger = logging.getLogger(__name__)
@@ -28,32 +26,70 @@ class ValidationError(ValueError):
     pass
 
 
-def validate_events_jsonl(path: Path) -> List[NormalizedEvent]:
+# ---------------------------------------------------------------------------
+# Trace integrity
+# ---------------------------------------------------------------------------
+
+def check_trace_integrity(events: list[dict], *, source: str = "") -> list[str]:
+    """Return a list of structural integrity warnings for a raw event list.
+
+    Checks all three trace sources (native events.jsonl, OTel-replay, KG)
+    using the same predicate so mismatches across sources are comparable.
+
+    Current checks
+    --------------
+    self_referential_start
+        A ``*_start`` event where ``call_id == parent_call_id``.  This is
+        impossible in a valid call tree and indicates the runtime's inner-layer
+        ObservabilityOperator wrapper emitted a duplicate outer frame.  Such
+        events produce orphaned records and inflated bar lengths in plots.
     """
-    Validate and parse events.jsonl file.
-    
+    issues: list[str] = []
+    tag = f"[{source}] " if source else ""
+
+    for i, ev in enumerate(events):
+        kind = ev.get("kind", "")
+        if not kind.endswith("_start"):
+            continue
+        cid = ev.get("call_id")
+        pid = ev.get("parent_call_id")
+        if cid and pid and cid == pid:
+            issues.append(
+                f"{tag}event #{i} kind={kind!r} call_id={cid!r}: "
+                "self-referential (call_id == parent_call_id) — "
+                "runtime emitted inner-layer duplicate outer frame"
+            )
+
+    return issues
+
+
+def validate_events_jsonl(path: Path) -> List[NormalizedEvent]:
+    """Validate and parse events.jsonl file.
+
     Args:
         path: Path to events.jsonl
-        
+
     Returns:
         List of NormalizedEvent objects
-        
+
     Raises:
         ValidationError: If file is invalid
     """
-    events = []
-    
     if not path.exists():
         raise ValidationError(f"events.jsonl not found: {path}")
-    
+
+    raw: list[dict] = []
+    events: List[NormalizedEvent] = []
+
     try:
         with open(path, "r") as f:
             for i, line in enumerate(f, 1):
                 if not line.strip():
                     continue
                 try:
+                    data = json.loads(line)
+                    raw.append(data)
                     event = NormalizedEvent.from_jsonl_line(line)
-                    # Validate required fields
                     if not event.kind:
                         raise ValidationError(f"Line {i}: missing 'kind'")
                     if not event.timestamp:
@@ -65,8 +101,14 @@ def validate_events_jsonl(path: Path) -> List[NormalizedEvent]:
         raise
     except Exception as e:
         raise ValidationError(f"Failed to read events.jsonl: {e}")
-    
-    logger.debug(f"Validated {len(events)} events from {path}")
+
+    logger.debug("Validated %d events from %s", len(events), path)
+
+    # Structural integrity — warn on self-referential start events so the bug
+    # is visible in logs for every trace source (native, OTel-replay, KG).
+    for issue in check_trace_integrity(raw, source=path.name):
+        logger.warning("trace integrity: %s", issue)
+
     return events
 
 

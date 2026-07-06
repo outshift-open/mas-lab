@@ -68,6 +68,7 @@ def run_benchmark_sync(
     infra_name: Optional[str] = None,
     step_overrides: Optional[list] = None,
     log_sink: Optional[Callable[[str], None]] = None,
+    clean_stale: Optional[bool] = None,
 ) -> bool:
     """Execute a benchmark synchronously (blocking, no interactive progress bar).
 
@@ -132,6 +133,7 @@ def run_benchmark_sync(
                 strategy=strategy,
                 infra_name=infra_name,
                 step_overrides=step_overrides,
+                clean_stale=clean_stale,
             )
         )
     finally:
@@ -157,6 +159,7 @@ async def run_benchmark_async(
     strategy: Optional[str] = None,
     infra_name: Optional[str] = None,
     step_overrides: Optional[list] = None,
+    clean_stale: Optional[bool] = None,
 ) -> bool:
     """Async variant — use when already inside an asyncio event loop.
 
@@ -185,6 +188,7 @@ async def run_benchmark_async(
         strategy=strategy,
         infra_name=infra_name,
         step_overrides=step_overrides,
+        clean_stale=clean_stale,
     )
 
 

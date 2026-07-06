@@ -49,6 +49,8 @@ class _ControllerTarget:
     manifest: dict[str, Any]
     manifest_path: Path
     topology: str | None = None
+    obs_recorder: Any = None
+    obs_pipeline: Any = None
 
 
 def _resolve_ref(ref: str | Path, anchor: Path) -> Path:
@@ -86,20 +88,51 @@ def _manifest_kind_on_disk(spec_path: Path) -> str:
     return str((doc or {}).get("kind", "")).lower()
 
 
-def _bench_obs_config(output_dir: Path, manifest: dict[str, Any], manifest_path: Path) -> tuple[Path, Any]:
+def _manifest_with_flavour_observability(
+    manifest: dict[str, Any],
+    flavour: Any,
+) -> dict[str, Any]:
+    """Overlay flavour ``spec.observability`` onto *manifest* for bench runs."""
+    if not flavour or not isinstance(flavour, dict):
+        return manifest
+    fl_spec = flavour.get("spec")
+    if not isinstance(fl_spec, dict):
+        fl_spec = flavour
+    fl_obs = fl_spec.get("observability")
+    if not fl_obs:
+        return manifest
+    merged = dict(manifest)
+    spec = dict(merged.get("spec") or {})
+    spec["observability"] = list(fl_obs) if isinstance(fl_obs, list) else fl_obs
+    merged["spec"] = spec
+    return merged
+
+
+def bench_obs_config(
+    output_dir: Path,
+    manifest: dict[str, Any],
+    manifest_path: Path,
+    *,
+    mas_config: dict[str, Any] | None = None,
+    flavour: Any = None,
+) -> tuple[Path, Any]:
     """Return ``(events_path, obs_cfg)`` for one bench run output dir."""
     from mas.ctl.cli.obs_flags import resolve_observability_config
+    from mas.ctl.session.manifest_config import mas_id_from_manifest
 
     output_dir.mkdir(parents=True, exist_ok=True)
     events_path = output_dir / "traces" / "events.jsonl"
     events_path.parent.mkdir(parents=True, exist_ok=True)
+    mas_id = mas_id_from_manifest(mas_config) if mas_config else mas_id_from_manifest(manifest)
+    effective_manifest = _manifest_with_flavour_observability(manifest, flavour)
     obs_cfg = resolve_observability_config(
         events=True,
         events_file=str(events_path),
         events_stdout=False,
-        events_format="native",
+        events_format=None,
         agent_id=agent_manifest_label(manifest, manifest_path),
-        manifest=manifest,
+        mas_id=mas_id,
+        manifest=effective_manifest,
     )
     return events_path, obs_cfg
 
@@ -114,6 +147,82 @@ def _events_artifacts(events_path: Path, manifest: dict[str, Any], manifest_path
             )
         ]
     return []
+
+
+def ensure_live_otel_span_files(events_path: Path, obs_cfg: Any) -> None:
+    """Backfill otel/observe JSONL span exports from events.jsonl when missing."""
+    import logging
+
+    logger = logging.getLogger(__name__)
+    plugins = list(getattr(obs_cfg, "plugins", None) or [])
+    norm = {(p or "").split("@")[0].replace("-", "_") for p in plugins}
+    if not norm.intersection({"otel", "observe_sdk", "ioa_observe"}):
+        return
+    if not events_path.is_file() or events_path.stat().st_size == 0:
+        return
+
+    traces_dir = events_path.parent
+    targets: list[Path] = []
+    if "otel" in norm:
+        targets.append(traces_dir / "otel_sdk_spans.jsonl")
+    if norm.intersection({"observe_sdk", "ioa_observe"}):
+        targets.append(traces_dir / "observe_sdk_spans.jsonl")
+
+    try:
+        from mas.library.standard.lib.observability.export_layers import parse_export_layers
+        from mas.library.standard.lib.observability.otel.converter import (
+            OTEL_AVAILABLE,
+            MasOtelConverter,
+        )
+    except ImportError:
+        return
+    if not OTEL_AVAILABLE:
+        return
+
+    otel_cfg = (getattr(obs_cfg, "plugin_configs", None) or {}).get("otel") or {}
+    service_name = str(getattr(obs_cfg, "mas_id", "") or getattr(obs_cfg, "agent_id", "") or "mas-runtime")
+    layers = parse_export_layers(otel_cfg)
+
+    def _span_line_count(path: Path) -> int:
+        if not path.is_file() or path.stat().st_size == 0:
+            return 0
+        return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
+
+    for dest in targets:
+        live_count = _span_line_count(dest)
+        if live_count > 0:
+            # Live plugin already wrote spans — don't overwrite.
+            logger.debug("Span export already present (%d spans): %s", live_count, dest)
+            continue
+        try:
+            MasOtelConverter.replay_file(
+                events_path,
+                dest,
+                service_name=service_name,
+                app_name=service_name,
+                export_layers=layers,
+            )
+            logger.info("Backfilled span export: %s (%d spans)", dest, _span_line_count(dest))
+        except Exception:
+            logger.warning("Failed to materialize span export %s", dest, exc_info=True)
+
+
+def _default_observability_overlay_path() -> Path:
+    """Canonical ``observability-native`` overlay shipped with library-standard."""
+    import mas.library.standard as std_pkg
+
+    return (Path(std_pkg.__file__).resolve().parent / "overlays" / "observability-native.yaml")
+
+
+def _ensure_observability_overlay(overlay_paths: list[Path]) -> list[Path]:
+    """Prepend observability-native overlay so lab/bench runs are always instrumented."""
+    obs = _default_observability_overlay_path()
+    if not obs.is_file():
+        return overlay_paths
+    resolved = obs.resolve()
+    if any(p.resolve() == resolved for p in overlay_paths):
+        return overlay_paths
+    return [resolved, *overlay_paths]
 
 
 def _resolve_overlay_paths(
@@ -154,6 +263,7 @@ class MasBenchRunner:
         overlay_refs: list[OverlayRefEntry] | None = None,
         overlays_dir: Path | None = None,
         overlay_base_dir: Path | None = None,
+        flavour: Any = None,
         **kwargs: Any,
     ) -> RunResult:
         from mas.lab.benchmark.runners.fixtures import write_tool_fixtures_sidecar
@@ -197,6 +307,7 @@ class MasBenchRunner:
             queries=queries,
             output_dir=output_dir,
             run_seed=run_seed,
+            flavour=flavour,
         )
         if isinstance(resolved, RunResult):
             return self._with_bench_metadata(resolved, run_seed=run_seed)
@@ -212,6 +323,9 @@ class MasBenchRunner:
             checkpoint_save=checkpoint_save,
             run_seed=run_seed,
             topology=resolved.topology,
+            obs_recorder=resolved.obs_recorder,
+            obs_pipeline=resolved.obs_pipeline,
+            flavour=flavour,
         )
         return self._with_bench_metadata(result, run_seed=run_seed)
 
@@ -248,6 +362,7 @@ class MasBenchRunner:
         queries: list[str],
         output_dir: Path,
         run_seed: int,
+        flavour: Any = None,
     ) -> RunResult | _ControllerTarget:
         entry_manifest = config
         entry_manifest_path = spec_path
@@ -283,11 +398,13 @@ class MasBenchRunner:
                 checkpoint_dir=checkpoint_dir,
             )
 
-        overlay_paths = _resolve_overlay_paths(
-            overlay_refs,
-            manifest_path=resolved_mas_path,
-            overlays_dir=overlays_dir,
-            base_dir=overlay_base_dir,
+        overlay_paths = _ensure_observability_overlay(
+            _resolve_overlay_paths(
+                overlay_refs,
+                manifest_path=resolved_mas_path,
+                overlays_dir=overlays_dir,
+                base_dir=overlay_base_dir,
+            )
         )
         compose = compose_run(
             ComposeRequest(
@@ -333,17 +450,35 @@ class MasBenchRunner:
                 entry_manifest_path=entry_manifest_path,
                 run_seed=run_seed,
                 memory_seeds=memory_seeds,
+                flavour=flavour,
             )
 
         try:
-            prepared = prepare_delegation_entry_session(
-                materialized,
-                entry_id=entry,
-                entry_manifest=entry_manifest,
-                entry_manifest_path=entry_manifest_path,
-                display=None,
-                verbose=0,
+            events_path, obs_cfg = bench_obs_config(
+                output_dir,
+                entry_manifest,
+                entry_manifest_path,
+                mas_config=compose.mas_config,
+                flavour=flavour,
             )
+            from mas.ctl.session.observability import create_shared_observability
+
+            shared_pipeline, obs_setup_fn = create_shared_observability(
+                obs_cfg, base_dir=output_dir
+            )
+            try:
+                prepared = prepare_delegation_entry_session(
+                    materialized,
+                    entry_id=entry,
+                    entry_manifest=entry_manifest,
+                    entry_manifest_path=entry_manifest_path,
+                    display=None,
+                    verbose=0,
+                )
+            except KeyError:
+                if shared_pipeline is not None:
+                    shared_pipeline.close()
+                raise
         except KeyError as exc:
             return RunResult(content="", status="error", error=str(exc))
 
@@ -351,12 +486,16 @@ class MasBenchRunner:
         if checkpoint_path is not None and checkpoint_path.is_file() and store is not None:
             prepared.instance.load_checkpoint(store.load(checkpoint_path))
 
+        obs_rec = obs_setup_fn(prepared.instance, entry) if obs_setup_fn is not None else None
+
         return _ControllerTarget(
             prepared.instance,
             store,
             prepared.enriched_manifest,
             prepared.manifest_path,
             topology="delegation",
+            obs_recorder=obs_rec,
+            obs_pipeline=shared_pipeline,
         )
 
     def _standalone_controller_target(
@@ -408,23 +547,23 @@ class MasBenchRunner:
         entry_manifest_path: Path,
         run_seed: int,
         memory_seeds: list[MemorySeed],
+        flavour: Any = None,
     ) -> RunResult:
-        from mas.ctl.session.observability import setup_observability
+        from mas.ctl.session.observability import create_shared_observability
         from mas.ctl.ui.stdout import StdoutConversationDisplay
-        from dataclasses import replace
 
         if memory_seeds:
             for instance in materialized.materialized.instances.values():
                 apply_memory_seeds(instance, memory_seeds)
 
-        events_path, obs_cfg = _bench_obs_config(output_dir, entry_manifest, entry_manifest_path)
-
-        def obs_setup(instance: object, agent_id: str):
-            return setup_observability(
-                instance,
-                replace(obs_cfg, agent_id=agent_id),
-                base_dir=output_dir,
-            )
+        events_path, obs_cfg = bench_obs_config(
+            output_dir,
+            entry_manifest,
+            entry_manifest_path,
+            mas_config=materialized.compose.mas_config,
+            flavour=flavour,
+        )
+        pipeline, obs_setup_fn = create_shared_observability(obs_cfg, base_dir=output_dir)
 
         display = StdoutConversationDisplay(show_labels=False, verbose=0)
         try:
@@ -434,10 +573,13 @@ class MasBenchRunner:
                 queries,
                 display=display,
                 verbose=0,
-                obs_setup=obs_setup,
             )
         except (KeyError, RuntimeError, ValueError) as exc:
             return RunResult(content="", status="error", error=str(exc))
+        finally:
+            if pipeline is not None:
+                pipeline.close()
+            ensure_live_otel_span_files(events_path, obs_cfg)
 
         return RunResult(
             content=text,
@@ -472,12 +614,19 @@ class MasBenchRunner:
         checkpoint_save: bool,
         run_seed: int,
         topology: str | None = None,
+        obs_recorder: Any = None,
+        obs_pipeline: Any = None,
+        flavour: Any = None,
     ) -> RunResult:
         from mas.ctl.session.observability import setup_observability
         from mas.ctl.ui.stdout import StdoutConversationDisplay
 
-        events_path, obs_cfg = _bench_obs_config(output_dir, config, spec_path)
-        obs_rec = setup_observability(instance, obs_cfg, base_dir=output_dir)
+        events_path, obs_cfg = bench_obs_config(
+            output_dir, config, spec_path, flavour=flavour
+        )
+        obs_rec = obs_recorder if obs_recorder is not None else setup_observability(
+            instance, obs_cfg, base_dir=output_dir
+        )
 
         if memory_seeds:
             apply_memory_seeds(instance, memory_seeds)
@@ -494,8 +643,13 @@ class MasBenchRunner:
                 save_checkpoint_each_turn=checkpoint_save,
             ),
         )
-        results = [controller.run_turn(q) for q in queries]
-        close_observability(controller)
+        try:
+            results = [controller.run_turn(q) for q in queries]
+        finally:
+            close_observability(controller)
+            if obs_pipeline is not None:
+                obs_pipeline.close()
+            ensure_live_otel_span_files(events_path, obs_cfg)
 
         if checkpoint_save and store is not None:
             final_path = store.save(instance.record_checkpoint("final"), label="final")

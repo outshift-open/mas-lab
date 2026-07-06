@@ -90,11 +90,11 @@ class ObsEnvelopeMachine:
             EnvelopeSymbol.OBSERVABILITY_PRE_EXECUTE,
             EnvelopeSymbol.OBSERVABILITY_POST_EXECUTE,
         ):
-            payload["tool_name"] = ctx.tool_name
+            payload["tool_name"] = str(ctx.tool_name or ctx.scheduled_op or activity)
             if ctx.ingress_event is not None:
                 payload["response_kind"] = ctx.ingress_event.response_kind
         elif symbol == EnvelopeSymbol.CONTRACT_EXECUTE:
-            payload["tool_name"] = ctx.tool_name
+            payload["tool_name"] = str(ctx.tool_name or ctx.scheduled_op or ctx.operation or "tool")
             payload["tool_arguments"] = dict(ctx.tool_arguments or {})
             io_record = getattr(obs, "record_engine_io", None)
             if callable(io_record):
@@ -103,6 +103,7 @@ class ObsEnvelopeMachine:
                     op=ctx.scheduled_op,
                     destructive=ctx.destructive,
                     tool_name=ctx.tool_name,
+                    tool_arguments=dict(ctx.tool_arguments or {}),
                 )
         elif symbol == EnvelopeSymbol.OBSERVABILITY_POST_EXECUTE and ctx.ingress_event is not None:
             ev = ctx.ingress_event

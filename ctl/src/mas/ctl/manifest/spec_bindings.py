@@ -19,8 +19,13 @@ Governance is a **plugin list** (like observability)::
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import os
 from typing import Any
+
+# ObservabilityBinding and GovernanceBinding now live in the runtime — import
+# and re-export so all existing ctl importers continue to work unchanged.
+from mas.runtime.boundary.obs.binding import ObservabilityBinding
+from mas.runtime.spec.gov import GovernanceBinding
 
 
 class SpecBindingError(ValueError):
@@ -28,42 +33,33 @@ class SpecBindingError(ValueError):
 
 
 def normalize_obs_plugin(name: str) -> str:
-    """Return trimmed plugin id — no aliases; runtime registry resolves implementations."""
-    return (name or "").strip()
+    """Return trimmed plugin id — hyphens normalized to underscores."""
+    return (name or "").strip().replace("-", "_")
 
 
-@dataclass(frozen=True)
-class ObservabilityBinding:
-    plugins: list[str] = field(default_factory=list)
-    plugin_configs: dict[str, dict[str, Any]] = field(default_factory=dict)
-    otlp_endpoint_env: str | None = None
-    trace_content: bool = True
-    stdout: bool = False
-    events_file: str | None = None
+def resolve_manifest_cfg_value(cfg: dict[str, Any], key: str, *, default: str = "") -> str:
+    """Resolve a manifest config value from inline field or ``{key}_env`` reference."""
+    direct = cfg.get(key)
+    if direct is not None and str(direct).strip():
+        return str(direct).strip()
+    env_key = cfg.get(f"{key}_env")
+    if env_key:
+        return os.environ.get(str(env_key), default).strip()
+    return default
 
 
-@dataclass(frozen=True)
-class GovernanceBinding:
-    """Governance plugin list + derived kernel fields."""
+def resolve_path_cfg(cfg: dict[str, Any]) -> str | None:
+    """Resolve first non-empty path-like field (inline or env) from plugin config."""
+    for key in ("path", "output_path", "events_file", "file_export_path"):
+        val = resolve_manifest_cfg_value(cfg, key)
+        if val:
+            return val
+    return None
 
-    plugins: list[str] = field(default_factory=list)
-    plugin_configs: dict[str, dict[str, Any]] = field(default_factory=dict)
-    hitl_on_tool: bool | None = None
-    hitl_on_tool_result: bool | None = None
-    gov_policy_profile: str | None = None
-    gov_block_destructive: bool | None = None
-    gov_trigger_destructive: bool | None = None
-    gov_ingress_profile: str | None = None
-    enable_memory_egress: bool | None = None
-    enable_transport_egress: bool | None = None
-    max_cot_pass: int | None = None
-    max_gov_retries: int | None = None
-    hitl_mode: str | None = None
-    hitl_once_per_turn: bool | None = None
-    policies: list[dict[str, Any]] = field(default_factory=list)
-    active_profile: str | None = None
-    error_recovery_plugin: str | None = None
-    ingress_plugins: list[dict[str, Any]] = field(default_factory=list)
+
+def _resolve_path_cfg(cfg: dict[str, Any]) -> str | None:
+    return resolve_path_cfg(cfg)
+
 
 
 def _parse_obs_list(items: list[Any]) -> tuple[list[str], dict[str, dict[str, Any]]]:
@@ -98,17 +94,20 @@ def parse_observability(raw: Any) -> ObservabilityBinding:
     plugins, configs = _parse_obs_list(raw)
 
     events_file: str | None = None
-    for cfg in configs.values():
-        if cfg.get("path"):
-            events_file = str(cfg["path"])
-            break
-        if cfg.get("output_path"):
-            events_file = str(cfg["output_path"])
-            break
+    otlp_endpoint_env: str | None = None
+    for name, cfg in configs.items():
+        path = _resolve_path_cfg(cfg)
+        if path and name == "native" and not events_file:
+            events_file = path
+        if cfg.get("otlp_endpoint_env"):
+            otlp_endpoint_env = str(cfg["otlp_endpoint_env"])
+    if not otlp_endpoint_env:
+        otlp_endpoint_env = "OTEL_EXPORTER_OTLP_ENDPOINT"
 
     return ObservabilityBinding(
         plugins=plugins,
         plugin_configs=configs,
+        otlp_endpoint_env=otlp_endpoint_env,
         events_file=events_file,
     )
 
@@ -313,3 +312,19 @@ def validate_agent_spec_bindings(spec: Any) -> None:
     if "context_manager" in spec:
         parse_context_manager(spec["context_manager"])
     parse_infra_lists(spec)
+
+
+def parse_sink_from_deployment(deployment: dict | None) -> str | None:
+    """Extract observability sink/backend ref from a deployment manifest."""
+    if not deployment:
+        return None
+    spec = deployment.get("spec") or {}
+    shared = spec.get("shared") or {}
+    if isinstance(shared, dict):
+        ref = shared.get("observability_ref") or shared.get("sink_ref")
+        if ref:
+            return str(ref)
+    obs = spec.get("observability") or {}
+    if isinstance(obs, dict):
+        return obs.get("backend") or obs.get("sink_ref")
+    return None

@@ -106,14 +106,33 @@ class MASTraceProvider:
     def _detect_root_agent(self, events: list[dict]) -> Optional[str]:
         """Return the agent_id from the root ``execution_start`` event.
 
-        The root event is the one where ``parent_call_id`` is absent or ``None``.
+        Handles two formats:
+        - Pre-mas_call_start: root event has ``parent_call_id is None``.
+        - Current format: root event's ``parent_call_id`` is the ``call_id``
+          of a ``mas_call_start`` event (set by ``ObsPluginSet.begin_run``).
         Falls back to the agent_id of the last ``execution_end`` event in the trace.
         """
+        # Primary — old format: no parent
         for e in events:
             if e.get("kind") == "execution_start" and e.get("parent_call_id") is None:
                 agent = e.get("agent_id")
                 if agent:
                     return str(agent)
+        # Primary — current format: parented to mas_call_start
+        mas_call_ids: set = {
+            e.get("call_id")
+            for e in events
+            if e.get("kind") == "mas_call_start" and e.get("call_id")
+        }
+        if mas_call_ids:
+            for e in events:
+                if (
+                    e.get("kind") == "execution_start"
+                    and e.get("parent_call_id") in mas_call_ids
+                ):
+                    agent = e.get("agent_id")
+                    if agent:
+                        return str(agent)
         # Fallback: last execution_end
         last_agent: Optional[str] = None
         for e in events:
@@ -129,7 +148,11 @@ class MASTraceProvider:
         Resolution order:
         1. Legacy ``kind == "audit"`` event (``payload.task.prompt`` or ``payload.prompt``).
         2. Root ``kind == "execution_start"`` event (``parent_call_id is None``)
-           with a non-empty ``input`` field (standard EventRecorder format).
+           with a non-empty ``input`` field (pre-mas_call_start format).
+        3. Entry-agent ``kind == "execution_start"`` whose ``parent_call_id`` is the
+           ``call_id`` of a ``mas_call_start`` event (current format — ``begin_run``
+           wraps all runs in a ``mas_call_start`` frame, so no execution_start is
+           truly root any more).
         """
         # Pass 1 — legacy audit event
         for e in events:
@@ -142,12 +165,28 @@ class MASTraceProvider:
                 if prompt:
                     return str(prompt)
 
-        # Pass 2 — root execution_start (standard EventRecorder)
+        # Pass 2 — root execution_start (pre-mas_call_start format)
         for e in events:
             if e.get("kind") == "execution_start" and e.get("parent_call_id") is None:
                 inp = e.get("input")
                 if inp:
                     return str(inp)
+
+        # Pass 3 — entry-agent execution_start parented to mas_call_start (current format)
+        mas_call_ids: set = {
+            e.get("call_id")
+            for e in events
+            if e.get("kind") == "mas_call_start" and e.get("call_id")
+        }
+        if mas_call_ids:
+            for e in events:
+                if (
+                    e.get("kind") == "execution_start"
+                    and e.get("parent_call_id") in mas_call_ids
+                ):
+                    inp = e.get("input")
+                    if inp:
+                        return str(inp)
 
         return ""
 
@@ -235,8 +274,16 @@ class MASTraceProvider:
         """
         root_start: float | None = None
         root_agent: str | None = None
+        # Collect mas_call_start IDs for current-format detection.
+        _mas_call_ids: set = {
+            e.get("call_id")
+            for e in events
+            if e.get("kind") == "mas_call_start" and e.get("call_id")
+        }
         for e in events:
-            if e.get("kind") == "execution_start" and e.get("parent_call_id") is None:
+            parent = e.get("parent_call_id")
+            is_root = parent is None or parent in _mas_call_ids
+            if e.get("kind") == "execution_start" and is_root:
                 root_start = e.get("timestamp")
                 root_agent = e.get("agent_id")
                 break

@@ -166,7 +166,14 @@ class ExecutionContext:
         return resolve_resource_refs(config, self.resource_registry, self.scope_context)
     
     def get_step_output_dir(self, step_name: str) -> Path:
-        """Get output directory for a step."""
+        """Get output directory for a step.
+
+        When ``scope_context`` identifies a run, write into the run folder
+        (``{output_dir}/{scenario}/{test}/{run}/``) instead of ``data/{step}/``.
+        """
+        sc = self.scope_context
+        if sc.scenario and sc.test and sc.run:
+            return self.output_dir / sc.scenario / sc.test / sc.run
         return self.output_dir / "data" / step_name
     
     def get_step_log_dir(self, step_name: str) -> Path:
@@ -538,12 +545,31 @@ class PipelineExecutor:
         # Resolve {output_dir} and user template_vars in step config
         step.config = self._resolve_config_templates(step.config, ctx)
 
+        # Align scope context with per-run step config so Artifact.resolve_path works.
+        cfg = step.config or {}
+        if cfg.get("scenario") or cfg.get("test") or cfg.get("run"):
+            ctx.scope_context = ScopeContext(
+                experiment=ctx.scope_context.experiment,
+                scenario=str(cfg.get("scenario", "")),
+                test=str(cfg.get("test", "")),
+                run=str(cfg.get("run", "")),
+            )
+
         schema_base_dir = self.pipeline.config_path.parent if self.pipeline.config_path else Path.cwd()
         input_stream = {
             dep: ctx.step_outputs[dep].data
             for dep in step.depends_on
             if dep in ctx.step_outputs
         }
+        from mas.lab.benchmark.pipeline.run_artifacts import run_input_stream
+
+        run_payload = run_input_stream(ctx, step.config)
+        if run_payload:
+            input_stream["_run"] = run_payload
+            step.config.setdefault("run_dir", run_payload.get("run_dir", ""))
+            for key in ("scenario", "test", "run", "events_path", "trace_path"):
+                if run_payload.get(key) and not step.config.get(key):
+                    step.config[key] = run_payload[key]
         validate_payload(
             input_stream,
             step.config.get("input_schema"),

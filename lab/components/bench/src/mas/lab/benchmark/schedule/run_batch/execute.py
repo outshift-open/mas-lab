@@ -244,6 +244,31 @@ async def execute_batch(
             _events_path.unlink()
         elif _events_path.exists():
             _events_path.unlink()
+        for _span_name in ("otel_sdk_spans.jsonl", "observe_sdk_spans.jsonl"):
+            for _traces_root in (run_output_dir / "traces", _global_run_dir / "traces"):
+                _span_path = _traces_root / _span_name
+                if _span_path.is_file():
+                    _span_path.unlink()
+        # Remove the traces dir/symlink from run_output_dir so that
+        # link_trace_to_cache_entry (called in the finally block) can create a
+        # clean symlink run_output_dir/traces → cache/<hash>/traces.  Without
+        # this, a pre-existing real directory would block symlink creation and
+        # cause a .run_ref-only fallback.
+        _run_traces_dir = run_output_dir / "traces"
+        if _run_traces_dir.is_symlink():
+            _run_traces_dir.unlink()
+        elif _run_traces_dir.is_dir():
+            # Safety: only rmtree a directory that is strictly under run_output_dir.
+            # Guards against the (unlikely) case where run_output_dir itself is a
+            # symlink whose resolved path puts traces/ outside the experiment tree.
+            if _run_traces_dir.resolve().is_relative_to(run_output_dir.resolve()):
+                import shutil as _shutil_exec
+                _shutil_exec.rmtree(_run_traces_dir)
+            else:
+                logger.warning(
+                    "Skipping rmtree: %s resolves outside run_output_dir %s",
+                    _run_traces_dir, run_output_dir,
+                )
         _cached_events_backup: Optional[Path] = None
         if force and _cached_events.exists():
             _cached_events_backup = _cached_events.with_suffix(".jsonl.bak")
@@ -307,6 +332,13 @@ async def execute_batch(
                 if result_dict.get("status") == "error":
                     error = output or "execution error"
                     status = "error"
+                elif output and output.startswith("LLM request failed:"):
+                    # classify_llm_http_error returns a string that becomes the
+                    # agent response content — the runner doesn't raise, so
+                    # status stays "ok". Treat it as an execution error so that
+                    # the run is counted as failed rather than silently passing.
+                    error = output
+                    status = "error"
                 write_cache_inputs(
                     _global_run_dir, _run_hash, _run_input_dict, item_id,
                     run_idx, _flavour_info,
@@ -329,6 +361,19 @@ async def execute_batch(
                         _cached_events_backup.unlink()
                     else:
                         _cached_events_backup.rename(_cached_events)
+                if status == "ok" and _cached_events.is_file() and _cached_events.stat().st_size > 0:
+                    from mas.ctl.benchmark.runner import (
+                        bench_obs_config,
+                        ensure_live_otel_span_files,
+                    )
+
+                    _obs_events, _obs_cfg = bench_obs_config(
+                        _global_run_dir,
+                        config,
+                        spec_path,
+                        flavour=_sc_flavour if isinstance(_sc_flavour, dict) else None,
+                    )
+                    ensure_live_otel_span_files(_obs_events, _obs_cfg)
 
         trace_path = str(_cached_events)
         elapsed_ms = (_time.monotonic() - t0) * 1000
