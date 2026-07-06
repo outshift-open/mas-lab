@@ -111,7 +111,7 @@ tasks:
     deps: [install-dev]
     cmds:
       - task: verify-lab-smoke
-      #- task: verify-golden-runs
+      - task: verify-golden-runs
       - task: verify-tutorials
 
   ci:

@@ -8,6 +8,14 @@
 #
 # For live OpenAI/production infra, see:
 #   docs/tutorials/00-environment-setup/config.openai.example.yaml
+#
+# For private/team proxy bundles (e.g. claris:llm-proxy), add manifest_libraries:
+#
+#   manifest_libraries:
+#     claris: ~/.config/mas/infra   # resolves claris:llm-proxy → ~/.config/mas/infra/llm-proxy.yaml
+#
+# Then set MAS_INFRA_REFS=claris:llm-proxy for real-LLM runs.
+# Template: config/infra/claris-proxy.example.yaml → copy to ~/.config/mas/infra/llm-proxy.yaml
 
 mas_ctl:
   flavour: local

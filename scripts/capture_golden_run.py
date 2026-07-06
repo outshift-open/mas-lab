@@ -73,17 +73,21 @@ def _capture_one(
     # cache entry with stale event counts and return cached results instead of
     # running the agent.  The test fixture does the same via monkeypatch.
     os.environ["MAS_TRACE_CACHE"] = str(trace_cache)
-    # Isolate from the user's personal ~/.config/mas/config.yaml so internal
-    # infra refs (e.g. claris:llm-proxy) don't bleed into the OSS capture.
+    # Isolate XDG so the user's personal ~/.config/mas/config.yaml (which may
+    # point at a private claris:llm-proxy) cannot bleed into the OSS capture.
     os.environ["XDG_CONFIG_HOME"] = str(tmp / "xdg-config")
-    # Default to standard:llm-proxy, which reads LLM_PROXY_API_BASE from the
-    # environment (falling back to https://api.openai.com/v1). The caller can
-    # override by setting MAS_INFRA_REFS before running.
-    if not os.environ.get("MAS_INFRA_REFS"):
-        os.environ["MAS_INFRA_REFS"] = "standard:llm-proxy"
+    # Pin the workspace so find_workspace_file() always finds the OSS workspace
+    # config (infra_refs: [standard:mock-llm]).  Without this, the walk stops at
+    # .git (no config.yaml at repo root), falls back to the now-isolated XDG
+    # path, finds nothing, and resolve_infra_refs falls through to
+    # standard:production — hitting a real LLM and causing a 401 or wrong event
+    # count.  MAS_INFRA_REFS can still override this for real-LLM captures.
+    if "MAS_WORKSPACE_ROOT" not in os.environ:
+        os.environ["MAS_WORKSPACE_ROOT"] = str(ROOT / "examples" / "sample-workspace")
     print(
-        f"  infra:   MAS_INFRA_REFS={os.environ.get('MAS_INFRA_REFS')!r}",
-        f"  api_base: LLM_PROXY_API_BASE={os.environ.get('LLM_PROXY_API_BASE', '<not set — will use OpenAI default>')!r}",
+        f"  workspace: MAS_WORKSPACE_ROOT={os.environ['MAS_WORKSPACE_ROOT']!r}",
+        f"  infra:     MAS_INFRA_REFS={os.environ.get('MAS_INFRA_REFS', '<not set — workspace infra_refs used>')!r}",
+        f"  api_base:  LLM_PROXY_API_BASE={os.environ.get('LLM_PROXY_API_BASE', '<not set>')!r}",
         sep="\n",
         file=sys.stderr,
     )
