@@ -14,7 +14,7 @@ metadata:
 spec:
   proxy:
     api_base: env:LLM_PROXY_API_BASE|https://api.openai.com/v1
-    api_key_env: env:LLM_PROXY_API_KEY|OPENAI_API_KEY
+    api_key_env: env:LLM_PROXY_API_KEY_ENV|OPENAI_API_KEY
 
   models:
     mappings:
