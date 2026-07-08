@@ -68,6 +68,8 @@ plugins:
     urn: mas.observability.otel
     module: mas.library.standard.plugins.observability.otel_plugin
     class: OtelObservabilityPlugin
+    requires: [opentelemetry.sdk.trace]
+    extra: "mas-library-standard[otel]"
 
   # Deterministic design patterns (OSS only)
   - type: design_pattern

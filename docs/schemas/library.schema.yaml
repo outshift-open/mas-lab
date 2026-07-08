@@ -123,6 +123,19 @@ properties:
           type: array
           items:
             type: string
+        requires:
+          type: array
+          items:
+            type: string
+          description: >
+            Import names this plugin needs. If any fail to import,
+            resolving or instantiating the plugin raises PluginUnavailable
+            instead of a raw ImportError deep inside plugin construction.
+        extra:
+          type: string
+          description: >
+            pip/uv extra that installs requires:, e.g.
+            "mas-library-standard[otel]". Used by `mas plugin enable <urn>`.
     default: []
 
   aliases:
