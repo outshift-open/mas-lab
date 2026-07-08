@@ -1,0 +1,36 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: https://json-schema.org/draft/2020-12/schema
+title: PluginAliasManifest
+type: object
+additionalProperties: false
+required:
+  - apiVersion
+  - kind
+  - metadata
+  - spec
+properties:
+  apiVersion:
+    const: mas/v1
+  kind:
+    const: PluginAliasManifest
+  metadata:
+    type: object
+    additionalProperties: true
+    required:
+      - name
+    properties:
+      name:
+        type: string
+        minLength: 1
+  spec:
+    type: object
+    additionalProperties: false
+    required:
+      - aliases
+    properties:
+      aliases:
+        type: object
+        additionalProperties:
+          type: string
+          minLength: 1

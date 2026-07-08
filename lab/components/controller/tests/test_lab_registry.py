@@ -6,19 +6,18 @@ from __future__ import annotations
 from pathlib import Path
 
 from mas.lab.controller.lab_registry import (
-    CANONICAL_DEFAULT_DP,
-    CANONICAL_DEFAULT_MODEL,
     LabRegistry,
     get_lab_registry,
     reset_lab_registry,
 )
+from mas.runtime.agent_defaults import default_model, default_pattern_plugin_id
 
 
 def test_agent_defaults():
     reset_lab_registry()
     reg = get_lab_registry()
     defaults = reg.agent_defaults()
-    assert defaults["design_pattern"]["type"] == CANONICAL_DEFAULT_DP
+    assert defaults["design_pattern"]["type"] == default_pattern_plugin_id()
     assert defaults["models"][0]["model"] == reg.default_model()
     reset_lab_registry()
 
@@ -56,7 +55,7 @@ def test_resolve_default_model_never_empty():
 def test_default_model_is_gpt4o_mini():
     reset_lab_registry()
     reg = get_lab_registry()
-    assert reg.default_model() == CANONICAL_DEFAULT_MODEL or reg.default_model()
+    assert reg.default_model() == default_model() or reg.default_model()
     reset_lab_registry()
 
 

@@ -12,8 +12,14 @@ from mas.lab.benchmark.pipeline.core import (
     Pipeline,
     PipelineStep,
     YAMLIncludeLoader,
+    get_step,
     include_constructor,
+    list_steps,
+    register_step,
+    register_step_type,
+    resolve_step_class,
 )
+from mas.lab.benchmark.pipeline.executor import ExecutionContext, ExecutionPlan, PipelineExecutor
 from mas.lab.benchmark.pipeline.models import (
     _CONFIG_KNOWN_KEYS,
     _MISSING,
@@ -24,26 +30,12 @@ from mas.lab.benchmark.pipeline.models import (
     StepManifest,
     StepOutput,
 )
-from mas.lab.benchmark.pipeline.registry import (
-    _CUSTOM_STEP_TYPES,
-    get_step_registry,
-    register_step_type,
-)
 from mas.lab.benchmark.pipeline.resolver import DependencyResolver
-from mas.lab.benchmark.pipeline.steps import (
-    AnalysisStep,
-    DatasetStep,
-    ExperimentStep,
-    PlotStep,
-)
-
-_executor_exports = ("PipelineExecutor", "ExecutionContext", "ExecutionPlan")
 
 __all__ = [
     "_MISSING",
     "_STEP_KNOWN_KEYS",
     "_CONFIG_KNOWN_KEYS",
-    "_CUSTOM_STEP_TYPES",
     "ConfigParam",
     "Pipeline",
     "PipelineStep",
@@ -52,8 +44,11 @@ __all__ = [
     "ArtifactSpec",
     "StepOutput",
     "PipelineConfig",
+    "register_step",
     "register_step_type",
-    "get_step_registry",
+    "get_step",
+    "list_steps",
+    "resolve_step_class",
     "YAMLIncludeLoader",
     "include_constructor",
     "PipelineExecutor",
@@ -61,26 +56,4 @@ __all__ = [
     "ExecutionPlan",
     "DependencyResolver",
     "CacheManager",
-    "DatasetStep",
-    "ExperimentStep",
-    "AnalysisStep",
-    "PlotStep",
 ]
-
-
-def __getattr__(name: str):
-    if name in _executor_exports:
-        from mas.lab.benchmark.pipeline.executor import (
-            ExecutionContext,
-            ExecutionPlan,
-            PipelineExecutor,
-        )
-
-        import sys
-
-        _mod = sys.modules[__name__]
-        _mod.PipelineExecutor = PipelineExecutor
-        _mod.ExecutionContext = ExecutionContext
-        _mod.ExecutionPlan = ExecutionPlan
-        return locals()[name]
-    raise AttributeError(f"module 'mas.lab.benchmark.pipeline' has no attribute {name!r}")

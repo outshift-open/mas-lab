@@ -17,7 +17,7 @@ from mas.ctl.infra.resolve import api_key_for_infra
 from mas.ctl.session.manifest_config import engine_use_tool_loop, kernel_config_from_manifest  # kernel_config_from_manifest: deprecated; prefer RuntimeInstance.from_spec()
 from mas.ctl.workspace.config import UserConfig, WorkspaceConfig, collect_mas_infra_refs, merge_infra_refs
 from mas.runtime.engine.llm_live import LiveLlmEngine
-from mas.runtime.agent_defaults import CANONICAL_DEFAULT_MODEL, default_pattern_plugin_id
+from mas.runtime.agent_defaults import default_pattern_plugin_id, resolve_default_model
 from mas.runtime.driver.mocks import AutoCtxAssembler
 from mas.runtime.kernel.config import KernelConfig
 
@@ -76,7 +76,7 @@ def resolve_model_name(
         elif workspace_default:
             raw = workspace_default
         else:
-            raw = CANONICAL_DEFAULT_MODEL
+            raw = resolve_default_model()
         if not model and not workspace_default:
             default = llm_proxy.get("default_model")
             if default:

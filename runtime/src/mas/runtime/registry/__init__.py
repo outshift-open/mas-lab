@@ -1,48 +1,13 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Plugin URN registry — single runtime entry point for manifest ``spec.*`` resolution."""
+"""Plugin URN registry — runtime plugin types, entries, and registry façade."""
 
 from __future__ import annotations
 
 import importlib
-import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, ClassVar
-
-logger = logging.getLogger(__name__)
-
-_REGISTRY_PATH = Path(__file__).parent / "plugin_registry.yaml"
-
-# Agent manifest ``spec.<key>`` → registry resolution type (also URN category).
-SPEC_KEYS: dict[str, str] = {
-    "design_pattern": "design_pattern",
-    "context_manager": "context_manager",
-    "context_plugin": "context_plugin",
-}
-
-SPEC_DEFAULTS: dict[str, str] = {
-    "design_pattern": "react@v1",
-    "context_manager": "sliding-window",
-}
-
-# Resolution type / alias → URN prefix (mas.<cat>.)
-_TYPE_PREFIX = {
-    "dp": "mas.dp.",
-    "design_pattern": "mas.dp.",
-    "design-pattern": "mas.dp.",
-    "cm": "mas.cm.",
-    "context_manager": "mas.cm.",
-    "context-manager": "mas.cm.",
-    "ctx": "mas.ctx.",
-    "context_plugin": "mas.ctx.",
-}
-
-_SPEC_KEY_CATEGORY = {
-    "design_pattern": "dp",
-    "context_manager": "cm",
-    "context_plugin": "ctx",
-}
+from typing import Any
 
 
 @dataclass
@@ -64,6 +29,7 @@ class PluginEntry:
     default_variant: str = "builtin"
     shortcuts: list[str] = field(default_factory=list)
     variants: dict[str, VariantInfo] = field(default_factory=dict)
+    attributes: dict[str, Any] = field(default_factory=dict)
 
     @property
     def default(self) -> VariantInfo | None:
@@ -79,35 +45,135 @@ class PluginEntry:
         return self.variants[key]
 
 
+def _normalise_type_name(type_name: str) -> str:
+    return str(type_name).strip().lower().replace("-", "_")
+
+
+def _urn_token(value: str) -> str:
+    return str(value).strip().lower().replace("-", "_").replace(".", "_").replace("/", "_").replace("@", "_")
+
+
+def _canonical_type_name(type_name: str) -> str:
+    return _normalise_type_name(type_name)
+
+
+def _urn_for_type_name(type_name: str, name: str) -> str:
+    category = _normalise_type_name(type_name)
+    token = _urn_token(name)
+    return f"mas.{category}.{token}"
+
+
+def _plugin_type_from_urn(urn: str) -> str:
+    parts = str(urn).split(".")
+    if len(parts) >= 3:
+        return _normalise_type_name(parts[1])
+    return ""
+
+
 class PluginRegistry:
     """Runtime plugin catalog — query via manifest ``spec.<key>`` names."""
 
-    _dp_instances: dict[str, Any]
-
     def __init__(self) -> None:
         self._entries: dict[str, PluginEntry] = {}
-        self._shortcuts: dict[str, str] = {}
-        self._role_aliases: dict[str, str] = {}
+        self._aliases: dict[str, str] = {}
         self._scan_paths: list[Path] = []
-        self._dp_instances = {}
+        self._known_types: set[str] = set()
+        self._spec_defaults: dict[str, str] = {}
+        self._runtime_spec_keys: set[str] = set()
 
     # ── Registration ─────────────────────────────────────────────────────
 
     def register(self, entry: PluginEntry) -> None:
+        if not str(entry.attributes.get("plugin_type") or "").strip():
+            inferred_type = _plugin_type_from_urn(entry.urn)
+            if inferred_type:
+                entry.attributes["plugin_type"] = inferred_type
+                self.register_type(inferred_type)
         self._entries[entry.urn] = entry
-        for sc in entry.shortcuts:
-            self._shortcuts[sc.lower()] = entry.urn
+        # register_alias() can append to entry.shortcuts (for the entry
+        # that owns the alias' target URN). Iterate a snapshot rather than
+        # the live list so registering an alias mid-loop can't change what
+        # this loop iterates over.
+        for sc in list(entry.shortcuts):
+            self.register_alias(sc, entry.urn)
 
-    def register_role_alias(self, role: str, urn: str) -> None:
-        self._role_aliases[role.lower()] = urn
+    def register_type(self, plugin_type: str) -> None:
+        self._known_types.add(_canonical_type_name(plugin_type))
+
+    def register_types(self, plugin_types: set[str]) -> None:
+        for plugin_type in plugin_types:
+            self.register_type(plugin_type)
+
+    def register_runtime_spec_keys(self, spec_keys: set[str]) -> None:
+        for spec_key in spec_keys:
+            self._runtime_spec_keys.add(_canonical_type_name(spec_key))
+
+    def set_default(self, spec_key: str, plugin_id: str) -> None:
+        self._spec_defaults[_canonical_type_name(spec_key)] = str(plugin_id)
+
+    def register_alias(self, alias: str, urn: str) -> None:
+        key = str(alias).strip().lower()
+        self._aliases[key] = urn
+        entry = self._entries.get(urn)
+        if entry is not None and key not in {str(sc).strip().lower() for sc in entry.shortcuts}:
+            entry.shortcuts.append(alias)
+
+    def validate_aliases(self) -> None:
+        """Raise if any registered alias points at an unregistered URN.
+
+        Alias tables (``aliases.yaml`` + workspace overrides) are hand-edited
+        YAML with no other structural check tying a target back to a real
+        plugin. A typo, or dropping a plugin without dropping its alias,
+        previously failed silently: ``resolve()``/``get()`` just returned
+        ``None`` and the caller hit a confusing "unknown plugin" error far
+        from the actual mistake. Call this right after aliases are loaded
+        so bad alias tables fail loudly at bootstrap time instead.
+        """
+        dangling = {
+            alias: urn
+            for alias, urn in self._aliases.items()
+            if urn not in self._entries and urn.lower() not in self._aliases
+        }
+        if dangling:
+            details = ", ".join(f"{alias!r} -> {urn!r}" for alias, urn in sorted(dangling.items()))
+            raise ValueError(
+                f"Alias table has {len(dangling)} alias(es) pointing at unregistered "
+                f"plugin URNs: {details}"
+            )
 
     # ── Resolution (manifest spec bindings) ──────────────────────────────
 
     @staticmethod
-    def binding_plugin_id(binding: dict[str, Any] | None, *, spec_key: str) -> str:
+    def binding_plugin_id(binding: dict[str, Any] | None) -> str:
         """Extract ``type`` or ``ref`` from a ``spec.<key>`` object."""
         raw = binding or {}
-        return str(raw.get("type") or raw.get("ref") or SPEC_DEFAULTS.get(spec_key, ""))
+        return str(raw.get("type") or raw.get("ref") or "")
+
+    def default_for(self, spec_key: str) -> str:
+        return self._spec_defaults.get(_canonical_type_name(spec_key), "")
+
+    def runtime_spec_keys(self) -> frozenset[str]:
+        if self._runtime_spec_keys:
+            return frozenset(self._runtime_spec_keys)
+        return frozenset(self._spec_defaults)
+
+    @staticmethod
+    def _entry_type(entry: PluginEntry) -> str:
+        return _canonical_type_name(str(entry.attributes.get("plugin_type") or ""))
+
+    def _entries_for_type(self, plugin_type: str) -> list[PluginEntry]:
+        canonical = _canonical_type_name(plugin_type)
+        return [entry for entry in self._entries.values() if self._entry_type(entry) == canonical]
+
+    @staticmethod
+    def _matches_name(entry: PluginEntry, name: str) -> bool:
+        key = str(name).strip().lower()
+        if key == entry.urn.lower():
+            return True
+        if key in {str(sc).lower() for sc in entry.shortcuts}:
+            return True
+        key_token = key.replace("-", "_")
+        return entry.urn.lower().endswith(f".{key_token}")
 
     def resolve_spec(
         self,
@@ -115,8 +181,8 @@ class PluginRegistry:
         binding: dict[str, Any] | None = None,
     ) -> VariantInfo:
         """Resolve ``spec.<spec_key>`` binding to a :class:`VariantInfo`."""
-        plugin_type = SPEC_KEYS.get(spec_key, spec_key)
-        name = self.binding_plugin_id(binding, spec_key=spec_key)
+        plugin_type = _canonical_type_name(spec_key)
+        name = self.binding_plugin_id(binding) or self.default_for(spec_key)
         info = self.resolve_by_type(plugin_type, name)
         if info is None:
             raise KeyError(
@@ -148,42 +214,54 @@ class PluginRegistry:
                 f"PluginRegistry.create({spec_key!r}): {cls.__name__}(**{ctor_params!r}) failed"
             ) from exc
 
-    def get_design_pattern(self, plugin_id: str | None = None) -> Any:
-        """Cached Mealy design-pattern plugin instance (kernel hot path)."""
-        key = plugin_id or SPEC_DEFAULTS["design_pattern"]
-        if key not in self._dp_instances:
-            info = self.resolve_by_type("design_pattern", key)
-            if info is None:
-                raise KeyError(f"unknown design pattern plugin: {key!r}")
-            self._dp_instances[key] = info.load_class()()
-        return self._dp_instances[key]
-
     def resolve(self, name: str, variant: str = "") -> VariantInfo | None:
         key = name.lower()
         if key in self._entries:
             return self._entries[key].resolve(variant)
-        urn = self._shortcuts.get(key) or self._role_aliases.get(key)
+        urn = self._aliases.get(key)
         if urn and urn in self._entries:
             return self._entries[urn].resolve(variant)
         return None
 
     def resolve_by_type(self, plugin_type: str, name: str) -> VariantInfo | None:
-        prefix = _TYPE_PREFIX.get(plugin_type.lower().replace("_", "-"))
-        if not prefix:
-            return self.resolve(name)
         urn = self.urn_for(name)
-        if urn and urn.startswith(prefix):
-            return self.resolve(name)
-        candidate = prefix + name.lower().replace("-", "_")
-        if candidate in self._entries:
-            return self._entries[candidate].resolve()
+        if urn:
+            entry = self._entries.get(urn)
+            if entry and self._entry_type(entry) == _canonical_type_name(plugin_type):
+                return entry.resolve()
+        for entry in self._entries_for_type(plugin_type):
+            if self._matches_name(entry, name):
+                return entry.resolve()
+        return None
+
+    def get(
+        self,
+        plugin_type: str,
+        name: str | None = None,
+        *,
+        attributes: dict[str, Any] | None = None,
+    ) -> VariantInfo | None:
+        """Generic plugin query by type, optional name and optional attributes."""
+        attrs = dict(attributes or {})
+        if name:
+            for entry in self._entries_for_type(plugin_type):
+                if not self._matches_name(entry, name):
+                    continue
+                if any(entry.attributes.get(key) != expected for key, expected in attrs.items()):
+                    continue
+                return entry.resolve()
+            return None
+
+        for entry in self._entries_for_type(plugin_type):
+            if all(entry.attributes.get(key) == value for key, value in attrs.items()):
+                return entry.resolve()
         return None
 
     def urn_for(self, name: str) -> str | None:
         key = name.lower()
         if key in self._entries:
             return key
-        return self._shortcuts.get(key) or self._role_aliases.get(key)
+        return self._aliases.get(key)
 
     # ── Query (UI / CLI / lab delegation) ────────────────────────────────
 
@@ -193,30 +271,18 @@ class PluginRegistry:
             return self._entries_as_dicts(
                 [self._entries[u] for u in self.list_all()]
             )
-        category = _SPEC_KEY_CATEGORY.get(spec_key, spec_key)
-        return self._entries_as_dicts(self.get_by_category(category))
+        return self._entries_as_dicts(self._entries_for_type(spec_key))
 
     def list_all(self) -> list[str]:
         return sorted(self._entries)
 
     def list_categories(self) -> list[str]:
-        cats: set[str] = set()
-        for urn in self._entries:
-            parts = urn.split(".")
-            if len(parts) >= 3:
-                cats.add(parts[1])
+        cats: set[str] = {self._entry_type(entry) for entry in self._entries.values() if self._entry_type(entry)}
         return sorted(cats)
 
     def get_by_category(self, category: str) -> list[PluginEntry]:
-        cat = category.lower().replace("_", "-")
-        if cat in ("design-pattern", "designpattern"):
-            cat = "dp"
-        if cat in ("context-manager", "contextmanager"):
-            cat = "cm"
-        if cat in ("context-plugin", "contextplugin"):
-            cat = "ctx"
-        prefix = f"mas.{cat}."
-        return [entry for urn, entry in sorted(self._entries.items()) if urn.startswith(prefix)]
+        out = self._entries_for_type(category)
+        return sorted(out, key=lambda e: e.urn)
 
     @staticmethod
     def _entries_as_dicts(entries: list[PluginEntry]) -> list[dict[str, Any]]:
@@ -228,17 +294,16 @@ class PluginRegistry:
                     "urn": entry.urn,
                     "description": entry.description,
                     "shortcuts": list(entry.shortcuts),
-                    "category": entry.urn.split(".")[1] if entry.urn.count(".") >= 2 else "",
+                    "category": PluginRegistry._entry_type(entry),
                     "module": default.module if default else "",
                     "class_name": default.class_name if default else "",
+                    "attributes": dict(entry.attributes),
                 }
             )
         return items
 
-    def all_shortcuts(self) -> dict[str, str]:
-        merged = dict(self._shortcuts)
-        merged.update(self._role_aliases)
-        return merged
+    def all_aliases(self) -> dict[str, str]:
+        return dict(self._aliases)
 
     def add_scan_path(self, path: Path | str) -> None:
         self._scan_paths.append(Path(path))
@@ -250,57 +315,21 @@ _instance: PluginRegistry | None = None
 def get_registry() -> PluginRegistry:
     """Single runtime registry entry point.
 
-    Process-wide singleton: safe to call from any kernel instance, but not safe
-    to mutate concurrently without external locking. Each :class:`RuntimeKernel`
-    caches its design-pattern plugin at construction time; do not rebind or
-    replace the registry mid-feed.
+    Process-wide singleton: safe to call from any kernel instance, but not
+    safe to mutate concurrently without external locking. Design-pattern
+    plugins are not cached on the registry itself — each
+    :class:`RuntimeKernel` resolves and instantiates its own plugin fresh at
+    construction time via ``_load_design_pattern_plugin`` (see
+    ``kernel/orchestrator.py``).
     """
     global _instance
     if _instance is None:
-        _instance = _load_registry()
+        _instance = _bootstrap.load_registry()
     return _instance
 
 
-def _load_registry() -> PluginRegistry:
-    reg = PluginRegistry()
-    if not _REGISTRY_PATH.exists():
-        logger.warning("Plugin registry not found: %s", _REGISTRY_PATH)
-        return reg
-    try:
-        import yaml
-
-        with open(_REGISTRY_PATH, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-    except Exception as exc:
-        logger.warning("Failed to load plugin registry: %s", exc)
-        return reg
-
-    for section in ("design_patterns", "context_managers", "context_plugins", "memory", "governance"):
-        for urn, info in (data.get(section) or {}).items():
-            if not isinstance(info, dict):
-                continue
-            variants: dict[str, VariantInfo] = {}
-            for vname, vdata in (info.get("variants") or {}).items():
-                if isinstance(vdata, dict):
-                    variants[vname] = VariantInfo(
-                        module=vdata.get("module", ""),
-                        class_name=vdata.get("class", ""),
-                        version=vdata.get("version", ""),
-                    )
-            reg.register(
-                PluginEntry(
-                    urn=urn,
-                    description=info.get("description", ""),
-                    default_variant=info.get("default", "builtin"),
-                    shortcuts=info.get("shortcuts", []),
-                    variants=variants,
-                )
-            )
-
-    for role, target_urn in (data.get("role_aliases") or {}).items():
-        reg.register_role_alias(role, target_urn)
-
-    return reg
+def add_plugin_path(path: str) -> None:
+    get_registry().add_scan_path(path)
 
 
 def register_plugin(
@@ -310,38 +339,37 @@ def register_plugin(
     shortcuts: list[str] | None = None,
     variant: str = "builtin",
     description: str = "",
+    attributes: dict[str, Any] | None = None,
 ) -> None:
-    """Register a plugin class at runtime (tests / extensions)."""
-    reg = get_registry()
-    module = cls.__module__
-    class_name = cls.__name__
-    entry = reg._entries.get(urn)
-    if entry is None:
-        entry = PluginEntry(
-            urn=urn,
-            description=description,
-            default_variant=variant,
-            shortcuts=shortcuts or [],
-            variants={},
-        )
-        reg.register(entry)
-    entry.variants[variant] = VariantInfo(module=module, class_name=class_name)
-    if shortcuts:
-        for sc in shortcuts:
-            reg._shortcuts[sc.lower()] = urn
+    _bootstrap.register_plugin(
+        get_registry(),
+        urn,
+        cls,
+        shortcuts=shortcuts,
+        variant=variant,
+        description=description,
+        attributes=attributes,
+    )
 
 
-def add_plugin_path(path: str) -> None:
-    get_registry().add_scan_path(path)
+def register_manifest_data(manifest_data: dict[str, Any]) -> None:
+    _bootstrap.register_manifest_data(get_registry(), manifest_data)
+
+
+def register_manifest_file(path: str | Path) -> None:
+    _bootstrap.register_manifest_file(get_registry(), path)
 
 
 __all__ = [
-    "SPEC_DEFAULTS",
-    "SPEC_KEYS",
     "PluginEntry",
     "PluginRegistry",
     "VariantInfo",
     "add_plugin_path",
     "get_registry",
+    "register_manifest_data",
+    "register_manifest_file",
     "register_plugin",
 ]
+
+
+from . import bootstrap as _bootstrap

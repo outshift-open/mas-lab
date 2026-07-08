@@ -155,11 +155,6 @@ class TestPluginRegistry:
         info = registry.resolve_by_type("design_pattern", "react")
         assert info is not None
         assert info.class_name == "ReactPlugin"
-        
-        # Try short form
-        info2 = registry.resolve_by_type("dp", "react")
-        assert info2 is not None
-        assert info2.class_name == "ReactPlugin"
     
     def test_resolve_by_type_context_manager(self):
         """Test type-based resolution for context managers."""
@@ -167,37 +162,58 @@ class TestPluginRegistry:
         info = registry.resolve_by_type("context_manager", "stack")
         assert info is not None
         assert info.class_name == "StackConversation"
-        
-        # Try short form
-        info2 = registry.resolve_by_type("cm", "stack")
-        assert info2 is not None
-        assert info2.class_name == "StackConversation"
     
     def test_resolve_by_type_unknown_returns_none(self):
         """Test type-based resolution for unknown plugin returns None."""
         registry = get_registry()
-        info = registry.resolve_by_type("dp", "nonexistent_xyz")
+        info = registry.resolve_by_type("design_pattern", "nonexistent_xyz")
         assert info is None
+
+    def test_get_with_type_and_name(self):
+        """Test generic get() API with explicit type and name."""
+        registry = get_registry()
+        info = registry.get("design_pattern", "react")
+        assert info is not None
+        assert info.class_name == "ReactPlugin"
+
+    def test_get_with_type_and_attributes(self):
+        """Test generic get() API with attribute filtering."""
+        class _AttrPlugin:
+            pass
+
+        register_plugin(
+            "mas.codec.test_store",
+            _AttrPlugin,
+            shortcuts=["test-store"],
+            attributes={"artifact_kind": "test", "store_type": "store"},
+        )
+
+        info = get_registry().get(
+            "codec",
+            attributes={"artifact_kind": "test", "store_type": "store"},
+        )
+        assert info is not None
+        assert info.class_name == "_AttrPlugin"
     
     def test_get_by_category_dp(self):
-        """Test getting all design patterns by category."""
+        """Test getting all design patterns by canonical category."""
         registry = get_registry()
-        dp_plugins = registry.get_by_category("dp")
+        dp_plugins = registry.get_by_category("design_pattern")
         assert len(dp_plugins) > 0
-        
-        # Verify all entries are DPs
+
+        # Verify all entries are design patterns by declared plugin_type
         for entry in dp_plugins:
-            assert entry.urn.startswith("mas.dp.")
+            assert entry.attributes.get("plugin_type") == "design_pattern"
     
     def test_get_by_category_cm(self):
-        """Test getting all context managers by category."""
+        """Test getting all context managers by canonical category."""
         registry = get_registry()
-        cm_plugins = registry.get_by_category("cm")
+        cm_plugins = registry.get_by_category("context_manager")
         assert len(cm_plugins) > 0
-        
-        # Verify all entries are CMs
+
+        # Verify all entries are context managers by declared plugin_type
         for entry in cm_plugins:
-            assert entry.urn.startswith("mas.cm.")
+            assert entry.attributes.get("plugin_type") == "context_manager"
     
     def test_get_by_category_unknown_returns_empty(self):
         """Test getting unknown category returns empty list."""
@@ -210,16 +226,16 @@ class TestPluginRegistry:
         registry = get_registry()
         categories = registry.list_categories()
         assert len(categories) > 0
-        assert "dp" in categories
-        assert "cm" in categories
+        assert "design_pattern" in categories
+        assert "context_manager" in categories
     
-    def test_all_shortcuts(self):
-        """Test getting all shortcuts."""
+    def test_all_aliases(self):
+        """Test getting all aliases."""
         registry = get_registry()
-        shortcuts = registry.all_shortcuts()
-        assert len(shortcuts) > 0
-        assert "react" in shortcuts
-        assert shortcuts["react"] == "mas.dp.react"
+        aliases = registry.all_aliases()
+        assert len(aliases) > 0
+        assert "react" in aliases
+        assert aliases["react"] == "mas.dp.react"
     
     def test_add_scan_path(self):
         """Test adding plugin scan path."""
@@ -282,33 +298,25 @@ class TestSingleton:
         reg = get_registry()
         # Should have plugins from YAML
         plugins = reg.list_all()
-        assert len(plugins) > 0  # Loaded from plugin_registry.yaml
+        assert len(plugins) > 0  # Loaded from built-in registry data
 
 
-class TestCategoryNormalization:
-    """Test type-to-category normalization."""
-    
-    def test_design_pattern_normalized_to_dp(self):
-        """Test 'design_pattern' normalized to 'dp'."""
+class TestTypeResolution:
+    """Test canonical type-based resolution."""
+
+    def test_design_pattern_resolves(self):
         registry = get_registry()
-        info1 = registry.resolve_by_type("design_pattern", "react")
-        info2 = registry.resolve_by_type("dp", "react")
-        assert info1 is not None
-        assert info2 is not None
-        assert info1.class_name == info2.class_name
-    
-    def test_context_manager_normalized_to_cm(self):
-        """Test 'context_manager' normalized to 'cm'."""
+        info = registry.resolve_by_type("design_pattern", "react")
+        assert info is not None
+
+    def test_context_manager_resolves(self):
         registry = get_registry()
-        info1 = registry.resolve_by_type("context_manager", "stack")
-        info2 = registry.resolve_by_type("cm", "stack")
-        assert info1 is not None
-        assert info2 is not None
-        assert info1.class_name == info2.class_name
+        info = registry.resolve_by_type("context_manager", "stack")
+        assert info is not None
 
 
 class TestRealPlugins:
-    """Test with real plugins from plugin_registry.yaml."""
+    """Test with real built-in plugins."""
     
     def test_react_plugin_registered(self):
         """Test react design pattern is registered."""

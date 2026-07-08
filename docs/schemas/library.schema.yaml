@@ -1,0 +1,138 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "http://json-schema.org/draft-07/schema#"
+$id: "mas/v1/library"
+title: "Library Manifest"
+description: >
+  Schema for kind: Library manifests (apiVersion: mas/v1) -- one per
+  manifest library root (library.yaml). Unlike most other mas/v1 manifests,
+  this one is intentionally flat (no metadata:/spec: nesting): it doubles
+  as input to mas.library_catalog (apps/datasets/tools/plugin_manifests
+  discovery) and, via types:/plugins:, as a plugin manifest fed directly
+  into mas.runtime.registry.bootstrap.register_manifest_data() -- which
+  already reads types:/plugins:/aliases:/defaults: at the top level for
+  every plugin manifest in the codebase. See
+  runtime/docs/plugin-registry-manifests.md.
+type: object
+required:
+  - apiVersion
+  - kind
+  - name
+additionalProperties: false
+properties:
+
+  apiVersion:
+    type: string
+    const: "mas/v1"
+
+  kind:
+    type: string
+    const: "Library"
+
+  name:
+    type: string
+    pattern: "^[a-z0-9][a-z0-9-]*$"
+    description: "Library package name, e.g. mas-library-lab."
+
+  description:
+    type: string
+    default: ""
+
+  version:
+    type: string
+    pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+.*$"
+    default: "0.1.0"
+
+  module_base:
+    type: string
+    description: "Root Python module for this library's plugins, e.g. mas.library.lab."
+
+  dependencies:
+    type: array
+    items:
+      type: string
+    description: "Other packages this library depends on (informational; not yet resolved recursively by discovery)."
+    default: []
+
+  apps:
+    type: object
+    description: "Explicit app-name -> relative-path catalog. Falls back to a apps/<name>/ scan if omitted."
+    additionalProperties:
+      type: string
+
+  datasets:
+    type: object
+    description: "Explicit dataset-name -> relative-path catalog. Falls back to a datasets/**/*.yaml scan if omitted."
+    additionalProperties:
+      type: string
+
+  tools:
+    type: object
+    description: "Explicit tool-name -> relative-path catalog. Falls back to a tools/<name>/ scan if omitted."
+    additionalProperties:
+      type: string
+
+  plugin_manifests:
+    type: object
+    description: >
+      Explicit name -> relative-path catalog of *.plugins.yaml files to
+      register in addition to this file's own types:/plugins:. Falls back
+      to a plugins/**/*.plugins.yaml scan if omitted. Distinct from
+      plugins: below (which is always an inline list) so discovery never
+      has to guess which convention a plugins: key belongs to.
+    additionalProperties:
+      type: string
+
+  types:
+    type: array
+    items:
+      type: string
+    description: >
+      Plugin types this library's plugins: entries introduce, independent
+      of provides_types: on any single entry. See
+      runtime/docs/plugin-registry-manifests.md#how-a-type-becomes-known.
+    default: []
+
+  plugins:
+    type: array
+    description: "Inline plugin declarations -- see runtime/docs/plugin-registry-manifests.md#manifest-schema."
+    items:
+      type: object
+      required: [type]
+      additionalProperties: true
+      properties:
+        type:
+          type: string
+        name:
+          type: string
+        urn:
+          type: string
+        module:
+          type: string
+        class:
+          type: string
+        shortcuts:
+          type: array
+          items:
+            type: string
+        description:
+          type: string
+        attributes:
+          type: object
+        provides_types:
+          type: array
+          items:
+            type: string
+    default: []
+
+  aliases:
+    type: object
+    description: "Role/short-name -> URN aliases merged into the registry."
+    additionalProperties:
+      type: string
+
+  defaults:
+    type: object
+    description: "Per-type default plugin id, used when a spec omits an explicit binding."
+    additionalProperties:
+      type: string

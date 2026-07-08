@@ -26,7 +26,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SAMPLE_WORKSPACE = _REPO_ROOT / "examples" / "sample-workspace"
 if _SAMPLE_WORKSPACE.is_dir():
     # Force sample workspace — parent checkouts may export MAS_WORKSPACE_ROOT with
-    # integration-only infra_refs (e.g. claris:llm-proxy).
+    # integration-only infra_refs (e.g. team:llm-proxy).
     os.environ["MAS_WORKSPACE_ROOT"] = str(_SAMPLE_WORKSPACE)
 
 _XDG_CONFIG = _TEST_HOME / "xdg-config"

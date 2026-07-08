@@ -18,7 +18,7 @@ import pytest
 # Unit tests for _compute_ci (no dependencies beyond scipy/numpy)
 # ---------------------------------------------------------------------------
 
-from mas.lab.benchmark.pipeline.steps.viz.ci_plot import _compute_ci
+from mas.library.lab.steps.viz.ci_plot import _compute_ci
 
 
 class TestComputeCI:
@@ -101,7 +101,7 @@ def _write_fake_results(path: Path) -> None:
 @pytest.mark.asyncio
 async def test_ci_step_writes_summary_csv(tmp_path):
     import asyncio
-    from mas.lab.benchmark.pipeline.steps.viz.ci_plot import CIPlotStep
+    from mas.library.lab.steps.viz.ci_plot import CIPlotStep
 
     data_csv = tmp_path / "results.csv"
     _write_fake_results(data_csv)
@@ -137,7 +137,7 @@ async def test_ci_step_writes_summary_csv(tmp_path):
 @pytest.mark.asyncio
 async def test_ci_step_warns_on_single_run(tmp_path, caplog):
     import logging
-    from mas.lab.benchmark.pipeline.steps.viz.ci_plot import CIPlotStep
+    from mas.library.lab.steps.viz.ci_plot import CIPlotStep
 
     data_csv = tmp_path / "results.csv"
     # Write only 1 run
@@ -156,7 +156,7 @@ async def test_ci_step_warns_on_single_run(tmp_path, caplog):
             "min_runs": 2,
         },
     )
-    with caplog.at_level(logging.WARNING, logger="mas.lab.benchmark.pipeline.steps.viz.ci_plot"):
+    with caplog.at_level(logging.WARNING, logger="mas.library.lab.steps.viz.ci_plot"):
         await step.execute(FakeExecutionContext())
 
     assert any("only 1 run" in rec.message for rec in caplog.records)
@@ -164,7 +164,7 @@ async def test_ci_step_warns_on_single_run(tmp_path, caplog):
 
 @pytest.mark.asyncio
 async def test_ci_step_missing_data_raises(tmp_path):
-    from mas.lab.benchmark.pipeline.steps.viz.ci_plot import CIPlotStep
+    from mas.library.lab.steps.viz.ci_plot import CIPlotStep
 
     step = CIPlotStep(
         name="ci-missing",
@@ -176,7 +176,7 @@ async def test_ci_step_missing_data_raises(tmp_path):
 
 @pytest.mark.asyncio
 async def test_ci_step_invalid_metric_filter_raises(tmp_path):
-    from mas.lab.benchmark.pipeline.steps.viz.ci_plot import CIPlotStep
+    from mas.library.lab.steps.viz.ci_plot import CIPlotStep
 
     data_csv = tmp_path / "results.csv"
     with data_csv.open("w", newline="") as f:

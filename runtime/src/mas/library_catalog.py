@@ -17,13 +17,23 @@ logger = logging.getLogger(__name__)
 def _load_library_manifest(root: Path) -> dict[str, Any]:
     manifest_path = root / "library.yaml"
     if not manifest_path.is_file():
+        # A genuinely absent library.yaml is a valid, optional case.
         return {}
+    # A present-but-malformed library.yaml is a real configuration error, not
+    # an optional-missing file: fail loud so a half-saved / broken manifest
+    # surfaces immediately at discovery time. Swallowing it here silently
+    # registers *zero* plugins for the library, which only shows up far
+    # downstream as a confusing "no plugin registered for ..." error (this is
+    # exactly how a corrupt library.yaml stayed hidden through a whole commit).
     try:
         data = load_yaml_file(manifest_path)
-    except Exception:
-        logger.warning("Failed to parse library manifest %s; ignoring.", manifest_path, exc_info=True)
-        return {}
-    return data if isinstance(data, dict) else {}
+    except Exception as exc:
+        raise ValueError(f"Failed to parse library manifest {manifest_path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"Library manifest {manifest_path} must be a mapping, got {type(data).__name__}."
+        )
+    return data
 
 
 def _resolve_manifest_entry(root: Path, rel: str) -> Path | None:
@@ -174,4 +184,90 @@ def discover_tools() -> dict[str, Path]:
             found[name] = path
         for name, path in _discover_tools_from_scan(root).items():
             found.setdefault(name, path)
+    return found
+
+
+def _declares_plugins(manifest: dict[str, Any]) -> bool:
+    """True when ``library.yaml`` declares plugin-manifest content directly.
+
+    Signalled by the presence of the ``types:`` and/or ``plugins:`` keys
+    (``plugins:`` here is always a *list* of plugin declarations, see
+    :mod:`mas.runtime.registry.bootstrap`). This check is a key-presence
+    test, not a shape guess: the name->path split-file catalog below uses
+    a differently-named key (``plugin_manifests:``) precisely so the two
+    conventions never need to be disambiguated by inspecting value types.
+    """
+    return bool(manifest.get("types")) or bool(manifest.get("plugins"))
+
+
+def _discover_plugin_manifests_from_catalog(root: Path, manifest: dict[str, Any]) -> list[Path]:
+    """Explicit ``plugin_manifests:`` catalog in ``library.yaml`` (name -> relative path).
+
+    Only used when a library wants to split its plugin declarations across
+    multiple files; most libraries should just declare ``types:``/``plugins:``
+    directly in ``library.yaml`` (see :func:`_declares_plugins`).
+    """
+    found: list[Path] = []
+    catalog = manifest.get("plugin_manifests")
+    if not isinstance(catalog, dict):
+        return found
+    for name, rel in catalog.items():
+        if not isinstance(name, str):
+            continue
+        path = _resolve_manifest_entry(root, rel)
+        if path is not None and path.is_file():
+            found.append(path)
+    return found
+
+
+def _discover_plugin_manifests_from_scan(root: Path) -> list[Path]:
+    """Convention fallback: any ``*.plugins.yaml`` under ``<root>/plugins/``.
+
+    Same rationale as :func:`_discover_plugin_manifests_from_catalog` — an
+    escape hatch for libraries that split plugin declarations across
+    multiple files, not the primary mechanism.
+    """
+    found: list[Path] = []
+    plugins_dir = root / "plugins"
+    if not plugins_dir.is_dir():
+        return found
+    for path in sorted(plugins_dir.rglob("*.plugins.yaml")):
+        found.append(path.resolve())
+    return found
+
+
+def discover_plugin_manifests() -> list[Path]:
+    """Resolve plugin manifests (generic ``types:``/``plugins:`` YAML, see
+    :mod:`mas.runtime.registry.bootstrap`) from every known library root.
+
+    ``library.yaml`` *is* the plugin manifest: it doubles as library
+    metadata (``kind: Library`` — name/description/version/module_base,
+    consumed by :func:`discover_apps`/:func:`discover_datasets`/
+    :func:`discover_tools`) and, when it declares ``types:``/``plugins:``
+    directly, as the manifest fed straight into ``register_manifest_data``.
+    A library only needs a separate ``*.plugins.yaml`` file if it genuinely
+    wants to split its plugin declarations across multiple files, via
+    either:
+
+    1. An explicit ``plugin_manifests:`` catalog in ``library.yaml`` (name -> relative path).
+    2. A scan fallback: any ``<root>/plugins/*.plugins.yaml``.
+
+    All three are additive per root; duplicates across roots are not
+    deduplicated here — :func:`~mas.runtime.registry.bootstrap.load_registry`
+    registers each file exactly once per process since it iterates this list
+    directly.
+    """
+    found: list[Path] = []
+    seen: set[Path] = set()
+    for root in discover_library_roots():
+        manifest = _load_library_manifest(root)
+        candidates: list[Path] = []
+        if _declares_plugins(manifest):
+            candidates.append((root / "library.yaml").resolve())
+        candidates.extend(_discover_plugin_manifests_from_catalog(root, manifest))
+        candidates.extend(_discover_plugin_manifests_from_scan(root))
+        for path in candidates:
+            if path not in seen:
+                seen.add(path)
+                found.append(path)
     return found

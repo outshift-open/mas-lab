@@ -21,7 +21,8 @@ except ImportError:  # pragma: no cover
     _yaml = None  # type: ignore[assignment]
 from datetime import datetime
 
-from mas.lab.benchmark.pipeline import Pipeline, PipelineStep, StepOutput
+from mas.lab.benchmark.pipeline.core import Pipeline, PipelineStep
+from mas.lab.benchmark.pipeline.models import StepOutput
 from mas.lab.benchmark.pipeline.resolver import DependencyResolver
 from mas.lab.benchmark.pipeline.cache import CacheManager
 from mas.lab.benchmark.pipeline.resources import (

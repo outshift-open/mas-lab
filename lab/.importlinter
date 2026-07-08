@@ -17,7 +17,7 @@ source_modules =
     mas.lab.runners
 forbidden_modules =
     mas.lab.benchmark.pipeline.executor
-    mas.lab.benchmark.pipeline.steps
+    mas.library.lab.steps
 
 [importlinter:contract:bench-no-monolith-controller]
 name = Bench package must not import monolith lab controller server

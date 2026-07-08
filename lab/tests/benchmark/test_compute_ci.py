@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 
 from mas.lab.benchmark.pipeline import StepOutput
-from mas.lab.benchmark.pipeline.steps.eval.compute_ci import ComputeCIStep, compute_ci
+from mas.library.lab.steps.eval.compute_ci import ComputeCIStep, compute_ci
 from mas.lab.benchmark.pipeline.lib.data_source import resolve_dataframe, write_dataframe
 
 

@@ -1,16 +1,32 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Wire observability from manifest config -> runtime instance."""
+"""Wire observability from manifest config -> runtime instance.
+
+ctl is agnostic to plugins: everything here converts ctl-side config into an
+``ObservabilityBinding`` (pure data, see ``mas.runtime.boundary.obs.binding``)
+and asks runtime to build/attach the actual plugin instances via
+``build_observability_plugin_set`` / ``attach_observability_plugin_set``.
+This module only orchestrates *when* that happens (single instance, a
+pre-built dict of instances, or instances discovered lazily one at a time)
+and wraps the result in ctl's own ``SessionObservabilityRecorder`` lifecycle
+handle — it never imports ``build_observability_plugins`` or constructs an
+``ObsPluginSet`` itself, the same way it never resolves a ``design_pattern``
+plugin directly (that happens inside runtime's own
+``mas.runtime.boundary.context.dp_inject``).
+"""
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from mas.ctl.adapters.obs.config import ObservabilityConfig
 from mas.ctl.adapters.obs.session import SessionObservabilityRecorder
 from mas.runtime.boundary.obs.binding import ObservabilityBinding
-from mas.runtime.boundary.obs.loader import ObsPluginSet, load_obs_plugins
+from mas.runtime.boundary.obs.plugins import (
+    ObsPluginSet,
+    attach_observability_plugin_set,
+    build_observability_plugin_set,
+)
 
 if TYPE_CHECKING:
     from mas.runtime.driver.instance import RuntimeInstance
@@ -43,16 +59,11 @@ def setup_instance_obs(
 ) -> ObsPluginSet | None:
     """Build plugins, subscribe to instance's operator, and begin run. Returns plugin_set."""
     binding = obs_config_to_binding(config)
-    if binding is None:
-        return None
     effective_agent_id = agent_id or config.agent_id or "agent"
-    plugins = load_obs_plugins(binding, base_dir=base_dir, agent_id=effective_agent_id)
-    plugin_set = ObsPluginSet(plugins=plugins)
-    op = instance.driver.observability
-    if op is not None:
-        plugin_set.subscribe_to(op, agent_id=effective_agent_id)
-        plugin_set.begin_run(op)
-    instance.obs_plugin_set = plugin_set
+    plugin_set = build_observability_plugin_set(binding, base_dir=base_dir, agent_id=effective_agent_id)
+    if plugin_set is None:
+        return None
+    attach_observability_plugin_set(plugin_set, instance, agent_id=effective_agent_id)
     return plugin_set
 
 
@@ -65,15 +76,11 @@ def setup_shared_obs(
 ) -> ObsPluginSet | None:
     """One plugin set shared across all agents in a multi-agent run."""
     binding = obs_config_to_binding(config)
-    if binding is None:
+    shared_set = build_observability_plugin_set(binding, base_dir=base_dir, agent_id=entry_agent_id)
+    if shared_set is None:
         return None
-    shared_plugins = load_obs_plugins(binding, base_dir=base_dir, agent_id=entry_agent_id)
-    shared_set = ObsPluginSet(plugins=shared_plugins)
     for agent_id, instance in instances.items():
-        op = instance.driver.observability
-        if op is not None:
-            shared_set.subscribe_to(op, agent_id=agent_id)
-        instance.obs_plugin_set = shared_set
+        attach_observability_plugin_set(shared_set, instance, agent_id=agent_id, begin_run=False)
     # begin_run on the entry agent's operator
     entry_instance = instances.get(entry_agent_id) or next(iter(instances.values()), None)
     if entry_instance is not None and entry_instance.driver.observability is not None:
@@ -85,8 +92,6 @@ def setup_shared_obs(
 # Backward compatibility — legacy callers still used by runner.py and tests
 # ---------------------------------------------------------------------------
 
-ObsSetupFn = Callable[["RuntimeInstance", str], SessionObservabilityRecorder | None]
-
 
 def setup_observability(
     instance: "RuntimeInstance",
@@ -94,17 +99,12 @@ def setup_observability(
     *,
     base_dir: Path,
 ) -> SessionObservabilityRecorder | None:
-    """Legacy path: ObservabilityConfig → runtime loader → ObsPluginSet."""
+    """Legacy path: ObservabilityConfig → runtime plugins → ObsPluginSet."""
     binding = obs_config_to_binding(config)
-    if binding is None:
+    plugin_set = build_observability_plugin_set(binding, base_dir=base_dir, agent_id=config.agent_id)
+    if plugin_set is None:
         return None
-    plugins = load_obs_plugins(binding, base_dir=base_dir, agent_id=config.agent_id)
-    plugin_set = ObsPluginSet(plugins=plugins)
-    op = instance.driver.observability
-    if op is not None:
-        plugin_set.subscribe_to(op, agent_id=config.agent_id)
-        plugin_set.begin_run(op)
-    instance.obs_plugin_set = plugin_set
+    attach_observability_plugin_set(plugin_set, instance, agent_id=config.agent_id or "agent")
     return SessionObservabilityRecorder(plugin_set=plugin_set)
 
 
@@ -119,51 +119,19 @@ def create_shared_observability(
     setup_fn(instance, agent_id) subscribes the instance and returns a recorder.
     """
     binding = obs_config_to_binding(config)
-    if binding is None:
+    entry_agent_id = config.agent_id or "agent"
+    shared_set = build_observability_plugin_set(binding, base_dir=base_dir, agent_id=entry_agent_id)
+    if shared_set is None:
         return None, None
 
-    entry_agent_id = config.agent_id or "agent"
-    shared_plugins = load_obs_plugins(binding, base_dir=base_dir, agent_id=entry_agent_id)
-    shared_set = ObsPluginSet(plugins=shared_plugins)
-    _begun = {"done": False}
-
     def setup(instance: "RuntimeInstance", agent_id: str) -> SessionObservabilityRecorder:
-        op = instance.driver.observability
-        if op is not None:
-            shared_set.subscribe_to(op, agent_id=agent_id)
-            if not _begun["done"]:
-                shared_set.begin_run(op)
-                _begun["done"] = True
-        instance.obs_plugin_set = shared_set
+        # begin_run is idempotent (see ObsPluginSet.begin_run) -- passing
+        # begin_run=True here is safe even though several instances share
+        # this same plugin_set; only the first attach actually starts the run.
+        attach_observability_plugin_set(shared_set, instance, agent_id=agent_id)
         return SessionObservabilityRecorder(plugin_set=shared_set, owns_plugin_set=False)
 
     return shared_set, setup
-
-
-def _bind_plugin_set_to_instance(
-    instance: "RuntimeInstance",
-    plugin_set: ObsPluginSet,
-    *,
-    agent_id: str,
-) -> SessionObservabilityRecorder:
-    """Subscribe *plugin_set* to the instance's operator and return a recorder."""
-    from mas.runtime.boundary.obs.operator import ObservabilityOperator
-
-    driver = instance.driver
-    op = driver.observability
-    if op is None:
-        # observability is explicitly disabled on this instance — don't re-enable it.
-        instance.obs_plugin_set = plugin_set
-        return SessionObservabilityRecorder(plugin_set=plugin_set)
-    if not isinstance(op, ObservabilityOperator):
-        op = ObservabilityOperator()
-        driver.observability = op
-
-    plugin_set.subscribe_to(op, agent_id=agent_id)
-    plugin_set.begin_run(op)
-    instance.obs_plugin_set = plugin_set
-
-    return SessionObservabilityRecorder(plugin_set=plugin_set)
 
 
 def setup_observability_from_binding(
@@ -173,16 +141,15 @@ def setup_observability_from_binding(
     base_dir: Path,
     agent_id: str = "agent",
 ) -> SessionObservabilityRecorder | None:
-    """New path: ObservabilityBinding → runtime loader → ObsPluginSet."""
-    if not binding.plugins:
+    """New path: ObservabilityBinding → runtime plugins → ObsPluginSet."""
+    if binding is None or not binding.plugins:
         return None
 
     plugin_set: ObsPluginSet | None = getattr(instance, "obs_plugin_set", None)
     if plugin_set is None:
-        plugins = load_obs_plugins(binding, base_dir=base_dir, agent_id=agent_id)
-        plugin_set = ObsPluginSet(plugins=plugins)
-        instance.obs_plugin_set = plugin_set
+        plugin_set = build_observability_plugin_set(binding, base_dir=base_dir, agent_id=agent_id)
+        if plugin_set is None:
+            return None
 
-    return _bind_plugin_set_to_instance(instance, plugin_set, agent_id=agent_id)
-
-
+    attach_observability_plugin_set(plugin_set, instance, agent_id=agent_id)
+    return SessionObservabilityRecorder(plugin_set=plugin_set)

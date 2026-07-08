@@ -101,13 +101,31 @@ properties:
     description: >-
       Map library scheme to directory (e.g. samples: ./library-samples/src).
 
+  aliases:
+    type: object
+    additionalProperties:
+      type: string
+    description: >-
+      Alias overrides for runtime plugin lookup. Keys are human-friendly names
+      or legacy aliases; values are canonical plugin URNs such as
+      mas.dp.react.
+
   defaults:
     type: object
     additionalProperties: false
+    description: >-
+      Overrides merged over mas-runtime's built-in defaults.yaml (per key,
+      workspace value wins). See runtime/docs/agent-defaults.md.
     properties:
       model:
         type: string
         description: Default model id when manifests omit one.
+      design_pattern:
+        type: string
+        description: Default plugin id for spec.design_pattern when manifests omit one.
+      context_manager:
+        type: string
+        description: Default plugin id for spec.context_manager when manifests omit one.
 
   paths:
     type: object

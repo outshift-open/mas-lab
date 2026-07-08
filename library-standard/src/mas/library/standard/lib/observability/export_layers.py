@@ -2,7 +2,7 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Select which observability layers to export as OTel spans.
 
-Claris compatibility uses the three base tree layers (structure, execution,
+Default compatibility uses the three base tree layers (structure, execution,
 semantic).  Provenance (trajectory) and governance are opt-in.
 """
 

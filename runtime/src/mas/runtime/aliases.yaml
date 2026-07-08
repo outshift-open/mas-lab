@@ -1,0 +1,51 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: PluginAliasManifest
+metadata:
+  name: runtime-default-aliases
+spec:
+  aliases:
+    # -- friendly short names --------------------------------------------
+    analyst: mas.dp.react
+    cot: mas.dp.cot
+    context-assembler: mas.ctx.assembler
+    ctx-assembler: mas.ctx.assembler
+    full-history: mas.cm.stack
+    full_history: mas.cm.stack
+    introspection: mas.dp.introspection
+    linear: mas.dp.single_pass
+    memory: mas.mem.semantic
+    memory-semantic: mas.mem.semantic
+    memory_semantic: mas.mem.semantic
+    planner: mas.dp.react
+    plan-execute: mas.dp.plan_execute
+    plan_execute: mas.dp.plan_execute
+    react: mas.dp.react
+    reflection: mas.dp.introspection
+    sample_governance: mas.gov.sample
+    single_pass: mas.dp.single_pass
+    sliding-window: mas.cm.sliding_window
+    sliding_window: mas.cm.sliding_window
+    stack: mas.cm.stack
+    summarising: mas.cm.summarising
+    summarizing: mas.cm.summarising
+    tot: mas.dp.tree_of_thoughts
+    tree_of_thoughts: mas.dp.tree_of_thoughts
+
+    # -- legacy `plugin_id@version` compatibility shims -------------------
+    # These existed as `shortcuts:` on the deleted plugin_registry.yaml
+    # entries and/or in library-samples/aliases/plugin-aliases.yaml before
+    # the manifest/alias consolidation. Keep them so any external config
+    # still referencing the old `name@v1` spelling keeps resolving.
+    react@v1: mas.dp.react
+    cot@v1: mas.dp.cot
+    introspection@v1: mas.dp.introspection
+    reflection@v1: mas.dp.introspection
+    single_pass@v1: mas.dp.single_pass
+    linear@v1: mas.dp.single_pass
+    plan_execute@v1: mas.dp.plan_execute
+    tree_of_thoughts@v1: mas.dp.tree_of_thoughts
+    tot@v1: mas.dp.tree_of_thoughts
+    semantic_memory@v1: mas.mem.semantic
+    sample_governance@v1: mas.gov.sample

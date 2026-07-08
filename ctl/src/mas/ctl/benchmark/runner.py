@@ -480,6 +480,7 @@ class MasBenchRunner:
                     shared_pipeline.close()
                 raise
         except KeyError as exc:
+            logger.error("Run failed: %s", exc, exc_info=True)
             return RunResult(content="", status="error", error=str(exc))
 
         store = self._checkpoint_store(checkpoint_dir, checkpoint_path)
@@ -575,6 +576,10 @@ class MasBenchRunner:
                 verbose=0,
             )
         except (KeyError, RuntimeError, ValueError) as exc:
+            # Surface the real cause by default — never require LOG_LEVEL=DEBUG to
+            # see why a run failed. The full traceback goes to the log at ERROR
+            # (visible at default verbosity); the summary is kept on the result.
+            logger.error("Run failed: %s", exc, exc_info=True)
             return RunResult(content="", status="error", error=str(exc))
         finally:
             if pipeline is not None:

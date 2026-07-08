@@ -73,7 +73,35 @@ def resolve_path_ref(ref: str, base_dir: Path) -> Path:
         if scheme and "/" not in scheme and "\\" not in scheme:
             lib_root = _manifest_library_root(scheme)
             if lib_root is not None:
-                return lib_root / rel_path
+                return _resolve_in_library(lib_root, rel_path)
 
     p = Path(ref)
     return p if p.is_absolute() else (base_dir / ref).resolve()
+
+
+def _resolve_in_library(lib_root: Path, rel_path: str) -> Path:
+    """Resolve a manifest-library-relative ref, URN-style.
+
+    The ``.yaml``/``.yml`` extension and a leading ``pipelines/`` are both
+    optional, so all of these resolve to the same file::
+
+        telemetry:pipelines/native-to-otel-json.yaml   (explicit)
+        telemetry:pipelines/native-to-otel-json         (.yaml implied)
+        telemetry:native-to-otel-json                   (pipelines/ + .yaml implied)
+
+    The first candidate that exists wins; if none exist the literal
+    ``lib_root / rel_path`` is returned (preserving prior behaviour and letting
+    the caller raise a clear not-found error).
+    """
+    rel = rel_path.lstrip("/")
+    candidates = [rel]
+    if not rel.endswith((".yaml", ".yml", ".json")):
+        candidates += [f"{rel}.yaml", f"{rel}.yml"]
+    # Allow omitting the conventional `pipelines/` subdir.
+    if not rel.startswith("pipelines/"):
+        candidates += [f"pipelines/{c}" for c in list(candidates)]
+    for cand in candidates:
+        target = lib_root / cand
+        if target.exists():
+            return target
+    return lib_root / rel

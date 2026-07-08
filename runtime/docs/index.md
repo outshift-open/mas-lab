@@ -18,6 +18,9 @@
 | Implement a plugin | [plugin-and-tool-authoring.md](plugin-and-tool-authoring.md) → [contracts-reference.md](contracts-reference.md) |
 | Enable CoT / ReAct / Reflection | [design-patterns.md](design-patterns.md) |
 | Configure dev vs prod (flavours) | [plugin-flavours.md](plugin-flavours.md) |
+| Understand plugin names, URNs, aliases, and discovery | [plugin-aliases.md](plugin-aliases.md) |
+| Understand how plugin *types* get registered (manifests, fixpoint, library discovery) | [plugin-registry-manifests.md](plugin-registry-manifests.md) |
+| Understand/override default model, design pattern, context manager | [agent-defaults.md](agent-defaults.md) |
 | Understand the runtime architecture (Mealy product, Σ, chokepoints) | [automaton-product-model.md](automaton-product-model.md) |
 | Debug Σ ordering and closure | [dev/contracts/mealy-hooks-and-closure.md](dev/contracts/mealy-hooks-and-closure.md) |
 

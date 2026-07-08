@@ -102,9 +102,17 @@ class RuntimeWorkspaceConfig:
         return dict(raw) if isinstance(raw, dict) else {}
 
     @property
+    def aliases(self) -> dict[str, str]:
+        raw = self._data.get("aliases") or {}
+        return {str(alias): str(urn) for alias, urn in raw.items()} if isinstance(raw, dict) else {}
+
+    @property
+    def defaults(self) -> dict[str, str]:
+        """Raw ``defaults:`` overrides from ``config.yaml`` (e.g. model, design_pattern)."""
+        raw = self._data.get("defaults") or {}
+        return {str(k): str(v) for k, v in raw.items() if v is not None} if isinstance(raw, dict) else {}
+
+    @property
     def default_model(self) -> str | None:
-        defaults = self._data.get("defaults") or {}
-        if isinstance(defaults, dict):
-            model = defaults.get("model")
-            return str(model) if model else None
-        return None
+        model = self.defaults.get("model")
+        return model or None

@@ -15,13 +15,13 @@ tasks:
   install:
     desc: "Install core MAS packages into this repo's .venv (editable mode). Run from repo root."
     summary: |
-      Installs runtime, ctl, library-standard and mas-lab (pulls mas-lab-controller,
-      mas-lab-bench, mas-lab-core as transitive editable deps).
+      Installs runtime, ctl, library-standard, library-lab, and mas-lab
+      (pulls mas-lab-controller, mas-lab-bench, mas-lab-core as transitive editable deps).
       Uses .envrc UV_PROJECT_ENVIRONMENT (this repo's .venv). Re-run after pulling
       new dependencies. For all libraries + extras use: task install-all
     cmds:
       - test -d .venv || uv venv .venv
-      - uv pip install -e runtime -e ctl -e library-standard -e library-eval -e lab/components/core -e lab/components/bench -e lab/components/controller -e lab
+      - uv pip install -e runtime -e ctl -e library-standard -e library-eval -e library-lab -e lab/components/core -e lab/components/bench -e lab/components/controller -e lab
       - .venv/bin/python -c "import mas.lab.controller; print('mas-lab-controller OK')"
 
   install-dev:
@@ -122,6 +122,13 @@ tasks:
       - task: verify-unit
       - task: verify-functional
       - task: validate
+
+  ci-fast:
+    desc: "Fast CI — literals + unit gate only (skips slow functional/dry-run gates)."
+    deps: [install-dev]
+    cmds:
+      - task: verify:literals
+      - task: verify-unit
 
   verify-hitl-gate:
     desc: "Scripted HITL on tool — hitl_gate in events.jsonl (ctl + CLI paths)"

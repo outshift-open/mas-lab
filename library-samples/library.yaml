@@ -2,6 +2,10 @@
 #  SPDX-License-Identifier: Apache-2.0
 # MAS Library Metadata — Samples
 # Declares sample apps, datasets, and tools bundled with this library.
+# See docs/schemas/library.schema.yaml for the full schema.
+
+apiVersion: mas/v1
+kind: Library
 
 name: mas-library-samples
 description: >
