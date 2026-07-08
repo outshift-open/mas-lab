@@ -184,14 +184,21 @@ class WorkspaceConfig:
         return candidate if candidate.is_file() else None
 
     def resolve_library_path(self, lib_ref: str) -> Path | None:
-        """Resolve ``team:bundle/sub`` via manifest_libraries."""
+        """Resolve ``team:bundle/sub`` via manifest_libraries.
+
+        The ``base`` path in manifest_libraries may be:
+        - Absolute: ``/abs/path`` → used directly
+        - Home-relative: ``~/.config/…`` → expanded via Path.expanduser()
+        - Relative: ``./infra`` → resolved relative to the workspace root
+        """
         if ":" not in lib_ref:
             return None
         lib, rest = lib_ref.split(":", 1)
         base = self.manifest_libraries.get(lib)
         if not base or self._path is None:
             return None
-        root = (self._path / base).resolve()
+        base_path = Path(base).expanduser()
+        root = (base_path if base_path.is_absolute() else self._path / base_path).resolve()
         candidate = (root / rest).with_suffix(".yaml")
         if candidate.is_file():
             return candidate

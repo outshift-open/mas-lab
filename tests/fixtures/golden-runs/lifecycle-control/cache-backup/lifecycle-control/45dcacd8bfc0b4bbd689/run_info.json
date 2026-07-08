@@ -4,7 +4,7 @@
   "scenario": "golden",
   "item_id": "1",
   "run_idx": 0,
-  "referenced_at": "2026-07-06T00:06:14.617490Z",
+  "referenced_at": "2026-07-06T11:50:42.177773Z",
   "mas": {
     "app": "trip-planner",
     "mas_ref": "/Users/augjorda/repos/outshift-open/mas-lab/library-samples/apps/trip-planner/mas.yaml",

@@ -66,6 +66,41 @@ def _docker_available() -> bool:
             _DOCKER_AVAILABLE = False
     return _DOCKER_AVAILABLE
 
+
+_DOCKER_CLI_IMAGE_BUILT: bool | None = None
+_DOCKER_COMPOSE_FILE = Path(__file__).resolve().parents[2] / "docker" / "compose.yaml"
+
+
+def _docker_cli_image_built() -> bool:
+    """Return True only when the cli service image is already present locally.
+
+    ``docker compose run --no-deps cli`` refuses to build on-demand, so if the
+    image is absent the command hangs or fails within the 60-second test timeout.
+    The image is built by ``task docker-build`` or the ``docker-build`` scenario
+    step (timeout_s: 300) — not by ``task ci``.
+    """
+    global _DOCKER_CLI_IMAGE_BUILT
+    if _DOCKER_CLI_IMAGE_BUILT is None:
+        if not _docker_available():
+            _DOCKER_CLI_IMAGE_BUILT = False
+        else:
+            try:
+                result = subprocess.run(
+                    [
+                        "docker", "compose",
+                        "--profile", "tools",
+                        "-f", str(_DOCKER_COMPOSE_FILE),
+                        "images", "--quiet", "cli",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                _DOCKER_CLI_IMAGE_BUILT = bool(result.stdout.strip())
+            except (OSError, subprocess.TimeoutExpired):
+                _DOCKER_CLI_IMAGE_BUILT = False
+    return _DOCKER_CLI_IMAGE_BUILT
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
@@ -273,8 +308,11 @@ def test_scenario_command(case: _CommandCase, tmp_path):
     command = _rewrite_command_for_v2(command)
     command = _inject_docker_env(command, _test_env())
 
-    if command.strip().startswith("docker ") and not _docker_available():
-        pytest.skip("Docker daemon not available")
+    if command.strip().startswith("docker "):
+        if not _docker_available():
+            pytest.skip("Docker daemon not available")
+        if not _docker_cli_image_built():
+            pytest.skip("Docker cli image not built — run: docker compose --profile tools -f docker/compose.yaml build cli")
 
     result = subprocess.run(
         command,

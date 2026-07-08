@@ -4,7 +4,7 @@
   "scenario": "mock-tools",
   "item_id": "1",
   "run_idx": 0,
-  "referenced_at": "2026-07-06T00:44:43.341271Z",
+  "referenced_at": "2026-07-06T11:50:41.029416Z",
   "mas": {
     "app": "qa-agent",
     "mas_ref": "/Users/augjorda/repos/outshift-open/mas-lab/docs/tutorials/01-building-an-agent/agent.yaml",
