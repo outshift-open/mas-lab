@@ -11,7 +11,7 @@ from mas.ctl.adapters.obs.config import ObservabilityConfig
 from mas.ctl.session.observability import create_shared_observability, setup_shared_obs
 from mas.library.standard.lib.observability.native.transform import NativeObservabilityTransform, TransformContext
 from mas.runtime.boundary.obs.binding import ObservabilityBinding
-from mas.runtime.boundary.obs.loader import ObsPluginSet, load_obs_plugins
+from mas.runtime.boundary.obs.plugins import ObsPluginSet, build_observability_plugins
 from mas.runtime.boundary.obs.operator import ObservabilityOperator
 from mas.runtime.schema.observability import ObsEventKind
 
@@ -33,7 +33,7 @@ def test_shared_plugin_set_close_emits_mas_call_end(tmp_path) -> None:
         plugins=["native"],
         plugin_configs={"native": {"path": "events.jsonl"}},
     )
-    plugins = load_obs_plugins(binding, base_dir=tmp_path, agent_id="agent")
+    plugins = build_observability_plugins(binding, base_dir=tmp_path, agent_id="agent")
     shared_set = ObsPluginSet(plugins=plugins)
     op_a = ObservabilityOperator()
     op_b = ObservabilityOperator()
@@ -50,7 +50,7 @@ def test_shared_plugin_set_close_emits_mas_call_end(tmp_path) -> None:
 
 def test_subscribe_to_is_idempotent(tmp_path) -> None:
     binding = ObservabilityBinding(plugins=["native"])
-    plugins = load_obs_plugins(binding, base_dir=tmp_path, agent_id="agent")
+    plugins = build_observability_plugins(binding, base_dir=tmp_path, agent_id="agent")
     shared_set = ObsPluginSet(plugins=plugins)
     op = ObservabilityOperator()
     shared_set.subscribe_to(op, agent_id="a")

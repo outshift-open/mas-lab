@@ -269,7 +269,7 @@ Each is \(M_{\text{gov}_i}\) in the family product. **All** must pass on symbols
 | Tool directory (facet) | `tool` | `inject` | Runtime | Pre-LLM collect |
 | Working memory (default feed) | `memory` | `inject` | Context manager | Pre-LLM assemble |
 | Semantic / vector memory | `memory` | `rag` | Context manager | Pre-LLM collect |
-| Full source catalog (Claris-style) | `skill` / `agent` / `tool` | `inject` | Plugin config | Pre-LLM collect |
+| Full source catalog (platform-style) | `skill` / `agent` / `tool` | `inject` | Plugin config | Pre-LLM collect |
 | `consult_skills` tool | `skill` | `tool_call` | LLM | Mid-loop |
 | `memory_read` / WM tools | `memory` | `tool_call` | LLM | Mid-loop |
 | Deterministic calculator, etc. | `tool` | `tool_call` | LLM | Mid-loop |

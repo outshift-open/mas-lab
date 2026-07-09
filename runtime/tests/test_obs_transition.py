@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 
 from mas.runtime.boundary.obs.observability_plugin import ObservabilityPlugin
 from mas.runtime.boundary.obs.operator import ObservabilityOperator
+from mas.runtime.boundary.obs.plugins import ObsPluginSet, build_observability_plugins
 from mas.runtime.boundary.obs.transition import TransitionEvent, boundary_event_to_transition
 from mas.runtime.schema.observability import ObsEventKind, ObsPhase, ObservabilityEvent
 
@@ -78,13 +79,12 @@ def test_operator_record_session_notifies_subscribers() -> None:
 
 def test_native_plugin_exports_envelope_activity(tmp_path) -> None:
     from mas.runtime.boundary.obs.binding import ObservabilityBinding
-    from mas.runtime.boundary.obs.loader import load_obs_plugins
 
     binding = ObservabilityBinding(
         plugins=["native"],
         plugin_configs={"native": {"path": "events.jsonl"}},
     )
-    plugins = load_obs_plugins(binding, base_dir=tmp_path, agent_id="sre")
+    plugins = build_observability_plugins(binding, base_dir=tmp_path, agent_id="sre")
     assert plugins
     op = ObservabilityOperator()
     for plugin in plugins:

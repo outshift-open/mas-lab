@@ -10,6 +10,7 @@ from mas.library.standard.lib.observability.emit import EventEmitter, FanOutEmit
 from mas.library.standard.lib.observability.native.emit_transition import project_transition
 from mas.library.standard.lib.observability.native.transform import NativeObservabilityTransform, TransformContext
 from mas.runtime.boundary.obs.observability_plugin import ObservabilityPlugin
+from mas.runtime.boundary.obs.binding import ObservabilityBinding
 from mas.runtime.boundary.obs.transition import TransitionEvent
 
 
@@ -18,6 +19,7 @@ class NativeObservabilityPlugin(ObservabilityPlugin):
     """Project kernel transitions to native ``events.jsonl`` (library-standard, read mode)."""
 
     plugin_id: str = "native_observability@v1"
+    implements = ["observability"]
     transforms: list = field(default_factory=lambda: [NativeObservabilityTransform()])
     emitters: list[EventEmitter] = field(default_factory=list)
     context: TransformContext = field(default_factory=TransformContext)
@@ -48,6 +50,38 @@ class NativeObservabilityPlugin(ObservabilityPlugin):
     def close(self) -> None:
         if self._fanout:
             self._fanout.close()
+
+    @classmethod
+    def from_binding(
+        cls,
+        binding: ObservabilityBinding,
+        *,
+        base_dir: str | Path,
+        agent_id: str,
+    ) -> "NativeObservabilityPlugin":
+        from pathlib import Path
+
+        from mas.library.standard.lib.observability.emit import JsonlFileEmitter, StdoutJsonlEmitter
+
+        base_path = Path(base_dir)
+        native_cfg = binding.plugin_configs.get("native") or {}
+        events_path = Path(binding.events_file) if binding.events_file else base_path / "traces" / "events.jsonl"
+        if native_cfg.get("path"):
+            p = Path(str(native_cfg["path"]))
+            events_path = p if p.is_absolute() else (base_path / p).resolve()
+        else:
+            events_path = events_path if events_path.is_absolute() else events_path.resolve()
+
+        emitters = []
+        if binding.stdout:
+            emitters.append(StdoutJsonlEmitter())
+        emitters.insert(0, JsonlFileEmitter(events_path))
+
+        return cls(
+            transforms=[NativeObservabilityTransform()],
+            emitters=emitters,
+            context=TransformContext(agent_id=agent_id, run_id=""),
+        )
 
 
 __all__ = ["NativeObservabilityPlugin"]

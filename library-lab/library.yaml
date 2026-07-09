@@ -1,0 +1,210 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# MAS Library Metadata — Lab
+# Pipeline steps and artifact codecs used by the mas-lab-bench pipeline
+# engine. Bench ships the engine only (Pipeline, PipelineExecutor,
+# PipelineStep, caching, dependency resolution); every concrete step and
+# codec implementation lives here and is registered through the runtime
+# plugin registry — see runtime/docs/plugin-registry-manifests.md.
+#
+# This file is both the library manifest (kind: Library — metadata read by
+# mas.library_catalog: discover_apps/discover_datasets/discover_tools) and,
+# via the types:/plugins: keys below, a plugin manifest fed directly into
+# mas.runtime.registry.bootstrap.register_manifest_data(). A library only
+# needs a separate plugins/*.plugins.yaml file (referenced from a
+# plugin_manifests: catalog here, or picked up by the plugins/ directory
+# scan) if it wants to split its plugin declarations across multiple files.
+# See docs/schemas/library.schema.yaml for the full schema.
+
+apiVersion: mas/v1
+kind: Library
+
+name: mas-library-lab
+description: >
+  Pipeline step and artifact codec plugins for mas-lab-bench, plus the
+  MCE v1 eval provider and the standard plot library.
+version: "0.1.0"
+
+module_base: mas.library.lab
+
+types:
+  - step
+  - codec
+
+plugins:
+  - type: step
+    name: analysis
+    module: mas.library.lab.steps.data.analysis
+    class: AnalysisStep
+  - type: step
+    name: annotate_metrics
+    module: mas.library.lab.steps.eval.annotate_metrics
+    class: AnnotateMetricsStep
+  - type: step
+    name: ci_plot
+    module: mas.library.lab.steps.viz.ci_plot
+    class: CIPlotStep
+  - type: step
+    name: collect_dataframe
+    module: mas.library.lab.steps.data.collect_dataframe
+    class: CollectDataFrameStep
+  - type: step
+    name: collect_metrics
+    module: mas.library.lab.steps.eval.collect_metrics
+    class: CollectMetricsStep
+  - type: step
+    name: compute_ci
+    module: mas.library.lab.steps.eval.compute_ci
+    class: ComputeCIStep
+  - type: step
+    name: compute_drift
+    module: mas.library.lab.steps.eval.compute_drift
+    class: ComputeDriftStep
+  - type: step
+    name: dataset
+    module: mas.library.lab.steps.data.dataset
+    class: DatasetStep
+  - type: step
+    name: deserialize
+    module: mas.library.lab.steps.data.deserialize
+    class: DeserializeStep
+  - type: step
+    name: diff_trajectories
+    module: mas.library.lab.steps.data.diff_trajectories
+    class: DiffTrajectoriesStep
+  - type: step
+    name: embed_trajectories
+    module: mas.library.lab.steps.data.embed_trajectories
+    class: EmbedStep
+  - type: step
+    name: eval_mce
+    module: mas.library.lab.steps.eval.mce
+    class: EvalMceStep
+  - type: step
+    name: events_to_otel
+    module: mas.library.lab.steps.services.events_to_otel
+    class: EventsToOtelStep
+  - type: step
+    name: experiment
+    module: mas.library.lab.steps.data.experiment
+    class: ExperimentStep
+  - type: step
+    name: export_otel
+    module: mas.library.lab.steps.services.export_otel
+    class: ExportOtelStep
+  - type: step
+    name: extract_mealy_stats
+    module: mas.library.lab.steps.extract.mealy_stats
+    class: ExtractMealyStatsStep
+  - type: step
+    name: extract_sys_stats
+    module: mas.library.lab.steps.extract.sys_stats
+    class: ExtractSysStatsStep
+  - type: step
+    name: extract_trace_stats
+    module: mas.library.lab.steps.extract.trace_stats
+    class: ExtractTraceStatsStep
+  - type: step
+    name: extract_trajectories
+    module: mas.library.lab.steps.extract.trajectories
+    class: ExtractTrajectoriesStep
+  - type: step
+    name: gather_level
+    module: mas.library.lab.steps.data.gather_level
+    class: GatherLevelStep
+  - type: step
+    name: generate_dataset
+    module: mas.library.lab.steps.data.generate_dataset
+    class: GenerateDatasetStep
+  - type: step
+    name: ggplot
+    module: mas.library.lab.steps.viz.plot_ggplot
+    class: PlotPipelineStep
+  - type: step
+    name: join_dataframe
+    module: mas.library.lab.steps.data.join_dataframe
+    class: JoinDataFrameStep
+  - type: step
+    name: metrics_comparison_plot
+    module: mas.library.lab.steps.viz.metrics_comparison_plot
+    class: MetricsComparisonPlotStep
+  - type: step
+    name: pipeline_diagram
+    module: mas.library.lab.steps.viz.pipeline_diagram
+    class: PipelineDiagramStep
+  - type: step
+    name: plot
+    module: mas.library.lab.steps.viz.plot
+    class: PlotStep
+  - type: step
+    name: plot_communication_flow
+    module: mas.library.lab.steps.viz.plot_communication_flow
+    class: PlotCommunicationFlowStep
+  - type: step
+    name: plot_message_graph
+    module: mas.library.lab.steps.viz.plot_message_graph
+    class: PlotMessageGraphStep
+  - type: step
+    name: plot_multilevel_trajectory
+    module: mas.library.lab.steps.viz.plot_multilevel_trajectory
+    class: PlotMultilevelTrajectoryStep
+  - type: step
+    name: plot_trajectory
+    module: mas.library.lab.steps.viz.plot_trajectory
+    class: PlotTrajectoryStep
+  - type: step
+    name: plotnine
+    module: mas.library.lab.steps.viz.plotnine
+    class: PlotNineStep
+  - type: step
+    name: processor
+    module: mas.library.lab.steps.data.processor
+    class: ProcessorStep
+  - type: step
+    name: serialize
+    module: mas.library.lab.steps.data.serialize
+    class: SerializeStep
+  - type: step
+    name: service_start
+    module: mas.library.lab.steps.services.service_start
+    class: ServiceStartStep
+  - type: step
+    name: service_stop
+    module: mas.library.lab.steps.services.service_stop
+    class: ServiceStopStep
+  - type: step
+    name: to_dataframe
+    module: mas.library.lab.steps.data.to_dataframe
+    class: ToDataFrameStep
+  - type: codec
+    name: otel_traces-otlp
+    urn: mas.codec.otel_traces_otlp
+    module: mas.library.lab.codecs.otel_codecs
+    class: OtlpOtelCodec
+    attributes:
+      artifact_kind: otel_traces
+      store_type: otlp
+  - type: codec
+    name: otel_traces-clickhouse
+    urn: mas.codec.otel_traces_clickhouse
+    module: mas.library.lab.codecs.otel_codecs
+    class: ClickHouseOtelCodec
+    attributes:
+      artifact_kind: otel_traces
+      store_type: clickhouse
+  - type: codec
+    name: otel_traces-filesystem
+    urn: mas.codec.otel_traces_filesystem
+    module: mas.library.lab.codecs.otel_codecs
+    class: FilesystemOtelCodec
+    attributes:
+      artifact_kind: otel_traces
+      store_type: filesystem
+  - type: codec
+    name: events-filesystem
+    urn: mas.codec.events_filesystem
+    module: mas.library.lab.codecs.otel_codecs
+    class: FilesystemEventsCodec
+    attributes:
+      artifact_kind: events
+      store_type: filesystem

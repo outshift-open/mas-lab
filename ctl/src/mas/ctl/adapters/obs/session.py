@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from mas.runtime.boundary.obs.loader import ObsPluginSet
+    from mas.runtime.boundary.obs.plugins import ObsPluginSet
 
 
 @dataclass

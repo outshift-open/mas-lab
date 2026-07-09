@@ -15,10 +15,10 @@ def inject_dp_protocol(
     q: QProduct | None = None,
 ) -> list[str]:
     """Append pattern-specific protocol lines before context assembly completes."""
-    try:
-        plugin = get_registry().get_design_pattern(pattern_plugin_id)
-    except KeyError:
+    info = get_registry().get("design_pattern", pattern_plugin_id)
+    if info is None:
         return injected
+    plugin = info.load_class()()
     lines_fn = getattr(plugin, "protocol_lines", None)
     if not callable(lines_fn):
         return injected

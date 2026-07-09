@@ -74,7 +74,7 @@ def _capture_one(
     # running the agent.  The test fixture does the same via monkeypatch.
     os.environ["MAS_TRACE_CACHE"] = str(trace_cache)
     # Isolate XDG so the user's personal ~/.config/mas/config.yaml (which may
-    # point at a private claris:llm-proxy) cannot bleed into the OSS capture.
+    # point at a private standard:llm-proxy) cannot bleed into the OSS capture.
     os.environ["XDG_CONFIG_HOME"] = str(tmp / "xdg-config")
     # Pin the workspace so find_workspace_file() always finds the OSS workspace
     # config (infra_refs: [standard:mock-llm]).  Without this, the walk stops at

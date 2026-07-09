@@ -42,8 +42,6 @@ def _library_description(path: Path) -> str:
     return ""
 
 from mas.runtime.agent_defaults import (
-    CANONICAL_DEFAULT_DP,
-    CANONICAL_DEFAULT_MODEL,
     agent_defaults as _agent_defaults,
     resolve_default_model,
 )
@@ -116,9 +114,9 @@ class LabRegistry:
 
     @staticmethod
     def _runtime_spec_keys() -> frozenset[str]:
-        from mas.runtime.registry import SPEC_KEYS
+        from mas.runtime.registry import get_registry
 
-        return frozenset(SPEC_KEYS)
+        return get_registry().runtime_spec_keys()
 
     def _runtime_registry(self):
         from mas.runtime.registry import get_registry
@@ -291,9 +289,9 @@ class LabRegistry:
 
     def pipeline_step_types(self) -> Dict[str, Any]:
         try:
-            from mas.lab.benchmark.pipeline import get_step_registry
+            from mas.lab.benchmark.pipeline import list_steps
 
-            registry = get_step_registry()
+            registry = list_steps()
             step_types = []
             categories: Dict[str, dict] = {}
             for step_id, cls in sorted(registry.items()):

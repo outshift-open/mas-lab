@@ -23,7 +23,7 @@ consistently across LangChain, LangGraph, AutoGen, and custom loops.
 
 ## Stack position
 
-```
+```text
 mas-runtime  ←  embeddable Mealy kernel (library only — no CLI)
 mas-ctl      ←  control plane: compose, chat, run-mas, validate (instantiates runtime)
 mas-lab      ←  evaluation: benchmarks, pipelines, controller UI
@@ -59,6 +59,19 @@ Manifests reference **infra bundles** and **flavours** from `library-standard`
 (`api_key_env: OPENAI_API_KEY`).
 
 See [docs/plugin-flavours.md](docs/plugin-flavours.md).
+
+### Plugin aliases
+
+`mas-library-standard` ships the canonical built-in plugin implementations and the runtime alias defaults.
+The runtime registry maps human-friendly names and aliases such as `react` or `planner` to canonical URNs
+such as `mas.dp.react`.
+
+Runtime alias defaults live in [src/mas/runtime/aliases.yaml](src/mas/runtime/aliases.yaml).
+The schema is [src/mas/runtime/aliases.schema.yaml](src/mas/runtime/aliases.schema.yaml), and
+`mas.runtime.registry.aliases.validate_alias_manifest()` validates both the package manifest and
+`config.yaml` alias overrides.
+
+See [docs/plugin-aliases.md](docs/plugin-aliases.md) for discovery order, alias resolution, and configuration examples.
 
 ---
 

@@ -51,7 +51,7 @@ import pandas as pd
 _RUN_RE  = re.compile(r'^r(\d+)$')         # "r1" → "1"
 _ITEM_RE = re.compile(r'^item(.+)$')        # "itemanalysis-1" → "analysis-1"
 
-# Directory names inside output_dir that are NOT scenario dirs.
+# Reserved entries inside output_dir that are skipped during scenario discovery.
 _SKIP_NAMES = frozenset({"metadata.yaml", "results.csv", "plots", ".benchmark.lock"})
 
 

@@ -5,11 +5,34 @@ from __future__ import annotations
 
 """Benchmark engine — MAS experiments only; no CLI concerns."""
 
+from dataclasses import dataclass, field
 import logging
 from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class BenchmarkRunOptions:
+    progress: bool = True
+    resume: bool = False
+    force: bool = False
+    benchmark_id: str | None = None
+    dry_run: bool = False
+    max_runs: int | None = None
+    limit_scenarios: int | None = None
+    sample_scenarios: int | None = None
+    single_run: bool = False
+    output_dir: Path | None = None
+    force_lock: bool = False
+    flavour_name: str | None = None
+    infra_name: str | None = None
+    trace_cache_dir: Path | None = None
+    data_cache_dir: Path | None = None
+    strategy: str | None = None
+    step_overrides: list = field(default_factory=list)
+    clean_stale: bool | None = None
 
 
 def _is_mas_experiment_yaml(experiment_yaml: Path) -> bool:
@@ -36,37 +59,22 @@ def _is_mas_experiment_yaml(experiment_yaml: Path) -> bool:
 
 async def run_benchmark(
     experiment_yaml: Path,
-    progress: bool = True,
-    resume: bool = False,
-    force: bool = False,
-    benchmark_id: Optional[str] = None,
-    dry_run: bool = False,
-    max_runs: Optional[int] = None,
-    limit_scenarios: Optional[int] = None,
-    sample_scenarios: Optional[int] = None,
-    single_run: bool = False,
-    output_dir: Optional[Path] = None,
-    force_lock: bool = False,
-    flavour_name: Optional[str] = None,
-    infra_name: Optional[str] = None,
-    trace_cache_dir: Optional[Path] = None,
-    data_cache_dir: Optional[Path] = None,
-    strategy: Optional[str] = None,
-    step_overrides: Optional[list] = None,
-    clean_stale: Optional[bool] = None,
+    options: BenchmarkRunOptions | None = None,
 ) -> bool:
+    opts = options or BenchmarkRunOptions()
+
     if not experiment_yaml.exists():
         logger.error("Experiment YAML not found: %s", experiment_yaml)
         return False
 
-    if benchmark_id or resume:
+    if opts.benchmark_id or opts.resume:
         from mas.lab.benchmark.schedule.resume import resume_mas_benchmark
 
         return await resume_mas_benchmark(
             experiment_yaml=experiment_yaml,
-            benchmark_id=benchmark_id,
-            progress=progress,
-            force_lock=force_lock,
+            benchmark_id=opts.benchmark_id,
+            progress=opts.progress,
+            force_lock=opts.force_lock,
         )
 
     if not _is_mas_experiment_yaml(experiment_yaml):
@@ -82,20 +90,20 @@ async def run_benchmark(
 
     return await run_mas_benchmark(
         experiment_yaml=experiment_yaml,
-        progress=progress,
-        dry_run=dry_run,
-        max_runs=max_runs,
-        limit_scenarios=limit_scenarios,
-        single_run=single_run,
-        flavour_name=flavour_name,
-        infra_name=infra_name,
-        force=force,
-        trace_cache_dir=trace_cache_dir,
-        data_cache_dir=data_cache_dir,
-        output_dir=output_dir,
-        strategy=strategy,
-        step_overrides=step_overrides,
-        clean_stale=clean_stale,
+        progress=opts.progress,
+        dry_run=opts.dry_run,
+        max_runs=opts.max_runs,
+        limit_scenarios=opts.limit_scenarios,
+        single_run=opts.single_run,
+        flavour_name=opts.flavour_name,
+        infra_name=opts.infra_name,
+        force=opts.force,
+        trace_cache_dir=opts.trace_cache_dir,
+        data_cache_dir=opts.data_cache_dir,
+        output_dir=opts.output_dir,
+        strategy=opts.strategy,
+        step_overrides=opts.step_overrides,
+        clean_stale=opts.clean_stale,
     )
 
 

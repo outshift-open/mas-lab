@@ -33,7 +33,7 @@ def golden_env(tmp_path, monkeypatch):
     mas_home.mkdir()
     monkeypatch.setenv("MAS_HOME", str(mas_home))
     monkeypatch.setenv("MAS_TRACE_CACHE", str(trace_cache))
-    # Isolate from personal ~/.config/mas/config.yaml (e.g. claris:llm-proxy)
+    # Isolate from personal ~/.config/mas/config.yaml (e.g. team:llm-proxy)
     # so golden-run parity tests are portable across developer machines and CI.
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-config"))
     return out, trace_cache

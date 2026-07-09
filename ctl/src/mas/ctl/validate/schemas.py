@@ -34,6 +34,7 @@ _KIND_MAP: dict[str, str] = {
     "experiment": "lab/experiment.schema.yaml",
     "dataset": "lab/dataset.schema.yaml",
     "pipeline": "lab/pipeline.schema.yaml",
+    "library": "library.schema.yaml",
 }
 
 _YAML_KIND: dict[str, str] = {
@@ -62,6 +63,7 @@ _YAML_KIND: dict[str, str] = {
     "Datastore": "infra",
     "SecretsProvider": "infra",
     "Infrastructure": "infra",
+    "Library": "library",
 }
 
 

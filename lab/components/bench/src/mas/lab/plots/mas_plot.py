@@ -445,7 +445,7 @@ class MASPlot(ABC):
         formats: list[str] | None = None,
         stem: str | None = None,
     ) -> "PlotPipelineStep":
-        """Return a :class:`~mas.lab.benchmark.pipeline.steps.viz.plot_ggplot.PlotPipelineStep`
+        """Return a :class:`~mas.library.lab.steps.viz.plot_ggplot.PlotPipelineStep`
         wrapping this plot.
 
         The step calls :meth:`save` when executed, writing output files
@@ -471,7 +471,7 @@ class MASPlot(ABC):
                 my_plot.to_step("quality_bar", depends_on=["analysis"]),
             ]
         """
-        from mas.lab.benchmark.pipeline.steps.viz.plot_ggplot import PlotPipelineStep
+        from mas.library.lab.steps.viz.plot_ggplot import PlotPipelineStep
 
         return PlotPipelineStep(
             name=name or type(self).__name__,
@@ -495,6 +495,6 @@ class MASPlot(ABC):
 # Re-export PlotPipelineStep under this module for convenience
 # (actual class defined in plot_ggplot.py to avoid a dependency cycle)
 try:
-    from mas.lab.benchmark.pipeline.steps.viz.plot_ggplot import PlotPipelineStep  # noqa: F401
+    from mas.library.lab.steps.viz.plot_ggplot import PlotPipelineStep  # noqa: F401
 except ImportError:
     pass  # optional when used outside the benchmark package

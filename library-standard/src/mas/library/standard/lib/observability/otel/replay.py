@@ -72,11 +72,29 @@ def replay_events_file(
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
+    from mas.library.standard.lib.observability.otel.topology import (
+        build_topology,
+        derive_app_name,
+    )
+
     input_path = Path(input_path)
     if not input_path.exists():
         raise FileNotFoundError(f"events.jsonl not found: {input_path}")
 
-    effective_app_name = app_name or service_name
+    # Read events up front so we can derive the app name and topology.
+    events: list[dict[str, Any]] = []
+    with open(input_path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                logger.warning("replay_events_file: skipping invalid JSON line")
+
+    # App name: explicit override wins; else derive from the trace; else service.
+    effective_app_name = app_name or derive_app_name(events, fallback=service_name)
     exporter = JSONLineFileSpanExporter(output_path)
     resource = Resource.create({
         "service.name": service_name,
@@ -98,21 +116,44 @@ def replay_events_file(
         f"{input_path.resolve()}:{service_name}".encode()
     ).hexdigest()
 
-    first_event: dict[str, Any] | None = None
-    count = 0
-    with open(input_path, encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                event = json.loads(line)
-                if first_event is None:
-                    first_event = event
-                converter.process_event(event)
-                count += 1
-            except json.JSONDecodeError:
-                logger.warning("replay_events_file: skipping invalid JSON line")
+    first_event: dict[str, Any] | None = events[0] if events else None
+    failed_events = 0
+    for event in events:
+        try:
+            converter.process_event(event)
+        except Exception:
+            # A single malformed/unexpected event should not abort the whole
+            # replay run and lose every still-open span — log and continue,
+            # mirroring the log-and-continue behaviour of the JSONL parse
+            # loop above. flush_open_spans()/shutdown()/the replay mapping
+            # below still need to run regardless.
+            failed_events += 1
+            logger.exception(
+                "replay_events_file: failed to process event %r; skipping",
+                event.get("event_id") or event.get("call_id") or event,
+            )
+    if failed_events:
+        logger.warning(
+            "replay_events_file: %d/%d event(s) failed to process and were skipped",
+            failed_events,
+            len(events),
+        )
+    count = len(events)
+
+    # Emit the multi-agent topology span (``<app>.graph``) as a
+    # child of the run root so it shares the trace.
+    earliest_ts = next((e.get("timestamp") for e in events if e.get("timestamp") is not None), None)
+    graph_ts_ns = int(earliest_ts * 1_000_000_000) if earliest_ts is not None else None
+    root_call_id = next(
+        (str(e["call_id"]) for e in events if e.get("kind") == "mas_call_start" and e.get("call_id")),
+        None,
+    )
+    converter.emit_graph_span(
+        build_topology(events),
+        app_name=effective_app_name,
+        ts_ns=graph_ts_ns,
+        parent_call_id=root_call_id,
+    )
 
     converter.flush_open_spans()
     provider.force_flush(timeout_millis=flush_timeout_ms)

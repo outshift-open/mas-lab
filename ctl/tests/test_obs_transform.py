@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 
 from mas.library.standard.lib.observability.native.transform import BoundaryPassthroughTransform, TransformContext
 from mas.runtime.boundary.obs.binding import ObservabilityBinding
-from mas.runtime.boundary.obs.loader import ObsPluginSet, load_obs_plugins
+from mas.runtime.boundary.obs.plugins import ObsPluginSet, build_observability_plugins
 from mas.runtime.boundary.obs.operator import ObservabilityOperator
 
 
@@ -35,7 +35,7 @@ def test_plugin_set_subscribes_and_records_via_operator(tmp_path) -> None:
         plugins=["native"],
         plugin_configs={"native": {"path": "events.jsonl"}},
     )
-    plugins = load_obs_plugins(binding, base_dir=tmp_path, agent_id="sre")
+    plugins = build_observability_plugins(binding, base_dir=tmp_path, agent_id="sre")
     plugin_set = ObsPluginSet(plugins=plugins)
     op = ObservabilityOperator()
     plugin_set.subscribe_to(op, agent_id="sre")

@@ -23,9 +23,9 @@ def step_info_cmd(step_type: str | None, json_out: bool) -> None:
         mas-lab benchmark step-info export_otel
         mas-lab benchmark step-info export_otel --json-output
     """
-    from mas.lab.benchmark.pipeline import get_step_registry
+    from mas.lab.benchmark.pipeline import get_step, list_steps
 
-    registry = get_step_registry()
+    registry = list_steps()
 
     if step_type is None:
         types = sorted(set(registry.keys()))
@@ -40,7 +40,7 @@ def step_info_cmd(step_type: str | None, json_out: bool) -> None:
         click.echo(f"\nRun: mas-lab benchmark step-info <type>  for detailed parameters.")
         return
 
-    cls = registry.get(step_type)
+    cls = get_step(step_type)
     if cls is None:
         click.secho(f"Unknown step type: {step_type!r}", fg="red")
         click.echo(f"Run 'mas-lab benchmark step-info' to list available types.")

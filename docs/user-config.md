@@ -40,6 +40,10 @@ MAS-Lab and `mas-ctl` resolve storage paths from the active config file
 resolve from workspace refs, `$XDG_CONFIG_HOME/mas/infra/`, or explicit
 `--infra-ref` paths.
 
+`config.yaml` may also define top-level `aliases:` overrides for runtime plugin
+resolution. See [runtime/docs/plugin-aliases.md](../runtime/docs/plugin-aliases.md)
+for the discovery order and canonical name mapping.
+
 **Config file names**
 
 | Location | File | Role |

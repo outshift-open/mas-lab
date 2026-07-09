@@ -21,7 +21,7 @@ from mas.ctl.executor.mas_session import (
 )
 
 if TYPE_CHECKING:
-    from mas.runtime.boundary.obs.loader import ObsPluginSet
+    from mas.runtime.boundary.obs.plugins import ObsPluginSet
 
 logger = logging.getLogger(__name__)
 

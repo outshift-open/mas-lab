@@ -4,7 +4,7 @@
 -->
 # Plugin id cards (MAS Library Standard)
 
-Each plugin has a canonical **`plugin_id@version`**. Short names resolve via [`library-samples/aliases/plugin-aliases.yaml`](../../library-samples/aliases/plugin-aliases.yaml).
+Each plugin has a canonical **`plugin_id@version`**. Short names resolve via the runtime alias manifest in [`runtime/src/mas/runtime/aliases.yaml`](../../../../../../runtime/src/mas/runtime/aliases.yaml).
 
 ## Template
 

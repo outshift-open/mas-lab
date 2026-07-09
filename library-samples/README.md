@@ -17,7 +17,7 @@ Reusable **artefacts** for tutorials and labs — not runnable experiments.
 | **tools** | `tools/calc.py`, `tools/*.tool.yaml` |
 | **skills** | (under app trees or top-level when shared) |
 | **overlays** | `overlays/cot.yaml`, `overlays/governance/` |
-| **aliases** | `aliases/plugin-aliases.yaml` |
+| **aliases** | runtime alias manifest |
 
 Generic pipelines, built-in steps, and shared artefacts belong in **`library-standard`** (or future lab-standard libraries), not here.
 

@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List
 
+import yaml
+
 #: Keys accepted at the step level in a pipeline YAML.
 _STEP_KNOWN_KEYS: frozenset = frozenset({
     "name", "type", "config", "depends_on", "description", "persist", "phase",
@@ -109,10 +111,11 @@ class StepManifest:
 
     @classmethod
     def from_yaml(cls, path: Path) -> StepManifest:
-        from mas.runtime.spec.source import load_yaml_mapping
-
-        data = load_yaml_mapping(path)
-        step = data.get("step", data)
+        # Local YAML load — the framework base must not depend on mas.runtime.
+        raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            raise ValueError(f"{path}: step manifest must be a YAML mapping")
+        step = raw.get("step", raw)
         return cls(
             step_type=step["type"],
             description=step.get("description", ""),

@@ -25,7 +25,7 @@ from mas.runtime.schema.ingress import (
 
 if TYPE_CHECKING:
     from mas.runtime.boundary.obs.binding import ObservabilityBinding
-    from mas.runtime.boundary.obs.loader import ObsPluginSet
+    from mas.runtime.boundary.obs.plugins import ObsPluginSet
 
 
 @dataclass
@@ -64,9 +64,9 @@ class RuntimeInstance:
         instance = cls(kernel=kernel, driver=driver)
 
         if obs_binding is not None and op is not None:
-            from mas.runtime.boundary.obs.loader import ObsPluginSet, load_obs_plugins
+            from mas.runtime.boundary.obs.plugins import ObsPluginSet, build_observability_plugins
 
-            plugins = load_obs_plugins(
+            plugins = build_observability_plugins(
                 obs_binding,
                 base_dir=obs_base_dir or Path("."),
                 agent_id=obs_agent_id,

@@ -87,7 +87,7 @@ def push_file(
     ----------
     app_name:
         When non-empty, sets ``application_id`` on every span so the
-        Claris/ClickHouse platform groups traces under this application name.
+        observability backend groups traces under this application name.
         Defaults to *service_name* when not provided.
 
     Returns a summary dict::
@@ -170,7 +170,7 @@ def convert_to_jsonl(
     Parameters
     ----------
     app_name:
-        When non-empty, sets ``application_id`` on every span so Claris groups
+        When non-empty, sets ``application_id`` on every span so the backend groups
         traces under this application name.  Defaults to *service_name*.
 
     Returns a summary dict::
@@ -338,10 +338,20 @@ def _iso_to_ns(iso: str) -> int:
 
 
 def _normalise_hex(value: str, length: int) -> str:
-    """Strip ``0x`` prefix, lowercase, zero-pad to *length* chars."""
+    """Strip ``0x`` prefix, lowercase, zero-pad to *length* chars.
+
+    Uses an explicit two-character slice rather than ``str.lstrip("0x")``:
+    ``lstrip`` strips a leading run of the *characters* ``0``/``x`` in any
+    order/count, not the literal two-character prefix — e.g.
+    ``"0x0abc".lstrip("0x")`` incorrectly yields ``"abc"`` (eating the
+    genuine leading zero after the prefix) instead of ``"0abc"``, silently
+    corrupting trace/span IDs pushed to the OTLP collector.
+    """
     if not value:
         return ""
-    h = value.lower().lstrip("0x") if value.startswith("0x") else value.lower()
+    h = value.lower()
+    if h.startswith("0x"):
+        h = h[2:]
     return h.zfill(length)[:length]
 
 

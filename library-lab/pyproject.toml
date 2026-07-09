@@ -19,5 +19,11 @@ dependencies = [
 [project.entry-points."mas.lab.eval.plugins"]
 mcev1 = "mas.library.lab.eval.mcev1:MCEv1Provider"
 
+[project.entry-points."mas.runtime.manifest_libraries"]
+lab = "mas.library.lab"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/mas"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"library.yaml" = "mas/library/lab/library.yaml"

@@ -48,6 +48,22 @@ def _load_lab_custom_steps(pipeline_config_path: Path) -> None:
                     spec.loader.exec_module(module)
                     logger.debug("[Pipeline] Loaded custom steps from %s", register_file)
                     return
+            except (ImportError, AttributeError, ModuleNotFoundError) as e:
+                # A custom step module that fails to import (e.g. an old
+                # `register_step_type` reference or a bad dependency) is a
+                # real configuration error, not a "no custom steps here"
+                # case. Surface it loudly instead of swallowing it as a
+                # warning -- a silent skip here previously produced a
+                # confusing, unrelated "Unknown step type" error much later.
+                logger.error(
+                    "[Pipeline] Failed to load custom steps from %s: %s: %s",
+                    register_file,
+                    type(e).__name__,
+                    e,
+                )
+                raise RuntimeError(
+                    f"Failed to load custom step registrations from {register_file}: {e}"
+                ) from e
             except Exception as e:
                 logger.warning("[Pipeline] Could not load %s: %s", register_file, e)
                 return

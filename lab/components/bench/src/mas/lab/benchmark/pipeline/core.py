@@ -7,13 +7,18 @@ Pipeline step base classes and YAML pipeline loader.
 
 
 import asyncio
+import importlib
+import importlib.util
 import inspect
+import sys
 import warnings as _warnings_module
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
 
 import yaml
+
+from mas.runtime.registry import get_registry, register_plugin
 
 from mas.lab.benchmark.pipeline.models import (
     _STEP_KNOWN_KEYS,
@@ -22,7 +27,137 @@ from mas.lab.benchmark.pipeline.models import (
     StepManifest,
     StepOutput,
 )
-from mas.lab.benchmark.pipeline.registry import _resolve_step_class
+
+
+# ---------------------------------------------------------------------------
+# Step type resolution
+#
+# There is no bench-local step registry. Step *implementations* are library
+# plugins (see library-lab/library.yaml's types:/plugins: block) registered into
+# the single mas.runtime.registry singleton through the generic manifest/
+# fixpoint mechanism (runtime/docs/plugin-registry-manifests.md) -- the
+# functions below are a thin wrapper over get_registry(), plus one genuinely
+# engine-specific feature: resolving a step type string that ISN'T a
+# registered plugin at all, but a raw 'module.path:ClassName' or
+# './file.py:ClassName' reference straight from pipeline YAML.
+# ---------------------------------------------------------------------------
+
+def register_step(name: str, obj: Any, *, attributes: dict[str, Any] | None = None) -> None:
+    """Register a pipeline step class in the runtime registry."""
+    if not isinstance(obj, type):
+        raise TypeError(f"Pipeline step {name!r} must be a class, got {type(obj)!r}")
+    attrs = dict(attributes or {})
+    source = str(attrs.pop("source", None) or "programmatic")
+    register_plugin(
+        f"mas.step.{str(name).strip().lower().replace('-', '_').replace('.', '_')}",
+        obj,
+        shortcuts=[str(name)],
+        attributes={"source": source, **attrs},
+    )
+
+
+def register_step_type(step_type: str, step_class: type) -> None:
+    """Deprecated alias for :func:`register_step`, kept for backward compatibility.
+
+    Several `labs/*.lab/lib/steps/*.py` modules still import and call this
+    name. Removing it outright breaks those modules with an ``ImportError``
+    that gets silently swallowed by the lab's custom-step loader. Keep this
+    shim until every in-repo and downstream caller has migrated.
+    """
+    register_step(step_type, step_class)
+
+
+def get_step(name: str | None = None, *, attributes: dict[str, Any] | None = None) -> Any:
+    """Get one pipeline step by optional name and optional attribute match."""
+    registry = get_registry()
+    info = registry.get("step", str(name) if name else None, attributes=attributes)
+    return info.load_class() if info is not None else None
+
+
+def list_steps() -> dict[str, Any]:
+    """Return all registered pipeline steps as ``{name: class}``."""
+    items: dict[str, Any] = {}
+    for entry in get_registry().list():
+        if str(entry.get("category") or "") != "step":
+            continue
+        shortcuts = entry.get("shortcuts") or []
+        step_name = str(shortcuts[0]) if shortcuts else str(entry.get("urn") or "").rsplit(".", 1)[-1]
+        if not step_name:
+            continue
+        module = str(entry.get("module") or "")
+        class_name = str(entry.get("class_name") or "")
+        if not module or not class_name:
+            continue
+        mod = importlib.import_module(module)
+        items[step_name] = getattr(mod, class_name)
+    return dict(sorted(items.items()))
+
+
+def _import_class(spec: str, base_dir: Optional[Path] = None) -> type:
+    """Fallback for step types that aren't registered plugins at all: a raw
+    ``module.path:ClassName`` or ``./file.py:ClassName`` reference straight
+    from pipeline YAML."""
+    if ".py:" in spec:
+        file_part, class_name = spec.rsplit(":", 1)
+        file_path = Path(file_part)
+        if not file_path.is_absolute():
+            root = base_dir or Path.cwd()
+            file_path = root / file_path
+        file_path = file_path.resolve()
+        if not file_path.exists():
+            raise FileNotFoundError(f"Step file not found: {file_path}")
+        module_name = f"_user_steps.{file_path.stem}"
+        spec_obj = importlib.util.spec_from_file_location(module_name, file_path)
+        if spec_obj is None or spec_obj.loader is None:
+            raise ImportError(f"Cannot load module from {file_path}")
+        module = importlib.util.module_from_spec(spec_obj)
+        sys.modules[module_name] = module
+        spec_obj.loader.exec_module(module)
+        return getattr(module, class_name)
+
+    if ":" in spec:
+        module_path, class_name = spec.rsplit(":", 1)
+    elif "." in spec:
+        module_path, class_name = spec.rsplit(".", 1)
+    else:
+        raise ValueError(
+            f"Cannot resolve step type {spec!r}. "
+            f"Use a registered name, 'module.path:ClassName', or './file.py:ClassName'."
+        )
+
+    module = importlib.import_module(module_path)
+    return getattr(module, class_name)
+
+
+def resolve_step_class(name: str, *, base_dir: Optional[Path] = None, required_base: type | None = None) -> type:
+    """Resolve a pipeline step class by name, with module/class fallback."""
+    try:
+        cls = get_step(name)
+    except Exception as exc:
+        cls = None
+        _manifest_lookup_error: Exception | None = exc
+    else:
+        _manifest_lookup_error = None
+
+    if cls is None:
+        try:
+            cls = _import_class(name, base_dir=base_dir)
+        except Exception as exc:
+            known = ", ".join(sorted(list_steps().keys()))
+            cause = _manifest_lookup_error or exc
+            raise ValueError(
+                f"Unknown step type: {name!r}. "
+                f"Registered types: {known}. "
+                f"For custom objects, use 'module.path:ClassName' or './file.py:ClassName'. "
+                f"Import error: {cause}"
+            ) from cause
+
+    if required_base and not (isinstance(cls, type) and issubclass(cls, required_base)):
+        raise TypeError(
+            f"step type {name!r} resolved to {cls!r}, "
+            f"which is not a {required_base.__name__} subclass."
+        )
+    return cls
 
 
 class PipelineStep(ABC):
@@ -68,7 +203,7 @@ class PipelineStep(ABC):
     @classmethod
     def from_dict(cls, data: Dict[str, Any], base_dir: Optional[Path] = None) -> PipelineStep:
         step_type = data["type"]
-        step_class = _resolve_step_class(step_type, base_dir=base_dir)
+        step_class = resolve_step_class(step_type, base_dir=base_dir, required_base=PipelineStep)
 
         unknown_keys = {
             k for k in data.keys() if k not in _STEP_KNOWN_KEYS and not k.startswith("x-")
@@ -314,4 +449,10 @@ __all__ = [
     "YAMLIncludeLoader",
     "include_constructor",
     "Pipeline",
+    "register_step",
+    "register_step_type",
+    "get_step",
+    "list_steps",
+    "resolve_step_class",
+    "_import_class",
 ]

@@ -142,6 +142,13 @@ else:
     JSONLineFileSpanExporter = None  # type: ignore[assignment,misc]
 
 
+# Internal MAS event `status` values that map onto the standard OTel span
+# status (opentelemetry.trace.StatusCode). Anything not in either set is left
+# UNSET rather than guessed at.
+_ERROR_STATUS_VALUES = {"error", "failed", "failure", "exception"}
+_OK_STATUS_VALUES = {"success", "ok", "completed"}
+
+
 # ---------------------------------------------------------------------------
 # MasOtelConverter
 # ---------------------------------------------------------------------------
@@ -378,8 +385,16 @@ class MasOtelConverter:
         attrs: dict[str, Any],
         parent_call_id: str | None = None,
         start_ns: int | None = None,
+        *,
+        set_call_id: bool = True,
     ) -> None:
-        """Open a span and store it by call_id."""
+        """Open a span and store it by call_id.
+
+        ``set_call_id`` controls whether ``call_id`` is written as the
+        ``mas.call.id`` attribute.  Point spans pass ``False`` so their synthetic
+        tracking key (a random uuid) never leaks into span attributes — otherwise
+        annotation/graph spans would carry a non-deterministic ``mas.call.id``.
+        """
         ctx = self._parent_ctx(parent_call_id)
         overlay: dict[str, Any] = {}
         if self._app_name:
@@ -387,7 +402,9 @@ class MasOtelConverter:
             overlay["session.name"] = self._app_name
             if self._session_uuid:
                 overlay["session.id"] = self._session_uuid
-        attrs = {**attrs, **overlay, "mas.call.id": call_id}
+        attrs = {**attrs, **overlay}
+        if set_call_id:
+            attrs["mas.call.id"] = call_id
         kwargs: dict[str, Any] = {"context": ctx, "attributes": attrs}
         if start_ns is not None:
             kwargs["start_time"] = start_ns
@@ -410,6 +427,16 @@ class MasOtelConverter:
             self._closed_span_ctx[call_id] = self._span_context(span)
             self._closed_call_ids.add(str(call_id))
             span.set_attribute("mas.status", status)
+            # Also set the standard OTel span status, not just the free-text
+            # attribute above. Without this, any OTel-native consumer
+            # (Jaeger/Tempo/etc.) shows every span — including failed MAS
+            # calls — as UNSET, which defeats the point of exporting proper
+            # OTel traces in the first place.
+            status_key = str(status).strip().lower()
+            if status_key in _ERROR_STATUS_VALUES:
+                span.set_status(trace.Status(trace.StatusCode.ERROR, str(status)))
+            elif status_key in _OK_STATUS_VALUES:
+                span.set_status(trace.Status(trace.StatusCode.OK))
             for k, v in (extra_attrs or {}).items():
                 if v is not None:
                     span.set_attribute(k, v if not isinstance(v, (dict, list)) else self._enc(v))
@@ -436,8 +463,35 @@ class MasOtelConverter:
         point_attrs = dict(attrs)
         if call_id:
             point_attrs["mas.call.id"] = call_id
-        self._open(span_key, name, point_attrs, parent_call_id, start_ns=ts_ns)
+        # set_call_id=False → the synthetic span_key is never written as an
+        # attribute (it would be a random, non-deterministic mas.call.id).
+        self._open(span_key, name, point_attrs, parent_call_id, start_ns=ts_ns, set_call_id=False)
         self._close(span_key, end_ns=ts_ns)
+
+    def emit_graph_span(
+        self,
+        topology: dict[str, Any],
+        *,
+        app_name: str = "",
+        ts_ns: int | None = None,
+        parent_call_id: str | None = None,
+        protocol: str = "MAS",
+    ) -> None:
+        """Emit the multi-agent ``<app>.graph`` topology span.
+
+        A span of kind ``graph`` carrying ``gen_ai.ioa.graph`` (+ dynamism /
+        determinism), matching the IOA Observe ``@graph`` contract.
+        """
+        from mas.library.standard.lib.observability.otel.topology import (
+            graph_span_attributes,
+            has_topology,
+        )
+
+        if not has_topology(topology):
+            return
+        name = f"{app_name or self._app_name or 'mas'}.graph"
+        attrs = {"mas.boundary": "Graph", **graph_span_attributes(topology, protocol=protocol)}
+        self._point(name, attrs, parent_call_id, ts_ns=ts_ns)
 
     # ------------------------------------------------------------------
     # Event handlers — one method per native event kind

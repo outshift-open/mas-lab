@@ -3,7 +3,7 @@
 """``mas-lab dataset`` — post-processing pipeline entry points.
 
 Post-processing is now driven by **pipeline steps** in
-``mas.lab.benchmark.pipeline.steps``:
+``mas.library.lab.steps``:
 
   ExtractTrajectoriesStep  (type: extract_trajectories)
       Reads run CSV + events.jsonl traces → ``trajectories.jsonl``

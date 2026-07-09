@@ -20,6 +20,15 @@ from mas.runtime.kernel.state import DpState, QProduct, RunLedger
 MAX_EVALUATE_STEPS = 8
 
 
+def _load_design_pattern_plugin(pattern_plugin_id: str | None) -> DesignPatternPlugin:
+    registry = get_registry()
+    key = pattern_plugin_id or registry.default_for("design_pattern")
+    info = registry.get("design_pattern", key)
+    if info is None:
+        raise KeyError(f"unknown design pattern plugin: {key!r}")
+    return info.load_class()()
+
+
 @dataclass
 class StepResult:
     egress: list[EgressSymbol] = field(default_factory=list)
@@ -36,7 +45,7 @@ class RuntimeKernel:
 
     def __post_init__(self) -> None:
         if self.plugin is None:
-            self.plugin = get_registry().get_design_pattern(self.config.pattern_plugin_id)
+            self.plugin = _load_design_pattern_plugin(self.config.pattern_plugin_id)
 
     def transition(self, event: IngressSymbol) -> StepResult:
         from mas.runtime.machines.lifecycle import step_lifecycle

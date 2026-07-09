@@ -20,7 +20,7 @@ types for post-run export.
 Consumers:
 
 - `mas.lab.benchmark.codecs.base`, `otel_codecs`
-- `mas.lab.benchmark.pipeline.steps.data.serialize`, `deserialize`
+- `mas.library.lab.steps.data.serialize`, `deserialize`
 
 If datastore specs become shared outside bench, consider promoting them to a
 library package — not to runtime/ctl.

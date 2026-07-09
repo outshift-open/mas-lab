@@ -168,27 +168,29 @@ async def run_benchmark_async(
     """
     # Lazy import — cli_benchmark is a heavy module; don't pay the cost at
     # import time when only the data-access layer is needed.
-    from mas.lab.benchmark.engine import run_benchmark  # noqa: PLC0415
+    from mas.lab.benchmark.engine import BenchmarkRunOptions, run_benchmark  # noqa: PLC0415
 
     return await run_benchmark(
         experiment_yaml=Path(experiment_yaml),
-        progress=False,
-        flavour_name=flavour_name,
-        force=force,
-        benchmark_id=benchmark_id,
-        dry_run=dry_run,
-        max_runs=max_runs,
-        limit_scenarios=limit_scenarios,
-        sample_scenarios=sample_scenarios,
-        single_run=single_run,
-        output_dir=Path(output_dir) if output_dir else None,
-        trace_cache_dir=Path(trace_cache_dir) if trace_cache_dir else None,
-        data_cache_dir=Path(data_cache_dir) if data_cache_dir else None,
-        force_lock=force_lock,
-        strategy=strategy,
-        infra_name=infra_name,
-        step_overrides=step_overrides,
-        clean_stale=clean_stale,
+        options=BenchmarkRunOptions(
+            progress=False,
+            flavour_name=flavour_name,
+            force=force,
+            benchmark_id=benchmark_id,
+            dry_run=dry_run,
+            max_runs=max_runs,
+            limit_scenarios=limit_scenarios,
+            sample_scenarios=sample_scenarios,
+            single_run=single_run,
+            output_dir=Path(output_dir) if output_dir else None,
+            trace_cache_dir=Path(trace_cache_dir) if trace_cache_dir else None,
+            data_cache_dir=Path(data_cache_dir) if data_cache_dir else None,
+            force_lock=force_lock,
+            strategy=strategy,
+            infra_name=infra_name,
+            step_overrides=step_overrides or [],
+            clean_stale=clean_stale,
+        ),
     )
 
 
