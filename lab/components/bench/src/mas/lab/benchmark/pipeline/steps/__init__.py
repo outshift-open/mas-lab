@@ -30,6 +30,7 @@ from mas.lab.benchmark.pipeline.steps.eval.adversarial import EvalAdversarialSte
 from mas.lab.benchmark.pipeline.steps.eval.collect_metrics import CollectMetricsStep
 from mas.lab.benchmark.pipeline.steps.eval.compute_ci import ComputeCIStep
 from mas.lab.benchmark.pipeline.steps.eval.compute_drift import ComputeDriftStep
+from mas.lab.benchmark.pipeline.steps.eval.fixture import EvalFixtureStep
 from mas.lab.benchmark.pipeline.steps.eval.mce import EvalMceStep
 from mas.lab.benchmark.pipeline.steps.eval.trip_planner_gt import EvalTripPlannerGTStep
 from mas.lab.benchmark.pipeline.steps.extract.mealy_stats import ExtractMealyStatsStep
@@ -69,6 +70,7 @@ __all__ = [
     "EmbedStep",
     "EvalAdversarialStep",
     "EvalBatchStep",
+    "EvalFixtureStep",
     "EvalMceStep",
     "EvalTripPlannerGTStep",
     "ExperimentStep",
