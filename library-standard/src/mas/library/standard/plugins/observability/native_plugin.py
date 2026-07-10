@@ -26,22 +26,59 @@ class NativeObservabilityPlugin(ObservabilityPlugin):
     mas_id: str = ""
     session_id: str = ""
     _fanout: FanOutEmitter | None = field(default=None, init=False)
+    _ctx_by_agent: dict[str, TransformContext] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
         if self.emitters:
             self._fanout = FanOutEmitter(*self.emitters)
 
+    def _ctx_for(self, agent_id: str) -> TransformContext:
+        """Per-agent TransformContext.
+
+        A single plugin set is shared across every agent in a multi-agent run
+        (see ``setup_shared_obs``), but each agent runs its own turns with its
+        own session/correlation state (exec_call_id, call-id pairing, dedup
+        sets).  Sharing one context would cross-contaminate that state — a
+        delegated sub-agent's ``user_input`` would reset the entry agent's
+        tracking — and stamp every record with the entry agent's id.  Keep one
+        context per agent so records carry the correct ``agent_id`` and each
+        agent's ``*_start``/``*_end`` pairing stays isolated.
+
+        Run-global scope (``run_id``, ``mas_call_id``) is seeded from the shared
+        base context so that, e.g., every agent's ``execution_start`` parents to
+        the same MAS call — those values are not per-agent.
+        """
+        key = agent_id or self.context.agent_id or "agent"
+        ctx = self._ctx_by_agent.get(key)
+        if ctx is None:
+            ctx = TransformContext(
+                agent_id=key,
+                run_id=self.context.run_id,
+                mas_call_id=self.context.mas_call_id,
+            )
+            self._ctx_by_agent[key] = ctx
+        elif self.context.mas_call_id and not ctx.mas_call_id:
+            # MAS call opened after this agent's context was created.
+            ctx.mas_call_id = self.context.mas_call_id
+        return ctx
+
     def on_transition(self, event: TransitionEvent) -> None:
         if self._fanout is None:
             return
+        ctx = self._ctx_for(event.agent_id)
         for rec in project_transition(
             event,
             transforms=self.transforms,
-            ctx=self.context,
+            ctx=ctx,
             mas_id=self.mas_id,
             session_id=self.session_id,
         ):
             self._fanout.emit(rec)
+        # Propagate run-global MAS call id back to the shared base so contexts
+        # created for other agents afterwards inherit it (mas_call_start is
+        # emitted on the "mas" pseudo-agent, before sub-agent contexts exist).
+        if ctx.mas_call_id and not self.context.mas_call_id:
+            self.context.mas_call_id = ctx.mas_call_id
 
     def flush(self) -> None:
         if self._fanout:

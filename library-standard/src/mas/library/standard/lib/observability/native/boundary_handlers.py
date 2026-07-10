@@ -194,18 +194,26 @@ def _boundary_context_assembled(
 
     llm_call_id = f"llm-{cid}" if cid else ""
     segments = payload.get("segments") or []
-    out: list[dict] = [
-        {
-            "kind": "context_assembled",
-            **base,
-            "timestamp": ts,
-            "call_id": llm_call_id,
-            "llm_call_id": llm_call_id,
-            "segments": len(segments),
-            "total_tokens": payload.get("total_tokens", 0),
-            "message_count": payload.get("message_count", 0),
-        }
-    ]
+    # Carry the assembled prompt into the event so records.py can attach it to
+    # the LLM call (matched by correlation_id) — the engine InvokeEngineIo
+    # boundary does not include the messages, so this is the only place the
+    # prompt text is available. (trace_content is honoured upstream: the
+    # operator omits messages when content tracing is disabled.)
+    _asm_msgs = payload.get("messages") or []
+    _ca: dict = {
+        "kind": "context_assembled",
+        **base,
+        "timestamp": ts,
+        "call_id": llm_call_id,
+        "llm_call_id": llm_call_id,
+        "correlation_id": cid,
+        "segments": len(segments),
+        "total_tokens": payload.get("total_tokens", 0),
+        "message_count": payload.get("message_count", 0),
+    }
+    if _asm_msgs:
+        _ca["messages"] = _asm_msgs
+    out: list[dict] = [_ca]
     agent_id = payload.get("agent_id") or ctx.agent_id
     for seg in segments:
         mechanism = str(seg.get("mechanism") or "")

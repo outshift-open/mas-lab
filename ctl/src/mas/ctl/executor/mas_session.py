@@ -292,8 +292,16 @@ def make_workflow_send(
             config=ConversationConfig(single_turn=True),
         )
         result = controller.run_turn(prompt)
-        from mas.ctl.session.controller import close_observability
-        close_observability(controller)
+        # Do NOT close observability after a delegated sub-turn: in a multi-agent
+        # run every agent shares one plugin set owned by the top-level session
+        # (see setup_shared_obs), and the sub-agent instance now references it.
+        # Closing here would tear the shared events sink down mid-run and
+        # truncate the entry agent's post-delegation events (e.g. its final
+        # synthesis llm_call_end).  The top-level owner closes it once at the end.
+        # Only close a controller that owns its own recorder (non-shared setups).
+        if controller.obs_recorder is not None:
+            from mas.ctl.session.controller import close_observability
+            close_observability(controller)
         state["prev_agent"] = agent_id
         if turn_failed(result):
             raise RuntimeError(f"agent {agent_id!r} turn failed")

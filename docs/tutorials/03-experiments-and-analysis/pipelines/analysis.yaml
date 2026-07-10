@@ -6,17 +6,16 @@ kind: Pipeline
 metadata:
   name: t3-analysis
   description: >
-    Tutorial 03 analysis pipeline — extract trajectories, trace stats, and plots.
+    Tutorial 03 analysis pipeline — extract trajectories + trace stats across a
+    benchmark's runs, then plot the primary run's multilevel trajectory. Point it
+    at a completed benchmark with `-o <lab-output-dir>` (see §B.4); the extract
+    step reads that dir's results.csv and the plot steps resolve a trace from it.
 
 spec:
   steps:
     - name: extract
       type: extract_trajectories
-      description: "Extract per-agent trajectories from events.jsonl"
-      inputs:
-        events: "{{run.events_path}}"
-      outputs:
-        trajectories: "{{run.output_dir}}/trajectories.json"
+      description: "Extract per-agent trajectories from each run's events.jsonl"
 
     - name: trace-stats
       type: extract_trace_stats
@@ -26,19 +25,17 @@ spec:
         output: "{{run.output_dir}}/results/trace_stats.csv"
 
     - name: plot-svg
-      type: plot_trajectory
-      description: "Generate trajectory SVG for each run"
+      type: plot_multilevel_trajectory
+      description: "Multilevel trajectory SVG for the primary run"
       depends_on: [extract]
-      inputs:
-        trajectories: "{{run.output_dir}}/trajectories.json"
-      outputs:
-        svg: "{{run.output_dir}}/trajectory.svg"
+      config:
+        format: svg
+        filename: trajectory
 
     - name: plot-html
       type: plot_multilevel_trajectory
-      description: "Generate multilevel swimlane HTML"
+      description: "Multilevel swimlane HTML for the primary run"
       depends_on: [extract]
-      inputs:
-        trajectories: "{{run.output_dir}}/trajectories.json"
-      outputs:
-        html: "{{run.output_dir}}/swimlane.html"
+      config:
+        format: html
+        filename: swimlane

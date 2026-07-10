@@ -13,6 +13,7 @@ from mas.lab.plots.multilevel_trajectory.constants import (
     _CALL_TYPE_TO_LEVEL,
     _KIND_BASE_TO_TYPE,
     _PROC_TYPE_LABEL,
+    _TS_TOL,
 )
 
 def _build_call_records(events: list[dict]) -> list[dict]:
@@ -31,15 +32,76 @@ def _build_call_records(events: list[dict]) -> list[dict]:
     records: list[dict] = []
     open_calls: dict[tuple, list[dict]] = defaultdict(list)
     call_seq:   dict[tuple, int]        = defaultdict(int)
+    # The native observability layer emits each engine op (LLM/tool/memory)
+    # twice (~1ms apart: the operator wrapper + the engine adapter). Without
+    # dedup, records.py builds two overlapping records per call, which corrupts
+    # boundary alignment (a ToolCall inherits a later duplicate's end_ts and
+    # overlaps the following LLM, so the renderer drops the tool bar). Dedup by
+    # (correlation_id, kind) keeps the first start/end of each engine op.
+    _seen_engine_io: set[tuple] = set()
+    _ENGINE_IO_TYPES = {"LLMCall", "ToolCall", "MemoryCall", "RAGQuery"}
+
+    # The native llm_call_start boundary carries no prompt (the engine builds
+    # messages internally). The assembled prompt is emitted on the
+    # context_assembled event with the same correlation_id — map it here so the
+    # LLM record can show the prompt. (Order-independent: context_assembled may
+    # be emitted after its llm_call_start.)
+    _ca_messages_by_corr: dict[Any, list] = {}
+    for _e in events:
+        if _e.get("kind") == "context_assembled" and _e.get("messages"):
+            _c = _e.get("correlation_id")
+            if _c is not None:
+                _ca_messages_by_corr.setdefault(_c, _e["messages"])
+
+    # A tool call is emitted twice under the same call_id: once by the generic
+    # envelope-activity wrapper (tool_name "contract_call") and once by the
+    # engine-io boundary carrying the real tool name (lookup_schedule,
+    # get_fares, delegate_to_<id>, …).  Map each call_id to its specific name so
+    # records show the real tool rather than the generic wrapper.
+    _GENERIC_TOOL_NAMES = {"contract_call", ""}
+    _tool_name_by_call: dict[str, str] = {}
+    _tool_args_by_call: dict[str, Any] = {}
+    for _e in events:
+        if "tool_call" not in (_e.get("kind") or ""):
+            continue
+        _cid2 = _e.get("call_id")
+        if not _cid2:
+            continue
+        _tn2 = _e.get("tool_name") or ""
+        if _tn2 not in _GENERIC_TOOL_NAMES:
+            _tool_name_by_call.setdefault(_cid2, _tn2)
+        # The real arguments ride on the engine-io emission, not the generic
+        # envelope wrapper — capture them so the tool bar shows its call args.
+        _args2 = _e.get("arguments")
+        if _cid2 not in _tool_args_by_call and isinstance(_args2, dict) and _args2:
+            _tool_args_by_call[_cid2] = _args2
 
     for ev in sorted(events, key=lambda e: float(e.get("timestamp") or 0)):
         kind      = ev.get("kind", "")
         kind_base = kind.replace("_start", "").replace("_end", "")
         agent_id  = ev.get("agent_id", "")
         tool_name = ev.get("tool_name", "")
+        # Resolve generic "contract_call" wrappers to the real tool name so the
+        # start/end pair on a consistent key and the bar shows the true tool.
+        if "tool_call" in kind and tool_name in _GENERIC_TOOL_NAMES:
+            _rn = _tool_name_by_call.get(ev.get("call_id") or "")
+            if _rn:
+                tool_name = _rn
+                ev = {**ev, "tool_name": _rn}  # so _build_call_label sees it too
         call_type = _KIND_BASE_TO_TYPE.get(kind_base)
         if call_type is None:
             continue
+        # Drop duplicate engine-op emissions (see _seen_engine_io above).
+        # Key on agent_id too: correlation_id restarts per agent, so a peer's
+        # LLM (corr=1) must not be mistaken for the entry agent's LLM (corr=1)
+        # in a multi-agent run — that would delete the peer's calls entirely.
+        if call_type in _ENGINE_IO_TYPES:
+            _corr = ev.get("correlation_id")
+            if _corr is not None:
+                _io_key = (agent_id, _corr, kind_base, kind.endswith("_end"))
+                if _io_key in _seen_engine_io:
+                    continue
+                _seen_engine_io.add(_io_key)
         # Skip self-referential start events: these are inner-layer duplicate
         # emissions where the engine adapter reuses the same call_id that the
         # ObservabilityOperator wrapper already pushed as a frame.
@@ -56,6 +118,12 @@ def _build_call_records(events: list[dict]) -> list[dict]:
         if call_type == "ProcessingCall" and ev.get("processing_type") == "mitm_rewrite":
             call_type = "MITMCall"
         key = (agent_id, kind_base, tool_name)
+
+        # Attach the assembled prompt to LLM starts that lack inline messages.
+        if kind.endswith("_start") and call_type == "LLMCall" and not ev.get("messages"):
+            _mc = _ca_messages_by_corr.get(ev.get("correlation_id"))
+            if _mc:
+                ev = {**ev, "messages": _mc}
 
         if kind.endswith("_start"):
             seq = call_seq[key]
@@ -75,6 +143,7 @@ def _build_call_records(events: list[dict]) -> list[dict]:
                 "tool_name": tool_name,
                 "model":     ev.get("model", ""),
                 "thinking":  "",
+                "correlation_id": ev.get("correlation_id"),
                 "processing_name": ev.get("processing_name", "") if call_type == "ProcessingCall" else "",
             }
             # Preserve per-actor context segments from ProcessingCall events
@@ -84,11 +153,16 @@ def _build_call_records(events: list[dict]) -> list[dict]:
             if call_type == "LLMCall" and ev.get("messages"):
                 msgs = ev["messages"]
                 if isinstance(msgs, list) and msgs:
+                    # The LLM input is the *full assembled context* actually sent
+                    # to the model — the system prompt concatenated with the user
+                    # turn (and, on follow-up calls, the conversation history and
+                    # tool / sub-agent results).  This is the output of the
+                    # preceding ⚙ context node, shown on the state between it and
+                    # the LLM bar.  The user-entry state (S1) keeps the bare user
+                    # question; the system prompt only appears here, post-assembly.
                     lines: list[str] = []
                     for m in msgs:
                         role = m.get("role", "?")
-                        if role == "tool":
-                            continue
                         content = m.get("content") or ""
                         if isinstance(content, list):
                             content = " ".join(
@@ -96,16 +170,25 @@ def _build_call_records(events: list[dict]) -> list[dict]:
                             )
                         if not content:
                             continue
-                        lines.append(f"[{role.upper()}]\n{str(content)}")
-                    record["input"] = "\n\n---\n\n".join(lines)
+                        _label = "TOOL RESULT" if role == "tool" else role.upper()
+                        lines.append(f"[{_label}]\n{str(content)}")
+                    if lines:
+                        record["input"] = "\n\n---\n\n".join(lines)
             if call_type == "ToolCall" and not record["input"]:
-                # tool_call_start stores params in 'arguments', not 'input'
-                raw_args = ev.get("arguments")
+                # tool_call_start stores params in 'arguments', not 'input'.
+                # Resolve from the engine-io emission (the generic envelope
+                # wrapper carries no arguments) so the bar shows the real args.
+                raw_args = ev.get("arguments") or _tool_args_by_call.get(ev.get("call_id") or "")
                 if raw_args is not None and str(raw_args).strip() not in ("", "None", "null", "{}"):
-                    record["input"] = str(raw_args)
+                    _tn = ev.get("tool_name") or tool_name or "tool"
+                    if isinstance(raw_args, dict):
+                        _argstr = ", ".join(f"{k}={v!r}" for k, v in raw_args.items())
+                    else:
+                        _argstr = str(raw_args)
+                    record["input"] = f"→ {_tn}({_argstr})"
                 else:
                     # At minimum show which tool is being called
-                    record["input"] = f"→ {ev.get('tool_name') or 'tool'}()"
+                    record["input"] = f"→ {ev.get('tool_name') or tool_name or 'tool'}()"
             if call_type == "ProcessingCall" and not record["input"]:
                 # Fallback: reconstruct a readable summary from the extra fields
                 # emitted by the runtime (sections, evicted_sections, etc.).
@@ -211,6 +294,106 @@ def _build_call_records(events: list[dict]) -> list[dict]:
             rec.setdefault("parent_call_id", None)
         records.extend(pending_list)
 
+    # Drop orphaned engine-op duplicates.  The native layer can emit an engine op
+    # (tool/memory/rag) twice under different correlation ids; when only one gets
+    # an ``*_end`` event, the other is left ``_end_missing`` and — lacking a real
+    # end — balloons across the whole execution during boundary alignment,
+    # overlapping the twin that actually completed (two ``lookup_schedule`` bars,
+    # one instant and one multi-second).  When an ``_end_missing`` engine-io
+    # record has a completed twin (same agent + tool, start within tolerance) it
+    # is a real parallel call whose end the trace omitted.
+    _ENGINE_IO_CT = {"ToolCall", "MemoryCall", "RAGQuery"}
+    _completed_io = [
+        r for r in records
+        if r.get("call_type") in _ENGINE_IO_CT and not r.get("_end_missing")
+    ]
+    if _completed_io:
+        # A model can fire the *same* tool twice in parallel (one assistant
+        # message, two tool_calls → two results).  The native layer sometimes
+        # emits the second call's start but not its *_end, leaving it
+        # ``_end_missing`` so boundary alignment balloons it across the whole
+        # execution.  These are real parallel calls (distinct call ids), NOT
+        # duplicates — keep them: give each the completed twin's end so it renders
+        # as its own bar, and re-home any children (a follow-up LLM that inherited
+        # the orphan as parent) onto the orphan's parent so they are not nested
+        # under a tool.
+        _twin_end: dict = {}
+        _orphan_parent: dict = {}
+        for r in records:
+            if r.get("_end_missing") and r.get("call_type") in _ENGINE_IO_CT:
+                twin = next(
+                    (c for c in _completed_io
+                     if c is not r
+                     and c.get("agent_id") == r.get("agent_id")
+                     and c.get("tool_name") == r.get("tool_name")
+                     and abs(c["start_ts"] - r["start_ts"]) <= _TS_TOL),
+                    None,
+                )
+                if twin is not None:
+                    _twin_end[r["call_id"]] = twin["end_ts"]
+                    _orphan_parent[r["call_id"]] = r.get("parent_call_id")
+        if _twin_end:
+            for r in records:
+                if r["call_id"] in _twin_end:
+                    r["end_ts"] = _twin_end[r["call_id"]]
+                    r.pop("_end_missing", None)
+                _p = r.get("parent_call_id")
+                while _p in _orphan_parent:
+                    _p = _orphan_parent[_p]
+                if _p != r.get("parent_call_id"):
+                    r["parent_call_id"] = _p
+
+    # Re-parent "impossible" children whose start_ts is at/after their parent's
+    # real end_ts.  A call that begins after its parent already returned cannot
+    # truly be nested under it — it is a sibling.  This happens when the runtime
+    # observability call-stack does not pop a completed engine-op frame (e.g. a
+    # tool call) before the next op fires, so a follow-up LLM inherits the tool
+    # as its parent.  Left uncorrected, _align_record_boundaries stretches the
+    # parent to contain the mis-attached child, which overlaps the real sibling
+    # and drops its bar from the render.  Walking up to the grandparent is safe
+    # for genuine delegation: there the sub-agent starts *during* the wrapping
+    # tool (start < parent.end), so it is never reparented.
+    _rp_by_id = {r["call_id"]: r for r in records}
+    for r in records:
+        _pid = r.get("parent_call_id")
+        _parent = _rp_by_id.get(_pid) if _pid else None
+        while (
+            _parent is not None
+            and _parent is not r
+            and _parent.get("end_ts", 0) > 0
+            and not _parent.get("_end_missing")
+            and r["start_ts"] >= _parent["end_ts"] - _TS_TOL
+        ):
+            _pid = _parent.get("parent_call_id")
+            r["parent_call_id"] = _pid
+            _parent = _rp_by_id.get(_pid) if _pid else None
+
+    # Link delegated sub-agent executions under the tool call that spawned them
+    # so the Agent lane interleaves them sequentially (moderator → schedule_agent
+    # → moderator …).  A delegation runs the peer's turn inside the delegating
+    # agent's tool call (``delegate_to_<id>`` / ``contract_call``); the peer
+    # emits its own execution record but, arriving through the peer bus, parents
+    # to the MAS call.  Re-link structurally: a peer execution (different agent)
+    # whose whole span is contained within a ToolCall of another agent is that
+    # tool's delegated child.  This is unambiguous — a foreign agent running
+    # inside another agent's tool window is a delegation — and needs no tool-name
+    # heuristic.  _make_agent_sequence then splits the delegator into fragments.
+    _agent_execs = [r for r in records if r.get("level") == "agent"]
+    _tool_calls = [r for r in records if r.get("call_type") == "ToolCall"]
+    for _peer in _agent_execs:
+        _best = None
+        for _tool in _tool_calls:
+            if _tool.get("agent_id") == _peer.get("agent_id"):
+                continue  # a tool cannot delegate to its own agent
+            if (_peer["start_ts"] >= _tool["start_ts"] - _TS_TOL
+                    and _peer["end_ts"] <= _tool["end_ts"] + _TS_TOL):
+                # Tightest containing tool wins (handles nested delegations).
+                if _best is None or (_tool["end_ts"] - _tool["start_ts"]) < (
+                        _best["end_ts"] - _best["start_ts"]):
+                    _best = _tool
+        if _best is not None:
+            _peer["parent_call_id"] = _best["call_id"]
+
     # Fix synthetic end_ts for governance-orphaned LLMCalls.
     # When governance fires between two llm_call_start events, the first call
     # never receives an llm_call_end and gets the placeholder end_ts of
@@ -261,7 +444,104 @@ def _build_call_records(events: list[dict]) -> list[dict]:
             rec["call_id"] = f"{cid}-{rec.get('agent_id', 'agent')}"
         _seen_ids.add(str(rec["call_id"]))
 
+    records.extend(_synthesize_context_processing_records(events, records))
+
     return sorted(records, key=lambda r: r["start_ts"])
+
+
+def _synthesize_context_processing_records(
+    events: list[dict], records: list[dict]
+) -> list[dict]:
+    """Create a ProcessingCall (context-assembly) node before each LLM call.
+
+    The native trace emits a ``context_assembled`` event carrying the fully
+    assembled messages (system prompt + injected context) right before each LLM
+    call, but no ``processing_call`` event (legacy KG traces had those).  Without
+    a node, the system prompt/context has nowhere to live and leaks into the LLM
+    or user-input bar.  Synthesize the "first transformation inside the agent":
+    a small ProcessingCall that shows the system prompt and injected context,
+    sitting between the incoming turn and the LLM call it feeds.
+    """
+    llm_by_key: dict[tuple, dict] = {}
+    for r in records:
+        if r.get("call_type") == "LLMCall" and r.get("correlation_id") is not None:
+            llm_by_key[(r.get("agent_id"), r["correlation_id"])] = r
+
+    # Per-agent, the end timestamps of real (non-processing) call records — used
+    # to anchor each context node right after the call that precedes its LLM (a
+    # tool result / prior LLM), so it never overlaps a tool that finished only a
+    # fraction of a millisecond before the LLM started.
+    _ends_by_agent: dict[str, list[float]] = {}
+    for r in records:
+        if r.get("level") == "call" and r.get("call_type") != "ProcessingCall":
+            _ends_by_agent.setdefault(r.get("agent_id", ""), []).append(r["end_ts"])
+
+    out: list[dict] = []
+    seen: set[tuple] = set()
+    for ev in sorted(events, key=lambda e: float(e.get("timestamp") or 0)):
+        if ev.get("kind") != "context_assembled":
+            continue
+        msgs = ev.get("messages") or []
+        if not msgs:
+            continue
+        aid = ev.get("agent_id", "")
+        corr = ev.get("correlation_id")
+        llm = llm_by_key.get((aid, corr))
+        if llm is None:  # skip the duplicate corr=0 emission and any unmatched
+            continue
+        key = (aid, corr)
+        if key in seen:
+            continue
+        seen.add(key)
+        # The assembled context (system prompt + injected segments) is the
+        # *output* of this step — it must NOT land on the preceding state (which
+        # should show the incoming turn: the user question or a tool result).
+        # dag.py clears a ProcessingCall's output from the following state, so
+        # the system prompt shows only on the ⚙ context bar itself.
+        parts: list[str] = []
+        for m in msgs:
+            if m.get("role") != "system":
+                continue
+            content = m.get("content") or ""
+            if isinstance(content, list):
+                content = " ".join(
+                    p.get("text", "") for p in content if isinstance(p, dict)
+                )
+            if content:
+                parts.append(f"[SYSTEM]\n{content}")
+        seg_n = ev.get("segments")
+        if isinstance(seg_n, int) and seg_n:
+            parts.append(f"({seg_n} context segment{'s' if seg_n != 1 else ''} assembled)")
+        cid = f"ctxasm-{aid}-{corr}"
+        out.append({
+            "call_id": cid,
+            "parent_call_id": llm.get("parent_call_id"),
+            "_has_ids": True,
+            "call_type": "ProcessingCall",
+            "level": "call",
+            "agent_id": aid,
+            # Sit between the preceding call and this LLM: anchor the start at the
+            # latest real call that ended before the LLM (a tool result / prior
+            # LLM) so the node never overlaps a tool that finished a fraction of a
+            # millisecond earlier.  Fall back to a tiny lead when nothing precedes
+            # (the agent's first call); Rule 1 then widens it to the agent start.
+            "start_ts": max(
+                (e for e in _ends_by_agent.get(aid, []) if e <= llm["start_ts"] + 1e-9),
+                default=llm["start_ts"] - 0.001,
+            ),
+            "end_ts": llm["start_ts"],
+            # input drives the preceding state — leave empty so the incoming turn
+            # (user question / tool result) shown there is not overwritten.
+            "input": "",
+            "output": "\n\n---\n\n".join(parts).strip(),
+            "label": "⚙ context",
+            "tool_name": "",
+            "model": "",
+            "thinking": "",
+            "correlation_id": corr,
+            "processing_name": "context assembly",
+        })
+    return out
 
 
 def _build_call_label(call_type: str, ev: dict) -> str:

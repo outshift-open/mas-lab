@@ -16,7 +16,7 @@ from ._scene import load_network, find_route, find_city
 class LookupScheduleTool:
     """Retrieve departure schedule between two Arborian Network cities."""
 
-    def __init__(self, dataset_path: str = "fixtures/arborian-network.yaml") -> None:
+    def __init__(self, dataset_path: str = "datasets/arborian-network.yaml") -> None:
         self._dataset_path = dataset_path
 
     def on_collect_tools(self, **_: Any) -> List[Dict[str, Any]]:

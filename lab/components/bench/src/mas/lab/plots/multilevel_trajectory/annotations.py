@@ -40,8 +40,6 @@ _ANNOTATION_KINDS: frozenset[str] = frozenset({
     "obs_wrap_gov_authorize_end",
     "obs_wrap_gov_validate_start",
     "obs_wrap_gov_validate_end",
-    "observability_pre_execute_start",
-    "observability_post_execute_end",
     "state_update_start",
     "state_update_end",
     "agent_communication_start",
@@ -341,6 +339,15 @@ def _stagger_coinc_processing_calls(seq: list[dict]) -> list[dict]:
                     j += 1
                 else:
                     break
+            # A lone point-in-time ProcessingCall (e.g. a synthesized context
+            # -assembly node before an LLM call) needs no staggering — leave its
+            # boundaries intact so it keeps sharing the state with the following
+            # call.  Rewriting its end to ts+δ here would break that shared
+            # boundary and open an empty connector gap before the LLM.
+            if len(group) < 2:
+                result.append(crec)
+                i += 1
+                continue
             # Stagger each member with a small time offset.
             for idx, rec in enumerate(group):
                 staggered = dict(rec)

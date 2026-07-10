@@ -144,7 +144,7 @@ body{font-family:'Inter',ui-sans-serif,sans-serif;background:#0f172a;color:#e2e8
 <div id="tooltip"><div id="tt-title"></div><hr id="tt-sep"><div id="tt-body"></div></div>
 <div id="pinned-panel"><div id="pp-header"><div id="pp-title"></div><button id="pp-close">✕</button></div><div id="pp-body"></div></div>
 <div id="ann-panel"><div id="ann-header"><div id="ann-title">&#128204; Annotations</div><button id="ann-close">✕</button></div><div id="ann-body"></div></div>
-<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script>/*__MAS_D3_INLINE__*/</script>
 <script>
 let CHART = {chart_json};
 
@@ -1097,7 +1097,13 @@ function redraw(xPos) {
       const stateTxt    = (st.interrupted || st.isError) ? stateStroke : C.stateT;
       const prefix      = st.interrupted ? '\u26a0 TRACE CUT \u2014 agent was still running\n\n'
                         : st.isError     ? '\u2717 EXECUTION ERROR\n\n' : '';
-      const hoverContent= prefix + (st.hover||'(no content)');
+      // Prefer the lane-specific hover (populated per-lane for native-event
+      // traces); fall back to any non-empty lane hover, then the global state
+      // hover (KG traces), then a placeholder. Without this, native states
+      // render "(no content)".
+      const _hbl        = st.hoverByLane || {};
+      const laneHover   = _hbl[lane.laneId] || Object.values(_hbl).find(v=>v) || st.hover || '';
+      const hoverContent= prefix + (laneHover||'(no content)');
       const pinNote    = st.pinNote    || null;
       const pinExcerpt = st.pinExcerpt || null;
       if (st.gapMarker) {

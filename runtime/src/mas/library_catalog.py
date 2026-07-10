@@ -187,6 +187,44 @@ def discover_tools() -> dict[str, Path]:
     return found
 
 
+def _tool_manifest_in_dir(path: Path) -> Path | None:
+    """Return a ``*.tool.yaml`` file for *path* (the file itself, or one inside a dir)."""
+    if path.is_file() and path.name.endswith(".tool.yaml"):
+        return path.resolve()
+    if path.is_dir():
+        matches = sorted(path.glob("*.tool.yaml"))
+        if matches:
+            return matches[0].resolve()
+    return None
+
+
+def find_tool_manifest(name: str) -> Path | None:
+    """Resolve a bare tool *name* to its ``*.tool.yaml`` file across library roots.
+
+    This is the tool-name → implementation catalog: a name written in
+    ``spec.tools`` (from YAML or a ``--tool`` CLI flag) is mapped to the tool
+    manifest that declares its implementation. Resolution order per library
+    root: the ``library.yaml`` ``tools:`` map, then a flat
+    ``tools/<name>.tool.yaml``, then ``tools/<name>/*.tool.yaml``. Returns
+    ``None`` when no library declares the name.
+    """
+    if not name or not isinstance(name, str):
+        return None
+    for root in discover_library_roots():
+        manifest = _load_library_manifest(root)
+        tools = manifest.get("tools")
+        if isinstance(tools, dict):
+            rel = tools.get(name)
+            if isinstance(rel, str) and rel.strip():
+                entry = _resolve_manifest_entry(root, rel)
+                if entry is not None and (found := _tool_manifest_in_dir(entry)) is not None:
+                    return found
+        for candidate in (root / "tools" / f"{name}.tool.yaml", root / "tools" / name):
+            if candidate.exists() and (found := _tool_manifest_in_dir(candidate)) is not None:
+                return found
+    return None
+
+
 def _declares_plugins(manifest: dict[str, Any]) -> bool:
     """True when ``library.yaml`` declares plugin-manifest content directly.
 

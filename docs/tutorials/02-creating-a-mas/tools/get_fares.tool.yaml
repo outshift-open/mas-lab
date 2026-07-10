@@ -33,4 +33,4 @@ spec:
     module_path: ./get_fares.py
     class_name: GetFaresTool
     params:
-      dataset_path: fixtures/arborian-network.yaml
+      dataset_path: datasets/arborian-network.yaml

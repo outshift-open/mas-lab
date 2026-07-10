@@ -143,13 +143,21 @@ def execute_run_mas(
 
     plugin_set = None
     if obs_config is not None:
-        from mas.ctl.session.observability import setup_instance_obs
+        from mas.ctl.session.observability import setup_shared_obs
 
-        plugin_set = setup_instance_obs(
-            instance,
+        # Subscribe ALL materialized agents (entry + delegation targets) to one
+        # shared events.jsonl, not just the entry agent.  Delegated sub-agent
+        # turns run through their own SessionController (see make_workflow_send);
+        # without a shared plugin set their executions — LLM calls, tools, the
+        # whole sub-turn — are never emitted, so delegate_to_* tool calls are
+        # opaque black boxes and the multilevel trajectory shows only the
+        # moderator.  This mirrors the sequential-workflow path.
+        instances = dict(materialized.materialized.instances)
+        plugin_set = setup_shared_obs(
+            instances,
             obs_config,
             base_dir=base,
-            agent_id=str(entry or "agent"),
+            entry_agent_id=str(entry or "agent"),
         )
 
     controller = SessionController(

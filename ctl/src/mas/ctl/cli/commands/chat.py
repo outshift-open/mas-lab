@@ -42,6 +42,12 @@ from mas.ctl.ui.stdout import StdoutConversationDisplay
 @click.option("--set", "set_values", multiple=True, help="Inline overlay: spec.context KEY=VALUE")
 @click.option("--pattern", default=None, help="Design pattern plugin id (default from manifest)")
 @click.option(
+    "--flavour",
+    default="local",
+    show_default=True,
+    help="Deployment flavour from library-standard (only 'local' supported for now)",
+)
+@click.option(
     "--infra-ref",
     "infra_refs_cli",
     multiple=True,
@@ -92,6 +98,7 @@ def chat_cmd(
     memory: str | None,
     set_values: tuple[str, ...],
     pattern: str | None,
+    flavour: str,
     infra_refs_cli: tuple[str, ...],
     memory_seed_path: str | None,
     checkpoint_dir: str | None,
@@ -138,6 +145,16 @@ def chat_cmd(
             pattern=pattern,
             validate=not no_validate,
         )
+
+        from mas.ctl.session.flavour import FlavourError, validate_flavour
+
+        # Deployment flavour: validate-only for now (only `local` is supported;
+        # flavours carry no llm/logic — see BRANCHES.md FT4).
+        try:
+            validate_flavour(flavour)
+        except FlavourError as exc:
+            click.echo(f"error: {exc}", err=True)
+            raise SystemExit(2) from None
 
         scripted: list[str] = []
         if prompt:

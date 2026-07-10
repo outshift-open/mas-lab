@@ -174,15 +174,30 @@ def _build_chart_data(
 
 
 _D3_TEMPLATE = Path(__file__).parent.parent / "assets" / "multilevel.html"
+_D3_VENDORED = Path(__file__).parent.parent / "assets" / "d3.min.js"
+
+
+def _d3_inline_script() -> str:
+    """Vendored d3 source, so the generated HTML renders offline (no CDN).
+
+    Falls back to the CDN script tag if the vendored file is missing.
+    """
+    try:
+        return _D3_VENDORED.read_text(encoding="utf-8")
+    except OSError:
+        return '</script><script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js">'
 
 
 def _fmt_d3_html(data: dict) -> str:
     chart_json = json.dumps(data, ensure_ascii=False, default=str)
     tmpl = _D3_TEMPLATE.read_text(encoding="utf-8")
+    # Replace {title}/{chart_json} first, then inject d3 last so its (minified)
+    # body is never scanned for those placeholders.
     return (
         tmpl
         .replace("{title}", _esc(data["title"]))
         .replace("{chart_json}", chart_json)
+        .replace("/*__MAS_D3_INLINE__*/", _d3_inline_script())
     )
 
 

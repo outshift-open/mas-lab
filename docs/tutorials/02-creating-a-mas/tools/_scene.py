@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-_DEFAULT_DATASET = "fixtures/arborian-network.yaml"
+_DEFAULT_DATASET = "datasets/arborian-network.yaml"
 
 
 def _find_example_root() -> Path:

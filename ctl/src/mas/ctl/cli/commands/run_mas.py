@@ -21,6 +21,12 @@ from mas.ctl.executor.run_mas import execute_run_mas
 @click.option("-q", "--query", "queries", multiple=True, help="Single or multi-turn query")
 @click.option("-o", "--overlay", "overlays", multiple=True, type=click.Path())
 @click.option("-d", "--deployment", "deployment", default=None, type=click.Path())
+@click.option(
+    "--flavour",
+    default="local",
+    show_default=True,
+    help="Deployment flavour from library-standard (only 'local' supported for now)",
+)
 @click.option("--infra-ref", "infra_refs", multiple=True)
 @click.option(
     "--kernel",
@@ -44,6 +50,7 @@ def run_mas_cmd(
     queries: tuple[str, ...],
     overlays: tuple[str, ...],
     deployment: str | None,
+    flavour: str,
     infra_refs: tuple[str, ...],
     kernel: str,
     interactive: bool,
@@ -61,6 +68,14 @@ def run_mas_cmd(
     if manifest is None:
         manifest = "mas.yaml"
     verbose = int(ctx.obj.get("verbose", 0) if ctx.obj else 0)
+
+    from mas.ctl.session.flavour import FlavourError, validate_flavour
+
+    try:
+        validate_flavour(flavour)
+    except FlavourError as exc:
+        click.echo(f"error: {exc}", err=True)
+        raise SystemExit(2) from None
 
     with manifest_cwd(manifest, overlay_paths=overlays) as session:
         deployment_path = None

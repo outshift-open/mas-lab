@@ -58,7 +58,7 @@ def test_missing_ref_fails_validation(tmp_path: Path) -> None:
 
     exp = tmp_path / "experiment.yaml"
     exp.write_text(
-        "experiment:\n  name: x\n  mas:\n    manifest: ./no-such-mas.yaml\n",
+        "experiment:\n  name: x\n  applications:\n    - manifest: ./no-such-mas.yaml\n",
         encoding="utf-8",
     )
     data = yaml.safe_load(exp.read_text()) or {}
@@ -109,8 +109,9 @@ def test_bad_overlay_id_blocks_composition(tmp_path: Path) -> None:
     )
     exp = tmp_path / "experiment.yaml"
     exp.write_text(
-        "experiment:\n  name: x\n  mas:\n    manifest: ./app/mas.yaml\n"
-        "    configs_dir: ./app/overlays\n  scenarios:\n    - id: missing\n",
+        "experiment:\n  name: x\n  applications:\n    - manifest: ./app/mas.yaml\n"
+        "      configs_dir: ./app/overlays\n  scenarios:\n    - id: bad\n"
+        "      overlays:\n        logic:\n          - nonexistent-overlay\n",
         encoding="utf-8",
     )
     data = yaml.safe_load(exp.read_text()) or {}

@@ -131,9 +131,11 @@ def test_attach_manifest_tools_removes_library_scheme_tool_by_name(require_sampl
     assert manifest == original
 
 
-def test_bare_tool_name_rejected(tmp_path: Path):
-    with pytest.raises(ManifestToolLoadError, match="bare name"):
-        build_manifest_tool_provider(["calculator"], tmp_path)
+def test_unknown_bare_tool_name_errors(tmp_path: Path):
+    # A bare name resolves via the library tool catalog; a name no library
+    # declares errors clearly (not a "bare names unsupported" rejection).
+    with pytest.raises(ManifestToolLoadError, match="not found in any library catalog"):
+        build_manifest_tool_provider(["definitely-not-a-real-tool"], tmp_path)
 
 
 def test_execute_engine_tool_requires_provider():

@@ -37,7 +37,26 @@ def build_cli_overlay(
             key, value = kv.split("=", 1)
             context[key] = value
         spec["context"] = context
-    return {"spec": spec}
+    # Canonical mas/v1 Overlay: the CLI patch (tools/skills/memory/context)
+    # goes under spec.patch, matching file overlays. A bare {"spec": {...}}
+    # is rejected by normalize_overlay/merge_overlay (which require spec.patch).
+    return {
+        "apiVersion": "mas/v1",
+        "kind": "Overlay",
+        "metadata": {"name": "cli-overlay"},
+        "spec": {"patch": spec},
+    }
+
+
+def _agent_from_cli_overlay(cli_ov: dict[str, Any]) -> dict[str, Any]:
+    """Build a minimal agent manifest from a CLI-only overlay (no YAML manifest).
+
+    ``build_cli_overlay`` now returns a canonical ``kind: Overlay``; when there
+    is no base manifest we merge it into an empty ``kind: Agent`` so downstream
+    receives an agent manifest, not an overlay document.
+    """
+    base = {"apiVersion": "mas/v1", "kind": "Agent", "metadata": {"name": "agent"}, "spec": {}}
+    return merge_overlay(base, cli_ov)
 
 
 def pattern_from_manifest(data: dict) -> str:
@@ -62,7 +81,7 @@ def load_merged_agent_manifest(
     if manifest is None:
         plugin = pattern or "react@v1"
         cli_ov = build_cli_overlay(tools=tools, skills=skills, memory=memory, set_values=set_values)
-        return (cli_ov, plugin) if cli_ov else (None, plugin)
+        return (_agent_from_cli_overlay(cli_ov), plugin) if cli_ov else (None, plugin)
 
     anchor = manifest_dir or (manifest.parent if isinstance(manifest, Path) else Path.cwd())
     if isinstance(manifest, Path) and validate and validation_enabled():
@@ -76,7 +95,7 @@ def load_merged_agent_manifest(
     if data is None:
         plugin = pattern or "react@v1"
         cli_ov = build_cli_overlay(tools=tools, skills=skills, memory=memory, set_values=set_values)
-        return (cli_ov, plugin) if cli_ov else (None, plugin)
+        return (_agent_from_cli_overlay(cli_ov), plugin) if cli_ov else (None, plugin)
 
     for ov in overlays:
         ov_path = Path(ov)

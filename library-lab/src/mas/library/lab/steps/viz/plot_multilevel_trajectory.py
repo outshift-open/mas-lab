@@ -45,6 +45,35 @@ from mas.lab.benchmark.pipeline.executor import ExecutionContext
 logger = logging.getLogger(__name__)
 
 
+def _discover_primary_trace(ctx) -> str | None:
+    """Find a representative events.jsonl when no per-run scope is available.
+
+    Standalone aggregate pipelines (``mas-lab benchmark pipeline run``) have no
+    single "current run", so ``resolve_run_events`` can't help.  Prefer the first
+    ``trace_path`` recorded in the benchmark ``results.csv``; fall back to
+    scanning the output tree for a ``traces/events.jsonl``.
+    """
+    import csv
+
+    base = getattr(ctx, "output_dir", None)
+    if not base:
+        return None
+    base = Path(base)
+    results = base / "results.csv"
+    if results.is_file():
+        try:
+            for row in csv.DictReader(results.open(encoding="utf-8")):
+                tp = (row.get("trace_path") or "").strip()
+                if tp and Path(tp).expanduser().is_file():
+                    return str(Path(tp).expanduser())
+        except Exception:
+            pass
+    for cand in sorted(base.glob("**/traces/events.jsonl")):
+        if cand.is_file():
+            return str(cand)
+    return None
+
+
 def _load_annotations(config: dict, pipeline_dir: Path | None) -> dict | None:
     """Resolve plot annotations from config or a YAML file."""
     ann: dict = {}
@@ -105,7 +134,7 @@ class PlotMultilevelTrajectoryStep(PipelineStep):
                 dep_out = ctx.step_outputs.get(dep_name)
                 if dep_out:
                     for key in ("trace_path", "events_path"):
-                        if key in dep_out.data:
+                        if dep_out.data.get(key):
                             log_path = dep_out.data[key]
                             logger.info(
                                 "Step '%s': using %s from dependency '%s': %s",
@@ -116,9 +145,18 @@ class PlotMultilevelTrajectoryStep(PipelineStep):
                     break
 
         if not log_path:
+            # Fallback for the standalone aggregate pipeline (no per-run scope and
+            # no dependency trace): plot the primary run discovered under the
+            # benchmark output, or the first trace_path in its results.csv.
+            log_path = _discover_primary_trace(ctx)
+            if log_path:
+                logger.info("Step '%s': using discovered primary trace: %s",
+                            self.name, log_path)
+
+        if not log_path:
             raise ValueError(
-                f"Step '{self.name}': no log_path in config and no 'trace_path' "
-                "found in dependency outputs."
+                f"Step '{self.name}': no log_path in config, no 'trace_path' in "
+                "dependency outputs, and no trace discoverable under the run output."
             )
 
         # --- Resolve relative paths ---

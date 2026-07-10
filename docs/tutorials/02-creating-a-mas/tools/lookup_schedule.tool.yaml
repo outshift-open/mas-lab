@@ -46,4 +46,4 @@ spec:
     module_path: ./lookup_schedule.py
     class_name: LookupScheduleTool
     params:
-      dataset_path: fixtures/arborian-network.yaml
+      dataset_path: datasets/arborian-network.yaml
