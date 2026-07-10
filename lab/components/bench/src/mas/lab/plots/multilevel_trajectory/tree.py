@@ -74,6 +74,32 @@ def _align_record_boundaries(
     ``_make_call_sequence`` returning no ProcessingCall at fragment edges.
     """
     rec_by_id = {r["call_id"]: r for r in records}
+
+    # Envelope pass (bottom-up): a parent must temporally contain its children.
+    # Multi-agent traces can close an outer scope before an inner one finishes —
+    # e.g. mas_call_end fires as the last delegated peer returns, before the
+    # entry agent's post-delegation synthesis LLM.  Without this, Rule 3 below
+    # would snap the entry agent's end down to the premature MAS end and delete
+    # its "tail" fragment (the moderator resuming after a delegation).  Extend
+    # the parent to cover its children; never shrink a child to a stale parent.
+    def _envelope(cid: str) -> tuple[float, float]:
+        rec = rec_by_id.get(cid)
+        kids = children_of.get(cid, [])
+        if rec is None:
+            return (float("inf"), float("-inf"))
+        lo, hi = rec["start_ts"], rec["end_ts"]
+        for k in kids:
+            k_lo, k_hi = _envelope(k["call_id"])
+            lo = min(lo, k_lo)
+            hi = max(hi, k_hi)
+        rec["start_ts"], rec["end_ts"] = lo, hi
+        return (lo, hi)
+
+    _child_ids = {k["call_id"] for kids in children_of.values() for k in kids}
+    for r in records:
+        if r["call_id"] not in _child_ids:  # roots
+            _envelope(r["call_id"])
+
     for pid, kids in children_of.items():
         parent = rec_by_id.get(pid)
         if parent is None or not kids:
@@ -159,9 +185,21 @@ def _make_agent_sequence(
 
     result: list[dict] = []
 
+    def _agent_descendants(rec: dict) -> list[dict]:
+        """Agent executions nested under *rec*, descending through non-agent
+        calls (e.g. the delegation ToolCall that spawned a peer turn) but never
+        past a nested agent — those belong to that agent's own subtree."""
+        found: list[dict] = []
+        for c in children_of.get(rec["call_id"], []):
+            if c["level"] == "agent":
+                found.append(c)
+            else:
+                found.extend(_agent_descendants(c))
+        return found
+
     def dfs(rec: dict) -> None:
         agent_children = sorted(
-            [c for c in children_of.get(rec["call_id"], []) if c["level"] == "agent"],
+            _agent_descendants(rec),
             key=lambda c: c["start_ts"],
         )
         if not agent_children:

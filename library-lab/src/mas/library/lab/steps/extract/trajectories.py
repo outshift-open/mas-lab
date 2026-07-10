@@ -208,13 +208,18 @@ class ExtractTrajectoriesStep(PipelineStep):
             run_id = row.get("run_id", "")
             if not run_id:
                 continue
+            # Capture the first available trace path regardless of whether this
+            # run still needs extraction, so downstream steps (e.g. the
+            # trajectory plot) can resolve a primary run even on a re-run where
+            # every run was already extracted and skipped below.
+            _row_trace = row.get("trace_path", "")
+            if _row_trace and not primary_trace_path:
+                primary_trace_path = _row_trace
             if run_id in existing_ids:
                 skipped += 1
                 continue
 
             trace_path = row.get("trace_path", "")
-            if trace_path and not primary_trace_path:
-                primary_trace_path = trace_path
             target_agents_raw = row.get("target_agents", "")
             target_agents = (
                 [a.strip() for a in target_agents_raw.split(",") if a.strip()]

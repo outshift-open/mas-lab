@@ -279,22 +279,38 @@ def _normalize_tool_entry(
     *,
     containment_roots: tuple[Path, ...],
 ) -> tuple[dict[str, Any], Path, dict[str, Any] | None]:
+    catalog_ref_path: Path | None = None
     if isinstance(raw, str):
-        raise ManifestToolLoadError(
-            f"spec.tools[{index}]: bare name {raw!r} is not supported; "
-            "use {{ref: ./path/to/tool.tool.yaml}} or inline module_path"
-        )
-    if not isinstance(raw, dict):
+        from mas.library_catalog import find_tool_manifest
+
+        catalog_ref_path = find_tool_manifest(raw)
+        if catalog_ref_path is None:
+            raise ManifestToolLoadError(
+                f"spec.tools[{index}]: tool name {raw!r} not found in any library "
+                f"catalog (library.yaml tools:, tools/{raw}.tool.yaml, or "
+                f"tools/{raw}/*.tool.yaml). Declare it in a library, or use "
+                "{{ref: ./path.tool.yaml}} / inline module_path."
+            )
+        tool_def: dict[str, Any] = {}
+    elif not isinstance(raw, dict):
         raise ManifestToolLoadError(f"spec.tools[{index}]: expected mapping, got {type(raw).__name__}")
+    else:
+        tool_def = dict(raw)
 
     mdir = manifest_dir
     manifest_contract: dict[str, Any] | None = None
-    tool_def = dict(raw)
 
-    if tool_def.get("ref"):
-        ref_path = _resolve_under_roots(
-            mdir, str(tool_def["ref"]), containment_roots=containment_roots
-        )
+    if catalog_ref_path is not None or tool_def.get("ref"):
+        # A bare name resolves through the trusted library tool catalog (the
+        # infra name→implementation mapping) and is not subject to manifest
+        # containment; an explicit {ref: ...} is resolved under the manifest's
+        # containment roots.
+        if catalog_ref_path is not None:
+            ref_path = catalog_ref_path
+        else:
+            ref_path = _resolve_under_roots(
+                mdir, str(tool_def["ref"]), containment_roots=containment_roots
+            )
         if not ref_path.is_file():
             raise ManifestToolLoadError(f"spec.tools[{index}]: tool ref not found: {ref_path}")
         try:

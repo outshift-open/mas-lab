@@ -20,6 +20,12 @@ from mas.ctl.ui.curses_app import build_curses_controller, run_curses_session
 @click.argument("manifest", required=False, type=click.Path())
 @click.option("-o", "--overlay", "overlays", multiple=True, type=click.Path())
 @click.option("--pattern", default=None)
+@click.option(
+    "--flavour",
+    default="local",
+    show_default=True,
+    help="Deployment flavour from library-standard (only 'local' supported for now)",
+)
 @click.option("--single-turn", is_flag=True)
 @click.option("--memory-seed", default=None, type=click.Path(exists=True))
 @click.option(
@@ -37,6 +43,7 @@ def tui_cmd(
     manifest: str | None,
     overlays: tuple[str, ...],
     pattern: str | None,
+    flavour: str,
     single_turn: bool,
     memory_seed: str | None,
     infra_refs_cli: tuple[str, ...],
@@ -66,6 +73,15 @@ def tui_cmd(
             pattern=pattern,
             validate=not no_validate,
         )
+
+        from mas.ctl.session.flavour import FlavourError, validate_flavour
+
+        try:
+            validate_flavour(flavour)
+        except FlavourError as exc:
+            click.echo(f"error: {exc}", err=True)
+            raise SystemExit(2) from None
+
         hitl_responder, _hitl_terminal = resolve_hitl_from_manifest(
             agent_data,
             session_interactive=True,

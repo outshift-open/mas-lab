@@ -61,6 +61,24 @@ cp docs/tutorials/00-environment-setup/.env.example docker/.env   # Docker path
 - `mas_ctl.flavour: local` and `mas_lab.flavour: local` (library-standard defaults)
 - `infra_refs: [standard:openai]` — resolves to the bundled OpenAI `LLMProxy` manifest
 
+**Bring your own infra manifest.** Drop a manifest in `~/.config/mas/infra/`
+(e.g. `llm-proxy.yaml`) and reference it from `config.yaml`. Two keys work
+together, and the difference trips people up:
+
+- **`infra_refs`** — the list of manifests to *register* (make available). Each
+  entry is a bundled ref (`standard:openai`, `standard:llm-proxy`) **or** a path
+  to your own file (`~/.config/mas/infra/llm-proxy.yaml`). Override per-shell
+  with `MAS_INFRA_REFS`; `--infra-ref` on the CLI still wins.
+- **`default_infra`** — which registered manifest is *used by default* when a
+  command doesn't name one. Set it to your manifest's path/ref so `mas-ctl chat`
+  and `mas-lab benchmark` pick it up with no extra flag.
+
+Keep secrets out of the file: a manifest can source both the endpoint and the
+key from the environment — `api_base: env:LLM_PROXY_API_BASE|<fallback-url>` and
+`api_key_env: OPENAI_API_KEY` (the key is read from that env var / `.env`, never
+written in the manifest). See `~/.config/mas/infra/llm-proxy.yaml` for a
+ready-made example.
+
 Schema: [`docs/schemas/config.schema.yaml`](../../schemas/config.schema.yaml).
 Machine-wide path defaults: copy [`config.example.yaml`](config.example.yaml) to
 `$XDG_CONFIG_HOME/mas/config.yaml` (default: `~/.config/mas/config.yaml`).
@@ -121,7 +139,7 @@ docker compose -f docker/compose.yaml run --rm --no-deps cli mas-ctl chat \
 | `mas-ctl validate <agent.yaml>` | Schema + refs without running |
 | `mas-ctl chat <agent.yaml> -q "…"` | Single agent, one turn |
 | `mas-ctl run-mas <mas.yaml> -q "…"` | Full MAS workflow |
-| `mas-runtime list-bundles` | Installed infra bundles (`standard:openai`, …) |
+| `mas-ctl list-bundles` | Installed infra bundles (`standard:openai`, …) |
 | `mas-lab config` | Effective data paths and overrides |
 
 On `mas-ctl`, **`-o` / `--overlay`** applies a manifest overlay (not an output path).
@@ -226,7 +244,7 @@ docker compose run --rm cli mas-lab benchmark run \
 docker compose run --rm cli mas-ctl run-mas path/to/mas.yaml -q "Hello"
 ```
 
-The `cli` service uses the **tools** profile; `docker compose run --rm cli …` is equivalent to `run --rm backend …`.
+The `cli` service uses the **tools** profile — it is the service for one-off CLI commands (`docker compose --profile tools run --rm cli …`). Don't use `backend` (the long-running API service) for CLI commands.
 
 ### Taskfile helpers (optional)
 
@@ -408,9 +426,9 @@ secret **API key** in `.env` or `docker/.env`.
 List installed bundles:
 
 ```bash
-mas-runtime list-bundles
+mas-ctl list-bundles
 # Docker:
-docker compose -f docker/compose.yaml run --rm --no-deps cli mas-runtime list-bundles
+docker compose -f docker/compose.yaml run --rm --no-deps cli mas-ctl list-bundles
 ```
 
 Set the default in `$XDG_CONFIG_HOME/mas/config.yaml` (`default_infra: standard:production`) or

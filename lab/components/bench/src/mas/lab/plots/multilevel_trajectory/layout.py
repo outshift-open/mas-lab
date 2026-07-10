@@ -62,8 +62,10 @@ def _compute_x_positions(
     n_instant = sum(is_inst)
     n_normal  = (n - 1) - n_instant
 
-    # Total canvas for normal columns only
-    normal_total = max(1400.0, n_normal * 160.0) if n_normal else 0.0
+    # Total canvas for normal columns: proportional to the column count so
+    # sparse traces aren't stretched across a fixed 1400px floor (which left
+    # very wide gaps between a handful of calls). Each normal column ≈160px.
+    normal_total = n_normal * 160.0 if n_normal else 0.0
     normal_raw_steps = [r for r, inst in zip(raw_steps, is_inst) if not inst]
     normal_raw_total = sum(normal_raw_steps) or 1.0
 

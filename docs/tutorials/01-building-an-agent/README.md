@@ -6,29 +6,20 @@
 
 ## Quick commands
 
-HITL is **declarative** via `spec.governance` in an overlay — there is no `--hitl` CLI flag.
-
 From this directory (`docs/tutorials/01-building-an-agent`):
 
 ```bash
-# Live chat with tools
+# Live chat with tools, a skill, and memory
 mas-ctl chat agent.yaml \
   -o overlays/tools.yaml \
   -o overlays/skills.yaml \
   -o overlays/memory.yaml \
   -q "What is the current price of Apple?"
 
-# HITL — governance overlay sets hitl_on_tool + hitl_mode: interactive
-mas-ctl chat agent.yaml \
-  -o overlays/tools.yaml \
-  -o overlays/governance-hitl.yaml \
-  -q "What is the current price of Apple?"
-
-# Offline HITL demo (no live LLM) — mock-llm overlay
+# Offline (no live LLM, no API key) — mock-llm overlay
 mas-ctl chat agent.yaml -i \
   -o overlays/tools.yaml \
-  -o overlays/mock-llm.yaml \
-  -o overlays/governance-hitl.yaml
+  -o overlays/mock-llm.yaml
 
 # Operator steering mid-run (interactive session)
 mas-ctl chat agent.yaml -i -o overlays/tools.yaml --trace
@@ -37,7 +28,7 @@ mas-ctl chat agent.yaml -i -o overlays/tools.yaml --trace
 # TUI — same manifest/overlays
 mas-ctl tui agent.yaml \
   -o overlays/tools.yaml \
-  -o overlays/governance-hitl.yaml
+  -o overlays/skills.yaml
 ```
 
 Deployment: `deployments/local-inproc.yaml` (default runtime).
@@ -108,14 +99,15 @@ That's it. Everything else has sensible defaults:
 
 > **Key insight:** The manifest is a *specification*, not a configuration file.
 > It declares the agent's capabilities and intent. The runtime resolves how
-> to execute it based on the active **flavour** (local, mock, cloud…).
+> to execute it based on the active **flavour** (`local` by default — run
+> `mas-ctl flavour list` to see the bundled flavours).
 
 ### How the runtime connects the manifest to an LLM
 
 Four layers separate concerns:
 
 ```
- agent.yaml           flavour/local.yaml        infra/                .env.local
+ agent.yaml           flavour (lib-standard)    infra/                .env.local
  ┌──────────┐         ┌──────────────┐          ┌──────────────┐      ┌──────────┐
  │ WHAT      │         │ HOW           │          │ WHERE         │      │ SECRET   │
  │ model     │         │ protocol      │          │ model serving │      │ API key  │
@@ -136,34 +128,40 @@ wire name (`gpt-4o-mini`, `vertex_ai/...`, etc.) at startup.
 Tools and skills are resolved by proximity: the runtime looks for them next to
 the manifest first, then falls back to the standard library.
 
-This tutorial ships two flavours — same agent, different postures:
+Flavours are **not** shipped by the tutorial — they are `kind: Flavour`
+manifests bundled in `mas-library-standard`. List the installed ones:
+
+```bash
+mas-ctl flavour list
+# standard:local             ← development default (this tutorial)
+# standard:mock              ← offline / cached responses (benchmarks)
+# standard:local-benchmark   ← batch benchmark runs
+```
+
+The default is `local`; select another with the optional `--flavour` flag
+(only `local` is wired into `chat`/`tui` today). The bundled `local` flavour:
 
 ```yaml
-# flavours/local.yaml — development
+# mas-library-standard: flavours/local.yaml — development default
 spec:
-  protocol:
-    mode: local                    # in-process — no network calls
+  llm:
+    provider: openai
+    temperature: 0.7
+    max_tokens: 2000
+  agent_comm:
+    protocol: agent-local          # in-process delegation (MAS topology)
+    mode: local
+  tools:
+    remote_tools_enabled: false    # tools resolved in-process, not via servers
+    allowed: ["*"]
   telemetry:
     backend: file                  # lightweight file-based traces
     path: logs/
 ```
 
-```yaml
-# flavours/prod.yaml — production-like
-spec:
-  agent_comm:
-    protocol: local                 # in-process delegation (MAS topology)
-    mode: remote
-  tools:
-    remote_tools_enabled: true              # tools served via tool servers
-    allowed: [web-search, calculator, memory-search]
-  telemetry:
-    backend: otlp                  # OpenTelemetry (vs file)
-  observability:
-    trace_content: false           # don't log prompt content
-```
-
-The agent manifest is identical in both cases — only the deployment changes.
+A future production flavour would flip these knobs (remote tool servers, OTLP
+telemetry, `trace_content: false`) with **zero changes to the agent
+manifest** — that separation is the whole point of flavours.
 
 Before a **live** LLM run, set your API key (Tutorial 0 §4):
 
@@ -174,7 +172,8 @@ source .env
 ```
 
 With `default_infra: standard:production` in `$XDG_CONFIG_HOME/mas/config.yaml`, you do not
-need `--infra-ref` on every command.  Use `--flavour mock` for offline runs.
+need `--infra-ref` on every command.  For offline runs (no API key), stack
+the mock overlay: `-o overlays/mock-llm.yaml`.
 
 ### Run it
 
@@ -188,7 +187,7 @@ mas-ctl validate agent.yaml
 Then run a single query:
 
 ```bash
-mas-ctl chat agent.yaml -v -q "What is the capital of France?"
+mas-ctl -v chat agent.yaml -q "What is the capital of France?"
 ```
 
 Or start an interactive REPL (type `quit` to exit):
@@ -221,7 +220,7 @@ mas-ctl validate agent.yaml -o overlays/tools.yaml
 Then run:
 
 ```bash
-mas-ctl chat agent.yaml -v \
+mas-ctl -v chat agent.yaml \
   -o overlays/tools.yaml \
   -q "If Tokyo has 14 million people and Paris has 2.1 million, how many times larger is Tokyo?"
 ```
@@ -277,7 +276,7 @@ Stack it on top of the tools overlay with a second `--overlay`:
 mas-ctl validate agent.yaml \
   -o overlays/tools.yaml -o overlays/skills.yaml
 
-mas-ctl chat agent.yaml -v \
+mas-ctl -v chat agent.yaml \
   -o overlays/tools.yaml \
   -o overlays/skills.yaml \
   -q "Who is the current president of the United States?"
@@ -324,9 +323,9 @@ provider (`memory_search`, `memory_get`, `memory_store`).  The only
 difference is whether the SQLite database lives on disk or vanishes when
 the process exits.
 
-The demo below uses ephemeral memory (`semantic`) — Run 1 shows HITL
-correction within a session, Run 2 uses a **seed overlay** to pre-populate
-memory at startup.
+The demo below uses ephemeral memory (`semantic`) — Run 1 shows a user
+correction being stored within a session, Run 2 uses a **seed overlay** to
+pre-populate memory at startup.
 
 Stack all three overlays:
 
@@ -335,7 +334,7 @@ mas-ctl validate agent.yaml \
   -o overlays/tools.yaml -o overlays/skills.yaml \
   -o overlays/memory.yaml
 
-mas-ctl chat agent.yaml -v \
+mas-ctl -v chat agent.yaml \
   -o overlays/tools.yaml \
   -o overlays/skills.yaml \
   -o overlays/memory.yaml \
@@ -350,13 +349,13 @@ round-trips, latencies):
   [qa-agent] TOOL (web_search) -> AGENT: {'results': [...]} (1205ms)
 ```
 
-### Run 1 — HITL: Ambiguous question → Correction + Memory store
+### Run 1 — Ambiguous question → Correction + Memory store
 
 Memory is **ephemeral** by default (in-memory SQLite) — each process starts
 clean with no filesystem dependency.
 
 ```bash
-mas-ctl chat agent.yaml -v \
+mas-ctl -v chat agent.yaml \
   -o overlays/tools.yaml \
   -o overlays/skills.yaml \
   -o overlays/memory.yaml \
@@ -419,7 +418,7 @@ spec:
 Stack it on top of the memory overlay:
 
 ```bash
-mas-ctl chat agent.yaml -v \
+mas-ctl -v chat agent.yaml \
   -o overlays/tools.yaml \
   -o overlays/skills.yaml \
   -o overlays/memory.yaml \
@@ -470,52 +469,50 @@ Tool exchanges are printed automatically in interactive mode.
 ### Single query with pipe
 
 ```bash
-echo "What is the GDP of France?" | mas-ctl chat agent.yaml -v
+echo "What is the GDP of France?" | mas-ctl -v chat agent.yaml
 ```
 
-### With a different flavour
+### Selecting a flavour
 
 ```bash
-# Offline / no API key needed — cached LLM responses from artifacts/llm_cache.json
-mas-ctl chat agent.yaml -i -o overlays/mock-llm.yaml
+# Default flavour (local) — explicit form is optional
+mas-ctl chat agent.yaml -i --flavour local
 
-# Production-like: agent-remote transport, tool servers, OTel telemetry
-mas-ctl chat agent.yaml -i  # use workspace flavour / infra for prod-like runs
+# Offline / no API key needed — stack the mock-llm overlay
+mas-ctl chat agent.yaml -i -o overlays/mock-llm.yaml
 ```
 
-Flavour names are resolved by **proximity** — `--flavour prod` finds
-`flavours/prod.yaml` next to the manifest.  `mock` is a built-in
-flavour that serves responses from a SHA-256-keyed JSON cache
-(`artifacts/llm_cache.json`), so you can run the tutorial without
-network access.
+The optional `--flavour NAME` flag selects a deployment flavour bundled in
+`mas-library-standard` (see `mas-ctl flavour list`); it defaults to `local`,
+the only flavour wired into `chat`/`tui` today. Passing an unsupported name
+(e.g. `--flavour prod`) exits with an error listing what's available. Offline
+runs use the `overlays/mock-llm.yaml` overlay, not a flavour.
 
 The agent manifest is the same in all cases — only the deployment
 posture changes.
 
 ### CLI-only agent (no YAML)
 
-You can also add tools, skills, memory, and plugins directly from the
-command line — useful for quick experiments without writing any YAML files:
+You can also add tools, skills, and memory directly from the command line —
+useful for quick experiments without writing any YAML files:
 
 ```bash
-mas-ctl chat agent.yaml -v -i \
+mas-ctl -v chat agent.yaml -i \
   --tool web-search \
-  --tool calculator \
+  --tool calc \
   --skill answer-formatting \
-  --memory semantic \
-  --plugin mas.runtime.plugins.event_log_plugin:EventLogPlugin
+  --memory semantic
 ```
 
 This is equivalent to stacking `overlays/tools.yaml`, `overlays/skills.yaml`,
-and `overlays/memory.yaml` — plus an `EventLogPlugin` for emoji-prefixed
-event tracing (`▶`, `🔧`, `✓`, `◼`).
+and `overlays/memory.yaml`. Tools and skills are added by **semantic name** —
+the same names you'd write under `spec.tools` / `spec.skills` in YAML.
 
 | Flag | Effect |
 |------|--------|
 | `--tool NAME` | Add a tool by semantic name (repeatable) |
 | `--skill NAME` | Add a skill by name (repeatable) |
 | `--memory NAME` | Enable a memory backend (`semantic`, `semantic-persistent`) |
-| `--plugin MOD:CLS` | Load a plugin by module path and class (repeatable) |
 | `--set KEY=VALUE` | Set a `spec.context` key (repeatable) |
 
 CLI flags are applied **after** all `--overlay` files, so they can override
@@ -565,31 +562,46 @@ Live `mas-ctl chat` steps need `TUTORIAL_ONLINE=1` and a configured LLM (Tutoria
 4. **Tools by name**: the agent says `web-search`; the runtime binds it to a Python module or tool server — the agent manifest never sees implementation details
 5. **Skills are markdown**: domain knowledge injected into the system prompt
 6. **Memory is a resource, not a tool**: two access paths (proactive RAG injection + `memory_search` tool) share the same plugin
-7. **Flavours separate deployment from identity**: `local` (in-process, file traces) vs `prod` (gRPC, tool-server, OTel) with zero manifest changes
+7. **Flavours separate deployment from identity**: `--flavour` selects a deployment posture bundled in `mas-library-standard` (`local` today; remote tool-servers / OTel are future flavours) with zero manifest changes
 8. **CLI flags**: same manifest — `-q` for scripted queries, `-i` for interactive REPL
 
 ---
 
 ## Step 7 — Inspecting the trace
 
-Every agent run writes structured events to `events.jsonl` (configured by the
-flavour's `telemetry.path`). This is raw observability data — let's turn it
-into something useful.
+Pass `--events` (with `--events-file` to choose the path) to capture structured
+observability events to `traces/events.jsonl`. This is raw observability data —
+let's turn it into something useful.
+
+> **Two ways to turn observability on.** The `--events`/`--events-file` CLI flags
+> are the quick, ad-hoc path — good for a single interactive run like this one.
+> The declarative path is a **flavour**: an observability plugin whose config
+> sets the trace file and format, applied when you deploy or benchmark a MAS
+> (Tutorial 3). A flavour's observability applies to the whole run (every agent
+> writes to one shared `events.jsonl`, tagged per `agent_id`). The CLI flags are
+> effectively the same plugin wired up for you — think of them as a built-in
+> observability overlay. To scope tracing to a single agent, attach the plugin
+> on that agent's instance rather than at the flavour level.
 
 ### 7a — The raw event stream
 
-After running the agent with the memory overlay (Step 4), look at the log:
+Re-run the agent with the tools overlay and capture the events (the tool call
+makes the trace show a full ReAct loop: LLM → tool → LLM):
 
 ```bash
-cat logs/events.jsonl | head -5
+mas-ctl chat agent.yaml -o overlays/tools.yaml \
+  -q "What is 15 * 23?" \
+  --events --events-file traces/events.jsonl
+
+cat traces/events.jsonl | head -5
 ```
 
 ```json
-{"event": "llm_call_start", "agent": "qa-agent", "timestamp": "2026-04-19T14:22:01Z", "trace_id": "abc123"}
-{"event": "tool_call_start", "tool": "web-search", "args": {"query": "square root of 729"}, "agent": "qa-agent"}
-{"event": "tool_call_end", "tool": "web-search", "duration_ms": 120}
-{"event": "llm_call_end", "agent": "qa-agent", "tokens": {"in": 450, "out": 82}}
-{"event": "session_end", "agent": "qa-agent", "total_tokens": 532}
+{"kind": "mas_call_start", "agent_id": "agent", "run_id": "run-…", "turn_id": "u1", "call_id": "mas-…"}
+{"kind": "execution_start", "agent_id": "agent", "call_id": "u1-exec", "input": "What is 15 * 23?"}
+{"kind": "llm_call_start", "agent_id": "agent", "correlation_id": 1, "call_id": "llm-1"}
+{"kind": "context_assembled", "agent_id": "agent", "correlation_id": 1, "segments": 3, "total_tokens": 210}
+{"kind": "llm_call_end", "agent_id": "agent", "correlation_id": 1, "call_id": "llm-1"}
 ```
 
 Each line is a self-contained JSON event with the agent name, timestamp,
@@ -603,30 +615,46 @@ think/act/observe phase, and reasoning text.
 > structural validation) is not part of this open-source repository. OSS
 > tutorials plot trajectories directly from `events.jsonl`.
 
-Render the event stream as a visual trajectory:
+Render the event stream as an interactive **multilevel trajectory** — swim
+lanes for the session, the agent(s), and the individual LLM/tool/processing
+calls, with hover cards showing each step's input/output:
 
 ```bash
-# Mermaid (text — paste into any Mermaid renderer)
-mas-lab plot trajectory logs/events.jsonl --format mermaid
+# Interactive HTML (recommended) — self-contained, d3 bundled (works offline)
+mas-lab plot multilevel-trajectory traces/events.jsonl --format html -o output/trajectory.html
 
-# SVG file
-mas-lab plot trajectory logs/events.jsonl --format svg -o output/trajectory.svg
-
-# Interactive HTML
-mas-lab plot trajectory logs/events.jsonl --format html -o output/trajectory.html
+# Static SVG
+mas-lab plot multilevel-trajectory traces/events.jsonl --format svg -o output/trajectory.svg
 ```
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant qa-agent
-    User->>qa-agent: What is the square root of 729, and is the result prime?
-    qa-agent->>qa-agent: 🔧 calculator(sqrt(729)) → 27
-    qa-agent-->>User: The square root of 729 is 27. 27 is not prime (3 × 9).
-```
+Open `output/trajectory.html` in a browser. Reading the diagram:
+
+- **Lanes** (rows) are levels of the run: *Session* → *MAS* → *Agents* → *Calls*.
+  A lower lane expands the bar above it — the Calls lane is what the agent
+  actually did inside its turn.
+- **Bars** (coloured) are *actions/transitions*: an LLM call, a tool call, or a
+  `⚙ context` step (context assembly — where the system prompt is prepended to
+  the turn). Hover a bar to see its input/output.
+- **State boxes** (`S1`, `S2`, … the white/numbered boxes *between* bars) are the
+  *state of the world at that instant* — the content that exists after the
+  preceding action and before the next one. `S1` is the user's question; the
+  state after `⚙ context` is the fully assembled prompt (system + user); a state
+  after an LLM tool-call turn shows what it decided to call next. Click a state
+  to see its content and the context-provenance breakdown (which parts of the
+  prompt came from where, and their token counts).
+
+So a single-agent ReAct turn reads: `user question → ⚙ context → assembled
+prompt → LLM → (tool call) → tool → LLM → answer`. For a single agent you'll see
+one Agent lane; Tutorial 2's MAS run fans this out into one lane per agent with
+delegation handoffs (moderator → specialist → moderator …).
+
+> The multilevel trajectory is produced by the `multilevel_trajectory` plot in
+> the `mas-lab` bench library (`mas.lab.plots.multilevel_trajectory`); it is also
+> exposed as the `plot_multilevel_trajectory` pipeline step (Tutorial 3). Each
+> library plot/step/plugin will get its own reference page as the docs grow.
 
 > **This is what you'll automate in Tutorial 3** — experiments define
-> pipelines that extract trajectories and generate plots for every run
+> pipelines that extract trajectories and generate these plots for every run
 > automatically.
 
 ---

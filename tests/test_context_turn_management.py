@@ -212,6 +212,12 @@ def test_multilevel_trajectory_consumes_context_events() -> None:
     cpr = _collect_context_provenance(events, records)
     assert records
     assert cpr.get("llm-5") or any(r.get("call_id") == "llm-5" for r in records)
-    state_records = [r for r in records if r.get("call_type") == "ContextState"]
-    assert state_records
-    assert any("turn_start" in str(r.get("input") or "") for r in state_records)
+    # WM/turn-history mutations are no longer promoted to Calls-lane bars
+    # (they cluttered the timeline and widened the chart); they remain in the
+    # event stream as state_update_* events and surface via annotations /
+    # provenance instead of as ContextState call records.
+    state_updates = [
+        e for e in events if str(e.get("kind", "")).startswith("state_update")
+    ]
+    assert state_updates
+    assert any(e.get("update_type") == "turn_start" for e in state_updates)

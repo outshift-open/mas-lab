@@ -18,6 +18,7 @@ from mas.library_catalog import (
     _resolve_manifest_entry,
     discover_apps,
     discover_datasets,
+    find_tool_manifest,
     discover_tools,
 )
 
@@ -149,3 +150,31 @@ def test_discover_tools_empty_when_no_tools(tmp_path: Path, monkeypatch) -> None
     (root / "library.yaml").write_text("name: x\n", encoding="utf-8")
     monkeypatch.setattr(library_catalog, "discover_library_roots", lambda: [root])
     assert discover_tools() == {}
+
+
+def test_find_tool_manifest_via_library_yaml_map(tmp_path: Path, monkeypatch) -> None:
+    root = tmp_path / "lib"
+    (root / "tools").mkdir(parents=True)
+    tool = root / "tools" / "web-search.tool.yaml"
+    tool.write_text("kind: Tool\nmetadata:\n  name: web-search\n", encoding="utf-8")
+    (root / "library.yaml").write_text("tools:\n  web-search: tools/web-search.tool.yaml\n", encoding="utf-8")
+    monkeypatch.setattr(library_catalog, "discover_library_roots", lambda: [root])
+    assert find_tool_manifest("web-search") == tool.resolve()
+
+
+def test_find_tool_manifest_via_flat_scan(tmp_path: Path, monkeypatch) -> None:
+    root = tmp_path / "lib"
+    (root / "tools").mkdir(parents=True)
+    tool = root / "tools" / "calc.tool.yaml"
+    tool.write_text("kind: Tool\nmetadata:\n  name: calc\n", encoding="utf-8")
+    (root / "library.yaml").write_text("name: x\n", encoding="utf-8")  # no tools: map
+    monkeypatch.setattr(library_catalog, "discover_library_roots", lambda: [root])
+    assert find_tool_manifest("calc") == tool.resolve()
+
+
+def test_find_tool_manifest_unknown_returns_none(tmp_path: Path, monkeypatch) -> None:
+    root = tmp_path / "lib"
+    root.mkdir()
+    (root / "library.yaml").write_text("name: x\n", encoding="utf-8")
+    monkeypatch.setattr(library_catalog, "discover_library_roots", lambda: [root])
+    assert find_tool_manifest("nope") is None

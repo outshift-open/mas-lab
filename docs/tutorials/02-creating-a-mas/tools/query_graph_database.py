@@ -48,7 +48,7 @@ def _region_of(network: Dict[str, Any], city: str) -> Optional[str]:
 class QueryGraphDatabaseTool:
     """Enumerate routes in the Arborian Network graph."""
 
-    def __init__(self, dataset_path: str = "fixtures/arborian-network.yaml") -> None:
+    def __init__(self, dataset_path: str = "datasets/arborian-network.yaml") -> None:
         self._dataset_path = dataset_path
 
     def on_collect_tools(self, **_: Any) -> List[Dict[str, Any]]:

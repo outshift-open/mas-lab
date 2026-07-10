@@ -376,18 +376,25 @@ clean-environment reproducibility.
 
 ### B.4 — Running the pipeline
 
+Point the pipeline at a completed benchmark's output with `-o` so its steps can
+read that run's `results.csv` and traces (the benchmark prints the lab dir as
+`Results: …/results.csv` when it finishes):
+
 ```bash
 T03=docs/tutorials/03-experiments-and-analysis
+LAB=~/.local/share/mas/labs/t3-observability-patterns   # from the benchmark output
 
-# Full pipeline (after a benchmark run)
-mas-lab benchmark pipeline run "$T03/pipelines/analysis.yaml"
+# Full pipeline (extract → trace-stats → plot-svg → plot-html)
+mas-lab benchmark pipeline run "$T03/pipelines/analysis.yaml" -o "$LAB"
 
-# Single step (re-run evaluation only)
-mas-lab benchmark pipeline run "$T03/pipelines/analysis.yaml" --only evaluate
+# Single step (re-run one step only — steps: extract, trace-stats, plot-svg, plot-html)
+mas-lab benchmark pipeline run "$T03/pipelines/analysis.yaml" -o "$LAB" --only extract
 
-# Dry run
+# Dry run (no -o needed — nothing is read or written)
 mas-lab benchmark pipeline run "$T03/pipelines/analysis.yaml" --dry-run
 ```
+
+The plots land under `$LAB/trajectories/` (`trajectory.svg`, `swimlane.html`).
 
 ### B.5 — Inline vs. standalone pipelines
 
@@ -534,8 +541,13 @@ For this tutorial we use a 15-item subset of the trip planner benchmark —
 
 ### C.3 — The experiment manifest
 
+> This is the **illustrative target** (full `evaluation`/`execution` sections
+> and the 15-item dataset). The shipped `experiment-topology.yaml` is a small
+> runnable **scaffold** (a 1-item `dataset-topology.yaml`); the full 15-item /
+> 135-execution comparison lives in `labs/design-space.lab/02-topologies/`.
+
 ```yaml
-# experiment-topology.yaml
+# experiment-topology.yaml (illustrative — see note above)
 experiment:
   name: "t3-topology-comparison"
   version: "v1"
@@ -563,7 +575,7 @@ experiment:
       tags: [moderator, broker]
 
   dataset:
-    path: "dataset-topology.json"
+    path: "dataset-topology.yaml"
 
   evaluation:
     method: "mce_v1"

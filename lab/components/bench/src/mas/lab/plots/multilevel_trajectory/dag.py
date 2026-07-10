@@ -500,42 +500,76 @@ def _build_dag(
             # use is_instant=True and are rendered as icon badges by the HTML renderer.
             st_start = state(crec["start_ts"], crec.get("input", ""), "call")
             st_start.hover_by_lane["calls"] = crec.get("input", "")
-            elems.append(trans(crec, lane_level="call", node_id=f"tr-call-{j}",
-                               end_ts=end_ts))
+            _tr = trans(crec, lane_level="call", node_id=f"tr-call-{j}",
+                        end_ts=end_ts)
+            # Context provenance (the "N parts · M tokens · System Prompt ×… ,
+            # Context ×…" breakdown) describes the *assembled context* — a state,
+            # not the LLM action.  Attach it to the LLM's start state (the node
+            # between ⚙ context and the LLM bar) and leave the LLM bar to
+            # represent the call itself.
+            if ct_j == "LLMCall" and _tr.cpr_data:
+                if not st_start.cpr_data:
+                    st_start.cpr_data = _tr.cpr_data
+                    st_start.model = _tr.model
+                _tr.cpr_data = []
+            elems.append(_tr)
             own_out  = crec.get("output", "")
             # ProcessingCall outputs are operation summaries ("3 injections · 51
             # tok") — they belong on the transition bar, not on the following
             # state.  Clear them so the state can show cumulative context instead.
             if ct_j == "ProcessingCall":
                 own_out = ""
-            next_inp = call_sequence[j + 1].get("input", "") if j + 1 < len(call_sequence) else ""
+            next_rec  = call_sequence[j + 1] if j + 1 < len(call_sequence) else None
+            next_inp  = next_rec.get("input", "") if next_rec else ""
             end_hover = own_out or next_inp
+            # A tool-turn LLM call emits no text (the model returned a tool
+            # call, captured as the next bar), so its end state would be empty.
+            # Show what the call led to instead of a bare "(no content)".
+            if not end_hover and next_rec:
+                _nl = next_rec.get("label") or _PROC_TYPE_LABEL.get(
+                    next_rec.get("call_type", ""), next_rec.get("call_type", "")
+                )
+                if _nl:
+                    end_hover = f"→ {_nl}"
             st_end = state(end_ts, end_hover, "call")
             st_end.hover_by_lane["calls"] = end_hover
             elems.append(st_end)
 
-        # ── Forward-accumulate CPR data on intermediate states ──────────
-        # Each state after a ProcessingCall shows the *cumulative* context
-        # assembled up to that point (all parts from preceding PCs).  The
-        # LLMCall's CPR data is the full set; we use it for the last state
-        # and build partial sets for earlier ones.
-        _accum_cpr: list[dict] = []
-        # Find the model from the first LLMCall in this sequence (needed for
-        # context window % display on all states).
+        # ── Propagate the context breakdown to EVERY state ──────────────
+        # Each state is the working memory at that instant.  Every action's
+        # result enters working memory (appended to the end of context for
+        # visualization), so the assembled context grows monotonically along the
+        # lane.  Each LLM call's context snapshot already sits on its start state
+        # (see the CPR move above); carry the latest snapshot forward to the
+        # states that follow it, and back-fill the states before the first
+        # snapshot with that first one, so no state is left without a breakdown.
         _model_for_states: str = ""
         for el in elems:
             if isinstance(el, TransNode) and el.call_type == "LLMCall" and el.model:
                 _model_for_states = el.model
                 break
+        _latest_cpr: list[dict] = []
         for el in elems:
-            if isinstance(el, TransNode):
-                if el.call_type == "ProcessingCall" and el.cpr_data:
-                    _accum_cpr = _accum_cpr + el.cpr_data
-                elif el.call_type == "LLMCall":
-                    _model_for_states = el.model
-            elif isinstance(el, StateNode) and _accum_cpr and not el.cpr_data:
-                el.cpr_data = list(_accum_cpr)
-                el.model = _model_for_states
+            if isinstance(el, StateNode):
+                if el.cpr_data:
+                    _latest_cpr = el.cpr_data
+                elif _latest_cpr:
+                    el.cpr_data = list(_latest_cpr)
+                    if not el.model:
+                        el.model = _model_for_states
+        # Back-fill leading states (before the first snapshot).
+        _first_cpr: list[dict] = next(
+            (el.cpr_data for el in elems if isinstance(el, StateNode) and el.cpr_data),
+            [],
+        )
+        if _first_cpr:
+            for el in elems:
+                if isinstance(el, StateNode):
+                    if el.cpr_data:
+                        break
+                    el.cpr_data = list(_first_cpr)
+                    if not el.model:
+                        el.model = _model_for_states
 
         call_lane.sequence = elems
         lanes.append(call_lane)
@@ -547,11 +581,18 @@ def _build_dag(
         call_ts: set[float] = {el.ts for el in elems if isinstance(el, StateNode)}
         for arec in agent_sequence:
             for bts in (arec["start_ts"], arec["end_ts"]):
-                if bts not in call_ts:
-                    injected = state(bts)
-                    call_lane.connector_only_ts.add(bts)
-                    call_lane.sequence.append(injected)
-                    call_ts.add(bts)
+                # Skip if a call state already sits at (or within a hair of) this
+                # boundary.  Agent execution boundaries can fall a millisecond off
+                # the nearest call boundary (e.g. execution_end fires just before
+                # the final llm_call_end); injecting a near-duplicate state there
+                # creates an empty connector column between two states with no
+                # transition (the "S9 → S10 with nothing between" glitch).
+                if any(abs(bts - ex) <= _TS_TOL for ex in call_ts):
+                    continue
+                injected = state(bts)
+                call_lane.connector_only_ts.add(bts)
+                call_lane.sequence.append(injected)
+                call_ts.add(bts)
 
     # ── Thinking lane: one ThinkingCall per LLM call that has thinking content
     thinking_records = _synthesize_thinking_records(records)

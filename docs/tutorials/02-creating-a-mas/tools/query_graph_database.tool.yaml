@@ -45,4 +45,4 @@ spec:
     module_path: ./query_graph_database.py
     class_name: QueryGraphDatabaseTool
     params:
-      dataset_path: fixtures/arborian-network.yaml
+      dataset_path: datasets/arborian-network.yaml

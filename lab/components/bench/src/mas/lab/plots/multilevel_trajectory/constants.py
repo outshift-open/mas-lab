@@ -19,11 +19,17 @@ _KIND_BASE_TO_TYPE: dict[str, str] = {
     "processing":        "ProcessingCall",
     "skill_call":        "ProcessingCall",
     "skill":             "ProcessingCall",
-    "state_update":      "ContextState",
-    "governance_authorize": "GovernanceCall",
-    "governance_validate":  "GovernanceCall",
-    "obs_wrap_gov_authorize": "ObsWrap",
-    "obs_wrap_gov_validate":  "ObsWrap",
+    # The following are cross-cutting/instrumentation events, not part of the
+    # execution trajectory. Excluding them from call records keeps the Calls
+    # lane to the real flow (agent → llm → tool …) and removes the empty
+    # connector gaps + wide chart they used to create by adding timeline
+    # buckets no lane had content at:
+    #   state_update            → WM/turn-history mutations (ContextState)
+    #   governance_authorize/validate → policy checks (still available as
+    #                             annotations; HITL is out of the tutorials)
+    #   obs_wrap_gov_*          → observability wrappers around governance
+    # Context provenance still renders from context_assembled /
+    # context_part_contributed annotations.
 }
 
 _CALL_TYPE_TO_LEVEL: dict[str, str] = {
