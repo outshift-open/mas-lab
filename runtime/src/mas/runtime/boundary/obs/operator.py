@@ -26,6 +26,39 @@ from mas.runtime.kernel.state import QProduct
 _logger = logging.getLogger(__name__)
 
 
+def _machine_for_op(op: str) -> str:
+    """Map a scheduled op to its owning Mealy machine id, for the live
+    TransitionEvent stream's contract_id (see transition.py's
+    _CONTRACT_BY_MACHINE) — the native trace-export layer keys off
+    payload["op"] directly and doesn't depend on this."""
+    if op == "TOOL_CALL":
+        return "M_tool"
+    if op == "MEMORY_OP":
+        return "M_memory"
+    return "M_model"
+
+
+class _CallFrames(threading.local):
+    """Per-thread call stack + sibling-batch state.
+
+    A plain shared stack can't distinguish true nesting from sibling
+    concurrency: N calls scheduled together (parallel tool calls, or a
+    moderator delegating to N agents in one turn) are opened sequentially on
+    one thread before any of them execute (see ``begin_sibling_batch``), so a
+    shared, non-thread-local stack would still be correct for that case on
+    its own. Subclassing ``threading.local`` is kept as a defensive property
+    for whatever thread model ends up running these opens/closes, not because
+    a specific concurrent caller relies on it today — delegated agent turns
+    currently run through their own separate ``RuntimeInstance``/operator, not
+    on a shared thread pool against this same stack.
+    """
+
+    def __init__(self) -> None:
+        self.stack: list[str] = []
+        self.batch_parent: str | None = None
+        self.batch_remaining: int = 0
+
+
 @dataclass
 class ObservabilityOperator:
     """M_obs — append-only event log with attribution metadata."""
@@ -35,9 +68,13 @@ class ObservabilityOperator:
     _agent_id: str = "agent"
     _run_id: str = ""
     _subscribers: list = field(default_factory=list)
-    _call_stack: list[str] = field(default_factory=list)
+    _frames: _CallFrames = field(default_factory=_CallFrames, repr=False)
     _interval_call_ids: dict[tuple[int, str], str] = field(default_factory=dict)
     _call_parents: dict[str, str | None] = field(default_factory=dict)
+    # call_ids the ENGINE_IO fallback pushed itself (no contract_call wraps
+    # this call, e.g. enable_envelope_observability=False) — ENGINE_IO_RETURN
+    # must pop these itself since no contract_call/end is coming to do it.
+    _bare_engine_calls: set[str] = field(default_factory=set, repr=False)
     _async_plugins: bool = False
     _plugin_queue: queue.Queue | None = field(default=None, repr=False)
     _plugin_worker: threading.Thread | None = field(default=None, repr=False)
@@ -54,22 +91,112 @@ class ObservabilityOperator:
             self._run_id = run_id
 
     def push_call_frame(self, call_id: str) -> None:
-        """Push an open execution frame (e.g. agent turn) for parent_call_id attribution."""
+        """Push an open execution frame (e.g. agent turn) onto the CURRENT thread's stack."""
         if call_id:
-            self._call_stack.append(call_id)
+            self._frames.stack.append(call_id)
 
     def pop_call_frame(self, call_id: str | None = None) -> None:
-        """Pop the innermost frame, or the named frame if provided."""
-        if not self._call_stack:
+        """Pop the innermost frame on the current thread, or the named frame if provided."""
+        stack = self._frames.stack
+        if not stack:
             return
         if call_id is None:
-            self._call_stack.pop()
+            stack.pop()
             return
-        if self._call_stack[-1] == call_id:
-            self._call_stack.pop()
+        if stack[-1] == call_id:
+            stack.pop()
             return
-        if call_id in self._call_stack:
-            self._call_stack.remove(call_id)
+        if call_id in stack:
+            stack.remove(call_id)
+
+    def begin_sibling_batch(self, count: int) -> None:
+        """Mark the next ``count`` calls opened on this thread as true siblings.
+
+        Call this right before scheduling N calls together (parallel tool
+        calls, or a moderator delegating to N agents in one turn) — before
+        any of their own contract_call/start or bare-ENGINE_IO events fire.
+        Without it, each sibling's own open reads "whatever's currently on
+        top of the stack" as its parent, which — since all N opens happen
+        sequentially on the same thread before any of them execute — is the
+        PREVIOUS sibling, not the enclosing frame; siblings end up chained to
+        each other. This snapshots the enclosing frame once and hands it to
+        the next ``count`` opens, regardless of what they push in between.
+        """
+        if count <= 1:
+            return
+        frames = self._frames
+        frames.batch_parent = frames.stack[-1] if frames.stack else None
+        frames.batch_remaining = count
+
+    def _current_frame(self) -> str | None:
+        stack = self._frames.stack
+        return stack[-1] if stack else None
+
+    def call_id_for(self, correlation_id: int, op: str) -> str:
+        """Public accessor for the stable call_id assigned to a (correlation_id, op) pair.
+
+        Used by delegation call sites (e.g. ``make_workflow_send``, via
+        ``LlmDelegator``) to look up the delegating TOOL_CALL's own call_id —
+        on the DELEGATING agent's own operator, before switching to the
+        delegate's — so it can be passed through as the delegate's
+        ``execution_start.parent_call_id``. Without this, every agent's own
+        execution_start defaults to the top-level ``mas_call_id`` (see
+        ``_sh_user_input``), so the call tree never learns which tool call
+        actually spawned which delegate.
+
+        Deliberately keyed by (correlation_id, op) rather than "whatever's on
+        top of the call stack right now": when an assistant message contains
+        several ``delegate_to_*`` tool calls at once, every one of their
+        CONTRACT_START steps fires — pushing all N frames — before any of
+        them actually *executes* (dispatched one at a time from the tool
+        loop). Reading the stack top at execution time would return
+        whichever sibling was pushed last for every one of them; this
+        resolves the specific sibling by its own correlation_id instead.
+        """
+        return self._interval_call_id(correlation_id, op)
+
+    def parent_call_id_for(self, call_id: str) -> str | None:
+        """Public accessor for call_id's already-resolved parent, if any.
+
+        Used by the driver (see driver.py's dispatch loop, right after
+        ``call_id_for``) to stamp ``InvokeEngineIo.parent_call_id`` on the
+        outgoing invocation itself \u2014 by the time ``call_id_for`` has run,
+        this call's own contract_call/start has already opened its frame via
+        ``_open_call``, which resolves the correct parent even for a batch of
+        true siblings (see ``begin_sibling_batch``). Putting this on the wire
+        means the engine, a delegate, or an external observability plugin can
+        read a self-describing parent-span id directly, instead of every
+        consumer needing its own copy of this stack-reconstruction logic.
+        """
+        return self._call_parents.get(call_id)
+
+    def _open_call(self, call_id: str) -> str | None:
+        """Register call_id's parent and make it the active frame for its own descendants."""
+        frames = self._frames
+        if frames.batch_remaining > 0:
+            parent = frames.batch_parent
+            frames.batch_remaining -= 1
+        else:
+            parent = frames.stack[-1] if frames.stack else None
+        self._call_parents[call_id] = parent
+        frames.stack.append(call_id)
+        return parent
+
+    def _close_call(self, call_id: str) -> None:
+        """Remove call_id from the current thread's stack, wherever it sits.
+
+        Siblings opened in the same batch don't necessarily close in the
+        order they opened (whichever finishes first ends first) — an
+        LIFO-only pop would leave earlier siblings stuck on the stack
+        forever once a later one closes out of order.
+        """
+        stack = self._frames.stack
+        if not stack:
+            return
+        if stack[-1] == call_id:
+            stack.pop()
+        elif call_id in stack:
+            stack.remove(call_id)
 
     def record_kernel_snapshot(self, q: QProduct, *, label: str = "snapshot") -> None:
         self._emit(
@@ -115,6 +242,11 @@ class ObservabilityOperator:
                     "gov": q.gov_state,
                     "scheduled_egress": q.scheduled_egress,
                 },
+                **(
+                    {"resolution": event.resolution.value, "answer": event.answer}
+                    if isinstance(event, HitlResolve)
+                    else {}
+                ),
             },
         )
 
@@ -124,23 +256,30 @@ class ObservabilityOperator:
             self._emit(
                 ObsEventKind.ENGINE_IO,
                 ObsPhase.EXECUTE,
-                "M_tool" if sym.op == "TOOL_CALL" else "M_model",
+                _machine_for_op(sym.op),
                 correlation_id=sym.correlation_id,
                 payload={"op": sym.op, "destructive": sym.destructive},
             )
             return
         if sym.kind == EgressKind.EMIT_HITL_REQUEST:
             assert isinstance(sym, EmitHitlRequest)
+            _hitl_policy_name = sym.context_data.get("policy_name", "scheduler")
             self._emit(
                 ObsEventKind.HITL_REQUEST,
                 ObsPhase.AUTHZ,
                 "M_gov",
                 correlation_id=sym.request_id,
-                policy_name=sym.context_data.get("policy_name", "scheduler"),
+                policy_name=_hitl_policy_name,
                 payload={
                     "question": sym.question,
                     "pending_schedule": sym.pending_schedule,
                     "offered_actions": [a.value for a in sym.offered_actions],
+                    # Also carried in payload (not just the top-level
+                    # ObservabilityEvent field) — the live TransitionEvent
+                    # pipeline (boundary_dict_from_transition) only forwards
+                    # payload/attributes. See record_governance_decision for
+                    # the same pattern.
+                    "policy_name": _hitl_policy_name,
                 },
             )
             return
@@ -176,7 +315,12 @@ class ObservabilityOperator:
                 ObsPhase.AUTHZ,
                 "M_gov",
                 attribution_code=sym.code,
-                payload={"recoverable": sym.recoverable},
+                payload={
+                    "code": sym.code,
+                    "recoverable": sym.recoverable,
+                    "message": sym.message,
+                    "parent_call_id": self._current_frame(),
+                },
             )
             return
         self._emit(
@@ -229,6 +373,7 @@ class ObservabilityOperator:
         content_preview: str = "",
         committed_count: int = 0,
         wm_count: int = 0,
+        op: str = "",
     ) -> ObservabilityEvent:
         return self._emit(
             ObsEventKind.CONTEXT_MUTATION,
@@ -243,6 +388,7 @@ class ObservabilityOperator:
                 "content_preview": content_preview,
                 "committed_count": committed_count,
                 "wm_count": wm_count,
+                "op": op,
             },
         )
 
@@ -268,6 +414,12 @@ class ObservabilityOperator:
                 "segments": list(segments or []),
                 "total_tokens": total_tokens,
                 "message_count": len(messages or []),
+                # Context is only ever assembled for one specific LLM_CALL
+                # dispatch — never a guess, always this op. Lets
+                # _resolve_transition_ids resolve the SAME call_id that
+                # dispatch's own llm_call_start/end use, via
+                # _interval_call_id(correlation_id, "LLM_CALL").
+                "op": "LLM_CALL",
             },
         )
 
@@ -304,7 +456,7 @@ class ObservabilityOperator:
         tool_name: str = "",
         tool_arguments: dict | None = None,
     ) -> ObservabilityEvent:
-        machine = "M_tool" if op == "TOOL_CALL" else "M_model"
+        machine = _machine_for_op(op)
         resolved_tool = str(tool_name or "").strip()
         if not resolved_tool and op == "TOOL_CALL":
             resolved_tool = "tool"
@@ -332,8 +484,12 @@ class ObservabilityOperator:
         text: str = "",
         next_step: str = "STOP",
         response_kind: str = "",
+        tool_name: str = "",
     ) -> ObservabilityEvent:
-        machine = "M_tool" if op == "TOOL_CALL" else "M_model"
+        machine = _machine_for_op(op)
+        resolved_tool = str(tool_name or "").strip()
+        if not resolved_tool and op == "TOOL_CALL":
+            resolved_tool = "tool"
         return self._emit(
             ObsEventKind.ENGINE_IO_RETURN,
             ObsPhase.RESULT,
@@ -344,6 +500,7 @@ class ObservabilityOperator:
                 "text": text,
                 "next_step": next_step,
                 "response_kind": response_kind,
+                "tool_name": resolved_tool,
                 "envelope": True,
             },
         )
@@ -369,10 +526,23 @@ class ObservabilityOperator:
         hook: str,
         phase: str,
         decision: str = "",
+        reason: str = "",
         correlation_id: int = 0,
         policy_name: str = "",
         obs_phase: ObsPhase = ObsPhase.AUTHZ,
+        op: str = "",
     ) -> ObservabilityEvent:
+        """Emit a ``governance_decision`` event for one egress or ingress
+        check (``hook``) at one lifecycle point (``phase``) on a call,
+        identified by ``correlation_id``. Consumed by the multilevel
+        trajectory plot's Governance lane and per-call badges.
+
+        ``op`` (e.g. "TOOL_CALL"/"LLM_CALL"/"MEMORY_OP") lets
+        ``_resolve_transition_ids`` resolve this event's call_id/parent via
+        the same ``_interval_call_id``/``_call_parents`` mechanism the
+        associated ENGINE_IO/ENGINE_IO_RETURN pair uses, instead of the
+        generic ``f"call-{correlation_id}"`` fallback (non-unique across
+        agents, no real parent)."""
         return self._emit(
             ObsEventKind.GOVERNANCE_DECISION,
             obs_phase,
@@ -383,6 +553,12 @@ class ObservabilityOperator:
                 "hook": hook,
                 "checkpoint": phase,
                 "decision": decision,
+                "reason": reason,
+                "op": op,
+                # Also carried in payload (not just the top-level ObservabilityEvent
+                # field) because the live TransitionEvent pipeline
+                # (boundary_dict_from_transition) only forwards payload/attributes.
+                "policy_name": policy_name or "kernel",
             },
         )
 
@@ -521,8 +697,41 @@ class ObservabilityOperator:
             self._interval_call_ids[key] = str(uuid.uuid4())
         return self._interval_call_ids[key]
 
+    def _interval_call_and_parent(self, correlation_id: int, key: str) -> tuple[str, str | None]:
+        """call_id for (correlation_id, key) + its parent, falling back to the
+        current frame when this call hasn't opened its own frame yet (several
+        egress-side checks — governance decisions, context assembly, HITL
+        requests — fire before CONTRACT_START opens the call's own frame; the
+        enclosing execution is the correct parent in that case, and nothing
+        else pushes a frame in between). Shared by every _resolve_transition_ids
+        branch that reduces to "this call's own id, parented to whatever's
+        already resolved for it or else the current call in progress."
+        """
+        call_id = self._interval_call_id(correlation_id, key)
+        return call_id, self._call_parents.get(call_id, self._current_frame())
+
     def _resolve_transition_ids(self, ev: ObservabilityEvent) -> tuple[str | None, str | None]:
-        """Return (call_id, parent_call_id) using envelope call stack."""
+        """Return (call_id, parent_call_id) using a per-thread call stack.
+
+        The stack push/pop is owned exclusively by the contract_call envelope
+        activity (CONTRACT_START/CONTRACT_END) — the one signal guaranteed to
+        fire exactly once per call, even for a call a governance decision blocks
+        before execution.  ENGINE_IO / ENGINE_IO_RETURN (fired separately, from
+        CONTRACT_EXECUTE / OBSERVABILITY_POST_EXECUTE for the SAME call) reuse
+        the same (correlation_id, op)-keyed call_id and look up its
+        already-established parent instead of pushing/popping a second frame.
+
+        Calls scheduled together as true siblings — parallel tool calls, or a
+        moderator delegating to N agents in one turn — all fire their own
+        contract_call/start SEQUENTIALLY on the scheduling thread, before any
+        of them execute (``schedule_parallel_tools_egress`` loops over the
+        whole batch synchronously). Reading "whatever's on top of the stack"
+        for parent would chain each subsequent sibling onto the previous one
+        instead of the enclosing frame. ``begin_sibling_batch`` (called by the
+        kernel right before that loop, once it knows the batch has 2+ members)
+        snapshots the enclosing frame ONCE and hands it to the next N opens
+        via ``_open_call``, regardless of what those N opens push in between.
+        """
         payload = ev.payload or {}
         op = str(payload.get("op") or "")
         cid = ev.correlation_id
@@ -530,32 +739,108 @@ class ObservabilityOperator:
 
         if ev.kind == ObsEventKind.ENGINE_IO and op:
             call_id = self._interval_call_id(cid, op)
-            parent = self._call_stack[-1] if self._call_stack else None
-            self._call_parents[call_id] = parent
-            self._call_stack.append(call_id)
+            if call_id in self._call_parents:
+                return call_id, self._call_parents[call_id]
+            # No contract_call/start established this call (a bare engine call
+            # not wrapped by the envelope) — establish it here as a fallback.
+            # Remember it as bare so ENGINE_IO_RETURN below closes it itself;
+            # no contract_call/end is coming to pop it otherwise.
+            parent = self._open_call(call_id)
+            self._bare_engine_calls.add(call_id)
             return call_id, parent
 
         if ev.kind == ObsEventKind.ENGINE_IO_RETURN and op:
             call_id = self._interval_call_ids.get((cid, op), f"call-{cid}" if cid else None)
             parent = self._call_parents.get(call_id) if call_id else None
-            if call_id and self._call_stack and self._call_stack[-1] == call_id:
-                self._call_stack.pop()
+            if call_id and call_id in self._bare_engine_calls:
+                self._bare_engine_calls.discard(call_id)
+                self._close_call(call_id)
             return call_id, parent
+
+        if ev.kind == ObsEventKind.GOVERNANCE_DECISION and op:
+            # Reuse the SAME (correlation_id, op)-keyed call_id the call's own
+            # ENGINE_IO/ENGINE_IO_RETURN pair uses, instead of a synthetic
+            # f"call-{cid}" that collides across agents (correlation_id resets
+            # per-agent). Egress decisions fire before CONTRACT_START opens
+            # this call's own frame — _call_parents has nothing for it yet,
+            # so fall back to _current_frame(), the exact value _open_call
+            # would assign moments later (nothing else pushes a frame in
+            # between). Ingress decisions fire after CONTRACT_END, by which
+            # point _call_parents[call_id] is already set and never deleted.
+            return self._interval_call_and_parent(cid, op)
+
+        if ev.kind == ObsEventKind.CONTEXT_ASSEMBLED and op:
+            # Same (correlation_id, "LLM_CALL") cache key that call's own
+            # llm_call_start/end use — context_assembled always fires
+            # synchronously inside that exact LLM_CALL dispatch (see
+            # assemble_llm_messages/llm_live.py's _assembly_correlation_id),
+            # so this is never a guess. Egress-side CONTRACT_START may not
+            # have opened this call's frame yet when assembly runs (context is
+            # assembled before the LLM_CALL is dispatched) — fall back to
+            # _current_frame(), the enclosing execution, same reasoning as
+            # governance_decision's egress case.
+            return self._interval_call_and_parent(cid, op)
+
+        if ev.kind == ObsEventKind.CONTEXT_MUTATION and op:
+            # Working-memory mutations caused by one specific engine-op result
+            # (see driver.py's wm_append call sites) are a CHILD of that call
+            # (its result being committed to working memory), so the call's
+            # own resolved id — not that call's parent — is the mutation's
+            # real parent. Same (correlation_id, op)-keyed cache
+            # governance_decision uses, so this is always the SAME call_id
+            # that call's own ENGINE_IO/ENGINE_IO_RETURN pair used.
+            # Turn/session-scoped mutations (turn_start, wm_clear, ...) pass no
+            # op and correctly fall through to the generic fallback below,
+            # which resolves no parent for them — accurate, not a regression.
+            # Own call_id is a distinct key (never reused by any other kind of
+            # event) so a live consumer never sees two different spans sharing
+            # one id; the native JSONL keeps its own state_update_start/end
+            # id scheme regardless (see _boundary_context_mutation) and only
+            # reads the parent this returns.
+            owning_call_id = self._interval_call_id(cid, op)
+            mutation_call_id = self._interval_call_id(cid, f"{op}:mutation")
+            return mutation_call_id, owning_call_id
+
+        if ev.kind in (ObsEventKind.HITL_REQUEST, ObsEventKind.HITL_RESOLVE):
+            # request_id (carried as this event's correlation_id) is just
+            # another RunLedger counter, not a UUID — it collides across
+            # agents the same way correlation_id does. Mint a real,
+            # globally-unique id via _interval_call_id (same uuid4-backed
+            # cache used everywhere else); keying on (cid, "HITL") means the
+            # request and its resolve share one call_id, since both carry the
+            # same request_id. Parent is whatever frame is active when the
+            # gate fires — the enclosing call/execution the human was asked
+            # about.
+            return self._interval_call_and_parent(cid, "HITL")
 
         if ev.kind == ObsEventKind.ENVELOPE_ACTIVITY:
             activity = str(payload.get("activity") or "")
             boundary = str(payload.get("boundary") or "")
+            if activity == "parallel_group" and boundary == "start":
+                # Secondary safety net for configurations where contract_call
+                # never fires (enable_envelope_observability=False) — the
+                # primary defense is begin_sibling_batch, called by the kernel
+                # before contract_call/start ever runs for this batch.
+                group_parent = self._current_frame()
+                for tool in payload.get("tools") or []:
+                    t_cid = tool.get("correlation_id")
+                    if t_cid is None:
+                        continue
+                    t_call_id = self._interval_call_id(int(t_cid), "TOOL_CALL")
+                    self._call_parents.setdefault(t_call_id, group_parent)
             if activity == "contract_call" and boundary == "start" and op:
                 call_id = self._interval_call_id(cid, op)
-                parent = self._call_stack[-1] if self._call_stack else None
-                self._call_parents[call_id] = parent
-                self._call_stack.append(call_id)
+                if call_id in self._call_parents:
+                    parent = self._call_parents[call_id]
+                    self._frames.stack.append(call_id)
+                else:
+                    parent = self._open_call(call_id)
                 return call_id, parent
             if activity == "contract_call" and boundary == "end" and op:
                 call_id = self._interval_call_ids.get((cid, op))
                 parent = self._call_parents.get(call_id) if call_id else None
-                if call_id and self._call_stack and self._call_stack[-1] == call_id:
-                    self._call_stack.pop()
+                if call_id:
+                    self._close_call(call_id)
                 return call_id, parent
 
         if cid and op:

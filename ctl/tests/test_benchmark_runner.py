@@ -197,7 +197,9 @@ def test_sequential_topology_applies_memory_seeds(tmp_path: Path):
     from mas.ctl.adapters.memory_seed import MemorySeed
 
     output_dir = tmp_path / "out"
-    instance = SimpleNamespace(driver=SimpleNamespace(ctx=SimpleNamespace(memory_seeds=[])))
+    instance = SimpleNamespace(
+        driver=SimpleNamespace(ctx=SimpleNamespace(memory_seeds=[]), observability=None)
+    )
     materialized = SimpleNamespace(
         compose=SimpleNamespace(mas_config={"spec": {"workflow": {"type": "sequential"}}}),
         materialized=SimpleNamespace(instances={"step-a": instance, "step-b": instance}),

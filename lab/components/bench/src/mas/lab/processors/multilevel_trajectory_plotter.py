@@ -5,8 +5,11 @@ from __future__ import annotations
 
 Registered as ``multilevel_trajectory_plotter``.
 
-Produces a multilevel HTML/SVG diagram showing Session → MAS → Agent → Call
-swim lanes from a raw MAS event trace.  No external dependencies required.
+Produces a multilevel HTML/SVG diagram showing Session → MAS → Agent → Call →
+Thinking swim lanes from a raw MAS event trace, plus a Governance lane
+(decisions, HITL exchanges, blocked-action ghost markers, retry chains) that
+the HTML viewer's "Gov" button toggles on — hidden by default, present only
+when the trace has governance events. No external dependencies required.
 
 Config / kwargs
 ---------------
@@ -31,10 +34,14 @@ _FORMATS = ("html", "svg")
 class MultilevelTrajectoryPlotter(Processor):
     """Render a Trajectory into a multilevel swim-lane PlotFile.
 
-    Produces four stacked swim lanes (Session / MAS / Agent / Call) with
-    shared state circles, colored transitions, and JS hover tooltips.
+    Produces stacked swim lanes (Session / MAS / Agent / Call / Thinking, plus
+    a toggleable Governance lane when the trace has governance events) with
+    shared state circles, colored transitions, and JS hover tooltips. HITL
+    exchanges, governance decisions, and retry chains show as badges/ghost
+    markers on the Call lane and as bars on the Governance lane; click a bar
+    for the full decision/reason in the side panel.
 
-    No external dependencies — pure Python SVG generation.
+    No external dependencies — pure Python SVG/HTML generation.
 
     Config / kwargs
     ---------------

@@ -92,7 +92,39 @@ class ObsEnvelopeMachine:
         ):
             payload["tool_name"] = str(ctx.tool_name or ctx.scheduled_op or activity)
             if ctx.ingress_event is not None:
-                payload["response_kind"] = ctx.ingress_event.response_kind
+                ev = ctx.ingress_event
+                payload["response_kind"] = ev.response_kind
+                if symbol == EnvelopeSymbol.OBSERVABILITY_POST_EXECUTE:
+                    # This branch used to be shadowed: the previous code had
+                    # OBSERVABILITY_POST_EXECUTE matched by BOTH this elif and
+                    # a separate `elif symbol == OBSERVABILITY_POST_EXECUTE`
+                    # further down in the same chain — the first match always
+                    # wins in an if/elif chain, so the second branch (the one
+                    # that actually recorded the call's end) never ran, for
+                    # ANY op. tool_call_end/memory_call_end were never emitted
+                    # at all; only LLM_CALL got an end event, via a separate
+                    # hand-written special case in driver.py (now removed —
+                    # see driver.py's _record_engine_return).
+                    ret_record = getattr(obs, "record_engine_io_return", None)
+                    if callable(ret_record):
+                        ret_record(
+                            correlation_id=ctx.correlation_id,
+                            op=ctx.scheduled_op,
+                            text=ev.text,
+                            next_step=ev.next_step,
+                            response_kind=ev.response_kind,
+                            # Without this, the native layer's resolve_tool_name
+                            # falls back to the literal string "tool" (no
+                            # tool_name in this payload at all), which never
+                            # matches tool_call_start's real tool name in
+                            # records.py's (agent_id, kind_base, tool_name)
+                            # pairing key — the end event was silently dropped
+                            # and the record stayed _end_missing despite this
+                            # branch actually firing. Same field CONTRACT_EXECUTE
+                            # already passes to record_engine_io below for the
+                            # matching start event.
+                            tool_name=ctx.tool_name,
+                        )
         elif symbol == EnvelopeSymbol.CONTRACT_EXECUTE:
             payload["tool_name"] = str(ctx.tool_name or ctx.scheduled_op or ctx.operation or "tool")
             payload["tool_arguments"] = dict(ctx.tool_arguments or {})
@@ -104,17 +136,6 @@ class ObsEnvelopeMachine:
                     destructive=ctx.destructive,
                     tool_name=ctx.tool_name,
                     tool_arguments=dict(ctx.tool_arguments or {}),
-                )
-        elif symbol == EnvelopeSymbol.OBSERVABILITY_POST_EXECUTE and ctx.ingress_event is not None:
-            ev = ctx.ingress_event
-            ret_record = getattr(obs, "record_engine_io_return", None)
-            if callable(ret_record):
-                ret_record(
-                    correlation_id=ctx.correlation_id,
-                    op=ctx.scheduled_op,
-                    text=ev.text,
-                    next_step=ev.next_step,
-                    response_kind=ev.response_kind,
                 )
         record = getattr(obs, "record_envelope_activity", None)
         if callable(record):

@@ -54,11 +54,14 @@ class GovEnvelopeMachine:
         if checkpoint == "after" and hook == "ingress":
             obs_phase = ObsPhase.VALID
         decision = ctx.gov_decision if checkpoint == "after" else ""
+        reason = ctx.gov_reason if checkpoint == "after" else ""
         obs.record_governance_decision(
             hook=hook,
             phase=checkpoint,
             decision=decision,
+            reason=reason,
             correlation_id=ctx.correlation_id,
             policy_name=ctx.policy_name or "kernel",
             obs_phase=obs_phase,
+            op=ctx.scheduled_op,
         )

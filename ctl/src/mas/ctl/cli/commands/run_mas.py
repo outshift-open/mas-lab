@@ -69,10 +69,10 @@ def run_mas_cmd(
         manifest = "mas.yaml"
     verbose = int(ctx.obj.get("verbose", 0) if ctx.obj else 0)
 
-    from mas.ctl.session.flavour import FlavourError, validate_flavour
+    from mas.ctl.session.flavour import FlavourError, resolve_flavour
 
     try:
-        validate_flavour(flavour)
+        flavour_spec = resolve_flavour(flavour)
     except FlavourError as exc:
         click.echo(f"error: {exc}", err=True)
         raise SystemExit(2) from None
@@ -96,6 +96,7 @@ def run_mas_cmd(
             events_format=events_format,
             manifest=mas_doc,
             deployment=deployment_doc,
+            flavour_spec=flavour_spec,
         )
         rc = execute_run_mas(
             session.local_manifest,

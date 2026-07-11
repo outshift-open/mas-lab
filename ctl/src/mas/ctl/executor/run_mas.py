@@ -18,6 +18,7 @@ from mas.ctl.executor.mas_session import (
     materialize_mas_compose,
     prepare_delegation_entry_session,
     run_sequential_workflow_queries,
+    wire_peer_delegation,
 )
 
 if TYPE_CHECKING:
@@ -132,6 +133,17 @@ def execute_run_mas(
     instance = prepared.instance
     enriched_manifest = prepared.enriched_manifest
 
+    # Wire delegation onto every OTHER agent that declares its own peers too
+    # (not just the entry) — see wire_peer_delegation's docstring: without
+    # this, an agent that is itself a delegate can never further delegate.
+    wire_peer_delegation(
+        materialized,
+        entry_id=entry,
+        display=display,
+        verbose=verbose,
+        already_wired={entry},
+    )
+
     if runtime_params:
         apply_runtime_params_to_instance(runtime_params, instance)
     hitl_responder, _ = resolve_hitl_from_manifest(
@@ -141,24 +153,20 @@ def execute_run_mas(
     if hitl_responder is not None:
         instance.driver.hitl = hitl_responder
 
-    plugin_set = None
-    if obs_config is not None:
-        from mas.ctl.session.observability import setup_shared_obs
+    from mas.ctl.session.observability import setup_run_observability
 
-        # Subscribe ALL materialized agents (entry + delegation targets) to one
-        # shared events.jsonl, not just the entry agent.  Delegated sub-agent
-        # turns run through their own SessionController (see make_workflow_send);
-        # without a shared plugin set their executions — LLM calls, tools, the
-        # whole sub-turn — are never emitted, so delegate_to_* tool calls are
-        # opaque black boxes and the multilevel trajectory shows only the
-        # moderator.  This mirrors the sequential-workflow path.
-        instances = dict(materialized.materialized.instances)
-        plugin_set = setup_shared_obs(
-            instances,
-            obs_config,
-            base_dir=base,
-            entry_agent_id=str(entry or "agent"),
-        )
+    instances = dict(materialized.materialized.instances)
+    # Subscribe materialized agents that didn't declare their own
+    # spec.observability (see partition_instances_by_observability, FT8) to
+    # one shared events.jsonl, not just the entry agent.  Delegated sub-agent
+    # turns run through their own SessionController (see make_workflow_send);
+    # without a shared plugin set their executions — LLM calls, tools, the
+    # whole sub-turn — are never emitted, so delegate_to_* tool calls are
+    # opaque black boxes and the multilevel trajectory shows only the
+    # moderator.  This mirrors the sequential-workflow path.
+    plugin_set, scoped_recorders = setup_run_observability(
+        instances, obs_config, base_dir=base, entry_agent_id=str(entry or "agent"),
+    )
 
     controller = SessionController(
         instance=instance,
@@ -175,6 +183,8 @@ def execute_run_mas(
         scripted=scripted,
     )
     close_observability(controller)
+    for recorder in scoped_recorders:
+        recorder.close()
     if plugin_set is not None:
         _log_obs_output_paths(plugin_set)
     return exit_code
@@ -198,18 +208,13 @@ def _run_sequential_workflow(
 
     display = StdoutConversationDisplay(agent_label="Workflow", verbose=verbose, show_labels=True)
 
-    shared_plugin_set = None
-    if obs_config is not None:
-        from mas.ctl.session.observability import setup_shared_obs
+    from mas.ctl.session.observability import setup_run_observability
 
-        instances = dict(materialized.materialized.instances)
-        entry = entry_agent_id(mas_config)
-        shared_plugin_set = setup_shared_obs(
-            instances,
-            obs_config,
-            base_dir=base,
-            entry_agent_id=entry,
-        )
+    instances = dict(materialized.materialized.instances)
+    entry = entry_agent_id(mas_config)
+    shared_plugin_set, scoped_recorders = setup_run_observability(
+        instances, obs_config, base_dir=base, entry_agent_id=entry,
+    )
 
     try:
         text = run_sequential_workflow_queries(
@@ -225,6 +230,8 @@ def _run_sequential_workflow(
     finally:
         if shared_plugin_set is not None:
             shared_plugin_set.close()
+        for recorder in scoped_recorders:
+            recorder.close()
     if text.strip():
         display.on_agent(text)
     if shared_plugin_set is not None:

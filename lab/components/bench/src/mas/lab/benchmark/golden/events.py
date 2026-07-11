@@ -26,18 +26,27 @@ _STRIP_KEYS = frozenset({
 })
 
 _UUID_RE = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
     re.I,
 )
-_RUN_ID_RE = re.compile(r"^run-[0-9a-f]{8,}$", re.I)
+_RUN_ID_RE = re.compile(r"run-[0-9a-f]{8,}", re.I)
 
 
 def _scrub_value(key: str, value: Any) -> Any:
     if key in _STRIP_KEYS:
         return "<stripped>"
     if isinstance(value, str):
-        if _UUID_RE.match(value) or _RUN_ID_RE.match(value):
-            return "<id>"
+        # Substring substitution, not exact match: a delegated agent's own
+        # exec_id/parent_call_id now embeds a real per-invocation uuid inside
+        # a composite string (e.g. "schedule_agent-<uuid>-exec" — see
+        # mas_session.py's make_workflow_send, which reuses caller_call_id as
+        # turn_id so repeated delegation to one agent is disambiguated), not
+        # a bare uuid on its own. An anchored full-string match would miss
+        # this and flag two semantically-identical runs as differing purely
+        # because uuid4() is random.
+        scrubbed = _RUN_ID_RE.sub("<id>", _UUID_RE.sub("<id>", value))
+        if scrubbed != value:
+            return scrubbed
     if isinstance(value, dict):
         return _normalize_event(value)
     if isinstance(value, list):
@@ -53,7 +62,25 @@ def _normalize_event(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def normalize_events_lines(lines: Iterator[str]) -> list[dict[str, Any]]:
-    """Parse and normalize events, preserving order."""
+    """Parse and normalize events, grouped by ``agent_id`` (stable sort).
+
+    Concurrent agents each get their own async plugin-dispatch worker thread
+    (see ``ObsPluginSet.subscribe_to``), so the *interleaving* between two
+    different agents' event streams in the raw file is a benign race — which
+    agent's writer thread flushes first varies run to run. Each agent's own
+    stream is still internally ordered (single producer thread per agent), so
+    grouping by ``agent_id`` cancels out the cross-agent race.
+
+    ``agent_id`` alone isn't quite enough: some event kinds (e.g.
+    ``context_part_contributed``) don't carry the emitting agent's own id and
+    fall back to a shared/default tag, so several real agents' segments can
+    land in the same nominal group with no ``agent_id`` left to order by.
+    Breaking remaining ties by full normalized content makes the sort — and
+    so the comparison in :func:`compare_events_files` — a multiset comparison
+    for those runs of same-tagged events, which is exactly what parity
+    testing needs (byte-identical content in some order), without discarding
+    the meaningful ``agent_id`` grouping everywhere else.
+    """
     normalized: list[dict[str, Any]] = []
     for line in lines:
         line = line.strip()
@@ -65,6 +92,9 @@ def normalize_events_lines(lines: Iterator[str]) -> list[dict[str, Any]]:
             continue
         if isinstance(event, dict):
             normalized.append(_normalize_event(event))
+    normalized.sort(
+        key=lambda e: (e.get("agent_id", ""), e.get("kind", ""), json.dumps(e, sort_keys=True))
+    )
     return normalized
 
 

@@ -1,0 +1,52 @@
+ There are still bugs in the observability or the plot :
+
+/Users/augjorda/Downloads/fba6176c9cf318667254.html  /Users/augjorda/Downloads/events\(1\).jsonl
+
+
+
+
+
+
+
+most elements show "no output", and even more strange: transitions show no output, states before and after have an output which is incorrect.
+
+
+
+there are "DOWN AND BACK ARROW" nodes in yellow that have no output -> no output, not sure what they represent. Is it a join ? we need to be able to do hyperlinks between a fork with all branches and the continuation of each branch, and the end of each branch, and the bracnhing point where execution of parent resumes.
+
+
+
+a lot of nodes inside the callee agent (not sre) contain the system prompt of the sre (moderator) which means the content of the state is not correct.
+
+
+
+we should make fork and branch more explicit. state before branching and state after forking should have same ID, ID is done by the DFS order.  branching should show all breanch end state being inptu to a new aggregated state. We might ened a processing node to represent aggregation.
+
+
+
+there are still spacing errors (cf second attachment)
+
+
+
+returned state from a call and from an agent shoudl be the same (cf third attachment)
+
+
+
+also all governance events seem to be aggregated in a few nodes in the agent lane, while it should apply to boundary events such as tool calls and tool returns. Also ahving them in text is not correct. We should have indicators at enter and exit points as previously described in the conversation.
+
+
+
+also Provancne in the hover is not understandable and should be removed. We should have it thorugh the so-called CPR visualization.
+
+
+
+Finally timestamps are not correctly reset on the timeline when we start a new branch.  That is why the yellow dotted line should traverse the whole graph vertically and represent nested branches. Everytime we roll back in time to start again time at the branching point.
+
+
+
+Make a comprehensive plan that i can give to a worker with a simpler model like GEMMA, so that we can understand the source of the problem (is it native obs or the plot). PLease consume as less tokens as possible. Avoid parsing files to avoid consuming tokens, subagent should do it. If you need interaction, ask subagent to do a report that i can submit to you, so that you can adapt the plan and we iterate.
+
+
+
+
+

@@ -55,10 +55,10 @@ class KernelIngressGovernancePlugin:
         self, intent: IngressIntentView, *, config: KernelConfig
     ) -> IngressGovDecision:
         if intent.response_kind != "ERROR":
-            action = ingress_governance_outcome(
+            action, reason = ingress_governance_outcome(
                 response_kind=intent.response_kind, profile=intent.profile
             )
-            return IngressGovDecision(action=action)
+            return IngressGovDecision(action=action, message=reason)
 
         plugin: ErrorRecoveryPlugin | None = config.error_recovery_plugin
         if plugin is not None:
@@ -80,10 +80,10 @@ class KernelIngressGovernancePlugin:
                 recoverable=decision.recoverable,
             )
 
-        action = ingress_governance_outcome(
+        action, reason = ingress_governance_outcome(
             response_kind=intent.response_kind, profile=intent.profile
         )
-        return IngressGovDecision(action=action)
+        return IngressGovDecision(action=action, message=reason)
 
 
 def evaluate_ingress_at_chokepoint(

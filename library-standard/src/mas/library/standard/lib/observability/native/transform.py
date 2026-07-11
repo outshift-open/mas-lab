@@ -138,8 +138,15 @@ def _sh_user_input(record: dict, ctx: TransformContext) -> list[dict]:
         "call_id": exec_id,
         "input": record.get("text", ""),
     }
-    if ctx.mas_call_id:
-        rec["parent_call_id"] = ctx.mas_call_id
+    # A delegated sub-agent turn carries the delegating tool call's own
+    # call_id explicitly (see RuntimeInstance.run_user_text); an explicit
+    # parent always wins over the top-level mas_call_id fallback, so the
+    # call tree can tell "this agent runs nested under that tool call" apart
+    # from "this agent is a session-level sibling" (see _build_call_tree /
+    # _is_delegation_tool, which depend on this distinction).
+    parent = record.get("parent_call_id") or ctx.mas_call_id
+    if parent:
+        rec["parent_call_id"] = str(parent)
     return [rec]
 
 

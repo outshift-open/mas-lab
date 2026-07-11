@@ -144,10 +144,21 @@ def observability_config_from_manifest(
     cli_events_file: str | None = None,
     cli_events_stdout: bool = False,
     cli_events_format: str | None = None,
+    flavour_spec: dict | None = None,
 ) -> ObservabilityConfig:
-    """Spec / deployment first; CLI flags override when explicitly set."""
+    """Spec / deployment first; CLI flags override when explicitly set.
+
+    ``flavour_spec`` (the active flavour's ``spec``, from
+    ``mas.ctl.session.flavour.resolve_flavour``) supplies the plugin-selection
+    fallback when the agent/MAS manifest doesn't declare its own
+    ``spec.observability`` — a flavour-level default (e.g. ``local`` →
+    ``[native]``) rather than an agent-authored override. An agent that
+    declares its own ``spec.observability`` still wins (per-agent scoping).
+    """
     spec = (manifest or {}).get("spec") or {}
     binding = parse_observability(spec.get("observability"))
+    if not binding.plugins and flavour_spec:
+        binding = parse_observability(flavour_spec.get("observability"))
     sink_ref = parse_sink_from_deployment(deployment)
 
     plugins = list(binding.plugins)

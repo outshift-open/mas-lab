@@ -61,4 +61,4 @@ mas-lab benchmark run path/to/experiment.yaml --progress
 | Lifecycle / governance | [lifecycle-control.lab](../../labs/lifecycle-control.lab/) |
 | Memory **overlays** | [extensions.lab](../../labs/extensions.lab/) |
 
-Record `experiment.metadata` for publication: [reproducibility.md](../../docs/reproducibility.md).
+Record `experiment.metadata` for publication: see [Experiments and analysis](../../docs/tutorials/03-experiments-and-analysis/README.md).

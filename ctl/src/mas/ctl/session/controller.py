@@ -120,7 +120,14 @@ class SessionController:
             )
             self.checkpoint_store.save(snap)
 
-    def run_turn(self, text: str, *, turn_id: str | None = None, auto_hitl: bool = True) -> TurnResult:
+    def run_turn(
+        self,
+        text: str,
+        *,
+        turn_id: str | None = None,
+        auto_hitl: bool = True,
+        parent_call_id: str = "",
+    ) -> TurnResult:
         from mas.runtime.schema.ingress import OperatorSteerReceived
 
         if text.strip().lower().startswith("/steer "):
@@ -137,9 +144,18 @@ class SessionController:
             self._present_trace(trace)
             self._emit_trace_batch(trace)
             return TurnResult(trace=trace, responses=list(trace.client_responses))
-        return self._run_user_turn(text, turn_id=turn_id, auto_hitl=auto_hitl)
+        return self._run_user_turn(
+            text, turn_id=turn_id, auto_hitl=auto_hitl, parent_call_id=parent_call_id
+        )
 
-    def _run_user_turn(self, text: str, *, turn_id: str | None = None, auto_hitl: bool = True) -> TurnResult:
+    def _run_user_turn(
+        self,
+        text: str,
+        *,
+        turn_id: str | None = None,
+        auto_hitl: bool = True,
+        parent_call_id: str = "",
+    ) -> TurnResult:
         from mas.ctl.manifest.mas_agent_merge import reset_engine_delegation
 
         reset_engine_delegation(getattr(self.instance.driver, "engine", None))
@@ -150,7 +166,7 @@ class SessionController:
         if callable(on_working):
             on_working()
         self._begin_trace_turn()
-        trace = self.instance.run_user_text(text, turn_id=tid)
+        trace = self.instance.run_user_text(text, turn_id=tid, parent_call_id=parent_call_id)
         end_working = getattr(self.display, "end_working", None)
         if callable(end_working):
             end_working()

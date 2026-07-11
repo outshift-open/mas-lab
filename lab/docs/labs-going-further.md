@@ -40,7 +40,7 @@ Examples: [lifecycle-control.lab/lib/steps/](../../labs/lifecycle-control.lab/li
 - **Overlay** — YAML patch in `overlays/`; referenced by **scenario** or CLI `-o`
 - **Dataset** — input items in `datasets/`
 
-[overlays.md](../../docs/overlays.md) · [manifests/experiment.md](../../docs/manifests/experiment.md).
+[overlays.md](../../docs/manifests/overlay.md) · [manifests/experiment.md](../../docs/manifests/experiment.md).
 
 ## Figures only via pipeline
 
@@ -67,4 +67,4 @@ Nested folders (e.g. `02-bit-exactness/`) are separate **labs** with their own
 ## Related
 
 - [pipeline.md](pipeline.md)
-- [reference/extensions.md](../../docs/reference/extensions.md)
+- [extensions.lab](../../labs/extensions.lab/)

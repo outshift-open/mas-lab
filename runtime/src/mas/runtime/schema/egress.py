@@ -27,6 +27,28 @@ class InvokeEngineIo(BaseModel):
     correlation_id: int = Field(ge=1)
     op: Literal["LLM_CALL", "TOOL_CALL", "MEMORY_OP", "TRANSPORT_MSG"]
     destructive: bool = False
+    # This op's own resolved call_id, attached by the driver (see
+    # driver.py's dispatch loop, right after run_contract_execute_obs)
+    # before the engine is invoked — the observability boundary has, by
+    # that point, already assigned this (correlation_id, op) pair its
+    # stable call_id. A delegation tool call reads this straight off the
+    # invocation it receives (TOOL_CALL's own `call_id`) and forwards it
+    # as the delegate's own `caller_call_id`, the same way a W3C
+    # traceparent threads a parent-span id across a call boundary — no
+    # closure capture, no timestamp heuristics, and it survives a future
+    # out-of-process transport (MCP/A2A/gRPC) since it's part of the
+    # wire-level contract, not in-process Python state.
+    call_id: str = ""
+    # This op's own resolved parent_call_id, attached alongside call_id by
+    # the same driver step (see ObservabilityOperator.parent_call_id_for) —
+    # the enclosing call this op's own contract_call/start was opened under,
+    # already correctly resolved at that point (including the sibling-batch
+    # case, see ObservabilityOperator.begin_sibling_batch). Putting it on
+    # the wire alongside call_id means any consumer — the engine, a
+    # delegate, or an external observability plugin — gets a self-describing
+    # parent-span id without needing to reconstruct one from a call-frame
+    # stack of its own.
+    parent_call_id: str = ""
 
 
 class EmitClientResponse(BaseModel):

@@ -63,7 +63,7 @@ If you are new to MAS-Lab, begin with
 install the stack and run your first commands. The [Web UI](ui/index.md) lets you
 browse manifests and inspect runs in the browser. For context on what shipped in
 this release, read the
-[v0.1 release post](blog/2026/06/17/v0-1-release/). For the research motivation,
+[v0.1 release post](blog/posts/2026-06-17-v0-1-release/). For the research motivation,
 formal model, and reproducible Section 5 labs, see the
 [MAS-Lab paper](paper/index.md).
 
