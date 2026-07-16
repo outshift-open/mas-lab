@@ -269,6 +269,7 @@ export function StepNode({ data, selected }: NodeProps<StepNodeType>) {
       <div
         className="pipeline-step-node__header"
         style={{ backgroundColor: categoryColor }}
+        title={stepDef?.description}
       >
         <span className="pipeline-step-node__type-label">
           {stepDef?.label ?? data.type}

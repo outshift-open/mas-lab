@@ -77,7 +77,8 @@ const Experiments = () => {
       const expLibrary = exp?.library ?? library;
       try {
         const detail = await fetchExperimentContent(expLibrary, name);
-        const parsed = parse(detail.content) as Experiment;
+        const raw = parse(detail.content) as Record<string, unknown>;
+        const parsed = (raw?.experiment ?? raw) as Experiment;
         if (parsed) {
           if (!parsed.name) parsed.name = name;
           setEditingExperiment(parsed);
@@ -104,7 +105,7 @@ const Experiments = () => {
 
   const handleSave = useCallback(
     async (experiment: Experiment) => {
-      const yamlContent = stringify(experiment, { lineWidth: 120 });
+      const yamlContent = stringify({ experiment }, { lineWidth: 120 });
       try {
         if (editingExperiment) {
           await updateExperimentApi(library, editingExperiment.name, {
@@ -117,15 +118,14 @@ const Experiments = () => {
             content: yamlContent,
           });
         }
-        queryClient.invalidateQueries({ queryKey: ["experiments"] });
-        setModalOpen(false);
-        setEditingExperiment(null);
+        queryClient.resetQueries({ queryKey: ["experiments"] });
       } catch (err) {
         setAlertMessage({
           message:
             err instanceof Error ? err.message : "Failed to save experiment.",
           severity: "error",
         });
+        throw err;
       }
     },
     [editingExperiment, library, queryClient],
@@ -139,11 +139,13 @@ const Experiments = () => {
   const handleDelete = useCallback(
     async (names: string[]) => {
       try {
-        for (const name of names) {
-          const exp = resolveExperiment(name);
-          await deleteExperimentApi(exp?.library ?? library, name);
-        }
-        queryClient.invalidateQueries({ queryKey: ["experiments"] });
+        await Promise.all(
+          names.map((name) => {
+            const exp = resolveExperiment(name);
+            return deleteExperimentApi(exp?.library ?? library, name);
+          }),
+        );
+        queryClient.resetQueries({ queryKey: ["experiments"] });
       } catch (err) {
         setAlertMessage({
           message:
@@ -152,6 +154,7 @@ const Experiments = () => {
               : "Failed to delete experiment(s).",
           severity: "error",
         });
+        throw err;
       }
     },
     [library, queryClient, resolveExperiment],
@@ -225,8 +228,9 @@ const Experiments = () => {
 
           let experimentName: string | undefined;
           try {
-            const parsed = parse(experimentYaml);
-            experimentName = parsed?.name;
+            const parsed = parse(experimentYaml) as Record<string, unknown>;
+            const inner = (parsed?.experiment ?? parsed) as Record<string, unknown> | undefined;
+            experimentName = inner?.name as string | undefined;
           } catch {
             /* ignore parse errors */
           }

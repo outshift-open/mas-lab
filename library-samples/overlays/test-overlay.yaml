@@ -1,0 +1,32 @@
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: test-overlay
+spec:
+  target:
+    kind: MAS
+  patch:
+    agents:
+      moderator:
+        design_pattern:
+          type: react
+          config:
+            max_steps: 10
+        tools:
+          - ref: ../../../tools/calc.tool.yaml
+x-namespace: global
+x-canvas-positions:
+  node_55ed0122:
+    x: 1008
+    y: 176
+  node_20ab1954:
+    x: 464
+    y: 160
+  node_262c7ed1:
+    x: 496
+    y: 416
+x-canvas-node-ids:
+  moderator:
+    agent: node_55ed0122
+    designPattern: node_20ab1954
+    tool: node_262c7ed1

@@ -1,0 +1,14 @@
+# Project workspace config — no secrets in this file.
+# Schema: docs/schemas/config.schema.yaml
+
+mas_ctl:
+  flavour: local
+  env: .env
+
+mas_lab:
+  flavour: local
+  benchmark_flavour: local
+
+# Corporate LLM proxy (requires OPENAI_API_KEY + LLM_PROXY_API_BASE in .env)
+infra_refs:
+  - standard:llm-proxy

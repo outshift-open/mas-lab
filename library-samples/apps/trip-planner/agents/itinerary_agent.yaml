@@ -1,25 +1,25 @@
-#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
-#  SPDX-License-Identifier: Apache-2.0
 apiVersion: mas/v1
 kind: Agent
 metadata:
-  x-node-id: node_e6eac2eb
+  x-node-id: node_c9b85594
   name: itinerary_agent
 spec:
-  models:
-  - model: azure/gpt-4o
-    temperature: 0.2
-    max_tokens: 1500
-  tools:
-  - ref: ../tools/query_graph_database.tool.yaml
-  - ref: ../../../tools/get_fares.tool.yaml
   description: Route planner and itinerary specialist.
   context:
-    role: "You are an itinerary specialist. You have access to the query_graph_database\n\
-      \      tool which queries a graph of cities and returns feasible paths with\
-      \ their\n      travel times.\n\n      Use this tool to find feasible routes\
-      \ and their corresponding average travel\n      times. Present your findings\
-      \ clearly."
+    role: >-
+      You are an itinerary specialist. You have access to the
+      query_graph_database\n\
+            \      tool which queries a graph of cities and returns feasible paths with\
+            \ their\n      travel times.\n\n      Use this tool to find feasible routes\
+            \ and their corresponding average travel\n      times. Present your findings\
+            \ clearly.
+  models:
+    - model: azure/gpt-4o
+      temperature: 0.2
+      max_tokens: 1500
+  tools:
+    - ref: ../../../tools/query_graph_database.tool.yaml
+    - ref: ../../../tools/get_fares.tool.yaml
 x-canvas-node-ids:
-  model: node_d01ccd30
-  tools: node_19931790
+  model: node_8ffb0998
+  tools: node_2b577041

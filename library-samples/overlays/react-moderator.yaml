@@ -1,5 +1,3 @@
-#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
-#  SPDX-License-Identifier: Apache-2.0
 apiVersion: mas/v1
 kind: Overlay
 metadata:
@@ -14,15 +12,15 @@ spec:
           type: react
           config:
             max_steps: 10
-x-namespace: trip-planner
+x-namespace: global
 x-canvas-positions:
-  node_ce9e236f:
-    x: 816
-    y: 112
-  node_03899bdb:
-    x: 368
-    y: 128
+  node_0ae0343f:
+    x: 912
+    y: 96
+  node_3eedcf04:
+    x: 496
+    y: 96
 x-canvas-node-ids:
   moderator:
-    agent: node_ce9e236f
-    designPattern: node_03899bdb
+    agent: node_0ae0343f
+    designPattern: node_3eedcf04

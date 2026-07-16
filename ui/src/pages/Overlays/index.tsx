@@ -56,11 +56,7 @@ const Overlays = () => {
   const [rowSelection, setRowSelection] = useState<MRT_RowSelectionState>({});
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pendingDeleteNames, setPendingDeleteNames] = useState<string[]>([]);
-
-  const invalidate = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: ["overlays", library] }),
-    [queryClient, library],
-  );
+  const [deleting, setDeleting] = useState(false);
 
   const handleRequestDelete = useCallback((names: string[]) => {
     setPendingDeleteNames(names);
@@ -68,14 +64,19 @@ const Overlays = () => {
   }, []);
 
   const handleConfirmDelete = useCallback(async () => {
-    for (const name of pendingDeleteNames) {
-      await deleteOverlayApi(library, name);
+    setDeleting(true);
+    try {
+      await Promise.all(
+        pendingDeleteNames.map((name) => deleteOverlayApi(library, name)),
+      );
+      setDeleteDialogOpen(false);
+      setPendingDeleteNames([]);
+      setRowSelection({});
+      queryClient.resetQueries({ queryKey: ["overlays", library] });
+    } finally {
+      setDeleting(false);
     }
-    setDeleteDialogOpen(false);
-    setPendingDeleteNames([]);
-    setRowSelection({});
-    invalidate();
-  }, [pendingDeleteNames, library, invalidate]);
+  }, [pendingDeleteNames, library, queryClient]);
 
   const handleCancelDelete = useCallback(() => {
     setDeleteDialogOpen(false);
@@ -95,7 +96,9 @@ const Overlays = () => {
               "&:hover": { textDecoration: "underline" },
             }}
             onClick={() =>
-              navigate(`/${library}/overlays/${encodeURIComponent(row.original.name)}`)
+              navigate(
+                `/${library}/overlays/${encodeURIComponent(row.original.name)}`,
+              )
             }
           >
             {row.original.name}
@@ -227,9 +230,7 @@ const Overlays = () => {
             >
               Overlays
             </Typography>
-            <Button
-              onClick={() => navigate(`/${library}/overlays/new`)}
-            >
+            <Button onClick={() => navigate(`/${library}/overlays/new`)}>
               New Overlay
             </Button>
           </Stack>
@@ -250,13 +251,14 @@ const Overlays = () => {
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCancelDelete}>Cancel</Button>
+          <Button onClick={handleCancelDelete} disabled={deleting}>Cancel</Button>
           <Button
             variant="primary"
             color="negative"
             onClick={handleConfirmDelete}
+            disabled={deleting}
           >
-            Delete
+            {deleting ? "Deleting..." : "Delete"}
           </Button>
         </DialogActions>
       </Dialog>

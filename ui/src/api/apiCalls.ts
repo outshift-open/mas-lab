@@ -506,7 +506,7 @@ export async function runBenchmark(
         experiment_yaml: request.experiment_yaml,
         progress: request.progress ?? true,
         ...(request.n_runs != null && { max_runs: request.n_runs }),
-        timeout: request.timeout ?? 600,
+        timeout: request.timeout ?? 1800,
       }),
     },
   );
@@ -1178,6 +1178,7 @@ export function useMceMetrics() {
 
 export interface DatasetSummary {
   name: string;
+  path: string;
   description: string;
 }
 

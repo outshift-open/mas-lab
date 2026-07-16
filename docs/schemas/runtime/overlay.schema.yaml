@@ -16,6 +16,9 @@ required:
   - metadata
   - spec
 additionalProperties: false
+patternProperties:
+  "^x-":
+    description: "Extension fields used by tooling (x-namespace, x-canvas-*, etc.)"
 properties:
   apiVersion:
     type: string

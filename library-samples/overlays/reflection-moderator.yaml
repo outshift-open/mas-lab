@@ -1,9 +1,7 @@
-#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
-#  SPDX-License-Identifier: Apache-2.0
 apiVersion: mas/v1
 kind: Overlay
 metadata:
-  name: react
+  name: reflection-moderator
 spec:
   target:
     kind: MAS
@@ -14,14 +12,15 @@ spec:
           type: react
           config:
             max_steps: 10
+x-namespace: global
 x-canvas-positions:
-  node_48c347be:
-    x: 848
+  node_3ef1a08a:
+    x: 704
     y: 128
-  node_65dd967c:
-    x: 432
-    y: 48
+  node_55808455:
+    x: 208
+    y: 128
 x-canvas-node-ids:
   moderator:
-    agent: node_48c347be
-    designPattern: node_65dd967c
+    agent: node_3ef1a08a
+    designPattern: node_55808455

@@ -13,6 +13,7 @@ import { useCallback, useMemo, useState } from "react";
 import {
   useExperimentDetail,
   fetchExperimentFile,
+  API_BASE_URL,
   type FileTreeEntry,
 } from "@/api/apiCalls";
 import {
@@ -145,6 +146,8 @@ const Experiment = () => {
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [fileLoading, setFileLoading] = useState(false);
 
+  const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
+
   const isHtmlFile = useMemo(
     () => selectedFile?.toLowerCase().endsWith(".html") ?? false,
     [selectedFile],
@@ -155,11 +158,25 @@ const Experiment = () => {
     [selectedFile],
   );
 
+  const isImageFile = useMemo(() => {
+    if (!selectedFile) return false;
+    const ext = selectedFile.toLowerCase().slice(selectedFile.lastIndexOf("."));
+    return IMAGE_EXTENSIONS.has(ext);
+  }, [selectedFile]);
+
   const handleFileSelect = useCallback(
     async (path: string) => {
       setSelectedFile(path);
       setFileContent(null);
       setFileLoading(true);
+
+      const ext = path.toLowerCase().slice(path.lastIndexOf("."));
+      if (IMAGE_EXTENSIONS.has(ext)) {
+        setFileContent("__image__");
+        setFileLoading(false);
+        return;
+      }
+
       try {
         const result = await fetchExperimentFile(id, path);
         setFileContent(result.content);
@@ -312,6 +329,28 @@ const Experiment = () => {
                         backgroundColor: "#fff",
                       }}
                     />
+                  ) : isImageFile ? (
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        height: "calc(100% - 30px)",
+                        backgroundColor: "#fff",
+                        borderRadius: 1,
+                        p: 2,
+                      }}
+                    >
+                      <img
+                        src={`${API_BASE_URL}/api/experiments/${encodeURIComponent(id)}/file?path=${encodeURIComponent(selectedFile)}`}
+                        alt={selectedFile}
+                        style={{
+                          maxWidth: "100%",
+                          maxHeight: "100%",
+                          objectFit: "contain",
+                        }}
+                      />
+                    </Box>
                   ) : (
                     <CodeBlock
                       code={fileContent}

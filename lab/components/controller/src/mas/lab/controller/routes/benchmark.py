@@ -193,11 +193,14 @@ async def get_experiment_file(experiment_name: str, path: str):
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_name}' not found")
 
     file_path = (exp_dir / path).resolve()
-    # Allow paths inside the experiment dir or the trace/data cache (symlinked runs)
+    # Allow paths inside the experiment dir or the trace/data cache (symlinked runs).
+    # Trace symlinks may point to the XDG cache dir (~/.cache/mas/) which is
+    # separate from MAS_LAB_ROOT (~/.local/share/mas/).
+    from mas.runtime.xdg import mas_cache_root
     allowed_roots = [
         str(exp_dir.resolve()),
         str((mas_lab_root / "data").resolve()),
-        str((mas_lab_root / "cache").resolve()),
+        str(mas_cache_root().resolve()),
     ]
     if not any(str(file_path).startswith(root) for root in allowed_roots):
         raise HTTPException(status_code=403, detail="Path traversal not allowed")

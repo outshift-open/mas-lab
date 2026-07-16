@@ -251,12 +251,15 @@ def install_openai_llm_service(
 
 
 def _resolve_infra() -> tuple[str, str, str]:
-    """Resolve LLM proxy config from ``config.yaml`` InfraManifest."""
-    _FALLBACK = ("", "OPENAI_API_KEY", "vertex_ai/gemini-3-pro-preview")
+    """Resolve LLM proxy config from workspace ``config.yaml`` infra refs.
+
+    Returns ``(api_base, api_key_env, model)``.
+    """
+    _FALLBACK = ("", "OPENAI_API_KEY", "gpt-4o")
     try:
         from mas.lab.workspace import WorkspaceConfig, workspace_get
-        from mas.ctl.infra.models import InfraManifest
-        from mas.ctl.infra.resolve import resolve_infra_refs as resolve_infra_ref_to_manifest
+        from mas.ctl.infra.resolve import resolve_infra_refs
+        from mas.runtime.agent_defaults import resolve_default_model
     except ImportError:
         return _FALLBACK
 
@@ -264,23 +267,21 @@ def _resolve_infra() -> tuple[str, str, str]:
     if not ws.found:
         return _FALLBACK
 
-    infra_ref = workspace_get(ws, "mas_lab", "infra") or workspace_get(ws, "mas_controller", "infra")
-    if not infra_ref:
+    refs = ws.effective_infra_refs
+    if not refs:
         return _FALLBACK
 
     try:
-        fake_flavour = ws._path / "_eval.yaml"
-        infra = resolve_infra_ref_to_manifest(infra_ref, fake_flavour)
+        resolved = resolve_infra_refs(refs, workspace=ws)
     except Exception as exc:
-        logger.warning("Could not resolve infra manifest (%s): %s", infra_ref, exc)
+        logger.warning("Could not resolve infra refs %s: %s", refs, exc)
         return _FALLBACK
 
-    from mas.runtime.agent_defaults import resolve_default_model
-
+    proxy = resolved.llm_proxy
     return (
-        infra.proxy.api_base,
-        infra.proxy.api_key_env or "OPENAI_API_KEY",
-        resolve_default_model(ws),
+        proxy.get("api_base", ""),
+        proxy.get("api_key_env") or "OPENAI_API_KEY",
+        resolve_default_model(ws) or proxy.get("default_model") or "gpt-4o",
     )
 
 
