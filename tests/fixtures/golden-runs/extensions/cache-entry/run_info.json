@@ -1,10 +1,10 @@
 {
-  "run_hash": "536e673e523b3432b947",
+  "run_hash": "14575877ad007a6f1919",
   "experiment": "golden-extensions",
   "scenario": "golden",
   "item_id": "1",
   "run_idx": 0,
-  "referenced_at": "2026-07-17T12:57:05.221188Z",
+  "referenced_at": "2026-07-21T20:20:36.427797Z",
   "mas": {
     "app": "trip-planner",
     "mas_ref": "library-samples/apps/trip-planner/mas.yaml",
