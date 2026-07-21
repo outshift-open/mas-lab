@@ -23,6 +23,7 @@ from mas.ctl.executor.mas_session import (
     prepare_delegation_entry_session,
     resolve_entry_pattern_plugin_id,
     run_sequential_workflow_queries,
+    wire_peer_delegation,
 )
 from mas.ctl.infra.resolve import resolve_infra_refs
 from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
@@ -51,6 +52,7 @@ class _ControllerTarget:
     topology: str | None = None
     obs_recorder: Any = None
     obs_pipeline: Any = None
+    scoped_recorders: Any = ()
 
 
 def _resolve_ref(ref: str | Path, anchor: Path) -> Path:
@@ -325,6 +327,7 @@ class MasBenchRunner:
             topology=resolved.topology,
             obs_recorder=resolved.obs_recorder,
             obs_pipeline=resolved.obs_pipeline,
+            scoped_recorders=resolved.scoped_recorders,
             flavour=flavour,
         )
         return self._with_bench_metadata(result, run_seed=run_seed)
@@ -461,11 +464,6 @@ class MasBenchRunner:
                 mas_config=compose.mas_config,
                 flavour=flavour,
             )
-            from mas.ctl.session.observability import create_shared_observability
-
-            shared_pipeline, obs_setup_fn = create_shared_observability(
-                obs_cfg, base_dir=output_dir
-            )
             try:
                 prepared = prepare_delegation_entry_session(
                     materialized,
@@ -475,9 +473,18 @@ class MasBenchRunner:
                     display=None,
                     verbose=0,
                 )
+                # Wire delegation onto every OTHER agent that declares its
+                # own peers too (not just the entry) — see
+                # wire_peer_delegation's docstring: without this, an agent
+                # that is itself a delegate can never further delegate.
+                wire_peer_delegation(
+                    materialized,
+                    entry_id=entry,
+                    display=None,
+                    verbose=0,
+                    already_wired={entry},
+                )
             except KeyError:
-                if shared_pipeline is not None:
-                    shared_pipeline.close()
                 raise
         except KeyError as exc:
             logger.error("Run failed: %s", exc, exc_info=True)
@@ -487,7 +494,21 @@ class MasBenchRunner:
         if checkpoint_path is not None and checkpoint_path.is_file() and store is not None:
             prepared.instance.load_checkpoint(store.load(checkpoint_path))
 
-        obs_rec = obs_setup_fn(prepared.instance, entry) if obs_setup_fn is not None else None
+        # Wire every materialized agent (moderator + specialists), not just the
+        # entry instance, onto one shared events sink — otherwise delegated
+        # sub-agent turns (make_workflow_send) run with no observability
+        # attached at all and never reach events.jsonl (see run_mas.py's
+        # setup_run_observability, which this mirrors).
+        from mas.ctl.adapters.obs.session import SessionObservabilityRecorder
+        from mas.ctl.session.observability import setup_run_observability
+
+        instances = dict(materialized.materialized.instances)
+        shared_pipeline, scoped_recorders = setup_run_observability(
+            instances, obs_cfg, base_dir=output_dir, entry_agent_id=entry,
+        )
+        obs_rec = None
+        if shared_pipeline is not None:
+            obs_rec = SessionObservabilityRecorder(plugin_set=shared_pipeline, owns_plugin_set=False)
 
         return _ControllerTarget(
             prepared.instance,
@@ -497,6 +518,7 @@ class MasBenchRunner:
             topology="delegation",
             obs_recorder=obs_rec,
             obs_pipeline=shared_pipeline,
+            scoped_recorders=scoped_recorders,
         )
 
     def _standalone_controller_target(
@@ -550,7 +572,7 @@ class MasBenchRunner:
         memory_seeds: list[MemorySeed],
         flavour: Any = None,
     ) -> RunResult:
-        from mas.ctl.session.observability import create_shared_observability
+        from mas.ctl.session.observability import setup_run_observability
         from mas.ctl.ui.stdout import StdoutConversationDisplay
 
         if memory_seeds:
@@ -564,7 +586,11 @@ class MasBenchRunner:
             mas_config=materialized.compose.mas_config,
             flavour=flavour,
         )
-        pipeline, obs_setup_fn = create_shared_observability(obs_cfg, base_dir=output_dir)
+        entry = entry_agent_id(materialized.compose.mas_config)
+        instances = dict(materialized.materialized.instances)
+        pipeline, scoped_recorders = setup_run_observability(
+            instances, obs_cfg, base_dir=output_dir, entry_agent_id=entry,
+        )
 
         display = StdoutConversationDisplay(show_labels=False, verbose=0)
         try:
@@ -582,6 +608,8 @@ class MasBenchRunner:
             logger.error("Run failed: %s", exc, exc_info=True)
             return RunResult(content="", status="error", error=str(exc))
         finally:
+            for recorder in scoped_recorders:
+                recorder.close()
             if pipeline is not None:
                 pipeline.close()
             ensure_live_otel_span_files(events_path, obs_cfg)
@@ -621,6 +649,7 @@ class MasBenchRunner:
         topology: str | None = None,
         obs_recorder: Any = None,
         obs_pipeline: Any = None,
+        scoped_recorders: Any = (),
         flavour: Any = None,
     ) -> RunResult:
         from mas.ctl.session.observability import setup_observability
@@ -652,6 +681,8 @@ class MasBenchRunner:
             results = [controller.run_turn(q) for q in queries]
         finally:
             close_observability(controller)
+            for recorder in scoped_recorders:
+                recorder.close()
             if obs_pipeline is not None:
                 obs_pipeline.close()
             ensure_live_otel_span_files(events_path, obs_cfg)

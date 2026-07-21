@@ -88,6 +88,82 @@ def setup_shared_obs(
     return shared_set
 
 
+def partition_instances_by_observability(
+    instances: "dict[str, RuntimeInstance]",
+) -> "tuple[dict[str, RuntimeInstance], dict[str, RuntimeInstance]]":
+    """Split materialized *instances* into the shared-set group and self-scoped agents.
+
+    Materialization (``RuntimeInstance.from_spec``) already builds a private
+    plugin set from an agent's own non-empty ``spec.observability`` — see
+    ``mas.runtime.spec.parser.parse_agent_spec``, which returns a binding only
+    when that agent's manifest declares a non-empty plugin list. An instance
+    that already carries one (``instance.obs_plugin_set is not None``) must be
+    left alone: folding it into the shared set via :func:`setup_shared_obs`
+    would attach a *second* plugin set to the same operator (subscribing is
+    additive, not a replacement — see :meth:`ObsPluginSet.subscribe_to`), so
+    its events would land in both its own sink and the shared events.jsonl
+    instead of being cleanly scoped to just its own. Instances with no
+    self-declared observability (the common case) join the shared set as before.
+    """
+    shared: "dict[str, RuntimeInstance]" = {}
+    scoped: "dict[str, RuntimeInstance]" = {}
+    for agent_id, instance in instances.items():
+        if getattr(instance, "obs_plugin_set", None) is not None:
+            scoped[agent_id] = instance
+        else:
+            shared[agent_id] = instance
+    return shared, scoped
+
+
+def finalize_scoped_observability(
+    scoped: "dict[str, RuntimeInstance]",
+) -> list[SessionObservabilityRecorder]:
+    """Begin the run bracket on each self-scoped instance's own plugin set.
+
+    Counterpart to :func:`partition_instances_by_observability`: those instances
+    were already built with their own plugin set attached at materialization
+    time but never had ``begin_run`` called (materialization only subscribes;
+    ctl decides when a run starts). Returns one recorder per instance so
+    callers close (and thereby flush) each private sink at run end, the same
+    way :func:`setup_shared_obs`'s caller closes the shared one.
+    """
+    recorders: list[SessionObservabilityRecorder] = []
+    for instance in scoped.values():
+        plugin_set = instance.obs_plugin_set
+        if plugin_set is None:
+            continue
+        op = instance.driver.observability
+        if op is not None:
+            plugin_set.begin_run(op)
+        recorders.append(SessionObservabilityRecorder(plugin_set=plugin_set))
+    return recorders
+
+
+def setup_run_observability(
+    instances: "dict[str, RuntimeInstance]",
+    obs_config: ObservabilityConfig | None,
+    *,
+    base_dir: Path,
+    entry_agent_id: str,
+) -> "tuple[ObsPluginSet | None, list[SessionObservabilityRecorder]]":
+    """Partition *instances*, wire the shared set, and begin every self-scoped
+    instance's own set — the full per-run observability setup shared by
+    single-agent and sequential-workflow execution (see ``run_mas.py``).
+
+    Returns ``(shared_plugin_set, scoped_recorders)``; both are empty/None
+    when *obs_config* is ``None`` (observability disabled for this run).
+    """
+    if obs_config is None:
+        return None, []
+    shared_instances, scoped_instances = partition_instances_by_observability(instances)
+    plugin_set = None
+    if shared_instances:
+        plugin_set = setup_shared_obs(
+            shared_instances, obs_config, base_dir=base_dir, entry_agent_id=entry_agent_id
+        )
+    return plugin_set, finalize_scoped_observability(scoped_instances)
+
+
 # ---------------------------------------------------------------------------
 # Backward compatibility — legacy callers still used by runner.py and tests
 # ---------------------------------------------------------------------------

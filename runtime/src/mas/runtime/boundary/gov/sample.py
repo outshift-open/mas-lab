@@ -11,6 +11,7 @@ from mas.runtime.boundary.gov.ingress_plugin import (
     IngressIntentView,
     KernelIngressGovernancePlugin,
 )
+from mas.runtime.boundary.gov.plugin import EgressDecision
 from mas.runtime.boundary.gov.policy import EgressIntentView, resolve_egress_governance
 from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.kernel.coupling import GovDecision
@@ -46,21 +47,30 @@ class SampleGovernancePlugin:
     def config(self) -> SampleGovernanceConfig:
         return self._cfg
 
-    def evaluate_egress(self, intent: EgressIntentView, *, config: KernelConfig) -> GovDecision:
+    def evaluate_egress(self, intent: EgressIntentView, *, config: KernelConfig) -> EgressDecision:
         if self._cfg.hitl_on_tool and intent.op == "TOOL_CALL":
-            return GovDecision.HITL
-        action = resolve_egress_governance(
+            return (
+                GovDecision.HITL,
+                "sample_governance-hitl-on-tool",
+                "the sample_governance plugin's hitl_on_tool option requires human review for every tool call",
+            )
+        action, policy_name, reason = resolve_egress_governance(
             intent,
             profile=config.gov_policy_profile,
             block_destructive=self._cfg.gov_block_destructive or config.gov_block_destructive,
             policy_engine=config.policy_engine,
-            hitl_gov_override=False,
         )
-        return GovDecision(action.value)
+        return GovDecision(action.value), policy_name, reason
 
     def evaluate_ingress(
         self, intent: IngressIntentView, *, config: KernelConfig
     ) -> IngressGovDecision:
         if self._cfg.hitl_on_tool_result and intent.response_kind == "TOOL_RESULT":
-            return IngressGovDecision(action=GovernanceAction.HITL)
+            return IngressGovDecision(
+                action=GovernanceAction.HITL,
+                message=(
+                    "the sample_governance plugin's hitl_on_tool_result option "
+                    "requires human review of every tool result"
+                ),
+            )
         return KernelIngressGovernancePlugin().evaluate_ingress(intent, config=config)

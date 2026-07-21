@@ -149,6 +149,13 @@ class LiveLlmEngine:
                     user=user,
                     arguments=args,
                     tool_provider=self.tool_provider,
+                    correlation_id=io.correlation_id,
+                    # This TOOL_CALL's own resolved call_id (attached by the
+                    # driver — see InvokeEngineIo.call_id) — forwarded as the
+                    # caller identity for a delegate_to_* call, so the
+                    # delegate's own execution_start.parent_call_id is real,
+                    # not reconstructed from timestamps.
+                    caller_call_id=io.call_id,
                 ),
             )
         if io.op == "MEMORY_OP":

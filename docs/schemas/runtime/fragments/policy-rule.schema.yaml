@@ -20,9 +20,9 @@ properties:
   trigger:
     type: object
     additionalProperties: false
-    required: [on]
+    required: ["on"]
     properties:
-      on:
+      "on":
         type: string
         enum:
           - tool_input
@@ -45,7 +45,13 @@ properties:
         type: string
   params:
     type: object
-    additionalProperties: false
+    additionalProperties: true
+    description: >
+      Free-form action parameters. ``message`` (or ``reason`` as a fallback)
+      is special-cased: when set, it becomes the reported reason on the
+      governance_decision event and the trajectory plot's badge/lane tooltip
+      for this policy, instead of an auto-generated
+      "policy '<name>' triggered <action>" string.
   recovery:
     type: object
-    additionalProperties: false
+    additionalProperties: true

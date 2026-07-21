@@ -62,6 +62,15 @@ TYPE_COLOR: dict[str, str] = {
     "ThinkingCall":   "#7c3aed",   # violet
     "ThinkingEmit":   "#4c1d95",   # indigo-900 — LLM output emission phase
     "ContextState":   "#0d9488",   # teal-600 — WM / turn-history mutations
+    # Synthetic Agents-lane connector bridging a fork's 2nd..Nth branch back
+    # to its own bracketing StateNode (see dag.py's _bridge_to_state) — no
+    # real call backs it, so it's coloured to match the reset separator line
+    # it always coincides with rather than any real call-type colour.
+    "BranchLink":     "#f59e0b",   # amber-500 — matches the reset separator
+    # Governance lane (Phase 3): coloured by the worst decision it carries.
+    "GovernanceBlock":   "#ef4444",  # red-500 — BLOCK/TERMINATE/BLACKLIST
+    "GovernanceCaution": "#f59e0b",  # amber-500 — HITL/RETRY/SKIP/MODIFY
+    "GovernanceAllow":   "#64748b",  # slate-500 — ALLOW/LOG
 }
 
 TYPE_LABEL: dict[str, str] = {
@@ -78,11 +87,22 @@ TYPE_LABEL: dict[str, str] = {
     "ThinkingCall":   "Think",
     "ThinkingEmit":   "Emit",
     "ContextState":   "State",
+    "BranchLink":     "Branch",
+    "GovernanceBlock":   "Gov",
+    "GovernanceCaution": "Gov",
+    "GovernanceAllow":   "Gov",
 }
 
 # Tolerance used exclusively for tree-traversal containment comparisons
 # (NOT for bucketing or merging timestamps).
 _TS_TOL: float = 0.05
+
+# Per-item time offset used to stagger coincident point-in-time
+# ProcessingCall records so each occupies its own visual slot in the Calls
+# lane (see annotations.py's _stagger_coinc_processing_calls). Shared with
+# dag.py so it can precisely re-derive how far staggering may have pushed
+# the session's true final timestamp past the pre-stagger t_max.
+_STAGGER_DUR: float = 0.001
 
 # Icons for instant (≈0-duration) call types — rendered on top of state boxes.
 _INSTANT_ICON: dict[str, str] = {
@@ -90,6 +110,9 @@ _INSTANT_ICON: dict[str, str] = {
     "MITMCall":       "⚠",
     "ToolCall":       "⚡",
     "ContextState":   "📝",
+    "BranchLink":     "↳",
+    "GovernanceBlock":   "⛔",
+    "GovernanceCaution": "⚑",
 }
 _INSTANT_ICON_DEFAULT = "⊕"
 

@@ -66,20 +66,20 @@ def get_trace_cache_dir(explicit: Optional[Path] = None) -> Path:
 def extract_flavour_info(flavour: Optional[Any]) -> dict:
     """Return all deterministic (non-secret) FlavourManifest fields for cache keying.
 
-    Captured sections and why each matters for the run outcome:
-      llm           — model, api_base, temperature, max_tokens, provider
-                      (temperature/max_tokens directly shape LLM output)
-      skills        — embed_model, embed_api_base, backend
-                      (different embed model → different RAG retrieval)
-      tools         — remote_tools_enabled, allowed
-                      (tool availability changes what agents can do)
-      mocking       — enabled  (false ↔ real LLM, true ↔ mock → completely different output)
-      providers     — multi-provider declarations (model + endpoints, excluding keys)
-      plugins       — declarative plugin list from the flavour
-      tool_providers— tool-binding configuration
-      agent_comm    — protocol, mode, emulation
-      prefer_local  — provider-selection hint (affects which model is used)
-      config        — free-form deployment config (non-secret URLs, etc.)
+    Generic scrub — whatever fields a FlavourManifest happens to carry get
+    captured (minus the exclusions below), so this doesn't need updating when
+    the Flavour schema grows or shrinks a section.
+
+    Post-FT4 (docs/design/flavour-boundary.md), a Flavour is deployment
+    posture only: agent_comm (protocol, mode, emulation), tools
+    (remote_tools_enabled, allowed), observability/control (plugin
+    selection), config (free-form deployment config). llm, skills, mocking,
+    and prefer_local no longer live on the Flavour — they're on the agent
+    spec / execution overlay instead, and already flow into the cache key via
+    ``manifest`` (the materialized per-agent config passed into
+    :func:`compute_run_hash`), so removing them from the flavour side doesn't
+    lose any determinism: it removes a redundant second copy of the same
+    signal, not the signal itself.
 
     Deliberately excluded:
       api_key_env, embed_api_key_env  — secrets
@@ -316,8 +316,14 @@ def compute_run_hash(
     Cache key semantics — effective model:
       The cache key injects the *effective* model name so the hash always
       reflects what is actually sent to the LLM.  Resolution order:
-        1. flavour_info["llm"]["model"] (FlavourManifest.llm.model)
-        2. config["agents"][0]["llm_model"] (agent manifest fallback)
+        1. flavour_info["llm"]["model"] — legacy/defensive only: post-FT4
+           (docs/design/flavour-boundary.md) a Flavour no longer carries
+           spec.llm at all, so this branch won't fire for any
+           schema-validated flavour going forward; kept so a stale/custom
+           flavour file that still has it degrades gracefully instead of
+           erroring.
+        2. config["agents"][0]["llm_model"] (agent manifest — the actual
+           source of truth now)
       This mirrors ctl compose → RuntimeBuilder model resolution.
     """
     import hashlib

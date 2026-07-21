@@ -36,5 +36,5 @@ mas-lab benchmark run labs/lifecycle-control.lab/02-bit-exactness/experiment.yam
 
 ## Related
 
-- [docs/reproducibility.md](../../docs/reproducibility.md)
+- [Experiments and analysis](../../docs/tutorials/03-experiments-and-analysis/README.md) — caching and reproducibility
 - [benchmark-state-architecture.md](benchmark-state-architecture.md)

@@ -45,6 +45,32 @@ Run standalone:
 mas-lab run processor trajectory_plotter_native --help
 ```
 
+## Multilevel trajectory plot
+
+`multilevel_trajectory_plotter` renders Session → MAS → Agent → Call →
+Thinking swim lanes from an `events.jsonl` trace, plus a Governance lane
+(decisions, HITL exchanges, blocked-action ghost markers, retry chains) that
+the HTML viewer's "Gov" button toggles on — hidden by default, present only
+when the trace has governance events.
+
+```yaml
+pipeline:
+  - name: plot-multilevel
+    type: processor
+    config:
+      processor: multilevel_trajectory_plotter
+      input: "{output_dir}/scenario/item0/r0/traces/events.jsonl"
+      output: "{output_dir}/results/trajectory_multilevel.html"
+      format: html
+```
+
+In the HTML output: a call with a governance decision attached shows a
+colored badge (grey = ALLOW/LOG, amber = HITL/RETRY/SKIP/MODIFY, red =
+BLOCK/TERMINATE/BLACKLIST); a blocked action that never produced an engine
+call still appears as a ghost marker on the nearest state; retried calls are
+linked and numbered (attempt 1, 2, …); click any bar or badge for the full
+decision/reason/policy in the side panel.
+
 ## Custom processors
 
 1. Subclass `mas.lab.processor.Processor` and decorate with `@register`.

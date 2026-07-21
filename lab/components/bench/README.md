@@ -15,8 +15,10 @@ resume from the **trace cache** when inputs match.
 
 ## Pipeline step library
 
-Steps live under `pipeline/steps/<category>/` — **one module per step type**. See
-[`pipeline/steps/README.md`](src/mas/lab/benchmark/pipeline/steps/README.md) for the full catalog.
+Step *implementations* are library plugins registered into the runtime
+registry via [`library-lab/library.yaml`](../../../library-lab/library.yaml)'s
+`types:`/`plugins:` block — see [pipeline-steps.md](../../../lab/docs/pipeline-steps.md)
+for the full catalog and how to query it live.
 
 | Category | Examples |
 |----------|----------|

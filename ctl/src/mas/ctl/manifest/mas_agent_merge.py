@@ -21,7 +21,7 @@ from mas.runtime.engine.tools import resolve_manifest_tool_refs
 
 logger = logging.getLogger(__name__)
 
-RunTurnFn = Callable[[str, str], str]
+RunTurnFn = Callable[[str, str, int], str]
 
 
 from mas.runtime.engine.leaf import leaf_engine
@@ -138,7 +138,7 @@ def apply_agency_entry_overlay(
         if val:
             spec[field] = _merge_tool_ref_list(list(spec.get(field) or []), list(val))
 
-    for field in ("design_pattern", "skills", "memory", "plugins"):
+    for field in ("design_pattern", "skills", "memory", "plugins", "governance"):
         if (val := _entry_val(agency_entry, entry_spec, field)) is not None:
             spec[field] = copy.deepcopy(val)
 

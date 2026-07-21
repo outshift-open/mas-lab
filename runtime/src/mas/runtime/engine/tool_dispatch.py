@@ -34,9 +34,13 @@ def execute_engine_tool(
     user: str = "",
     arguments: dict[str, Any] | None = None,
     tool_provider: ManifestToolProvider | None = None,
+    correlation_id: int = 0,
+    caller_call_id: str = "",
 ) -> str:
     if delegation is not None and delegation.is_delegate_tool(tool):
-        return delegation.call_delegate_tool(tool, arguments)
+        return delegation.call_delegate_tool(
+            tool, arguments, correlation_id=correlation_id, caller_call_id=caller_call_id
+        )
     if tool_provider is None:
         raise ToolExecutionError(
             f"No manifest tool provider configured; cannot execute {tool!r}"

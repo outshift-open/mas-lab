@@ -101,6 +101,17 @@ class ObsPluginSet:
         self._mas_call_id = str(uuid.uuid4())
         op.push_call_frame(self._mas_call_id)
         op.record_session("mas_call_start", call_id=self._mas_call_id)
+        # record_session dispatches asynchronously (enable_async_plugins was
+        # already called by subscribe_to), so without draining here there is
+        # no happens-before guarantee that mas_call_start has actually been
+        # processed — and so no guarantee the shared plugin's run-global
+        # mas_call_id has propagated — before any agent's own turn starts.
+        # Every delegated agent's own async worker thread reads that shared
+        # state (see NativeObservabilityPlugin._ctx_for); racing ahead of it
+        # left a delegate's very first execution_start permanently missing
+        # its parent_call_id. Draining here (once, at setup, off the hot
+        # path) establishes that ordering for every agent sharing this set.
+        op.drain_plugin_queue()
 
     def end_run(self) -> None:
         op = self._operator

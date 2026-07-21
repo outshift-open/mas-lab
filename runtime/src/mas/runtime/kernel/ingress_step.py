@@ -122,17 +122,45 @@ def apply_engine_io_return(
         control_on_egress_gov(q)
         return commit_engine_io_return(q, run, event, config=config, evaluate=evaluate)
 
+    # q.tool.value flips EXECUTING -> DONE as soon as the FIRST result of an
+    # inflight batch (multiple tool calls dispatched together) is committed
+    # (see tool_on_ingress, called from commit_engine_io_return below) — by
+    # the time the 2nd/3rd result's own apply_engine_io_return call reads it,
+    # it already reads "DONE", so this would wrongly resolve to "LLM_CALL"
+    # for every result but the first. That breaks CONTRACT_END's
+    # (correlation_id, op)-keyed lookup in ObservabilityOperator, silently
+    # leaking those calls' frames on the call-frame stack forever (they never
+    # get popped) — which then corrupts parent_call_id for every subsequent,
+    # unrelated call on that stack. q.pending_tools_by_cid holds an entry per
+    # correlation_id for every TOOL_CALL dispatched as part of a batch, and —
+    # unlike q.tool — isn't cleared until the WHOLE batch is dismissed, so it
+    # reliably answers "was THIS specific correlation_id a tool call" even
+    # after an earlier sibling's ingress already moved q.tool off EXECUTING.
+    is_tool_call = event.correlation_id in q.pending_tools_by_cid or q.tool.value == "EXECUTING"
+    # Memory ops dispatch one at a time (no parallel-batch tracking needed the
+    # way tool calls have q.pending_tools_by_cid), so q.memory's own in-flight
+    # states are enough to tell a MEMORY_OP return apart from an LLM_CALL one.
+    # Without this, a memory op's ingress return silently resolved to
+    # "LLM_CALL", corrupting its (correlation_id, op)-keyed call_id lookup in
+    # ObservabilityOperator (it would look for "MEMORY_OP" at open time but
+    # "LLM_CALL" at close time — two different call_ids for the same call).
+    is_memory_op = not is_tool_call and q.memory.value in ("QUERYING", "WRITING")
+    scheduled_op = "TOOL_CALL" if is_tool_call else "MEMORY_OP" if is_memory_op else "LLM_CALL"
+    tool_name = q.pending_tool_name
+    tool_arguments = dict(q.pending_tool_args or {})
+    by_cid = q.pending_tools_by_cid.get(event.correlation_id)
+    if by_cid is not None:
+        tool_name, tool_arguments = by_cid[0], dict(by_cid[1] or {})
+
     env_ctx = EnvelopeContext(
         q=q,
         correlation_id=event.correlation_id,
-        contract=contract_kind_for_op(
-            "TOOL_CALL" if q.tool.value == "EXECUTING" else "LLM_CALL"
-        ),
-        scheduled_op="TOOL_CALL" if q.tool.value == "EXECUTING" else "LLM_CALL",
+        contract=contract_kind_for_op(scheduled_op),
+        scheduled_op=scheduled_op,
         observability=get_bound_observability(),
         config=config,
-        tool_name=q.pending_tool_name,
-        tool_arguments=dict(q.pending_tool_args or {}),
+        tool_name=tool_name,
+        tool_arguments=tool_arguments,
         ingress_event=event,
     )
     ingress_decision = run_ingress_validate_envelope(env_ctx)

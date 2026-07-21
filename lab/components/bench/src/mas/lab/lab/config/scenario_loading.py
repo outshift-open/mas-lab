@@ -8,6 +8,41 @@ from typing import List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
+_MISSING = object()
+
+
+def _apply_overlay_governance(overlay: Optional[dict], overlay_spec: dict, config: dict) -> bool:
+    """Inject an overlay's governance plugin list onto each agent's own
+    "governance" list, mirroring the spec.plugins merge elsewhere in this
+    module. Consumed by parse_gov_spec/build_kernel_config -> KernelConfig.policy_engine.
+
+    Distinguishes the governance key being absent (nothing to do — a prior
+    overlay's contribution in the same stack, if any, is left alone) from it
+    being explicitly present, even as an empty list: an explicit ``[]`` is
+    the overlay author asking to clear whatever governance a previous overlay
+    in this stack already contributed, not a no-op — concatenating an empty
+    list onto the existing accumulation silently ignored that intent.
+
+    Returns True when a governance key was present and applied (for the
+    caller's own debug logging), False when there was nothing to do.
+    """
+    _overlay_gov = _MISSING
+    if overlay:
+        _overlay_gov = overlay.get("spec", {}).get("governance", _MISSING)
+    if _overlay_gov is _MISSING:
+        _overlay_gov = overlay_spec.get("governance", _MISSING)
+    if _overlay_gov is _MISSING or not config.get("agents"):
+        return False
+    _overlay_gov = list(_overlay_gov or [])
+    for _agent_cfg in config["agents"]:
+        if _overlay_gov:
+            _existing = list(_agent_cfg.get("governance") or [])
+            _agent_cfg["governance"] = _existing + _overlay_gov
+        else:
+            _agent_cfg["governance"] = []
+    return True
+
+
 def discover_scenario_stems(scenarios_dir: Path) -> List[str]:
     """Return sorted scenario stems from *scenarios_dir*.
 
@@ -285,19 +320,7 @@ def load_scenario_config(
                 config.setdefault("mas", {})["entry_agent"] = _new_entry
             logger.debug("[overlay] workflow overridden (scenario=%s)", scenario_id)
 
-        # Governance policies injection: spec.governance → GovernancePolicyEngine
-        # plugin injected into all agents.
-        gov_spec = overlay.get("spec", {}).get("governance") if overlay else None
-        if gov_spec and config.get("agents"):
-            gov_plugin = {
-                "module_path": "mas.runtime.contracts.governance.policy_engine",
-                "class_name": "GovernancePolicyEngine",
-                "priority": 10,
-                "params": gov_spec,
-            }
-            for _agent_cfg in config["agents"]:
-                _existing = list(_agent_cfg.get("plugins") or [])
-                _agent_cfg["plugins"] = _existing + [gov_plugin]
+        if _apply_overlay_governance(overlay, overlay_spec, config):
             logger.debug("[overlay] governance policies injected (scenario=%s)", scenario_id)
 
         # Embed the full raw overlay in the config so _compute_run_hash captures
@@ -500,18 +523,7 @@ def load_stacked_config(
             if _new_entry:
                 config.setdefault("mas", {})["entry_agent"] = _new_entry
 
-        # Governance policies injection
-        gov_spec = overlay.get("spec", {}).get("governance") if overlay else None
-        if gov_spec and config.get("agents"):
-            gov_plugin = {
-                "module_path": "mas.runtime.contracts.governance.policy_engine",
-                "class_name": "GovernancePolicyEngine",
-                "priority": 10,
-                "params": gov_spec,
-            }
-            for _agent_cfg in config["agents"]:
-                _existing = list(_agent_cfg.get("plugins") or [])
-                _agent_cfg["plugins"] = _existing + [gov_plugin]
+        _apply_overlay_governance(overlay, overlay_spec, config)
 
         # Overlay-level plugins injection (spec.plugins)
         if overlay:

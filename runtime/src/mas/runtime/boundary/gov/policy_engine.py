@@ -12,6 +12,16 @@ from mas.runtime.boundary.gov.exceptions import PolicySkip, PolicyViolation
 from mas.runtime.schema.governance import GovernanceAction
 
 
+class PolicyParseError(ValueError):
+    """A declarative policy entry (overlay/agent-spec ``governance.policies``)
+    is malformed — missing a required key, or naming a trigger point/action
+    ``PolicyTrigger``/``PolicyDefinition`` doesn't recognize. Raised by
+    :meth:`GovernancePolicyEngine.from_yaml` instead of letting the
+    underlying ``KeyError``/``ValueError`` propagate raw, so a hand-edited
+    overlay gets an actionable message naming the policy instead of an
+    unexplained traceback."""
+
+
 @dataclass
 class PolicyTrigger:
     on: str
@@ -134,26 +144,30 @@ class GovernancePolicyEngine:
     def from_yaml(cls, governance_config: dict[str, Any]) -> GovernancePolicyEngine:
         raw_policies = governance_config.get("policies", [])
         policies: list[PolicyDefinition] = []
-        for item in raw_policies:
-            if not item.get("enabled", True):
-                continue
-            trigger_raw = item["trigger"]
-            policies.append(
-                PolicyDefinition(
-                    name=item["name"],
-                    trigger=PolicyTrigger(
-                        on=trigger_raw["on"],
-                        tool=trigger_raw.get("tool", "*"),
-                        condition=trigger_raw.get("condition", ""),
-                        evaluation=trigger_raw.get("evaluation", "deterministic"),
-                        threshold=int(trigger_raw.get("threshold", 3)),
-                        reset_on=trigger_raw.get("reset_on", "success"),
-                    ),
-                    action=item["action"],
-                    params=item.get("params", {}),
-                    recovery=item.get("recovery", {}),
+        for index, item in enumerate(raw_policies):
+            name = item.get("name") or f"#{index}"
+            try:
+                if not item.get("enabled", True):
+                    continue
+                trigger_raw = item["trigger"]
+                policies.append(
+                    PolicyDefinition(
+                        name=item["name"],
+                        trigger=PolicyTrigger(
+                            on=trigger_raw["on"],
+                            tool=trigger_raw.get("tool", "*"),
+                            condition=trigger_raw.get("condition", ""),
+                            evaluation=trigger_raw.get("evaluation", "deterministic"),
+                            threshold=int(trigger_raw.get("threshold", 3)),
+                            reset_on=trigger_raw.get("reset_on", "success"),
+                        ),
+                        action=item["action"],
+                        params=item.get("params", {}),
+                        recovery=item.get("recovery", {}),
+                    )
                 )
-            )
+            except (KeyError, ValueError, TypeError) as exc:
+                raise PolicyParseError(f"policy {name!r}: {exc}") from exc
         return cls(policies=policies)
 
     def evaluate_trigger(
@@ -163,6 +177,21 @@ class GovernancePolicyEngine:
         *,
         tool_name: str = "*",
     ) -> GovernanceAction | None:
+        policy = self.find_matching_policy(trigger_point, data, tool_name=tool_name)
+        return self.map_action(policy) if policy is not None else None
+
+    def find_matching_policy(
+        self,
+        trigger_point: str,
+        data: dict[str, Any],
+        *,
+        tool_name: str = "*",
+    ) -> PolicyDefinition | None:
+        """Same matching logic as ``evaluate_trigger``, but returns the policy
+        itself (name, params) rather than just the mapped action — used to
+        explain *why* a declarative decision fired (params.message/reason),
+        without re-running the deterministic condition twice with different
+        implementations that could silently drift apart."""
         for policy in self.policies:
             if not policy.enabled or policy.trigger.on != trigger_point:
                 continue
@@ -172,10 +201,17 @@ class GovernancePolicyEngine:
                 continue
             if not ConditionEvaluator.evaluate(policy.trigger.condition, data):
                 continue
-            return self._map_action(policy)
+            return policy
         return None
 
-    def _map_action(self, policy: PolicyDefinition) -> GovernanceAction:
+    def map_action(self, policy: PolicyDefinition) -> GovernanceAction:
+        """Map a matched policy's declarative action string to a GovernanceAction.
+
+        Public: callers outside this class (e.g. boundary/gov/policy.py, when
+        explaining a decision alongside making it) need the same mapping
+        ``evaluate_trigger``/``record_tool_failure`` use internally, rather than
+        duplicating this table.
+        """
         return {
             "hitl": GovernanceAction.HITL,
             "block": GovernanceAction.BLOCK,
@@ -215,7 +251,7 @@ class GovernancePolicyEngine:
             if policy.trigger.tool not in {"*", tool_name}:
                 continue
             if self.failure_streaks[tool_name] >= policy.trigger.threshold:
-                return self._map_action(policy)
+                return self.map_action(policy)
         return None
 
     def record_tool_success(self, tool_name: str) -> None:

@@ -44,6 +44,7 @@ class EnvelopeContext:
     tool_arguments: dict[str, Any] = field(default_factory=dict)
     ingress_event: EngineIoReturn | None = None
     gov_decision: str = ""
+    gov_reason: str = ""
     policy_name: str = "sample_governance"
     destructive: bool = False
     hitl_gov_override: bool = False
@@ -137,6 +138,7 @@ def _envelope_symbol_lists(
 def _evaluate_egress(ctx: EnvelopeContext) -> GovDecision:
     assert ctx.config is not None
     if not ctx.config.enable_governance:
+        ctx.gov_reason = "governance disabled for this run"
         return GovDecision.ALLOW
     view = EgressIntentView(
         op=ctx.scheduled_op,  # type: ignore[arg-type]
@@ -145,20 +147,22 @@ def _evaluate_egress(ctx: EnvelopeContext) -> GovDecision:
         tool_name=ctx.tool_name,
         tool_arguments=ctx.tool_arguments,
     )
-    return evaluate_egress_at_chokepoint(
+    decision, ctx.policy_name, ctx.gov_reason = evaluate_egress_at_chokepoint(
         view,
         config=ctx.config,
         hitl_gov_override=ctx.hitl_gov_override,
     )
+    return decision
 
 
 def _evaluate_ingress(ctx: EnvelopeContext) -> IngressGovDecision:
     assert ctx.config is not None
     if not ctx.config.enable_governance:
+        ctx.gov_reason = "governance disabled for this run"
         return IngressGovDecision(action=GovernanceAction.ALLOW)
     assert ctx.ingress_event is not None
     ev = ctx.ingress_event
-    return evaluate_ingress_chain(
+    decision = evaluate_ingress_chain(
         IngressIntentView(
             response_kind=ev.response_kind,
             error_text=ev.text,
@@ -168,6 +172,11 @@ def _evaluate_ingress(ctx: EnvelopeContext) -> IngressGovDecision:
         ),
         config=ctx.config,
     )
+    # Every built-in ingress plugin (KernelIngressGovernancePlugin,
+    # SampleGovernancePlugin) always populates message; this generic fallback
+    # only matters for a custom third-party plugin that doesn't.
+    ctx.gov_reason = decision.message or f"{decision.action.value} (no reason supplied by ingress plugin)"
+    return decision
 
 
 def contract_kind_for_op(op: str) -> ContractKind:

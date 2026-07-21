@@ -34,6 +34,94 @@ def apply_merge_patch(target: Any, patch: Any) -> Any:
     return target
 
 
+def _merge_plugin_list_field(base_spec: dict[str, Any], overlay_spec: dict[str, Any], key: str) -> None:
+    """Merge a plugin-list field (``observability``, ``control``) in place on *base_spec*.
+
+    Shared by :func:`merge_agent_overlay` and :func:`merge_flavour_overlay` — the
+    merge semantics don't depend on whether the base spec belongs to an Agent
+    or a Flavour manifest, only on the field's shape (a list of plugin ids /
+    ``{plugin_id: config}`` entries, per ``fragments/observability-binding.
+    schema.yaml`` and ``fragments/control-binding.schema.yaml``).
+    """
+    ov_val = overlay_spec[key]
+    if isinstance(ov_val, list):
+        # List replaces base (mas-lab parity).
+        base_spec[key] = list(ov_val)
+    elif isinstance(ov_val, dict):
+        base_val = base_spec.get(key) or {}
+        if isinstance(base_val, list):
+            base_spec[key] = ov_val
+        else:
+            for k, v in ov_val.items():
+                if v is None:
+                    base_val.pop(k, None)
+                elif isinstance(v, dict) and isinstance(base_val.get(k), dict):
+                    base_val[k].update(v)
+                else:
+                    base_val[k] = v
+            base_spec[key] = base_val
+    else:
+        base_spec[key] = ov_val
+
+
+# FT4 (docs/design/flavour-boundary.md): a Flavour is deployment posture
+# only. A Flavour-targeted overlay may patch these — anything else (llm,
+# skills, mocking, prefer_local, infra_refs, tools/skills/memory of an agent,
+# ...) is rejected the same way FlavourSeparationValidator rejects it on the
+# base manifest, so an overlay can't reintroduce agent-spec / execution
+# concerns through the back door.
+_FLAVOUR_PATCH_KEYS: frozenset[str] = frozenset(
+    {"agent_comm", "capabilities", "telemetry", "observability", "control", "tools", "config", "operator"}
+)
+
+
+class OverlayTargetError(ValueError):
+    """A Flavour-targeted overlay patch contains a key that isn't deployment posture."""
+
+
+def merge_flavour_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    """Merge a ``target.kind: Flavour`` overlay patch into a Flavour manifest.
+
+    Deliberately narrow: only the surviving Flavour deployment-posture keys
+    (see ``_FLAVOUR_PATCH_KEYS``) may be patched. ``observability``/``control``
+    use the same plugin-list merge as agent overlays (:func:`_merge_plugin_list_field`)
+    since the field shape — not the manifest kind — determines the semantics.
+    """
+    merged = deepcopy(base)
+    if "spec" not in overlay:
+        return merged
+
+    overlay_spec = overlay["spec"]
+    if "patch" in overlay_spec and isinstance(overlay_spec["patch"], dict):
+        overlay_spec = overlay_spec["patch"]
+
+    unknown = set(overlay_spec) - _FLAVOUR_PATCH_KEYS
+    if unknown:
+        raise OverlayTargetError(
+            f"overlay patch for target.kind: Flavour contains non-deployment-posture "
+            f"key(s) {sorted(unknown)!r} — see docs/design/flavour-boundary.md"
+        )
+
+    base_spec = merged.setdefault("spec", {})
+
+    for key in ("observability", "control"):
+        if key in overlay_spec:
+            _merge_plugin_list_field(base_spec, overlay_spec, key)
+
+    for key in ("agent_comm", "capabilities", "telemetry", "tools", "config", "operator"):
+        if key not in overlay_spec:
+            continue
+        ov_val = overlay_spec[key]
+        base_val = base_spec.get(key)
+        if isinstance(ov_val, dict) and isinstance(base_val, dict):
+            base_val.update(ov_val)
+            base_spec[key] = base_val
+        else:
+            base_spec[key] = ov_val
+
+    return merged
+
+
 def merge_agent_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
     merged = deepcopy(base)
     if "spec" not in overlay:
@@ -154,25 +242,7 @@ def merge_agent_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[s
             base_spec["llm"] = overlay_spec["llm"]
 
     if "observability" in overlay_spec:
-        ov_obs = overlay_spec["observability"]
-        if isinstance(ov_obs, list):
-            # List replaces base (mas-lab parity)
-            base_spec["observability"] = list(ov_obs)
-        elif isinstance(ov_obs, dict):
-            base_obs = base_spec.get("observability") or {}
-            if isinstance(base_obs, list):
-                base_spec["observability"] = ov_obs
-            else:
-                for k, v in ov_obs.items():
-                    if v is None:
-                        base_obs.pop(k, None)
-                    elif isinstance(v, dict) and isinstance(base_obs.get(k), dict):
-                        base_obs[k].update(v)
-                    else:
-                        base_obs[k] = v
-                base_spec["observability"] = base_obs
-        else:
-            base_spec["observability"] = ov_obs
+        _merge_plugin_list_field(base_spec, overlay_spec, "observability")
 
     for block in ("execution", "control", "governance"):
         if block not in overlay_spec:
@@ -227,6 +297,20 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
             base_spec[key] = apply_merge_patch(deepcopy(base_spec[key]), value)
         else:
             base_spec[key] = deepcopy(value)
+
+    # spec.patch.governance is a plugin list (e.g. [{sample_governance: {policies:
+    # [...]}}]) meant to apply uniformly to every agent in the MAS — broadcast it
+    # onto each agency-agent row so find_agency_entry/apply_agency_entry_overlay
+    # (used for both the entry agent and every delegate, see
+    # ctl/compose/backends/mas_runtime_py.py) can carry it into that agent's own
+    # manifest spec, where parse_gov_spec/build_kernel_config wire it onto
+    # KernelConfig.policy_engine.
+    if "governance" in patch and isinstance(patch["governance"], list):
+        agents_list = ((base_spec.get("agency") or {}).get("agents")) or base_spec.get("agents")
+        if isinstance(agents_list, list):
+            for entry in agents_list:
+                if isinstance(entry, dict):
+                    entry["governance"] = deepcopy(patch["governance"])
 
     global_dp = patch.get("design_pattern")
     overlay_agents = patch.get("agents")
@@ -323,13 +407,21 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
 
 
 def merge_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
-    """Merge agent or MAS patch overlay into base manifest."""
+    """Merge an Agent, MAS, or Flavour patch overlay into a base manifest.
+
+    Dispatch is by ``target.kind`` (falling back to the base manifest's own
+    ``kind`` when the overlay doesn't declare one) — ``mas``/``app``/
+    ``workflow`` -> :func:`merge_mas_overlay`, ``flavour`` ->
+    :func:`merge_flavour_overlay`, everything else -> :func:`merge_agent_overlay`.
+    """
     from mas.ctl.overlay.normalize import normalize_overlay
 
     if "spec" not in overlay:
         base_kind = str(base.get("kind", "")).lower()
         if base_kind in ("mas", "app", "workflow"):
             return merge_mas_overlay(base, overlay)
+        if base_kind == "flavour":
+            return merge_flavour_overlay(base, overlay)
         return merge_agent_overlay(base, overlay)
 
     spec = overlay.get("spec") or {}
@@ -345,5 +437,7 @@ def merge_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, An
     base_kind = str(base.get("kind", "")).lower()
     if target_kind in ("mas", "app", "workflow") or base_kind in ("mas", "app", "workflow"):
         return merge_mas_overlay(base, overlay)
+    if target_kind == "flavour" or base_kind == "flavour":
+        return merge_flavour_overlay(base, overlay)
 
     return merge_agent_overlay(base, overlay)

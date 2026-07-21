@@ -57,7 +57,41 @@ def test_native_jsonl_plugin_tool_call_with_arguments(tmp_path) -> None:
     assert event["mealy_symbol"] == "TOOL_CALL"
 
 
-def test_native_jsonl_plugin_envelope_activity_llm(tmp_path) -> None:
+def test_native_jsonl_plugin_engine_io_llm(tmp_path) -> None:
+    """LLM calls reach the native plugin via the engine.io boundary (ENGINE_IO
+    boundary events), not via a contract_call envelope activity — the operator
+    emits both for the same call, and the envelope-activity translation was
+    removed as a duplicate (see boundary_handlers.py)."""
+    events_path = tmp_path / "events.jsonl"
+    plugin = NativeObservabilityPlugin(
+        transforms=[NativeObservabilityTransform()],
+        emitters=[JsonlFileEmitter(events_path)],
+        context=TransformContext(agent_id="sre", run_id="run-test"),
+    )
+    plugin.on_transition(
+        TransitionEvent(
+            contract_id="model",
+            mealy_symbol="LLM_CALL",
+            phase="start",
+            agent_id="sre",
+            run_id="run-test",
+            correlation_id=5,
+            boundary_kind="engine.io",
+            attributes={"op": "LLM_CALL"},
+        )
+    )
+    assert any("llm_call" in line for line in events_path.read_text().splitlines())
+    event = json.loads(events_path.read_text().strip().splitlines()[0])
+    assert event["kind"] == "llm_call_start"
+    assert event["block"] == "execution"
+    assert event["summand"] == "model"
+    assert event["mealy_symbol"] == "LLM_CALL"
+
+
+def test_native_jsonl_plugin_contract_call_alone_produces_no_llm_call(tmp_path) -> None:
+    """A bare contract_call envelope activity (no paired engine.io event) must
+    not translate to llm_call_start — that would duplicate the llm_call_start
+    ENGINE_IO already produces for the same call."""
     events_path = tmp_path / "events.jsonl"
     plugin = NativeObservabilityPlugin(
         transforms=[NativeObservabilityTransform()],
@@ -80,8 +114,4 @@ def test_native_jsonl_plugin_envelope_activity_llm(tmp_path) -> None:
             },
         )
     )
-    assert any("llm_call" in line for line in events_path.read_text().splitlines())
-    event = json.loads(events_path.read_text().strip().splitlines()[0])
-    assert event["block"] == "execution"
-    assert event["summand"] == "model"
-    assert event["mealy_symbol"] == "LLM_CALL"
+    assert not any("llm_call" in line for line in events_path.read_text().splitlines())

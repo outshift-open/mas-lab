@@ -23,6 +23,7 @@ def plot_multilevel_trajectory(
     show_time_axis: bool = True,
     show_provenance: bool = True,
     annotations: dict | None = None,
+    enabled_facets: "set[str] | None" = None,
 ) -> str:
     """Generate a multilevel trajectory DAG diagram.
 
@@ -74,7 +75,9 @@ def plot_multilevel_trajectory(
     if not records:
         return "(no timed execution records found in trace)"
 
-    state_reg, lanes = _build_dag(records, trace, show_provenance=show_provenance)
+    state_reg, lanes = _build_dag(
+        records, trace, show_provenance=show_provenance, enabled_facets=enabled_facets
+    )
     if not lanes:
         return "(empty DAG)"
 
@@ -102,6 +105,7 @@ def plot_multilevel_trajectory_from_kg(
     show_time_axis: bool = True,
     show_provenance: bool = True,
     annotations: dict | None = None,
+    enabled_facets: "set[str] | None" = None,
 ) -> str:
     """Generate a multilevel trajectory diagram from a KG (kg.json).
 
@@ -194,7 +198,9 @@ def plot_multilevel_trajectory_from_kg(
     if not records:
         return "(no call records after applying query)"
 
-    state_reg, lanes = _build_dag(records, events, show_provenance=show_provenance)
+    state_reg, lanes = _build_dag(
+        records, events, show_provenance=show_provenance, enabled_facets=enabled_facets
+    )
     if not lanes:
         return "(empty DAG)"
 

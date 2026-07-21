@@ -26,13 +26,13 @@ Each lab is a single benchmark experiment. Run it, and MAS-Lab produces the
 figures and tables reported in the paper — charts, metrics, and comparison
 reports — without separate plotting scripts.
 
-Hands-on introduction: [Tutorial 3 — Run an experiment](tutorials/03-experiments-and-analysis/README.md).
+Hands-on introduction: [Tutorial 3 — Run an experiment](../tutorials/03-experiments-and-analysis/README.md).
 
 ---
 
 ## Quick reproduction
 
-After [Tutorial 0](tutorials/00-environment-setup/README.md) (install and LLM
+After [Tutorial 0](../tutorials/00-environment-setup/README.md) (install and LLM
 access), from the repository root:
 
 ```bash
@@ -46,7 +46,7 @@ mas-lab benchmark run labs/design-space.lab/01-design-patterns/experiment.yaml -
 ```
 
 Completed runs are cached — re-running refreshes reports without repeating LLM
-calls when inputs are unchanged. See [User configuration](user-config.md) for
+calls when inputs are unchanged. See [User configuration](../user-config.md) for
 output locations.
 
 ---
@@ -79,8 +79,8 @@ Update `note` and `url` with the arXiv identifier when available.
 
 ## See also
 
-- [Home](index.md)
-- [Tutorial 0 — Environment setup](tutorials/00-environment-setup/README.md)
-- [Tutorials](tutorials/index.md)
-- [References](references/index.md)
-- [Blog](blog/index.md)
+- [Home](../index.md)
+- [Tutorial 0 — Environment setup](../tutorials/00-environment-setup/README.md)
+- [Tutorials](../tutorials/index.md)
+- [References](../references/index.md)
+- [Blog](../blog/index.md)

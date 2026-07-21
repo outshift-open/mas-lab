@@ -205,7 +205,7 @@ def test_reset_engine_delegation_clears_delegate_cache():
 
     class _Engine:
         def __init__(self) -> None:
-            self.delegation = LlmDelegator(run_turn=lambda _a, _t: "ok")
+            self.delegation = LlmDelegator(run_turn=lambda _a, _t, _c, _ccid: "ok")
 
     engine = _Engine()
     engine.delegation.delegate("peer", "task")

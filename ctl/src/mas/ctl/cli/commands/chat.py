@@ -146,12 +146,13 @@ def chat_cmd(
             validate=not no_validate,
         )
 
-        from mas.ctl.session.flavour import FlavourError, validate_flavour
+        from mas.ctl.session.flavour import FlavourError, resolve_flavour
 
-        # Deployment flavour: validate-only for now (only `local` is supported;
-        # flavours carry no llm/logic — see BRANCHES.md FT4).
+        # Deployment flavour: resolve + validate (only `local` is supported).
+        # Surviving deployment concerns (currently: observability plugin
+        # selection) are folded in below — see docs/design/flavour-boundary.md.
         try:
-            validate_flavour(flavour)
+            flavour_spec = resolve_flavour(flavour)
         except FlavourError as exc:
             click.echo(f"error: {exc}", err=True)
             raise SystemExit(2) from None
@@ -226,6 +227,7 @@ def chat_cmd(
             events_format=events_format,
             agent_id="agent",
             manifest=agent_data,
+            flavour_spec=flavour_spec,
         )
         obs_rec = setup_observability(
             instance,

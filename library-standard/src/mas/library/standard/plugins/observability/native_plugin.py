@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 
 from mas.library.standard.lib.observability.emit import EventEmitter, FanOutEmitter
@@ -27,6 +28,15 @@ class NativeObservabilityPlugin(ObservabilityPlugin):
     session_id: str = ""
     _fanout: FanOutEmitter | None = field(default=None, init=False)
     _ctx_by_agent: dict[str, TransformContext] = field(default_factory=dict, init=False)
+    # This plugin instance is shared across every agent in a multi-agent run
+    # (see setup_shared_obs) and each agent gets its own async plugin-dispatch
+    # worker thread (ObservabilityOperator.enable_async_plugins), so
+    # on_transition() runs concurrently from N threads. _ctx_by_agent and
+    # self.context.mas_call_id below are cross-agent shared state; guard their
+    # read-modify-write with a lock so a delegate's context isn't created (and
+    # permanently miss mas_call_id) in the window before the "mas" pseudo-agent's
+    # own thread has propagated it.
+    _lock: threading.Lock = field(default_factory=threading.Lock, init=False)
 
     def __post_init__(self) -> None:
         if self.emitters:
@@ -47,20 +57,29 @@ class NativeObservabilityPlugin(ObservabilityPlugin):
         Run-global scope (``run_id``, ``mas_call_id``) is seeded from the shared
         base context so that, e.g., every agent's ``execution_start`` parents to
         the same MAS call — those values are not per-agent.
+
+        Concurrent agents each dispatch on their own async worker thread (see
+        ``_lock``'s field comment), so the check-then-create and the
+        ``mas_call_id`` backfill below must be atomic: without the lock, two
+        threads can race in the window before ``mas_call_start`` has
+        propagated, and whichever agent's context got created first is stuck
+        with a permanently empty ``mas_call_id`` (only the *next* access would
+        have backfilled it).
         """
         key = agent_id or self.context.agent_id or "agent"
-        ctx = self._ctx_by_agent.get(key)
-        if ctx is None:
-            ctx = TransformContext(
-                agent_id=key,
-                run_id=self.context.run_id,
-                mas_call_id=self.context.mas_call_id,
-            )
-            self._ctx_by_agent[key] = ctx
-        elif self.context.mas_call_id and not ctx.mas_call_id:
-            # MAS call opened after this agent's context was created.
-            ctx.mas_call_id = self.context.mas_call_id
-        return ctx
+        with self._lock:
+            ctx = self._ctx_by_agent.get(key)
+            if ctx is None:
+                ctx = TransformContext(
+                    agent_id=key,
+                    run_id=self.context.run_id,
+                    mas_call_id=self.context.mas_call_id,
+                )
+                self._ctx_by_agent[key] = ctx
+            elif self.context.mas_call_id and not ctx.mas_call_id:
+                # MAS call opened after this agent's context was created.
+                ctx.mas_call_id = self.context.mas_call_id
+            return ctx
 
     def on_transition(self, event: TransitionEvent) -> None:
         if self._fanout is None:
@@ -77,8 +96,9 @@ class NativeObservabilityPlugin(ObservabilityPlugin):
         # Propagate run-global MAS call id back to the shared base so contexts
         # created for other agents afterwards inherit it (mas_call_start is
         # emitted on the "mas" pseudo-agent, before sub-agent contexts exist).
-        if ctx.mas_call_id and not self.context.mas_call_id:
-            self.context.mas_call_id = ctx.mas_call_id
+        with self._lock:
+            if ctx.mas_call_id and not self.context.mas_call_id:
+                self.context.mas_call_id = ctx.mas_call_id
 
     def flush(self) -> None:
         if self._fanout:

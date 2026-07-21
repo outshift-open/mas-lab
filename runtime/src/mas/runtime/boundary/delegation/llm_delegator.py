@@ -7,7 +7,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-RunTurnFn = Callable[[str, str], str]
+RunTurnFn = Callable[[str, str, int, str], str]
 
 
 class LlmDelegator:
@@ -32,7 +32,14 @@ class LlmDelegator:
             DELEGATE_TOOL_PREFIX
         )
 
-    def delegate(self, target_agent_id: str, task: str) -> str:
+    def delegate(
+        self,
+        target_agent_id: str,
+        task: str,
+        *,
+        correlation_id: int = 0,
+        caller_call_id: str = "",
+    ) -> str:
         if not target_agent_id:
             return "[delegation] missing target agent id"
         task_key = task.strip()
@@ -44,7 +51,7 @@ class LlmDelegator:
                 f"{self._completed_peers[cache_key]}"
             )
         try:
-            result = self._run_turn(target_agent_id, task_key)
+            result = self._run_turn(target_agent_id, task_key, correlation_id, caller_call_id)
         except KeyError:
             return f"[delegation] agent {target_agent_id!r} not available on bus"
         except RuntimeError as exc:
@@ -52,7 +59,14 @@ class LlmDelegator:
         self._completed_peers[cache_key] = result
         return result
 
-    def call_delegate_tool(self, tool_name: str, arguments: dict[str, Any] | None) -> str:
+    def call_delegate_tool(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any] | None,
+        *,
+        correlation_id: int = 0,
+        caller_call_id: str = "",
+    ) -> str:
         from mas.runtime.boundary.delegation.policy import parse_delegate_tool_name
 
         target = parse_delegate_tool_name(tool_name)
@@ -61,4 +75,6 @@ class LlmDelegator:
         task = str((arguments or {}).get("task") or "").strip()
         if not task:
             return f"[delegation] missing task for {target!r}"
-        return self.delegate(target, task)
+        return self.delegate(
+            target, task, correlation_id=correlation_id, caller_call_id=caller_call_id
+        )

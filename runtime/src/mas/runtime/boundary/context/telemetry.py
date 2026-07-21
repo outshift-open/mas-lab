@@ -78,8 +78,18 @@ def record_context_mutation(
     content: str = "",
     committed_count: int = 0,
     wm_count: int = 0,
+    op: str = "",
 ) -> None:
-    """Log working-memory / turn-history mutations (state that affects the next LLM call)."""
+    """Log working-memory / turn-history mutations (state that affects the next LLM call).
+
+    ``op`` (e.g. "LLM_CALL"/"TOOL_CALL"), when the mutation is caused by one
+    specific engine-op result (see driver.py's two ``wm_append`` call sites),
+    lets ``_resolve_transition_ids`` resolve a real ``parent_call_id`` via the
+    same ``_interval_call_id`` mechanism that op's own ENGINE_IO/ENGINE_IO_RETURN
+    pair uses. Turn/session-scoped mutations (turn_start, wm_clear, ...) have
+    no single owning call and correctly leave this blank — "no parent" is the
+    honest answer for those, not something to approximate.
+    """
     if observability is None:
         return
     record = getattr(observability, "record_context_mutation", None)
@@ -94,6 +104,7 @@ def record_context_mutation(
         content_preview=_preview(content),
         committed_count=committed_count,
         wm_count=wm_count,
+        op=op,
     )
 
 

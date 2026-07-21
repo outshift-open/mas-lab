@@ -24,7 +24,7 @@ from mas.runtime.agent_defaults import default_pattern_plugin_id
 
 logger = logging.getLogger(__name__)
 
-RunTurnFn = Callable[[str, str], str]
+RunTurnFn = Callable[[str, str, int, str], str]
 
 # Max length for a single-line context value probed as a relative file path.
 _MAX_PROBE_PATH_LEN = 512
@@ -238,6 +238,81 @@ def prepare_delegation_entry_session(
     )
 
 
+def wire_peer_delegation(
+    materialized: MaterializedMas,
+    *,
+    entry_id: str,
+    display: Any = None,
+    verbose: int = 0,
+    already_wired: "set[str] | None" = None,
+) -> list[str]:
+    """Wire delegation onto every agent that declares its own ``delegates_to``
+    peers in the MAS workflow topology — not just the entry agent.
+
+    ``prepare_delegation_entry_session`` only ever wires the entry agent's
+    engine (``wire_entry_engine_delegation`` called once). An agent that is
+    itself a delegate (e.g. ``schedule_agent``, delegated to by
+    ``moderator``) never gets its own ``.delegation`` set — if IT tries to
+    further delegate (``delegate_to_concierge_agent``), the call falls
+    through to the manifest tool-provider path and fails outright with
+    ``ToolExecutionError``: nested/multi-level delegation silently doesn't
+    work today. ``delegation_targets`` (runtime's delegation policy) already
+    supports resolving peers for *any* agent_id in the workflow topology —
+    only the wiring here was hardcoded to the entry agent.
+
+    Safe to call with a single shared ``run_turn`` closure across every
+    delegating agent: parent-call linkage is now a real, explicit
+    ``caller_call_id`` threaded through the delegation contract (see
+    ``InvokeEngineIo.call_id`` / ``execute_engine_tool`` /
+    ``DelegationContract``), resolved fresh at each dispatch — it no longer
+    depends on which closure or which ``from_agent`` was captured at
+    wiring time.
+
+    Returns the list of agent_ids newly wired (for logging/testing).
+    """
+    from mas.runtime.boundary.delegation.policy import delegation_targets
+
+    compose = materialized.compose
+    wired: set[str] = set(already_wired or ())
+    run_turn = make_workflow_send(
+        materialized.materialized,
+        display=display,
+        verbose=verbose,
+        from_agent=entry_id,
+    )
+    newly_wired: list[str] = []
+    for agent in compose.bind.agents:
+        agent_id = agent.agent_id
+        if agent_id in wired:
+            continue
+        instance = materialized.materialized.instances.get(agent_id)
+        if instance is None:
+            continue
+        agent_manifest = load_agent_manifest_from_bind(compose.bind, agent_id) or {}
+        manifest_path = agent_manifest_path(compose.bind, agent_id)
+        manifest_dir = manifest_path.parent if manifest_path else materialized.mas_base_dir
+        enriched = enrich_entry_agent_for_delegation(
+            agent_manifest,
+            compose.mas_config,
+            manifest_dir=manifest_dir,
+            mas_base_dir=materialized.mas_base_dir,
+        )
+        if not delegation_targets(enriched, agent_id=agent_id):
+            continue
+        wire_entry_engine_delegation(
+            getattr(getattr(instance, "driver", None), "engine", None),
+            enriched,
+            manifest_dir,
+            run_turn=run_turn,
+            entry_agent_id=agent_id,
+            mas_config=compose.mas_config,
+            mas_base_dir=materialized.mas_base_dir,
+        )
+        wired.add(agent_id)
+        newly_wired.append(agent_id)
+    return newly_wired
+
+
 def make_workflow_send(
     materialized: Any,
     *,
@@ -250,11 +325,46 @@ def make_workflow_send(
     The returned ``send`` closure holds mutable routing state and is **not reentrant**;
     use one closure per workflow run on a single thread.
     """
-    state = {"prev_agent": from_agent, "correlation_id": 0}
+    state = {"prev_agent": from_agent, "correlation_id": 0, "call_seq": 0}
 
-    def send(agent_id: str, prompt: str) -> str:
+    def send(
+        agent_id: str,
+        prompt: str,
+        delegate_correlation_id: int = 0,
+        caller_call_id: str = "",
+    ) -> str:
         bus = getattr(materialized, "bus", None)
         prev_agent = state["prev_agent"]
+        # caller_call_id arrives already resolved — the driver attaches it to
+        # the delegating TOOL_CALL's own InvokeEngineIo (see
+        # InvokeEngineIo.call_id) before the engine ever runs, and it's
+        # threaded explicitly through execute_engine_tool -> LlmDelegator ->
+        # this closure (RunTurnFn's 4th argument) — a real contract field,
+        # not a lookup reconstructed here after the fact. This is what makes
+        # nested/multi-level delegation work too: whichever agent is
+        # delegating (entry or not) already resolved its own call_id at
+        # dispatch time, so this closure no longer needs to assume the
+        # delegator is always ``from_agent`` or reach into
+        # materialized.instances to find it.
+        parent_call_id = caller_call_id
+        # RuntimeInstance.run_user_text builds this invocation's own exec_id
+        # as f"{agent_id}-{turn_id}-exec" (instance.py) and that literal
+        # string becomes every child call's parent_call_id on the wire. A
+        # fresh SessionController is created below on every send() call, so
+        # its internal turn counter always starts at 0 — passing no turn_id
+        # would make every single invocation of this agent resolve to the
+        # SAME "u1", so two calls to the same agent could never be told apart
+        # from their children's parent_call_id alone (only from which time
+        # window a child happened to fall in — a real runtime-side gap, not
+        # something to reconstruct downstream). caller_call_id is already a
+        # real, globally-unique id per delegation invocation (minted once by
+        # the driver — see InvokeEngineIo.call_id); reusing it here as this
+        # invocation's own turn_id costs no new state and makes exec_id
+        # unique per call. Sequential-workflow steps (no caller_call_id) get
+        # a per-closure monotonic sequence number instead — still exact, not
+        # a guess, just scoped to this one workflow run.
+        state["call_seq"] += 1
+        turn_id = caller_call_id or f"{agent_id}-seq{state['call_seq']}"
         if bus is not None and prev_agent and prev_agent != agent_id:
             from mas.runtime.schema.egress import InvokeEngineIo
 
@@ -291,7 +401,7 @@ def make_workflow_send(
             agent_id=agent_id,
             config=ConversationConfig(single_turn=True),
         )
-        result = controller.run_turn(prompt)
+        result = controller.run_turn(prompt, turn_id=turn_id, parent_call_id=parent_call_id)
         # Do NOT close observability after a delegated sub-turn: in a multi-agent
         # run every agent shares one plugin set owned by the top-level session
         # (see setup_shared_obs), and the sub-agent instance now references it.
