@@ -13,6 +13,7 @@ from mas.runtime.schema.observability import ObsEventKind, ObservabilityEvent
 _CONTRACT_BY_MACHINE: dict[str, str] = {
     "M_model": "model",
     "M_tool": "tool",
+    "M_memory": "memory",
     "M_ctx": "context",
     "M_gov": "governance",
     "M_obs": "observability",

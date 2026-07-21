@@ -1,10 +1,10 @@
 {
-  "run_hash": "240c01f5b2a41ca79519",
+  "run_hash": "4d9a5f525c7f0e823615",
   "experiment": "golden-design-space",
   "scenario": "mock-tools",
   "item_id": "1",
   "run_idx": 0,
-  "referenced_at": "2026-07-09T22:29:06.890019Z",
+  "referenced_at": "2026-07-21T07:33:15.579922Z",
   "mas": {
     "app": "qa-agent",
     "mas_ref": "/Users/augjorda/repos/outshift-open/mas-lab/docs/tutorials/01-building-an-agent/agent.yaml",

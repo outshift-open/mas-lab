@@ -86,6 +86,27 @@ Stateful governance plugins enforce policy across turns. The paper
 Runtime implementation: `BudgetTracker` in `runtime/src/mas/runtime/boundary/gov/budget.py`.
 Design-target contract: `BudgetContract` (see dev [governance.md](https://github.com/outshift-open/mas-lab/blob/main/runtime/docs/dev/contracts/governance.md)).
 
+Egress/ingress decisions on every tool/LLM/memory call go through two layers,
+evaluated in order:
+
+1. **Declarative policies** — `GovernancePolicyEngine` (`runtime/src/mas/runtime/boundary/gov/policy_engine.py`)
+   matches YAML-authored `PolicyDefinition`s (trigger condition + `action`:
+   `hitl`/`block`/`terminate`/`log`/`modify`/`skip`/`retry`/`blacklist`)
+   against the call, keyed off `spec.governance` in the agent/overlay manifest.
+   A matched policy's own `params.message` (or `params.reason`) becomes the
+   decision's reported reason; otherwise a reason is synthesized from the
+   policy name and action.
+2. **Parametric profiles** — `GovPolicyProfile` (egress) / `GovIngressProfile`
+   (ingress) fallback when no declarative policy matches: fixed postures like
+   `block-destructive`, `hitl-destructive`, `retry-on-error`. Implementation:
+   `resolve_egress_governance` / `egress_governance_outcome` /
+   `ingress_governance_outcome` in `runtime/src/mas/runtime/boundary/gov/policy.py`.
+
+Every decision is emitted as a `governance_decision` observability event
+(`hook`, `checkpoint`, `decision`, `reason`, `policy_name`) — this is what the
+multilevel trajectory plot's Governance lane and per-call badges render (see
+[pipeline-processors.md § Multilevel trajectory plot](../../lab/docs/pipeline-processors.md#multilevel-trajectory-plot)).
+
 ---
 
 ## Plugin registry (v2)
@@ -150,3 +171,6 @@ SensorContract.pull() or emit_event()
 - [Schema index](schemas.md) — validation schemas
 - [Mealy machines guide](https://github.com/outshift-open/mas-lab/blob/main/runtime/docs/mealy-machines-guide.md)
 - [Glossary](../glossary.md) — vocabulary
+- [ADR 0002](adr-0002-observability-event-model.md) — why the `ObservabilitySink` /
+  `EventEmitter` boundary above records an announced stream of events rather
+  than exposing a query interface

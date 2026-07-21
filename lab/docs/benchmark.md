@@ -52,5 +52,5 @@ Per lab: [labs-quickstart.md](labs-quickstart.md).
 | Pipeline YAML | [pipeline.md](pipeline.md) |
 | Pipeline step types | [pipeline-steps.md](pipeline-steps.md) |
 | Executor design | [PIPELINE_DESIGN.md](../components/bench/PIPELINE_DESIGN.md) |
-| Reproducibility | [reproducibility.md](../../docs/reproducibility.md) |
+| Reproducibility | [Experiments and analysis](../../docs/tutorials/03-experiments-and-analysis/README.md) |
 | Paper labs | [paper/index.md](../../docs/paper/index.md) |

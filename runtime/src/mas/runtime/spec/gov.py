@@ -36,6 +36,27 @@ class GovernanceBinding:
     ingress_plugins: list[dict[str, Any]] = field(default_factory=list)
 
 
+def _merge_gov_plugin_config(existing: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:
+    """Merge a second occurrence of the same plugin key (e.g. two stacked
+    overlays both using ``sample_governance``) into the first.
+
+    List-valued fields (``policies``, ``ingress_plugins``) concatenate — that
+    is the whole point of stacking two overlays that each add policies, and a
+    plain overwrite silently drops the first overlay's entire policy set.
+    Scalar fields (``hitl_on_tool``, ``gov_policy_profile``, …) follow the
+    same last-overlay-wins convention already used for every other config
+    field this module merges.
+    """
+    merged = dict(existing)
+    for key, value in new.items():
+        prior = merged.get(key)
+        if isinstance(prior, list) and isinstance(value, list):
+            merged[key] = prior + value
+        else:
+            merged[key] = value
+    return merged
+
+
 def _parse_gov_plugin_list(
     items: list[Any],
 ) -> tuple[list[str], dict[str, dict[str, Any]]]:
@@ -50,10 +71,11 @@ def _parse_gov_plugin_list(
             for raw_name, cfg in item.items():
                 name = str(raw_name).strip()
                 plugins.append(name)
-                if isinstance(cfg, dict):
-                    configs[name] = dict(cfg)
+                new_cfg = dict(cfg) if isinstance(cfg, dict) else {}
+                if name in configs:
+                    configs[name] = _merge_gov_plugin_config(configs[name], new_cfg)
                 else:
-                    configs[name] = {}
+                    configs[name] = new_cfg
         else:
             raise SpecBindingError(
                 f"governance list entries must be str or dict, got {type(item).__name__}"
@@ -124,6 +146,7 @@ def build_kernel_config(
     """
     from mas.runtime.boundary.gov.filter import GovTransitionFilter
     from mas.runtime.boundary.gov.ingress_chain import RegisteredIngressPlugin
+    from mas.runtime.boundary.gov.policy_engine import GovernancePolicyEngine
     from mas.runtime.boundary.gov.sample import SampleGovernancePlugin
     from mas.runtime.kernel.config import KernelConfig
     from mas.runtime.agent_defaults import default_pattern_plugin_id
@@ -207,6 +230,16 @@ def build_kernel_config(
             kwargs[key] = value
     if isinstance(binding.gov_ingress_profile, str):
         kwargs["gov_ingress_profile"] = GovIngressProfile(binding.gov_ingress_profile)
+
+    if binding.policies:
+        from mas.runtime.boundary.gov.policy_engine import PolicyParseError
+
+        try:
+            kwargs["policy_engine"] = GovernancePolicyEngine.from_yaml(
+                {"policies": binding.policies}
+            )
+        except PolicyParseError as exc:
+            raise SpecBindingError(f"spec.governance: {exc}") from exc
 
     # Build ingress chain (no ctl ingress loader needed at runtime level)
     chain = list(ingress_entries)

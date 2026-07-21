@@ -283,23 +283,58 @@ class KernelDriver:
                 run_contract_execute_obs,
             )
 
+            # q.pending_tool_name/pending_tool_args are single shared fields that
+            # only ever hold the LAST tool spec set by schedule_parallel_tools_egress's
+            # loop — by the time this per-sym loop runs, every sym would read the
+            # same stale (name, args) unless we look each one up by its own
+            # correlation_id via pending_tools_by_cid (populated per-spec in
+            # parallel_tools.py). Fall back to the shared fields for the
+            # single-tool-call case, where pending_tools_by_cid is never populated.
+            by_cid_obs = q.pending_tools_by_cid.get(sym.correlation_id)
+            obs_tool_name, obs_tool_args = (
+                by_cid_obs if by_cid_obs is not None else (q.pending_tool_name, q.pending_tool_args)
+            )
             env_ctx = EnvelopeContext(
                 q=q,
                 correlation_id=sym.correlation_id,
                 contract=contract_kind_for_op(sym.op),
                 scheduled_op=sym.op,
                 observability=get_bound_observability() or self.observability,
-                tool_name=q.pending_tool_name,
-                tool_arguments=dict(q.pending_tool_args or {}),
+                tool_name=obs_tool_name,
+                tool_arguments=dict(obs_tool_args or {}),
                 destructive=sym.destructive,
             )
             run_contract_execute_obs(env_ctx)
+            self._record_wait_state_obs(sym, q, boundary="start")
+            # Attach this op's own resolved call_id (and parent_call_id) to
+            # the invocation itself (see InvokeEngineIo.call_id/parent_call_id
+            # docstrings) — the observability boundary has, by the
+            # CONTRACT_EXECUTE step just above, already assigned this
+            # (correlation_id, op) pair its stable call_id AND resolved its
+            # parent (correctly, even for a batch of true siblings — see
+            # ObservabilityOperator.begin_sibling_batch). Reading both back
+            # here means the engine (and, transitively, a delegate_to_* tool
+            # call) always has its own real identity AND its parent's to
+            # forward — a real contract field, not a closure-captured lookup
+            # done later by whichever session-orchestration code happens to
+            # dispatch the delegate, and not something any downstream
+            # observability plugin needs to reconstruct from a call stack of
+            # its own.
+            if env_ctx.observability is not None:
+                own_call_id = env_ctx.observability.call_id_for(sym.correlation_id, sym.op)
+                if own_call_id:
+                    updates: dict = {"call_id": own_call_id}
+                    parent_call_id = env_ctx.observability.parent_call_id_for(own_call_id)
+                    if parent_call_id:
+                        updates["parent_call_id"] = parent_call_id
+                    sym = sym.model_copy(update=updates)
             if pool is not None:
                 pool.submit(sym)
             else:
                 assert engine is not None
                 ret = engine.invoke(sym)
                 self._record_engine_return(trace, sym, ret)
+                self._record_wait_state_obs(sym, q, boundary="end")
                 direct.append(ret)
         if pool is None:
             if parallel_group_id is not None:
@@ -311,6 +346,7 @@ class KernelDriver:
         out: list[IngressSymbol] = []
         for sym, ret in zip(ios, results, strict=True):
             self._record_engine_return(trace, sym, ret)
+            self._record_wait_state_obs(sym, q, boundary="end")
             out.append(ret)
         if parallel_group_id is not None:
             self._record_parallel_group_obs(
@@ -330,15 +366,14 @@ class KernelDriver:
         if not isinstance(ret, EngineIoReturn):
             return
         self._record_working_memory(io, ret)
-        if io.op == "LLM_CALL":
-            from mas.runtime.boundary.context.telemetry import record_engine_llm_return
-
-            record_engine_llm_return(
-                getattr(self.ctx, "observability", None) if self.ctx else None,
-                correlation_id=ret.correlation_id,
-                text=ret.text or "",
-                next_step=ret.next_step,
-            )
+        # The observability end-event (ENGINE_IO_RETURN) for every op — LLM,
+        # tool, and memory alike — is now recorded uniformly by
+        # ObsEnvelopeMachine.step() on OBSERVABILITY_POST_EXECUTE (see
+        # obs_envelope.py), driven by the kernel's own ingress processing of
+        # this same return. A hand-written LLM-only call used to live here;
+        # keeping it would double-record llm_call_end now that the envelope
+        # machine's path actually runs for every op instead of being
+        # permanently shadowed.
         detail = f"correlation_id={ret.correlation_id} response_kind={ret.response_kind}"
         ts_mono, ts_wall = _exchange_timestamp()
         engine_raw = _engine_payload_json(ret) if self.capture_engine_io else ""
@@ -404,6 +439,7 @@ class KernelDriver:
                     content=f"tool_call:{ret.tool_name or 'tool'}",
                     wm_count=len(store.messages),
                     committed_count=len(getattr(ctx, "committed_messages", []) or []),
+                    op="LLM_CALL",
                 )
         elif io.op == "LLM_CALL" and ret.next_step == "STOP" and ret.text:
             store.record_assistant_message(ret.text)
@@ -465,6 +501,7 @@ class KernelDriver:
             content=text,
             wm_count=len(store.messages),
             committed_count=len(getattr(ctx, "committed_messages", []) or []),
+            op="TOOL_CALL",
         )
 
     def _record_parallel_tool_calls(self, ios: list[InvokeEngineIo], q: Any) -> None:
@@ -504,9 +541,14 @@ class KernelDriver:
             if by_cid is None:
                 continue
             name, args = by_cid
+            tool_call_id = ""
+            call_id_for = getattr(obs, "call_id_for", None)
+            if callable(call_id_for):
+                tool_call_id = str(call_id_for(sym.correlation_id, "TOOL_CALL") or "")
             tools.append(
                 {
                     "correlation_id": sym.correlation_id,
+                    "call_id": tool_call_id,
                     "tool_name": name,
                     "arguments": dict(args),
                 }
@@ -518,4 +560,56 @@ class KernelDriver:
             group_id=group_id,
             tools=tools,
             correlation_id=ios[0].correlation_id if ios else 0,
+        )
+
+    @staticmethod
+    def _tool_spec_for_correlation(q: Any, correlation_id: int) -> tuple[str, dict]:
+        by_cid = q.pending_tools_by_cid.get(correlation_id)
+        if by_cid is not None:
+            return str(by_cid[0] or ""), dict(by_cid[1] or {})
+        return str(q.pending_tool_name or ""), dict(q.pending_tool_args or {})
+
+    def _record_wait_state_obs(self, sym: InvokeEngineIo, q: Any, *, boundary: str) -> None:
+        """Emit WAIT/RESUME boundary events for delegation tool calls.
+
+        Architecture: runtime emits a native ``envelope.activity`` marker at
+        wait-entry (boundary=start) and wait-exit (boundary=end), and the
+        native transform maps each marker into a tiny ProcessingCall span so
+        the plot can render clickable WAIT/RESUME nodes without reconstructing
+        timing heuristically from overlapping tool/peer calls.
+        """
+        if sym.op != "TOOL_CALL":
+            return
+        tool_name, _tool_args = self._tool_spec_for_correlation(q, sym.correlation_id)
+        if not tool_name.startswith("delegate_to_"):
+            return
+        from mas.runtime.boundary.gov.telemetry import get_bound_observability
+        from mas.runtime.schema.observability import ObsPhase
+
+        obs = get_bound_observability() or self.observability
+        record = getattr(obs, "record_envelope_activity", None)
+        if not callable(record):
+            return
+
+        role = "WAIT" if boundary == "start" else "RESUME"
+        note = (
+            "agent wait on tool call; tool wait on delegated reply"
+            if role == "WAIT"
+            else "delegated reply received; resume caller"
+        )
+        record(
+            symbol=f"WAIT_STATE_{role}",
+            activity="wait_state",
+            boundary=boundary,
+            phase=ObsPhase.EXECUTE,
+            correlation_id=sym.correlation_id,
+            machine_id="M_coord",
+            payload={
+                "op": "TOOL_CALL",
+                "tool_name": tool_name,
+                "wait_link_id": f"delegate-{sym.correlation_id}",
+                "wait_role": role,
+                "wait_scope": "delegation",
+                "wait_note": note,
+            },
         )

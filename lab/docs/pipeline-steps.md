@@ -8,8 +8,8 @@ Built-in **pipeline step** types for the **embedded pipeline** in
 `experiment.yaml`. Labs add more under `lib/steps/`.
 
 How **pipelines** work: [pipeline.md](pipeline.md). **Benchmark** command:
-[benchmark.md](benchmark.md). Full OSS catalog:
-[`pipeline/steps/README.md`](../components/bench/src/mas/lab/benchmark/pipeline/steps/README.md).
+[benchmark.md](benchmark.md). Full OSS catalog: see the [Directory](#directory)
+section below, or query it live with the commands there.
 
 ## Directory
 

@@ -139,14 +139,22 @@ class RuntimeInstance:
     def feed(self, event: IngressSymbol) -> DriverTrace:
         return self.driver.feed(event)
 
-    def run_user_text(self, text: str, *, turn_id: str = "u1") -> DriverTrace:
+    def run_user_text(
+        self, text: str, *, turn_id: str = "u1", parent_call_id: str = ""
+    ) -> DriverTrace:
         op = self.driver.observability
         exec_id: str | None = None
         if op is not None and self.obs_plugin_set is not None:
             agent_id = op._agent_id or "agent"
             exec_id = f"{agent_id}-{turn_id}-exec"
             op.push_call_frame(exec_id)
-            op.record_session("user_input", text=text, call_id=exec_id, turn_id=turn_id)
+            record_kwargs = {"text": text, "call_id": exec_id, "turn_id": turn_id}
+            if parent_call_id:
+                # This turn is a delegated sub-agent call — parent to the
+                # delegating tool call itself, not the top-level MAS call
+                # (the transform layer's fallback when this isn't given).
+                record_kwargs["parent_call_id"] = parent_call_id
+            op.record_session("user_input", **record_kwargs)
 
         trace = self.feed(UserInputReceived(user_turn_id=turn_id, text=text))
 

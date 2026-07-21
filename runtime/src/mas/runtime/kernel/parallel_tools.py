@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from mas.runtime.boundary.gov.telemetry import get_bound_observability
 from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.kernel.coupling import apply_control_tool_request
 from mas.runtime.kernel.egress_gate import emit_scheduled_egress, schedule_tool_egress
@@ -30,6 +31,15 @@ def schedule_parallel_tools_egress(
 
     out: list[EgressSymbol] = []
     q.pending_tools_by_cid.clear()
+    # Snapshot the enclosing frame ONCE, before any of these N tools' own
+    # contract_call/start fires below (each iteration's emit_scheduled_egress
+    # steps CONTRACT_START synchronously) — otherwise each sibling reads
+    # whatever the PREVIOUS sibling just pushed as its parent, chaining them
+    # onto each other instead of the frame that's actually enclosing all of
+    # them. See ObservabilityOperator.begin_sibling_batch.
+    obs = get_bound_observability()
+    if obs is not None:
+        obs.begin_sibling_batch(len(tools))
     for spec in tools:
         q.pending_tool_name = spec.tool_name
         q.pending_tool_args = dict(spec.tool_arguments)

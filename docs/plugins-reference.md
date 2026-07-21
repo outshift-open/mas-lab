@@ -22,7 +22,7 @@ plugins:
 Or by short name when using a flavour that already activates it.
 
 See [flavours documentation](../library-standard/docs/user-guide.md) and
-[Tutorial 2 — Creating a MAS](../tutorials/02-creating-a-mas/) for
+[Tutorial 2 — Creating a MAS](tutorials/02-creating-a-mas/) for
 practical examples.
 
 ---

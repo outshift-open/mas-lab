@@ -6,16 +6,14 @@ kind: Flavour
 metadata:
   name: mock
   description: >
-    Offline CI flavour — mock LLM, no network. Used by golden benchmark runs and CI.
+    Deployment posture for offline CI / golden benchmark runs — same protocol
+    and observability selection as `local`. Actually running with a mock LLM
+    and no network is an execution-overlay concern, not a flavour concern:
+    combine this flavour with `-o overlays/mock-llm.yaml` (spec.patch.execution.mocking),
+    which is what `--flavour mock` used to encode directly. See
+    docs/design/flavour-boundary.md.
 
 spec:
-  llm:
-    provider: mock
-    model: mock
-
-  skills:
-    backend: auto
-
   agent_comm:
     protocol: agent-local
     mode: local
@@ -25,9 +23,9 @@ spec:
     remote_tools_enabled: false
     allowed: ["*"]
 
-  mocking:
-    enabled: true
-
   telemetry:
     backend: file
     path: logs/
+
+  observability:
+    - native

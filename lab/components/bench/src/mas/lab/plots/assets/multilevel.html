@@ -67,6 +67,7 @@ body{font-family:'Inter',ui-sans-serif,sans-serif;background:#0f172a;color:#e2e8
 .moodbar .mood-seg{min-width:2px;position:relative;transition:filter .15s;cursor:pointer}
 .moodbar .mood-seg:hover{filter:brightness(1.4)}
 .moodbar .mood-seg.mood-active{filter:brightness(1.6);outline:2px solid #7dd3fc;outline-offset:-1px;z-index:2}
+.moodbar .mood-seg.mood-highlight{outline:2px solid #f97316!important;outline-offset:-1px;box-shadow:0 0 0 1px rgba(249,115,22,.45) inset}
 .moodbar-labels{display:flex;justify-content:space-between;font-size:.65rem;color:#64748b;margin-top:2px;margin-bottom:.6rem}
 /* Moodbar tooltip */
 .mood-tip{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
@@ -75,6 +76,11 @@ body{font-family:'Inter',ui-sans-serif,sans-serif;background:#0f172a;color:#e2e8
 .mood-seg:hover .mood-tip{display:block}
 /* Facet highlight */
 .facet-item.facet-active{background:rgba(125,211,252,.08);border-left-color:#7dd3fc!important}
+.facet-item.facet-highlight{background:rgba(249,115,22,.08);border-left-color:#f97316!important}
+.facet-item.facet-highlight .facet-head{color:#fed7aa}
+.facet-item.facet-highlight .facet-content pre{border:1px solid rgba(249,115,22,.35)}
+.facet-new{font-size:.58rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  padding:1px 5px;border-radius:3px;background:#9a3412;color:#ffedd5;white-space:nowrap}
 /* Card layout with pie chart */
 .cpr-body{display:flex;gap:1rem;align-items:flex-start}
 .cpr-facets{flex:1;min-width:0}
@@ -120,12 +126,16 @@ body{font-family:'Inter',ui-sans-serif,sans-serif;background:#0f172a;color:#e2e8
 .cpr-output pre{white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,monospace;
   margin:0;max-height:300px;overflow-y:auto;font-size:.72rem;line-height:1.5;
   padding:.35rem .5rem;background:rgba(0,0,0,.2);border-radius:4px;color:#cbd5e1}
+.wait-link-row{margin-top:.65rem;padding-top:.45rem;border-top:1px solid #334155}
+.wait-link-row a{color:#7dd3fc;text-decoration:none;font-size:.74rem;font-weight:600}
+.wait-link-row a:hover{text-decoration:underline;color:#bae6fd}
 </style>
 </head>
 <body>
 <div id="toolbar">
   <button id="btn-zoomin">＋ Zoom in</button>
   <button id="btn-zoomout">－ Zoom out</button>
+  <button id="btn-fit" title="Zoom out until the whole plot fits the visible width">⤢ Fit</button>
   <button id="btn-reset">⟲ Reset</button>
   <button id="btn-timeaxis" title="Toggle time axis">⏱ Time axis</button>
   <label style="color:#64748b;font-size:.78rem">Width:
@@ -139,6 +149,7 @@ body{font-family:'Inter',ui-sans-serif,sans-serif;background:#0f172a;color:#e2e8
   <div id="lane-track" style="position:relative;height:22px;border-radius:4px;border:1px solid #334155;display:inline-flex;overflow:visible;cursor:default"></div>
   <span id="lpk-label" style="color:#7dd3fc;font-size:.78rem;min-width:100px;display:inline-block"></span>
   <button id="btn-ann" style="display:none;color:#fca5a5;border-color:#7f1d1d">&#128204; <span id="ann-count">0</span> annotation(s)</button>
+  <button id="btn-groups" title="Toggle collapsible/expandable groups (agent runs, fork branches) — optional via CHART.showGroups">&#8862; Groups</button>
 </div>
 <div id="chart-wrap"><svg id="chart"></svg></div>
 <div id="tooltip"><div id="tt-title"></div><hr id="tt-sep"><div id="tt-body"></div></div>
@@ -174,7 +185,14 @@ _buildAllPins();
 
 // ── Geometry constants ───────────────────────────────────────────────────
 const LW=108,PL=80,PR=80,TH=48,LGH=34,LH=68,LM=34,PB=20,TAH=24;
-const SW=34,SH=26,TRH=26,BR=10,AG=10,MIN_TRANS_W=80,MINCOL=150,TS_TOL=0.05,INSTANT_COL_W=130;
+// *_BASE = the full-size "readable" reference geometry — frozen, never
+// itself scaled. computeMinZoom uses these directly to find the k at which
+// every column is still at its full readable size; redraw() derives its own
+// (possibly further-shrunk) local SW/SH/TRH/AG/BR from these once zoomed out
+// past that point (see the `_rs` shrink factor at the top of redraw()) —
+// keeping box sizes, column spacing and separator distances all scaling down
+// together instead of some staying rigid while others shrink.
+const SW_BASE=34,SH_BASE=26,TRH_BASE=26,BR_BASE=10,AG_BASE=10,MIN_TRANS_W=80,MINCOL=150,TS_TOL=0.05,INSTANT_COL_W=130,RESET_COL_W=56,CONNECTOR_COL_W=40,COLLAPSED_COL_W=64;
 const UA_OFFSET=60; // px from boundary-state centre to user box centre
 
 // ── Colours ──────────────────────────────────────────────────────────────
@@ -182,6 +200,7 @@ const C={
   bg:'#0f172a',sep:'#334155',lc:'#94a3b8',tc:'#f1f5f9',
   laneBg:['#1e293b','#172032'],
   stateF:'#ffffff',stateS:'#475569',stateT:'#1e293b',
+  controlF:'#fef9c3',controlS:'#ca8a04',controlT:'#713f12', // WAIT/RESUME/FORK/JOIN: light-yellow control boundary, distinct from real states
   badge:'#f87171',conn:'#475569',arrow:'#64748b',
   user:'#eab308',   // yellow-500: user actor (distinct from LLM orange #ea580c)
   accent:{session:'#0d3b4a',mas:'#155e75',agent:'#0e7490',call:'#64748b'},
@@ -191,28 +210,134 @@ const C={
 };
 
 // ── Layout ───────────────────────────────────────────────────────────────
-// Build exact set of genuine instant-call column intervals.
-// Only ToolCall / MemoryCall / RAGQuery (isInstant=true, startTs≠endTs) generate
-// dedicated icon columns.  ProcessingCall overlays its own state bucket and is
-// excluded here because its startTs===endTs (sameTs=true in Phase 4).
-// Key: "${startTs}:${endTs}" with the raw float values from the data.
-let INSTANT_PAIRS = new Set();
-function _buildInstantPairs() {
-  INSTANT_PAIRS.clear();
-  CHART.lanes.forEach(lane => {
-    lane.sequence.forEach(el => {
-      if (el.type==='trans' && el.isInstant && el.callType!=='ProcessingCall')
-        INSTANT_PAIRS.add(`${el.startTs}:${el.endTs}`);
-    });
-  });
+// Per-gap classification comes from the server (chart_data.py's bucket_gaps):
+// one entry per adjacent pair in CHART.buckets (which are already ordered by
+// DFS virtual position, not raw timestamp — see dag.py's finalization pass).
+// "instant" = a near-zero-duration call with a real icon/label to keep
+// clickable (e.g. a delegation dispatch marker); "connector" = a wait/resume
+// bridge that renders no bar/label/badge at all (only the dotted lifeline),
+// so it gets an even narrower column than "instant"; "reset" = a branch
+// boundary (going back up the call tree and descending into a new sibling).
+// All three get a small fixed column width, never time-proportional and
+// never scaled by zoom. Everything else is "normal".
+function gapKind(i) {
+  const gaps = CHART.bucketGaps;
+  return (gaps && gaps[i]) ? gaps[i].kind : 'normal';
 }
-_buildInstantPairs();
-function isInstantCol(prev, b) { return INSTANT_PAIRS.has(`${prev}:${b}`); }
+
+// Maps a bucket's real timestamp to its position (index) in the DFS-
+// ordered CHART.buckets array. Collapse ranges MUST be expressed in this
+// index space, never in raw-ts space: CHART.buckets is NOT sorted by
+// value — it's sorted by DFS visitation order, so sibling fork branches
+// dispatched milliseconds apart but each running for real seconds have
+// wildly overlapping raw-ts spans despite occupying entirely separate,
+// non-overlapping contiguous index ranges (branch A's whole subtree, then
+// branch B's). A raw-ts range comparison for "is X inside collapsed group
+// G" would wrongly also match an uncollapsed sibling's own later buckets
+// whenever their real ts happens to fall inside G's real-time span — see
+// _bucketIndexOf / _rangeOfBucket below.
+let _bucketIndexMap = new Map();
+function _buildBucketIndexMap() {
+  _bucketIndexMap = new Map(CHART.buckets.map((b,i)=>[b,i]));
+}
+_buildBucketIndexMap();
+
+// Buckets whose state carries a fork/join/branch-begin/branch-end role
+// circle (see the ph4b rendering block further down) need extra room
+// beside them: that circle is a fixed-size annotation drawn immediately
+// next to the state's own box, on top of everything else, but its width
+// is never accounted for by any lane's own trans/gap width — an
+// instant/connector/reset column sized only for the underlying call data
+// left the circle with nowhere to go but overlapping the neighbouring
+// state box (reported: "provision some space to accommodate the branch
+// and fork nodes"). ROLE_GAP_MIN mirrors the ph4b block's own geometry
+// (state box width + circle diameter + a small margin). Fork/join/
+// branch-end circles are drawn to the RIGHT of their state (marking the
+// END of what precedes them), so they need extra room in the gap that
+// FOLLOWS their own bucket; branch-begin circles are drawn to the LEFT of
+// their state instead (the branch-start marker must appear BEFORE the
+// branch's own input state, not after it — reported separately: "branch
+// start node should be before the input state for the tool call"), so
+// they need extra room in the gap that PRECEDES their own bucket. Two
+// separate sets track this so computeBaseXPos can widen the correct side.
+const ROLE_GAP_MIN = 92;
+let _roleTsSet = new Set();      // right-side roles: fork / join / branch_end
+let _roleTsSetLeft = new Set();  // left-side role: branch_begin
+function _buildRoleTsSet() {
+  _roleTsSet = new Set();
+  _roleTsSetLeft = new Set();
+  CHART.lanes.forEach(lane=>lane.sequence.forEach(el=>{
+    if (el.type!=='state') return;
+    // Mirrors the exact precedence used by the ph4b rendering block's own
+    // _fjRole so a state that happens to carry more than one role flag is
+    // classified the same way it actually renders.
+    const role = el.isFork ? 'fork' : el.isJoin ? 'join'
+               : el.isBranchBegin ? 'branch_begin' : el.isBranchEnd ? 'branch_end' : null;
+    if (role==='branch_begin') _roleTsSetLeft.add(el.ts);
+    else if (role) _roleTsSet.add(el.ts);
+  }));
+}
+_buildRoleTsSet();
+function _bucketIndexOf(ts) {
+  const hit = _bucketIndexMap.get(ts);
+  if (hit !== undefined) return hit;
+  // Fallback nearest-match (mirrors snap()'s tolerance-free nearest search)
+  // for the rare case a ts doesn't land on an exact bucket value.
+  let bestI=0, bestD=Infinity;
+  const buckets=CHART.buckets;
+  for (let i=0;i<buckets.length;i++) {
+    const d=Math.abs(buckets[i]-ts);
+    if (d<bestD) { bestD=d; bestI=i; }
+  }
+  return bestI;
+}
+
+// Collapsing a group hides its interior content (see _isTransCollapsed/
+// _isStateCollapsed) but by itself does nothing to the x-axis — every
+// bucket inside it still reserves its full original (often time-
+// proportional) width, so collapsing alone never actually frees up any
+// horizontal room. _globalCollapsedRanges/_rangeOfBucket/effectiveGapKind
+// make computeBaseXPos/applyZoom/computeMinZoom collapse-aware: every gap
+// whose destination bucket falls inside a currently-collapsed span
+// collapses to a SINGLE fixed-width column (COLLAPSED_COL_W) for the
+// whole span combined, not one fixed width per original gap. Ranges here
+// are always {startIdx,endIdx} bucket-INDEX bounds (see _bucketIndexOf) —
+// never raw ts — to stay correct for overlapping-real-time fork branches.
+function _globalCollapsedRanges() {
+  const all=[];
+  _collapsedRangesByLane.forEach(ranges=>ranges.forEach(r=>all.push(r)));
+  if (!all.length) return [];
+  all.sort((a,b)=>a.startIdx-b.startIdx);
+  const merged=[];
+  all.forEach(r=>{
+    const last=merged[merged.length-1];
+    if (last && r.startIdx<=last.endIdx) last.endIdx=Math.max(last.endIdx,r.endIdx);
+    else merged.push({...r});
+  });
+  return merged;
+}
+function _rangeOfBucket(idx, ranges) {
+  return ranges.find(r=>idx>=r.startIdx && idx<=r.endIdx) || null;
+}
+// A gap is 'collapsed' (gets the ONE fixed COLLAPSED_COL_W) only on the
+// step that first enters a collapsed range (source bucket index === range
+// start index); every subsequent step while still inside (or exiting to
+// the range's end) is 'collapsed-zero' (no width at all) — so an
+// arbitrarily long collapsed span always costs exactly COLLAPSED_COL_W
+// total, never per-bucket.
+function effectiveGapKind(i, ranges) {
+  if (ranges && ranges.length) {
+    const rj=_rangeOfBucket(i+1, ranges);
+    if (rj) return (i === rj.startIdx) ? 'collapsed' : 'collapsed-zero';
+  }
+  return gapKind(i);
+}
 
 function computeBaseXPos(buckets, mode) {
   const n = buckets.length;
   if (!n) return {};
   if (n === 1) return {[buckets[0]]: LW+PL};
+  const collapsedRanges=_globalCollapsedRanges();
   let raw;
   if (mode==='proportional')
     raw = buckets.slice(1).map((b,i)=>Math.max(1e-9, b-buckets[i]));
@@ -220,54 +345,84 @@ function computeBaseXPos(buckets, mode) {
     raw = buckets.slice(1).map((b,i)=>Math.pow(Math.log1p(Math.max(0,b-buckets[i])),0.5));
   else
     raw = new Array(n-1).fill(1);
-  // Classify intervals: only genuine instant-call columns get fixed narrow width.
-  const isInst = buckets.slice(1).map((b,i)=>isInstantCol(buckets[i],b));
-  const normalRaw = raw.filter((_,i)=>!isInst[i]);
+  const kinds = raw.map((_,i)=>effectiveGapKind(i, collapsedRanges));
+  const normalRaw = raw.filter((_,i)=>kinds[i]==='normal');
   const normalTot = normalRaw.reduce((a,b)=>a+b,0)||1;
   const normalTotal = Math.max(1400, normalRaw.length*160);
   const pos={[buckets[0]]:LW+PL};
   let x=LW+PL;
   raw.forEach((r,i)=>{
-    if (isInst[i]) { x+=INSTANT_COL_W; }
-    else           { x+=Math.max(MINCOL, r/normalTot*normalTotal); }
+    let w;
+    if (kinds[i]==='instant')        { w=INSTANT_COL_W; }
+    else if (kinds[i]==='connector') { w=CONNECTOR_COL_W; }
+    else if (kinds[i]==='reset')     { w=RESET_COL_W; }
+    else if (kinds[i]==='collapsed') { w=COLLAPSED_COL_W; }
+    else if (kinds[i]==='collapsed-zero') { w=0; /* swallowed into the entry column above */ }
+    else                              { w=Math.max(MINCOL, r/normalTot*normalTotal); }
+    if (kinds[i]!=='collapsed-zero' && _roleTsSetLeft.has(buckets[i+1])) w=Math.max(w, ROLE_GAP_MIN);
+    // A collapsed-zero gap must stay exactly zero width (the collapsed
+    // range's whole cost is charged once, on its entry column) even if its
+    // source bucket happens to carry a role tag — that state is hidden
+    // while collapsed anyway, so there's no circle to make room for.
+    if (kinds[i]!=='collapsed-zero' && _roleTsSet.has(buckets[i])) w=Math.max(w, ROLE_GAP_MIN);
+    x+=w;
     pos[buckets[i+1]]=x;
   });
   return pos;
 }
 
 function applyZoom(base, tx, k) {
-  // Instant columns are always exactly INSTANT_COL_W px wide, regardless of
-  // zoom — the icon must stay centred with equal arrows on both sides.
-  // Normal columns scale with k, subject to a minimum of SW+4 px.
+  // Instant/reset/collapsed columns are always a fixed width, regardless of
+  // zoom — an icon/separator/collapsed-placeholder needs to stay centred /
+  // at a stable, clickable width. Normal columns scale with k, subject to a
+  // minimum of SW_BASE+4 px — UNCHANGED behaviour for k>=minZoom (the
+  // existing "readable" floor). Once k drops below minZoom (only reachable
+  // via the Fit button/its widened scaleExtent), `cs` shrinks ALL fixed
+  // columns and the normal-column floor together, proportionally, instead of
+  // only normal columns continuing to shrink while fixed ones stay rigid —
+  // this is what actually lets the whole plot compress down to fit the
+  // screen width. redraw() applies the SAME `cs` to box/badge/separator
+  // dimensions so nothing visually overlaps as things shrink.
   const sorted = CHART.buckets;
+  const collapsedRanges=_globalCollapsedRanges();
+  const cs = Math.min(1, k/minZoom);
   const out={};
   for (let i=0;i<sorted.length;i++) {
     const b=sorted[i];
     if (i===0) { out[b]=LW+(base[b]-LW)*k+tx; continue; }
     const prev=sorted[i-1];
-    if (isInstantCol(prev,b)) {
-      out[b]=out[prev]+INSTANT_COL_W;  // fixed — never scales
-    } else {
+    const kind=effectiveGapKind(i-1, collapsedRanges);
+    if (kind==='instant')        { out[b]=out[prev]+INSTANT_COL_W*cs; }
+    else if (kind==='connector') { out[b]=out[prev]+CONNECTOR_COL_W*cs; }
+    else if (kind==='reset')     { out[b]=out[prev]+RESET_COL_W*cs; }
+    else if (kind==='collapsed') { out[b]=out[prev]+COLLAPSED_COL_W*cs; }
+    else if (kind==='collapsed-zero') { out[b]=out[prev]; }
+    else {
       const raw=LW+(base[b]-LW)*k+tx;
-      out[b]=Math.max(raw, out[prev]+SW+4);
+      out[b]=Math.max(raw, out[prev]+(SW_BASE+4)*cs);
     }
   }
   return out;
 }
 
 // Compute the minimum zoom level below which any column would be too narrow.
-// Evaluated per-column so instant and normal columns use different thresholds:
-//   instant  → INSTANT_COL_W (enough to centre the icon with arrows on both sides)
-//   normal   → SW + 2*AG + 24 + 4 = 82 px (two half-boxes + arrows + 24 px bar)
+// Evaluated per-column so instant/connector/reset and normal columns use
+// different thresholds:
+//   instant/connector/reset → fixed column width (enough to centre the
+//                             icon/separator, or just the bare lifeline)
+//   normal                  → SW + 2*AG + 24 + 4 = 82 px (two half-boxes +
+//                             arrows + 24 px bar)
 // The minimum zoom is the maximum ratio needed across all column types.
 function computeMinZoom(base) {
   const sorted = CHART.buckets;
   if (sorted.length < 2) return 0.05;
+  const collapsedRanges=_globalCollapsedRanges();
   let maxRatio = 0;
   for (let i=1; i<sorted.length; i++) {
+    const kind = effectiveGapKind(i-1, collapsedRanges);
+    if (kind==='collapsed-zero') continue; // zero-width column, no zoom constraint
     const gap = base[sorted[i]] - base[sorted[i-1]];
-    const isInst = isInstantCol(sorted[i-1], sorted[i]);
-    const needed = isInst ? INSTANT_COL_W : SW + 2*AG + 24 + 4;
+    const needed = kind==='instant' ? INSTANT_COL_W : kind==='connector' ? CONNECTOR_COL_W : kind==='reset' ? RESET_COL_W : kind==='collapsed' ? COLLAPSED_COL_W : SW_BASE + 2*AG_BASE + 24 + 4;
     maxRatio = Math.max(maxRatio, needed / gap);
   }
   return Math.max(0.05, maxRatio);
@@ -294,39 +449,71 @@ const TYPE_BADGE={
   MITMCall:       {label:'MITM',   color:'#dc2626'},
   ThinkingCall:   {label:'Think',  color:'#7c3aed'},
   ThinkingEmit:   {label:'Emit',   color:'#4c1d95'},
+  GovernanceBlock:   {label:'Gov', color:'#ef4444'},
+  GovernanceCaution: {label:'Gov', color:'#f59e0b'},
+  GovernanceAllow:   {label:'Gov', color:'#64748b'},
 };
 function escH(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-// hlGap: escape text, then wrap the given excerpt (or legacy gapPhrases) in
-// red bold spans.  excerpt is a node-level string from the annotation YAML;
-// gapPhrases is the legacy global list (kept for backward compat).
-function hlGap(txt, excerpt) {
-  const raw = String(txt||'(empty)');
-  const phrases = excerpt ? [excerpt] : (CHART.gapPhrases || []);
-  if (!phrases.length) {
-    return '<pre style="margin:0;white-space:pre-wrap;font-size:.78rem;font-family:ui-monospace,monospace">'+escH(raw)+'</pre>';
-  }
-  const pats = phrases.map(p=>p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
-  const re = new RegExp('('+pats.join('|')+')','gi');
-  const escaped = raw.split(re).map((part,i)=>
-    i%2===1
-      ? '<span style="color:#ef4444;font-weight:700">'+escH(part)+'</span>'
-      : escH(part)
-  ).join('');
-  return '<pre style="margin:0;white-space:pre-wrap;font-size:.78rem;font-family:ui-monospace,monospace">'+escaped+'</pre>';
-}
 // pinHeader: styled annotation note shown above the hover body.
 function pinHeader(note) {
   if (!note) return '';
   return '<div style="color:#ef4444;font-size:.74rem;font-weight:600;padding:.18rem 0 .35rem 0;border-bottom:1px solid #334155;margin-bottom:.38rem">&#9873; '+escH(note)+'</div>';
 }
-function showTip(e, label, content, callType, excerpt, pinNote, cprData) {
+// Governance decision colouring: red for actions that stopped or rerouted
+// the call, amber for ones that paused or retried it, grey for anything
+// merely logged/allowed.
+const GOV_DECISION_COLOR={
+  BLOCK:'#ef4444', TERMINATE:'#ef4444', BLACKLIST:'#ef4444',
+  HITL:'#f59e0b', RETRY:'#f59e0b', SKIP:'#f59e0b', MODIFY:'#f59e0b',
+  ALLOW:'#64748b', LOG:'#64748b',
+};
+// Governance section HTML for the pinned panel — decision/reason/policy per
+// hook (egress/ingress), so a click on the badge shows exactly what governed
+// this call and why.
+function govSummaryText(governance) {
+  if (!governance || !governance.length) return '';
+  return governance.map(g=>`${g.decision||'?'}${g.policyName?' ('+g.policyName+')':''}: ${g.reason||''}`).join('\n');
+}
+function govHtml(governance) {
+  if (!governance || !governance.length) return '';
+  const rows=governance.map(g=>{
+    const c=GOV_DECISION_COLOR[g.decision]||'#64748b';
+    return `<div style="padding:.3rem 0;border-top:1px solid #334155">`
+      +`<span style="background:${c};color:#fff;font-size:.68rem;font-weight:700;padding:.08rem .4rem;border-radius:3px;font-family:ui-monospace,monospace">${escH(g.decision||'?')}</span>`
+      +` <span style="color:#94a3b8;font-size:.72rem">${escH(g.hook||'')}${g.checkpoint?' · '+escH(g.checkpoint):''}${g.policyName?' · '+escH(g.policyName):''}</span>`
+      +(g.reason?`<div style="margin-top:.2rem;font-size:.78rem;color:#e2e8f0">${escH(g.reason)}</div>`:'')
+      +`</div>`;
+  }).join('');
+  return `<div style="margin-top:.5rem"><div style="color:#94a3b8;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em">&#9860; Governance</div>${rows}</div>`;
+}
+function showTip(e, label, content, callType, excerpt, pinNote, cprData, waitVisualHtml, plainText) {
   const tm=callType&&TYPE_BADGE[callType];
   ttT.innerHTML=`<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(label)}</span>`
     +(tm?`<span style="flex-shrink:0;background:${tm.color};color:#fff;font-size:.68rem;font-weight:700;padding:.1rem .42rem;border-radius:3px;letter-spacing:.05em;font-family:ui-monospace,monospace">${tm.label}</span>`:'');
-  if (cprData && cprData.length) {
-    ttB.innerHTML = pinHeader(pinNote) + renderCprTooltip(cprData);
+  // Every popup renders through a visual component — never a bare text
+  // tooltip. Wait/Resume states get ONLY their dedicated compact icon+
+  // target visual — no CPR facet card at all (a wait/resume marker isn't
+  // itself a point where context was assembled; showing accumulated CPR
+  // content there was misleading, per explicit user request to strip it
+  // entirely). Plain conversational text (e.g. the session-level user
+  // input/output) is never context-provenance data, so it renders as plain
+  // text too — wrapping it into a fake single-facet card would misrepresent
+  // it as classified/token-accounted context.
+  if (waitVisualHtml) {
+    ttB.innerHTML = pinHeader(pinNote) + waitVisualHtml;
+  } else if (plainText) {
+    ttB.innerHTML = pinHeader(pinNote) + _plainTextHtml(content);
   } else {
-    ttB.innerHTML=pinHeader(pinNote)+hlGap(content, excerpt);
+    // A transition popup (callType set) is never a plain state snapshot —
+    // when it genuinely has no CPR facets (e.g. an LLM turn whose output
+    // telemetry is empty), wrapping the raw duration line as a fake
+    // "node/content" facet would misrepresent a timing string as real
+    // content. Only state/actor/ghost popups (callType falsy) fall back to
+    // that generic wrap.
+    const parts=(cprData && cprData.length) ? cprData : (callType ? [] : _wrapPlainContentAsFacets(content, callType, excerpt));
+    ttB.innerHTML = parts.length
+      ? pinHeader(pinNote) + renderCprTooltip(parts)
+      : pinHeader(pinNote) + '<div style="color:#64748b;font-style:italic;font-size:.78rem">(no content)</div>';
   }
   tip.style.display='block';
   const m=16;
@@ -346,6 +533,257 @@ const CPR_CAT_LABELS = {
   SYSTEM:'System Prompt', SKILL:'Skill', MEMORY:'Memory',
   TOOL:'Tool Result', CONTEXT:'Context'
 };
+const CPR_HIGHLIGHT_COLOR_BY_SOURCE = {
+  'context/system':'#64748b',
+  'assembled/user':'#64748b',
+  'llm/output':'#ea580c',
+  'state/assistant':'#ea580c',
+  'tool/output':'#16a34a',
+};
+
+function _canonicalPartSource(src) {
+  const s=String(src||'').toLowerCase();
+  if (s==='assembled/user') return 'context/user';
+  if (s==='state/assistant') return 'llm/output';
+  return s;
+}
+
+function _partSourceKey(p){
+  const s=_canonicalPartSource((p&&p.source)||'');
+  const c=(p&&p.content)||'';
+  return `${s}::${c}`;
+}
+
+function _partVisualMeta(p){
+  const src=String(p.source||'').toLowerCase();
+  if (src==='context/system') {
+    return {badge:'SYSTEM PROMPT', color:'#3b82f6', catLabel:'System Prompt'};
+  }
+  if (src==='context/user' || src==='assembled/user') {
+    return {badge:'USER PROMPT', color:'#64748b', catLabel:'User Prompt'};
+  }
+  if (src==='llm/output' || src==='state/assistant') {
+    return {badge:'LLM OUTPUT', color:'#ea580c', catLabel:'LLM Output'};
+  }
+  if (src==='tool/output') {
+    return {badge:'TOOL OUTPUT', color:'#16a34a', catLabel:'Tool Output'};
+  }
+  const fallbackColor=CPR_CAT_COLORS[p.category]||'#64748b';
+  return {
+    badge:(CPR_CAT_LABELS[p.category]||p.category||'CONTEXT').toUpperCase(),
+    color:fallbackColor,
+    catLabel:CPR_CAT_LABELS[p.category]||p.category||'Context',
+  };
+}
+
+// Real assembly order, straight from telemetry: `context_part_contributed`
+// events carry a `section_id` of the form "assembled/{N}/{role}" where N is
+// the genuine ordinal position the runtime assembled that part at (verified
+// against events.jsonl: system=0, user=1, tool_call=2, tool_result=3+, …).
+// Parts synthesized client-side (the S1 entry's own user-prompt fact, and
+// this file's own dynamic llm/output / tool/output fallbacks) carry no
+// sectionId — those fall back to a fixed, still telemetry-consistent
+// per-role default matching where that role's section_id always lands in
+// every real trace inspected, with the two "what just happened" fallbacks
+// (llm/output, tool/output) sorted last since they represent the *newest*
+// fact, appended after everything already assembled.
+const _SECTION_ORDER_FALLBACK = {
+  'context/system':0, 'context/user':1, 'assembled/user':1,
+  'assembled/tool_call':2, 'state/assistant':2,
+  'assembled/tool_result':3,
+  'tool/output':900, 'llm/output':999,
+};
+function _partSectionOrder(p) {
+  const sid=String(p.sectionId||'');
+  const m=sid.match(/^assembled\/(\d+)\//);
+  if (m) return parseInt(m[1], 10);
+  const src=String(p.source||'').toLowerCase();
+  return (src in _SECTION_ORDER_FALLBACK) ? _SECTION_ORDER_FALLBACK[src] : 500;
+}
+
+// The calls lane is the only lane where context-assembly telemetry is
+// observed directly (native cprData). Session/MAS/Agents lanes collapse
+// whole real-time spans into a handful of their own boundary states
+// (delegation entries, WAIT/RESUME markers) that mostly carry no cprData
+// of their own — cross-referencing the calls lane lets every lane's popups
+// show the real, ground-truth CPR view instead of "(no content)".
+function _callsLane() {
+  return (CHART.lanes||[]).find(l=>l.laneId==='calls');
+}
+// Ordering must follow DFS position (el.num), never raw ts: a delegating
+// agent's later sibling call keeps an early dispatch ts even though its
+// subtree is explored well after an earlier sibling's own ts has advanced
+// past it (see chart_data.py's all_buckets / dag.py's dfs_pos notes) — a
+// raw-ts comparison here would silently pick the wrong calls-lane state.
+function _callsLaneStateIdxAtOrBeforeNum(targetNum) {
+  const cl=_callsLane();
+  if (!cl) return -1;
+  let best=-1, bestNum=-Infinity;
+  (cl.sequence||[]).forEach((el,i)=>{
+    if (el.type==='state' && el.num<=targetNum && el.num>bestNum) {
+      best=i; bestNum=el.num;
+    }
+  });
+  return best;
+}
+// Same as above, but scoped to a single agent's own calls-lane states —
+// required whenever the transition being diffed belongs to a delegating
+// agent that resumes AFTER a nested delegate's own subtree: DFS order
+// places the delegate's entire execution (a genuinely different agentId)
+// between the delegator's own two fragments, so the plain "nearest
+// calls-lane state before/after, regardless of agent" lookup above picks
+// the DELEGATE's own last state right before the delegator's resumption —
+// diffing the delegator's real context against an unrelated agent's
+// context makes every one of the delegator's own (already-known, carried
+// over) facts look "new". Restricting the search to the SAME agentId finds
+// this agent's own last known state instead, so its persisted per-agent
+// bucket (see _computeStatePopupCpr's collectParts) is the one returned.
+function _callsLaneStateIdxForAgentAtOrBeforeNum(agentId, targetNum) {
+  const cl=_callsLane();
+  if (!cl || !agentId) return -1;
+  let best=-1, bestNum=-Infinity;
+  (cl.sequence||[]).forEach((el,i)=>{
+    if (el.type==='state' && el.agentId===agentId && el.num<=targetNum && el.num>bestNum) {
+      best=i; bestNum=el.num;
+    }
+  });
+  return best;
+}
+
+function _computeStatePopupCpr(lane, stateSeqIdx) {
+  const seq=lane.sequence||[];
+
+  if (lane.laneId!=='calls') {
+    const st=seq[stateSeqIdx];
+    const idx=st ? _callsLaneStateIdxAtOrBeforeNum(st.num) : -1;
+    const cl=_callsLane();
+    return (idx>=0 && cl) ? _computeStatePopupCpr(cl, idx) : [];
+  }
+
+  // Every fact shown here must come from real, native cprData attached by
+  // dag.py from telemetry — no synthetic/guessed "user prompt" part is ever
+  // fabricated. Accumulation is scoped to the *current agent's own span*
+  // (reset whenever a transition's agentId changes to a different,
+  // non-empty agent): a delegate's popups must never inherit facts that
+  // only belong to its delegator's context (e.g. the delegator's own user
+  // prompt bleeding into a sub-agent's assembled-context popup).
+  function collectParts(untilIdx) {
+    // Accumulation is scoped PER AGENT (a bucket per agentId) — not a single
+    // flat map wiped on every agent switch. A delegator's own facts must
+    // survive a delegation round-trip (moderator -> itinerary_agent ->
+    // moderator resumes) instead of vanishing the instant it delegates
+    // (that emptied the RESUME marker's own popup, and any state right
+    // after it, until the delegator accumulated something fresh of its
+    // own). A delegate still never inherits its delegator's facts — its own
+    // bucket starts empty the first time that agentId is seen.
+    const byAgent=new Map();
+    let currentAgentId='';
+    function bucketFor(id) {
+      const key=id||'';
+      if (!byAgent.has(key)) byAgent.set(key, new Map());
+      return byAgent.get(key);
+    }
+    for (let i=0;i<=untilIdx;i++) {
+      const el=seq[i];
+      if (!el) continue;
+      // Switch buckets on ANY element (state or trans) whose own agentId
+      // differs from the agent whose facts we've been accumulating — not
+      // just transitions. A delegate's very first state can share its ts
+      // (and StateNode) with its delegator's own wait boundary, so the
+      // trans-only check missed it: the reset-triggering transition (this
+      // state's own outgoing call) only appears strictly AFTER this state
+      // in the sequence, one step too late for THIS state's own popup.
+      if (el.agentId && el.agentId!==currentAgentId) {
+        currentAgentId=el.agentId;
+      }
+      const byKey=bucketFor(currentAgentId);
+      if (el.type==='state' && el.cprData && el.cprData.length) {
+        el.cprData.forEach(p=>{
+          if (!p || typeof p!=='object') return;
+          byKey.set(_partSourceKey(p), {...p});
+        });
+      }
+      if (el.type==='trans' && el.cprData && el.cprData.length) {
+        el.cprData.forEach(p=>{
+          if (!p || typeof p!=='object') return;
+          const src=String(p.source||'').toLowerCase();
+          if (src.startsWith('context/') || src==='assembled/user') {
+            byKey.set(_partSourceKey(p), {...p});
+          }
+        });
+      }
+      if (el.type==='trans' && el.callType==='ToolCall' && i+1===untilIdx) {
+        // The tool has just returned its own raw result — a real, distinct
+        // fact from the *assembled* context/tool_call+context/tool_result
+        // pair that only appears once context assembly folds it into the
+        // message array (a later state). Exposing el.hoverOut (the tool's
+        // real tool_call_end output, already carried on this transition)
+        // here lets the state right after a tool call — BEFORE assembly —
+        // show what genuinely just happened instead of only stale,
+        // already-known system/user facts carried over from earlier.
+        const out=String(el.hoverOut||'').trim();
+        if (out) {
+          const op={
+            source:'tool/output', category:'TOOL', mechanism:'append', retrieval:'', decision:'',
+            causeType:'deterministic', cause:'tool',
+            tokens:Math.max(1, Math.floor(out.length/4)), retained:true,
+            placement:'tool/output', content:out,
+          };
+          byKey.set(_partSourceKey(op), op);
+        }
+      }
+    }
+    const finalBucket=bucketFor(currentAgentId);
+    return [...finalBucket.values()].sort((a,b)=>_partSectionOrder(a)-_partSectionOrder(b));
+  }
+
+  const stateIndices=[];
+  seq.forEach((el,i)=>{ if (el.type==='state') stateIndices.push(i); });
+  const pos=stateIndices.indexOf(stateSeqIdx);
+  const prevIdx=(pos>0)?stateIndices[pos-1]:-1;
+  const prevParts=prevIdx>=0?collectParts(prevIdx):[];
+  const prevKeys=new Set(prevParts.map(_partSourceKey));
+  const prevHasUserPrompt=prevParts.some(p=>_canonicalPartSource(p.source)==='context/user');
+  const curParts=collectParts(stateSeqIdx).map(p=>({ ...p }));
+
+  curParts.forEach(p=>{
+    const k=_partSourceKey(p);
+    const v=_partVisualMeta(p);
+    p._uiBadge=v.badge;
+    p._uiColor=v.color;
+    p._uiCatLabel=v.catLabel;
+    // The user prompt is a single, ever-present fact known since the very
+    // first state (S1) — later states may carry it under a different
+    // native source string (context/user vs. its assembled/user alias) or
+    // with slightly reformatted text, but it must never be re-flagged as a
+    // "new" addition once any user-prompt-family part has already appeared.
+    const isUserPromptFamily=_canonicalPartSource(p.source)==='context/user';
+    p.highlight = isUserPromptFamily ? !prevHasUserPrompt : !prevKeys.has(k);
+    if (p.highlight) {
+      const src=String(p.source||'').toLowerCase();
+      p._uiHighlightColor=CPR_HIGHLIGHT_COLOR_BY_SOURCE[src]||'#f97316';
+    }
+  });
+
+  // If the very next element in this lane is a tool/delegation transition
+  // whose input is (a superset of) the LLM output just added here, tag that
+  // facet so the UI can show provenance — the content itself is untouched,
+  // this only adds a presentational badge.
+  const _nextEl=seq[stateSeqIdx+1];
+  if (_nextEl && _nextEl.type==='trans') {
+    const _nextIn=String(_nextEl.hoverIn||'').trim();
+    if (_nextIn) {
+      curParts.forEach(p=>{
+        const _c=String(p.content||'').trim();
+        if (String(p.source||'').toLowerCase()==='llm/output' && _c && _nextIn.includes(_c)) {
+          p._uiConsumedBy='TOOL INPUT';
+        }
+      });
+    }
+  }
+
+  return curParts;
+}
 const MODEL_CTX_WINDOW = {
   'gpt-4o':128000,'gpt-4o-mini':128000,'gpt-4-turbo':128000,'gpt-4':8192,
   'gpt-4.1':1048576,'gpt-5':1048576,'gpt-5-mini':1048576,'gpt-5-nano':1048576,
@@ -375,14 +813,155 @@ function getCtxWindow(model) {
   return 0;
 }
 
+function _prettyMaybeJson(text) {
+  const raw=String(text||'').trim();
+  if (!raw) return '';
+  if (!(raw.startsWith('{') || raw.startsWith('['))) return raw;
+  try {
+    const parsed=JSON.parse(raw);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return raw;
+  }
+}
+
+function _computeTransitionCprDiff(lane, transSeqIdx, tr) {
+  const seq=lane.sequence||[];
+  let prevParts, nextParts;
+
+  if (lane.laneId!=='calls') {
+    // Session/MAS/Agents-lane transitions (Session, MASCall, AgentCall...)
+    // span a whole real-time range whose actual context-assembly activity
+    // only happened on the calls lane. Diff the calls lane's own
+    // ground-truth view right before this transition's start against right
+    // after its end, using the surrounding states' DFS position (num).
+    //
+    // When this transition has its own agentId (AgentCall bars), the
+    // before/after lookup MUST stay within that same agent's own states
+    // (see _callsLaneStateIdxForAgentAtOrBeforeNum) — otherwise a
+    // delegator's resumption bar (moderator picking back up after
+    // delegating to itinerary_agent) would diff against itinerary_agent's
+    // own unrelated last state, wrongly flagging every one of moderator's
+    // own already-known facts (system prompt, user prompt, …) as "new".
+    // Session/MAS-lane transitions carry no single agentId (they span the
+    // whole system) so they keep the original, agent-agnostic lookup.
+    const prev=seq[transSeqIdx-1];
+    const next=seq[transSeqIdx+1];
+    const beforeNum=(prev&&prev.type==='state')?prev.num:-Infinity;
+    const afterNum=(next&&next.type==='state')?next.num:beforeNum;
+    const agentId=tr&&tr.agentId;
+    const beforeIdx=agentId
+      ? _callsLaneStateIdxForAgentAtOrBeforeNum(agentId, beforeNum)
+      : _callsLaneStateIdxAtOrBeforeNum(beforeNum);
+    const afterIdx=agentId
+      ? _callsLaneStateIdxForAgentAtOrBeforeNum(agentId, afterNum)
+      : _callsLaneStateIdxAtOrBeforeNum(afterNum);
+    const cl=_callsLane();
+    prevParts=(beforeIdx>=0 && cl) ? _computeStatePopupCpr(cl, beforeIdx) : [];
+    nextParts=(afterIdx>=0 && cl) ? _computeStatePopupCpr(cl, afterIdx) : [];
+  } else {
+    const prev=seq[transSeqIdx-1];
+    const next=seq[transSeqIdx+1];
+    prevParts=(prev&&prev.type==='state') ? _computeStatePopupCpr(lane, transSeqIdx-1) : [];
+    nextParts=(next&&next.type==='state') ? _computeStatePopupCpr(lane, transSeqIdx+1) : [];
+  }
+
+  const prevKeys=new Set(prevParts.map(_partSourceKey));
+
+  let diff=nextParts
+    .filter(p=>!prevKeys.has(_partSourceKey(p)))
+    .map(p=>{
+      const q={...p};
+      q.highlight=true;
+      const src=String(q.source||'').toLowerCase();
+      q._uiHighlightColor=CPR_HIGHLIGHT_COLOR_BY_SOURCE[src]||'#f97316';
+      return q;
+    });
+
+  return diff;
+}
+
+function _buildToolTransitionParts(tr) {
+  const inRaw=String(tr.hoverIn||'').trim();
+  const outRaw=String(tr.hoverOut||'').trim();
+  const inTxt=_prettyMaybeJson(inRaw);
+  const outTxt=_prettyMaybeJson(outRaw);
+  const parts=[];
+  if (inTxt && inTxt!=='(no input)') {
+    parts.push({
+      source:'tool/input', category:'TOOL', mechanism:'invoke', retrieval:'', decision:'',
+      causeType:'deterministic', cause:'tool', tokens:Math.max(1, Math.floor(inTxt.length/4)),
+      retained:true, placement:'tool/input', content:inTxt,
+      _uiBadge:'TOOL INPUT', _uiColor:'#16a34a', _uiCatLabel:'Tool Input', highlight:false,
+    });
+  }
+  if (outTxt && outTxt!=='(no output)') {
+    parts.push({
+      source:'tool/output', category:'TOOL', mechanism:'result', retrieval:'', decision:'',
+      causeType:'deterministic', cause:'tool', tokens:Math.max(1, Math.floor(outTxt.length/4)),
+      retained:true, placement:'tool/output', content:outTxt,
+      _uiBadge:'TOOL OUTPUT', _uiColor:'#0ea5e9', _uiCatLabel:'Tool Output', highlight:true,
+      _uiHighlightColor:'#0ea5e9',
+    });
+  }
+  return parts;
+}
+
+// Last-resort fallback for ANY transition type (Session, MASCall, AgentCall,
+// LLMCall, ProcessingCall, ToolCall, ...) whose diff-against-the-calls-lane
+// came back empty (genuinely nothing new was assembled during this span).
+// Builds generic input/output facets straight from the transition's own
+// hoverIn/hoverOut/label so no transition ever renders a bare "(no content)".
+function _buildGenericTransitionParts(tr) {
+  if (tr.callType==='ToolCall') return _buildToolTransitionParts(tr);
+  const inRaw=String(tr.hoverIn||'').trim();
+  const outRaw=String(tr.hoverOut||'').trim();
+  const inTxt=_prettyMaybeJson(inRaw);
+  const outTxt=_prettyMaybeJson(outRaw);
+  const isLLM=tr.callType==='LLMCall';
+  const inSrc=isLLM?'llm/input':'call/input';
+  const outSrc=isLLM?'llm/output':'call/output';
+  const parts=[];
+  if (inTxt && inTxt!=='(no input)') {
+    parts.push({
+      source:inSrc, category:'TOOL', mechanism:'invoke', retrieval:'', decision:'',
+      causeType:'deterministic', cause:'call', tokens:Math.max(1, Math.floor(inTxt.length/4)),
+      retained:true, placement:inSrc, content:inTxt,
+      _uiBadge:'INPUT', _uiColor:'#16a34a', _uiCatLabel:'Input', highlight:false,
+    });
+  }
+  if (outTxt && outTxt!=='(no output)') {
+    parts.push({
+      source:outSrc, category:'TOOL', mechanism:'result', retrieval:'', decision:'',
+      causeType:'deterministic', cause:'call', tokens:Math.max(1, Math.floor(outTxt.length/4)),
+      retained:true, placement:outSrc, content:outTxt,
+      _uiBadge:'OUTPUT', _uiColor:'#0ea5e9', _uiCatLabel:'Output', highlight:true,
+      _uiHighlightColor:'#0ea5e9',
+    });
+  }
+  if (!parts.length && tr.label) {
+    const lbl=String(tr.label);
+    parts.push({
+      source:'call/label', category:'META', mechanism:'', retrieval:'', decision:'',
+      causeType:'deterministic', cause:'call', tokens:Math.max(1, Math.floor(lbl.length/4)),
+      retained:true, placement:'call/label', content:lbl,
+      _uiBadge:'CALL', _uiColor:'#64748b', _uiCatLabel:'Call', highlight:false,
+    });
+  }
+  return parts;
+}
+
 function renderMoodbar(parts, showLabels) {
   const total = parts.reduce((s,p)=>s+(p.tokens||0),0) || 1;
   let html = '<div class="moodbar">';
   parts.forEach((p, i) => {
     const pct = Math.max(0.5, (p.tokens||0)/total*100);
-    const col = CPR_CAT_COLORS[p.category]||'#64748b';
+    const col = p._uiColor || CPR_CAT_COLORS[p.category]||'#64748b';
     const lbl = `${p.category}: ${p.source} (${p.tokens} tok)`;
-    html += `<div class="mood-seg" data-idx="${i}" style="width:${pct}%;background:${col}" title="${escH(lbl)}">`;
+    const hl = p.highlight ? ' mood-highlight' : '';
+    const hlColor = p._uiHighlightColor || '#f97316';
+    const style = p.highlight ? `width:${pct}%;background:${col};outline:2px solid ${hlColor};outline-offset:-1px;z-index:2` : `width:${pct}%;background:${col}`;
+    html += `<div class="mood-seg${hl}" data-idx="${i}" style="${style}" title="${escH(lbl)}">`;
     html += `<div class="mood-tip">${escH(lbl)}</div></div>`;
   });
   html += '</div>';
@@ -396,7 +975,7 @@ function renderPieChart(parts, model) {
   const bycat = {};
   let totalTok = 0;
   parts.forEach(p => {
-    const c = p.category || 'CONTEXT';
+    const c = p._uiCatLabel || CPR_CAT_LABELS[p.category] || p.category || 'Context';
     bycat[c] = (bycat[c]||0) + (p.tokens||0);
     totalTok += (p.tokens||0);
   });
@@ -437,9 +1016,9 @@ function renderPieChart(parts, model) {
   html += '<div class="pie-legend">';
   const cats = Object.entries(bycat).sort((a,b)=>b[1]-a[1]);
   cats.forEach(([cat, tok]) => {
-    const col = CPR_CAT_COLORS[cat]||'#64748b';
+    const col = (parts.find(p=>(p._uiCatLabel||CPR_CAT_LABELS[p.category]||p.category||'Context')===cat)?._uiColor) || '#64748b';
     const pct = ((tok/(totalTok||1))*100).toFixed(0);
-    html += `<div class="pie-legend-item"><div class="pie-legend-swatch" style="background:${col}"></div>${CPR_CAT_LABELS[cat]||cat} ${pct}%</div>`;
+    html += `<div class="pie-legend-item"><div class="pie-legend-swatch" style="background:${col}"></div>${cat} ${pct}%</div>`;
   });
   html += '</div>';
   return html;
@@ -448,12 +1027,18 @@ function renderPieChart(parts, model) {
 function renderFacetList(parts) {
   let html = '<div class="facet-list">';
   parts.forEach((p, i) => {
-    const col = CPR_CAT_COLORS[p.category]||'#64748b';
-    const catLabel = CPR_CAT_LABELS[p.category]||p.category;
+    const col = p._uiColor || CPR_CAT_COLORS[p.category]||'#64748b';
+    const catLabel = p._uiBadge || CPR_CAT_LABELS[p.category]||p.category;
     const retained = p.retained !== false;
-    const evCls = retained ? '' : ' style="opacity:.5"';
+    const hlCls = p.highlight ? ' facet-highlight' : '';
+    const hlStyle = p.highlight && p._uiHighlightColor
+      ? `;border-left-color:${p._uiHighlightColor}!important;box-shadow:inset 0 0 0 1px ${p._uiHighlightColor}33`
+      : '';
+    const opacityStyle = retained ? '' : ';opacity:.5';
     // ── L1: Badge row (always visible) ──
-    html += `<details class="facet-item" data-idx="${i}" style="--fc:${col}"${evCls}>`;
+    // NEW-flagged facets start expanded so the prompt/content that just
+    // appeared is immediately readable, without an extra click.
+    html += `<details class="facet-item${hlCls}" data-idx="${i}" style="--fc:${col}${hlStyle}${opacityStyle}"${p.highlight ? ' open' : ''}>`;
     html += `<summary class="facet-head">`;
     html += `<span class="facet-cat" style="background:${col}">${escH(catLabel)}</span>`;
     html += `<span class="facet-src">${escH(p.source)}</span>`;
@@ -462,6 +1047,8 @@ function renderFacetList(parts) {
     const dec = p.decision || '';
     if (retr) html += `<span style="color:#a5b4fc;font-size:.6rem">${escH(retr)}</span>`;
     if (dec) html += `<span style="color:#818cf8;font-size:.6rem">${escH(dec)}</span>`;
+    if (p.highlight) html += `<span class="facet-new">new</span>`;
+    if (p._uiConsumedBy) html += `<span style="background:#0f766e;color:#ccfbf1;font-size:.6rem;font-weight:700;padding:.06rem .32rem;border-radius:3px">&rarr; ${escH(p._uiConsumedBy)}</span>`;
     html += `<span class="facet-tok">${p.tokens||0} tok</span>`;
     if (!retained) html += `<span style="color:#fca5a5;font-size:.62rem">evicted</span>`;
     html += `</summary>`;
@@ -534,8 +1121,11 @@ function renderCprCard(parts, model, hoverOut, timeLine) {
   const totalTok = parts.reduce((s,p)=>s+(p.tokens||0), 0);
   const nParts = parts.length;
   const byCat = {};
-  parts.forEach(p => { byCat[p.category] = (byCat[p.category]||0)+1; });
-  const catSummary = Object.entries(byCat).map(([c,n])=>`${CPR_CAT_LABELS[c]||c} ×${n}`).join(', ');
+  parts.forEach(p => {
+    const c = p._uiCatLabel || CPR_CAT_LABELS[p.category] || p.category || 'Context';
+    byCat[c] = (byCat[c]||0)+1;
+  });
+  const catSummary = Object.entries(byCat).map(([c,n])=>`${c} ×${n}`).join(', ');
 
   let html = '<div class="cpr-card">';
   // Time + summary
@@ -550,8 +1140,10 @@ function renderCprCard(parts, model, hoverOut, timeLine) {
   html += '<div class="cpr-facets">' + renderFacetList(parts) + '</div>';
   html += '<div class="cpr-right">' + renderPieChart(parts, model) + '</div>';
   html += '</div>';
-  // Output
-  if (hoverOut) {
+  // Output — only when it isn't already shown verbatim as one of the facet
+  // cards above (e.g. via _buildGenericTransitionParts' llm/output+call/output
+  // fallback); otherwise the exact same text rendered twice on one popup.
+  if (hoverOut && !parts.some(p=>p && p.content===hoverOut)) {
     html += '<div class="cpr-output"><div class="cpr-output-label">→ LLM Output</div>';
     html += `<pre>${escH(hoverOut)}</pre></div>`;
   }
@@ -562,7 +1154,10 @@ function renderCprCard(parts, model, hoverOut, timeLine) {
 function renderCprTooltip(parts) {
   const totalTok = parts.reduce((s,p)=>s+(p.tokens||0), 0);
   const byCat = {};
-  parts.forEach(p => { byCat[p.category] = (byCat[p.category]||0)+1; });
+  parts.forEach(p => {
+    const c = p._uiCatLabel || CPR_CAT_LABELS[p.category] || p.category || 'Context';
+    byCat[c] = (byCat[c]||0)+1;
+  });
   const catSummary = Object.entries(byCat).map(([c,n])=>`${c} ×${n}`).join(', ');
   let html = renderMoodbar(parts, false);
   html += `<div style="color:#94a3b8;font-size:.72rem;margin-top:.2rem">${parts.length} parts · ${totalTok} tok · ${catSummary}</div>`;
@@ -574,6 +1169,17 @@ function renderCprTooltip(parts) {
 const panel=document.getElementById('pinned-panel');
 const ppTitle=document.getElementById('pp-title');
 const ppBody=document.getElementById('pp-body');
+const _STATE_POPUP_PAYLOAD = new Map();
+// Fork/merge/branch-begin/branch-end are GROUP nodes, distinct from the
+// plain state boundary they happen to sit beside (see the state-rendering
+// loop's additional circle node) — each gets its OWN popup payload here,
+// keyed the same way as _STATE_POPUP_PAYLOAD, so clicking the circle never
+// shows the state's own numbered ("S17") CPR/facet popup, and so a group
+// node's own cross-links (fork<->merge, branch-begin<->branch-end, and
+// branch<->its parent fork/merge) always resolve to the PEER's own group
+// popup too, never the peer's plain state popup.
+const _GROUP_POPUP_PAYLOAD = new Map();
+function _statePopupKey(laneId, ts){ return `${laneId}::${Number(ts).toFixed(9)}`; }
 document.getElementById('pp-close').addEventListener('click',()=>panel.style.display='none');
 document.addEventListener('click',e=>{if(panel.style.display!=='none'&&!panel.contains(e.target))panel.style.display='none';});
 let _pdragging=false,_pdx=0,_pdy=0;
@@ -584,16 +1190,44 @@ document.getElementById('pp-header').addEventListener('mousedown',e=>{
 });
 document.addEventListener('mousemove',e=>{if(!_pdragging)return;panel.style.right='auto';panel.style.left=(e.clientX-_pdx)+'px';panel.style.top=(e.clientY-_pdy)+'px';});
 document.addEventListener('mouseup',()=>{_pdragging=false;});
-function pinTip(e,label,content,callType,excerpt,pinNote,cprData,model,hoverOut){
+function pinTip(e,label,content,callType,excerpt,pinNote,cprData,model,hoverOut,governance,waitVisualHtml,plainText){
   const tm=callType&&TYPE_BADGE[callType];
   ppTitle.innerHTML=`<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(label)}</span>`
     +(tm?`<span style="flex-shrink:0;background:${tm.color};color:#fff;font-size:.68rem;font-weight:700;padding:.1rem .42rem;border-radius:3px;letter-spacing:.05em;font-family:ui-monospace,monospace">${tm.label}</span>`:'');
-  if (cprData && cprData.length) {
-    // Extract timeLine from content (first line) — only for transitions (callType set)
-    const timeLine = (callType && content) ? content.split('\n')[0] : '';
-    ppBody.innerHTML = pinHeader(pinNote) + renderCprCard(cprData, model||'', hoverOut||'', timeLine);
+  // Diff badge: chips for every facet newly added at this node/transition
+  // (cprData entries flagged `highlight` by _computeStatePopupCpr /
+  // _computeTransitionCprDiff) — shown for state AND transition popups
+  // alike, so an LLM transition's own output shows the same "NEW: LLM
+  // Output" chip a state popup does.
+  // NEW-facet chip badge is CPR content too — suppressed entirely for
+  // Wait/Resume popups (waitVisualHtml truthy), same rationale as below.
+  const newKinds=waitVisualHtml ? [] : [...new Set((cprData||[]).filter(p=>p&&p.highlight).map(p=>p._uiBadge||p.source||'NEW'))];
+  if (newKinds.length) {
+    const chips=newKinds.map(k=>`<span style="background:#9a3412;color:#ffedd5;font-size:.64rem;font-weight:700;padding:.1rem .35rem;border-radius:3px;letter-spacing:.04em">NEW: ${escH(k)}</span>`).join(' ');
+    ppTitle.innerHTML += `<span style="display:flex;gap:.25rem;flex-wrap:wrap">${chips}</span>`;
+  }
+  // Every popup renders through a visual component — never a bare text
+  // tooltip. Wait/Resume states get ONLY their dedicated compact icon+
+  // target visual — no CPR facet card at all (see showTip's matching
+  // comment: a wait/resume marker isn't itself a point where context was
+  // assembled, and the user explicitly asked for CPR content to never
+  // appear there). Plain conversational text (e.g. the session-level user
+  // input/output) renders as plain text too.
+  if (waitVisualHtml) {
+    ppBody.innerHTML = pinHeader(pinNote) + waitVisualHtml + govHtml(governance);
+  } else if (plainText) {
+    ppBody.innerHTML = pinHeader(pinNote) + _plainTextHtml(content) + govHtml(governance);
   } else {
-    ppBody.innerHTML=pinHeader(pinNote)+hlGap(content,excerpt);
+    // See showTip's matching comment: a transition popup (callType set)
+    // never falls back to wrapping the raw duration line as fake content.
+    const parts=(cprData && cprData.length) ? cprData : (callType ? [] : _wrapPlainContentAsFacets(content, callType, excerpt));
+    if (parts.length) {
+      // Extract timeLine from content (first line) — only for transitions (callType set)
+      const timeLine = (callType && content) ? content.split('\n')[0] : '';
+      ppBody.innerHTML = pinHeader(pinNote) + renderCprCard(parts, model||'', hoverOut||'', timeLine) + govHtml(governance);
+    } else {
+      ppBody.innerHTML=pinHeader(pinNote)+'<div style="color:#64748b;font-style:italic;font-size:.78rem">(no content)</div>'+govHtml(governance);
+    }
   }
   panel.style.display='block';
   panel.style.right='auto';
@@ -606,6 +1240,230 @@ function pinTip(e,label,content,callType,excerpt,pinNote,cprData,model,hoverOut)
   panel.style.top=Math.max(4,t)+'px';
   // Wire moodbar↔facet bidirectional selection
   _wireCprInteraction(panel);
+}
+
+function pinStateTip(e, payload){
+  const {label,content,excerpt,pinNote,cprData,model,hoverOut,governance,waitVisualHtml}=payload;
+  pinTip(e,label,content,'',excerpt,pinNote,cprData,model,hoverOut,governance,waitVisualHtml);
+  // The reference line(s) are already rendered (identically to the hover
+  // tooltip) inside waitVisualHtml — upgrade each in-place to a real click
+  // target rather than appending duplicate rows. A single state can carry
+  // more than one nav link (e.g. a fork state links to every one of its
+  // branches), so every matching element is upgraded, not just the first.
+  ppBody.querySelectorAll('.wait-peer-ref').forEach(ref=>{
+    ref.style.cursor='pointer';
+    ref.style.textDecoration='underline';
+    ref.addEventListener('click', evt=>{
+      evt.preventDefault();
+      evt.stopPropagation();
+      const peerLane=String(ref.dataset.peerLane||'');
+      const peerTs=Number(ref.dataset.peerTs||'0');
+      const k=_statePopupKey(peerLane, peerTs);
+      // Group nodes (fork/merge/branch-begin/branch-end) link to OTHER
+      // group nodes — resolve through the peer's own group popup, never
+      // its plain state popup, so the "distinct from states" separation
+      // holds across navigation too, not just on first click.
+      const isGroupPeer = ref.dataset.peerKind === 'group';
+      const peer = (isGroupPeer ? _GROUP_POPUP_PAYLOAD : _STATE_POPUP_PAYLOAD).get(k);
+      if (!peer) return;
+      scrollToState(peerLane, peerTs);
+      pinStateTip({clientX:e.clientX, clientY:e.clientY, stopPropagation:()=>{}}, peer);
+    });
+  });
+}
+
+// Wait/Resume states are never a content snapshot (never CPR) — they get a
+// dedicated compact visual: an icon, what is being waited for/resolved
+// (worded differently for an agent delegation vs. a tool call), and the
+// tool/agent identity, plus a reference to the paired W/R state. This is
+// intentionally NOT the generic facet/moodbar card (a wait has no tokens or
+// provenance to show). The reference line renders identically on hover and
+// on click (pinStateTip upgrades it to a real clickable hyperlink; on the
+// hover tooltip it stays informational text, since a transient tooltip that
+// hides on mouseleave cannot host an interactive click target).
+function _waitSummaryHtml(st, laneId) {
+  if (!st || !st.waitRole) return '';
+  const wm=st.waitMeta||{};
+  const blocking=wm.blocking||{};
+  const role=String(st.waitRole||'').toUpperCase();
+  const blockingKind=String(blocking.toolType||'');
+  const toolName=String(blocking.toolName||'');
+  const isDelegation=(blockingKind==='DELEGATION');
+  const isWait=(role==='WAIT');
+  const icon=isWait?'&#9203;':'&#9654;';
+  const roleLabel=String(st.labelOverride||role||'WAIT');
+  const kindBadge=isDelegation?'AGENT':'TOOL';
+  const kindColor=isDelegation?'#a855f7':'#16a34a';
+  let html=`<div style="display:flex;align-items:center;gap:.7rem;padding:.5rem .1rem .3rem">`
+    +`<div style="font-size:1.7rem;line-height:1">${icon}</div>`
+    +`<div style="min-width:0">`
+    +`<div style="display:flex;align-items:center;gap:.35rem;margin-bottom:.15rem">`
+    +`<span style="color:#94a3b8;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600">${escH(roleLabel)}</span>`
+    +`<span style="background:${kindColor};color:#fff;font-size:.6rem;font-weight:700;padding:.05rem .35rem;border-radius:3px;letter-spacing:.04em">${kindBadge}</span>`
+    +`</div>`
+    +`<div style="color:#e2e8f0;font-size:.95rem;font-weight:600;word-break:break-word">${escH(toolName||blockingKind||'')}</div>`
+    +`</div></div>`;
+  if (wm.peerLabel && typeof wm.peerTs === 'number') {
+    html+=`<div class="wait-link-row" style="color:#93c5fd;font-size:.78rem;padding:.35rem .1rem 0;border-top:1px solid #334155;margin-top:.3rem">`
+      +`<span class="wait-peer-ref" data-peer-lane="${escH(laneId||'')}" data-peer-ts="${String(wm.peerTs)}">&#8596; ${escH(wm.peerLabel)}</span>`
+      +`</div>`;
+  }
+  return html;
+}
+
+// Fork/merge popup panel — mirrors _waitSummaryHtml's structure exactly, but
+// for parallel-group boundary states (st.isFork / st.isJoin, set natively by
+// dag.py from the trace's own fork/join call structure — never a client-side
+// heuristic). This is now a GROUP node's own dedicated popup — rendered ONLY
+// for the additional fork/merge circle beside the state's box (see the
+// state-rendering loop's `_groupPopupPayload`), never mixed into the plain
+// state's own popup — so its cross-links must stay entirely within the
+// group graph (other fork/merge/branch-begin/branch-end nodes), never a
+// link back to a plain numbered state. A fork state links forward to EVERY
+// one of its branches' own entry states (st.forkBranchTs, one ts per branch
+// in fork order) AND to its own matching merge (st.joinTs); a join/merge
+// state links backward to its own matching fork state (st.joinForkTs). All
+// directions reuse the exact same `.wait-peer-ref` + scrollToState
+// navigation pattern as WAIT/RESUME, generalized in pinStateTip to support
+// more than one link per popup — tagged `data-peer-kind="group"` so
+// pinStateTip resolves the click through _GROUP_POPUP_PAYLOAD (the peer's
+// own group popup), not the peer's plain state popup.
+function _forkJoinSummaryHtml(st, laneId) {
+  if (!st || (!st.isFork && !st.isJoin)) return '';
+  const isFork = !!st.isFork;
+  const size   = st.parallelSize || 0;
+  // forkKind (native, from dag.py): 'agent' — a genuine cross-agent
+  // delegation fork, branches are DIFFERENT agents; 'tool' — this ONE
+  // agent's own N tool calls dispatched at once, branches never leave this
+  // agent's own row. Reported regression: both used to render with
+  // IDENTICAL wording/colour, making a same-agent tool fan-out visually
+  // indistinguishable from a hand-off to other agents — give each its own
+  // colour + wording so it's unambiguous at a glance.
+  const isToolFork = st.forkKind === 'tool';
+  const accent = isToolFork ? '#16a34a' : '#22d3ee';
+  const icon   = isFork ? '&#8649;' : '&#8647;'; // ⇉ fork out / ⇇ join back in
+  const verb   = isFork ? 'Forks into' : 'Joins';
+  const kindLabel = isToolFork
+    ? (isFork ? 'Parallel tool dispatch' : 'Parallel tool join')
+    : (isFork ? 'Parallel fork point'    : 'Parallel join point');
+  const unitWord = isToolFork ? (size===1?'TOOL CALL':'TOOL CALLS') : (size===1?'BRANCH':'BRANCHES');
+  let html = `<div style="display:flex;align-items:center;gap:.7rem;padding:.5rem .1rem .3rem">`
+    +`<div style="font-size:1.4rem;line-height:1;color:${accent}">${icon}</div>`
+    +`<div style="min-width:0">`
+    +`<div style="display:flex;align-items:center;gap:.35rem;margin-bottom:.15rem">`
+    +`<span style="color:#94a3b8;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600">${escH(verb)}</span>`
+    +`<span style="background:${isToolFork?'#15803d':'#0891b2'};color:#fff;font-size:.6rem;font-weight:700;padding:.05rem .35rem;border-radius:3px;letter-spacing:.04em">${size} ${unitWord}</span>`
+    +`</div>`
+    +`<div style="color:#e2e8f0;font-size:.95rem;font-weight:600">${kindLabel}${isToolFork?' (same agent)':''}</div>`
+    +`</div></div>`;
+  if (!isFork && st.assemblyNote) {
+    // The "assembly part at the end" — the join's own native aggregation
+    // summary (e.g. "aggregate 2 parallel tool results"). This is the one
+    // structural difference from a plain WAIT/RESUME pair per the harmonized
+    // design: N branches instead of 1, plus this assembly step.
+    html+=`<div style="color:#94a3b8;font-size:.76rem;padding:.35rem .1rem 0;border-top:1px solid #334155;margin-top:.3rem">`
+      +`<span style="color:#67e8f9;font-weight:600">Assembly:</span> ${escH(String(st.assemblyNote))}</div>`;
+  }
+  const links = [];
+  if (isFork && typeof st.joinTs === 'number') {
+    links.push({label:'Merge point (end of group)', ts: st.joinTs});
+  }
+  if (isFork && Array.isArray(st.forkBranchTs)) {
+    st.forkBranchTs.forEach((ts,idx)=>{ links.push({label:`Branch ${idx+1} entry`, ts}); });
+  }
+  if (!isFork && typeof st.joinForkTs === 'number') {
+    links.push({label:'Fork point (start of group)', ts: st.joinForkTs});
+  }
+  if (links.length) {
+    html+=`<div class="wait-link-row" style="color:#93c5fd;font-size:.78rem;padding:.35rem .1rem 0;border-top:1px solid #334155;margin-top:.3rem;display:flex;flex-direction:column;gap:.25rem">`
+      +links.map(l=>`<span class="wait-peer-ref" data-peer-kind="group" data-peer-lane="${escH(laneId||'')}" data-peer-ts="${String(l.ts)}">&#8596; ${escH(l.label)}</span>`).join('')
+      +`</div>`;
+  }
+  return html;
+}
+
+// Branch-begin/branch-end popup panel — the other half of the group-node
+// family alongside _forkJoinSummaryHtml. A branch-begin/branch-end marks
+// ONE INDIVIDUAL branch's own entry/exit point inside a parallel_group_id
+// (distinct from the fork/merge, which mark the whole group's shared
+// split/merge boundary — see StateNode.is_branch_begin/is_branch_end in
+// models.py). Cross-links: branch-begin -> its own parent fork (start of
+// the group) and -> this same branch's own end (branchPartnerTs,
+// dag.py-native, never ts-proximity-derived); branch-end -> this same
+// branch's own begin and -> the parent merge (end of the group) — so a
+// fork/merge group and every one of its individual branches form one fully
+// cross-linked graph, reachable end-to-end from any single group node.
+// `groupBounds` is this branch's own group's {forkTs, joinTs} (looked up by
+// parallelGroupId in the state-rendering loop, from the SAME lane's own
+// fork/join states — never a client-side heuristic, just a same-group
+// lookup).
+function _branchSummaryHtml(st, laneId, groupBounds) {
+  if (!st || (!st.isBranchBegin && !st.isBranchEnd)) return '';
+  const isBegin = !!st.isBranchBegin;
+  const icon = isBegin ? '&#8618;' : '&#8619;'; // ↘ branch starts / ↙ branch ends
+  const verb = isBegin ? 'Branch starts' : 'Branch ends';
+  // Same pink used for the branch-begin/branch-end circle node itself (see
+  // the state-rendering loop's `_bmColor`) — a fixed literal here since this
+  // function sits outside that loop's own per-lane scope.
+  const accent = '#f9a8d4';
+  let html = `<div style="display:flex;align-items:center;gap:.7rem;padding:.5rem .1rem .3rem">`
+    +`<div style="font-size:1.4rem;line-height:1;color:${accent}">${icon}</div>`
+    +`<div style="min-width:0">`
+    +`<div style="display:flex;align-items:center;gap:.35rem;margin-bottom:.15rem">`
+    +`<span style="color:#94a3b8;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600">${escH(verb)}</span>`
+    +`</div>`
+    +`<div style="color:#e2e8f0;font-size:.95rem;font-weight:600">Individual branch boundary</div>`
+    +`</div></div>`;
+  const links = [];
+  if (isBegin) {
+    if (groupBounds && typeof groupBounds.forkTs === 'number') {
+      links.push({label:'Parent fork (start of group)', ts: groupBounds.forkTs});
+    }
+    if (typeof st.branchPartnerTs === 'number') {
+      links.push({label:'This branch\u2019s own end', ts: st.branchPartnerTs});
+    }
+  } else {
+    if (typeof st.branchPartnerTs === 'number') {
+      links.push({label:'This branch\u2019s own start', ts: st.branchPartnerTs});
+    }
+    if (groupBounds && typeof groupBounds.joinTs === 'number') {
+      links.push({label:'Parent merge (end of group)', ts: groupBounds.joinTs});
+    }
+  }
+  if (links.length) {
+    html+=`<div class="wait-link-row" style="color:#93c5fd;font-size:.78rem;padding:.35rem .1rem 0;border-top:1px solid #334155;margin-top:.3rem;display:flex;flex-direction:column;gap:.25rem">`
+      +links.map(l=>`<span class="wait-peer-ref" data-peer-kind="group" data-peer-lane="${escH(laneId||'')}" data-peer-ts="${String(l.ts)}">&#8596; ${escH(l.label)}</span>`).join('')
+      +`</div>`;
+  }
+  return html;
+}
+
+// Plain conversational text (session-level user input/output) — rendered
+// as-is, never classified into a fake CPR facet (it carries no real
+// provenance/token-accounting data of its own).
+function _plainTextHtml(content) {
+  const text=String(content||'').trim();
+  if (!text) return '<div style="color:#64748b;font-style:italic;font-size:.78rem">(empty)</div>';
+  return `<div style="color:#e2e8f0;font-size:.85rem;white-space:pre-wrap;word-break:break-word;padding:.4rem .1rem">${escH(text)}</div>`;
+}
+
+// Generic visual fallback: any node with no CPR-classified parts (agent
+// output states, MAS/session bars, blocked-action ghosts, plain
+// ProcessingCall transitions, …) still renders through the same badge+facet
+// visual component — never as a bare text tooltip.
+function _wrapPlainContentAsFacets(content, callType, excerpt) {
+  const text=String(content||'').trim();
+  if (!text) return [];
+  const tm=callType && TYPE_BADGE[callType];
+  const badge=(tm?tm.label:'Content').toUpperCase();
+  const color=tm?tm.color:'#64748b';
+  return [{
+    source:'node/content', category:'CONTEXT', mechanism:'state', retrieval:'', decision:'',
+    causeType:'deterministic', cause:'state',
+    tokens:Math.max(1, Math.floor(text.length/4)), retained:true,
+    placement:'node/content', content:text,
+    _uiBadge:badge, _uiColor:color, _uiCatLabel:badge, highlight:false,
+  }];
 }
 
 function _wireCprInteraction(container) {
@@ -648,9 +1506,19 @@ function _wireCprInteraction(container) {
 const svg=d3.select('#chart');
 let nLanes=CHART.lanes.length; // total (for clip)
 let laneFrom=0, laneTo=nLanes-1;
-function visibleCount(){return laneTo-laneFrom+1;}
-function visibleLanes(){return CHART.lanes.slice(laneFrom,laneTo+1);}
-function toVisibleIdx(i){return(i>=laneFrom&&i<=laneTo)?i-laneFrom:-1;}
+// Lanes hidden by id regardless of the laneFrom/laneTo range slider — kept
+// as a generic mechanism for any future opt-in lane; empty by default.
+const hiddenLaneIds=new Set();
+function visibleLanes(){return CHART.lanes.slice(laneFrom,laneTo+1).filter(l=>!hiddenLaneIds.has(l.laneId));}
+function visibleCount(){return visibleLanes().length;}
+function toVisibleIdx(i){
+  if (i<laneFrom||i>laneTo) return -1;
+  const lane=CHART.lanes[i];
+  if (!lane||hiddenLaneIds.has(lane.laneId)) return -1;
+  let idx=0;
+  for (let j=laneFrom;j<i;j++) if(!hiddenLaneIds.has(CHART.lanes[j].laneId)) idx++;
+  return idx;
+}
 function getH(){return TH+LGH+visibleCount()*LH+PB+(CHART.showTimeAxis?TAH:0);}
 svg.attr('height',getH());
 
@@ -729,123 +1597,336 @@ function drawFg(totalW) {
     .attr('stroke',C.sep).attr('stroke-width',0.8);
 }
 
+// ── Collapse/expand groups (agent runs / fork groups / single branches) ────
+// Persists across redraws (pan/zoom/lane show-hide) so the user's
+// collapse/expand choices survive interaction — keyed by a stable string
+// (see _computeCollapsibleGroups) so re-computation always maps back onto
+// the same logical group.
+let _collapsedGroups = new Set();
+// Whole feature opt-out: when false, no group is ever computed (bands/
+// buttons never render, nothing is ever hidden) — an explicit CHART
+// attribute (`CHART.showGroups`, default true when absent so older
+// exported charts keep working) makes the feature fully optional rather
+// than an always-on part of the plot. Also toggleable at runtime via the
+// toolbar's Groups button.
+let _showGroups = (CHART.showGroups !== false);
+// Recomputed at the top of every redraw() call: laneId -> group[] (ALL
+// computed groups, whether currently collapsed or not) and laneId ->
+// merged {start,end} ranges of only the CURRENTLY collapsed ones (used to
+// decide what to hide in Phases 1/3/4).
+let _allGroupsByLane = new Map();
+let _collapsedRangesByLane = new Map();
+
+// Three group kinds, all derived purely from already-serialized native
+// fields — never a client-side heuristic guessing at structure:
+//   (a) 'agent'     — one agent's whole run: a maximal consecutive stretch
+//                     of TransNodes on the "agents" lane sharing the same
+//                     non-empty agentId (TransNode.agentId is set uniformly
+//                     for every agents-lane transition by dag.py's shared
+//                     `trans()` closure). Carries its own agentId in
+//                     `agentIds` (a 1-element array) so propagation onto
+//                     the calls lane (see _recomputeGroupsAndRanges) can
+//                     hide only THIS agent's own calls, never a
+//                     concurrently-running sibling/delegator's (e.g. the
+//                     moderator dispatching/awaiting while a delegate's
+//                     run is collapsed must stay fully visible even though
+//                     its own calls fall inside the exact same real-time
+//                     window — delegation is genuinely concurrent, not
+//                     sequential).
+//   (b) 'forkGroup' — all branches of one parallel_group_id together: the
+//                     span from a fork state (isFork) to its matching join
+//                     state (isJoin, same parallelGroupId) — the exact same
+//                     boundary already used for the parallelSpans band.
+//                     `agentIds` is the UNION of every 'agent' group nested
+//                     inside this span (computed below, after the agent-run
+//                     pass above has already populated `groups`).
+//   (c) 'branch'    — one single branch within a fork group: the span from
+//                     that branch's own entry ts (StateNode.forkBranchTs,
+//                     set on the fork state) to the NEXT branch's entry ts
+//                     (or the join ts for the last branch). `agentIds` is
+//                     scoped the same way as forkGroup, just to this one
+//                     branch's own span.
+function _computeCollapsibleGroups(lane) {
+  if (!_showGroups || lane.laneId !== 'agents') return [];
+  const seq = lane.sequence;
+  const groups = [];
+
+  // Agent-run continuity is decided PURELY by comparing consecutive REAL
+  // transitions' agentId — states are transparent here (StateNode.agentId is
+  // not reliably populated on this lane, see dag.py investigation notes) and
+  // so are synthetic bridging slivers (connectorOnly transitions, BranchLink
+  // markers) which carry no real agent activity of their own. Ignoring both
+  // kinds of "noise" is what lets several genuinely-consecutive same-agent
+  // calls (e.g. a multi-round-trip AgentCall sequence) merge into one run
+  // instead of fragmenting at every intervening state/sliver.
+  const realTransIdx=[];
+  for (let i=0;i<seq.length;i++) {
+    const el=seq[i];
+    if (el.type==='trans' && !el.connectorOnly && el.callType!=='BranchLink') realTransIdx.push(i);
+  }
+  let runFirst=-1, runLast=-1, runAgent=null;
+  // A wait/resume "fork cluster" can leave several state nodes carrying the
+  // same wid/label at (almost) the same instant, with all but one flagged
+  // connectorOnly so only the cluster's representative renders its own box
+  // (see dag.py's _insert_agent_boundary). A group's start/end boundary must
+  // always resolve to that VISIBLE representative — anchoring on a
+  // connectorOnly state here would collapse the group onto an invisible
+  // boundary, defeating the "boundary states stay visible when collapsed"
+  // invariant. Walk outward to the nearest non-connectorOnly state.
+  const _nearestVisibleState=(idx,step)=>{
+    for (let i=idx;i>=0&&i<seq.length;i+=step) {
+      const el=seq[i];
+      if (el.type==='state' && !el.connectorOnly) return el;
+      if (el.type==='state') continue;
+    }
+    return seq[idx];
+  };
+  const closeRun=()=>{
+    if (runFirst<0) return;
+    const startState=_nearestVisibleState(runFirst-1,-1), endState=_nearestVisibleState(runLast+1,1);
+    if (startState && endState && startState.type==='state' && endState.type==='state'
+        && endState.ts>startState.ts) {
+      groups.push({
+        key: `agent:${lane.laneId}:${runAgent}:${startState.ts}`,
+        kind: 'agent', laneId: lane.laneId,
+        startTs: startState.ts, endTs: endState.ts,
+        label: runAgent,
+        agentIds: [runAgent],
+      });
+    }
+  };
+  realTransIdx.forEach(idx=>{
+    const el=seq[idx];
+    const agentId=el.agentId||null;
+    if (agentId && agentId===runAgent) { runLast=idx; return; }
+    closeRun();
+    if (agentId) { runFirst=idx; runLast=idx; runAgent=agentId; }
+    else { runFirst=-1; runLast=-1; runAgent=null; }
+  });
+  closeRun();
+
+  // Union of every already-computed 'agent' group's own agentId, for any
+  // 'agent' group fully nested inside [startTs,endTs] — used so
+  // forkGroup/branch propagation onto the calls lane only ever hides the
+  // agent(s) that actually ran inside that specific span, never a
+  // concurrent sibling agent/moderator activity that happens to share the
+  // same real-time window.
+  const ownerAgentIds=(startTs,endTs)=>{
+    const ids=new Set();
+    groups.forEach(g=>{
+      if (g.kind==='agent' && g.startTs>=startTs-1e-9 && g.endTs<=endTs+1e-9) {
+        (g.agentIds||[]).forEach(id=>ids.add(id));
+      }
+    });
+    return [...ids];
+  };
+
+  seq.filter(e=>e.type==='state'&&e.isFork).forEach(fork=>{
+    const gid=fork.parallelGroupId;
+    const join=seq.find(e=>e.type==='state'&&e.isJoin&&e.parallelGroupId===gid);
+    if (!join) return;
+    groups.push({
+      key: `forkGroup:${lane.laneId}:${gid}`,
+      kind: 'forkGroup', laneId: lane.laneId,
+      startTs: fork.ts, endTs: join.ts,
+      label: `${fork.parallelSize||2} branches`,
+      agentIds: ownerAgentIds(fork.ts, join.ts),
+    });
+    const branchTs=(fork.forkBranchTs||[]).slice().sort((a,b)=>a-b);
+    branchTs.forEach((bts,i)=>{
+      const nextTs = (i+1<branchTs.length) ? branchTs[i+1] : join.ts;
+      if (nextTs<=bts) return;
+      groups.push({
+        key: `branch:${lane.laneId}:${gid}:${i}`,
+        kind: 'branch', laneId: lane.laneId,
+        startTs: bts, endTs: nextTs,
+        label: `Branch ${i+1}`,
+        agentIds: ownerAgentIds(bts, nextTs),
+      });
+    });
+  });
+
+  return groups;
+}
+
+// A transition is hidden when its WHOLE span sits inside a collapsed range
+// (touching a boundary exactly still counts — it's the interior edge). When
+// the range carries an `agentIds` filter (only ever set on ranges
+// propagated cross-lane — see _recomputeGroupsAndRanges), the transition's
+// OWN agentId must also be one of them — a range with no filter (the
+// group's own owning lane) always hides unconditionally.
+function _isTransCollapsed(laneId, tr) {
+  const ranges=_collapsedRangesByLane.get(laneId)||[];
+  if (!ranges.length) return false;
+  const startIdx=_bucketIndexOf(tr.startTs), endIdx=_bucketIndexOf(tr.endTs);
+  return ranges.some(r=>{
+    if (!(startIdx>=r.startIdx && endIdx<=r.endIdx)) return false;
+    return !r.agentIds || r.agentIds.has(tr.agentId||'');
+  });
+}
+// A state is hidden only when STRICTLY interior — the boundary states
+// themselves (exactly at r.start / r.end) stay visible as anchors so the
+// collapsed placeholder still connects visually to the rest of the lane.
+// Accepts either a state object (preferred — carries its own agentId for
+// the same filtering _isTransCollapsed does) or a bare ts number (legacy
+// call shape, always matches filtered ranges as non-matching since there's
+// no agentId to check).
+function _isStateCollapsed(laneId, st) {
+  const isObj = st && typeof st==='object';
+  const ts = isObj ? st.ts : st;
+  const agentId = isObj ? (st.agentId||'') : '';
+  const ranges=_collapsedRangesByLane.get(laneId)||[];
+  if (!ranges.length) return false;
+  const idx=_bucketIndexOf(ts);
+  return ranges.some(r=>{
+    if (!(idx>r.startIdx && idx<r.endIdx)) return false;
+    return !r.agentIds || r.agentIds.has(agentId);
+  });
+}
+// Merged {start,end} ranges of every CURRENTLY-collapsed group on a lane,
+// excluding one specific group key — used to detect "this group is already
+// inside a bigger collapsed ancestor" so nested groups (e.g. a single
+// branch's own agent-run, inside its parent forkGroup) don't draw a
+// redundant handle/pill once the ancestor is collapsed.
+function _mergedRangesExcluding(laneId, excludeKey) {
+  const groups=_allGroupsByLane.get(laneId)||[];
+  const active=groups.filter(g=>g.key!==excludeKey && _collapsedGroups.has(g.key))
+    .map(g=>({startIdx:_bucketIndexOf(g.startTs),endIdx:_bucketIndexOf(g.endTs)}))
+    .sort((a,b)=>a.startIdx-b.startIdx);
+  const merged=[];
+  active.forEach(r=>{
+    const last=merged[merged.length-1];
+    if (last && r.startIdx<=last.endIdx) last.endIdx=Math.max(last.endIdx,r.endIdx);
+    else merged.push({...r});
+  });
+  return merged;
+}
+
+// Recomputes _allGroupsByLane + _collapsedRangesByLane fresh (cheap — trace
+// sizes are small) so pan/zoom/lane-visibility/collapse-toggle changes
+// never leave stale group boundaries behind. Called both at the top of
+// every redraw() AND before re-laying-out the x-axis on a collapse toggle
+// (see _relayoutForCollapseChange), since computeBaseXPos/applyZoom need
+// fresh ranges too, not just the rendering phases below.
+function _recomputeGroupsAndRanges() {
+  _allGroupsByLane = new Map();
+  _collapsedRangesByLane = new Map();
+  visibleLanes().forEach(lane=>{
+    const groups=_computeCollapsibleGroups(lane);
+    _allGroupsByLane.set(lane.laneId, groups);
+    // Ranges are always expressed in bucket-INDEX space (see
+    // _bucketIndexOf), never raw ts — sibling fork branches are dispatched
+    // milliseconds apart but each run for real seconds, so their raw-ts
+    // spans overlap heavily even though they occupy entirely separate,
+    // non-overlapping index ranges in the DFS-ordered bucket list. A raw-ts
+    // comparison here would make collapsing one branch's group also treat
+    // an uncollapsed sibling's own later buckets as "inside" the collapsed
+    // span purely by real-time coincidence.
+    const active=groups.filter(g=>_collapsedGroups.has(g.key))
+      .map(g=>({startIdx:_bucketIndexOf(g.startTs),endIdx:_bucketIndexOf(g.endTs)}))
+      .sort((a,b)=>a.startIdx-b.startIdx);
+    const merged=[];
+    active.forEach(r=>{
+      const last=merged[merged.length-1];
+      if (last && r.startIdx<=last.endIdx) last.endIdx=Math.max(last.endIdx,r.endIdx);
+      else merged.push({...r});
+    });
+    _collapsedRangesByLane.set(lane.laneId, merged);
+  });
+  // Collapsing an agent-level group (agent run / fork group / branch — all
+  // only ever defined on the 'agents' lane, see _computeCollapsibleGroups)
+  // implies THAT AGENT'S OWN call-level detail is uninteresting too —
+  // nobody asked to keep seeing its individual LLM/tool calls once its run
+  // is collapsed. The 'calls' lane never has groups of its own, so
+  // propagate each collapsed group's OWN owning agentId set onto it,
+  // scoped per group (never merged across groups into one plain index
+  // range — that would silently drop the agentId filter and hide a
+  // concurrently-running sibling/delegator too, e.g. a moderator's own
+  // dispatch/tool call sitting in the exact same real-time window as a
+  // delegate agent's collapsed run).
+  const agentsGroups=_allGroupsByLane.get('agents')||[];
+  const activeAgents=agentsGroups.filter(g=>_collapsedGroups.has(g.key));
+  if (activeAgents.length && _collapsedRangesByLane.has('calls')) {
+    const callsRanges=_collapsedRangesByLane.get('calls')||[];
+    activeAgents.forEach(g=>{
+      const ids=(g.agentIds||[]).filter(Boolean);
+      if (!ids.length) return; // no identified owner — nothing safe to hide
+      callsRanges.push({startIdx:_bucketIndexOf(g.startTs), endIdx:_bucketIndexOf(g.endTs), agentIds:new Set(ids)});
+    });
+    _collapsedRangesByLane.set('calls', callsRanges);
+  }
+}
+
+// Re-lays-out the x-axis after a collapse/expand toggle: collapsing hides
+// content (via _isTransCollapsed/_isStateCollapsed) but by itself never
+// frees up any horizontal room — computeBaseXPos/applyZoom/computeMinZoom
+// need to be recomputed (collapse-aware, see effectiveGapKind) so a
+// collapsed span actually shrinks to one small fixed-width column instead
+// of still reserving its full original width. Mirrors the sel-mode change
+// handler's own "recompute layout, reset zoom to identity" pattern.
+function _relayoutForCollapseChange() {
+  _recomputeGroupsAndRanges();
+  baseXPos=computeBaseXPos(CHART.buckets,currentMode);
+  totalW=Math.max(...Object.values(baseXPos))+PR;
+  minZoom=computeMinZoom(baseXPos);
+  zoomBeh.scaleExtent([minZoom,40]);
+  currentXPos=baseXPos;
+  svg.call(zoomBeh.transform,d3.zoomIdentity);
+}
+
 // ── Draw dynamic content (clipped, zoom-aware) ────────────────────────────
 function redraw(xPos) {
   if (dynG) dynG.remove();
   dynG=svg.insert('g','#fg').attr('id','dyn').attr('clip-path','url(#content-clip)');
+  _STATE_POPUP_PAYLOAD.clear();
 
-  const ph0=dynG.append('g'), ph1=dynG.append('g'), ph2=dynG.append('g'), ph3=dynG.append('g'), ph4=dynG.append('g');
+  _recomputeGroupsAndRanges();
 
-  function drawDiamondMarker(group, x, y, label, fill, stroke, title, content, countLabel=null) {
-    const size=8;
-    const pts=`${x},${y-size} ${x+size},${y} ${x},${y+size} ${x-size},${y}`;
-    group.append('polygon')
-      .attr('points',pts)
-      .attr('fill',fill)
-      .attr('stroke',stroke)
-      .attr('stroke-width',1.6)
-      .style('cursor','pointer')
-      .on('mousemove',e=>showTip(e,title,content))
-      .on('mouseleave',hideTip)
-      .on('click',e=>{e.stopPropagation();pinTip(e,title,content);});
-    group.append('text')
-      .attr('x',x).attr('y',y+3)
-      .attr('text-anchor','middle').attr('font-size',8)
-      .attr('font-weight','bold').attr('fill','#e0f2fe')
-      .attr('pointer-events','none').attr('font-family','ui-monospace,monospace')
-      .text(label);
-    if (countLabel) {
-      group.append('text')
-        .attr('x',x).attr('y',y-12)
-        .attr('text-anchor','middle').attr('font-size',8)
-        .attr('font-weight','bold').attr('fill',stroke)
-        .attr('pointer-events','none').attr('font-family','ui-monospace,monospace')
-        .text(countLabel);
-    }
-  }
+  // Consistent shrink factor for box/badge/separator geometry: 1 at or above
+  // the "readable" minZoom (current behaviour, unchanged), shrinking in
+  // lock-step with k once zoomed out further (only reachable via the Fit
+  // button widening zoomBeh's lower scaleExtent bound below minZoom) — see
+  // the matching `cs` factor in applyZoom for column spacing. Keeping both
+  // driven by the same ratio is what makes shrinking "consistent": boxes,
+  // gaps between them, and separators all scale down together rather than
+  // spacing shrinking while boxes stay full-size (which would overlap) or
+  // vice versa. Floors keep everything clickable/visible even at the most
+  // extreme fit-to-screen zoom level.
+  const _rs = Math.min(1, currentK/minZoom);
+  const SW=Math.max(10, SW_BASE*_rs), SH=Math.max(8, SH_BASE*_rs),
+        TRH=Math.max(8, TRH_BASE*_rs), AG=Math.max(3, AG_BASE*_rs),
+        BR=Math.max(3, BR_BASE*_rs);
+  // Below this box width, per-box text (labels/badges/seq numbers) is
+  // dropped entirely rather than overflowing or rendering illegibly small —
+  // mirrors the existing Phase 1 transition-bar-label pattern (maxC>=2)
+  // extended to Phase 3 state boxes/badges.
+  const _showBoxText = SW >= 18;
 
-  function drawBranchMarker(group, x, y, label, title, content, fill='#1f2937', stroke='#f59e0b', textFill='#fef3c7') {
-    const bw=28, bh=16, cut=5;
-    const pts=[
-      [x-bw/2+cut,y-bh/2],[x+bw/2-cut,y-bh/2],[x+bw/2,y],
-      [x+bw/2-cut,y+bh/2],[x-bw/2+cut,y+bh/2],[x-bw/2,y]
-    ].map(p=>p.join(',')).join(' ');
-    group.append('polygon')
-      .attr('points',pts)
-      .attr('fill',fill)
-      .attr('stroke',stroke)
-      .attr('stroke-width',1.4)
-      .style('cursor','pointer')
-      .on('mousemove',e=>showTip(e,title,content))
-      .on('mouseleave',hideTip)
-      .on('click',e=>{e.stopPropagation();pinTip(e,title,content);});
-    group.append('text')
-      .attr('x',x).attr('y',y+3)
-      .attr('text-anchor','middle').attr('font-size',8)
-      .attr('font-weight','bold').attr('fill',textFill)
-      .attr('pointer-events','none').attr('font-family','ui-monospace,monospace')
-      .text(label);
-  }
+  const ph0=dynG.append('g'), ph1=dynG.append('g'), ph2=dynG.append('g'), ph2b=dynG.append('g'), ph3=dynG.append('g'), ph4=dynG.append('g'), ph4b=dynG.append('g');
+  // ph4b paints AFTER ph4 (SVG stacks groups in DOM/creation order — later
+  // wins) — the fork/join/branch-begin/branch-end role circle (drawn a
+  // fixed pixel gap to the right of its own state box, see _fjCx below) can
+  // land in the exact same spot Phase 4 draws a REAL (non-connector-only)
+  // instant call icon, e.g. a branch-begin's own very next transition is
+  // routinely its branch's own near-instant ToolCall — Phase 4's full-size
+  // icon box then painted on top of, and completely hid, the branch-begin
+  // circle underneath it (reported: "i see branch end but no branch start"
+  // even though dag.py/tree.py already tag isBranchBegin correctly — a pure
+  // stacking-order bug, not a missing-data bug). Fork/join/branch-end
+  // circles happened to survive only because their own immediate neighbor
+  // transition in this trace wasn't a colliding visible icon.
 
-  function drawRepeatStateToken(group, x, y, label, title, content) {
-    const w=24, h=12;
-    group.append('rect')
-      .attr('x',x-w/2).attr('y',y-h/2)
-      .attr('width',w).attr('height',h)
-      .attr('rx',3)
-      .attr('fill','#111827')
-      .attr('stroke','#93c5fd')
-      .attr('stroke-width',1.2)
-      .attr('stroke-dasharray','3,2')
-      .style('cursor','pointer')
-      .on('mousemove',e=>showTip(e,title,content))
-      .on('mouseleave',hideTip)
-      .on('click',e=>{e.stopPropagation();pinTip(e,title,content);});
-    group.append('text')
-      .attr('x',x).attr('y',y+3)
-      .attr('text-anchor','middle').attr('font-size',7)
-      .attr('font-weight','bold').attr('fill','#dbeafe')
-      .attr('pointer-events','none').attr('font-family','ui-monospace,monospace')
-      .text(label);
-  }
-
-  const parallelGroupOrder=Array.from(new Map(
-    CHART.lanes.flatMap(lane=>lane.sequence)
-      .filter(el=>el.parallelGroupId)
-      .map(el=>[el.parallelGroupId, ('startTs' in el ? el.startTs : el.ts)])
-  ).entries())
-    .sort((a,b)=>a[1]-b[1])
-    .reduce((acc,[gid],idx)=>acc.set(gid,idx+1), new Map());
-
-  function parallelGroupNo(groupId) {
-    return parallelGroupOrder.get(groupId)||0;
-  }
-
-  function branchListLabel(size) {
-    return Array.from({length: Math.max(0,size||0)}, (_, idx)=>`B${idx+1}`).join(' ');
-  }
-
-  function agentParallelSlot(lane, tr){
-    if (lane.level!=='agent' || !tr.parallelGroupId || (tr.parallelSize||1)<=1) return null;
-    const span=(lane.parallelSpans||[]).find(s=>Math.abs(s.startTs-tr.startTs)<0.01 && s.size===tr.parallelSize)
-      || (lane.parallelSpans||[])[0];
-    if (!span) return null;
-    const gx1=cx(span.startTs,xPos)+SW/2+AG;
-    const gx2=cx(span.endTs,xPos)-SW/2-AG;
-    const n=Math.max(1,tr.parallelSize||1);
-    const gap=10;
-    const avail=Math.max(gx2-gx1, MIN_TRANS_W*n);
-    const slotW=Math.max(MIN_TRANS_W,(avail-gap*(n-1))/n);
-    const rank=Math.max(0,tr.parallelRank||0);
-    const x1=gx1+rank*(slotW+gap);
-    return [x1, x1+slotW];
-  }
-
-  // Phase 0: parallel-group background bands ──────────────────────────────
-  // For each lane carrying parallelSpans, draw a tinted band + fork/join borders.
+  // Phase 0a: parallel-group background bands ─────────────────────────────
+  // A subtle tinted band across the whole fork→join real-time span for every
+  // parallel group (lane.parallelSpans — dag.py's own fork/join bookkeeping,
+  // never re-derived heuristically client-side). Branches still render
+  // sequentially inside the band, each with its own reset separator (drawn
+  // below, on top of this) — the band's only job is showing "this whole
+  // stretch is one parallel fork/join group" at a glance; the actual
+  // navigation between branches lives in the fork/join state popups
+  // (_forkJoinSummaryHtml), not on this purely visual layer.
   visibleLanes().forEach((lane,li)=>{
-    if (!lane.parallelSpans||!lane.parallelSpans.length) return;
-    const cy=TH+LGH+li*LH+LM;
+    if (!lane.parallelSpans || !lane.parallelSpans.length) return;
     const lt=TH+LGH+li*LH+1;
     const gh=LH-2;
     lane.parallelSpans.forEach(span=>{
@@ -853,15 +1934,58 @@ function redraw(xPos) {
       const x2=cx(span.endTs,  xPos)+SW/2+4;
       const bw=Math.max(x2-x1,10);
       ph0.append('rect').attr('x',x1).attr('y',lt).attr('width',bw).attr('height',gh)
-        .attr('rx',3).attr('fill','#0c2a4a').attr('opacity',0.6)
+        .attr('rx',3).attr('fill','#0c2a4a').attr('opacity',0.45)
         .attr('pointer-events','none');
-      [x1,x2].forEach(vx=>{
-        ph0.append('line')
-          .attr('x1',vx).attr('y1',lt).attr('x2',vx).attr('y2',lt+gh)
-          .attr('stroke','#7dd3fc').attr('stroke-width',1.5)
-          .attr('stroke-dasharray','4,3').attr('opacity',0.7);
-      });
     });
+  });
+
+  // Phase 0: branch-reset separators ──────────────────────────────────────
+  // One dashed vertical line per DFS branch boundary (going back up the
+  // call tree and descending into a new sibling — see dag.py's
+  // is_branch_reset / chart_data.py's _is_parallel_tool_reset), scoped to
+  // only the lane(s) the reset actually concerns (dag.py/chart_data.py's own
+  // "scope" fact, never re-derived heuristically here):
+  //  - scope 'agent': a cross-agent delegation-fork boundary — the reset
+  //    genuinely concerns both the Agents and Calls lanes (a different
+  //    agent's own subtree starts here), so the line spans from the top of
+  //    the Agents lane to the bottom of the Calls lane.
+  //  - scope 'tool': a single agent's own parallel tool-call fan-out — the
+  //    branches never leave that agent's row, so the line is confined to
+  //    the Calls lane only.
+  // Falls back to full chart height if the relevant lane(s) aren't
+  // currently visible (e.g. filtered out), matching the old behaviour.
+  const _vLanesP0 = visibleLanes();
+  const _agentsIdxP0 = _vLanesP0.findIndex(l=>l.laneId==='agents');
+  const _callsIdxP0  = _vLanesP0.findIndex(l=>l.laneId==='calls');
+  const _fullTopY=TH+LGH, _fullBotY=TH+LGH+_vLanesP0.length*LH;
+  const _resetLineRange=(scope)=>{
+    if (scope==='tool' && _callsIdxP0>=0) {
+      return [TH+LGH+_callsIdxP0*LH, TH+LGH+(_callsIdxP0+1)*LH];
+    }
+    if (scope==='agent' && _agentsIdxP0>=0 && _callsIdxP0>=0) {
+      const lo=Math.min(_agentsIdxP0,_callsIdxP0), hi=Math.max(_agentsIdxP0,_callsIdxP0);
+      return [TH+LGH+lo*LH, TH+LGH+(hi+1)*LH];
+    }
+    return [_fullTopY,_fullBotY];
+  };
+  CHART.buckets.forEach((b,i)=>{
+    if (i===0) return;
+    const gap=CHART.bucketGaps && CHART.bucketGaps[i-1];
+    if (!gap || gap.kind!=='reset') return;
+    const x=cx(b,xPos);
+    const [lineTopY,lineBotY]=_resetLineRange(gap.scope);
+    ph0.append('line')
+      .attr('x1',x).attr('y1',lineTopY).attr('x2',x).attr('y2',lineBotY)
+      .attr('stroke','#f59e0b').attr('stroke-width',1.5)
+      .attr('stroke-dasharray','6,4').attr('opacity',0.55)
+      .attr('pointer-events','none');
+    if (gap.branchId) {
+      ph0.append('text')
+        .attr('x',x+4).attr('y',lineTopY+12)
+        .attr('font-size',8).attr('fill','#f59e0b').attr('opacity',0.8)
+        .attr('pointer-events','none').attr('font-family','ui-monospace,monospace')
+        .text(`branch: ${gap.branchId}`);
+    }
   });
 
   // Phase 1: lifelines + transitions ─────────────────────────────────────
@@ -872,6 +1996,9 @@ function redraw(xPos) {
     // (inter-agent thinking boundary — connecting them would be semantically wrong).
     for (let si=0; si<states.length-1; si++) {
       if (states[si+1].laneRestart) continue;
+      // Skip the segment when either endpoint sits inside a collapsed group —
+      // the collapsed placeholder pill (Phase 2b) already covers this span.
+      if (_isStateCollapsed(lane.laneId,states[si]) || _isStateCollapsed(lane.laneId,states[si+1])) continue;
       const x1=cx(states[si].ts,xPos), x2=cx(states[si+1].ts,xPos);
       if (x2>x1+1)
         ph1.append('line')
@@ -881,6 +2008,14 @@ function redraw(xPos) {
     }
     lane.sequence.forEach((tr,idx)=>{
       if (tr.type!=='trans') return;
+      if (tr.callType==='BranchLink') return;
+      // Bridging slivers manufactured only to mirror a WAIT/RESUME boundary
+      // onto another lane (see dag.py's _insert_agent_boundary) carry no
+      // real activity of their own — draw nothing for them.
+      if (tr.connectorOnly) return;
+      // Collapsed groups (Phase 2b) hide their interior transitions entirely
+      // — the placeholder pill stands in for everything inside its range.
+      if (_isTransCollapsed(lane.laneId, tr)) return;
       const ts0=(tr.startTs-CHART.tMin).toFixed(2);
       const ts1=(tr.endTs  -CHART.tMin).toFixed(2);
       const dur=Math.max(0,tr.endTs-tr.startTs).toFixed(2);
@@ -891,8 +2026,24 @@ function redraw(xPos) {
 
       // If this lane has an instant-call icon at startTs, the bar must start
       // after the icon (state_right + 4 + SW + AG) to avoid overlap.
-      const slot=agentParallelSlot(lane,tr);
-      const xl=slot ? slot[0] : cx(tr.startTs,xPos)+SW/2+AG;
+      // A trans's OWN startTs/endTs fields are not always the same ts as its
+      // immediate neighbours in `lane.sequence` (e.g. a native "context
+      // assembly" ProcessingCall can carry the raw record's own start_ts,
+      // which sometimes lands on an EARLIER bucket than the state that was
+      // DFS-sequenced directly before it — a join's own synthetic marker
+      // ts, in particular, is often placed earlier in real time than the
+      // aggregation step that structurally follows it in the sequence).
+      // Reported: a "context assembly" bar rendered spanning clean over an
+      // intervening join state box + its "J" role circle. Since `elems` is
+      // always state/trans/state/trans/… (see dag.py), the element right
+      // before/after this trans in the array IS its true visual left/right
+      // neighbour regardless of what its own ts fields say — clamp the bar
+      // to never start before, or end after, those neighbours' own x
+      // positions so it can never visually swallow them.
+      const _prevSt=lane.sequence[idx-1], _nextSt=lane.sequence[idx+1];
+      const _prevX=(_prevSt&&_prevSt.type==='state') ? cx(_prevSt.ts,xPos) : -Infinity;
+      const _nextX=(_nextSt&&_nextSt.type==='state') ? cx(_nextSt.ts,xPos) : Infinity;
+      const xl=Math.max(cx(tr.startTs,xPos)+SW/2+AG, _prevX+SW/2+AG);
 
       // Concurrent-agent overlap fix: when concurrent calls from different
       // agents are merged into one lane, a long bar (e.g. LLM call from agent A)
@@ -900,10 +2051,10 @@ function redraw(xPos) {
       // agent A is still running).  Clip the bar's right edge to the visual
       // start of the next transition so all elements appear as a clean sequence.
       const nextTr=lane.sequence[idx+2];
-      const clipX=slot ? Infinity : ((nextTr&&nextTr.type==='trans'&&nextTr.startTs<tr.endTs)
+      const clipX=(nextTr&&nextTr.type==='trans'&&nextTr.startTs<tr.endTs)
         ? cx(nextTr.startTs,xPos)-SW/2-AG
-        : Infinity);
-      const xr_nat=slot ? slot[1] : Math.min(cx(tr.endTs,xPos)-SW/2-AG, isFinite(clipX)?clipX:Infinity);
+        : Infinity;
+      const xr_nat=Math.min(cx(tr.endTs,xPos)-SW/2-AG, isFinite(clipX)?clipX:Infinity, _nextX-SW/2-AG);
 
       // When the natural width is negative, the destination state box sits visually
       // BEFORE or AT the bar's start (concurrent-agent lane ordering artefact).
@@ -911,36 +2062,32 @@ function redraw(xPos) {
       // the dotted lifeline already connects the surrounding state boxes.
       if (xr_nat < xl) { return; }
 
-      // Tooltip content: ProcessingCall shows operation+task without useless "→ assembled".
-      // All other types: standard in → out layout.
-      const isProc=(tr.callType==='ProcessingCall');
-      const content=isProc
-        ? timeLine+'\n\n'+(tr.hoverIn||'(no details)')
-        : timeLine+'\n\n'+`${tr.hoverIn||'(no input)'}\n\n\u2192\n\n${tr.hoverOut||'(no output)'}`;
-      // (content is used below)
+      // Tooltip content: every transition (context assembly, LLM, agent,
+      // MAS, session, tool, ...) shows a diff-only view — what changed in
+      // the state right after this transition vs. right before it. Never
+      // the raw pre/post content pair.
+      let popupCpr=_computeTransitionCprDiff(lane, idx, tr);
+      let popupHoverOut=tr.hoverOut||'';
+      let popupContent=timeLine;
+      if (!popupCpr || !popupCpr.length) {
+        popupCpr=_buildGenericTransitionParts(tr);
+      }
       // tw_natural: actual column space available for this transition rect.
       const tw_natural=xr_nat-xl;
       const xr=Math.max(xr_nat, xl+Math.min(MIN_TRANS_W, tw_natural));
-      const tw=xr-xl, ty=cy-TRH/2;
+      const ty=cy-TRH/2;
       const _trKW=_kwMatch(tr.label)||_kwMatch(tr.hoverIn)||_kwMatch(tr.hoverOut);
-      const prevState=(lane.sequence[idx-1]&&lane.sequence[idx-1].type==='state') ? lane.sequence[idx-1] : null;
-      const repeatedStateLabel=prevState ? (prevState.labelOverride || `S${prevState.num}`) : 'S?';
-      const repeatedStateToken=`${repeatedStateLabel}↺`;
-      let barLeft=xl, barRight=xr;
-      let closeMarkerLeft=null, closeMarkerRight=null;
-      if (tr.parallelGroupId && tw>=86) {
-        barLeft=Math.min(xr-34, xl+32);
-        closeMarkerLeft=xr-30;
-        closeMarkerRight=xr-2;
-        barRight=Math.max(barLeft+14, closeMarkerLeft-6);
-      }
+      // Which branch (if any) this bar belongs to is shown by the full-height
+      // reset separator drawn once per branch boundary (see the dedicated
+      // pass before Phase 0) — no per-bar tag needed here.
+      const barLeft=xl, barRight=xr;
       const barMid=(barLeft+barRight)/2;
       ph1.append('rect').attr('x',barLeft).attr('y',ty).attr('width',Math.max(2,barRight-barLeft)).attr('height',TRH)
         .attr('rx',4).attr('fill',tr.color)
         .attr('stroke','none')
         .style('cursor','pointer')
-        .on('mousemove',e=>showTip(e,tr.label,content,tr.callType,null,null,tr.cprData)).on('mouseleave',hideTip)
-        .on('click',e=>{e.stopPropagation();pinTip(e,tr.label,content,tr.callType,null,null,tr.cprData,tr.model,tr.hoverOut);});
+        .on('mousemove',e=>showTip(e,tr.label,popupContent,tr.callType,null,null,popupCpr)).on('mouseleave',hideTip)
+        .on('click',e=>{e.stopPropagation();pinTip(e,tr.label,popupContent,tr.callType,null,null,popupCpr,tr.model,popupHoverOut,tr.governance);});
       // Label: truncate proportionally to natural column width; hide entirely
       // below 16 px so text never overflows into adjacent state boxes.
       const maxC=Math.max(0,Math.floor((barRight-barLeft)/8));
@@ -956,79 +2103,39 @@ function redraw(xPos) {
         .attr('font-size',9).attr('font-weight','bold').attr('fill','#fff')
         .attr('pointer-events','none').attr('font-family','ui-monospace,monospace')
         .text(tr.seq);
-      const ax0=cx(tr.startTs,xPos)+SW/2;
-      let branchRight=null;
-      // Distinct branch marker before each branch start.
-      if (tr.parallelGroupId) {
-        const groupNo=parallelGroupNo(tr.parallelGroupId);
-        const branchLabel=`B${1+(tr.parallelRank||0)}`;
-        const markerX=Math.min(xl-18, Math.max(ax0+18, xl-22));
-        const branchLeft=markerX-14;
-        branchRight=markerX+14;
-        if (branchLeft-ax0>2)
-          ph1.append('line').attr('x1',ax0).attr('y1',cy).attr('x2',branchLeft).attr('y2',cy)
-            .attr('stroke','#f59e0b').attr('stroke-width',1.6).attr('opacity',0.95);
-        drawBranchMarker(
-          ph1,
-          markerX,
-          cy,
-          branchLabel,
-          `${branchLabel} branch`,
-          `${branchLabel} from fork F${groupNo} in ${branchListLabel(tr.parallelSize||2)}`
-        );
-        const repeatStateX=Math.min(xr-40, xl+14);
-        const repeatStateLeft=repeatStateX-12;
-        const repeatStateRight=repeatStateX+12;
-        if (repeatStateLeft-branchRight>2)
-          ph1.append('line').attr('x1',branchRight).attr('y1',cy).attr('x2',repeatStateLeft).attr('y2',cy)
-            .attr('stroke','#f59e0b').attr('stroke-width',1.6).attr('marker-end','url(#arr)')
-            .attr('opacity',0.95);
-        drawRepeatStateToken(
-          ph1,
-          repeatStateX,
-          cy,
-          repeatedStateToken,
-          `${branchLabel} repeated state`,
-          `Repeated entry state ${repeatedStateToken} for ${branchLabel}`
-        );
-        if (barLeft-repeatStateRight>2)
-          ph1.append('line').attr('x1',repeatStateRight).attr('y1',cy).attr('x2',barLeft).attr('y2',cy)
-            .attr('stroke','#93c5fd').attr('stroke-width',1.4).attr('opacity',0.9);
-        const branchFrameLeft=branchLeft-4;
-        const branchFrameRight=(closeMarkerRight!==null ? closeMarkerRight : xr)+4;
-        if (branchFrameRight-branchFrameLeft>24)
-          ph1.append('rect').attr('x',branchFrameLeft).attr('y',ty-4)
-            .attr('width',branchFrameRight-branchFrameLeft).attr('height',TRH+8)
-            .attr('rx',6).attr('fill','none').attr('stroke','#fbbf24')
-            .attr('stroke-width',1).attr('stroke-dasharray','4,3').attr('opacity',0.45);
-        if (closeMarkerLeft!==null && closeMarkerRight!==null) {
-          if (closeMarkerLeft-barRight>2)
-            ph1.append('line').attr('x1',barRight).attr('y1',cy).attr('x2',closeMarkerLeft).attr('y2',cy)
-              .attr('stroke','#fcd34d').attr('stroke-width',1.4).attr('opacity',0.9);
-          drawBranchMarker(
-            ph1,
-            (closeMarkerLeft+closeMarkerRight)/2,
-            cy,
-            `/${branchLabel}`,
-            `${branchLabel} end`,
-            `End of ${branchLabel}`,
-            '#3f2a12',
-            '#fcd34d',
-            '#fef3c7'
-          );
-        }
+      // Governance badge: a small shield to the left of the seq badge,
+      // coloured by the most severe decision that gated this call. Clicking
+      // it opens the same pinned panel with the governance section expanded.
+      const govColor=tr.governanceColor||null;
+      if (govColor) {
+        const gbx=bx-2*BR-3, gby=by;
+        ph1.append('circle').attr('cx',gbx).attr('cy',gby).attr('r',BR).attr('fill',govColor)
+          .style('cursor','pointer')
+          .on('mousemove',e=>showTip(e,tr.label,popupContent,tr.callType,null,null,popupCpr)).on('mouseleave',hideTip)
+          .on('click',e=>{e.stopPropagation();pinTip(e,tr.label,popupContent,tr.callType,null,null,popupCpr,tr.model,popupHoverOut,tr.governance);});
+        ph1.append('text').attr('x',gbx).attr('y',gby+4).attr('text-anchor','middle')
+          .attr('font-size',9).attr('fill','#fff').attr('pointer-events','none')
+          .text('⛨');
       }
+      // Retry-attempt badge: a small "↻N" tag when this call is part of a
+      // governance-triggered retry chain.
+      if (tr.retryGroupId) {
+        ph1.append('text').attr('x',barLeft+3).attr('y',ty-3)
+          .attr('font-size',9).attr('font-weight','bold').attr('fill','#f59e0b')
+          .attr('pointer-events','none').attr('font-family','ui-monospace,monospace')
+          .text(`↻${tr.retryAttempt}`);
+      }
+      const ax0=cx(tr.startTs,xPos)+SW/2;
       // Arrows
-      if (!slot && !tr.parallelGroupId && xl-ax0>2)
+      if (xl-ax0>2)
         ph1.append('line').attr('x1',ax0).attr('y1',cy).attr('x2',xl).attr('y2',cy)
           .attr('stroke',C.arrow).attr('stroke-width',1.5).attr('marker-end','url(#arr)');
       // Right arrow: skip when clipped (the dotted lifeline connects to the end state)
-      const wasClipped=!slot && isFinite(clipX)&&clipX<cx(tr.endTs,xPos)-SW/2-AG;
-      if (!slot && !wasClipped) {
+      const wasClipped=isFinite(clipX)&&clipX<cx(tr.endTs,xPos)-SW/2-AG;
+      if (!wasClipped) {
         const ax1=cx(tr.endTs,xPos)-SW/2;
-        const rightStart=(closeMarkerRight!==null) ? closeMarkerRight : barRight;
-        if (ax1-rightStart>2)
-          ph1.append('line').attr('x1',rightStart).attr('y1',cy).attr('x2',ax1).attr('y2',cy)
+        if (ax1-barRight>2)
+          ph1.append('line').attr('x1',barRight).attr('y1',cy).attr('x2',ax1).attr('y2',cy)
             .attr('stroke',C.arrow).attr('stroke-width',1.5).attr('marker-end','url(#arr)');
       }
     });
@@ -1050,6 +2157,111 @@ function redraw(xPos) {
     }
   });
 
+  // Phase 2b: collapse/expand groups — agent runs, fork groups, branches ──
+  // A group is a plain BACKGROUND highlight spanning its own row's full
+  // height (drawn in ph0, i.e. behind every bar/lifeline/state — it can
+  // never obscure or intercept clicks on real content: pointer-events:none)
+  // plus exactly one small, always-visible button that toggles collapse/
+  // expand — no mouseover reveal, no popup, no separate hover-only bar.
+  // A group nested entirely inside an already-collapsed ancestor (e.g. one
+  // branch's own agent-run once the whole forkGroup is collapsed) draws
+  // nothing — its ancestor's own band + button already covers it.
+  const GROUP_COLOR={agent:'#a78bfa', forkGroup:'#22d3ee', branch:'#64748b'};
+  const _vLanes=visibleLanes();
+  const _callsLaneIdx=_vLanes.findIndex(l=>l.laneId==='calls');
+  // Group pills are collapsed/expanded in bucket-index space (see
+  // _recomputeGroupsAndRanges). Draw them in that SAME space too: column
+  // edges, not center-of-state +/- half-box. This prevents two adjacent
+  // groups from overlapping at a shared boundary marker (e.g. W/R) and
+  // avoids right-edge gaps when compressed columns are involved.
+  const _colEdgeLeft=(idx)=>{
+    const bs=CHART.buckets;
+    if (!bs.length) return LW+PL;
+    if (idx<=0) return (xPos[bs[0]]??(LW+PL)) - SW/2 - 3;
+    const l=xPos[bs[idx-1]], r=xPos[bs[idx]];
+    return (l+r)/2;
+  };
+  const _colEdgeRight=(idx)=>{
+    const bs=CHART.buckets;
+    if (!bs.length) return LW+PL;
+    if (idx>=bs.length-1) return (xPos[bs[bs.length-1]]??(LW+PL)) + SW/2 + 3;
+    const l=xPos[bs[idx]], r=xPos[bs[idx+1]];
+    return (l+r)/2;
+  };
+  _vLanes.forEach((lane,li)=>{
+    const groups=_allGroupsByLane.get(lane.laneId)||[];
+    if (!groups.length) return;
+    const rowTop=TH+LGH+li*LH+1, rowH=LH-2;
+    groups.forEach(g=>{
+      const gStartIdx=_bucketIndexOf(g.startTs), gEndIdx=_bucketIndexOf(g.endTs);
+      const hiddenByAncestor=_mergedRangesExcluding(lane.laneId,g.key)
+        .some(r=>gStartIdx>=r.startIdx && gEndIdx<=r.endIdx);
+      if (hiddenByAncestor) return;
+      const x1=_colEdgeLeft(gStartIdx), x2=_colEdgeRight(gEndIdx);
+      const w=Math.max(x2-x1,10);
+      const color=GROUP_COLOR[g.kind]||'#94a3b8';
+      const collapsed=_collapsedGroups.has(g.key);
+      const restOpacity=collapsed?0.26:0.10, hoverOpacity=collapsed?0.42:0.26;
+      // Background band: purely visual, never intercepts a pointer event.
+      // Hovering the button below boosts its opacity + adds a stroke, so
+      // the group's real-time scope is clearly delimited before clicking.
+      const band=ph0.append('rect').attr('x',x1).attr('y',rowTop).attr('width',w).attr('height',rowH)
+        .attr('rx',3).attr('fill',color).attr('opacity',restOpacity)
+        .attr('stroke','none').attr('stroke-width',1.5)
+        .attr('pointer-events','none');
+      // Collapsing an agent-level group (this lane is always 'agents') also
+      // collapses the corresponding real-time span on the 'calls' lane (see
+      // _recomputeGroupsAndRanges' propagation) — echo the same background
+      // band there too, purely visual, so it reads as one linked collapse
+      // spanning both lanes rather than a silent gap appearing below.
+      let callsBand=null;
+      if (collapsed && lane.laneId==='agents' && _callsLaneIdx>=0) {
+        const callsTop=TH+LGH+_callsLaneIdx*LH+1;
+        callsBand=ph0.append('rect').attr('x',x1).attr('y',callsTop).attr('width',w).attr('height',rowH)
+          .attr('rx',3).attr('fill',color).attr('opacity',0.18)
+          .attr('stroke','none').attr('stroke-width',1.2)
+          .attr('pointer-events','none');
+      }
+      // The one interactive element: a small fixed collapse/expand button.
+      const bs=12, bx=x1+2, by=rowTop+2;
+      const btn=ph2b.append('g').style('cursor','pointer')
+        .on('mouseenter',()=>{
+          band.attr('opacity',hoverOpacity).attr('stroke',color);
+          if (callsBand) callsBand.attr('opacity',0.32).attr('stroke',color);
+        })
+        .on('mouseleave',()=>{
+          band.attr('opacity',restOpacity).attr('stroke','none');
+          if (callsBand) callsBand.attr('opacity',0.18).attr('stroke','none');
+        })
+        .on('click',e=>{e.stopPropagation();
+          if (collapsed) _collapsedGroups.delete(g.key); else _collapsedGroups.add(g.key);
+          _relayoutForCollapseChange();});
+      btn.append('rect').attr('x',bx).attr('y',by).attr('width',bs).attr('height',bs)
+        .attr('rx',3).attr('fill','#0f172a').attr('stroke',color).attr('stroke-width',1.2);
+      btn.append('text').attr('x',bx+bs/2).attr('y',by+bs/2+3)
+        .attr('text-anchor','middle').attr('font-size',9).attr('font-weight','bold')
+        .attr('fill',color).attr('font-family','ui-monospace,monospace')
+        .attr('pointer-events','none')
+        .text(collapsed?'\u25b8':'\u25be');
+      // Label: truncate proportionally to the band's own available width
+      // (mirrors the Phase 1 transition-bar-label / _showBoxText pattern)
+      // and hide entirely when there's no room — otherwise, once several
+      // small groups collapse to adjacent COLLAPSED_COL_W (64px) columns,
+      // an untruncated label routinely overflows past its own band into
+      // the next collapsed column, producing overlapping/garbled text.
+      if (collapsed) {
+        const labelX=bx+bs+4;
+        const avail=x2-labelX-2;
+        const maxC=Math.max(0, Math.floor(avail/7));
+        if (maxC>=2)
+          ph2b.append('text').attr('x',labelX).attr('y',by+bs-2)
+            .attr('font-size',9).attr('font-weight','bold').attr('fill',color)
+            .attr('font-family','ui-monospace,monospace').attr('pointer-events','none')
+            .text(g.label.slice(0,maxC));
+      }
+    });
+  });
+
   // User actor: box adjacent to boundary state (same size as state boxes).
   // Direction is implicit from position (left=entry, right=exit).
   function drawUserActor(g, scx, cy, isEntry, hover) {
@@ -1067,8 +2279,8 @@ function redraw(xPos) {
     g.append('rect').attr('x',ux-hw).attr('y',cy-SH/2).attr('width',SW).attr('height',SH)
       .attr('rx',3).attr('fill',col).attr('stroke',col)
       .style('cursor','pointer')
-      .on('mousemove',e=>showTip(e,cap,hover||'(empty)')).on('mouseleave',hideTip)
-      .on('click',e=>{e.stopPropagation();pinTip(e,cap,hover||'(empty)');});
+      .on('mousemove',e=>showTip(e,cap,hover||'(empty)',null,null,null,null,null,true)).on('mouseleave',hideTip)
+      .on('click',e=>{e.stopPropagation();pinTip(e,cap,hover||'(empty)',null,null,null,null,null,null,null,null,true);});
     // Person silhouette in dark ink inside the box
     g.append('circle').attr('cx',ux).attr('cy',cy-5).attr('r',4)
       .attr('fill','#0f172a').attr('pointer-events','none');
@@ -1081,22 +2293,67 @@ function redraw(xPos) {
     const cy=TH+LGH+li*LH+LM;
     const seen=new Set();
     const isSessionLane=(lane.level==='session');
-    lane.sequence.filter(e=>e.type==='state').forEach(st=>{
+    // Colour pair for individual branch-begin/branch-end nodes (fork/join
+    // group nodes use their own forkKind-based green/cyan instead).
+    const _bmColor='#f9a8d4', _bmStroke='#831843';
+    // Fork ts → its own forkBranchTs array, so a JOIN node (which only
+    // carries joinForkTs, the ts of its matching fork) can look up the
+    // SAME per-branch dispatch list its fork used, and fan its own
+    // connector lines out to the same branch columns.
+    const _forkBranchTsByTs = {};
+    lane.sequence.forEach(e=>{
+      if (e.type==='state' && e.isFork && e.forkBranchTs && e.forkBranchTs.length)
+        _forkBranchTsByTs[e.ts]=e.forkBranchTs;
+    });
+    // parallelGroupId -> {forkTs, joinTs} for THIS lane, so a branch-begin/
+    // branch-end state (which only carries its own parallelGroupId, not its
+    // parent group's fork/join ts directly) can look up its parent fork's
+    // and merge's own ts to cross-link to them in its own group popup
+    // (_branchSummaryHtml) — same-group lookup, never a client-side
+    // heuristic, since every fork/join/branch-begin/branch-end in one
+    // parallel_group_id always shares the exact same parallelGroupId.
+    const _groupBoundsByGid = {};
+    lane.sequence.forEach(e=>{
+      if (e.type!=='state' || !e.parallelGroupId) return;
+      const g = _groupBoundsByGid[e.parallelGroupId] || (_groupBoundsByGid[e.parallelGroupId]={});
+      if (e.isFork) g.forkTs = e.ts;
+      if (e.isJoin) g.joinTs = e.ts;
+    });
+    lane.sequence.forEach((st, stSeqIdx)=>{
+      if (st.type!=='state') return;
       if (seen.has(st.ts)) return;
       seen.add(st.ts);
+      // Collapsed groups (Phase 2b) hide their strictly-interior states —
+      // the group's own boundary states stay visible as anchors.
+      if (_isStateCollapsed(lane.laneId, st)) return;
       // Connector-only states are injected for shared-bucket vertical connectors
-      // but should not render a visible box (they have no transition edges in this lane).
-      if (st.connectorOnly) return;
+      // but should not render a visible box (they have no transition edges in this
+      // lane) — except when a blocked governance action was attached to one (no
+      // execution record exists for a call that never ran, so its only anchor
+      // point in the lane is this otherwise-invisible marker state).
+      if (st.connectorOnly && !(st.governance&&st.governance.length)) return;
       const scx=cx(st.ts,xPos);
       const sx=scx-SW/2, sy=cy-SH/2;
       const lbl=st.labelOverride || `S${st.num}`;
       // Interrupted: no execution_end in trace (agent was still running at cut).
       // Error: execution_end.status was non-success.
-      const stateFill   = st.interrupted ? '#2d1a00' : (st.isError ? '#2d0000' : C.stateF);
-      const stateStroke = st.interrupted ? '#f59e0b' : (st.isError ? '#ef4444' : C.stateS);
-      const stateTxt    = (st.interrupted || st.isError) ? stateStroke : C.stateT;
-      const prefix      = st.interrupted ? '\u26a0 TRACE CUT \u2014 agent was still running\n\n'
-                        : st.isError     ? '\u2717 EXECUTION ERROR\n\n' : '';
+      // Control boundary (WAIT/RESUME/FORK/JOIN): light-yellow, so these are
+      // never mistaken for a real execution state — harmonized treatment,
+      // since a fork/join IS a wait/resume for N branches instead of 1.
+      // Fork/join/branch-begin/branch-end boxes render exactly like a plain
+      // state box now (Phase 29's own circle marker is the only visual cue
+      // for those roles) — only a genuine WAIT/RESUME state still gets the
+      // yellow "control boundary" treatment. Reported regression: fork/join
+      // state BOXES were rendering yellow too, on top of their own circle,
+      // double-marking the same boundary.
+      const isControl   = !!st.waitRole;
+      const stateFill   = st.interrupted ? '#2d1a00' : (st.isError ? '#2d0000' : (isControl ? C.controlF : C.stateF));
+      const stateStroke = st.interrupted ? '#f59e0b' : (st.isError ? '#ef4444' : (isControl ? C.controlS : C.stateS));
+      const stateTxt    = (st.interrupted || st.isError) ? stateStroke : (isControl ? C.controlT : C.stateT);
+      const prefix      = st.interrupted  ? '\u26a0 TRACE CUT \u2014 agent was still running\n\n'
+                        : st.isError      ? '\u2717 EXECUTION ERROR\n\n'
+                        : st.laneRestart  ? '\u21c4 AGENT HANDOFF \u2014 control passed to a different agent here\n\n'
+                        : '';
       // Prefer the lane-specific hover (populated per-lane for native-event
       // traces); fall back to any non-empty lane hover, then the global state
       // hover (KG traces), then a placeholder. Without this, native states
@@ -1104,8 +2361,48 @@ function redraw(xPos) {
       const _hbl        = st.hoverByLane || {};
       const laneHover   = _hbl[lane.laneId] || Object.values(_hbl).find(v=>v) || st.hover || '';
       const hoverContent= prefix + (laneHover||'(no content)');
+      const stateCpr = _computeStatePopupCpr(lane, stSeqIdx);
+      const isWaitState = !!st.waitRole;
+      const waitContent = isWaitState ? '' : hoverContent;
+      // WAIT/RESUME markers still show the accumulated CPR view (context as
+      // of this point in the flow) alongside their own wait-summary panel —
+      // only the redundant plain "content" text (superseded by
+      // waitVisualHtml) is suppressed for them. Fork/merge/branch-begin/
+      // branch-end summaries are NOT folded in here any more — those are
+      // GROUP-node facts, not state facts, and now live exclusively in
+      // their own dedicated popup on the additional circle beside this box
+      // (see `_groupPopupPayload` below) — the plain state box's own popup
+      // stays a plain state popup, never mixed with group semantics.
+      const popupStateCpr = stateCpr;
+      const waitVisualHtml = isWaitState ? _waitSummaryHtml(st, lane.laneId) : '';
       const pinNote    = st.pinNote    || null;
       const pinExcerpt = st.pinExcerpt || null;
+      const popupPayload = {
+        label: lbl,
+        content: waitContent,
+        excerpt: pinExcerpt,
+        pinNote,
+        cprData: popupStateCpr,
+        model: st.model||'',
+        hoverOut: '',
+        governance: st.governance,
+        laneId: lane.laneId,
+        waitMeta: st.waitMeta,
+        waitVisualHtml,
+      };
+      _STATE_POPUP_PAYLOAD.set(_statePopupKey(lane.laneId, st.ts), popupPayload);
+      // Agent handoff: this boundary sits between two DIFFERENT agents' calls
+      // merged into the same lane row (e.g. a delegate's last call, then the
+      // delegator's next one) — without a marker here it reads as an
+      // arbitrary split in the middle of one continuous call.
+      if (st.laneRestart) {
+        ph3.append('rect').attr('x',sx-3).attr('y',sy-3).attr('width',SW+6).attr('height',SH+6)
+          .attr('rx',5).attr('fill','none').attr('stroke','#a78bfa').attr('stroke-width',2)
+          .attr('stroke-dasharray','2,2').attr('pointer-events','none');
+        ph3.append('text').attr('x',scx).attr('y',sy-4)
+          .attr('text-anchor','middle').attr('font-size',9).attr('fill','#a78bfa')
+          .attr('pointer-events','none').text('⇄');
+      }
       if (st.gapMarker) {
         // Ring border around state box
         ph3.append('rect').attr('x',sx-3).attr('y',sy-3).attr('width',SW+6).attr('height',SH+6)
@@ -1122,60 +2419,146 @@ function redraw(xPos) {
           .attr('fill','#fff').attr('pointer-events','none')
           .attr('font-family','ui-monospace,monospace').text(pidx>0?pidx:'!');
       }
+      // Blocked-action ghost marker: a governance decision stopped a call
+      // before the engine ever ran it, so there is no bar to draw — mark the
+      // state boundary itself with a dashed ring and a stop-sign flag.
+      if (st.governance && st.governance.length) {
+        const gColor=st.governanceColor||'#ef4444';
+        const gHoverContent=govSummaryText(st.governance);
+        ph3.append('rect').attr('x',sx-3).attr('y',sy-3).attr('width',SW+6).attr('height',SH+6)
+          .attr('rx',5).attr('fill','none').attr('stroke',gColor).attr('stroke-width',2)
+          .attr('stroke-dasharray','2,2').attr('pointer-events','none');
+        ph3.append('polygon')
+          .attr('points',`${scx-7},${sy-2} ${scx+7},${sy-2} ${scx},${sy-12}`)
+          .attr('fill',gColor).attr('opacity',0.95).style('cursor','pointer')
+          .on('mousemove',e=>showTip(e,'Blocked action',gHoverContent)).on('mouseleave',hideTip)
+          .on('click',e=>{e.stopPropagation();pinTip(e,'Blocked action','',null,null,null,null,'','',st.governance);});
+        ph3.append('text').attr('x',scx).attr('y',sy-4)
+          .attr('text-anchor','middle').attr('font-size',7).attr('font-weight','bold')
+          .attr('fill','#fff').attr('pointer-events','none').text('⛔');
+      }
+      // Fork / merge(join) / branch-begin / branch-end are 4 distinct node
+      // kinds, IN ADDITION TO the state itself — not a replacement for it.
+      // The state always renders exactly like every other state on this
+      // plot (the same white/coloured rect box, same lbl/hover/popup), and
+      // when it also happens to be a fork/merge/branch-begin/branch-end,
+      // one EXTRA same-size circle node is drawn right beside it (green for
+      // a same-agent tool fan-out, cyan for a genuine cross-agent
+      // fork/merge, pink for an individual branch's own begin/end),
+      // labelled with its role letter (F/J/B/E) — fork and branch-begin
+      // mark the START of a group/branch ("state IN"), merge and
+      // branch-end mark its END ("state OUT"). A prior iteration REPLACED
+      // the box with this circle, which lost the ordinary state
+      // rendering entirely; an iteration before that used a tiny
+      // 6-8px badge — both were explicitly rejected. This restores the
+      // ordinary box AND adds the circle as its own distinct node.
+      const _fjRole = st.isFork ? 'fork' : st.isJoin ? 'join'
+                    : st.isBranchBegin ? 'branch_begin' : st.isBranchEnd ? 'branch_end' : null;
       const stRect=ph3.append('rect').attr('x',sx).attr('y',sy).attr('width',SW).attr('height',SH)
+        .attr('id','state-box-'+lane.laneId+'-'+Math.round(st.ts*1000))
         .attr('rx',3).attr('fill',stateFill).attr('stroke',stateStroke).attr('stroke-width',1.5)
         .style('cursor','pointer')
-        .on('mousemove',e=>showTip(e,lbl,hoverContent,null,pinExcerpt,pinNote,st.cprData)).on('mouseleave',hideTip)
-        .on('click',e=>{e.stopPropagation();pinTip(e,lbl,hoverContent,null,pinExcerpt,pinNote,st.cprData,st.model||'','');});
+        .on('mousemove',e=>showTip(e,lbl,waitContent,null,pinExcerpt,pinNote,popupStateCpr,waitVisualHtml)).on('mouseleave',hideTip)
+        .on('click',e=>{e.stopPropagation();pinStateTip(e,popupPayload);});
       if (st.interrupted||st.isError) stRect.attr('stroke-dasharray','4,3');
-      ph3.append('text').attr('x',scx).attr('y',cy+4).attr('text-anchor','middle')
-        .attr('font-size',9).attr('font-weight','bold').attr('fill',stateTxt)
-        .attr('pointer-events','none').attr('font-family','ui-monospace,monospace').text(lbl);
-      // Fork/join are rendered as dedicated timeline glyphs near the state, not as states.
-      // They are ONLY drawn in the agent lane — fork/join flags propagate via the shared
-      // StateNode registry to other lanes (e.g. calls), but those lanes should not repeat them.
-      if (st.isFork && st.parallelSize>=2 && lane.level==='agent') {
-        const groupNo=parallelGroupNo(st.parallelGroupId);
-        const branches=branchListLabel(st.parallelSize);
-        const forkX=scx+SW/2+AG+10;
-        ph3.append('line')
-          .attr('x1',scx+SW/2).attr('y1',cy)
-          .attr('x2',forkX-8).attr('y2',cy)
-          .attr('stroke','#38bdf8').attr('stroke-width',1.6).attr('opacity',0.95);
-        drawDiamondMarker(
-          ph3,
-          forkX,
-          cy,
-          `F${groupNo}`,
-          '#082f49',
-          '#38bdf8',
-          'Fork point',
-          `Fork F${groupNo} after ${lbl} into ${branches}`,
-          branches
-        );
+      if (_showBoxText) {
+        ph3.append('text').attr('x',scx).attr('y',cy+4).attr('text-anchor','middle')
+          .attr('font-size',9).attr('font-weight','bold').attr('fill',stateTxt)
+          .attr('pointer-events','none').attr('font-family','ui-monospace,monospace').text(lbl);
       }
-      if (st.isJoin && st.parallelSize>=2 && lane.level==='agent') {
-        const groupNo=parallelGroupNo(st.parallelGroupId);
-        const branches=branchListLabel(st.parallelSize);
-        const joinX=scx-SW/2-AG-10;
-        ph3.append('line')
-          .attr('x1',joinX+8).attr('y1',cy)
-          .attr('x2',scx-SW/2).attr('y2',cy)
-          .attr('stroke','#f59e0b').attr('stroke-width',1.6).attr('opacity',0.95);
-        drawDiamondMarker(
-          ph3,
-          joinX,
-          cy,
-          `J${groupNo}`,
-          '#3f1d0b',
-          '#f59e0b',
-          'Join point',
-          `Join J${groupNo} before ${lbl} from ${branches}`,
-          branches
-        );
+      if (_fjRole) {
+        const _isGroupNode = _fjRole==='fork' || _fjRole==='join';
+        const _roleColor  = _isGroupNode ? (st.forkKind==='tool' ? '#16a34a' : '#22d3ee') : _bmColor;
+        const _roleStroke = _isGroupNode ? '#0f172a' : _bmStroke;
+        const _roleLetter = {fork:'F', join:'J', branch_begin:'B', branch_end:'E'}[_fjRole];
+        const _nodeR = Math.min(SW,SH)/2;
+        // Placed immediately beside this state's own box (a fixed pixel
+        // gap, not a ts-driven position — this is an additional annotation
+        // node, not a new point in the timeline) so both the state box and
+        // its role circle stay simultaneously visible and never overlap
+        // each other. Fork/join/branch-end circles sit to the RIGHT of
+        // their state (they mark the END of what precedes them); the
+        // branch-begin circle sits to the LEFT instead, since it must mark
+        // the START of the branch BEFORE its own input state, not after it.
+        const _fjCx = _fjRole==='branch_begin' ? sx-3-_nodeR : sx+SW+3+_nodeR, _fjCy = cy;
+        // This circle is its OWN group node, distinct from the state beside
+        // it — never labelled/popped-up as a state ("S17"): its own label
+        // is the role name, and its own popup shows only the group's
+        // cross-linked fork<->merge / branch-begin<->branch-end /
+        // branch<->parent-group facts (_forkJoinSummaryHtml /
+        // _branchSummaryHtml), never the state's CPR/facets.
+        const _groupLabel = {fork:'Fork', join:'Merge',
+                              branch_begin:'Branch start', branch_end:'Branch end'}[_fjRole];
+        const _groupHtml = _isGroupNode
+          ? _forkJoinSummaryHtml(st, lane.laneId)
+          : _branchSummaryHtml(st, lane.laneId, _groupBoundsByGid[st.parallelGroupId]);
+        const _groupPopupPayload = {
+          label: _groupLabel,
+          content: '',
+          excerpt: null,
+          pinNote: null,
+          cprData: null,
+          model: '',
+          hoverOut: '',
+          governance: null,
+          laneId: lane.laneId,
+          waitMeta: null,
+          waitVisualHtml: _groupHtml,
+        };
+        _GROUP_POPUP_PAYLOAD.set(_statePopupKey(lane.laneId, st.ts), _groupPopupPayload);
+        // ph4b (not ph3): must paint on top of Phase 4's instant call icons
+        // — see ph4b's own declaration comment above.
+        const fjNode = ph4b.append('circle').attr('cx',_fjCx).attr('cy',_fjCy).attr('r',_nodeR)
+          .attr('fill',_roleColor).attr('stroke',_roleStroke).attr('stroke-width',1.5)
+          .style('cursor','pointer')
+          .on('mousemove',e=>showTip(e,_groupLabel,'',null,null,null,null,_groupHtml)).on('mouseleave',hideTip)
+          .on('click',e=>{e.stopPropagation();pinStateTip(e,_groupPopupPayload);});
+        ph4b.append('text').attr('x',_fjCx).attr('y',_fjCy+4).attr('text-anchor','middle')
+          .attr('font-size',9).attr('font-weight','bold').attr('fill',_roleStroke)
+          .attr('pointer-events','none').attr('font-family','ui-monospace,monospace').text(_roleLetter);
+        if (_isGroupNode) {
+          // Fan-out connector lines: the fork/join node's own real ts (a
+          // native bookkeeping event) can land a few ms away from its
+          // branches' own real dispatch ts — sometimes even after them once
+          // bucketed — which otherwise leaves the node looking unrelated to
+          // (or visually out of order with) the branch begin/end nodes it
+          // actually brackets. Draw a thin dashed line from the node
+          // straight down to each branch's own column (reusing
+          // forkBranchTs, the same per-branch dispatch list the popup's
+          // cross-navigation already relies on) so the fork/join ↔ branch
+          // relationship is unambiguous regardless of exact pixel ordering.
+          // Drawn into ph0 (background layer) so it never sits on top of
+          // state nodes.
+          const _fanTs = st.isFork ? (st.forkBranchTs||[]) : (_forkBranchTsByTs[st.joinForkTs]||[]);
+          if (_fanTs.length>1) {
+            const _fanY=_fjCy+_nodeR+3;
+            _fanTs.forEach(bts=>{
+              const bx=cx(bts,xPos);
+              if (Math.abs(bx-_fjCx)<1) return;
+              ph0.append('line').attr('x1',_fjCx).attr('y1',_fjCy).attr('x2',bx).attr('y2',_fanY)
+                .attr('stroke',_roleColor).attr('stroke-width',1).attr('stroke-dasharray','2,2')
+                .attr('opacity',0.45).attr('pointer-events','none');
+            });
+          }
+          // Fork ↔ merge cross-link: a direct line from the fork node to
+          // its own matching join/merge node and back (joinTs on the fork
+          // state, joinForkTs on the join state — set natively in dag.py,
+          // never derived client-side) — makes the already-bidirectional
+          // data cross-link visible on the canvas too, not just
+          // discoverable via the popup's own nav links.
+          const _peerTs = st.isFork ? st.joinTs : st.joinForkTs;
+          if (_peerTs != null) {
+            const px = cx(_peerTs, xPos);
+            if (Math.abs(px-_fjCx) >= 1) {
+              ph0.append('line').attr('x1',_fjCx).attr('y1',_fjCy).attr('x2',px).attr('y2',_fjCy)
+                .attr('stroke',_roleColor).attr('stroke-width',1.25).attr('stroke-dasharray','5,3')
+                .attr('opacity',0.55).attr('pointer-events','none');
+            }
+          }
+        }
       }
       // Small badge icon at top-right corner of the box for interrupted/error states.
-      if (st.interrupted||st.isError) {
+      if ((st.interrupted||st.isError) && _showBoxText) {
         const badge=st.interrupted?'\u26a0':'\u2717';
         ph3.append('text').attr('x',sx+SW-2).attr('y',sy+7)
           .attr('text-anchor','end').attr('font-size',7).attr('fill',stateStroke)
@@ -1211,15 +2594,20 @@ function redraw(xPos) {
   //   Both arrows grow symmetrically with zoom — same model as Phase-1 bars.
   //   applyZoom() guarantees the instant column stays ≥ INSTANT_COL_W px, so
   //   the arrows are always visible at any zoom level.
-  const INSTANT_ICONS={'ProcessingCall':'⚙','ToolCall':'⚡','MemoryCall':'⛁','RAGQuery':'◐'};
+  const INSTANT_ICONS={'ProcessingCall':'⚙','ToolCall':'⚡','MemoryCall':'⛁','RAGQuery':'◐',
+    'BranchLink':'↳','GovernanceBlock':'⛔','GovernanceCaution':'⚑','GovernanceAllow':'⛨'};
   visibleLanes().forEach((lane,li)=>{
     const cy=TH+LGH+li*LH+LM;
     lane.sequence.filter(e=>e.type==='trans'&&e.isInstant).forEach(tr=>{
+      if (tr.callType==='BranchLink') return;
+      if (tr.connectorOnly) return;
+      if (_isTransCollapsed(lane.laneId, tr)) return;
       const ts0=(tr.startTs-CHART.tMin).toFixed(2);
       const dur=Math.max(0,tr.endTs-tr.startTs).toFixed(2);
       const timeLine=`${dur}s  (+${ts0}s)`;
       const icon=INSTANT_ICONS[tr.callType]||'\u2295';
       const hoverContent=timeLine+'\n\n'+(tr.hoverIn||'(no input)')+'\n\n\u2192\n\n'+(tr.hoverOut||'(no output)');
+      const popupCpr = (tr.callType==='ToolCall') ? _buildToolTransitionParts(tr) : (tr.cprData||[]);
 
       const scx=cx(tr.startTs,xPos);
       const ecx=cx(tr.endTs,xPos);
@@ -1249,19 +2637,40 @@ function redraw(xPos) {
         ph4.append('rect').attr('x',bx).attr('y',by).attr('width',BS).attr('height',BS)
           .attr('rx',2).attr('fill',tr.color).attr('stroke',C.stateS).attr('stroke-width',1)
           .style('cursor','pointer')
-          .on('mousemove',e=>showTip(e,`${icon} ${tr.label}`,hoverContent,tr.callType)).on('mouseleave',hideTip)
-          .on('click',e=>{e.stopPropagation();pinTip(e,`${icon} ${tr.label}`,hoverContent,tr.callType);});
+          .on('mousemove',e=>showTip(e,`${icon} ${tr.label}`,hoverContent,tr.callType,null,null,popupCpr)).on('mouseleave',hideTip)
+          .on('click',e=>{e.stopPropagation();pinTip(e,`${icon} ${tr.label}`,hoverContent,tr.callType,null,null,popupCpr,'','',tr.governance);});
         ph4.append('text').attr('x',bx+BS/2).attr('y',by+BS/2+3.5)
           .attr('text-anchor','middle').attr('font-size',10).attr('fill','#fff')
           .attr('pointer-events','none').text(icon);
+        // Seq badge: an instant call still produces state and is part of the
+        // execution order, so it gets numbered exactly like Phase-1 bars —
+        // scaled down to fit the compact badge box. Hidden below the same
+        // small-box threshold as the rest of the per-box text.
+        if (_showBoxText) {
+          const sbr=7, sbx=bx+BS-2, sby=by-sbr-1;
+          ph4.append('circle').attr('cx',sbx).attr('cy',sby).attr('r',sbr).attr('fill',C.badge);
+          ph4.append('text').attr('x',sbx).attr('y',sby+3).attr('text-anchor','middle')
+            .attr('font-size',7).attr('font-weight','bold').attr('fill','#fff')
+            .attr('pointer-events','none').attr('font-family','ui-monospace,monospace')
+            .text(tr.seq);
+        }
       } else {
         ph4.append('rect').attr('x',ix).attr('y',iy).attr('width',SW).attr('height',SH)
           .attr('rx',3).attr('fill',tr.color).attr('stroke',C.stateS).attr('stroke-width',1.5).style('cursor','pointer')
-          .on('mousemove',e=>showTip(e,`${icon} ${tr.label}`,hoverContent,tr.callType)).on('mouseleave',hideTip)
-          .on('click',e=>{e.stopPropagation();pinTip(e,`${icon} ${tr.label}`,hoverContent,tr.callType);});
-        ph4.append('text').attr('x',icx).attr('y',cy+4)
-          .attr('text-anchor','middle').attr('font-size',12).attr('fill','#fff')
-          .attr('pointer-events','none').text(icon);
+          .on('mousemove',e=>showTip(e,`${icon} ${tr.label}`,hoverContent,tr.callType,null,null,popupCpr)).on('mouseleave',hideTip)
+          .on('click',e=>{e.stopPropagation();pinTip(e,`${icon} ${tr.label}`,hoverContent,tr.callType,null,null,popupCpr,'','',tr.governance);});
+        if (_showBoxText) {
+          ph4.append('text').attr('x',icx).attr('y',cy+4)
+            .attr('text-anchor','middle').attr('font-size',12).attr('fill','#fff')
+            .attr('pointer-events','none').text(icon);
+          // Seq badge — same treatment as Phase-1 bars (see above).
+          const sbx=ix+SW-BR*0.7, sby=iy-BR-1;
+          ph4.append('circle').attr('cx',sbx).attr('cy',sby).attr('r',BR).attr('fill',C.badge);
+          ph4.append('text').attr('x',sbx).attr('y',sby+4).attr('text-anchor','middle')
+            .attr('font-size',9).attr('font-weight','bold').attr('fill','#fff')
+            .attr('pointer-events','none').attr('font-family','ui-monospace,monospace')
+            .text(tr.seq);
+        }
       }
     });
   });
@@ -1345,6 +2754,9 @@ let baseXPos=computeBaseXPos(CHART.buckets,currentMode);
 let totalW=Math.max(...Object.values(baseXPos))+PR;
 let minZoom=computeMinZoom(baseXPos);
 let currentXPos=baseXPos; // track xPos from last redraw for toggle
+let currentK=1; // track the last-applied zoom transform's k — redraw() uses this
+                // (relative to minZoom) to compute its own box-geometry shrink
+                // factor (`_rs`), kept in sync with applyZoom's `cs` factor
 
 // ── Lane range picker ────────────────────────────────────────────────────
 const CELL_W=20;
@@ -1441,6 +2853,36 @@ function init() {
   // Reflect initial showTimeAxis state in button style
   if (CHART.showTimeAxis) document.getElementById('btn-timeaxis').style.color='#7dd3fc';
   buildLaneTrack();
+  _syncGroupsButton();
+}
+
+// Groups feature toggle: reflects _showGroups (backed by the optional
+// CHART.showGroups attribute) in the toolbar button's style.
+function _syncGroupsButton() {
+  const btn = document.getElementById('btn-groups');
+  if (!btn) return;
+  btn.style.color = _showGroups ? '#7dd3fc' : '';
+}
+
+// Binary-search the lowest k whose rendered total width (per applyZoom,
+// which already accounts for the `cs` consistent-shrink factor on fixed
+// columns/floors below minZoom) fits inside a target viewport width. Total
+// width is monotonically non-decreasing in k (every term in applyZoom either
+// grows with k or is a k-independent constant), so a simple binary search
+// converges correctly — no need to re-derive the column-width formulas here.
+function _computeFitZoom(viewportW) {
+  const target = Math.max(LW+PL+100, viewportW);
+  const widthAt = (k) => {
+    const xPos = applyZoom(baseXPos, 0, k);
+    const vals = Object.values(xPos);
+    return (vals.length ? Math.max(...vals) : LW+PL) + PR;
+  };
+  let lo = 0.001, hi = Math.max(minZoom, 1);
+  for (let iter=0; iter<40; iter++) {
+    const mid = (lo+hi)/2;
+    if (widthAt(mid) > target) hi = mid; else lo = mid;
+  }
+  return Math.max(0.001, lo);
 }
 
 // ── Zoom (Ctrl+wheel to scale; plain scroll = native horizontal scroll) ────
@@ -1452,6 +2894,7 @@ const zoomBeh=d3.zoom().scaleExtent([0.05,40])
   })
   .on('zoom',event=>{
     const {x:tx,k}=event.transform;
+    currentK=k;
     const xPos=applyZoom(baseXPos,tx,k);
     currentXPos=xPos;
     const w=Math.max(Math.max(...Object.values(xPos))+PR, LW+PL+200);
@@ -1472,7 +2915,8 @@ svg.call(zoomBeh).on('dblclick.zoom',null);
 function _rebuildChartState() {
   _HL_AGENTS = new Set((CHART.highlightAgents||[]).map(s=>s.toLowerCase()));
   _buildAllPins();
-  _buildInstantPairs();
+  _buildBucketIndexMap();
+  _buildRoleTsSet();
   nLanes = CHART.lanes.length;
   laneFrom = 0;
   laneTo = nLanes - 1;
@@ -1481,6 +2925,7 @@ function _rebuildChartState() {
   totalW = Object.values(baseXPos).length ? Math.max(...Object.values(baseXPos))+PR : LW+PL+200;
   minZoom = computeMinZoom(baseXPos);
   currentXPos = baseXPos;
+  buildLaneTrack();
 }
 function _rebuildAnnotationsPanel() {
   const btnAnn = document.getElementById('btn-ann');
@@ -1543,12 +2988,33 @@ window.addEventListener('message', function(e) {
 // ── Controls ────────────────────────────────────────────────────────────
 document.getElementById('btn-zoomin') .addEventListener('click',()=>svg.transition().duration(300).call(zoomBeh.scaleBy,1.6));
 document.getElementById('btn-zoomout').addEventListener('click',()=>svg.transition().duration(300).call(zoomBeh.scaleBy,0.625));
+document.getElementById('btn-fit').addEventListener('click',()=>{
+  const wrap = document.getElementById('chart-wrap');
+  const viewportW = (wrap && wrap.clientWidth) ? wrap.clientWidth : (window.innerWidth||1200);
+  const fitK = _computeFitZoom(viewportW);
+  // Widen the lower scaleExtent bound (normally `minZoom`, the "readable"
+  // floor) just enough to admit the fit level, so both this transition AND
+  // any subsequent manual scroll/button zoom-out can reach it. Recomputing
+  // the layout (collapse toggle, width-mode change, live data update) resets
+  // this back to [minZoom,40] as before.
+  zoomBeh.scaleExtent([Math.min(minZoom, fitK), 40]);
+  svg.transition().duration(400).call(zoomBeh.transform, d3.zoomIdentity.scale(fitK));
+});
 document.getElementById('btn-reset')  .addEventListener('click',()=>svg.transition().duration(400).call(zoomBeh.transform,d3.zoomIdentity));
 document.getElementById('btn-timeaxis').addEventListener('click',()=>{
   CHART.showTimeAxis=!CHART.showTimeAxis;
   svg.attr('height',getH());
   redraw(currentXPos);
   document.getElementById('btn-timeaxis').style.color=CHART.showTimeAxis?'#7dd3fc':'';
+});
+document.getElementById('btn-groups').addEventListener('click',()=>{
+  // Turning the feature off also force-expands everything (clearing
+  // _collapsedGroups) rather than leaving previously-collapsed content
+  // silently hidden with no button left to bring it back.
+  _showGroups=!_showGroups;
+  if (!_showGroups) _collapsedGroups.clear();
+  _syncGroupsButton();
+  _relayoutForCollapseChange();
 });
 document.getElementById('sel-mode').addEventListener('change',e=>{
   currentMode=e.target.value;
@@ -1576,6 +3042,27 @@ function scrollToPin(pidx) {
   const iv=setInterval(()=>{
     el.setAttribute('fill', n%2===0 ? '#fff' : '#ef4444');
     if (++n>=6) { clearInterval(iv); el.setAttribute('fill','#ef4444'); }
+  },180);
+}
+
+// ── Scroll to (and briefly highlight) a state box, given its lane + ts ───
+// Used by the WAIT/RESUME popup's peer-ref link ("Resumes to R1") so the
+// graph itself pans to R1's position — on the SAME lane the link was
+// clicked from, since laneId always comes from the clicked ref's own
+// data-peer-lane attribute — instead of only updating the pinned panel's
+// text while leaving the canvas scrolled wherever it already was.
+function scrollToState(laneId, ts) {
+  const xTarget = cx(ts, currentXPos);
+  const wrap = document.getElementById('chart-wrap');
+  if (wrap) wrap.scrollLeft = Math.max(0, xTarget - wrap.clientWidth/2);
+  const el = document.getElementById('state-box-'+laneId+'-'+Math.round(ts*1000));
+  if (!el) return;
+  const origStroke = el.getAttribute('stroke');
+  let n=0;
+  const iv=setInterval(()=>{
+    el.setAttribute('stroke', n%2===0 ? '#fbbf24' : origStroke);
+    el.setAttribute('stroke-width', n%2===0 ? '3' : '1.5');
+    if (++n>=6) { clearInterval(iv); el.setAttribute('stroke',origStroke); el.setAttribute('stroke-width','1.5'); }
   },180);
 }
 

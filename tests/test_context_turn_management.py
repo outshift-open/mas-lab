@@ -126,7 +126,18 @@ def test_native_transform_emits_trajectory_events() -> None:
     assert "context_part_contributed" in kinds
     assert "state_update_start" in kinds
     assert "llm_call_end" in kinds
-    assert any(r.get("llm_call_id") == "llm-3" for r in native if r["kind"] == "context_part_contributed")
+    # context_part_contributed now carries the LLM call's own REAL call_id
+    # (resolved via the same (correlation_id, "LLM_CALL") key llm_call_end
+    # uses — see ObservabilityOperator.record_context_assembled/
+    # _resolve_transition_ids' CONTEXT_ASSEMBLED branch), not the old
+    # synthetic "llm-{correlation_id}" placeholder that needed a later
+    # nearest-timestamp reconstruction to link back to the real call.
+    llm_call_id = next(
+        r["llm_call_id"] for r in native if r["kind"] == "context_part_contributed"
+    )
+    assert llm_call_id and llm_call_id != "llm-3", llm_call_id
+    llm_end_call_id = next(r["call_id"] for r in native if r["kind"] == "llm_call_end")
+    assert llm_call_id == llm_end_call_id, (llm_call_id, llm_end_call_id)
 
 
 @pytest.mark.timeout(60)

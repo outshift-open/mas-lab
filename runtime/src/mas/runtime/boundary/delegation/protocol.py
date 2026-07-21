@@ -10,8 +10,22 @@ from typing import Any, Protocol
 class DelegationContract(Protocol):
     """Execute peer delegation tools surfaced by MAS ``workflow.delegates_to``."""
 
-    def delegate(self, target_agent_id: str, task: str) -> str: ...
+    def delegate(
+        self,
+        target_agent_id: str,
+        task: str,
+        *,
+        correlation_id: int = 0,
+        caller_call_id: str = "",
+    ) -> str: ...
 
-    def call_delegate_tool(self, tool_name: str, arguments: dict[str, Any] | None) -> str: ...
+    def call_delegate_tool(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any] | None,
+        *,
+        correlation_id: int = 0,
+        caller_call_id: str = "",
+    ) -> str: ...
 
     def is_delegate_tool(self, tool_name: str) -> bool: ...

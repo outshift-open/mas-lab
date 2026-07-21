@@ -57,7 +57,7 @@ experiment:
     path: ./datasets/queries.yaml
 ```
 
-Format: [dataset.md](../../docs/dataset.md).
+Format: [dataset.md](../../docs/manifests/dataset.md).
 
 ## MAS binding
 

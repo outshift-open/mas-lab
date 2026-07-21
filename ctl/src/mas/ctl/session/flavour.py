@@ -3,15 +3,17 @@
 """Flavour selection + validation for the interactive commands (chat / tui / run-mas).
 
 A *flavour* is a deployment posture — a ``kind: Flavour`` manifest bundled in
-``mas-library-standard`` (``flavours/<name>.yaml``). It selects protocols and,
-in a later pass, observability/control plugins. It is **not** a place for LLM
-parameters (those live in the agent spec) or infra coordinates.
+``mas-library-standard`` (``flavours/<name>.yaml``). It selects protocols and
+observability/control plugins. It is **not** a place for LLM parameters
+(those live in the agent spec) or infra coordinates — see
+``docs/design/flavour-boundary.md``.
 
 Only ``local`` is supported this release; the ``--flavour`` flag is a
-forward-compatible, validated selector. This module resolves and *validates*
-the chosen flavour — it deliberately applies nothing to the manifest yet. The
-schema/semantics rework (stripping llm/skills/mocking, observability as plugin
-selection) is tracked as FT4 in ``BRANCHES.md``.
+forward-compatible, validated selector. :func:`resolve_flavour` resolves,
+validates, and returns the flavour's ``spec`` dict so callers can fold its
+surviving deployment concerns (currently: ``observability`` plugin selection)
+into the effective run config. :func:`validate_flavour` is kept for existing
+callers that only need the validation side effect.
 """
 
 from __future__ import annotations
@@ -48,13 +50,13 @@ def _load_bundled_flavour(name: str) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def validate_flavour(name: str | None = None) -> None:
-    """Resolve and schema-validate the selected flavour; apply nothing.
+def resolve_flavour(name: str | None = None) -> dict[str, Any]:
+    """Resolve, schema-validate, and return the selected flavour's ``spec`` dict.
 
     Raises :class:`FlavourError` for an unknown/unsupported name or an invalid
     flavour manifest. Defaults to ``local``. A missing library-standard (so the
-    bundled flavour can't be loaded) degrades to a no-op rather than breaking
-    the run.
+    bundled flavour can't be loaded) degrades to ``{}`` — "no deployment-posture
+    overrides" — rather than breaking the run.
     """
     resolved = (name or DEFAULT_FLAVOUR).strip().lower()
     if resolved not in SUPPORTED_FLAVOURS:
@@ -66,7 +68,7 @@ def validate_flavour(name: str | None = None) -> None:
         )
     data = _load_bundled_flavour(resolved)
     if not data:
-        return
+        return {}
 
     from mas.ctl.validate import validate_data, validation_enabled
 
@@ -76,3 +78,15 @@ def validate_flavour(name: str | None = None) -> None:
             result.raise_if_failed()
         except Exception as exc:  # normalise to a clean CLI error
             raise FlavourError(f"flavour {resolved!r} manifest is invalid: {exc}") from exc
+
+    return data.get("spec") or {}
+
+
+def validate_flavour(name: str | None = None) -> None:
+    """Resolve and schema-validate the selected flavour; apply nothing.
+
+    Kept for callers that only need the validation side effect. Prefer
+    :func:`resolve_flavour` for new call sites that also need the flavour's
+    surviving deployment concerns (e.g. observability plugin selection).
+    """
+    resolve_flavour(name)

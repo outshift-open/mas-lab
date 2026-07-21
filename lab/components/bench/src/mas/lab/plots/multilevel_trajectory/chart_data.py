@@ -10,6 +10,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Union
 
+from mas.lab.plots.multilevel_trajectory.constants import _TS_TOL
 from mas.lab.plots.multilevel_trajectory.dag import _build_dag
 from mas.lab.plots.multilevel_trajectory.models import LaneDef, StateNode, TransNode
 from mas.lab.plots.multilevel_trajectory.records import _build_call_records
@@ -32,16 +33,26 @@ def _build_chart_data(
     before the DAG is assembled, so every lane uses the exact same timestamp
     set — no heuristic timestamp merging needed here.
     """
-    all_buckets = sorted(state_reg.keys())
+    # DFS virtual-position order — NOT real timestamp order (see tree.py's
+    # _assign_dfs_positions / dag.py's finalization pass). A delegating
+    # agent's 2nd..Nth sibling call keeps its own early dispatch timestamp
+    # even though its subtree isn't explored until DFS reaches it, often well
+    # after an earlier sibling's own subtree has advanced real time past it —
+    # sorting by raw ts would put that later sibling before the earlier
+    # sibling's own conclusion. dfs_pos is what actually reflects DFS order.
+    all_buckets = sorted(state_reg.keys(), key=lambda ts: state_reg[ts].dfs_pos)
     _numbered_buckets2 = [b for b in all_buckets if not state_reg[b].label_override]
     _numbered_seq2     = {b: i + 1 for i, b in enumerate(_numbered_buckets2)}
-    state_num   = {
-        b: _numbered_seq2.get(b, _numbered_seq2.get(
-            max((nb for nb in _numbered_buckets2 if nb < b), default=_numbered_buckets2[0])
-            if _numbered_buckets2 else b, 1
-        ))
-        for b in all_buckets
-    }
+    # A label-overridden bucket (thinking sub-state, connector-only, …) has no
+    # number of its own — it inherits whichever numbered bucket precedes it.
+    # "Precedes" means in all_buckets' own order (DFS position), not by raw
+    # ts value — those can now differ (see all_buckets' own comment above).
+    state_num: dict[float, int] = {}
+    _last_numbered = 1
+    for _b in all_buckets:
+        if _b in _numbered_seq2:
+            _last_numbered = _numbered_seq2[_b]
+        state_num[_b] = _last_numbered
 
     bucket_to_lanes: dict[float, list[int]] = defaultdict(list)
     for li, lane in enumerate(lanes):
@@ -56,6 +67,51 @@ def _build_chart_data(
         for b, ls in sorted(bucket_to_lanes.items())
         if len(set(ls)) >= 2
     ]
+
+    # Parallel group blocks are anchored strictly on native telemetry:
+    # processing_call(parallel_group) records carrying group_id and tools.
+    _pg_catalog: dict[str, dict[str, Any]] = {}
+    for _r in records or []:
+        if str(_r.get("call_type") or "") != "ProcessingCall":
+            continue
+        if str(_r.get("processing_type") or "") != "parallel_group":
+            continue
+        _gid = str(_r.get("group_id") or "").strip()
+        if not _gid:
+            continue
+        _tools = list(_r.get("tools") or [])
+        _members: list[dict[str, Any]] = []
+        for _t in _tools:
+            if not isinstance(_t, dict):
+                continue
+            _members.append(
+                {
+                    "correlationId": _t.get("correlation_id"),
+                    "toolName": str(_t.get("tool_name") or ""),
+                    "toolCallId": str(_t.get("call_id") or ""),
+                }
+            )
+        _entry = _pg_catalog.setdefault(
+            _gid,
+            {
+                "groupId": _gid,
+                "source": "native_processing_call",
+                "processingCallId": str(_r.get("call_id") or ""),
+                "forkTs": float(_r.get("start_ts") or 0.0),
+                "joinTs": float(_r.get("end_ts") or 0.0),
+                "size": int(_r.get("tool_count") or len(_members) or 0),
+                "members": _members,
+            },
+        )
+        _entry["forkTs"] = min(float(_entry.get("forkTs") or _r.get("start_ts") or 0.0), float(_r.get("start_ts") or 0.0))
+        _entry["joinTs"] = max(float(_entry.get("joinTs") or _r.get("end_ts") or 0.0), float(_r.get("end_ts") or 0.0))
+        _entry["size"] = max(int(_entry.get("size") or 0), int(_r.get("tool_count") or len(_members) or 0))
+        if not _entry.get("processingCallId"):
+            _entry["processingCallId"] = str(_r.get("call_id") or "")
+        if _members and not _entry.get("members"):
+            _entry["members"] = _members
+
+    parallel_groups = sorted(_pg_catalog.values(), key=lambda d: (d.get("forkTs") or 0.0, d.get("groupId") or ""))
 
     ann = annotations or {}
     hl_agents = {str(a).lower() for a in (ann.get("highlight_agents") or [])}
@@ -107,29 +163,63 @@ def _build_chart_data(
                     "labelOverride": el.label_override,
                     "hover":         el.hover,
                     "hoverByLane":   el.hover_by_lane,
+                    "agentId":       el.agent_id,
                     "userEntry":     el.is_user_entry,
                     "userExit":      el.is_user_exit,
                     "laneRestart":   el.is_lane_restart,
-                    "connectorOnly": el.ts in lane.connector_only_ts,
+                    "connectorOnly": el.ts in lane.connector_only_ts or el.is_connector_only,
                     "interrupted":   el.is_interrupted,
                     "isError":       el.is_error,
                     "gapMarker":     el.ts in gap_ts_set,
                     "pinNote":       _pin.get("note")    or None,
                     "pinExcerpt":    _pin.get("excerpt") or None,
+                    **({"isBranchBegin": True, "parallelGroupId": el.parallel_group_id,
+                        "parallelSize": el.parallel_size,
+                        **({"branchPartnerTs": el.branch_partner_ts} if el.branch_partner_ts is not None else {}),
+                        } if el.is_branch_begin else {}),
+                    **({"isBranchEnd": True, "parallelGroupId": el.parallel_group_id,
+                        "parallelSize": el.parallel_size,
+                        **({"branchPartnerTs": el.branch_partner_ts} if el.branch_partner_ts is not None else {}),
+                        } if el.is_branch_end else {}),
                     **({"isFork": True, "parallelGroupId": el.parallel_group_id,
-                        "parallelSize": el.parallel_size} if el.is_fork else {}),
+                        "parallelSize": el.parallel_size,
+                        "forkBranchTs": el.fork_branch_ts,
+                        **({"joinTs": el.join_ts} if el.join_ts is not None else {}),
+                        **({"forkKind": el.fork_kind} if el.fork_kind else {}),
+                        } if el.is_fork else {}),
                     **({"isJoin": True, "parallelGroupId": el.parallel_group_id,
-                        "parallelSize": el.parallel_size} if el.is_join else {}),
+                        "parallelSize": el.parallel_size,
+                        "joinOf": el.join_of,
+                        **({"joinForkTs": el.join_fork_ts} if el.join_fork_ts is not None else {}),
+                        **({"assemblyNote": el.assembly_note} if el.assembly_note else {}),
+                        **({"forkKind": el.fork_kind} if el.fork_kind else {}),
+                        } if el.is_join else {}),
                     **({
                         "cprData": el.cpr_data,
                         "model":   el.model,
+                        "cprMode": el.cpr_mode,
+                        "contextOperation": el.context_operation,
                     } if el.cpr_data else {}),
+                    **({
+                        "waitLinkId": el.wait_link_id,
+                        "waitRole": el.wait_role,
+                        "waitNote": el.wait_note,
+                        "waitMeta": el.wait_meta,
+                    } if el.wait_link_id else {}),
+                    **({
+                        "governance": el.governance,
+                        "governanceColor": el.governance_color,
+                    } if el.governance else {}),
                 })
             elif isinstance(el, TransNode):
                 _td: dict[str, Any] = {
                     "type":     "trans",
                     "callType": el.call_type,
                     "label":    el.label,
+                    "callId":   el.call_id,
+                    "agentId":  el.agent_id,
+                    "processingType": el.processing_type,
+                    "processingName": el.processing_name,
                     "startTs":  el.start_ts,
                     "endTs":    el.end_ts,
                     "seq":      el.seq,
@@ -138,14 +228,33 @@ def _build_chart_data(
                     "hoverOut": el.hover_out,
                     "isInstant": el.is_instant,
                 }
+                if el.connector_only:
+                    _td["connectorOnly"] = True
+                if el.missing_telemetry:
+                    _td["missingTelemetry"] = list(el.missing_telemetry)
                 if el.cpr_data:
                     _td["cprData"] = el.cpr_data
+                    _td["cprMode"] = el.cpr_mode
+                    if el.context_operation:
+                        _td["contextOperation"] = el.context_operation
                 if el.model:
                     _td["model"] = el.model
                 if el.parallel_group_id:
                     _td["parallelGroupId"] = el.parallel_group_id
                     _td["parallelRank"]    = el.parallel_rank
                     _td["parallelSize"]    = el.parallel_size
+                if el.governance:
+                    _td["governance"] = el.governance
+                    _td["governanceColor"] = el.governance_color
+                if el.governance_egress:
+                    _td["governanceEgress"] = el.governance_egress
+                    _td["governanceEgressColor"] = el.governance_egress_color
+                if el.governance_ingress:
+                    _td["governanceIngress"] = el.governance_ingress
+                    _td["governanceIngressColor"] = el.governance_ingress_color
+                if el.retry_group_id:
+                    _td["retryGroupId"] = el.retry_group_id
+                    _td["retryAttempt"] = el.retry_attempt
                 seq.append(_td)
         _lane_d: dict[str, Any] = {
             "laneId":   lane.lane_id,
@@ -159,10 +268,134 @@ def _build_chart_data(
 
     t_min_chart = all_buckets[0]  if all_buckets else 0.0
     t_max_chart = all_buckets[-1] if all_buckets else 0.0
+
+    # Per-gap classification driving the JS x-axis (computeBaseXPos/applyZoom/
+    # computeMinZoom): one entry per adjacent pair in all_buckets (already
+    # DFS-ordered). "reset" gaps (a branch boundary — see dag.py's finalization
+    # pass) and "instant" gaps (a near-zero-duration call, e.g. a delegation
+    # dispatch marker) both get a small fixed column width, never
+    # time-proportional and never scaled by zoom; everything else is "normal".
+    # A ``connector_only`` transition (the wait/resume bridge — see dag.py's
+    # trans()) renders no bar/label/badge at all, only the dotted lifeline —
+    # unlike a real "instant" marker (e.g. the delegation dispatch's own
+    # ToolCall icon+label), there is nothing to centre or keep clickable here,
+    # so it gets its own, narrower "connector" column instead of reusing the
+    # full INSTANT_COL_W — otherwise it reserves a visibly empty dashed gap
+    # roughly as wide as a normal content column (e.g. between a WAIT state
+    # and the delegate's own first state right after it).
+    _connector_pairs: set[tuple[float, float]] = {
+        (el.start_ts, el.end_ts)
+        for lane in lanes
+        for el in lane.sequence
+        if isinstance(el, TransNode) and el.connector_only
+    }
+    _instant_pairs: set[tuple[float, float]] = {
+        (el.start_ts, el.end_ts)
+        for lane in lanes
+        for el in lane.sequence
+        if isinstance(el, TransNode) and el.is_instant and el.call_type != "ProcessingCall"
+        and (el.start_ts, el.end_ts) not in _connector_pairs
+    }
+
+    # Parallel tool-call batches can create DFS-adjacent bucket pairs whose
+    # real timestamps go backward/near-equal (same parent agent launches
+    # overlapping tools; DFS explores one subtree before returning to a
+    # sibling's early boundary). Treat those as reset gaps to avoid collapsing
+    # width columns from raw wall-clock deltas.
+    _parallel_tool_groups: list[list[dict]] = []
+    if records:
+        _tools_by_parent: dict[tuple[str, str], list[dict]] = defaultdict(list)
+        for _r in records:
+            if _r.get("call_type") != "ToolCall":
+                continue
+            _pid = _r.get("parent_call_id")
+            if not _pid:
+                continue
+            _tools_by_parent[(_r.get("agent_id", ""), _pid)].append(_r)
+        for _grp in _tools_by_parent.values():
+            _grp_sorted = sorted(_grp, key=lambda r: (r["start_ts"], r["end_ts"]))
+            _has_overlap = False
+            for _i, _a in enumerate(_grp_sorted):
+                for _b in _grp_sorted[_i + 1:]:
+                    if _b["start_ts"] <= _a["end_ts"] + _TS_TOL and _a["start_ts"] <= _b["end_ts"] + _TS_TOL:
+                        _has_overlap = True
+                        break
+                if _has_overlap:
+                    break
+            if _has_overlap:
+                _parallel_tool_groups.append(_grp_sorted)
+
+    # _TS_TOL (~50ms) is meant for "same real-world instant, different
+    # clock/bookkeeping source" comparisons (e.g. WAIT/RESUME) — far too
+    # coarse here: real native tool-call gaps within one parallel batch are
+    # routinely sub-millisecond, so using _TS_TOL as the forward-progress
+    # guard below flagged virtually every intra-branch boundary in a batch
+    # as a "reset" (reported: "vertical yellow bars don't correspond to
+    # anything meaningful" — they appeared at nearly every state instead of
+    # only at genuine sibling-branch boundaries).
+    _PARALLEL_RESET_HIT_TOL = 1e-3
+
+    def _is_parallel_tool_reset(_prev_ts: float, _ts: float) -> bool:
+        # A reset is specifically a BACKWARD (or exactly-tied) real-time
+        # jump — DFS returning to a sibling whose own dispatch landed
+        # chronologically before the previous sibling's subtree finished.
+        # Any genuine forward progress, however small, is normal sequential
+        # advance within the SAME branch and must never be flagged, so this
+        # guard uses near-zero (float-noise-only) slack, not _TS_TOL.
+        if _ts > _prev_ts + 1e-9:
+            return False
+        for _grp in _parallel_tool_groups:
+            _prev_hits = [
+                _r for _r in _grp
+                if abs(_prev_ts - _r["start_ts"]) <= _PARALLEL_RESET_HIT_TOL or abs(_prev_ts - _r["end_ts"]) <= _PARALLEL_RESET_HIT_TOL
+            ]
+            if not _prev_hits:
+                continue
+            _ts_hits = [
+                _r for _r in _grp
+                if abs(_ts - _r["start_ts"]) <= _PARALLEL_RESET_HIT_TOL or abs(_ts - _r["end_ts"]) <= _PARALLEL_RESET_HIT_TOL
+            ]
+            if not _ts_hits:
+                continue
+            if any(_a.get("call_id") != _b.get("call_id") for _a in _prev_hits for _b in _ts_hits):
+                return True
+        return False
+
+    bucket_gaps = []
+    for _i in range(1, len(all_buckets)):
+        _prev_ts, _ts = all_buckets[_i - 1], all_buckets[_i]
+        _gap: dict[str, Any] = {}
+        if state_reg[_ts].is_branch_reset:
+            _gap["kind"] = "reset"
+            # Scope: an agent-delegation branch reset (this DFS boundary
+            # steps back up the call tree into a sibling AGENT) visually
+            # concerns both the Agents and Calls lanes — the reset really
+            # is "a different agent's own subtree starts here". A same-
+            # agent tool fan-out reset (see _is_parallel_tool_reset below)
+            # never leaves that agent's own row, so it only concerns the
+            # Calls lane. Renderer (multilevel.html) uses this to scope the
+            # branch-reset guide line's vertical extent instead of always
+            # spanning every lane regardless of which kind of fork it is.
+            _gap["scope"] = "agent"
+            if state_reg[_ts].branch_id:
+                _gap["branchId"] = state_reg[_ts].branch_id
+        elif _is_parallel_tool_reset(_prev_ts, _ts):
+            _gap["kind"] = "reset"
+            _gap["scope"] = "tool"
+        elif (_prev_ts, _ts) in _connector_pairs:
+            _gap["kind"] = "connector"
+        elif (_prev_ts, _ts) in _instant_pairs:
+            _gap["kind"] = "instant"
+        else:
+            _gap["kind"] = "normal"
+        bucket_gaps.append(_gap)
+
     return {
         "title":            title,
         "widthMode":        width_mode,
         "buckets":          all_buckets,
+        "bucketGaps":       bucket_gaps,
+        "parallelGroups":   parallel_groups,
         "sharedBuckets":    shared_buckets,
         "lanes":            lanes_json,
         "showUserActors":   show_user_actors,
@@ -209,8 +442,15 @@ def build_trajectory_chart_data(
     show_time_axis: bool = True,
     show_provenance: bool = True,
     annotations: dict | None = None,
+    enabled_facets: "set[str] | None" = None,
 ) -> dict:
     """Build the chart data dict for the D3 multilevel renderer.
+
+    ``enabled_facets`` toggles the optional annotation layers (cpr,
+    governance, annotations, thinking — see dag.py's ``_ALL_FACETS``)
+    overlaid on top of the core call-tree structure; ``None`` (default)
+    enables all of them. ``show_provenance=False`` is sugar for excluding
+    ``"cpr"`` alone — kept for backward compatibility.
 
     This is the **data-preparation stage** of the pipeline — equivalent to
     the server side when the UI path is used.  The browser renders the chart
@@ -250,7 +490,9 @@ def build_trajectory_chart_data(
     records = _build_call_records(trace)
     if not records:
         return {}
-    state_reg, lanes = _build_dag(records, trace, show_provenance=show_provenance)
+    state_reg, lanes = _build_dag(
+        records, trace, show_provenance=show_provenance, enabled_facets=enabled_facets
+    )
     if not lanes:
         return {}
     return _build_chart_data(
@@ -272,6 +514,7 @@ def build_trajectory_chart_data_from_kg(
     show_user_actors: bool = True,
     show_time_axis: bool = True,
     show_provenance: bool = True,
+    enabled_facets: "set[str] | None" = None,
 ) -> dict:
     """KG-backed variant of :func:`build_trajectory_chart_data`.
 
@@ -299,7 +542,9 @@ def build_trajectory_chart_data_from_kg(
     records, events = src.load(q)
     if not records:
         return {}
-    state_reg, lanes = _build_dag(records, events, show_provenance=show_provenance)
+    state_reg, lanes = _build_dag(
+        records, events, show_provenance=show_provenance, enabled_facets=enabled_facets
+    )
     if not lanes:
         return {}
     return _build_chart_data(

@@ -40,22 +40,23 @@ class SeparationValidator(ABC):
 class FlavourSeparationValidator(SeparationValidator):
     kind = "flavour"
 
+    # FT4: a flavour is deployment posture only — these moved to kind: Agent
+    # (llm, skills) or the execution overlay binding (mocking, prefer_local).
+    # See docs/design/flavour-boundary.md.
+    _FORBIDDEN_BLOCKS: ClassVar[dict[str, str]] = {
+        "llm": "spec.llm belongs in kind: Agent (spec.models), not Flavour",
+        "skills": "spec.skills belongs in kind: Agent, not Flavour",
+        "mocking": "spec.mocking belongs in the execution overlay binding (spec.patch.execution.mocking), not Flavour",
+        "prefer_local": "spec.prefer_local belongs in the execution overlay binding, not Flavour",
+    }
+
     @classmethod
     def _collect_violations(cls, data: dict[str, Any]) -> list[str]:
         spec = data.get("spec", {}) or {}
-        llm = spec.get("llm", {}) or {}
         violations: list[str] = []
-        if isinstance(llm, dict):
-            if _is_set(llm.get("api_key")):
-                violations.append(
-                    "spec.llm.api_key contains a raw secret — use api_key_env for the env-var name"
-                )
-            if _is_set(llm.get("model")):
-                violations.append("spec.llm.model belongs in kind: Agent (spec.models), not Flavour")
-            if _is_set(llm.get("api_base")):
-                violations.append(
-                    "spec.llm.api_base belongs in infra/v1 LLMProxy, not in Flavour"
-                )
+        for key, message in cls._FORBIDDEN_BLOCKS.items():
+            if spec.get(key):
+                violations.append(message)
         if spec.get("infra_refs"):
             violations.append("spec.infra_refs is forbidden in Flavour — use workspace or --infra-ref")
         if _is_set(spec.get("infra_ref")):

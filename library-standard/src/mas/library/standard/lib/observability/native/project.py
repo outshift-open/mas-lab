@@ -21,6 +21,14 @@ def boundary_dict_from_transition(event: TransitionEvent) -> dict:
         "kind": event.boundary_kind,
         "correlation_id": event.correlation_id,
         "payload": dict(event.attributes),
+        # Real occurrence-time timestamp (TransitionEvent.timestamp is stamped
+        # synchronously when the event actually fires, before it's ever queued
+        # for async plugin dispatch) — see dispatch_boundary's use of this
+        # field. Without it, boundary-sourced records had no real timestamp to
+        # carry, so dispatch_boundary re-stamped with time.time() at whatever
+        # later moment the async export worker happened to process them,
+        # scrambling real occurrence order.
+        "timestamp": event.timestamp,
     }
     if event.call_id is not None:
         out["call_id"] = event.call_id

@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 
 from mas.ctl.session import flavour as flavour_mod
-from mas.ctl.session.flavour import DEFAULT_FLAVOUR, FlavourError, validate_flavour
+from mas.ctl.session.flavour import DEFAULT_FLAVOUR, FlavourError, resolve_flavour, validate_flavour
 
 
 def test_default_flavour_is_local() -> None:
@@ -58,3 +58,28 @@ def test_invalid_manifest_raises_flavour_error(monkeypatch) -> None:
     monkeypatch.setattr("mas.ctl.validate.validate_data", lambda data, kind: _Result())
     with pytest.raises(FlavourError, match="manifest is invalid"):
         validate_flavour("local")
+
+
+class TestResolveFlavour:
+    def test_returns_bundled_local_spec(self) -> None:
+        spec = resolve_flavour("local")
+        assert isinstance(spec, dict)
+        assert spec.get("observability") == ["native"]
+
+    def test_missing_library_returns_empty_dict(self, monkeypatch) -> None:
+        monkeypatch.setattr(flavour_mod, "_load_bundled_flavour", lambda name: {})
+        assert resolve_flavour("local") == {}
+
+    def test_unsupported_name_raises(self) -> None:
+        with pytest.raises(FlavourError):
+            resolve_flavour("prod")
+
+    def test_validate_flavour_is_a_thin_wrapper(self, monkeypatch) -> None:
+        calls: list[str] = []
+        monkeypatch.setattr(
+            flavour_mod,
+            "resolve_flavour",
+            lambda name=None: calls.append(name) or {},
+        )
+        flavour_mod.validate_flavour("local")
+        assert calls == ["local"]

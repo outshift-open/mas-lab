@@ -1,20 +1,22 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
 kind: Overlay
 metadata:
-  id: with-guardrail
+  name: with-guardrail
 # +Guardrail: blocks forbidden content (Shadowmere)
 spec:
-  observability:
-    - native
-  governance:
-    - sample_governance:
-        policies:
-          - name: forbidden-destination
-            trigger:
-              "on": tool_input
-              tool: "*"
-              condition: 'arguments.destination == "Shadowmere"'
-              evaluation: deterministic
-            action: block
-            params: { message: "Restricted destination: Shadowmere" }
+  patch:
+    observability:
+      - native
+    governance:
+      - sample_governance:
+          policies:
+            - name: forbidden-destination
+              trigger:
+                "on": tool_input
+                tool: "*"
+                condition: 'arguments.destination == "Shadowmere"'
+                evaluation: deterministic
+              action: block
+              params: { message: "Restricted destination: Shadowmere" }
