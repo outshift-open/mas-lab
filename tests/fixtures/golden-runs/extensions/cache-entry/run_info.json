@@ -4,7 +4,7 @@
   "scenario": "golden",
   "item_id": "1",
   "run_idx": 0,
-  "referenced_at": "2026-07-21T20:20:36.427797Z",
+  "referenced_at": "2026-07-21T20:44:22.878422Z",
   "mas": {
     "app": "trip-planner",
     "mas_ref": "library-samples/apps/trip-planner/mas.yaml",
