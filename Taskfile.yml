@@ -68,6 +68,12 @@ tasks:
           library-standard/tests/ \
           -q --tb=line
 
+  verify-controller:
+    desc: "All controller unit tests (FastAPI routes, daemon IPC, workers, discovery, manifests)"
+    deps: [install-dev]
+    cmds:
+      - "{{.VENV}}/pytest lab/components/controller/tests/ -q --tb=line"
+
   verify-tutorials:
     desc: "Tutorial integration tests (subprocess CLI; no mas-lab-tutorial package required)"
     deps: [install-dev]

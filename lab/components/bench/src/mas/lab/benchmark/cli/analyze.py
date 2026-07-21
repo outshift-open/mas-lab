@@ -21,10 +21,25 @@ def analyze_command(args) -> int:
         benchmarks_root=_resolve_run_manager_dir(getattr(args, "output_dir", None))
     )
     
-    # Get run
-    result = run_manager.get_run(args.benchmark_id)
+    # Handle "last" / "latest" as alias for most-recent run
+    benchmark_id = args.benchmark_id
+    result = None
+    if benchmark_id in ("last", "latest"):
+        result = run_manager.get_last_run()
+        if not result:
+            logger.error("No benchmark runs found.")
+            return 1
+    else:
+        result = run_manager.get_run(benchmark_id)
+        if not result:
+            # Fallback: match by experiment_name
+            for run_info in run_manager.list_runs():
+                if run_info.experiment_name == benchmark_id:
+                    result = run_manager.get_run(run_info.benchmark_id)
+                    break
+
     if not result:
-        logger.error(f"Benchmark run not found: {args.benchmark_id}")
+        logger.error(f"Benchmark run not found: {benchmark_id}")
         return 1
     
     metadata, run_dir = result

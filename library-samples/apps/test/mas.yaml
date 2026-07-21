@@ -1,0 +1,22 @@
+apiVersion: mas/v1
+kind: MAS
+metadata:
+  name: test
+spec:
+  agency:
+    agents:
+      - id: test
+        ref: agents/test.yaml
+  workflow:
+    type: dynamic
+    entry: test
+    nodes:
+      - id: test
+        role: specialist
+x-canvas-positions:
+  node_30f78cd4:
+    x: 352
+    y: 112
+  node_8443d62c:
+    x: -288
+    y: 160

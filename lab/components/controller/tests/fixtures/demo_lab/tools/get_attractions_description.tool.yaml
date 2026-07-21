@@ -1,0 +1,30 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Tool
+
+metadata:
+  name: get_attractions_description
+  description: "Get a detailed list of attractions and highlights in an Arborian Network city with accessibility information."
+  version: "1.0.0"
+  tags: [travel, attractions, destinations]
+
+spec:
+  description: >
+    Fetch a complete list of attractions and highlights (museums, parks, restaurants, etc.)
+    for a given city in the Arborian Network. Each attraction includes admission price,
+    opening hours, and accessibility information.
+
+  parameters:
+    - name: city
+      type: string
+      description: "City name in the Arborian Network (must match exactly or be resolvable)."
+      required: true
+      examples: ["Celestia", "Luminos", "Verdantia", "Aurelia"]
+
+  impl:
+    kind: python
+    module_path: ./get_attractions_description.py
+    class_name: GetAttractionsDescriptionTool
+    params:
+      dataset_path: fixtures/arborian-network.yaml

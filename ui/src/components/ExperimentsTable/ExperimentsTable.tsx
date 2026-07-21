@@ -17,6 +17,9 @@ import {
   Edit as EditIcon,
   PlayArrow as PlayIcon,
   ClearAll as ClearCacheIcon,
+  ContentCopy as CopyIcon,
+  Check as CheckIcon,
+  Download as DownloadIcon,
 } from "@mui/icons-material";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
@@ -26,14 +29,38 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  IconButton,
   ListItemIcon,
   MenuItem,
+  Stack,
   Typography,
 } from "@mui/material";
 import type { ExperimentSummary } from "@/api/apiCalls";
 import { GLOBAL_BACKGROUND_COLOR } from "@/common/styles";
 import { Tags } from "@/components/Tags/Tags";
 import { ScrollableTooltip } from "@/components/ScrollableTooltip";
+
+function CopyNameButton({ name }: { name: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <IconButton
+      size="small"
+      onClick={(e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(name);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 3000);
+      }}
+      sx={{ p: 0.25 }}
+    >
+      {copied ? (
+        <CheckIcon sx={{ fontSize: 14, color: "success.main" }} />
+      ) : (
+        <CopyIcon sx={{ fontSize: 14 }} />
+      )}
+    </IconButton>
+  );
+}
 
 export interface ExperimentJobStatus {
   jobId: string;
@@ -60,6 +87,7 @@ interface ExperimentsTableProps {
   onDelete?: (names: string[]) => void | Promise<void>;
   onEdit?: (name: string) => void;
   onRun?: (name: string) => void;
+  onExport?: (name: string) => void;
   onDeleteCache?: (experimentName: string) => void;
   onView?: (experimentName: string) => void;
   runningJobs?: Record<string, ExperimentJobStatus>;
@@ -74,6 +102,7 @@ export const ExperimentsTable = ({
   onDelete,
   onEdit,
   onRun,
+  onExport,
   onDeleteCache,
   onView,
   runningJobs = {},
@@ -141,21 +170,21 @@ export const ExperimentsTable = ({
         header: "Name",
         size: 250,
         accessorFn: (row) => (
-          <Tooltip title={row.name} placement="top">
-            <Typography
-              variant="body2"
-              sx={{
-                textOverflow: "ellipsis",
-                overflow: "hidden",
-                whiteSpace: "nowrap",
-                cursor: onView ? "pointer" : "default",
-                "&:hover": onView ? { textDecoration: "underline" } : {},
-              }}
-              onClick={() => onView?.(row.name)}
-            >
-              {row.name}
-            </Typography>
-          </Tooltip>
+          <Stack direction="row" alignItems="center" spacing={0.5}>
+            <CopyNameButton name={row.name} />
+            <Tooltip title={row.name} placement="top">
+              <Typography
+                variant="body2"
+                sx={{
+                  textOverflow: "ellipsis",
+                  overflow: "hidden",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {row.name}
+              </Typography>
+            </Tooltip>
+          </Stack>
         ),
       },
       {
@@ -212,8 +241,7 @@ export const ExperimentsTable = ({
           //  2. Per-run status lines, e.g. "✅ [cot] item=s1 run=1 (4857ms)"
           //  3. Footer summary block (delimited by "======" separators)
           // All verbose agent output between status lines is stripped.
-          const isRunLine = (l: string) =>
-            /\]\s*item=\w+\s+run=/.test(l);
+          const isRunLine = (l: string) => /\]\s*item=\w+\s+run=/.test(l);
           const isSep = (l: string) => /^={3,}/.test(l);
           const lines = stdout.split("\n");
           const firstSepIdx = lines.findIndex(isSep);
@@ -321,7 +349,7 @@ export const ExperimentsTable = ({
         ),
       },
     ],
-    [runningJobs, showLibraryColumn, onView],
+    [runningJobs, showLibraryColumn],
   );
 
   const enrichedData = useMemo(
@@ -380,6 +408,18 @@ export const ExperimentsTable = ({
           {isRunning ? "Running..." : "Run"}
         </MenuItem>,
         <MenuItem
+          key="export"
+          onClick={() => {
+            onExport?.(row.original.name);
+            closeMenu();
+          }}
+        >
+          <ListItemIcon>
+            <DownloadIcon />
+          </ListItemIcon>
+          Export
+        </MenuItem>,
+        <MenuItem
           key="edit"
           onClick={() => {
             onEdit?.(row.original.name);
@@ -435,10 +475,11 @@ export const ExperimentsTable = ({
       );
     },
 
-    muiTableBodyRowProps: () => {
+    muiTableBodyRowProps: ({ row }) => {
       return {
+        onClick: () => onView?.(row.original.name),
         sx: {
-          cursor: "pointer",
+          cursor: onView ? "pointer" : "default",
           backgroundColor: GLOBAL_BACKGROUND_COLOR,
           "& > td": {
             backgroundColor: `${GLOBAL_BACKGROUND_COLOR} !important`,
@@ -478,7 +519,9 @@ export const ExperimentsTable = ({
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCancelDelete} disabled={deleting}>Cancel</Button>
+          <Button onClick={handleCancelDelete} disabled={deleting}>
+            Cancel
+          </Button>
           <Button
             variant="primary"
             color="negative"

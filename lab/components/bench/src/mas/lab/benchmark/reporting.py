@@ -12,16 +12,33 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
+def _normalize_df(df):
+    """Ensure DataFrame has expected columns regardless of CSV schema variant."""
+    df = df.copy()
+    if "success" not in df.columns and "status" in df.columns:
+        df["success"] = df["status"].str.lower().isin(("ok", "success", "passed", "true"))
+    if "latency_ms" not in df.columns and "elapsed_ms" in df.columns:
+        df["latency_ms"] = df["elapsed_ms"]
+    if "tokens" not in df.columns:
+        df["tokens"] = 0
+    if "run_id" not in df.columns and "run" in df.columns:
+        df["run_id"] = df["run"]
+    return df
+
+
 def print_benchmark_summary(df, n_scenarios: int, n_tests: int, n_runs_per_test: int):
     """Print 3-level benchmark statistics: scenario, test, run.
     
     Args:
         df: DataFrame with columns: scenario, item_id, run_id, success, latency_ms, tokens
+            (or their equivalents: status/elapsed_ms/run which are auto-normalized)
         n_scenarios: Number of unique scenarios (scenario level)
         n_tests: Number of unique (scenario × item) pairs (test level)
         n_runs_per_test: Number of runs per test (run level)
     """
     import numpy as np
+
+    df = _normalize_df(df)
     
     total_runs = len(df)
     total_success = df["success"].sum()
@@ -104,7 +121,9 @@ def print_benchmark_summary(df, n_scenarios: int, n_tests: int, n_runs_per_test:
     print("  RUN LEVEL (individual executions)")
     print("─" * 80)
     
-    run_stats = df.groupby("run_id").agg(
+    # Use numeric 'run' column if available; fall back to 'run_id'
+    run_col = "run" if "run" in df.columns else "run_id"
+    run_stats = df.groupby(run_col).agg(
         count=("success", "count"),
         successes=("success", "sum"),
         latency_mean=("latency_ms", "mean"),
@@ -115,8 +134,9 @@ def print_benchmark_summary(df, n_scenarios: int, n_tests: int, n_runs_per_test:
     print(f"  {'─'*5} {'─'*11} {'─'*5} {'─'*6} {'─'*12}")
     
     for _, row in run_stats.iterrows():
+        run_label = str(row[run_col])
         print(
-            f"  {int(row['run_id']):>5d} {int(row['count']):>11d}"
+            f"  {run_label:>5s} {int(row['count']):>11d}"
             f" {int(row['successes']):>5d} {row['success_rate']:>5.0f}%"
             f" {row['latency_mean']:>9.0f} ms"
         )
@@ -135,6 +155,8 @@ def generate_plots(df: "pd.DataFrame", experiment, plots_dir: Path, logger):
         scale_y_continuous, coord_cartesian
     )
     import numpy as np
+
+    df = _normalize_df(df)
 
     plots_dir.mkdir(parents=True, exist_ok=True)
     exec_spec = getattr(experiment, "execution", None)

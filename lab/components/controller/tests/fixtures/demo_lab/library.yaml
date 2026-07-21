@@ -1,0 +1,31 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# MAS Library Metadata — Samples
+# Declares sample apps, datasets, and tools bundled with this library.
+# See docs/schemas/library.schema.yaml for the full schema.
+
+apiVersion: mas/v1
+kind: Library
+
+name: mas-library-samples
+description: >
+  Community-contributed MAS sample applications, datasets, and tools for
+  benchmarks, tutorials, and experimentation.
+version: "0.0.2"
+
+apps:
+  trip-planner: apps/trip-planner
+  qa-agent: apps/qa-agent
+
+datasets:
+  mas-necessity: datasets/generic/mas-necessity.yaml
+  qa-reasoning-queries: datasets/generic/qa-reasoning-queries.yaml
+  qa-reasoning-queries-100: datasets/generic/qa-reasoning-queries-100.yaml
+  trip-planner-benchmark: datasets/trip-planner/benchmark.yaml
+  trip-planner-benchmark-100: datasets/trip-planner/benchmark-100.yaml
+  trip-planner-queries: datasets/trip-planner/queries.yaml
+
+tools:
+  web-search: tools/web-search.tool.yaml
+  calc: tools/calc.tool.yaml
+  memory-search: tools/memory-search.tool.yaml

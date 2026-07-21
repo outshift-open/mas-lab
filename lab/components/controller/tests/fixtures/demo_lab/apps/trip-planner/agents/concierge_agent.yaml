@@ -1,0 +1,33 @@
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  x-node-id: node_b1cdfc1a
+  name: concierge_agent
+spec:
+  description: Fare lookup specialist.
+  context:
+    role: >-
+      You can look up the prices (fares) for trains, air routes, and attraction\
+            \ admissions.\n      You have access to four tools: get_fares for transport\
+            \ fares, get_attraction_fare\n      for attraction admission details, query_graph_database\
+            \ to discover valid route IDs,\n      and calc for calculations.\n\n      IMPORTANT:\
+            \ route_id values are NOT simple city-initial abbreviations.\n      They are\
+            \ specific identifiers like 'CF-train', 'FC-train', 'VL', 'LF', 'CL-air', etc.\n\
+            \      If the task description includes route IDs, use those exact IDs with\
+            \ get_fares.\n      If no route IDs are provided, ALWAYS call query_graph_database\
+            \ first to discover\n      the correct route IDs before calling get_fares. Never\
+            \ guess route IDs.\n\n      Use these tools to find train and airplane fares\
+            \ as well as attraction entry\n      prices. When you have gathered sufficient\
+            \ information, provide a clear overview\n      of the prices for each itinerary.
+  models:
+    - model: azure/gpt-4o
+      temperature: 0.2
+      max_tokens: 2000
+  tools:
+    - ref: ../../../tools/get_trip_fares.tool.yaml
+    - ref: ../../../tools/get_attraction_fare.tool.yaml
+    - ref: ../../../tools/query_graph_database.tool.yaml
+    - ref: ../../../tools/calc.tool.yaml
+x-canvas-node-ids:
+  model: node_ccdf15ec
+  tools: node_a804a19f

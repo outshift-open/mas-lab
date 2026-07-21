@@ -1,17 +1,10 @@
 //  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 //  SPDX-License-Identifier: Apache-2.0
-import { useCallback, useState } from "react";
-import {
-  Box,
-  Button,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
+import { useCallback, useRef, useState } from "react";
+import { Box, Button, Stack, TextField, Typography } from "@mui/material";
 import {
   analyzeBenchmark,
-  exportBenchmark,
-  importBenchmark,
+  uploadImportBenchmark,
   pollJob,
   type JobSubmitResponse,
 } from "@/api/apiCalls";
@@ -20,11 +13,30 @@ interface BenchmarkOpsProps {
   library: string;
 }
 
+function formatAnalyzeOutput(stdout: string): string {
+  const lines = stdout.split("\n");
+  const kept: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (/^[═─]{3,}$/.test(trimmed)) continue;
+    if (
+      /^(BENCHMARK RESULTS|SCENARIO LEVEL|TEST LEVEL|RUN LEVEL)/.test(trimmed)
+    )
+      continue;
+    if (/^(Scenario|Run)\s+/.test(trimmed) && /─{3,}/.test(trimmed)) continue;
+    kept.push(trimmed);
+  }
+  return kept.join("\n");
+}
+
 export function BenchmarkOps({ library }: BenchmarkOpsProps) {
   const [benchmarkId, setBenchmarkId] = useState("last");
-  const [tarball, setTarball] = useState("");
+  const [importFile, setImportFile] = useState<File | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const runJob = useCallback(
     async (label: string, submit: () => Promise<JobSubmitResponse>) => {
@@ -32,11 +44,30 @@ export function BenchmarkOps({ library }: BenchmarkOpsProps) {
       setStatus(`${label}: submitting…`);
       try {
         const { job_id } = await submit();
-        setStatus(`${label}: job ${job_id} running…`);
-        const result = await pollJob(job_id);
-        setStatus(
-          `${label}: ${result.status}${result.stderr ? ` — ${result.stderr.slice(0, 200)}` : ""}`,
-        );
+        setStatus(`${label}: running…`);
+
+        let result = await pollJob(job_id);
+        while (result.status === "pending" || result.status === "running") {
+          await new Promise((r) => setTimeout(r, 2000));
+          result = await pollJob(job_id);
+        }
+
+        if (result.status === "completed" && result.stdout) {
+          const summary =
+            label === "Analyze"
+              ? formatAnalyzeOutput(result.stdout)
+              : result.stdout.trim().slice(-300);
+          setStatus(`${label}: done\n${summary}`);
+        } else if (result.status === "completed") {
+          setStatus(`${label}: done`);
+        } else {
+          const errMsg = result.stderr
+            ? result.stderr.trim().split("\n").pop() || ""
+            : "";
+          setStatus(
+            `${label}: ${result.status}${errMsg ? ` — ${errMsg}` : ""}`,
+          );
+        }
       } catch (err) {
         setStatus(
           `${label} failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -57,27 +88,28 @@ export function BenchmarkOps({ library }: BenchmarkOpsProps) {
         borderColor: "divider",
       }}
     >
-      <Typography variant="subtitle2" sx={{ mb: 1 }}>
-        Benchmark utilities
+      <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
+        Analyze or import benchmark run results. Use the benchmark name to
+        reference a completed run. Export is available from the table row actions.
       </Typography>
-      <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 1 }}>
+      <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 2 }}>
         <TextField
-          size="small"
           label="Benchmark id"
+          placeholder="short id, full id, experiment name, last, or latest"
+          variant="standard"
+          autoComplete="off"
           value={benchmarkId}
           onChange={(e) => setBenchmarkId(e.target.value)}
-          helperText="short id, full id, last, or latest"
-          sx={{ minWidth: 220 }}
-        />
-        <TextField
-          size="small"
-          label="Import tarball path"
-          value={tarball}
-          onChange={(e) => setTarball(e.target.value)}
-          sx={{ flex: 1 }}
+          fullWidth
         />
       </Stack>
-      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+      <Stack
+        direction="row"
+        spacing={1}
+        flexWrap="wrap"
+        useFlexGap
+        alignItems="center"
+      >
         <Button
           size="small"
           variant="outlined"
@@ -93,32 +125,49 @@ export function BenchmarkOps({ library }: BenchmarkOpsProps) {
         <Button
           size="small"
           variant="outlined"
-          disabled={busy || !benchmarkId.trim()}
-          onClick={() =>
-            runJob("Export", () =>
-              exportBenchmark(library, { benchmark_id: benchmarkId.trim() }),
-            )
-          }
-        >
-          Export
-        </Button>
-        <Button
-          size="small"
-          variant="outlined"
-          disabled={busy || !tarball.trim()}
-          onClick={() =>
-            runJob("Import", () =>
-              importBenchmark(library, { tarball: tarball.trim() }),
-            )
-          }
+          disabled={busy}
+          onClick={() => fileInputRef.current?.click()}
         >
           Import
         </Button>
+        {importFile && (
+          <Typography variant="caption" sx={{ opacity: 0.7 }}>
+            {importFile.name}
+          </Typography>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".tar.gz,.tgz,.gz,application/gzip,application/x-gzip,application/x-tar"
+          hidden
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            setImportFile(file);
+            e.target.value = "";
+            runJob("Import", () => uploadImportBenchmark(library, file));
+          }}
+        />
       </Stack>
       {status && (
-        <Typography variant="caption" sx={{ display: "block", mt: 1, opacity: 0.85 }}>
+        <Box
+          component="pre"
+          sx={{
+            mt: 1.5,
+            p: 1.5,
+            borderRadius: 1,
+            bgcolor: "grey.900",
+            color: "grey.100",
+            fontSize: "0.75rem",
+            fontFamily: "monospace",
+            lineHeight: 1.6,
+            whiteSpace: "pre-wrap",
+            overflowY: "auto",
+            m: 0,
+          }}
+        >
           {status}
-        </Typography>
+        </Box>
       )}
     </Box>
   );

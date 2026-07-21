@@ -1,0 +1,80 @@
+apiVersion: mas/v1
+kind: MAS
+metadata:
+  name: trip-planner
+  description: >-
+    Trip Planner MAS — the canonical four-agent Arborian Network example.
+            A moderator orchestrates three specialists (schedule_agent,
+            itinerary_agent, concierge_agent) to answer transport queries, plan
+            routes, and assemble full itineraries.  This is the v1 baseline: no
+            memory or ontology enhancement, standard keyword-based skill retrieval.
+spec:
+  agency:
+    agents:
+      - id: moderator
+        ref: agents/moderator.yaml
+      - id: schedule_agent
+        ref: agents/schedule_agent.yaml
+      - id: itinerary_agent
+        ref: agents/itinerary_agent.yaml
+      - id: concierge_agent
+        ref: agents/concierge_agent.yaml
+  workflow:
+    type: dynamic
+    entry: moderator
+    nodes:
+      - id: moderator
+        role: specialist
+        delegates_to:
+          - schedule_agent
+          - itinerary_agent
+          - concierge_agent
+      - id: schedule_agent
+        role: specialist
+      - id: itinerary_agent
+        role: specialist
+      - id: concierge_agent
+        role: specialist
+x-canvas-positions:
+  node_c976ef3d:
+    x: 288
+    y: 96
+  node_0474aab9:
+    x: -320
+    y: 128
+  node_da912f59:
+    x: -288
+    y: 448
+  node_2d0f65ca:
+    x: 1376
+    y: -272
+  node_90a5ff40:
+    x: 720
+    y: -336
+  node_f450b48c:
+    x: 608
+    y: -16
+  node_c9b85594:
+    x: 1792
+    y: 864
+  node_8ffb0998:
+    x: 1088
+    y: 688
+  node_2b577041:
+    x: 1184
+    y: 992
+  node_b1cdfc1a:
+    x: 1712
+    y: 1840
+  node_ccdf15ec:
+    x: 608
+    y: 2128
+  node_a804a19f:
+    x: 672
+    y: 2608
+intent:
+  summary: >-
+    I plan trips between cities in the Arborian Network (fictional city
+            universe).  Tell me your destination preferences, travel dates, budget
+            (in EUR), and interests, and I will select the best city, produce a
+            detailed local guide, and assemble a complete day-by-day itinerary.
