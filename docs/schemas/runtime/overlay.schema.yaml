@@ -16,6 +16,9 @@ required:
   - metadata
   - spec
 additionalProperties: false
+patternProperties:
+  "^x-":
+    description: "Extension properties (UI metadata, canvas state, etc.) — ignored by the runtime."
 properties:
   apiVersion:
     type: string
