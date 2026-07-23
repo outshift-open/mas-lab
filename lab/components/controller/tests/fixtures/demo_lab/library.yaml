@@ -15,12 +15,11 @@ version: "0.0.2"
 
 apps:
   trip-planner: apps/trip-planner
-  qa-agent: apps/qa-agent
 
 datasets:
-  mas-necessity: datasets/generic/mas-necessity.yaml
-  qa-reasoning-queries: datasets/generic/qa-reasoning-queries.yaml
-  qa-reasoning-queries-100: datasets/generic/qa-reasoning-queries-100.yaml
+  mas-necessity: datasets/mas-necessity.yaml
+  qa-reasoning-queries: datasets/qa-reasoning-queries.yaml
+  qa-reasoning-queries-100: datasets/qa-reasoning-queries-100.yaml
   trip-planner-benchmark: datasets/trip-planner/benchmark.yaml
   trip-planner-benchmark-100: datasets/trip-planner/benchmark-100.yaml
   trip-planner-queries: datasets/trip-planner/queries.yaml

@@ -21,8 +21,8 @@ spec:
     temperature: 0.7
     max_tokens: 4096
   tools:
-  - ref: ../../../tools/web-search.tool.yaml
-  - ref: ../../../tools/calc.tool.yaml
+  - ref: ../../../../../library-samples/tools/web-search.tool.yaml
+  - ref: ../../../../../library-samples/tools/calc.tool.yaml
   description: Answer general knowledge questions.
 x-canvas-node-ids:
   role: node_515c961a
