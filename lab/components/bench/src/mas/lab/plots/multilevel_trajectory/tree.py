@@ -8,7 +8,10 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Optional
 
-from mas.lab.plots.multilevel_trajectory.constants import _TS_TOL
+from mas.lab.plots.multilevel_trajectory.constants import (
+    _TS_TOL,
+    PROCESSING_TYPE_WAIT_STATE,
+)
 # Tiny real (wall-clock) duration reserved for a delegation tool call's own
 # dispatch instant — shared between _align_record_boundaries (which gives the
 # delegate's own execution a start strictly after its dispatching tool call,
@@ -91,7 +94,7 @@ def _align_record_boundaries(
     def _is_wait_state(rec: dict) -> bool:
         return (
             rec.get("call_type") == "ProcessingCall"
-            and str(rec.get("processing_type") or "").strip().lower() == "wait_state"
+            and str(rec.get("processing_type") or "").strip().lower() == PROCESSING_TYPE_WAIT_STATE
         )
 
     # Envelope pass (bottom-up): a parent must temporally contain its children.

@@ -14,7 +14,14 @@ from mas.lab.plots.multilevel_trajectory.constants import (
     _KIND_BASE_TO_TYPE,
     _PROC_TYPE_LABEL,
     _TS_TOL,
+    PROCESSING_NAME_CONTEXT_ASSEMBLY,
 )
+from mas.lab.plots.multilevel_trajectory.annotations import _derive_context_semantics
+
+
+def _normalized_str(s: Any, default: str = "?") -> str:
+    """Normalize a value to lowercase string, with default fallback."""
+    return str(s or default).strip().lower() if s else default
 
 
 def _normalize_context_messages(messages: Any) -> list[dict[str, str]]:
@@ -24,7 +31,7 @@ def _normalize_context_messages(messages: Any) -> list[dict[str, str]]:
     for m in messages:
         if not isinstance(m, dict):
             continue
-        role = str(m.get("role") or "?").strip().lower()
+        role = _normalized_str(m.get("role"))
         content = m.get("content") or ""
         if isinstance(content, list):
             content = " ".join(
@@ -37,29 +44,97 @@ def _normalize_context_messages(messages: Any) -> list[dict[str, str]]:
     return out
 
 
-def _context_parts_from_messages(messages: list[dict[str, str]]) -> list[dict[str, Any]]:
+def _context_parts_from_messages(
+    messages: list[dict[str, str]],
+    *,
+    prev_messages: list[dict[str, str]] | None = None,
+) -> list[dict[str, Any]]:
+    """Build context source records from assembled messages.
+
+    Each part represents a piece of input context: its source, how it was
+    included, what triggered its inclusion, and whether it's new compared to
+    the previous context assembly.
+
+    Attributes tracked for each context piece (what/where/why/when):
+    - What: content (the actual text)
+    - Where: source, sourceType, sourceId, actor, via (where it came from)
+    - Why: decision, cause, trigger, causeType (why it was included)
+    - When: highlight (is it new since last assembly)
+
+    ``prev_messages`` is the input context from the previous LLM call for the
+    same agent. A message is marked ``highlight=True`` (i.e. "new") when its
+    (role, content) pair was not present in the previous context — meaning it
+    was genuinely added since the last time the LLM was called. Tool results
+    (including delegation replies) are marked as new on every appearance; system
+    prompts are marked as new only when they first appear.
+
+    When ``prev_messages`` is ``None`` (first call for this agent), every
+    message is treated as new.
+    """
+    if prev_messages is None:
+        # No history — every piece of context is new.
+        prev_pairs: set[tuple[str, str]] = set()
+        all_new = True
+    else:
+        prev_pairs = {
+            (_normalized_str(m.get("role")), str(m.get("content") or "").strip())
+            for m in prev_messages
+            if str(m.get("content") or "").strip()
+        }
+        all_new = False
+
     parts: list[dict[str, Any]] = []
-    for msg in messages:
-        role = str(msg.get("role") or "?").strip().lower()
+    for msg_idx, msg in enumerate(messages):
+        role = _normalized_str(msg.get("role"))
         content = str(msg.get("content") or "").strip()
         if not content:
             continue
+        is_new = all_new or (role, content) not in prev_pairs
+
+        # Derive semantics from role, source, and content
+        semantics = _derive_context_semantics(
+            role, f"assembled/{role}",
+            tool_call_id=_normalized_str(msg.get("tool_call_id")),
+            content=content
+        )
+        trigger = semantics["trigger"]
+        actor = semantics["actor"]
+        via = semantics["via"]
+        cause_type = semantics["causeType"]
+        cause_detail = semantics["cause_detail"]
+
         parts.append({
+            # What: the context content
+            "content": content,
+            # Where: source tracking
             "source": f"context/{role}",
+            "sourceType": role,
+            "sourceId": f"message_{msg_idx}",
+            "actor": actor,
+            "via": via,
+            # Why: decision tracking
+            "decision": "",  # empty unless specified in event data
+            "cause": cause_detail,
+            "causeType": cause_type,
+            "trigger": trigger,
+            # Category and mechanism (legacy, for compatibility)
             "category": "SYSTEM" if role == "system" else "CONTEXT",
             "mechanism": "inject",
+            # Metadata
             "retrieval": "",
-            "decision": "",
-            "causeType": "deterministic",
-            "cause": "state",
             "tokens": max(1, len(content) // 4),
             "retained": True,
             "placement": f"context/{role}",
-            "content": content,
-            # For context-assembly diffs, treat system prompt injection as
-            # the "new" chunk and keep carried user context unhighlighted.
-            "highlight": role == "system",
+            "sectionId": f"assembled/{msg_idx}/{role}",
+            # Newness flag: True for context pieces added since the previous LLM call
+            # Identifies delegation results, tool calls, and all other new turns
+            "highlight": is_new,
         })
+    # Sort so that newly-added context pieces appear LAST in the list.
+    # This improves readability: existing context is shown first, then the
+    # new additions that caused this context assembly. Uses stable sort to
+    # preserve message order within each group (new vs existing).
+    parts.sort(key=lambda p: p["highlight"])
     return parts
 
 def _build_call_records(events: list[dict]) -> list[dict]:
@@ -141,6 +216,11 @@ def _build_call_records(events: list[dict]) -> list[dict]:
         _args2 = _e.get("arguments")
         if _cid2 not in _tool_args_by_call and isinstance(_args2, dict) and _args2:
             _tool_args_by_call[_cid2] = _args2
+
+    # Per-agent previous context: tracks the assembled context from each agent's
+    # previous LLM call, used to compute diffs for highlighting what actually
+    # changed (newly added context) vs what was carried over.
+    _prev_context_by_agent: dict[str, list[dict[str, str]]] = {}
 
     for ev in sorted(events, key=lambda e: float(e.get("timestamp") or 0)):
         kind      = ev.get("kind", "")
@@ -258,7 +338,13 @@ def _build_call_records(events: list[dict]) -> list[dict]:
                 )
                 if _ctx_msgs:
                     record["context_messages"] = _ctx_msgs
-                    record["context_parts"] = _context_parts_from_messages(_ctx_msgs)
+                    record["context_parts"] = _context_parts_from_messages(
+                        _ctx_msgs,
+                        prev_messages=_prev_context_by_agent.get(agent_id)
+                    )
+                    # Update tracking: this context assembly is now the "previous"
+                    # for the next LLM call from this same agent.
+                    _prev_context_by_agent[agent_id] = _ctx_msgs
             if call_type == "LLMCall" and ev.get("messages"):
                 msgs = ev["messages"]
                 if isinstance(msgs, list) and msgs:
@@ -441,17 +527,24 @@ def _build_call_records(events: list[dict]) -> list[dict]:
                     record["wait_note"] = str(ev.get("wait_note") or "")
                 if not record.get("wait_scope") and ev.get("wait_scope") is not None:
                     record["wait_scope"] = str(ev.get("wait_scope") or "")
-            if call_type == "ProcessingCall" and record.get("processing_name") == "context assembly":
+            if call_type == "ProcessingCall" and record.get("processing_name") == PROCESSING_NAME_CONTEXT_ASSEMBLY:
                 _ctx_msgs = _normalize_context_messages(
                     ev.get("messages")
                     or _ca_messages_by_corr.get((record.get("agent_id"), record.get("correlation_id")))
                 )
                 if _ctx_msgs and not record.get("context_messages"):
                     record["context_messages"] = _ctx_msgs
-                    record["context_parts"] = _context_parts_from_messages(_ctx_msgs)
+                    _agent_id = record.get("agent_id") or ""
+                    record["context_parts"] = _context_parts_from_messages(
+                        _ctx_msgs,
+                        prev_messages=_prev_context_by_agent.get(_agent_id)
+                    )
+                    # Update tracking: this context assembly is now the "previous"
+                    # for the next LLM call from this same agent.
+                    _prev_context_by_agent[_agent_id] = _ctx_msgs
                 if not record.get("context_operation"):
                     record["context_operation"] = str(ev.get("context_operation") or "")
-                if record.get("context_messages") and (not record.get("output") or str(record.get("output", "")).strip() in {"assembled", "context assembly", "context_assembly"}):
+                if record.get("context_messages") and (not record.get("output") or str(record.get("output", "")).strip() in {"assembled", PROCESSING_NAME_CONTEXT_ASSEMBLY, "context_assembly"}):
                     # Keep context assembly as structured CPR only (parts/messages),
                     # not as a synthetic textual diff block.
                     record["output"] = ""
@@ -569,7 +662,7 @@ def _build_call_records(events: list[dict]) -> list[dict]:
     for rec in records:
         if rec.get("call_type") != "ProcessingCall":
             continue
-        if str(rec.get("processing_name") or "").strip().lower() != "context assembly":
+        if str(rec.get("processing_name") or "").strip().lower() != PROCESSING_NAME_CONTEXT_ASSEMBLY.lower():
             continue
         _aid = str(rec.get("agent_id") or "")
         _corr = rec.get("correlation_id")
@@ -599,7 +692,7 @@ def _build_call_records(events: list[dict]) -> list[dict]:
         r for r in records
         if not (
             r.get("call_type") == "ProcessingCall"
-            and str(r.get("processing_name") or "").strip().lower() == "context assembly"
+            and str(r.get("processing_name") or "").strip().lower() == PROCESSING_NAME_CONTEXT_ASSEMBLY.lower()
             and r.get("correlation_id") is not None
             and (str(r.get("agent_id") or ""), r.get("correlation_id")) not in _valid_ctx_keys
         )
@@ -638,13 +731,14 @@ def _build_call_records(events: list[dict]) -> list[dict]:
             rec["call_id"] = _new_id
         _seen_ids.add(str(rec["call_id"]))
 
-    records.extend(_synthesize_context_processing_records(events, records))
+    records.extend(_synthesize_context_processing_records(events, records, _prev_context_by_agent))
 
     return sorted(records, key=lambda r: r["start_ts"])
 
 
 def _synthesize_context_processing_records(
-    events: list[dict], records: list[dict]
+    events: list[dict], records: list[dict],
+    prev_context_by_agent: dict[str, list[dict[str, str]]],
 ) -> list[dict]:
     """Create a ProcessingCall (context-assembly) node before each LLM call.
 
@@ -702,7 +796,13 @@ def _synthesize_context_processing_records(
         # dag.py clears a ProcessingCall's output from the following state, so
         # the system prompt shows only on the ⚙ context bar itself.
         context_messages = _normalize_context_messages(msgs)
-        context_parts = _context_parts_from_messages(context_messages)
+        context_parts = _context_parts_from_messages(
+            context_messages,
+            prev_messages=prev_context_by_agent.get(aid)
+        )
+        # Update tracking: this context assembly is now the "previous"
+        # for the next LLM call from this same agent.
+        prev_context_by_agent[aid] = context_messages
         cid = f"ctxasm-{aid}-{corr}"
         operation = "PREPEND" if any(msg.get("role") == "system" for msg in context_messages) else "APPEND"
         out.append({
