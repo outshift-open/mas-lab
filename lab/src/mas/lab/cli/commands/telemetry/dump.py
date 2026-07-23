@@ -70,8 +70,8 @@ def _ch_row_to_sdk_span(row: dict) -> dict:
     type=click.Choice(["session", "run", "trace"]),
     default="session",
     show_default=True,
-    help=("Query key: 'session' → SpanAttributes['mas.session.id'], "
-          "'run' → SpanAttributes['mas.run.id'], "
+        help=("Query key: 'session' → ClickHouse session_id column, "
+            "'run' → SpanAttributes['mas.run.id'], "
           "'trace' → TraceId column (hex, with or without 0x prefix)."),
 )
 @click.option("--app-name", default=None, help="Optional ServiceName filter.")
@@ -102,7 +102,7 @@ def dump_cmd(
 ) -> None:
     """Dump OTel spans for SESSION_ID from ClickHouse → otel_sdk_spans.jsonl.
 
-    SESSION_ID is matched against SpanAttributes['mas.session.id'] by default.
+    SESSION_ID is matched against the ClickHouse session_id column by default.
     Use --by run to match against SpanAttributes['mas.run.id'] instead.
     Use --by trace to match against the TraceId column directly (hex string,
     with or without the 0x prefix).
@@ -140,8 +140,11 @@ def dump_cmd(
         trace_hex = safe_sid.lower().lstrip("0x").zfill(32)
         where_clause = f"TraceId = '{trace_hex}'{app_filter}"
         attr_key = "TraceId"
+    elif query_by == "session":
+        attr_key = "session_id"
+        where_clause = f"session_id = '{safe_sid}'{app_filter}"
     else:
-        attr_key = "mas.session.id" if query_by == "session" else "mas.run.id"
+        attr_key = "mas.run.id"
         where_clause = f"SpanAttributes['{attr_key}'] = '{safe_sid}'{app_filter}"
 
     query = (
@@ -202,8 +205,6 @@ def dump_cmd(
         if json_out:
             click.echo(json.dumps({"status": "empty", "spans": 0, "path": None}))
         raise SystemExit(1)
-
-    spans = [_ch_row_to_sdk_span(row) for row in rows]
 
     spans = [_ch_row_to_sdk_span(row) for row in rows]
 
