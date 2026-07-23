@@ -2,11 +2,17 @@
 //  SPDX-License-Identifier: Apache-2.0
 export type OverlayRef = string | { ref: string };
 
+export interface OverlayStack {
+  logic?: OverlayRef[];
+  control?: OverlayRef[];
+  infra?: OverlayRef[];
+}
+
 export interface ExperimentScenario {
   id: string;
   description?: string;
   version?: number;
-  overlays?: OverlayRef[];
+  overlays?: OverlayStack;
   tags?: string[];
   user_prompt?: string;
   pipeline_resources?: Record<string, unknown>[];
@@ -31,8 +37,9 @@ export interface ExperimentEvaluation {
   config: ExperimentEvaluationConfig;
 }
 
-export interface ExperimentMas {
+export interface ExperimentApplication {
   manifest?: string;
+  app?: string;
   configs_dir?: string;
 }
 
@@ -77,7 +84,6 @@ export interface ReplaySpec {
 }
 
 export interface ExperimentExecution {
-  n_runs: number;
   parallel_scenarios?: number;
   timeout?: number;
   pause_between_runs?: number;
@@ -119,15 +125,19 @@ export interface LevelSpec {
   pipeline?: PipelineStepSpec[];
 }
 
+export interface RunLevelSpec extends LevelSpec {
+  n_runs?: number;
+}
+
 export interface Experiment {
   name: string;
-  version?: string;
   description?: string;
-  mas: ExperimentMas;
+  applications: ExperimentApplication[];
   scenarios: ExperimentScenario[];
   dataset?: ExperimentDataset;
   evaluation?: ExperimentEvaluation;
   execution: ExperimentExecution;
+  run?: RunLevelSpec;
   output_dir?: string;
   trace_cache_dir?: string;
   flavours?: Record<string, FlavourSpec>;
@@ -136,7 +146,6 @@ export interface Experiment {
   pipeline?: PipelineStepSpec[];
   pipeline_resources?: Record<string, unknown>[];
   artifacts?: Record<string, string | ArtifactSpec>;
-  run?: LevelSpec;
   test?: LevelSpec;
   scenario?: LevelSpec;
 }

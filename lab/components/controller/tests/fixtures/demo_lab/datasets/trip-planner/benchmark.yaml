@@ -1,0 +1,31 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: lab/v1
+kind: Dataset
+
+metadata:
+  name: trip-planner-benchmark
+  display_name: "Trip Planner Benchmark B (250 items)"
+  version: "1.0"
+  description: >
+    Dataset B — full Arborian Network trip-planner benchmark (250 prompts,
+    15 cities, 6 regions). Grouped by how many specialist agents are required;
+    the moderator is the entry point and does not count. Distribution: 50
+    single_agent, 75 two_agents, 125 all_agents. Canonical benchmark for
+    full-scale lab runs and production-scale evaluation.
+  tags:
+    - travel
+    - trip-planner
+    - arborian-network
+    - benchmark
+
+spec:
+  path: "benchmark.json"
+  format: json
+
+  item_schema:
+    id: integer
+    prompt: string
+    scenario: string
+    group: string # single_agent | two_agents | all_agents
+    target_agents: list[string]

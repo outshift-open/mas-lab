@@ -300,7 +300,7 @@ const Application = () => {
           for (const agent of agentsList) {
             if (agent.ref) {
               const filename = agent.ref.split("/").pop() ?? agent.ref;
-              agent.ref = `${trimmedName}/agents/${filename}`;
+              agent.ref = `agents/${filename}`;
             }
           }
         }
@@ -339,7 +339,7 @@ const Application = () => {
         agents,
       });
       queryClient.invalidateQueries({ queryKey: ["apps", library] });
-      queryClient.invalidateQueries({
+      queryClient.resetQueries({
         queryKey: ["apps", library, trimmedName],
       });
       handleCloseSaveDialog();

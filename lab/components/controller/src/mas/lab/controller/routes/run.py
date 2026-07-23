@@ -80,20 +80,19 @@ async def run_mas(library_name: str, req: RunMASRequest):
     """Run a MAS with a single query. Returns a job_id for polling."""
     lib_dir = deps.get_library_path(library_name)
 
-    # Write temp file inside apps/ so agent ref paths resolve as siblings.
-    apps_dir = lib_dir / "apps"
-    apps_dir.mkdir(parents=True, exist_ok=True)
-
+    # Write temp file at the library root so refs like
+    # "apps/<mas>/agents/<id>.yaml" resolve correctly (same base as validate).
     tmp = tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yaml", prefix="mas-run-", delete=False, dir=str(apps_dir)
+        mode="w", suffix=".yaml", prefix="mas-run-", delete=False, dir=str(lib_dir)
     )
     tmp.write(req.manifest_yaml)
     tmp.close()
     tmp_path = Path(tmp.name)
 
-    cmd = ["mas-ctl", "run-mas", str(tmp_path.relative_to(lib_dir))]
+    cmd = ["mas-ctl"]
     if req.verbose:
         cmd.append("-v")
+    cmd += ["run-mas", str(tmp_path.relative_to(lib_dir))]
     for ov in req.overlays:
         cmd += ["--overlay", ov]
     if req.flavour:

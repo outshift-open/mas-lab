@@ -124,7 +124,7 @@ class PlotNineStep(PipelineStep):
         from plotnine import (
             ggplot, aes,
             geom_col, geom_bar, geom_point, geom_boxplot, geom_jitter,
-            geom_errorbar, geom_errorbarh, geom_line, geom_tile,
+            geom_crossbar, geom_errorbar, geom_errorbarh, geom_line, geom_tile,
             facet_wrap, facet_grid,
             labs, theme_minimal, theme, element_text,
             scale_fill_brewer,
@@ -367,6 +367,7 @@ class PlotNineStep(PipelineStep):
         _GEOMS = {
             "col": geom_col,
             "bar": geom_bar,
+            "crossbar": geom_crossbar,
             "point": geom_point,
             "boxplot": geom_boxplot,
             "jitter": geom_jitter,
@@ -384,8 +385,17 @@ class PlotNineStep(PipelineStep):
             p = p + stat_summary(fun_y=fun_y, geom="col", alpha=point_alpha, position="dodge")
         else:
             geom_cls = _GEOMS.get(geom_name, geom_col)
-            # geom_tile uses stat="identity" by default; don't pass stat= explicitly
-            if geom_name == "tile":
+            if geom_name == "crossbar":
+                # geom_crossbar draws a rectangle from ymin→ymax with a line at y,
+                # so the CI bounds must be part of its own aes() — unlike geom_col
+                # which draws from 0→y and uses a separate geom_errorbar overlay.
+                crossbar_mapping = dict(base_mapping)
+                crossbar_mapping["ymin"] = mapping_cfg["ymin"]
+                crossbar_mapping["ymax"] = mapping_cfg["ymax"]
+                cb_kwargs = {"alpha": point_alpha, "stat": "identity"}
+                cb_kwargs.update(main_geom_kwargs)
+                p = p + geom_cls(aes(**crossbar_mapping), **cb_kwargs)
+            elif geom_name == "tile":
                 p = p + geom_cls(**main_geom_kwargs)
             elif geom_name == "point":
                 point_kwargs = {"alpha": point_alpha, "size": point_size, "stat": "identity"}
@@ -397,7 +407,8 @@ class PlotNineStep(PipelineStep):
                 p = p + geom_cls(**geom_kwargs)
 
         # Auto-add vertical error bars when ymin/ymax are in the mapping
-        if has_errorbars:
+        # (skip for crossbar — the rectangle already represents the CI range)
+        if has_errorbars and geom_name != "crossbar":
             p = p + geom_errorbar(aes(**v_error_mapping), width=0.0)
 
         # Auto-add horizontal error bars when xmin/xmax are in the mapping

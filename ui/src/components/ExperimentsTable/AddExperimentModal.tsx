@@ -6,7 +6,6 @@ import {
   Box,
   Button,
   Checkbox,
-  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -42,7 +41,7 @@ import { useScenarios, useDatasets, useOverlays } from "@/api/apiCalls";
 interface ExperimentModalProps {
   open: boolean;
   onClose: () => void;
-  onSave: (experiment: Experiment) => void;
+  onSave: (experiment: Experiment) => void | Promise<void>;
   editingExperiment?: Experiment | null;
   library: string;
 }
@@ -95,6 +94,52 @@ function overlayRefToDisplayName(
   return stem;
 }
 
+function OverlaySelect({
+  value,
+  onChange,
+  overlays,
+}: {
+  value: string[];
+  onChange: (val: string[]) => void;
+  overlays: OverlayEntry[];
+}) {
+  const sorted = useMemo(
+    () => [
+      ...overlays.filter((o) => !o.namespace || o.namespace === "global"),
+      ...overlays.filter((o) => o.namespace && o.namespace !== "global"),
+    ],
+    [overlays],
+  );
+
+  const selected = value[0] ?? "";
+
+  return (
+    <FormControl variant="standard" sx={{ minWidth: 250, flex: 1 }}>
+      <InputLabel>Overlay</InputLabel>
+      <Select
+        value={selected}
+        label="Overlay"
+        onChange={(e) => {
+          const v = e.target.value as string;
+          onChange(v ? [v] : []);
+        }}
+      >
+        <MenuItem value="">
+          <em>None</em>
+        </MenuItem>
+        {sorted.map((o) => {
+          const dn = overlayDisplayName(o);
+          return (
+            <MenuItem key={dn} value={dn}>
+              {dn}
+            </MenuItem>
+          );
+        })}
+      </Select>
+    </FormControl>
+  );
+}
+
 export const AddExperimentModal = ({
   open,
   onClose,
@@ -102,8 +147,8 @@ export const AddExperimentModal = ({
   editingExperiment,
   library,
 }: ExperimentModalProps) => {
+  const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
-  const [version, setVersion] = useState("v1");
   const [description, setDescription] = useState("");
 
   const [configsDir, setConfigsDir] = useState("apps");
@@ -160,32 +205,43 @@ export const AddExperimentModal = ({
 
   const populateFromExperiment = (exp: Experiment) => {
     setName(exp.name);
-    setVersion(exp.version ?? "");
     setDescription(exp.description ?? "");
-    setConfigsDir(exp.mas?.configs_dir ?? "apps");
-    const rawManifest = exp.mas?.manifest ?? "";
+    const app0 = exp.applications?.[0];
+    setConfigsDir(app0?.configs_dir ?? "apps");
+    const rawManifest = app0?.manifest ?? "";
     setMasManifest(
       rawManifest.replace(/^apps\//, "").replace(/\/mas\.yaml$/, "").replace(/\.yaml$/, ""),
     );
 
     const hasOverlays =
-      exp.scenarios?.some((s) => s.overlays && s.overlays.length > 0) ?? false;
+      exp.scenarios?.some((s) => {
+        const ov = s.overlays;
+        if (!ov) return false;
+        return (ov.logic?.length ?? 0) + (ov.control?.length ?? 0) + (ov.infra?.length ?? 0) > 0;
+      }) ?? false;
     setUsePatchOverlays(hasOverlays);
 
     setScenarios(
       exp.scenarios?.length
-        ? exp.scenarios.map((s) => ({
-            id: s.id,
-            description: s.description ?? "",
-            tags: s.tags?.join(", ") ?? "",
-            overlays: (s.overlays ?? []).map((ov) =>
-              overlayRefToDisplayName(ov, overlayOptions),
-            ),
-          }))
+        ? exp.scenarios.map((s) => {
+            const allOverlays = [
+              ...(s.overlays?.logic ?? []),
+              ...(s.overlays?.control ?? []),
+              ...(s.overlays?.infra ?? []),
+            ];
+            return {
+              id: s.id,
+              description: s.description ?? "",
+              tags: s.tags?.join(", ") ?? "",
+              overlays: allOverlays.map((ov) =>
+                overlayRefToDisplayName(ov, overlayOptions),
+              ),
+            };
+          })
         : [{ id: "", description: "", tags: "", overlays: [] }],
     );
     setDatasetPath(exp.dataset?.path ?? "");
-    setNRuns(exp.execution?.n_runs?.toString() ?? "1");
+    setNRuns(exp.run?.n_runs?.toString() ?? "1");
     setParallelScenarios(exp.execution?.parallel_scenarios?.toString() ?? "3");
     setTimeout(exp.execution?.timeout?.toString() ?? "300");
     setPauseBetweenRuns(exp.execution?.pause_between_runs?.toString() ?? "1.0");
@@ -211,9 +267,13 @@ export const AddExperimentModal = ({
           .filter(Boolean);
         if (tags.length) entry.tags = tags;
         if (usePatchOverlays && s.overlays.length > 0) {
-          entry.overlays = s.overlays.map((displayName) =>
-            overlayDisplayNameToRef(displayName, overlayOptions),
-          );
+          entry.overlays = {
+            logic: s.overlays.map((displayName) =>
+              overlayDisplayNameToRef(displayName, overlayOptions),
+            ),
+            control: [],
+            infra: [],
+          };
         }
         return entry;
       });
@@ -222,19 +282,20 @@ export const AddExperimentModal = ({
     if (name.trim()) experiment.name = name.trim();
     if (description.trim()) experiment.description = description.trim();
 
-    const mas: Record<string, unknown> = {};
+    const appEntry: Record<string, unknown> = {};
     if (usePatchOverlays && masManifest.trim())
-      mas.manifest = `apps/${masManifest.trim()}/mas.yaml`;
+      appEntry.manifest = `apps/${masManifest.trim()}/mas.yaml`;
     if (!usePatchOverlays && configsDir.trim())
-      mas.configs_dir = configsDir.trim();
-    if (Object.keys(mas).length) experiment.mas = mas;
+      appEntry.configs_dir = configsDir.trim();
+    if (Object.keys(appEntry).length) experiment.applications = [appEntry];
 
     if (builtScenarios.length) experiment.scenarios = builtScenarios;
 
     if (datasetPath.trim()) experiment.dataset = { path: datasetPath.trim() };
 
+    experiment.run = { n_runs: parseInt(nRuns, 10) || 1 };
+
     experiment.execution = {
-      n_runs: parseInt(nRuns, 10) || 1,
       parallel_scenarios: parseInt(parallelScenarios, 10) || undefined,
       timeout: parseInt(timeout, 10) || undefined,
       pause_between_runs: parseFloat(pauseBetweenRuns) || undefined,
@@ -296,7 +357,7 @@ export const AddExperimentModal = ({
     setScenarios([{ id: "", description: "", tags: "", overlays: [] }]);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setError("");
 
     const trimmedName = name.trim();
@@ -313,29 +374,33 @@ export const AddExperimentModal = ({
           .filter(Boolean),
         overlays:
           usePatchOverlays && s.overlays.length > 0
-            ? s.overlays.map((dn) =>
-                overlayDisplayNameToRef(dn, overlayOptions),
-              )
+            ? {
+                logic: s.overlays.map((dn) =>
+                  overlayDisplayNameToRef(dn, overlayOptions),
+                ),
+                control: [],
+                infra: [],
+              }
             : undefined,
       }));
 
     const experiment: Experiment = {
       name: trimmedName,
-      version: version.trim() || undefined,
       description: description.trim() || undefined,
-      mas: {
-        manifest:
-          usePatchOverlays && masManifest.trim()
-            ? `apps/${masManifest.trim()}/mas.yaml`
-            : undefined,
-        configs_dir: !usePatchOverlays && configsDir.trim()
-          ? configsDir.trim()
-          : undefined,
-      },
+      applications: [
+        {
+          ...(usePatchOverlays && masManifest.trim()
+            ? { manifest: `apps/${masManifest.trim()}/mas.yaml` }
+            : {}),
+          ...(!usePatchOverlays && configsDir.trim()
+            ? { configs_dir: configsDir.trim() }
+            : {}),
+        },
+      ],
       scenarios: builtScenarios,
       dataset: datasetPath.trim() ? { path: datasetPath.trim() } : undefined,
+      run: { n_runs: parseInt(nRuns, 10) || 1 },
       execution: {
-        n_runs: parseInt(nRuns, 10) || 1,
         parallel_scenarios: parseInt(parallelScenarios, 10) || undefined,
         timeout: parseInt(timeout, 10) || undefined,
         pause_between_runs: parseFloat(pauseBetweenRuns) || undefined,
@@ -352,14 +417,18 @@ export const AddExperimentModal = ({
       },
     };
 
-    onSave(experiment);
-    resetForm();
-    onClose();
+    setSaving(true);
+    try {
+      await onSave(experiment);
+      resetForm();
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const resetForm = () => {
     setName("");
-    setVersion("v1");
     setDescription("");
     setConfigsDir("apps");
     setMasManifest("");
@@ -522,49 +591,11 @@ export const AddExperimentModal = ({
                 )}
 
                 {usePatchOverlays && (
-                  <FormControl
-                    variant="standard"
-                    sx={{ minWidth: 250, flex: 1 }}
-                  >
-                    <InputLabel>Overlays</InputLabel>
-                    <Select
-                      multiple
-                      value={scenario.overlays}
-                      label="Overlays"
-                      onChange={(e) =>
-                        updateScenario(
-                          index,
-                          "overlays",
-                          e.target.value as string[],
-                        )
-                      }
-                      renderValue={(selected) => (
-                        <Box
-                          sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}
-                        >
-                          {(selected as string[]).map((val) => (
-                            <Chip key={val} label={val} size="small" />
-                          ))}
-                        </Box>
-                      )}
-                    >
-                      {[
-                        ...filteredOverlays.filter(
-                          (o) => !o.namespace || o.namespace === "global",
-                        ),
-                        ...filteredOverlays.filter(
-                          (o) => o.namespace && o.namespace !== "global",
-                        ),
-                      ].map((o) => {
-                        const dn = overlayDisplayName(o);
-                        return (
-                          <MenuItem key={dn} value={dn}>
-                            {dn}
-                          </MenuItem>
-                        );
-                      })}
-                    </Select>
-                  </FormControl>
+                  <OverlaySelect
+                    value={scenario.overlays}
+                    onChange={(val) => updateScenario(index, "overlays", val)}
+                    overlays={filteredOverlays}
+                  />
                 )}
 
                 <TextField
@@ -643,10 +674,10 @@ export const AddExperimentModal = ({
                 onChange={(e) => setDatasetPath(e.target.value)}
               >
                 {datasetOptions
-                  .filter((d) => d.name.endsWith(".json"))
+                  .filter((d) => d.name.endsWith(".yaml") || d.name.endsWith(".yml"))
                   .map((d) => (
-                    <MenuItem key={d.name} value={`datasets/${d.name}`}>
-                      {d.name}
+                    <MenuItem key={d.path} value={d.path}>
+                      {d.path.replace(/^datasets\//, "")}
                     </MenuItem>
                   ))}
               </Select>
@@ -783,11 +814,12 @@ export const AddExperimentModal = ({
         </TabPanel>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose} disabled={saving}>Cancel</Button>
         <Button
           variant="primary"
           onClick={handleSave}
           disabled={
+            saving ||
             !name.trim() ||
             !scenarios.some((s) => s.id.trim()) ||
             !datasetPath.trim() ||
@@ -797,7 +829,7 @@ export const AddExperimentModal = ({
             !pauseBetweenRuns.trim()
           }
         >
-          Save
+          {saving ? "Saving..." : "Save"}
         </Button>
       </DialogActions>
     </Dialog>

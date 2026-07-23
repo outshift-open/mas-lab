@@ -7,6 +7,7 @@ build/
 .env
 .env.local
 .env.*.local
+config.yaml
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/

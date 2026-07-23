@@ -29,6 +29,14 @@ if _SAMPLE_WORKSPACE.is_dir():
     # integration-only infra_refs (e.g. team:llm-proxy).
     os.environ["MAS_WORKSPACE_ROOT"] = str(_SAMPLE_WORKSPACE)
 
+# Prevent .env / direnv vars from leaking into the controller daemon which
+# inherits os.environ.  Without this, a stale daemon started with
+# MAS_INFRA_REFS=standard:llm-proxy would route golden-run tests through a
+# real LLM proxy instead of the mock overlay.
+for _leak_var in ("MAS_INFRA_REFS", "OPENAI_API_KEY", "LLM_PROXY_API_BASE",
+                  "LLM_PROXY_API_KEY_ENV", "MAS_CTL_MODEL"):
+    os.environ.pop(_leak_var, None)
+
 _XDG_CONFIG = _TEST_HOME / "xdg-config"
 _XDG_DATA = _TEST_HOME / "xdg-data"
 _XDG_CACHE = _TEST_HOME / "xdg-cache"

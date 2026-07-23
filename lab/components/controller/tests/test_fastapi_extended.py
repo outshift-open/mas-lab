@@ -4,20 +4,32 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 
+_DEMO_LAB = Path(__file__).resolve().parent / "fixtures" / "demo_lab"
+_TEMPLATES = Path(__file__).resolve().parent / "fixtures" / "templates"
+
 
 @pytest.fixture
-def client(sample_lab, monkeypatch):
+def demo_lab(tmp_path: Path) -> Path:
+    """Copy the demo_lab fixture tree into a temp directory."""
+    dest = tmp_path / "demo_lab"
+    shutil.copytree(_DEMO_LAB, dest)
+    return dest
+
+
+@pytest.fixture
+def client(demo_lab, monkeypatch):
     from mas.lab.controller import fastapi_app, jobs
     from mas.lab.controller.manifest_store import ManifestStore
 
     store = ManifestStore(workspace=None)
-    store._libraries = {"demo": sample_lab}
+    store._libraries = {"demo": demo_lab}
 
     monkeypatch.setattr("mas.lab.controller.deps.get_manifest_store", lambda: store)
     jobs._jobs.clear()
@@ -30,15 +42,10 @@ def test_library_not_found(client):
 
 def test_validate_manifest_in_process(client):
     """Validate endpoint uses in-process validate_data (not run_cli)."""
+    manifest_yaml = (_TEMPLATES / "validate-agent.yaml").read_text(encoding="utf-8")
     resp = client.post(
         "/api/libraries/demo/validate",
-        json={
-            "manifest_yaml": (
-                "apiVersion: mas/v1\nkind: Agent\nmetadata: {}\n"
-                "spec:\n  description: d\n  context:\n    role: i\n"
-                "  design_pattern:\n    type: react\n"
-            ),
-        },
+        json={"manifest_yaml": manifest_yaml},
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -51,9 +58,10 @@ def test_overlay_validate_ok(client, monkeypatch):
         return None
 
     monkeypatch.setattr("mas.lab.controller.deps.validate_overlay_content", ok_overlay)
+    overlay_yaml = (_TEMPLATES / "validate-overlay.yaml").read_text(encoding="utf-8")
     resp = client.post(
         "/api/libraries/demo/overlays/validate",
-        json={"manifest_yaml": "kind: Overlay\n"},
+        json={"manifest_yaml": overlay_yaml},
     )
     assert resp.status_code == 200
 
@@ -73,7 +81,7 @@ def test_overlay_validate_errors(client, monkeypatch):
 def test_overlay_create_conflict(client):
     resp = client.post(
         "/api/libraries/demo/overlays",
-        json={"name": "baseline", "content": "description: dup\n", "run_validation": False},
+        json={"name": "test-overlay", "content": "description: dup\n", "run_validation": False},
     )
     assert resp.status_code == 409
 
@@ -191,39 +199,40 @@ async def test_run_job_paths(monkeypatch, tmp_path):
     assert job2.status == jobs.JobStatus.FAILED
 
 
-def test_api_info_and_topologies(client, sample_lab):
+def test_api_info_and_topologies(client, demo_lab):
     info = client.get("/api/info").json()
     assert "libraries_dir" in info
 
-    (sample_lab / "topologies").mkdir(exist_ok=True)
-    (sample_lab / "topologies" / "linear.yaml").write_text("kind: Topology\n", encoding="utf-8")
+    (demo_lab / "topologies").mkdir(exist_ok=True)
+    (demo_lab / "topologies" / "linear.yaml").write_text("kind: Topology\n", encoding="utf-8")
     tops = client.get("/api/libraries/demo/topologies").json()
     assert "linear.yaml" in tops["topologies"]
 
 
-def test_scenarios_endpoint(client, sample_lab):
-    (sample_lab / "scenarios").mkdir(exist_ok=True)
-    (sample_lab / "scenarios" / "base.yaml").write_text("name: base\n", encoding="utf-8")
+def test_scenarios_endpoint(client):
     data = client.get("/api/libraries/demo/scenarios").json()
-    assert data["scenarios"]
+    names = [s["name"] for s in data["scenarios"]]
+    assert "trip-planner" in names
 
 
-def test_pipeline_validate_and_update(client, sample_lab, monkeypatch):
+def test_pipeline_validate_and_update(client, demo_lab, monkeypatch):
+    pipeline_yaml = (_TEMPLATES / "validate-pipeline.yaml").read_text(encoding="utf-8")
+
     monkeypatch.setattr(
         "mas.lab.controller.routes.pipelines.validate_pipeline_yaml",
         lambda _yaml: {"valid": True, "errors": []},
     )
     resp = client.post(
         "/api/libraries/demo/pipelines/validate",
-        json={"manifest_yaml": "metadata:\n  name: p\nsteps: []\n"},
+        json={"manifest_yaml": pipeline_yaml},
     )
     assert resp.status_code == 200
 
     client.put(
-        "/api/libraries/demo/pipelines/analysis",
-        json={"name": "analysis", "content": "metadata:\n  name: analysis\nsteps: []\n"},
+        "/api/libraries/demo/pipelines/pipeline-test",
+        json={"name": "pipeline-test", "content": pipeline_yaml},
     )
-    assert client.get("/api/libraries/demo/pipelines/analysis").status_code == 200
+    assert client.get("/api/libraries/demo/pipelines/pipeline-test").status_code == 200
 
 
 def test_ui_contract_routes(client):

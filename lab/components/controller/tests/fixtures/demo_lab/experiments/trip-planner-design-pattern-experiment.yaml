@@ -1,0 +1,41 @@
+experiment:
+  name: trip-planner-design-pattern-experiment
+  applications:
+    - manifest: apps/trip-planner/mas.yaml
+  scenarios:
+    - id: cot
+      tags: []
+      overlays:
+        logic:
+          - ref: overlays/cot-moderator.yaml
+        control: []
+        infra: []
+    - id: react
+      tags: []
+      overlays:
+        logic:
+          - ref: overlays/react-moderator.yaml
+        control: []
+        infra: []
+    - id: reflection
+      tags: []
+      overlays:
+        logic:
+          - ref: overlays/reflection-moderator.yaml
+        control: []
+        infra: []
+  dataset:
+    path: datasets/trip-planner/queries.yaml
+  run:
+    n_runs: 1
+  execution:
+    parallel_scenarios: 3
+    timeout: 300
+    pause_between_runs: 1
+    strategy: coverage
+    emulation:
+      infra:
+        llm: live
+        tools: live
+      runtime:
+        cache: content-addressed

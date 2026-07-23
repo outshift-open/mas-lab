@@ -1,0 +1,21 @@
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  name: coordinator
+spec:
+  description: |-
+    Coordinates the researcher agent to answer user questions.
+  context:
+    role: >-
+      You are a coordinator managing a research specialist.
+      Based on the user query, delegate research tasks to the researcher agent
+      and synthesize the findings into a clear, comprehensive answer.
+      Always include your reasoning before delegating or producing a final answer.
+  models:
+    - model: azure/gpt-4o
+      temperature: 0.3
+      max_tokens: 2000
+  design_pattern:
+    type: react
+    params:
+      max_steps: 5

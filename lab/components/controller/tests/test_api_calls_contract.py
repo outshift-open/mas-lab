@@ -3,21 +3,33 @@
 """Contract tests mirroring mas-lab-ui ``apiCalls.ts`` HTTP surface."""
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
 
+_DEMO_LAB = Path(__file__).resolve().parent / "fixtures" / "demo_lab"
+_TEMPLATES = Path(__file__).resolve().parent / "fixtures" / "templates"
+
 
 @pytest.fixture
-def client(sample_lab, monkeypatch):
+def demo_lab(tmp_path: Path) -> Path:
+    """Copy the demo_lab fixture tree into a temp directory."""
+    dest = tmp_path / "demo_lab"
+    shutil.copytree(_DEMO_LAB, dest)
+    return dest
+
+
+@pytest.fixture
+def client(demo_lab, monkeypatch):
     from mas.lab.controller import deps, fastapi_app, jobs
     from mas.lab.controller.manifest_store import ManifestStore
 
     store = ManifestStore(workspace=None)
-    store._libraries = {"demo": sample_lab}
-    store._registry._libraries = {"demo": sample_lab}
+    store._libraries = {"demo": demo_lab}
+    store._registry._libraries = {"demo": demo_lab}
 
     monkeypatch.setattr(deps, "_manifest_store", None)
     monkeypatch.setattr("mas.lab.controller.deps.get_manifest_store", lambda: store)
@@ -31,15 +43,6 @@ def client(sample_lab, monkeypatch):
     )
     jobs._jobs.clear()
     return TestClient(fastapi_app.app)
-
-
-@pytest.fixture
-def mock_cli(monkeypatch):
-    async def fake_cli(cmd, cwd, timeout=60, env_override=None):
-        return {"exit_code": 0, "stdout": "ok", "stderr": "", "command": " ".join(cmd)}
-
-    monkeypatch.setattr("mas.lab.controller.deps.run_cli", fake_cli)
-    return fake_cli
 
 
 @pytest.fixture
@@ -97,13 +100,6 @@ def mock_overlay_validate(monkeypatch):
     )
 
 
-@pytest.fixture
-def mock_pipeline_validate(monkeypatch):
-    monkeypatch.setattr(
-        "mas.lab.controller.routes.pipelines.validate_pipeline_yaml",
-        lambda _yaml: {"valid": True, "errors": []},
-    )
-
 
 # --- Libraries (apiCalls: fetchLibraries, tools, skills, config-files) ---
 
@@ -117,24 +113,45 @@ def test_contract_libraries_list(client):
 def test_contract_tools_skills_config(client):
     tools = client.get("/api/libraries/demo/tools").json()
     assert "tools" in tools
+    tool_names = {t["name"] for t in tools["tools"]}
+    assert {"global/calc", "global/web-search"}.issubset(tool_names)
+
     skills = client.get("/api/libraries/demo/skills").json()
     assert "skills" in skills
+    skill_names = {s["name"] for s in skills["skills"]}
+    assert "global/answer-formatting" in skill_names
+
     cfg = client.get("/api/libraries/demo/config-files").json()
-    assert isinstance(cfg, dict)
+    assert "infra" in cfg
+    assert any("tool-providers" in k for k in cfg["infra"])
 
 
 # --- Validate (apiCalls: validateManifest) ---
 
 
-def test_contract_validate_manifest(client, mock_cli):
+def test_contract_validate_agent_manifest(client):
+    agent_yaml = (_TEMPLATES / "validate-agent.yaml").read_text(encoding="utf-8")
     resp = client.post(
         "/api/libraries/demo/validate",
-        json={"manifest_yaml": "kind: Agent\nmetadata:\n  name: a\n"},
+        json={"manifest_yaml": agent_yaml},
     )
     assert resp.status_code == 200
     body = resp.json()
+    assert body["command"] == "validate_data"
+    assert body["exit_code"] == 1
+    assert body["valid"] is False
+
+
+def test_contract_validate_mas_manifest(client):
+    mas_yaml = (_TEMPLATES / "validate-mas.yaml").read_text(encoding="utf-8")
+    resp = client.post(
+        "/api/libraries/demo/validate",
+        json={"manifest_yaml": mas_yaml},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["command"] == "validate_data"
     assert "exit_code" in body
-    assert "stdout" in body
 
 
 # --- Jobs (apiCalls: fetchJobs, fetchJobDetail, pollJob) ---
@@ -184,121 +201,163 @@ def test_contract_jobs(mock_submit_job, client):
 
 
 def test_contract_run_agent_and_mas(mock_submit_job, client):
+    agent_yaml = (_TEMPLATES / "validate-agent.yaml").read_text(encoding="utf-8")
     agent = client.post(
         "/api/libraries/demo/run",
-        json={"manifest_yaml": "kind: Agent\n", "query": "hi", "verbose": False},
+        json={"manifest_yaml": agent_yaml, "query": "hi", "verbose": False},
     )
     assert agent.status_code == 202
     body = agent.json()
+    # UI RunAgentSubmitResponse fields
     assert "job_id" in body
+    assert "status" in body
+    assert "command" in body
     assert "session_id" in body
 
+    mas_yaml = (_TEMPLATES / "validate-mas.yaml").read_text(encoding="utf-8")
     mas = client.post(
         "/api/libraries/demo/run-mas",
-        json={"manifest_yaml": "kind: MAS\n", "query": "hi", "overlays": []},
+        json={"manifest_yaml": mas_yaml, "query": "hi", "overlays": []},
     )
     assert mas.status_code == 202
-    assert "job_id" in mas.json()
+    mas_body = mas.json()
+    # UI JobSubmitResponse fields
+    assert "job_id" in mas_body
+    assert "status" in mas_body
+    assert "command" in mas_body
 
 
 # --- Benchmark (apiCalls: runBenchmark) ---
 
 
 def test_contract_benchmark_run(mock_submit_job, client):
+    exp_yaml = (_TEMPLATES / "new-experiment.yaml").read_text(encoding="utf-8")
     resp = client.post(
         "/api/libraries/demo/benchmark/run",
-        json={"experiment_yaml": "metadata:\n  name: smoke\n", "progress": True},
+        json={"experiment_yaml": exp_yaml, "progress": True},
     )
     assert resp.status_code == 202
     body = resp.json()
-    assert body["job_id"]
-    assert body["status"]
+    # UI BenchmarkRunSubmitResponse fields
+    assert "job_id" in body
+    assert "status" in body
+    assert "command" in body
 
     # apiCalls sends max_runs; accept legacy n_runs alias too
     with_runs = client.post(
         "/api/libraries/demo/benchmark/run",
-        json={
-            "experiment_yaml": "metadata:\n  name: smoke\n",
-            "n_runs": 3,
-        },
+        json={"experiment_yaml": exp_yaml, "n_runs": 3},
     )
     assert with_runs.status_code == 202
-    assert "--max-runs 3" in with_runs.json()["command"]
+    runs_body = with_runs.json()
+    assert "job_id" in runs_body
+    assert "--max-runs 3" in runs_body["command"]
 
 
 # --- MAS resources CRUD (apiCalls: fetch/create/update/deleteMasResource) ---
 
 
-def test_contract_mas_resources_crud(client, sample_lab):
+def test_contract_mas_resources_crud(client, demo_lab):
     listed = client.get("/api/libraries/demo/apps").json()
     assert "mas_resources" in listed
-    assert "team" in listed["mas_resources"]
+    assert "trip-planner" in listed["mas_resources"]
 
-    detail = client.get("/api/libraries/demo/apps/team").json()
-    assert detail["mas_name"] == "team"
+    detail = client.get("/api/libraries/demo/apps/trip-planner").json()
+    assert detail["mas_name"] == "trip-planner"
+
+    mas_yaml = (_TEMPLATES / "new-mas.yaml").read_text(encoding="utf-8")
+    agents = {
+        "coordinator": (_TEMPLATES / "new-mas-coordinator.yaml").read_text(encoding="utf-8"),
+        "researcher": (_TEMPLATES / "new-mas-researcher.yaml").read_text(encoding="utf-8"),
+    }
 
     created = client.post(
         "/api/libraries/demo/apps",
-        json={
-            "mas_name": "contract-mas",
-            "mas_yaml": "kind: MAS\nmetadata:\n  name: contract-mas\n",
-            "agents": {},
-        },
+        json={"mas_name": "newmas", "mas_yaml": mas_yaml, "agents": agents},
     )
     assert created.status_code == 201
+    create_body = created.json()
+    assert create_body["mas_name"] == "newmas"
+    assert "mas_file" in create_body
+    assert "agents" in create_body
 
+    updated_yaml = mas_yaml.replace("name: newmas", "name: newmas-renamed")
     updated = client.put(
-        "/api/libraries/demo/apps/contract-mas",
-        json={
-            "mas_name": "contract-mas-renamed",
-            "mas_yaml": "kind: MAS\nmetadata:\n  name: contract-mas-renamed\n",
-            "agents": {},
-        },
+        "/api/libraries/demo/apps/newmas",
+        json={"mas_name": "newmas-renamed", "mas_yaml": updated_yaml, "agents": agents},
     )
     assert updated.status_code == 200
+    update_body = updated.json()
+    assert update_body["mas_name"] == "newmas-renamed"
+    assert "mas_file" in update_body
+    assert "agents" in update_body
 
-    deleted = client.delete("/api/libraries/demo/apps/contract-mas-renamed")
+    deleted = client.delete("/api/libraries/demo/apps/newmas-renamed")
     assert deleted.status_code in (200, 204)
 
 
 # --- Scenarios / datasets list (apiCalls: fetchScenarios, fetchDatasets) ---
 
 
-def test_contract_scenarios_and_datasets(client, sample_lab):
-    (sample_lab / "scenarios").mkdir(exist_ok=True)
-    (sample_lab / "scenarios" / "base.yaml").write_text("name: base\n", encoding="utf-8")
-
+def test_contract_scenarios_and_datasets(client):
     scenarios = client.get("/api/libraries/demo/scenarios").json()
     assert "scenarios" in scenarios
+    names = [s["name"] for s in scenarios["scenarios"]]
+    assert "trip-planner" in names
 
     datasets = client.get("/api/libraries/demo/datasets").json()
     assert "datasets" in datasets
+    ds_names = {d["name"] for d in datasets["datasets"]}
+    assert {"benchmark.yaml", "qa-agent-default.yaml"}.issubset(ds_names)
+    for d in datasets["datasets"]:
+        assert "name" in d
+        assert "path" in d
 
 
 # --- Experiments CRUD (apiCalls: fetch/create/update/delete experiment) ---
 
 
-def test_contract_experiments_crud(client, sample_lab):
+def test_contract_experiments_crud(client, demo_lab):
     listed = client.get("/api/libraries/demo/experiments").json()
     assert "experiments" in listed
+    exp_names = {e["name"] for e in listed["experiments"]}
+    assert "trip-planner-design-pattern-experiment" in exp_names
 
-    content = client.get("/api/libraries/demo/experiments/smoke").json()
+    content = client.get(
+        "/api/libraries/demo/experiments/trip-planner-design-pattern-experiment"
+    ).json()
     assert "content" in content
 
+    exp_yaml = (_TEMPLATES / "new-experiment.yaml").read_text(encoding="utf-8")
     created = client.post(
         "/api/libraries/demo/experiments",
-        json={"name": "contract-exp", "content": "metadata:\n  name: contract-exp\n"},
+        json={"name": "new-experiment", "content": exp_yaml},
     )
     assert created.status_code == 201
+    assert (demo_lab / "experiments" / "new-experiment.yaml").exists()
 
+    readback = client.get("/api/libraries/demo/experiments/new-experiment").json()
+    assert "content" in readback
+    import yaml as _yaml
+    parsed = _yaml.safe_load(readback["content"])
+    from mas.ctl.validate.validator import validate_data
+    result = validate_data(parsed, kind="experiment", strict=True, resolve_refs=False)
+    assert result.ok, f"schema validation failed: {[i.message for i in result.issues]}"
+
+    updated_yaml = exp_yaml.replace(
+        "name: new-experiment", "name: renamed-experiment"
+    )
     updated = client.put(
-        "/api/libraries/demo/experiments/contract-exp",
-        json={"name": "contract-exp2", "content": "metadata:\n  name: contract-exp2\n"},
+        "/api/libraries/demo/experiments/new-experiment",
+        json={"name": "renamed-experiment", "content": updated_yaml},
     )
     assert updated.status_code == 200
+    assert not (demo_lab / "experiments" / "new-experiment.yaml").exists()
+    assert (demo_lab / "experiments" / "renamed-experiment.yaml").exists()
 
-    deleted = client.delete("/api/libraries/demo/experiments/contract-exp2")
+    deleted = client.delete("/api/libraries/demo/experiments/renamed-experiment")
     assert deleted.status_code in (200, 204)
+    assert not (demo_lab / "experiments" / "renamed-experiment.yaml").exists()
 
 
 # --- Experiment cache / detail (apiCalls: deleteExperimentCache, fetchExperimentDetail) ---
@@ -342,82 +401,102 @@ def test_contract_pipeline_step_types(client):
 # --- Pipelines CRUD + validate + run (apiCalls) ---
 
 
-def test_contract_pipelines(mock_pipeline_validate, mock_submit_job, client, sample_lab):
+def test_contract_pipelines(mock_submit_job, client, demo_lab):
     listed = client.get("/api/libraries/demo/pipelines").json()
     assert "pipelines" in listed
+    pipe_names = {p["name"] for p in listed["pipelines"]}
+    assert "pipeline-test" in pipe_names
 
-    detail = client.get("/api/libraries/demo/pipelines/analysis").json()
+    detail = client.get("/api/libraries/demo/pipelines/pipeline-test").json()
     assert "content" in detail
+
+    pipeline_yaml = (_TEMPLATES / "validate-pipeline.yaml").read_text(encoding="utf-8")
 
     validate = client.post(
         "/api/libraries/demo/pipelines/validate",
-        json={"manifest_yaml": "metadata:\n  name: p\nsteps: []\n"},
+        json={"manifest_yaml": pipeline_yaml},
     )
     assert validate.status_code == 200
 
     created = client.post(
         "/api/libraries/demo/pipelines",
-        json={"name": "contract-pipe", "content": "metadata:\n  name: contract-pipe\nsteps: []\n"},
+        json={"name": "analysis-pipeline", "content": pipeline_yaml},
     )
     assert created.status_code == 201
+    assert (demo_lab / "pipelines" / "analysis-pipeline.yaml").exists()
 
+    renamed_yaml = pipeline_yaml.replace(
+        "name: analysis-pipeline", "name: renamed-pipeline"
+    )
     updated = client.put(
-        "/api/libraries/demo/pipelines/contract-pipe",
-        json={"name": "contract-pipe", "content": "metadata:\n  name: contract-pipe\nsteps: []\n"},
+        "/api/libraries/demo/pipelines/analysis-pipeline",
+        json={"name": "renamed-pipeline", "content": renamed_yaml},
     )
     assert updated.status_code == 200
+    assert not (demo_lab / "pipelines" / "analysis-pipeline.yaml").exists()
+    assert (demo_lab / "pipelines" / "renamed-pipeline.yaml").exists()
 
     run = client.post(
         "/api/libraries/demo/pipeline/run",
-        json={"pipeline_yaml": "metadata:\n  name: contract-pipe\nsteps: []\n"},
+        json={"pipeline_yaml": renamed_yaml},
     )
     assert run.status_code == 202
     assert "job_id" in run.json()
 
-    deleted = client.delete("/api/libraries/demo/pipelines/contract-pipe")
+    deleted = client.delete("/api/libraries/demo/pipelines/renamed-pipeline")
     assert deleted.status_code in (200, 204)
+    assert not (demo_lab / "pipelines" / "renamed-pipeline.yaml").exists()
 
 
 # --- Overlays CRUD + validate (apiCalls) ---
 
 
-def test_contract_overlays(mock_overlay_validate, client, sample_lab):
+def test_contract_overlays(mock_overlay_validate, client, demo_lab):
     listed = client.get("/api/libraries/demo/overlays").json()
     assert "overlays" in listed
+    overlay_names = {o["name"] for o in listed["overlays"]}
+    assert {"cot-moderator", "react-moderator", "reflection-moderator"}.issubset(overlay_names)
 
-    detail = client.get("/api/libraries/demo/overlays/baseline").json()
+    detail = client.get("/api/libraries/demo/overlays/reflection-moderator").json()
     assert "content" in detail
+
+    overlay_yaml = (_TEMPLATES / "validate-overlay.yaml").read_text(encoding="utf-8")
 
     validate = client.post(
         "/api/libraries/demo/overlays/validate",
-        json={"manifest_yaml": "kind: Overlay\n"},
+        json={"manifest_yaml": overlay_yaml},
     )
     assert validate.status_code == 200
 
     created = client.post(
         "/api/libraries/demo/overlays",
-        json={"name": "contract-overlay", "content": "description: test\n", "run_validation": False},
+        json={"name": "contract-overlay", "content": overlay_yaml, "run_validation": False},
     )
     assert created.status_code == 201
 
+    renamed_yaml = overlay_yaml.replace(
+        "name: verbose-moderator", "name: contract-overlay-renamed"
+    )
     updated = client.put(
         "/api/libraries/demo/overlays/contract-overlay",
-        json={"name": "contract-overlay", "content": "description: updated\n", "run_validation": False},
+        json={"name": "contract-overlay-renamed", "content": renamed_yaml, "run_validation": False},
     )
     assert updated.status_code == 200
+    assert not (demo_lab / "overlays" / "contract-overlay.yaml").exists()
+    assert (demo_lab / "overlays" / "contract-overlay-renamed.yaml").exists()
 
-    deleted = client.delete("/api/libraries/demo/overlays/contract-overlay")
+    deleted = client.delete("/api/libraries/demo/overlays/contract-overlay-renamed")
     assert deleted.status_code in (200, 204)
 
 
 # --- Datasets CRUD (apiCalls: fetchDatasetsList, create/update/delete) ---
 
 
-def test_contract_datasets_crud(client, sample_lab):
+def test_contract_datasets_crud(client, demo_lab):
     listed = client.get("/api/libraries/demo/datasets").json()
     assert "datasets" in listed
 
-    detail = client.get("/api/libraries/demo/datasets/queries.yaml").json()
+    detail = client.get("/api/libraries/demo/datasets/benchmark.yaml").json()
     assert "content" in detail
 
     created = client.post(
@@ -538,9 +617,9 @@ def test_contract_benchmark_import(mock_submit_job, client):
     assert "import" in body["command"]
 
 
-def test_contract_topologies(client, sample_lab):
-    (sample_lab / "topologies").mkdir(exist_ok=True)
-    (sample_lab / "topologies" / "linear.yaml").write_text("name: linear\n", encoding="utf-8")
+def test_contract_topologies(client, demo_lab):
+    (demo_lab / "topologies").mkdir(exist_ok=True)
+    (demo_lab / "topologies" / "linear.yaml").write_text("name: linear\n", encoding="utf-8")
 
     resp = client.get("/api/libraries/demo/topologies")
     assert resp.status_code == 200

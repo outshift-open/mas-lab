@@ -12,11 +12,11 @@ Reusable **artefacts** for tutorials and labs — not runnable experiments.
 
 | Kind | Examples |
 |------|----------|
-| **apps** | `apps/trip-planner/`, `apps/qa-agent/` (agents, local tools/skills) |
-| **datasets** | `datasets/trip-planner/`, `datasets/generic/` |
+| **apps** | `apps/trip-planner/` (agents, local tools/skills) |
+| **datasets** | `datasets/trip-planner/`, `datasets/mas-necessity.yaml`, … |
 | **tools** | `tools/calc.py`, `tools/*.tool.yaml` |
 | **skills** | (under app trees or top-level when shared) |
-| **overlays** | `overlays/cot.yaml`, `overlays/governance/` |
+| **overlays** | `overlays/cot-moderator.yaml`, `overlays/hitl-on-tool.yaml`, … |
 | **aliases** | runtime alias manifest |
 
 Generic pipelines, built-in steps, and shared artefacts belong in **`library-standard`** (or future lab-standard libraries), not here.
@@ -31,7 +31,7 @@ Labs **compose** library artefacts by registered id — not path traversal:
 
 ```yaml
 mas:
-  app: qa-agent
+  app: trip-planner
   configs_dir: ./overlays
 
 dataset:
@@ -48,9 +48,9 @@ Labs may also declare ``libraries: [samples]`` in ``lab-config.yaml`` to inject 
 Use **relative paths** from the tutorial bundle:
 
 ```bash
--o ../../../library-samples/overlays/governance/hitl-on-tool.yaml
+-o ../../../library-samples/overlays/hitl-on-tool.yaml
 ```
 
 Or copy the overlay into the tutorial `overlays/` folder for self-contained bundles.
 
-Future: `@samples/overlays/governance/hitl-on-tool` resolved via workspace library registry.
+Future: `@samples/overlays/hitl-on-tool` resolved via workspace library registry.

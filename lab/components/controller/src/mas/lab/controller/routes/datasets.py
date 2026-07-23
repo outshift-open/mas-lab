@@ -37,7 +37,7 @@ def create_dataset(library_name: str, req: SaveDatasetRequest):
     return {"name": filename}
 
 
-@router.get("/api/libraries/{library_name}/datasets/{dataset_name}", tags=["Libraries"])
+@router.get("/api/libraries/{library_name}/datasets/{dataset_name:path}", tags=["Libraries"])
 def get_dataset(library_name: str, dataset_name: str):
     """Return the content of a specific dataset."""
     lib_dir = deps.get_library_path(library_name)
@@ -51,7 +51,7 @@ def get_dataset(library_name: str, dataset_name: str):
     return {"name": file_path.name, "content": file_path.read_text(encoding="utf-8")}
 
 
-@router.put("/api/libraries/{library_name}/datasets/{dataset_name}", tags=["Libraries"])
+@router.put("/api/libraries/{library_name}/datasets/{dataset_name:path}", tags=["Libraries"])
 def update_dataset(library_name: str, dataset_name: str, req: SaveDatasetRequest):
     """Update an existing dataset. Supports rename via req.name."""
     lib_dir = deps.get_library_path(library_name)
@@ -74,7 +74,7 @@ def update_dataset(library_name: str, dataset_name: str, req: SaveDatasetRequest
     return {"name": new_name}
 
 
-@router.delete("/api/libraries/{library_name}/datasets/{dataset_name}", tags=["Libraries"])
+@router.delete("/api/libraries/{library_name}/datasets/{dataset_name:path}", tags=["Libraries"])
 def delete_dataset(library_name: str, dataset_name: str):
     """Delete a dataset file."""
     lib_dir = deps.get_library_path(library_name)
