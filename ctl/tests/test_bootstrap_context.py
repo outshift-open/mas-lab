@@ -14,7 +14,6 @@ from mas.runtime.boundary.context.manifest_context import (
     resolve_context_chunk,
 )
 from mas.runtime.boundary.context.skills import (
-    SkillNotFoundError,
     inject_skills_into_context,
     resolve_skill_path,
 )
@@ -105,9 +104,12 @@ def test_inject_skills_uses_app_root_not_agent_dir(tmp_path: Path):
 
     manifest = {"spec": {"skills": ["data_access_protocol"]}}
 
-    with pytest.raises(SkillNotFoundError):
-        inject_skills_into_context([], manifest, base_dir=agents_dir)
-    from_app_root = inject_skills_into_context([], manifest, base_dir=app_root)
+    # Skills in parent skills/ dir are found even from agents/ subdirectory
+    # (parent-walk resolution).
+    from_agents = inject_skills_into_context([], manifest, base_dir=agents_dir)
+    assert len(from_agents) == 1
+    assert "Data access" in from_agents[0]
 
+    from_app_root = inject_skills_into_context([], manifest, base_dir=app_root)
     assert len(from_app_root) == 1
     assert "Data access" in from_app_root[0]
