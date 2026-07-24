@@ -104,6 +104,19 @@ _TS_TOL: float = 0.05
 # the session's true final timestamp past the pre-stagger t_max.
 _STAGGER_DUR: float = 0.001
 
+# Processing type constants — standardized names for execution flow patterns
+PROCESSING_TYPE_WAIT_STATE = "wait_state"
+PROCESSING_TYPE_CONTEXT_ASSEMBLY = "context_assembly"
+PROCESSING_TYPE_PARALLEL_GROUP = "parallel_group"
+PROCESSING_TYPE_PARALLEL_FORK = "parallel_fork"
+
+# Processing name constants — specific names for processing operations
+PROCESSING_NAME_PARALLEL_FORK = "parallel fork"
+PROCESSING_NAME_CONTEXT_ASSEMBLY = "context assembly"
+
+# Wait scope constants — categorizes types of waiting/delegation
+WAIT_SCOPE_DELEGATION = "delegation"
+
 # Icons for instant (≈0-duration) call types — rendered on top of state boxes.
 _INSTANT_ICON: dict[str, str] = {
     "ProcessingCall": "⚙",

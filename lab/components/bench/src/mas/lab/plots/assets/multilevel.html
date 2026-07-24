@@ -81,23 +81,9 @@ body{font-family:'Inter',ui-sans-serif,sans-serif;background:#0f172a;color:#e2e8
 .facet-item.facet-highlight .facet-content pre{border:1px solid rgba(249,115,22,.35)}
 .facet-new{font-size:.58rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
   padding:1px 5px;border-radius:3px;background:#9a3412;color:#ffedd5;white-space:nowrap}
-/* Card layout with pie chart */
-.cpr-body{display:flex;gap:1rem;align-items:flex-start}
-.cpr-facets{flex:1;min-width:0}
-.cpr-right{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:.4rem;min-width:140px}
-.cpr-pie-label{font-size:.65rem;color:#64748b;text-align:center}
-.cpr-pie-value{font-size:.85rem;font-weight:700;color:#e2e8f0}
-/* Pie/donut chart */
-.cpr-pie{position:relative;width:120px;height:120px}
-.cpr-pie svg{width:100%;height:100%}
-.cpr-pie-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  text-align:center;pointer-events:none}
-.cpr-pie-center .pct{font-size:1.1rem;font-weight:700;color:#e2e8f0;line-height:1.2}
-.cpr-pie-center .pct-label{font-size:.6rem;color:#64748b}
-/* Pie legend */
-.pie-legend{display:flex;flex-wrap:wrap;gap:.3rem .7rem;margin-top:.3rem}
-.pie-legend-item{display:flex;align-items:center;gap:.25rem;font-size:.65rem;color:#94a3b8}
-.pie-legend-swatch{width:8px;height:8px;border-radius:2px}
+/* Card layout — moodbar + breakdown stacked vertically, facets full-width below */
+.cpr-body{display:flex;flex-direction:column;gap:.6rem}
+.cpr-facets{width:100%;min-width:0}
 /* Facet list */
 .facet-list{display:flex;flex-direction:column;gap:0}
 .facet-item{border-left:3px solid var(--fc,#64748b);background:rgba(255,255,255,.02);
@@ -971,7 +957,7 @@ function renderMoodbar(parts, showLabels) {
   return html;
 }
 
-function renderPieChart(parts, model) {
+function renderCategoryBreakdown(parts) {
   const bycat = {};
   let totalTok = 0;
   parts.forEach(p => {
@@ -979,49 +965,15 @@ function renderPieChart(parts, model) {
     bycat[c] = (bycat[c]||0) + (p.tokens||0);
     totalTok += (p.tokens||0);
   });
-  const ctxWin = getCtxWindow(model);
-  const usagePct = ctxWin > 0 ? Math.min(100, totalTok/ctxWin*100) : 0;
-
-  // SVG gauge (single arc showing context window usage)
-  const cx = 60, cy = 65;
-  const R = 48, strokeW = 12;
-  // Arc spans 240° (from 150° to 390° i.e. bottom-left to bottom-right)
-  const arcStart = 150 * Math.PI / 180;
-  const arcSpan  = 240 * Math.PI / 180;
-  const arcEnd   = arcStart + arcSpan;
-  // Background track
-  const bx1 = cx + R*Math.cos(arcStart), by1 = cy + R*Math.sin(arcStart);
-  const bx2 = cx + R*Math.cos(arcEnd),   by2 = cy + R*Math.sin(arcEnd);
-  let svg = `<path d="M${bx1},${by1} A${R},${R} 0 1 1 ${bx2},${by2}" fill="none" stroke="#1e293b" stroke-width="${strokeW}" stroke-linecap="round"/>`;
-  // Filled arc (usage)
-  if (usagePct > 0) {
-    const frac = Math.min(1, usagePct / 100);
-    const fillEnd = arcStart + frac * arcSpan;
-    const fx2 = cx + R*Math.cos(fillEnd), fy2 = cy + R*Math.sin(fillEnd);
-    const large = frac > 0.5 ? 1 : 0;
-    // Color: green < 50%, yellow < 80%, red >= 80%
-    const gaugeCol = usagePct >= 80 ? '#ef4444' : usagePct >= 50 ? '#eab308' : '#22d3ee';
-    svg += `<path d="M${bx1},${by1} A${R},${R} 0 ${large} 1 ${fx2},${fy2}" fill="none" stroke="${gaugeCol}" stroke-width="${strokeW}" stroke-linecap="round"/>`;
-  }
-
-  let html = `<div class="cpr-pie"><svg viewBox="0 0 120 120">${svg}</svg>`;
-  html += '<div class="cpr-pie-center">';
-  html += `<div class="pct">${totalTok} tok</div>`;
-  if (ctxWin > 0) {
-    html += `<div class="pct-label">${usagePct.toFixed(1)}% of ${(ctxWin/1000).toFixed(0)}k</div>`;
-  }
-  html += '</div></div>';
-
-  // Legend (category breakdown as compact badges — moodbar already shows distribution)
-  html += '<div class="pie-legend">';
+  
   const cats = Object.entries(bycat).sort((a,b)=>b[1]-a[1]);
-  cats.forEach(([cat, tok]) => {
-    const col = (parts.find(p=>(p._uiCatLabel||CPR_CAT_LABELS[p.category]||p.category||'Context')===cat)?._uiColor) || '#64748b';
+  const breakdown = cats.map(([cat, tok]) => {
     const pct = ((tok/(totalTok||1))*100).toFixed(0);
-    html += `<div class="pie-legend-item"><div class="pie-legend-swatch" style="background:${col}"></div>${cat} ${pct}%</div>`;
-  });
-  html += '</div>';
-  return html;
+    const col = (parts.find(p=>(p._uiCatLabel||CPR_CAT_LABELS[p.category]||p.category||'Context')===cat)?._uiColor) || '#64748b';
+    return `<span style="color:#e2e8f0"><span style="display:inline-block;width:8px;height:8px;background:${col};border-radius:2px;margin-right:4px;vertical-align:middle"></span>${cat}</span> <span style="color:#94a3b8">${pct}% (${tok}t)</span>`;
+  }).join(' <span style="color:#334155">·</span> ');
+  
+  return `<div style="font-size:.72rem;color:#cbd5e1;margin-top:.3rem">${breakdown}</div>`;
 }
 
 function renderFacetList(parts) {
@@ -1120,25 +1072,19 @@ function renderFacetList(parts) {
 function renderCprCard(parts, model, hoverOut, timeLine) {
   const totalTok = parts.reduce((s,p)=>s+(p.tokens||0), 0);
   const nParts = parts.length;
-  const byCat = {};
-  parts.forEach(p => {
-    const c = p._uiCatLabel || CPR_CAT_LABELS[p.category] || p.category || 'Context';
-    byCat[c] = (byCat[c]||0)+1;
-  });
-  const catSummary = Object.entries(byCat).map(([c,n])=>`${c} ×${n}`).join(', ');
 
   let html = '<div class="cpr-card">';
   // Time + summary
   if (timeLine) html += `<div style="color:#94a3b8;font-size:.72rem;margin-bottom:.4rem">${escH(timeLine)}</div>`;
-  html += `<div class="cpr-summary">${nParts} parts · ${totalTok} tokens · ${catSummary}`;
+  html += `<div class="cpr-summary">${nParts} parts · ${totalTok} tokens`;
   if (model) html += ` · model: ${escH(model)}`;
   html += '</div>';
-  // Moodbar (sticky wrapper so it stays visible while scrolling facets)
-  html += '<div class="moodbar-sticky">' + renderMoodbar(parts, true) + '</div>';
-  // Body: facets + pie
+  // Moodbar + category breakdown
+  html += renderMoodbar(parts, true);
+  html += renderCategoryBreakdown(parts);
+  // Facets full-width
   html += '<div class="cpr-body">';
   html += '<div class="cpr-facets">' + renderFacetList(parts) + '</div>';
-  html += '<div class="cpr-right">' + renderPieChart(parts, model) + '</div>';
   html += '</div>';
   // Output — only when it isn't already shown verbatim as one of the facet
   // cards above (e.g. via _buildGenericTransitionParts' llm/output+call/output

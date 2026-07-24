@@ -284,6 +284,39 @@ def _boundary_envelope_activity(
     ]
 
 
+def _context_assembly_operation(messages: list[dict]) -> str:
+    """Determine if context operation is PREPEND (has system msg) or APPEND."""
+    return "PREPEND" if any(
+        str(m.get("role") or "").strip().lower() == "system" for m in messages
+    ) else "APPEND"
+
+
+def _add_provenance_fields(event: dict, seg: dict, is_rag: bool) -> None:
+    """Add optional provenance fields from segment to context_part_contributed event."""
+    # Plugin/Origin identification
+    origin_id = seg.get("origin_id") or seg.get("plugin_id") or seg.get("skill_name")
+    if origin_id:
+        event["origin_id"] = origin_id
+    
+    # Retrieval metadata
+    if is_rag or seg.get("mechanism") == "retrieval":
+        for key in ("retrieval_query", "retrieval_source", "retrieval_rank"):
+            if seg.get(key):
+                event[key] = seg[key]
+        if seg.get("retrieval_confidence") is not None:
+            event["retrieval_confidence"] = seg["retrieval_confidence"]
+    
+    # Decision metadata
+    if seg.get("decision_rank"):
+        event["decision_rank"] = seg["decision_rank"]
+    if seg.get("decision_score") is not None:
+        event["decision_score"] = seg["decision_score"]
+    
+    # Synthesis metadata
+    if seg.get("synthesis_rule_id"):
+        event["synthesis_rule_id"] = seg["synthesis_rule_id"]
+
+
 def _boundary_context_assembled(
     record: dict,
     *,
@@ -314,29 +347,26 @@ def _boundary_context_assembled(
     # prompt text is available. (trace_content is honoured upstream: the
     # operator omits messages when content tracing is disabled.)
     _asm_msgs = payload.get("messages") or []
-    _operation = "PREPEND" if any(str(m.get("role") or "").strip().lower() == "system" for m in _asm_msgs) else "APPEND"
+    _operation = _context_assembly_operation(_asm_msgs)
     _proc_call_id = _interval_call_id(ctx, cid, "PROCESSING_CALL:context_assembly") if cid else ""
-    _proc_start = {
-        "kind": "processing_call_start",
+    
+    # Common fields for processing call start/end
+    _proc_common = {
         **base,
         "call_id": _proc_call_id,
-        "timestamp": ts,
         "processing_name": "context assembly",
         "processing_type": "context_assembly",
         "context_operation": _operation,
         "messages": _asm_msgs,
     }
+    _proc_start = {"kind": "processing_call_start", "timestamp": ts, **_proc_common}
     _proc_end = {
         "kind": "processing_call_end",
-        **base,
-        "call_id": _proc_call_id,
         "timestamp": ts + _SYNTHETIC_SPAN_DURATION_S,
-        "processing_name": "context assembly",
-        "processing_type": "context_assembly",
-        "context_operation": _operation,
-        "messages": _asm_msgs,
         "synthetic": True,
+        **_proc_common,
     }
+    
     _ca: dict = {
         "kind": "context_assembled",
         **base,
@@ -360,22 +390,26 @@ def _boundary_context_assembled(
         mechanism = str(seg.get("mechanism") or "")
         source = str(seg.get("source") or "")
         is_rag = mechanism == "rag" or "rag" in source.lower()
-        out.append(
-            {
-                "kind": "context_part_contributed",
-                "agent_id": agent_id,
-                "timestamp": ts,
-                "llm_call_id": llm_call_id,
-                "part_id": seg.get("part_id", ""),
-                "source": seg.get("source", ""),
-                "section_id": seg.get("section_id", ""),
-                "mechanism": seg.get("mechanism") or ("rag" if is_rag else "inject"),
-                "token_estimate": seg.get("tokens", 0),
-                "retained": seg.get("retained", True),
-                "content_preview": seg.get("content_preview", ""),
-                "role": seg.get("role", ""),
-            }
-        )
+        
+        # Build context_part_contributed event with full provenance
+        cpc_event: dict = {
+            "kind": "context_part_contributed",
+            "agent_id": agent_id,
+            "timestamp": ts,
+            "llm_call_id": llm_call_id,
+            "part_id": seg.get("part_id", ""),
+            "source": seg.get("source", ""),
+            "section_id": seg.get("section_id", ""),
+            "mechanism": seg.get("mechanism") or ("rag" if is_rag else "inject"),
+            "token_estimate": seg.get("tokens", 0),
+            "retained": seg.get("retained", True),
+            "content_preview": seg.get("content_preview") or (seg.get("content", "")[:120] if seg.get("content") else ""),
+            "role": seg.get("role", ""),
+        }
+        _add_provenance_fields(cpc_event, seg, is_rag)
+        out.append(cpc_event)
+        
+        # Emit RAG query events if mechanism is RAG
         if is_rag:
             rag_call_id = f"rag-{cid}-{seg.get('part_id', '')[:8]}"
             out.extend(

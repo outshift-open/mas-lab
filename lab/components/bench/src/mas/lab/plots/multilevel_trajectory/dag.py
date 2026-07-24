@@ -17,6 +17,7 @@ from mas.lab.plots.multilevel_trajectory.annotations import (
     _collect_llm_tool_decisions,
     _format_cpr_hover,
     _source_category,
+    _derive_context_semantics,
     _stagger_coinc_processing_calls,
 )
 from mas.lab.plots.multilevel_trajectory.constants import (
@@ -24,6 +25,13 @@ from mas.lab.plots.multilevel_trajectory.constants import (
     _STAGGER_DUR,
     _TS_TOL,
     TYPE_LABEL,
+    PROCESSING_TYPE_WAIT_STATE,
+    PROCESSING_TYPE_CONTEXT_ASSEMBLY,
+    PROCESSING_TYPE_PARALLEL_GROUP,
+    PROCESSING_TYPE_PARALLEL_FORK,
+    PROCESSING_NAME_PARALLEL_FORK,
+    PROCESSING_NAME_CONTEXT_ASSEMBLY,
+    WAIT_SCOPE_DELEGATION,
 )
 from mas.lab.plots.multilevel_trajectory.governance import (
     _collect_blocked_actions,
@@ -232,7 +240,7 @@ def _build_dag(
         _fidx = _crec.get("_agent_fragment_idx")
         if _fidx is None:
             continue
-        if _crec.get("_delegation_marker") or str(_crec.get("processing_type") or "") == "wait_state":
+        if _crec.get("_delegation_marker") or str(_crec.get("processing_type") or "") == PROCESSING_TYPE_WAIT_STATE:
             continue
         _cend = _crec.get("end_ts", 0.0)
         if _cend > _frag_end_ts.get(_fidx, float("-inf")):
@@ -277,7 +285,7 @@ def _build_dag(
     # S9/R1-vertical-misalignment symptom this whole reconciliation exists
     # to fix. Only ever advances (never shrinks), same cap as above.
     for _ci, _crec in enumerate(call_sequence):
-        if str(_crec.get("processing_type") or "") != "wait_state":
+        if str(_crec.get("processing_type") or "") != PROCESSING_TYPE_WAIT_STATE:
             continue
         if str(_crec.get("wait_role") or "").strip().upper() != "RESUME":
             continue
@@ -568,10 +576,12 @@ def _build_dag(
         if _missing_telemetry:
             _missing_note = f"[missing telemetry: {', '.join(_missing_telemetry)}]"
             base_in = (_missing_note + ("\n" + base_in if base_in else "")).strip()
-        # Build structured CPR data for rich JS rendering.
+        # Build structured context provenance data for rich JS rendering.
         # For ProcessingCall records that carry their own ``segments`` (per-actor
-        # spans emitted by ObservabilityPlugin), build CPR from those segments
-        # directly instead of from the cpr_map (which maps LLMCall call_ids).
+        # spans emitted by ObservabilityPlugin), build provenance from those segments
+        # directly instead of from the provenance_map (which maps LLMCall call_ids).
+        # Semantic fields (actor, trigger, via) are derived from (role, source) using
+        # _derive_context_semantics() — the normalized data model principle.
         _rec_segments = rec.get("segments") if (show_provenance and ct == "ProcessingCall") else None
         if _rec_segments:
             _cpr_structured: list[dict] = []
@@ -579,24 +589,26 @@ def _build_dag(
                 _prov = _s.get("provenance") or {}
                 _psrc = _s.get("source", "?")
                 _pmech = _prov.get("mechanism", "inject")
+                _role = _s.get("role") or _prov.get("role") or ""
+                _role_defs = _derive_context_semantics(_role, _psrc)
                 _entry: dict = {
                     "source": _psrc,
                     "category": _source_category(_psrc, _pmech),
                     "mechanism": _pmech,
                     "retrieval": _prov.get("retrieval", ""),
                     "decision": _prov.get("decision", ""),
-                    "causeType": _prov.get("cause_type", "deterministic"),
-                    "cause": _prov.get("cause", "?"),
+                    "causeType": _prov.get("cause_type") or _role_defs["causeType"],
+                    "cause": _prov.get("cause") or _role_defs["cause"],
                     "tokens": _s.get("tokens") or 0,
                     "retained": True,
                     "placement": _s.get("placement", ""),
                     "content": _s.get("content", ""),
                     "sectionId": _s.get("section_id", ""),
-                    "sourceType": _prov.get("source_type", ""),
+                    "sourceType": _prov.get("source_type") or _s.get("role") or "",
                     "sourceId": _prov.get("source_id", ""),
-                    "trigger": _prov.get("trigger", ""),
-                    "actor": _prov.get("actor", ""),
-                    "via": _prov.get("via", ""),
+                    "trigger": _prov.get("trigger") or _role_defs["trigger"],
+                    "actor": _prov.get("actor") or _role_defs["actor"],
+                    "via": _prov.get("via") or _role_defs["via"],
                 }
                 _ann = _prov.get("annotations")
                 if _ann:
@@ -611,31 +623,34 @@ def _build_dag(
                 if _chain:
                     _entry["chain"] = _chain
                 _cpr_structured.append(_entry)
-            _cpr_raw = []  # no legacy CPR hover for per-actor spans
+            _cpr_raw = []  # provenance collected at call level only
         else:
             _cpr_raw = cpr_map.get(_cid, [])
             _cpr_structured = []
             for _p in _cpr_raw:
                 _psrc = _p.get("source", "?")
                 _pmech = _p.get("mechanism", "inject")
+                _role = _p.get("role") or ""
+                # Derive semantic fields from role + source (normalized data model)
+                _role_defs = _derive_context_semantics(_role, _psrc)
                 _entry: dict = {
                     "source": _psrc,
                     "category": _source_category(_psrc, _pmech),
                     "mechanism": _pmech,
                     "retrieval": _p.get("retrieval", ""),
                     "decision": _p.get("decision", ""),
-                    "causeType": _p.get("cause_type", "deterministic"),
-                    "cause": _p.get("cause", "?"),
+                    "causeType": _p.get("cause_type") or _role_defs["causeType"],
+                    "cause": _p.get("cause") or _role_defs["cause"],
                     "tokens": _p.get("token_estimate", 0),
                     "retained": _p.get("retained", True),
                     "placement": _p.get("placement", ""),
                     "content": _p.get("content") or _p.get("content_preview") or "",
                     "sectionId": _p.get("section_id", ""),
-                    "sourceType": _p.get("source_type", ""),
+                    "sourceType": _p.get("source_type") or _p.get("role") or "",
                     "sourceId": _p.get("source_id", ""),
-                    "trigger": _p.get("trigger", ""),
-                    "actor": _p.get("actor", ""),
-                    "via": _p.get("via", ""),
+                    "trigger": _p.get("trigger") or _role_defs["trigger"],
+                    "actor": _p.get("actor") or _role_defs["actor"],
+                    "via": _p.get("via") or _role_defs["via"],
                 }
                 _ann = _p.get("annotations")
                 if _ann:
@@ -703,10 +718,10 @@ def _build_dag(
             connector_only=(
                 ct == "ProcessingCall"
                 and (
-                    str(rec.get("processing_type") or "") == "wait_state"
+                    str(rec.get("processing_type") or "") == PROCESSING_TYPE_WAIT_STATE
                     or (
-                        str(rec.get("processing_type") or "") == "parallel_group"
-                        and str(rec.get("processing_name") or "").strip().lower() == "parallel fork"
+                        str(rec.get("processing_type") or "") == PROCESSING_TYPE_PARALLEL_GROUP
+                        and str(rec.get("processing_name") or "").strip().lower() == PROCESSING_NAME_PARALLEL_FORK
                     )
                 )
             ),
@@ -1074,7 +1089,7 @@ def _build_dag(
         for _r in call_sequence:
             if str(_r.get("call_type") or "") != "ProcessingCall":
                 continue
-            if str(_r.get("processing_type") or "") != "wait_state":
+            if str(_r.get("processing_type") or "") != PROCESSING_TYPE_WAIT_STATE:
                 continue
             _wid = str(_r.get("wait_link_id") or "").strip()
             _role = str(_r.get("wait_role") or "").strip().upper()
@@ -1160,7 +1175,7 @@ def _build_dag(
             _w, _r = _pair.get("WAIT"), _pair.get("RESUME")
             if not _w or not _r:
                 continue
-            if str(_w.get("wait_scope") or "").strip().lower() != "delegation":
+            if str(_w.get("wait_scope") or "").strip().lower() != WAIT_SCOPE_DELEGATION:
                 continue
             _wait_intervals[_wid] = (
                 float(_w.get("start_ts") or 0.0),
@@ -1263,7 +1278,7 @@ def _build_dag(
                 "isContextCrossing": True,
                 "blocking": {
                     "kind": "TOOL_CALL",
-                    "toolType": "DELEGATION" if _wait_scope == "delegation" else "TOOL_CALL",
+                    "toolType": "DELEGATION" if _wait_scope == WAIT_SCOPE_DELEGATION else "TOOL_CALL",
                     "toolName": _blocking_tool_name,
                     "toolCallId": _blocking_tool_call_id,
                     "context": _blocking_context,
@@ -1347,7 +1362,7 @@ def _build_dag(
             # timestamp exists as a concrete state in-lane so Wn/Rn placement
             # stays stable. For regular calls, preserve the historical behavior
             # to avoid inserting synthetic connector transitions.
-            if ct_j == "ProcessingCall" and str(crec.get("processing_type") or "") == "wait_state":
+            if ct_j == "ProcessingCall" and str(crec.get("processing_type") or "") == PROCESSING_TYPE_WAIT_STATE:
                 if str(crec.get("wait_role") or "").strip().upper() == "RESUME":
                     # A RESUME record's own ts and the real delegated reply's
                     # own completion ts (the preceding state, carrying the
@@ -1574,8 +1589,11 @@ def _build_dag(
                         "mechanism": "inject",
                         "retrieval": "",
                         "decision": "",
-                        "causeType": "deterministic",
-                        "cause": "assistant",
+                        "causeType": "llm_decision",
+                        "cause": "LLM tool-call decision",
+                        "trigger": "llm_tool_call",
+                        "actor": "llm",
+                        "via": "llm_generated",
                         "tokens": max(1, len(_own_llm_out) // 4),
                         "retained": True,
                         "placement": "assembled/2/assistant",
@@ -1583,7 +1601,7 @@ def _build_dag(
                     }
                     st_end.cpr_data = list(st_start.cpr_data) + [_own_entry]
                     st_end.model = st_start.model
-            if ct_j == "ProcessingCall" and str(crec.get("processing_type") or "") == "wait_state":
+            if ct_j == "ProcessingCall" and str(crec.get("processing_type") or "") == PROCESSING_TYPE_WAIT_STATE:
                 _wid = str(crec.get("wait_link_id") or f"wait-{crec.get('call_id', j)}")
                 _role = str(crec.get("wait_role") or "").strip().upper()
                 _note = str(crec.get("wait_note") or "").strip()
@@ -1709,8 +1727,11 @@ def _build_dag(
                                 "mechanism": "append",
                                 "retrieval": "",
                                 "decision": "",
-                                "causeType": "deterministic",
-                                "cause": "tool",
+                                "causeType": "tool_result",
+                                "cause": "tool execution result",
+                                "trigger": "tool_execution",
+                                "actor": "tool",
+                                "via": "tool_provided",
                                 "tokens": max(1, len(_result_output) // 4),
                                 "retained": True,
                                 "placement": "tool/output",
@@ -2116,8 +2137,11 @@ def _build_dag(
                             "mechanism": "inject",
                             "retrieval": "",
                             "decision": "",
-                            "causeType": "deterministic",
-                            "cause": "delegation",
+                            "causeType": "delegated",
+                            "cause": "delegation task",
+                            "trigger": "delegation_dispatch",
+                            "actor": "moderator",
+                            "via": "delegation",
                             "tokens": max(1, len(_delegate_input) // 4),
                             "retained": True,
                             "placement": "assembled/user",

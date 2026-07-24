@@ -167,25 +167,101 @@ def _source_category(source: str, mechanism: str = "inject") -> str:
 _SECTION_ORDINAL_RE = re.compile(r"assembled/(\d+)/")
 
 
+_ROLE_SEMANTICS = {
+    "system": dict(cause="system prompt", causeType="system",
+                   trigger="system_initialization", actor="system",
+                   via="system_configuration", cause_detail="system prompt"),
+    "user": dict(cause="user turn", causeType="user_provided",
+                 trigger="user_input", actor="user",
+                 via="user_provided", cause_detail="user turn"),
+    "assistant": dict(cause="LLM response", causeType="llm_decision",
+                      trigger="llm_response", actor="llm",
+                      via="llm_generated", cause_detail="assistant turn"),
+    "tool": dict(cause="tool result", causeType="tool_result",
+                 trigger="tool_execution", actor="tool",
+                 via="tool_provided", cause_detail="tool execution result"),
+}
+
+_ROLE_SEMANTICS_ASSISTANT_TOOL_CALL = dict(
+    cause="LLM tool-call decision", causeType="llm_decision",
+    trigger="llm_tool_call", actor="llm",
+    via="llm_generated", cause_detail="LLM tool-call decision")
+
+_ROLE_SEMANTICS_TOOL_DELEGATION = dict(
+    cause="delegation result", causeType="delegated",
+    trigger="delegation_result", actor="delegated_agent",
+    via="delegation", cause_detail="delegation result")
+
+_UNKNOWN_SEMANTICS = dict(cause="?", causeType="unknown",
+                          trigger="context_addition", actor="?",
+                          via="injected", cause_detail="context addition")
+
+
+def _detect_delegation(tool_call_id: str, content: str) -> bool:
+    """Check if tool result is from delegation."""
+    return "delegate" in content.lower() or "delegat" in tool_call_id.lower()
+
+
+def _derive_context_semantics(
+    role: str, source: str = "", *, tool_call_id: str = "", content: str = ""
+) -> dict:
+    """Derive semantic fields from role, source, tool_call_id, and content.
+
+    This implements the normalized data model where events.jsonl carries only
+    source facts (role, source, IDs) and semantics are derived at query time.
+    The derivation rule is deterministic: f(role, source, ...) → semantics dict.
+
+    Args:
+        role: OpenAI message role (system, user, assistant, tool)
+        source: Provenance source path (e.g., "context/system", "assembled/user")
+        tool_call_id: Tool call identifier (for delegation detection)
+        content: Message content (for delegation detection)
+
+    Returns:
+        dict with keys: cause, causeType, trigger, actor, via, cause_detail
+    """
+    # Normalize inputs
+    r = str(role or "?").strip().lower() if role else ""
+    s = str(source or "").strip().lower() if source else ""
+
+    # Lookup base semantics for role
+    semantics = _ROLE_SEMANTICS.get(r)
+    if semantics is None:
+        return _UNKNOWN_SEMANTICS.copy()
+
+    # Apply role-specific overrides for special cases
+    if r == "assistant" and "tool_call" in s:
+        return _ROLE_SEMANTICS_ASSISTANT_TOOL_CALL.copy()
+    elif r == "tool" and _detect_delegation(tool_call_id, content):
+        return _ROLE_SEMANTICS_TOOL_DELEGATION.copy()
+
+    return semantics.copy()
+
+
 def _collect_context_provenance(
     events:  list[dict],
     records: list[dict],
 ) -> dict[str, list[dict]]:
-    """Return ``call_id → [cpr_event, …]`` for L4 context provenance hover enrichment.
+    """Return ``call_id → [context_part_event, …]`` for context provenance hover enrichment.
+
+    This function collects ``context_part_contributed`` events (the authoritative
+    source for per-chunk provenance information) and enriches them for visualization.
+
+    Context Metadata Model:
+    - **Normalized storage**: events.jsonl carries only source facts (role, source, IDs)
+    - **Derived semantics**: actor, trigger, via are computed deterministically at query time
+    - **Deterministic rule**: f(role, source) → {actor, trigger, via}
+    - **Example**: role="assistant" + source="assembled/tool_call" → actor="llm", trigger="llm_tool_call"
 
     ``context_part_contributed`` events are matched to LLM call records by a
-    direct, real id match on ``llm_call_id`` — the runtime now resolves this
-    to the SAME call_id the LLM call's own llm_call_start/end use (see
-    ObservabilityOperator.record_context_assembled's op="LLM_CALL" threading
-    and _resolve_transition_ids' CONTEXT_ASSEMBLED branch), never a synthetic
-    placeholder needing timestamp-proximity reconstruction.
+    direct, real id match on ``llm_call_id`` — the runtime resolves this to the
+    SAME call_id the LLM call's own llm_call_start/end use via runtime-determined
+    resolution.
 
     ``context_part_contributed`` is the authoritative source for per-chunk
     PROVENANCE (source, mechanism, retention decision, section ordinal,
-    token estimate) — but it never carries the full chunk text, only a
-    ``content_preview`` hard-truncated to 120 chars (verified: 0/72 real
-    events in a production trace carry a ``content`` key at all). The
-    sibling ``context_assembled`` event for the SAME call_id/llm_call_id is
+    token estimate), carrying a ``content_preview`` hard-truncated to 120 chars. The sibling
+    ``context_assembled`` event for the SAME call_id/llm_call_id is
     the authoritative source for the assembled context's full, non-truncated
     ``messages`` — so each part's preview is upgraded here to the matching
     full message text (matched by the part's ``section_id`` ordinal, e.g.
