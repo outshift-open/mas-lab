@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 
 from mas.runtime.kernel.state import QProduct
-from mas.runtime.machines.design_pattern.plugins.plan_execute import (
+from mas.library.standard.plugins.design_patterns.plan_execute import (
     PlanExecutePlugin,
     _parse_plan,
 )

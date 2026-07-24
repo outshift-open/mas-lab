@@ -15,9 +15,7 @@ from mas.runtime.schema.egress import EmitClientResponse
 
 from mas.ctl.session.exchange_log import (
     TraceFormatOptions,
-    log_exchanges,
     print_exchange,
-    print_exchanges,
 )
 from mas.ctl.ui.display import ConversationDisplay
 
@@ -54,7 +52,10 @@ class SessionController:
     trace: bool = False
     trace_timestamps: bool = False
     trace_engine: bool = False
-    agent_id: str = "agent"
+    trace_summary: bool = False
+    trace_color: bool = False
+    agent_id: str = "n/a"
+    llm_id: str = "gpt-4o-mini"
     obs_recorder: Any | None = None
     _turn: int = 0
     _trace_turn_start: float = 0.0
@@ -63,34 +64,43 @@ class SessionController:
         return TraceFormatOptions(
             timestamps=self.trace_timestamps,
             engine_io=self.trace_engine,
+            summary_only=self.trace_summary,
             turn_start_mono=self._trace_turn_start,
+            color=self.trace_color,
+            agent_name=self.agent_id,
+            llm_name=self.llm_id,
         )
 
-    def _begin_trace_turn(self) -> None:
-        if not self.trace:
+    def _setup_exchange_tracing(self) -> None:
+        """Setup realtime exchange tracing via driver callback (if trace or verbose)."""
+        # Skip if neither trace nor verbose logging requested
+        if not self.trace and self.verbose < 1:
             self.instance.driver.on_exchange = None
             self.instance.driver.capture_engine_io = False
             return
+
         self._trace_turn_start = time.perf_counter()
         self.instance.driver.capture_engine_io = self.trace_engine
         fmt = self._trace_format_options()
+        logger = __import__("logging").getLogger("mas.runtime")
 
         def on_exchange(ex: object) -> None:
             from mas.runtime.driver.driver import ExchangeRecord
+            from mas.ctl.session.exchange_log import format_exchange
 
             if not isinstance(ex, ExchangeRecord):
                 return
-            print_exchange(ex, err=sys.stderr, agent_id=self.agent_id, fmt=fmt)
+
+            # Realtime stderr output (if --trace) — primary display path
+            if self.trace:
+                print_exchange(ex, err=sys.stderr, agent_id=self.agent_id, fmt=fmt)
+            # Verbose logging only if NOT using --trace (alternative logging path)
+            elif self.verbose >= 1:
+                formatted = format_exchange(self.agent_id, ex, fmt=fmt).strip()
+                for line in formatted.splitlines():
+                    logger.info("[%s] %s", self.agent_id, line)
 
         self.instance.driver.on_exchange = on_exchange
-
-    def _emit_trace_batch(self, trace: DriverTrace) -> None:
-        fmt = self._trace_format_options()
-        log_exchanges(trace, agent_id=self.agent_id, verbose=self.verbose, fmt=fmt)
-        if self.trace:
-            return
-        if self.verbose >= 1:
-            print_exchanges(trace, err=sys.stderr, agent_id=self.agent_id, fmt=fmt)
 
     def reset_session(self) -> bool:
         """Clear working memory and turn history; restore baseline system prompt."""
@@ -135,14 +145,13 @@ class SessionController:
             self._turn += 1
             tid = turn_id or f"steer{self._turn}"
             self.display.on_system(f"operator steer: {steer_text}")
-            self._begin_trace_turn()
+            self._setup_exchange_tracing()
             trace = self.instance.feed(
                 OperatorSteerReceived(steer_id=tid, context_text=steer_text)
             )
             if auto_hitl:
                 trace = self._drain_hitl(trace)
             self._present_trace(trace)
-            self._emit_trace_batch(trace)
             return TurnResult(trace=trace, responses=list(trace.client_responses))
         return self._run_user_turn(
             text, turn_id=turn_id, auto_hitl=auto_hitl, parent_call_id=parent_call_id
@@ -165,7 +174,7 @@ class SessionController:
         on_working = getattr(self.display, "on_working", None)
         if callable(on_working):
             on_working()
-        self._begin_trace_turn()
+        self._setup_exchange_tracing()
         trace = self.instance.run_user_text(text, turn_id=tid, parent_call_id=parent_call_id)
         end_working = getattr(self.display, "end_working", None)
         if callable(end_working):
@@ -180,7 +189,6 @@ class SessionController:
             if self.hitl_terminal is None or not trace.hitl_requests:
                 break
         self._present_trace(trace)
-        self._emit_trace_batch(trace)
         result = TurnResult(
             trace=trace,
             responses=list(trace.client_responses),
@@ -191,12 +199,11 @@ class SessionController:
 
     def submit_hitl(self, resolve, *, auto_hitl: bool = True) -> TurnResult:
         """Feed HITL_RESOLVE after UI collects operator choice."""
-        self._begin_trace_turn()
+        self._setup_exchange_tracing()
         trace = self.instance.feed(resolve)
         if auto_hitl:
             trace = self._drain_hitl(trace)
         self._present_trace(trace)
-        self._emit_trace_batch(trace)
         result = TurnResult(
             trace=trace,
             responses=list(trace.client_responses),

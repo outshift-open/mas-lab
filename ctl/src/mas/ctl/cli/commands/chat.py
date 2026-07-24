@@ -84,6 +84,21 @@ from mas.ctl.ui.stdout import StdoutConversationDisplay
     is_flag=True,
     help="With --trace: raw InvokeEngineIo / EngineIoReturn JSON (also -vv)",
 )
+@click.option(
+    "--trace-summary",
+    is_flag=True,
+    help="With --trace: only print exchange headers (AGENT→LLM, LLM→AGENT, etc)",
+)
+@click.option(
+    "--trace-color",
+    is_flag=True,
+    help="With --trace: colorize output (gray=timestamp, cyan=header, yellow=metadata, white=content)",
+)
+@click.option(
+    "--model",
+    default=None,
+    help="LLM model ID (default: from LLM_MODEL env or gpt-4o-mini)",
+)
 @click.pass_context
 def chat_cmd(
     ctx: click.Context,
@@ -114,6 +129,9 @@ def chat_cmd(
     trace: bool,
     trace_timestamps: bool,
     trace_engine: bool,
+    trace_summary: bool,
+    trace_color: bool,
+    model: str | None,
 ) -> None:
     """Run agent conversation on stdout (You:/Agent: labels).
 
@@ -250,6 +268,23 @@ def chat_cmd(
             show_labels=not interactive,
             user_prompt_echoed=interactive,
         )
+        
+        # Extract agent name from manifest metadata; use "n/a" if not available
+        import os
+        agent_name = agent_data.get("metadata", {}).get("name", "n/a") if agent_data else "n/a"
+        if agent_name == "agent" and not manifest:
+            # CLI-only run without explicit manifest: show "n/a" instead of generic "agent"
+            agent_name = "n/a"
+        
+        # Get LLM model name (in order of precedence: CLI --model > env vars > default)
+        llm_name = (
+            model
+            or os.getenv("LLM_MODEL") 
+            or os.getenv("OPENAI_MODEL") 
+            or os.getenv("MAS_LLM_MODEL")
+            or "gpt-4o-mini"  # Fallback default
+        )
+        
         controller = SessionController(
             instance=instance,
             display=display,
@@ -259,7 +294,11 @@ def chat_cmd(
             trace=trace,
             trace_timestamps=trace_timestamps,
             trace_engine=trace_engine or verbose >= 2,
+            trace_summary=trace_summary,
+            trace_color=trace_color,
             obs_recorder=obs_rec,
+            agent_id=agent_name,
+            llm_id=llm_name,
             config=ConversationConfig(
                 single_turn=single_turn or (bool(scripted) and not interactive),
                 save_checkpoint_each_turn=save_checkpoint,

@@ -57,7 +57,7 @@ _BUILTIN_PLUGINS = [
         "default_variant": "builtin",
         "variants": {
             "builtin": {
-                "module": "mas.runtime.machines.design_pattern.plugins.react",
+                "module": "mas.library.standard.plugins.design_patterns.react",
                 "class_name": "ReactPlugin",
                 "version": "1.0.0",
             }
@@ -70,7 +70,7 @@ _BUILTIN_PLUGINS = [
         "default_variant": "builtin",
         "variants": {
             "builtin": {
-                "module": "mas.runtime.machines.design_pattern.plugins.cot",
+                "module": "mas.library.standard.plugins.design_patterns.cot",
                 "class_name": "CotPlugin",
                 "version": "1.0.0",
             }
@@ -83,7 +83,7 @@ _BUILTIN_PLUGINS = [
         "default_variant": "builtin",
         "variants": {
             "builtin": {
-                "module": "mas.runtime.machines.design_pattern.plugins.single_pass",
+                "module": "mas.library.standard.plugins.design_patterns.single_pass",
                 "class_name": "SinglePassPlugin",
                 "version": "1.0.0",
             }
@@ -96,7 +96,7 @@ _BUILTIN_PLUGINS = [
         "default_variant": "builtin",
         "variants": {
             "builtin": {
-                "module": "mas.runtime.machines.design_pattern.plugins.introspection",
+                "module": "mas.library.standard.plugins.design_patterns.introspection",
                 "class_name": "IntrospectionPlugin",
                 "version": "1.0.0",
             }
@@ -109,7 +109,7 @@ _BUILTIN_PLUGINS = [
         "default_variant": "builtin",
         "variants": {
             "builtin": {
-                "module": "mas.runtime.machines.design_pattern.plugins.plan_execute",
+                "module": "mas.library.standard.plugins.design_patterns.plan_execute",
                 "class_name": "PlanExecutePlugin",
                 "version": "1.0.0",
             }
@@ -122,7 +122,7 @@ _BUILTIN_PLUGINS = [
         "default_variant": "builtin",
         "variants": {
             "builtin": {
-                "module": "mas.runtime.machines.design_pattern.plugins.tree_of_thoughts",
+                "module": "mas.library.standard.plugins.design_patterns.tree_of_thoughts",
                 "class_name": "TreeOfThoughtsPlugin",
                 "version": "1.0.0",
             }

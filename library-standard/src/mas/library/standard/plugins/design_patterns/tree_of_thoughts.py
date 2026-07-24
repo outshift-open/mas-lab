@@ -8,7 +8,7 @@ import json
 from typing import Any
 
 from mas.runtime.kernel.config import KernelConfig
-from mas.runtime.machines.design_pattern.plugins.cot import CotPlugin
+from mas.library.standard.plugins.design_patterns.cot import CotPlugin
 from mas.runtime.schema.egress import EgressSymbol, NoOp
 from mas.runtime.schema.ingress import IngressSymbol, UserInputReceived
 from mas.runtime.kernel.state import DpState, QProduct, RunLedger

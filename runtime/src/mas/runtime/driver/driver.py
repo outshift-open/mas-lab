@@ -97,6 +97,7 @@ class KernelDriver:
     agent_id: str = "agent"
     on_exchange: Callable[[ExchangeRecord], None] | None = None
     capture_engine_io: bool = False
+    _tool_by_correlation_id: dict[int, str] = field(default_factory=dict)  # Track tool name per correlation_id
 
     def __post_init__(self) -> None:
         if self.engine_pool is None and self.engine is not None:
@@ -127,6 +128,19 @@ class KernelDriver:
                 continue
 
             if isinstance(ingress, UserInputReceived) and self.ctx is not None:
+                # Emit USER->AGENT exchange for trace visibility
+                ts_mono, ts_wall = _exchange_timestamp()
+                self._emit_exchange(
+                    trace,
+                    ExchangeRecord(
+                        tag="USER->AGENT",
+                        text=ingress.text,
+                        detail="",
+                        ts_mono=ts_mono,
+                        ts_wall=ts_wall,
+                        engine_raw="",
+                    ),
+                )
                 note = getattr(self.ctx, "note_user_input", None)
                 if callable(note):
                     note(ingress.text)
@@ -197,6 +211,19 @@ class KernelDriver:
 
         if sym.kind == EgressKind.EMIT_CLIENT_RESPONSE:
             assert isinstance(sym, EmitClientResponse)
+            # Emit AGENT->USER exchange for trace visibility
+            ts_mono, ts_wall = _exchange_timestamp()
+            self._emit_exchange(
+                trace,
+                ExchangeRecord(
+                    tag="AGENT->USER",
+                    text=sym.content,
+                    detail=f"finish_reason={sym.finish_reason}",
+                    ts_mono=ts_mono,
+                    ts_wall=ts_wall,
+                    engine_raw="",
+                ),
+            )
             trace.client_responses.append(sym)
             return []
 
@@ -230,12 +257,19 @@ class KernelDriver:
             )
         for sym in ios:
             preview = ""
+            tool_name_for_detail = ""  # Extract tool name for exchange detail
             if engine is not None:
                 by_cid = q.pending_tools_by_cid.get(sym.correlation_id)
                 if sym.op == "TOOL_CALL" and by_cid is not None:
                     from mas.runtime.engine.exchange_preview import format_tool_invoke
 
                     preview = format_tool_invoke(by_cid[0], by_cid[1])
+                    tool_name_for_detail = by_cid[0]  # Extract tool name
+                elif sym.op == "TOOL_CALL" and q.pending_tool_name:
+                    from mas.runtime.engine.exchange_preview import format_tool_invoke
+                    
+                    preview = format_tool_invoke(q.pending_tool_name, q.pending_tool_args)
+                    tool_name_for_detail = q.pending_tool_name
                 else:
                     preview_fn = getattr(engine, "exchange_preview", None)
                     if callable(preview_fn):
@@ -255,12 +289,19 @@ class KernelDriver:
                         else f"AGENT->{sym.op}"
                     ),
                     text=preview,
-                    detail=f"correlation_id={sym.correlation_id} op={sym.op}",
+                    detail=(
+                        f"correlation_id={sym.correlation_id} op={sym.op} tool={tool_name_for_detail}"
+                        if tool_name_for_detail
+                        else f"correlation_id={sym.correlation_id} op={sym.op}"
+                    ),
                     ts_mono=ts_mono,
                     ts_wall=ts_wall,
                     engine_raw=engine_raw,
                 ),
             )
+            # Track tool name for TOOL_CALL so we can include it in TOOL->AGENT response
+            if sym.op == "TOOL_CALL" and tool_name_for_detail:
+                self._tool_by_correlation_id[sym.correlation_id] = tool_name_for_detail
             if sym.op == "TOOL_CALL" and engine is not None:
                 by_cid = q.pending_tools_by_cid.get(sym.correlation_id)
                 if by_cid is not None:
@@ -375,6 +416,16 @@ class KernelDriver:
         # machine's path actually runs for every op instead of being
         # permanently shadowed.
         detail = f"correlation_id={ret.correlation_id} response_kind={ret.response_kind}"
+        # Add tool name to detail if LLM is calling a tool
+        if io.op == "LLM_CALL" and ret.next_step == "TOOL_CALL" and ret.tool_name:
+            detail = f"correlation_id={ret.correlation_id} response_kind={ret.response_kind} tool={ret.tool_name}"
+        # Add tool name to detail for TOOL_CALL return (tool->agent response)
+        elif io.op == "TOOL_CALL":
+            tool_name = self._tool_by_correlation_id.get(ret.correlation_id, "")
+            if tool_name:
+                detail = f"correlation_id={ret.correlation_id} response_kind={ret.response_kind} tool={tool_name}"
+            # Clean up tracking dict to avoid memory leak
+            self._tool_by_correlation_id.pop(ret.correlation_id, None)
         ts_mono, ts_wall = _exchange_timestamp()
         engine_raw = _engine_payload_json(ret) if self.capture_engine_io else ""
         if io.op == "LLM_CALL":
