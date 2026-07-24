@@ -31,6 +31,7 @@ Public entry point: ``plot_multilevel_trajectory(trace, fmt, ...)``
 from mas.lab.plots.multilevel_trajectory.annotations import (
     _collect_annotations,
     _collect_context_provenance,
+    _derive_context_semantics,
     _format_cpr_hover,
     _source_category,
     _stagger_coinc_processing_calls,
