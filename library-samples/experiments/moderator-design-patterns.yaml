@@ -1,20 +1,20 @@
 experiment:
-  name: trip-planner-design-pattern-experiment
+  name: moderator-design-patterns
   applications:
     - manifest: apps/trip-planner/mas.yaml
   scenarios:
-    - id: cot
-      tags: []
-      overlays:
-        logic:
-          - ref: overlays/cot-moderator.yaml
-        control: []
-        infra: []
     - id: react
       tags: []
       overlays:
         logic:
           - ref: overlays/react-moderator.yaml
+        control: []
+        infra: []
+    - id: cot
+      tags: []
+      overlays:
+        logic:
+          - ref: overlays/cot-moderator.yaml
         control: []
         infra: []
     - id: reflection

@@ -78,12 +78,26 @@ async def run_agent_multi_turn(library_name: str, req: MultiTurnRequest):
 @router.post("/api/libraries/{library_name}/run-mas", tags=["Libraries"], status_code=202)
 async def run_mas(library_name: str, req: RunMASRequest):
     """Run a MAS with a single query. Returns a job_id for polling."""
+    import yaml
+
     lib_dir = deps.get_library_path(library_name)
 
-    # Write temp file at the library root so refs like
-    # "apps/<mas>/agents/<id>.yaml" resolve correctly (same base as validate).
+    # Determine the correct directory for the temp file so that relative refs
+    # (e.g. "agents/qa-agent.yaml") resolve correctly.  Parse the manifest to
+    # find metadata.name, then check if apps/<name>/ exists.
+    manifest_dir = lib_dir
+    try:
+        manifest_data = yaml.safe_load(req.manifest_yaml)
+        mas_name = manifest_data.get("metadata", {}).get("name", "")
+        if mas_name:
+            app_dir = lib_dir / "apps" / mas_name
+            if app_dir.is_dir():
+                manifest_dir = app_dir
+    except Exception:
+        pass
+
     tmp = tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yaml", prefix="mas-run-", delete=False, dir=str(lib_dir)
+        mode="w", suffix=".yaml", prefix="mas-run-", delete=False, dir=str(manifest_dir)
     )
     tmp.write(req.manifest_yaml)
     tmp.close()

@@ -4,7 +4,7 @@ metadata:
   name: pipeline-test
 spec:
   output:
-    base_dir: ~/.local/share/mas/labs/trip-planner-design-pattern-experiment
+    base_dir: ~/.local/share/mas/labs/moderator-design-patterns
   steps:
     - name: extract-trace-stats
       type: extract_trace_stats
