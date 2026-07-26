@@ -323,7 +323,7 @@ class TestRealPlugins:
         registry = get_registry()
         info = registry.resolve("react")
         assert info is not None
-        assert info.module == "mas.runtime.machines.design_pattern.plugins.react"
+        assert info.module == "mas.library.standard.plugins.design_patterns.react"
         assert info.class_name == "ReactPlugin"
     
     def test_cot_plugin_registered(self):
