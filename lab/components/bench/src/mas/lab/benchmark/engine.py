@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,34 @@ class BenchmarkRunOptions:
     data_cache_dir: Path | None = None
     strategy: str | None = None
     step_overrides: list = field(default_factory=list)
+    pipeline_attachments: list = field(default_factory=list)
     clean_stale: bool | None = None
+
+    @classmethod
+    def from_spec(cls, spec: dict[str, Any]) -> "BenchmarkRunOptions":
+        """Construct from a controller wire dict (as produced by the CLI ``spec`` mapping)."""
+        _path = lambda k: Path(spec[k]) if spec.get(k) else None  # noqa: E731
+        return cls(
+            progress=spec.get("progress", True),
+            resume=spec.get("resume", False),
+            force=spec.get("force", False),
+            benchmark_id=spec.get("benchmark_id"),
+            dry_run=spec.get("dry_run", False),
+            max_runs=spec.get("max_runs"),
+            limit_scenarios=spec.get("limit_scenarios"),
+            sample_scenarios=spec.get("sample_scenarios"),
+            single_run=spec.get("single_run", False),
+            output_dir=_path("output_dir"),
+            trace_cache_dir=_path("trace_cache_dir"),
+            data_cache_dir=_path("data_cache_dir"),
+            force_lock=spec.get("force_lock", False),
+            flavour_name=spec.get("flavour_name"),
+            infra_name=spec.get("infra_name"),
+            strategy=spec.get("strategy"),
+            step_overrides=spec.get("step_overrides") or [],
+            pipeline_attachments=spec.get("pipeline_attachments") or [],
+            clean_stale=spec.get("clean_stale"),
+        )
 
 
 def _is_mas_experiment_yaml(experiment_yaml: Path) -> bool:
@@ -103,6 +130,7 @@ async def run_benchmark(
         output_dir=opts.output_dir,
         strategy=opts.strategy,
         step_overrides=opts.step_overrides,
+        pipeline_attachments=opts.pipeline_attachments,
         clean_stale=opts.clean_stale,
     )
 

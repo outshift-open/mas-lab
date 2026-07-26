@@ -67,6 +67,7 @@ def run_benchmark_sync(
     strategy: Optional[str] = None,
     infra_name: Optional[str] = None,
     step_overrides: Optional[list] = None,
+    pipeline_attachments: Optional[list] = None,
     log_sink: Optional[Callable[[str], None]] = None,
     clean_stale: Optional[bool] = None,
 ) -> bool:
@@ -115,64 +116,9 @@ def run_benchmark_sync(
     """
     _sink_handler = _attach_log_sink(log_sink) if log_sink else None
     try:
-        return asyncio.run(
-            run_benchmark_async(
-                experiment_yaml=experiment_yaml,
-                flavour_name=flavour_name,
-                force=force,
-                benchmark_id=benchmark_id,
-                dry_run=dry_run,
-                max_runs=max_runs,
-                limit_scenarios=limit_scenarios,
-                sample_scenarios=sample_scenarios,
-                single_run=single_run,
-                output_dir=output_dir,
-                trace_cache_dir=trace_cache_dir,
-                data_cache_dir=data_cache_dir,
-                force_lock=force_lock,
-                strategy=strategy,
-                infra_name=infra_name,
-                step_overrides=step_overrides,
-                clean_stale=clean_stale,
-            )
-        )
-    finally:
-        if _sink_handler is not None:
-            logging.getLogger().removeHandler(_sink_handler)
+        from mas.lab.benchmark.engine import BenchmarkRunOptions  # noqa: PLC0415
 
-
-async def run_benchmark_async(
-    experiment_yaml: str | Path,
-    *,
-    flavour_name: str = "local",
-    force: bool = False,
-    benchmark_id: Optional[str] = None,
-    dry_run: bool = False,
-    max_runs: Optional[int] = None,
-    limit_scenarios: Optional[int] = None,
-    sample_scenarios: Optional[int] = None,
-    single_run: bool = False,
-    output_dir: Optional[str | Path] = None,
-    trace_cache_dir: Optional[str | Path] = None,
-    data_cache_dir: Optional[str | Path] = None,
-    force_lock: bool = False,
-    strategy: Optional[str] = None,
-    infra_name: Optional[str] = None,
-    step_overrides: Optional[list] = None,
-    clean_stale: Optional[bool] = None,
-) -> bool:
-    """Async variant — use when already inside an asyncio event loop.
-
-    Signature mirrors :func:`run_benchmark_sync` without ``log_sink``
-    (attach a handler separately if needed).
-    """
-    # Lazy import — cli_benchmark is a heavy module; don't pay the cost at
-    # import time when only the data-access layer is needed.
-    from mas.lab.benchmark.engine import BenchmarkRunOptions, run_benchmark  # noqa: PLC0415
-
-    return await run_benchmark(
-        experiment_yaml=Path(experiment_yaml),
-        options=BenchmarkRunOptions(
+        opts = BenchmarkRunOptions(
             progress=False,
             flavour_name=flavour_name,
             force=force,
@@ -189,8 +135,30 @@ async def run_benchmark_async(
             strategy=strategy,
             infra_name=infra_name,
             step_overrides=step_overrides or [],
+            pipeline_attachments=pipeline_attachments or [],
             clean_stale=clean_stale,
-        ),
+        )
+        return asyncio.run(run_benchmark_async(experiment_yaml, options=opts))
+    finally:
+        if _sink_handler is not None:
+            logging.getLogger().removeHandler(_sink_handler)
+
+
+async def run_benchmark_async(
+    experiment_yaml: str | Path,
+    *,
+    options: "BenchmarkRunOptions | None" = None,
+) -> bool:
+    """Async variant — use when already inside an asyncio event loop.
+
+    Accepts a :class:`~mas.lab.benchmark.engine.BenchmarkRunOptions` directly;
+    pass ``options=BenchmarkRunOptions(...)`` to override any field.
+    """
+    from mas.lab.benchmark.engine import BenchmarkRunOptions, run_benchmark  # noqa: PLC0415
+
+    return await run_benchmark(
+        experiment_yaml=Path(experiment_yaml),
+        options=options or BenchmarkRunOptions(),
     )
 
 

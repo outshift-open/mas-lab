@@ -67,6 +67,18 @@ import click
                   "Value is auto-coerced: 'true'/'false' → bool, integers → int. "
                   "Can be repeated for multiple overrides."
               ))
+@click.option(
+    "--pipeline",
+    "pipeline_attachments",
+    multiple=True,
+    metavar="LEVEL[:PHASE]:REF",
+    help=(
+        "Attach a pipeline YAML after experiment hooks (same order as repeated flags). "
+        "Format: run:post:library:eti-apps/pipelines/observability/native-to-kg.yaml "
+        "or run:library:... (phase defaults to post). "
+        "Levels: run, test, scenario, application (experiment aliases application)."
+    ),
+)
 @click.option("-b", "--background", "background", is_flag=True, default=False,
               help="Submit via controller daemon and return immediately (print worker id).")
 @click.option("--clean-stale", "clean_stale", is_flag=True, default=False,
@@ -78,7 +90,8 @@ def run_cmd(experiment_yaml: Path, force: bool, resume: bool, benchmark_id: str 
             single_run: bool, output_dir: Path | None, trace_cache_dir: Path | None,
             data_cache_dir: Path | None,
             force_lock: bool, flavour: str | None, infra: str | None, strategy: str | None,
-            step_overrides: tuple[str, ...], background: bool, clean_stale: bool) -> None:
+            step_overrides: tuple[str, ...], pipeline_attachments: tuple[str, ...],
+            background: bool, clean_stale: bool) -> None:
     """Run a benchmark from an experiment YAML via the controller daemon.
 
     MAS ``--dry-run`` (without ``-b``) validates in-process — no daemon required.
@@ -108,6 +121,7 @@ def run_cmd(experiment_yaml: Path, force: bool, resume: bool, benchmark_id: str 
                 infra_name=infra,
                 strategy=strategy,
                 step_overrides=list(step_overrides),
+                pipeline_attachments=list(pipeline_attachments),
                 clean_stale=clean_stale or None,
             )
             raise SystemExit(0 if ok else 1)
@@ -133,6 +147,7 @@ def run_cmd(experiment_yaml: Path, force: bool, resume: bool, benchmark_id: str 
         "infra_name": infra,
         "strategy": strategy,
         "step_overrides": list(step_overrides),
+        "pipeline_attachments": list(pipeline_attachments),
         "clean_stale": clean_stale,
     }
 
