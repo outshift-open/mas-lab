@@ -90,26 +90,7 @@ def run_benchmark_worker(registry: WorkerRegistry, runner: "WorkerRunner", spec:
                 ok = asyncio.run(
                     run_benchmark(
                         experiment_yaml=experiment_yaml,
-                        options=BenchmarkRunOptions(
-                            progress=spec.get("progress", True),
-                            resume=spec.get("resume", False),
-                            force=spec.get("force", False),
-                            benchmark_id=spec.get("benchmark_id"),
-                            dry_run=spec.get("dry_run", False),
-                            max_runs=spec.get("max_runs"),
-                            limit_scenarios=spec.get("limit_scenarios"),
-                            sample_scenarios=spec.get("sample_scenarios"),
-                            single_run=spec.get("single_run", False),
-                            output_dir=Path(spec["output_dir"]) if spec.get("output_dir") else None,
-                            trace_cache_dir=Path(spec["trace_cache_dir"]) if spec.get("trace_cache_dir") else None,
-                            data_cache_dir=Path(spec["data_cache_dir"]) if spec.get("data_cache_dir") else None,
-                            force_lock=spec.get("force_lock", False),
-                            flavour_name=spec.get("flavour_name"),
-                            infra_name=spec.get("infra_name"),
-                            strategy=spec.get("strategy"),
-                            step_overrides=spec.get("step_overrides") or [],
-                            clean_stale=spec.get("clean_stale"),
-                        ),
+                        options=BenchmarkRunOptions.from_spec(spec),
                     )
                 )
             except Exception:

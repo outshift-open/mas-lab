@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from mas.lab.benchmark.execution import parse_step_overrides
+from mas.lab.benchmark.execution.pipeline_attach import merge_pipeline_attachments
 from mas.lab.benchmark.schedule.pipeline_resolve import resolve_pipeline_specs
 
 logger = logging.getLogger(__name__)
@@ -45,19 +46,13 @@ def load_experiment(
     infra_name: Optional[str] = None,
     trace_cache_dir: Optional[Path] = None,
     step_overrides: Optional[list] = None,
+    pipeline_attachments: Optional[list] = None,
 ) -> LoadedExperiment | None:
     """Load MASExperimentConfig and resolve scenarios, dataset, flavour."""
     try:
         from mas.lab.lab.config import MASExperimentConfig
     except ImportError as exc:
         logger.error(f"Cannot import MASExperimentConfig: {exc}")
-        return None
-
-    logger.info(f"Loading MAS experiment: {experiment_yaml}")
-    try:
-        exp = MASExperimentConfig.from_yaml(experiment_yaml)
-    except Exception as exc:
-        logger.error(f"Failed to load MAS experiment YAML: {exc}")
         return None
 
     try:
@@ -68,6 +63,10 @@ def load_experiment(
         )
 
         raw = load_yaml_file(experiment_yaml)
+
+        if pipeline_attachments:
+            raw = merge_pipeline_attachments(raw, pipeline_attachments)
+
         validate_manifest(
             raw,
             source=str(experiment_yaml),
@@ -79,6 +78,13 @@ def load_experiment(
         return None
     except Exception as exc:
         logger.error("Experiment manifest validation error: %s", exc)
+        return None
+
+    logger.info(f"Loading MAS experiment: {experiment_yaml}")
+    try:
+        exp = MASExperimentConfig.from_data(raw, experiment_yaml)
+    except Exception as exc:
+        logger.error(f"Failed to load MAS experiment: {exc}")
         return None
 
     from mas.lab.lab.config import discover_lab_context, inject_lab_libraries
