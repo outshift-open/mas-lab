@@ -5,12 +5,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 import uuid
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Literal
 
 from mas.runtime.boundary.hitl.responders import HitlResponder
 from mas.runtime.boundary.ingress_validate import validate_ingress
@@ -33,6 +35,8 @@ from mas.runtime.schema.egress import (
     RequestCtxAssembly,
 )
 from mas.runtime.schema.ingress import EngineIoReturn, IngressSymbol, UserInputReceived
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -97,7 +101,33 @@ class KernelDriver:
     agent_id: str = "agent"
     on_exchange: Callable[[ExchangeRecord], None] | None = None
     capture_engine_io: bool = False
+    # One id for the whole run. Defaults to a fresh id per driver (correct
+    # for a single-agent run); re-adopted from UserInputReceived.session_id
+    # on EVERY UserInputReceived fed (see the isinstance(ingress,
+    # UserInputReceived) branch below), not just the first — in practice
+    # this only matters once, since the one production caller
+    # (SessionController._run_user_turn) always passes its own fixed
+    # self.session_id on every turn, so the value never actually changes
+    # after the first assignment. A caller that skips SessionController and
+    # calls RuntimeInstance.run_user_text() directly without threading
+    # session_id through every call gets a FRESH uuid minted per call
+    # instead (UserInputReceived.session_id's own default_factory) — this
+    # field does not itself enforce "one value for the run," it only
+    # reflects whatever the caller last passed in. A caller that wants
+    # every agent in a multi-agent MAS to share one value passes the SAME
+    # session_id into every RuntimeInstance.run_user_text()/UserInputReceived
+    # it constructs (see mas.ctl.session.controller.SessionController.session_id
+    # and mas.ctl.executor.mas_session.make_workflow_send, which do exactly
+    # this for delegation). Deliberately independent of observability — this
+    # is a core runtime identifier, not something an optional plugin should
+    # own or gate.
+    session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     _tool_by_correlation_id: dict[int, str] = field(default_factory=dict)  # Track tool name per correlation_id
+    # Task id of the turn currently being processed — set from
+    # UserInputReceived.task_id and carried onto every transition (ingress
+    # and egress alike) produced while that turn runs, until the next
+    # UserInputReceived replaces it. See GovTransition.task_id.
+    _current_task_id: str = field(default="", repr=False)
 
     def __post_init__(self) -> None:
         if self.engine_pool is None and self.engine is not None:
@@ -127,29 +157,48 @@ class KernelDriver:
                 trace.rejected_ingress.append(ingress)
                 continue
 
-            if isinstance(ingress, UserInputReceived) and self.ctx is not None:
-                # Emit USER->AGENT exchange for trace visibility
-                ts_mono, ts_wall = _exchange_timestamp()
-                self._emit_exchange(
-                    trace,
-                    ExchangeRecord(
-                        tag="USER->AGENT",
-                        text=ingress.text,
-                        detail="",
-                        ts_mono=ts_mono,
-                        ts_wall=ts_wall,
-                        engine_raw="",
-                    ),
-                )
-                note = getattr(self.ctx, "note_user_input", None)
-                if callable(note):
-                    note(ingress.text)
+            if isinstance(ingress, UserInputReceived):
+                self._current_task_id = ingress.task_id
+                # Adopt whatever this turn's UserInputReceived carries as the
+                # session id from here on — freshly minted for a genuinely
+                # new session (nothing set one yet), or the propagated value
+                # for a continuing session/delegated call. Either way this
+                # replaces the placeholder session_id this driver was built
+                # with (see KernelDriver.session_id).
+                self.session_id = ingress.session_id
+                if self.observability is not None:
+                    # Same values, same source, as what governance sees on
+                    # this and every subsequent transition this turn (see
+                    # _notify_governance) — so observability logs match.
+                    self.observability.set_context(
+                        session_id=self.session_id, task_id=self._current_task_id
+                    )
+                if self.ctx is not None:
+                    # Emit USER->AGENT exchange for trace visibility
+                    ts_mono, ts_wall = _exchange_timestamp()
+                    self._emit_exchange(
+                        trace,
+                        ExchangeRecord(
+                            tag="USER->AGENT",
+                            text=ingress.text,
+                            detail="",
+                            ts_mono=ts_mono,
+                            ts_wall=ts_wall,
+                            engine_raw="",
+                        ),
+                    )
+                    note = getattr(self.ctx, "note_user_input", None)
+                    if callable(note):
+                        note(ingress.text)
 
+            self._notify_governance("ingress", ingress)
             result = self.kernel.transition(ingress)
             trace.steps.append(DriverStep(ingress=ingress, egress=list(result.egress)))
             self._sync_tool_result_memory(ingress)
             if self.coordination is not None:
                 self.coordination.on_internal_mutation(self.kernel.q, label=ingress.kind.value)
+            for sym in result.egress:
+                self._notify_governance("egress", sym)
             if self.observability is not None:
                 self.observability.record_ingress(ingress, self.kernel.q)
                 for sym in result.egress:
@@ -238,6 +287,66 @@ class KernelDriver:
         trace.exchanges.append(record)
         if self.on_exchange is not None:
             self.on_exchange(record)
+
+    def _notify_governance(
+        self, hook: Literal["ingress", "egress"], symbol: IngressSymbol | EgressSymbol
+    ) -> None:
+        """Give the governance plugin every ingress/egress symbol, read-only.
+
+        Single hook (``on_transition(GovTransition)``), not one bespoke
+        ``note_*`` method per symbol kind — replaces the old
+        ``note_user_input``-only wiring, which only ever told the plugin
+        about ``UserInputReceived`` and nothing else, and carried just the
+        text, with none of the session/task/spec/state context a real
+        decision needs. See ``mas.runtime.boundary.gov.transition`` for the
+        full shape.
+
+        A plugin narrows what it receives by implementing
+        ``transition_filters() -> list[GovTransitionFilter]`` — matched
+        with OR semantics, i.e. any filter matching is enough. No filters
+        (the method absent, or returning empty) means "everything",
+        matching ``GovTransitionFilter``'s own "empty matches all" rule.
+
+        Called synchronously and unconditionally (unlike observability's
+        ``on_transition``, which may be dispatched on a background worker
+        thread once ``enable_async_plugins`` is on) — a governance plugin
+        needs to observe transitions in the order the driver produces them,
+        since a later transition's ``evaluate_egress`` may depend on state
+        an earlier one set (e.g. the casa plugin's alignment check needs
+        this turn's user query before its first tool-call decision).
+        Exceptions are swallowed: this hook cannot influence control flow,
+        so a plugin bug here must not break the turn.
+        """
+        gov = getattr(getattr(self.kernel, "config", None), "egress_governance_plugin", None)
+        on_transition = getattr(gov, "on_transition", None)
+        if not callable(on_transition):
+            return
+        # Everything below — building the transition, calling the plugin's
+        # own transition_filters(), and calling on_transition itself — is
+        # inside the one try/except: a plugin bug (a bad transition_filters()
+        # implementation, or on_transition itself) must not break the turn,
+        # and neither should a future IngressSymbol/EgressSymbol variant that
+        # build_gov_transition doesn't yet handle cleanly.
+        try:
+            from mas.runtime.boundary.gov.transition import build_gov_transition
+
+            transition = build_gov_transition(
+                hook,
+                symbol,
+                q=self.kernel.q,
+                agent_id=self.agent_id,
+                session_id=self.session_id,
+                task_id=self._current_task_id,
+                agent_spec=getattr(self.kernel.config, "agent_spec", None),
+            )
+            get_filters = getattr(gov, "transition_filters", None)
+            if callable(get_filters):
+                filters = get_filters()
+                if filters and not any(f.matches(transition) for f in filters):
+                    return
+            on_transition(transition)
+        except Exception:
+            _logger.debug("governance plugin on_transition failed", exc_info=True)
 
     def _dispatch_engine_batch(
         self, ios: list[InvokeEngineIo], trace: DriverTrace

@@ -109,8 +109,9 @@ def test_preview_keeps_tools_after_tool_results(
 
 
 def test_invoke_payload_matches_preview_tools_and_temperature(
-    tutorial_manifest_with_tools, tutorial_tool_provider
+    tutorial_manifest_with_tools, tutorial_tool_provider, monkeypatch
 ) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     steer = "Current POTUS is Maxence Augé"
     ctx, manifest = _ctx_with_steered_tool_result(tutorial_manifest_with_tools, steer=steer)
     engine = LiveLlmEngine(

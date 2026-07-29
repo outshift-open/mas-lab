@@ -58,7 +58,9 @@ def parse_agent_spec(
     gov_binding: GovernanceBinding = parse_gov_spec(gov_raw)
     pattern_plugin_id = _resolve_pattern_plugin_id(spec)
 
-    kernel_config = build_kernel_config(gov_binding, pattern_plugin_id=pattern_plugin_id)
+    kernel_config = build_kernel_config(
+        gov_binding, pattern_plugin_id=pattern_plugin_id, agent_spec=spec
+    )
 
     # Apply spec.execution.parallel override
     if "parallel" in execution:

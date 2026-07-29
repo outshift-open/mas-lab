@@ -53,6 +53,7 @@ class _ControllerTarget:
     obs_recorder: Any = None
     obs_pipeline: Any = None
     scoped_recorders: Any = ()
+    session_id: str = ""
 
 
 def _resolve_ref(ref: str | Path, anchor: Path) -> Path:
@@ -325,6 +326,7 @@ class MasBenchRunner:
             checkpoint_save=checkpoint_save,
             run_seed=run_seed,
             topology=resolved.topology,
+            session_id=resolved.session_id,
             obs_recorder=resolved.obs_recorder,
             obs_pipeline=resolved.obs_pipeline,
             scoped_recorders=resolved.scoped_recorders,
@@ -483,6 +485,7 @@ class MasBenchRunner:
                     display=None,
                     verbose=0,
                     already_wired={entry},
+                    session_id=prepared.session_id,
                 )
             except KeyError:
                 raise
@@ -519,6 +522,7 @@ class MasBenchRunner:
             obs_recorder=obs_rec,
             obs_pipeline=shared_pipeline,
             scoped_recorders=scoped_recorders,
+            session_id=prepared.session_id,
         )
 
     def _standalone_controller_target(
@@ -647,6 +651,7 @@ class MasBenchRunner:
         checkpoint_save: bool,
         run_seed: int,
         topology: str | None = None,
+        session_id: str = "",
         obs_recorder: Any = None,
         obs_pipeline: Any = None,
         scoped_recorders: Any = (),
@@ -676,6 +681,7 @@ class MasBenchRunner:
                 single_turn=len(queries) == 1,
                 save_checkpoint_each_turn=checkpoint_save,
             ),
+            session_id=session_id,
         )
         try:
             results = [controller.run_turn(q) for q in queries]

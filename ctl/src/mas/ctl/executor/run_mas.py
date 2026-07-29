@@ -136,12 +136,16 @@ def execute_run_mas(
     # Wire delegation onto every OTHER agent that declares its own peers too
     # (not just the entry) — see wire_peer_delegation's docstring: without
     # this, an agent that is itself a delegate can never further delegate.
+    # Reuses prepared.session_id (minted once, above) so every delegate's
+    # own SessionController joins the SAME MAS session instead of each
+    # independently starting its own.
     wire_peer_delegation(
         materialized,
         entry_id=entry,
         display=display,
         verbose=verbose,
         already_wired={entry},
+        session_id=prepared.session_id,
     )
 
     if runtime_params:
@@ -176,6 +180,7 @@ def execute_run_mas(
         config=ConversationConfig(
             single_turn=single_turn or (bool(scripted) and not interactive),
         ),
+        session_id=prepared.session_id,
     )
     exit_code = run_session_loop(
         controller,

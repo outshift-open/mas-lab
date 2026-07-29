@@ -355,3 +355,159 @@ def test_send_sequential_workflow_calls_without_caller_call_id_still_get_unique_
             send("worker", "step 2")
 
     assert len(set(captured_turn_ids)) == 2, captured_turn_ids
+
+
+def _capturing_run_turn(captured_session_ids: list[str]):
+    """Fake ONLY SessionController.run_turn — construction runs for real, so
+    `self` here is a genuine SessionController and `self.session_id` reflects
+    whatever the real dataclass field/`__post_init__` actually produced.
+
+    Deliberately NOT faking __init__ too: an earlier version of these tests
+    faked __init__ with its own hand-written `session_id=""` parameter,
+    which meant renaming/removing SessionController.session_id in the real
+    class would go completely undetected here — the fake would happily keep
+    accepting a `session_id` kwarg no real class had anymore. Letting the
+    real constructor run means that exact rename would raise
+    `TypeError: unexpected keyword argument 'session_id'` out of send(),
+    which is what these tests are actually supposed to catch.
+    """
+
+    class _FakeResult:
+        text = "ok"
+
+    def _fake_run_turn(self, prompt, *, turn_id=None, parent_call_id="", auto_hitl=True):
+        captured_session_ids.append(self.session_id)
+        return _FakeResult()
+
+    return _fake_run_turn
+
+
+def test_make_workflow_send_threads_explicit_session_id_into_every_delegate():
+    materialized = _fake_materialized_for_send(["moderator", "schedule_agent"])
+    captured: list[str] = []
+    fake_run_turn = _capturing_run_turn(captured)
+
+    with patch("mas.ctl.executor.mas_session.SessionController.run_turn", fake_run_turn):
+        with patch("mas.ctl.executor.mas_session.turn_failed", return_value=False):
+            send = make_workflow_send(
+                materialized,
+                display=None,
+                verbose=0,
+                from_agent="moderator",
+                session_id="entry-session-abc",
+            )
+            send("schedule_agent", "q1", caller_call_id="c1")
+            send("schedule_agent", "q2", caller_call_id="c2")
+
+    assert captured == ["entry-session-abc", "entry-session-abc"]
+
+
+def test_make_workflow_send_mints_one_session_id_and_reuses_it_when_none_given():
+    """No session_id passed in -> make_workflow_send mints exactly one and
+    every delegate call within THIS closure reuses it (still shared across
+    the closure's whole lifetime, just not tied to any caller's value)."""
+    materialized = _fake_materialized_for_send(["moderator", "schedule_agent"])
+    captured: list[str] = []
+    fake_run_turn = _capturing_run_turn(captured)
+
+    with patch("mas.ctl.executor.mas_session.SessionController.run_turn", fake_run_turn):
+        with patch("mas.ctl.executor.mas_session.turn_failed", return_value=False):
+            send = make_workflow_send(materialized, display=None, verbose=0, from_agent="moderator")
+            send("schedule_agent", "q1", caller_call_id="c1")
+            send("schedule_agent", "q2", caller_call_id="c2")
+
+    assert len(captured) == 2
+    assert captured[0] == captured[1]
+    import uuid
+
+    uuid.UUID(captured[0])  # a real minted uuid, not a placeholder
+
+
+def test_two_separate_workflow_send_closures_get_different_session_ids_when_unspecified():
+    materialized = _fake_materialized_for_send(["moderator", "schedule_agent"])
+    captured: list[str] = []
+    fake_run_turn = _capturing_run_turn(captured)
+
+    with patch("mas.ctl.executor.mas_session.SessionController.run_turn", fake_run_turn):
+        with patch("mas.ctl.executor.mas_session.turn_failed", return_value=False):
+            send_a = make_workflow_send(materialized, display=None, verbose=0, from_agent="moderator")
+            send_a("schedule_agent", "q1", caller_call_id="c1")
+            send_b = make_workflow_send(materialized, display=None, verbose=0, from_agent="moderator")
+            send_b("schedule_agent", "q2", caller_call_id="c2")
+
+    assert captured[0] != captured[1]
+
+
+def test_run_sequential_workflow_queries_threads_session_id_into_make_workflow_send():
+    from mas.ctl.executor.mas_session import run_sequential_workflow_queries
+
+    materialized = _fake_materialized_for_send(["worker"])
+    captured_kwargs: dict = {}
+
+    def _fake_make_workflow_send(materialized_arg, **kwargs):
+        captured_kwargs.update(kwargs)
+
+        def _send(agent_id, prompt, delegate_correlation_id=0, caller_call_id=""):
+            return "ok"
+
+        return _send
+
+    mas_wrapper = SimpleNamespace(materialized=materialized)
+    mas_config = {"spec": {"workflow": {"entry": "worker"}}}
+
+    with patch("mas.ctl.executor.mas_session.make_workflow_send", side_effect=_fake_make_workflow_send):
+        with patch("mas.ctl.executor.mas_session.sequential_workflow_payload", return_value={}):
+            with patch("mas.ctl.executor.mas_session.SequentialWorkflow") as mock_wf_cls:
+                mock_wf = MagicMock()
+                mock_wf.run.return_value = SimpleNamespace(content="done")
+                mock_wf_cls.from_dict.return_value = mock_wf
+                run_sequential_workflow_queries(
+                    mas_config,
+                    mas_wrapper,
+                    ["hello"],
+                    display=None,
+                    session_id="seq-session-xyz",
+                )
+
+    assert captured_kwargs.get("session_id") == "seq-session-xyz"
+
+
+def test_prepare_delegation_entry_session_mints_session_id_when_none_given(tmp_path: Path):
+    driver = SimpleNamespace(agent_id=None, engine=MagicMock())
+    instance = SimpleNamespace(driver=driver)
+    compose = ComposeResult(
+        mas_id="demo",
+        mas_config={"spec": {"workflow": {"entry": "moderator"}}},
+        effective_bind={},
+        placement_plan={},
+        deployment={},
+        infra_refs=[],
+        bind=EffectiveBindManifest(
+            mas_id="demo",
+            spec_revision="",
+            runtime_id="mas-runtime-py",
+            deployment_name="local",
+            agents=[AgentBindSlice(agent_id="moderator", pattern_plugin_id="react@v1")],
+        ),
+        plan=PlacementPlan(),
+    )
+    materialized = SimpleNamespace(
+        compose=compose,
+        materialized=SimpleNamespace(instances={"moderator": instance}),
+        mas_base_dir=tmp_path,
+    )
+    entry_manifest = {"metadata": {"name": "moderator"}, "spec": {}}
+    with patch("mas.ctl.executor.mas_session.enrich_entry_agent_for_delegation", return_value=entry_manifest):
+        with patch("mas.ctl.executor.mas_session.wire_entry_engine_delegation"):
+            prepared_no_session = prepare_delegation_entry_session(
+                materialized, entry_id="moderator", entry_manifest=entry_manifest,
+            )
+            prepared_with_session = prepare_delegation_entry_session(
+                materialized,
+                entry_id="moderator",
+                entry_manifest=entry_manifest,
+                session_id="given-session-id",
+            )
+
+    assert prepared_no_session.session_id  # minted, non-empty
+    assert prepared_with_session.session_id == "given-session-id"

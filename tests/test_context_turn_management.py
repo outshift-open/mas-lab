@@ -204,6 +204,7 @@ def test_multilevel_trajectory_consumes_context_events() -> None:
     ctx = AutoCtxAssembler(observability=op, last_user_text="Q")
     ctx._assembly_correlation_id = 5
     op.record_context_mutation(action="turn_start", turn_index=1)
+    op.record_engine_io(correlation_id=5, op="LLM_CALL")
     assemble_llm_messages(ctx, correlation_id=5)
     op.record_engine_llm_return(correlation_id=5, text="A")
 
@@ -222,6 +223,15 @@ def test_multilevel_trajectory_consumes_context_events() -> None:
     records = _build_call_records(events)
     cpr = _collect_context_provenance(events, records)
     assert records
+    # This is the actual regression check: without record_engine_io before
+    # assemble_llm_messages (see the call above), correlation_id 5's LLM_CALL
+    # start event is never emitted, so llm_call_end's call_id="llm-5" has no
+    # matching open start — _build_call_records raises ValueError (orphan
+    # end event / missing runtime call_id) for LLMCall, a _STRICT_ID_TYPES
+    # entry, well before this line — not a silent pass with empty records.
+    llm_records = [r for r in records if r.get("call_id") == "llm-5"]
+    assert llm_records, f"expected a paired call record for llm-5, got {records}"
+    assert llm_records[0].get("call_type") == "LLMCall"
     assert cpr.get("llm-5") or any(r.get("call_id") == "llm-5" for r in records)
     # WM/turn-history mutations are no longer promoted to Calls-lane bars
     # (they cluttered the timeline and widened the chart); they remain in the

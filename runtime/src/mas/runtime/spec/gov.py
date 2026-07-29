@@ -137,50 +137,72 @@ def build_kernel_config(
     binding: GovernanceBinding,
     *,
     pattern_plugin_id: str = "",
+    agent_spec: dict[str, Any] | None = None,
 ) -> Any:
     """Instantiate governance plugins and build a KernelConfig from a GovernanceBinding.
 
-    This is the runtime-owned counterpart to:
-      - ctl/session/governance_loader.py::build_governance_plugins
-      - ctl/session/manifest_config.py::kernel_config_from_manifest
+    The only function that turns a GovernanceBinding into instantiated
+    governance plugins — mirrors mas.runtime.boundary.obs.plugins's role for
+    observability. ctl/session/manifest_config.py::kernel_config_from_manifest
+    (deprecated) delegates here rather than duplicating plugin resolution.
     """
     from mas.runtime.boundary.gov.filter import GovTransitionFilter
     from mas.runtime.boundary.gov.ingress_chain import RegisteredIngressPlugin
+    from mas.runtime.boundary.gov.plugin import GovernancePlugin
     from mas.runtime.boundary.gov.policy_engine import GovernancePolicyEngine
-    from mas.runtime.boundary.gov.sample import SampleGovernancePlugin
     from mas.runtime.kernel.config import KernelConfig
     from mas.runtime.agent_defaults import default_pattern_plugin_id
+    from mas.runtime.registry import get_registry
     from mas.runtime.schema.governance import GovIngressProfile, GovPolicyProfile
-
-    egress_plugin: SampleGovernancePlugin | None = None
-    ingress_entries: list[RegisteredIngressPlugin] = []
 
     import logging as _logging
     _gov_logger = _logging.getLogger(__name__)
-    _KNOWN_GOV_PLUGINS = {"sample_governance", "sample_governance@v1"}
+
+    def _instantiate(name: str, cfg: dict[str, Any]) -> GovernancePlugin | None:
+        """Resolve *name* to a registered governance plugin class and build it.
+
+        No plugin class is ever named directly here — every governance
+        plugin, built-in ("sample_governance") or third-party, goes through
+        the same registry lookup, so adding one never requires touching this
+        function.
+        """
+        variant = get_registry().resolve_by_type("governance", name)
+        if variant is None:
+            _gov_logger.warning(
+                "governance plugin %r not found in registry; "
+                "ensure its library.yaml is discoverable (installed package, "
+                "MAS_LIBRARY_PATHS, or cwd anchor scan)",
+                name,
+            )
+            return None
+        plugin_cls = variant.load_class()
+        return plugin_cls(**cfg)
+
+    def _ingress_entry_for(plugin: GovernancePlugin) -> Any | None:
+        # Ingress (tool-result) participation is opt-in and duck-typed via
+        # .config.hitl_on_tool_result, not tied to any specific plugin class.
+        plugin_cfg = getattr(plugin, "config", None)
+        if plugin_cfg is not None and getattr(plugin_cfg, "hitl_on_tool_result", False):
+            return RegisteredIngressPlugin(
+                plugin=plugin,
+                filter=GovTransitionFilter(hook="ingress", response_kind=("TOOL_RESULT",)),
+                chain="stop",
+            )
+        return None
+
+    egress_plugin: GovernancePlugin | None = None
+    ingress_entries: list[RegisteredIngressPlugin] = []
 
     for name in binding.plugins:
-        cfg = dict(binding.plugin_configs.get(name) or {})
-        if name in _KNOWN_GOV_PLUGINS:
-            egress_plugin = SampleGovernancePlugin(**cfg)
-            if egress_plugin.config.hitl_on_tool_result:
-                ingress_entries.append(
-                    RegisteredIngressPlugin(
-                        plugin=egress_plugin,
-                        filter=GovTransitionFilter(
-                            hook="ingress", response_kind=("TOOL_RESULT",)
-                        ),
-                        chain="stop",
-                    )
-                )
-        else:
-            _gov_logger.warning(
-                "governance plugin %r is not recognised by build_kernel_config "
-                "(known: %s); it will be skipped",
-                name, ", ".join(sorted(_KNOWN_GOV_PLUGINS)),
-            )
+        plugin = _instantiate(name, dict(binding.plugin_configs.get(name) or {}))
+        if plugin is not None:
+            egress_plugin = plugin
+            entry = _ingress_entry_for(plugin)
+            if entry is not None:
+                ingress_entries.append(entry)
 
-    # Fallback: explicit flags without a named plugin
+    # Fallback: explicit flags without a named plugin — use the built-in
+    # sample_governance plugin, resolved via the registry like any other.
     if egress_plugin is None and (
         binding.hitl_on_tool or binding.hitl_on_tool_result or binding.gov_trigger_destructive
     ):
@@ -196,20 +218,15 @@ def build_kernel_config(
             }.items()
             if v is not None
         }
-        egress_plugin = SampleGovernancePlugin(**plugin_cfg)
-        if egress_plugin.config.hitl_on_tool_result:
-            ingress_entries.append(
-                RegisteredIngressPlugin(
-                    plugin=egress_plugin,
-                    filter=GovTransitionFilter(
-                        hook="ingress", response_kind=("TOOL_RESULT",)
-                    ),
-                    chain="stop",
-                )
-            )
+        egress_plugin = _instantiate("sample_governance", plugin_cfg)
+        if egress_plugin is not None:
+            entry = _ingress_entry_for(egress_plugin)
+            if entry is not None:
+                ingress_entries.append(entry)
 
     kwargs: dict[str, Any] = {
         "pattern_plugin_id": pattern_plugin_id or default_pattern_plugin_id(),
+        "agent_spec": agent_spec,
     }
     if egress_plugin is not None:
         kwargs["egress_governance_plugin"] = egress_plugin

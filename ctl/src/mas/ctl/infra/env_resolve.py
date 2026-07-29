@@ -48,11 +48,17 @@ def resolve_env_string(value: str) -> str:
     if resolved:
         logger.debug("env_resolve: %s -> %s (from env)", var, resolved)
         return resolved
+    if default:
+        logger.debug(
+            "env_resolve: %s is not set; using default value %r",
+            var,
+            default,
+        )
+        return default
     logger.warning(
-        "env_resolve: %s is not set; using default value %r. "
+        "env_resolve: %s is not set and has no default. "
         "Set this variable in your .env file or shell environment.",
         var,
-        default,
     )
     return default
 
