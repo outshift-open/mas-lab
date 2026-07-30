@@ -11,6 +11,7 @@ import click
 
 from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
 from mas.ctl.cli.obs_flags import observability_options, resolve_observability_config
+from mas.ctl.cli.trace_flags import trace_options
 from mas.ctl.session.controller import (
     ConversationConfig,
     SessionController,
@@ -69,31 +70,7 @@ from mas.ctl.ui.stdout import StdoutConversationDisplay
     help="Disable governance summand (M_gov), policy evaluation, and HITL chokepoints",
 )
 @observability_options
-@click.option(
-    "--trace",
-    is_flag=True,
-    help="Stream AGENT↔LLM↔TOOL exchanges on stderr as they happen",
-)
-@click.option(
-    "--trace-timestamps",
-    is_flag=True,
-    help="With --trace: UTC timestamp and +elapsed on each exchange",
-)
-@click.option(
-    "--trace-engine",
-    is_flag=True,
-    help="With --trace: raw InvokeEngineIo / EngineIoReturn JSON (also -vv)",
-)
-@click.option(
-    "--trace-summary",
-    is_flag=True,
-    help="With --trace: only print exchange headers (AGENT→LLM, LLM→AGENT, etc)",
-)
-@click.option(
-    "--trace-color",
-    is_flag=True,
-    help="With --trace: colorize output (gray=timestamp, cyan=header, yellow=metadata, white=content)",
-)
+@trace_options
 @click.option(
     "--model",
     default=None,

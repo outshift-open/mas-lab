@@ -11,6 +11,7 @@ import yaml
 
 from mas.ctl.cli.obs_flags import observability_options, resolve_observability_config
 from mas.ctl.cli.runtime_flags import runtime_id_choice
+from mas.ctl.cli.trace_flags import trace_options
 from mas.ctl.deployment.runtime_id import DEFAULT_RUNTIME_ID
 from mas.ctl.executor.run_mas import execute_run_mas
 
@@ -42,6 +43,7 @@ from mas.ctl.executor.run_mas import execute_run_mas
 @click.option("--single-turn", is_flag=True)
 @click.option("--no-validate", is_flag=True)
 @observability_options
+@trace_options
 @click.pass_context
 def run_mas_cmd(
     ctx: click.Context,
@@ -61,6 +63,11 @@ def run_mas_cmd(
     events_file,
     events_stdout,
     events_format,
+    trace: bool,
+    trace_timestamps: bool,
+    trace_engine: bool,
+    trace_summary: bool,
+    trace_color: bool,
 ) -> None:
     """Run a MAS manifest (compose → materialize → session on entry agent)."""
     from mas.ctl.paths import manifest_cwd, resolve_overlay_path
@@ -113,5 +120,10 @@ def run_mas_cmd(
             verbose=verbose,
             manifest_dir=session.manifest_dir,
             obs_config=obs_cfg,
+            trace=trace,
+            trace_timestamps=trace_timestamps,
+            trace_engine=trace_engine or verbose >= 2,
+            trace_summary=trace_summary,
+            trace_color=trace_color,
         )
     raise SystemExit(rc)

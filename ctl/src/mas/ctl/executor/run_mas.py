@@ -57,6 +57,11 @@ def execute_run_mas(
     verbose: int = 0,
     manifest_dir: Path | None = None,
     obs_config=None,
+    trace: bool = False,
+    trace_timestamps: bool = False,
+    trace_engine: bool = False,
+    trace_summary: bool = False,
+    trace_color: bool = False,
 ) -> int:
     """Compose → materialize → workflow or SessionController on entry agent."""
     from mas.ctl.session.controller import ConversationConfig, SessionController, close_observability
@@ -110,6 +115,11 @@ def execute_run_mas(
             verbose=verbose,
             obs_config=obs_config,
             base=base,
+            trace=trace,
+            trace_timestamps=trace_timestamps,
+            trace_engine=trace_engine,
+            trace_summary=trace_summary,
+            trace_color=trace_color,
         )
 
     entry = entry_agent_id(result.mas_config)
@@ -125,6 +135,11 @@ def execute_run_mas(
             entry_id=entry,
             display=display,
             verbose=verbose,
+            trace=trace,
+            trace_timestamps=trace_timestamps,
+            trace_engine=trace_engine,
+            trace_summary=trace_summary,
+            trace_color=trace_color,
         )
     except KeyError as exc:
         logger.error("%s", exc)
@@ -146,6 +161,11 @@ def execute_run_mas(
         verbose=verbose,
         already_wired={entry},
         session_id=prepared.session_id,
+        trace=trace,
+        trace_timestamps=trace_timestamps,
+        trace_engine=trace_engine,
+        trace_summary=trace_summary,
+        trace_color=trace_color,
     )
 
     if runtime_params:
@@ -176,6 +196,11 @@ def execute_run_mas(
         instance=instance,
         display=display,
         verbose=verbose,
+        trace=trace,
+        trace_timestamps=trace_timestamps,
+        trace_engine=trace_engine,
+        trace_summary=trace_summary,
+        trace_color=trace_color,
         agent_id=str(entry or "agent"),
         config=ConversationConfig(
             single_turn=single_turn or (bool(scripted) and not interactive),
@@ -203,6 +228,11 @@ def _run_sequential_workflow(
     verbose: int,
     obs_config,
     base: Path,
+    trace: bool = False,
+    trace_timestamps: bool = False,
+    trace_engine: bool = False,
+    trace_summary: bool = False,
+    trace_color: bool = False,
 ) -> int:
     from mas.ctl.ui.stdout import StdoutConversationDisplay
 
@@ -228,6 +258,11 @@ def _run_sequential_workflow(
             scripted,
             display=display,
             verbose=verbose,
+            trace=trace,
+            trace_timestamps=trace_timestamps,
+            trace_engine=trace_engine,
+            trace_summary=trace_summary,
+            trace_color=trace_color,
         )
     except (KeyError, RuntimeError, ValueError) as exc:
         logger.error("sequential workflow failed: %s", exc)
