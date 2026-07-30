@@ -109,7 +109,7 @@ def _resolve_ref_target(base_dir: Path, ref: str) -> Path:
 
 
 def check_refs(data: dict[str, Any], kind: str | None, base_dir: Path | None) -> list[str]:
-    if not kind or base_dir is None or not base_dir.is_dir():
+    if not kind or base_dir is None:
         return []
     if not resolve_refs_enabled():
         return []

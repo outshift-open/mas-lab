@@ -2,6 +2,7 @@
   Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
   SPDX-License-Identifier: Apache-2.0
 -->
+
 # MAS-Lab
 
 A **specification-driven foundation** for building multi-agent systems that are
@@ -22,11 +23,11 @@ contracts, reproducible experiments, and built-in observability.
 
 **[Tutorial 0 — Environment setup](docs/tutorials/00-environment-setup/README.md)** — install once (Docker or developer path), then:
 
-| Path | Link |
-|------|------|
-| Tutorials | [docs/tutorials/](docs/tutorials/index.md) |
-| Web UI demo | [docs/ui/index.md](docs/ui/index.md) |
-| Paper labs | [docs/paper/index.md](docs/paper/index.md) |
+| Path        | Link                                       |
+| ----------- | ------------------------------------------ |
+| Tutorials   | [docs/tutorials/](docs/tutorials/index.md) |
+| Web UI demo | [docs/ui/index.md](docs/ui/index.md)       |
+| Paper labs  | [docs/paper/index.md](docs/paper/index.md) |
 
 Full site content mirrors [`docs/`](docs/) — see [docs/index.md](docs/index.md) for the full introduction.
 
@@ -55,12 +56,12 @@ and **governance** through a shared specification and runtime model.
 
 The headline packages:
 
-| Package | Role |
-| --- | --- |
-| `mas-runtime` | Agent runtime — contracts, plugins, design patterns |
-| `mas-ctl` | Orchestration — `chat`, `run-mas`, `validate` |
-| `mas-lab` | Meta-package — benchmarks, pipelines, telemetry, UI controller |
-| `mas-library-standard` | Flavours, overlays, infra bundles |
+| Package                | Role                                                           |
+| ---------------------- | -------------------------------------------------------------- |
+| `mas-runtime`          | Agent runtime — contracts, plugins, design patterns            |
+| `mas-ctl`              | Orchestration — `chat`, `run-mas`, `validate`                  |
+| `mas-lab`              | Meta-package — benchmarks, pipelines, telemetry, UI controller |
+| `mas-library-standard` | Flavours, overlays, infra bundles                              |
 
 `mas-lab` is a meta-package that installs the lab components (`mas-lab-core`,
 `mas-lab-bench`, `mas-lab-controller`, `mas-lab-content`).
@@ -75,9 +76,9 @@ auto-generated package list with dependencies and extras.
 
 Security fixes are applied to the latest release on the `main` branch.
 
-| Version | Supported |
-| --- | --- |
-| latest on `main` | yes |
+| Version               | Supported   |
+| --------------------- | ----------- |
+| latest on `main`      | yes         |
 | older tagged releases | best effort |
 
 ## Citing this work
@@ -91,7 +92,6 @@ Contributions are what make the open source community such an amazing place to
 learn, inspire, and create. Any contributions you make are **greatly
 appreciated**. For detailed contributing guidelines, please see
 [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md)
-
 
 ## License
 

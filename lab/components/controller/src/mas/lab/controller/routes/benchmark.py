@@ -8,7 +8,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from mas.lab.controller.deps import build_tree
@@ -100,6 +100,36 @@ async def benchmark_export(library_name: str, req: BenchmarkExportRequest):
     return {"job_id": job.id, "status": job.status.value, "command": job.command}
 
 
+@router.get("/api/libraries/{library_name}/benchmark/download", tags=["Libraries"])
+async def benchmark_download(library_name: str, benchmark_id: str):
+    """Export and download a benchmark run as a .tar.gz file."""
+    import subprocess
+
+    lib_dir = deps.get_library_path(library_name)
+    tmp_dir = Path(tempfile.mkdtemp())
+    out_path = tmp_dir / f"{benchmark_id}.tar.gz"
+
+    cmd = ["mas-lab", "benchmark", "export", benchmark_id, "--output", str(out_path)]
+    result = subprocess.run(cmd, cwd=lib_dir, capture_output=True, text=True, timeout=120)
+    if result.returncode != 0:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        detail = result.stderr.strip().split("\n")[-1] if result.stderr else "Export failed"
+        raise HTTPException(status_code=400, detail=detail)
+
+    if not out_path.exists():
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise HTTPException(status_code=500, detail="Export produced no output file")
+
+    from starlette.background import BackgroundTask
+
+    return FileResponse(
+        out_path,
+        filename=out_path.name,
+        media_type="application/gzip",
+        background=BackgroundTask(shutil.rmtree, tmp_dir, True),
+    )
+
+
 @router.post("/api/libraries/{library_name}/benchmark/import", tags=["Libraries"], status_code=202)
 async def benchmark_import(library_name: str, req: BenchmarkImportRequest):
     """Import a benchmark archive produced by benchmark export."""
@@ -119,6 +149,34 @@ async def benchmark_import(library_name: str, req: BenchmarkImportRequest):
         request_body=req.model_dump(),
     )
     return {"job_id": job.id, "status": job.status.value, "command": job.command}
+
+
+@router.post("/api/libraries/{library_name}/benchmark/upload-import", tags=["Libraries"], status_code=202)
+async def benchmark_upload_import(library_name: str, file: UploadFile):
+    """Accept a .tar.gz upload and import it as a benchmark run."""
+    lib_dir = deps.get_library_path(library_name)
+
+    tmp = tempfile.NamedTemporaryFile(
+        suffix=".tar.gz", prefix="bench-import-", delete=False, dir=str(lib_dir)
+    )
+    try:
+        contents = await file.read()
+        tmp.write(contents)
+        tmp.close()
+
+        cmd = ["mas-lab", "benchmark", "import", tmp.name]
+        job = jobs.submit_job(
+            endpoint=f"/api/libraries/{library_name}/benchmark/upload-import",
+            cmd=cmd,
+            cwd=lib_dir,
+            timeout=120,
+            request_body={"filename": file.filename},
+            cleanup_paths=[Path(tmp.name)],
+        )
+        return {"job_id": job.id, "status": job.status.value, "command": job.command}
+    except Exception:
+        Path(tmp.name).unlink(missing_ok=True)
+        raise
 
 
 @router.get("/api/experiments", tags=["Benchmark"])
@@ -193,11 +251,14 @@ async def get_experiment_file(experiment_name: str, path: str):
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_name}' not found")
 
     file_path = (exp_dir / path).resolve()
-    # Allow paths inside the experiment dir or the trace/data cache (symlinked runs)
+    # Allow paths inside the experiment dir or the trace/data cache (symlinked runs).
+    # Trace symlinks may point to the XDG cache dir (~/.cache/mas/) which is
+    # separate from MAS_LAB_ROOT (~/.local/share/mas/).
+    from mas.runtime.xdg import mas_cache_root
     allowed_roots = [
         str(exp_dir.resolve()),
         str((mas_lab_root / "data").resolve()),
-        str((mas_lab_root / "cache").resolve()),
+        str(mas_cache_root().resolve()),
     ]
     if not any(str(file_path).startswith(root) for root in allowed_roots):
         raise HTTPException(status_code=403, detail="Path traversal not allowed")

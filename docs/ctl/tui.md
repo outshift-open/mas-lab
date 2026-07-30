@@ -20,7 +20,7 @@ You need an **agent** or **MAS** manifest first
 
 ```bash
 mas-ctl tui agent.yaml
-mas-ctl tui mas.yaml -o overlays/governance/hitl-on-tool.yaml
+mas-ctl tui mas.yaml -o overlays/hitl-on-tool.yaml
 mas-ctl tui agent.yaml -o docs/schemas/examples/overlays/observability-native.yaml
 ```
 

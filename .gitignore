@@ -7,6 +7,7 @@ build/
 .env
 .env.local
 .env.*.local
+config.yaml
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
@@ -22,6 +23,8 @@ COMPLIANCE_REPORT.md
 site/
 
 .vscode/
+.cursor/
+.claude/
 
 # Test / coverage artifacts
 .coverage

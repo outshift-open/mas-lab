@@ -1,0 +1,68 @@
+{
+  "name": "qa-agent-default",
+  "description": "General-purpose Q&A evaluation dataset for the qa-agent sample app.",
+  "version": "1.0",
+  "tags": [
+    "qa",
+    "general-knowledge",
+    "math"
+  ],
+  "count": 5,
+  "items": [
+    {
+      "id": "q1",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "What is the capital of France?"
+          }
+        ]
+      }
+    },
+    {
+      "id": "q2",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "How many days are there in a leap year?"
+          }
+        ]
+      }
+    },
+    {
+      "id": "q3",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "What is 127 * 34 + 56?"
+          }
+        ]
+      }
+    },
+    {
+      "id": "q4",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Who wrote the novel '1984'?"
+          }
+        ]
+      }
+    },
+    {
+      "id": "q5",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "What is the current population of Tokyo?"
+          }
+        ]
+      }
+    }
+  ]
+}

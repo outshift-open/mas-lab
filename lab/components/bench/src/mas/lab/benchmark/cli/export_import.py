@@ -57,6 +57,12 @@ def export_command(args) -> int:
 
     if result is None:
         result = run_manager.get_run(benchmark_id)
+        if not result:
+            # Fallback: match by experiment_name
+            for run_info in run_manager.list_runs():
+                if run_info.experiment_name == benchmark_id:
+                    result = run_manager.get_run(run_info.benchmark_id)
+                    break
     if not result:
         logger.error("Benchmark not found: %s", benchmark_id)
         return 1

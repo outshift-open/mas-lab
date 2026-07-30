@@ -1,0 +1,58 @@
+experiment:
+  name: new-experiment
+  description: >-
+    Design-pattern comparison experiment for the trip-planner MAS.
+    Compares chain-of-thought, react, and reflection moderator strategies
+    across the standard trip-planner query dataset.
+  metadata:
+    model: azure/gpt-4o
+    dataset_version: "1.0"
+    notes: Created via mas-lab UI experiment builder.
+  default_flavour: local
+  applications:
+    - manifest: apps/trip-planner/mas.yaml
+  scenarios:
+    - id: cot
+      description: Chain-of-thought moderator reasoning
+      tags:
+        - design-pattern
+        - baseline
+      overlays:
+        logic:
+          - ref: overlays/cot-moderator.yaml
+        control: []
+        infra: []
+    - id: react
+      description: ReAct moderator with tool use
+      tags:
+        - design-pattern
+      overlays:
+        logic:
+          - ref: overlays/react-moderator.yaml
+        control: []
+        infra: []
+    - id: reflection
+      description: Self-reflection moderator loop
+      tags:
+        - design-pattern
+      overlays:
+        logic:
+          - ref: overlays/reflection-moderator.yaml
+        control: []
+        infra: []
+  dataset:
+    path: datasets/trip-planner/queries.yaml
+    limit: 5
+  run:
+    n_runs: 3
+  execution:
+    parallel_scenarios: 3
+    timeout: 300
+    pause_between_runs: 1
+    strategy: coverage
+    emulation:
+      infra:
+        llm: live
+        tools: live
+      runtime:
+        cache: content-addressed

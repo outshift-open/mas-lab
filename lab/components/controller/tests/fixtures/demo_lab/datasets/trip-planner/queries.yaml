@@ -1,0 +1,101 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: lab/v1
+kind: Dataset
+metadata:
+  name: trip-planner-queries
+  display_name: Trip Planner Queries
+  version: '1.0'
+  description: 6 trip-planner queries covering simple and complex multi-city planning requests.
+  tags:
+  - trip-planner
+  - design-space
+spec:
+  items:
+  - id: s1
+    inputs:
+      user:
+      - role: user
+        content: What trains run from Celestia to Verdantia?
+    expectations:
+      ground_truth: 'Celestia to Verdantia by train: 3h journey, 8/day weekdays and 6/day weekends plus 1 night train. Fares:
+        Standard $28, Express $42, NightTrain couchette $55.'
+  - id: s2
+    inputs:
+      user:
+      - role: user
+        content: How long does the direct route from Celestia to Harmonia take?
+    expectations:
+      ground_truth: Celestia to Harmonia by train takes 2 hours. Standard fare $20, Express $30.
+  - id: s3
+    inputs:
+      user:
+      - role: user
+        content: What are the main attractions in Celestia?
+    expectations:
+      ground_truth: Crystal Tower Observatory ($25, 9am-8pm), Starlight Gardens (free, 6am-10pm), Museum of Celestial Arts
+        ($18, 10am-6pm), Azure Lake Promenade (free, 24/7), Moonstone Market (free, 11am-11pm).
+  - id: s4
+    inputs:
+      user:
+      - role: user
+        content: How much does a flight from Celestia to Luminos cost?
+    expectations:
+      ground_truth: 'Celestia to Luminos by airplane: 55 minutes, Economy $85, Business $210. 6 flights per day.'
+  - id: c1
+    inputs:
+      user:
+      - role: user
+        content: Plan the cheapest 3-city trip (Celestia, Verdantia, Harmonia) over 3 days, visiting the main attraction in
+          each city, with morning departures only.
+    expectations:
+      ground_truth: 'Transport: Celestia to Verdantia standard train $28 (3h), Verdantia to Silvara train $14 (1h30), Silvara
+        to Harmonia. Key attractions: Crystal Tower Observatory (Celestia), Emerald Canyon Bridge $12 (Verdantia). Total transport
+        approximately $60-70.'
+  - id: c2
+    inputs:
+      user:
+      - role: user
+        content: I arrive in Celestia on Monday. Plan my full week visiting Verdantia and Aurelia, budget $600 total including
+          transport and attractions.
+    expectations:
+      ground_truth: 'Transport: Celestia to Verdantia train $28-42, Celestia to Aurelia flight $110. Typical day costs: Celestia
+        $125/day, Verdantia $163/day, Aurelia $195/day. Budget of $600 allows approximately 2 days Celestia + 2 days Verdantia
+        + 2 days Aurelia with Standard class transport.'
+  - id: c3
+    inputs:
+      user:
+      - role: user
+        content: What is the most time-efficient 3-city round trip starting and ending in Celestia?
+    expectations:
+      ground_truth: 'Arborian Highlands Loop: Celestia, Harmonia, Silvara, Verdantia, Celestia. Total rail time 9h 15m, estimated
+        travel cost $90. This is the fastest multi-city circuit by train.'
+  - id: c4
+    inputs:
+      user:
+      - role: user
+        content: Plan a trip from Celestia to Aurelia avoiding flights, with stops for attractions along the way.
+    expectations:
+      ground_truth: 'No direct train Celestia to Aurelia exists (only airplane 1h05m). Must route via intermediate cities
+        with rail connections. Possible stopovers: Celestia to Montaigne (train 3h30, $34) then onward connections toward
+        the coast.'
+  - id: c5
+    inputs:
+      user:
+      - role: user
+        content: Compare all cities reachable from Celestia by train. For each, state the journey time and standard fare.
+    expectations:
+      ground_truth: 'By train from Celestia: Verdantia (3h, Standard $28), Harmonia (2h, Standard $20), Montaigne (3h 30m,
+        Standard $34). Air-only destinations: Luminos (55m, Economy $85), Aurelia (1h05, Economy $110), Polaria (2h10, Economy
+        $195).'
+  - id: c6
+    inputs:
+      user:
+      - role: user
+        content: A family of four wants to visit the Arborian Highlands Loop. Calculate total transport costs for the family.
+    expectations:
+      ground_truth: 'Arborian Highlands Loop (Celestia, Harmonia, Silvara, Verdantia, Celestia): estimated travel cost $90
+        per person, total for family of four = $360.'
+  groups:
+  - id: simple
+  - id: complex

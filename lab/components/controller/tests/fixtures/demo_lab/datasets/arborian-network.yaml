@@ -1,0 +1,749 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Arborian Network — fictional city universe for the trip-planner MAS.
+# 15 cities across 6 regions, connected by inter-city rail and air routes.
+# Referenced from intent.knowledge_refs in mas.yaml.
+#
+# Consumed by:
+#   - mas_runner.py (auto-injected as knowledge_context in test scenarios)
+#   - user emulation agents (via agent_card.knowledge_refs)
+#   - city-selector, schedule, and concierge agents
+
+id: arborian-network
+description: >
+  The Arborian Network is a fictional city universe for the trip-planner MAS.
+  Fifteen cities across six regions (highlands, forest_belt, coastal, alpine,
+  plains, northern) are connected by a rail grid and regional air routes.
+  Users may ask for destination recommendations, transport schedules, fares,
+  attraction guides, and multi-city itineraries.
+
+# ---- region reference ----
+regions:
+  highlands:    "Central plateau — mild summers, cool winters, cultural heritage"
+  forest_belt:  "Dense temperate forest — eco-tourism, craft traditions"
+  coastal:      "Atlantic and inland sea coastline — beaches, ports, maritime culture"
+  alpine:       "Eastern mountain range — skiing, thermal spas, glaciers"
+  plains:       "Central lowlands — fast rail, business hubs, flat cycling"
+  northern:     "Sub-arctic fringe — aurora viewing, geysers, heritage sites"
+
+# ---- city catalogue ----
+cities:
+  - name: Celestia
+    region: highlands
+    character: >
+      Cultural capital — Crystal Tower Observatory, bioluminescent botanical
+      gardens, sky-themed arts museum, lakeside promenade, artisan night market.
+    highlights:
+      - Crystal Tower Observatory:
+          - admission: $25, 9 AM – 8 PM
+          - additional_info: Has a wheelchair accessible ramp. Elevator access is available to the main deck, and security screening may add 10-15 minutes at peak hours. Companion assistance is available on request, and the observation deck can be windy after sunset so warm layers are recommended. Opened in 1896 as a hilltop astronomical station, the observatory was restored after the 1968 storm and later modernized with its current crystal dome in 2004. Ticket must be purchased 2 months in advance.
+      - Starlight Gardens:
+          - admission: free, 6 AM – 10 PM)
+          - additional_info: Does not have a wheelchair accessible path. The gardens feature around 420 plant species, including over 160 flowering varieties and 45 native medicinal herbs, with peak bloom displays from late spring to early summer. It also includes 12 themed botanical zones, a seasonal orchid house with about 90 orchid varieties, and guided twilight walks highlighting night-blooming flowers and pollinator habitats. The grounds are divided into multiple wildlife sections where visitors can observe bees and other beneficial insects, as well as small habitats for rabbits, ducks, fishes, birds and snakes.
+      - Museum of Celestial Arts:
+          - admission: $18, 10 AM – 6 PM
+          - additional_info: Has a wheelchair accessible ramp.
+      - Azure Lake Promenade:
+          - admission: free, 24/7
+          - additional_info: Has a wheelchair accessible path.
+      - Moonstone Market:
+          - admission: free, 11 AM – 11 PM
+          - additional_info: Does not have a wheelchair accessible path.
+    typical_day_cost_usd: 125
+
+  - name: Verdantia
+    region: forest_belt
+    character: >
+      Eco-tourism hub — canyon suspension bridge, rainforest canopy walk,
+      living library, natural water park, mountainside tea house.
+    highlights:
+      - Emerald Canyon Bridge:
+          - admission: $12
+          - additional_info: Does not have a wheelchair accessible path.
+      - Rainforest Canopy Walk:
+          - admission: $30, guided
+          - additional_info: Does not have a wheelchair accessible path.
+      - The Living Library:
+          - admission: $15
+          - additional_info: Has a wheelchair accessible ramp.
+      - Verdant Falls Water Park:
+          - admission: $45
+          - additional_info: Has a wheelchair accessible ramp.
+      - Jade Mountain Tea House:
+          - admission: free entry
+          - additional_info: Does not have a wheelchair accessible path.
+    typical_day_cost_usd: 163
+
+  - name: Luminos
+    region: plains
+    character: >
+      Festival of lights city — Prism Palace, neon district tours, mirror lake
+      observatory, light-physics science centre. Annual Light Festival in October.
+    highlights:
+      - The Prism Palace:
+          - admission: $35, 9:30 AM – 7 PM
+          - additional_info: Has a wheelchair accessible ramp.
+      - Neon District Walking Tour:
+          - admission: guided $20, tours at 11 AM / 2 PM / 5 PM / 8 PM
+          - additional_info: Does not have a wheelchair accessible path.
+      - Mirror Lake Observatory:
+          - admission: $22, 10 AM – 11 PM
+          - additional_info: Has a wheelchair accessible ramp.
+      - Lightwave Science Center:
+          - admission: $28, 9 AM – 6 PM
+          - additional_info: Has a wheelchair accessible ramp.
+      - Golden Hour Plaza:
+          - admission: free, best at sunset
+          - additional_info: Has a wheelchair accessible path.
+    typical_day_cost_usd: 171
+
+  - name: Aurelia
+    region: coastal
+    character: >
+      Seaside resort — golden sand beaches, clifftop seafood promenade,
+      historic lighthouse, water sports centre, sunset boat cruises.
+    highlights:
+      - Aurelia Beach Promenade:
+          - admission: free
+          - additional_info: Has a wheelchair accessible path.
+      - Cape Solara Lighthouse:
+          - admission: $8
+          - additional_info: Does not have a wheelchair accessible path.
+      - Coral Bay Water Sports:
+          - admission: from $40/session
+          - additional_info: Has a wheelchair accessible ramp.
+      - Old Port Fish Market:
+          - admission: free entry
+          - additional_info: Has a wheelchair accessible path.
+      - Sunset Cruise from Marina:
+          - admission: from $55/person
+          - additional_info: Does not have a wheelchair accessible ramp.
+    typical_day_cost_usd: 195
+
+  - name: Maritima
+    region: coastal
+    character: >
+      Historic port city — maritime museum, daily fish auction, cobblestone
+      old town, harbour wall walk, naval shipyard tours.
+    highlights:
+      - Maritima Maritime Museum:
+          - admission: $14
+          - additional_info: Has a wheelchair accessible ramp.
+      - Old Town Harbour Walk:
+          - admission: free
+          - additional_info: Does not have a wheelchair accessible path.
+      - Fish Auction Quay:
+          - admission: free, 6 AM – 9 AM
+          - additional_info: Has a wheelchair accessible path.
+      - Naval Shipyard Heritage Tour:
+          - admission: $22
+          - additional_info: Does not have a wheelchair accessible path.
+      - Tower of the Four Winds:
+          - admission: $10
+          - additional_info: Does not have a wheelchair accessible path.
+    typical_day_cost_usd: 148
+
+  - name: Montaigne
+    region: alpine
+    character: >
+      Mountain retreat — ski resort, cable car to Glacier View peak,
+      fondue chalet trail, high-altitude spa, summer wildflower walks.
+    highlights:
+      - Glacier View Cable Car:
+          - admission: return $28
+          - additional_info: Does not have a wheelchair accessible ramp.
+      - Montaigne Ski Resort:
+          - admission: day pass $65, season Nov – Apr
+          - additional_info: Has a wheelchair accessible ramp.
+      - Fondue Chalet Trail:
+          - admission: self-guided, free
+          - additional_info: Does not have a wheelchair accessible path.
+      - Alpine Spa & Thermal Pool:
+          - admission: $45
+          - additional_info: Has a wheelchair accessible ramp.
+      - Wildflower Meadow Trek:
+          - admission: free, Jun – Sep
+          - additional_info: Does not have a wheelchair accessible path.
+    typical_day_cost_usd: 220
+
+  - name: Silvara
+    region: forest_belt
+    character: >
+      Silver-mining heritage — underground mine museum, craft workshops,
+      folk instrument makers, artisan silver market, forest foraging tours.
+    highlights:
+      - Silver Mines Heritage Museum:
+          - admission: $16
+          - additional_info: Does not have a wheelchair accessible ramp.
+      - Craft Quarter Walking Tour:
+          - admission: free
+          - additional_info: Has a wheelchair accessible path.
+      - Artisan Market at Silver Square:
+          - admission: free entry
+          - additional_info: Has a wheelchair accessible path.
+      - Forest Foraging Experience:
+          - admission: guided, $35
+          - additional_info: Does not have a wheelchair accessible path.
+      - Bellmakers' Workshop:
+          - admission: $12
+          - additional_info: Has a wheelchair accessible ramp.
+    typical_day_cost_usd: 112
+
+  - name: Harmonia
+    region: highlands
+    character: >
+      Wellness destination — thermal spring baths, silent forest retreats,
+      organic farm-to-table dining, yoga and meditation centres.
+    highlights:
+      - Grand Thermal Baths:
+          - admission: $38
+          - additional_info: Has a wheelchair accessible ramp.
+      - Forest Silence Retreat:
+          - admission: day pass $55
+          - additional_info: Does not have a wheelchair accessible path.
+      - Organic Food Market:
+          - admission: free, Sat–Sun
+          - additional_info: Has a wheelchair accessible path.
+      - Harmonia Yoga Centre:
+          - admission: drop-in $20
+          - additional_info: Has a wheelchair accessible ramp.
+      - Highland Meadow Walk:
+          - admission: free
+          - additional_info: Does not have a wheelchair accessible path.
+    typical_day_cost_usd: 180
+
+  - name: Fortuna
+    region: plains
+    character: >
+      Business-friendly hub — convention centre, rooftop bars, fast rail links,
+      innovation museum, flat cycle network.
+    highlights:
+      - Fortuna Innovation Museum:
+          - admission: $15
+          - additional_info: Has a wheelchair accessible ramp.
+      - Sky Quarter Rooftop Bar Mile:
+          - admission: free
+          - additional_info: Does not have a wheelchair accessible path.
+      - City Cycle Hire:
+          - admission: from $8/day
+          - additional_info: Has a wheelchair accessible path.
+      - Conference & Event Park:
+          - admission: free
+          - additional_info: Has a wheelchair accessible ramp.
+      - Night Food Market:
+          - admission: free, Thu–Sun
+          - additional_info: Has a wheelchair accessible path.
+    typical_day_cost_usd: 145
+
+  - name: Crystallis
+    region: alpine
+    character: >
+      Winter wonderland — ice cave system, aurora viewing platform, luxury
+      chalets, dog-sledding, polar telescope observatory.
+    highlights:
+      - Blue Ice Cave Tour:
+          - admission: $45, guided only
+          - additional_info: Does not have a wheelchair accessible path.
+      - Aurora Viewing Platform:
+          - admission: $20, dusk – 2 AM
+          - additional_info: Has a wheelchair accessible ramp.
+      - Dog-Sled Experience:
+          - admission: from $85
+          - additional_info: Does not have a wheelchair accessible path.
+      - Crystallis Polar Observatory:
+          - admission: $18
+          - additional_info: Has a wheelchair accessible ramp.
+      - Ice Sculpture Garden:
+          - admission: free, lit at night
+          - additional_info: Has a wheelchair accessible path.
+    typical_day_cost_usd: 280
+
+  - name: Portalis
+    region: coastal
+    character: >
+      Gateway port city — international ferry terminal, diverse food scene,
+      lighthouse coastal walk, floating market, fortified city walls.
+    highlights:
+      - Portalis Coastal Lighthouse Walk:
+          - admission: free, 5 km
+          - additional_info: Does not have a wheelchair accessible path.
+      - Floating Food Market:
+          - admission: free entry
+          - additional_info: Has a wheelchair accessible path.
+      - Fort Portalis Heritage Site:
+          - admission: $12
+          - additional_info: Does not have a wheelchair accessible ramp.
+      - International Ferry Terminal:
+          - admission: free, island departures
+          - additional_info: Has a wheelchair accessible ramp.
+      - Mariners' Quarter Live Music:
+          - admission: free, evenings
+          - additional_info: Has a wheelchair accessible path.
+    typical_day_cost_usd: 155
+
+  - name: Hibernia
+    region: northern
+    character: >
+      Viking heritage island — active geyser field, saga museum, long-table
+      feasts, mid-winter fire festival, black-sand lava coast.
+    highlights:
+      - Great Geyser Field:
+          - admission: free, erupts every 8 min
+          - additional_info: Does not have a wheelchair accessible path.
+      - Hibernia Saga Museum:
+          - admission: $20
+          - additional_info: Has a wheelchair accessible ramp.
+      - Viking Long-Table Feast:
+          - admission: from $65/person
+          - additional_info: Has a wheelchair accessible ramp.
+      - Black Lava Coast Walk:
+          - admission: free
+          - additional_info: Does not have a wheelchair accessible path.
+      - Mid-Winter Fire Festival:
+          - admission: free, Jan, outdoor
+          - additional_info: Does not have a wheelchair accessible path.
+    typical_day_cost_usd: 210
+
+  - name: Caledonia
+    region: northern
+    character: >
+      Highland fortress nation — whisky distillery trail, loch-side castles,
+      tartan craft markets, moorland hikes, aurora photography ridges.
+    highlights:
+      - Caledonia Whisky Distillery Tour:
+          - admission: from $25
+          - additional_info: Has a wheelchair accessible ramp.
+      - Loch Arden Castle:
+          - admission: $14
+          - additional_info: Does not have a wheelchair accessible path.
+      - Moorland Highland Trek:
+          - admission: free, guided option $30
+          - additional_info: Does not have a wheelchair accessible path.
+      - Tartan Craft Market:
+          - admission: free
+          - additional_info: Has a wheelchair accessible path.
+      - Aurora Photography Ridge:
+          - admission: free, permit required
+          - additional_info: Does not have a wheelchair accessible path.
+    typical_day_cost_usd: 168
+
+  - name: Polaria
+    region: northern
+    character: >
+      Arctic research outpost — polar wildlife reserve, northern lights
+      observatory, dog-sled routes, ice hotel (Nov – Mar).
+    highlights:
+      - Polar Wildlife Reserve:
+          - admission: guided tour $75
+          - additional_info: Does not have a wheelchair accessible path.
+      - Northern Lights Observatory:
+          - admission: $30, Oct – Mar
+          - additional_info: Has a wheelchair accessible ramp.
+      - Ice Hotel:
+          - admission: from $350/night, Nov – Mar
+          - additional_info: Has a wheelchair accessible ramp.
+      - Aurora Photography Night Tour:
+          - admission: from $90
+          - additional_info: Does not have a wheelchair accessible path.
+      - Arctic Research Station Open Day:
+          - admission: free, monthly
+          - additional_info: Has a wheelchair accessible ramp.
+    typical_day_cost_usd: 340
+
+  - name: Pannonia
+    region: plains
+    character: >
+      Thermal lake district — natural geothermal pools, baroque old town,
+      paprika cuisine trail, horse-riding estates, canal boat tours.
+    highlights:
+      - Pannonia Thermal Lake:
+          - admission: $22
+          - additional_info: Has a wheelchair accessible ramp.
+      - Baroque Old Town Walk:
+          - admission: free, audio guide $5
+          - additional_info: Has a wheelchair accessible path.
+      - Paprika Cuisine Trail:
+          - admission: self-guided, free
+          - additional_info: Does not have a wheelchair accessible path.
+      - Horse-Riding Estate:
+          - admission: half-day $48
+          - additional_info: Does not have a wheelchair accessible path.
+      - Canal Boat Tour:
+          - admission: from $18/person
+          - additional_info: Has a wheelchair accessible ramp.
+    typical_day_cost_usd: 132
+
+# ---- transport network ----
+# All routes are bidirectional unless noted. Fares are one-way adult.
+# Frequencies are approximate; exact timetables vary by day and season.
+
+routes:
+  # --- RAIL: highlands / forest_belt / plains corridor ---
+
+  - id: CV
+    from: Celestia
+    to: Verdantia
+    mode: train
+    distance_km: 245
+    travel_time: "3h"
+    frequency: "8/day weekdays, 6/day weekends + 1 night train"
+    train_types: [Express, Standard, NightTrain]
+    fares_usd:
+      Standard:           28
+      Express:            42
+      NightTrain_couchette: 55
+    sample_departures_from_Celestia:
+      weekday: ["06:15 Express", "08:30 Standard", "10:45 Express", "13:00 Standard",
+                "15:30 Express", "17:45 Standard", "19:30 Express", "21:00 NightTrain"]
+      weekend: ["07:00 Express", "09:30 Standard", "12:00 Express",
+                "14:30 Standard", "17:00 Express", "19:30 Standard"]
+
+  - id: VL
+    from: Verdantia
+    to: Luminos
+    mode: train
+    distance_km: 180
+    travel_time: "2h"
+    frequency: "8/day weekdays, 6/day weekends"
+    train_types: [Express, Standard]
+    fares_usd:
+      Standard: 22
+      Express:  33
+    sample_departures_from_Verdantia:
+      weekday: ["06:00 Express", "08:15 Standard", "10:30 Express", "12:45 Standard",
+                "15:00 Express", "17:15 Standard", "19:30 Express", "21:45 Standard"]
+      weekend: ["07:30 Express", "10:00 Standard", "12:30 Express",
+                "15:00 Standard", "17:30 Express", "20:00 Standard"]
+
+  - id: LF
+    from: Luminos
+    to: Fortuna
+    mode: train
+    distance_km: 120
+    travel_time: "10m"
+    frequency: "10/day every day"
+    train_types: [Express, Standard]
+    fares_usd:
+      Standard: 2
+      Express:  5
+    sample_departures_from_Luminos:
+      daily: ["05:00", "07:30", "09:00", "10:30", "12:00",
+              "13:30", "15:00", "16:30", "18:30", "20:30"]
+
+  - id: LFB
+    from: Fortuna
+    to: Luminos
+    mode: train
+    distance_km: 120
+    travel_time: "10m"
+    frequency: "10/day every day"
+    train_types: [Express, Standard]
+    fares_usd:
+      Standard: 2
+      Express:  5
+    sample_departures_from_Fortuna:
+      daily: ["05:00", "07:30", "09:00", "10:30", "12:00",
+              "13:30", "15:00", "16:30", "18:30", "20:30"]
+  - id: FP
+    from: Fortuna
+    to: Pannonia
+    mode: train
+    distance_km: 95
+    travel_time: "1h 15m"
+    frequency: "9/day every day"
+    train_types: [Express, Standard]
+    fares_usd:
+      Standard: 12
+      Express:  18
+
+  - id: CH
+    from: Celestia
+    to: Harmonia
+    mode: train
+    distance_km: 160
+    travel_time: "2h"
+    frequency: "6/day weekdays, 4/day weekends"
+    train_types: [Express, Standard]
+    fares_usd:
+      Standard: 20
+      Express:  30
+
+  - id: HS
+    from: Harmonia
+    to: Silvara
+    mode: train
+    distance_km: 140
+    travel_time: "1h 45m"
+    frequency: "5/day weekdays, 4/day weekends"
+    train_types: [Standard]
+    fares_usd:
+      Standard: 18
+
+  - id: SV
+    from: Silvara
+    to: Verdantia
+    mode: train
+    distance_km: 200
+    travel_time: "2h 30m"
+    frequency: "4/day every day"
+    train_types: [Standard]
+    fares_usd:
+      Standard: 24
+
+  - id: CM
+    from: Celestia
+    to: Montaigne
+    mode: train
+    distance_km: 290
+    travel_time: "3h 30m"
+    frequency: "5/day weekdays, 4/day weekends"
+    train_types: [Express, Standard]
+    fares_usd:
+      Standard: 34
+      Express:  50
+
+  - id: MX
+    from: Montaigne
+    to: Crystallis
+    mode: train
+    distance_km: 135
+    travel_time: "1h 30m"
+    frequency: "6/day every day"
+    train_types: [Express, Standard]
+    fares_usd:
+      Standard: 16
+      Express:  24
+
+  - id: HC
+    from: Hibernia
+    to: Caledonia
+    mode: train
+    distance_km: 170
+    travel_time: "2h"
+    frequency: "5/day every day"
+    train_types: [Standard]
+    fares_usd:
+      Standard: 22
+
+  - id: FMar
+    from: Fortuna
+    to: Maritima
+    mode: train
+    distance_km: 260
+    travel_time: "3h 15m"
+    frequency: "4/day every day"
+    train_types: [Standard, Express]
+    fares_usd:
+      Standard: 30
+      Express:  45
+
+  - id: LC
+    from: Luminos
+    to: Celestia
+    mode: train
+    distance_km: 310
+    travel_time: "3h 45m"
+    frequency: "6/day weekdays, 5/day weekends"
+    train_types: [Express, Standard]
+    fares_usd:
+      Standard: 36
+      Express:  54
+    sample_departures_from_Luminos:
+      weekday: ["06:30 Express", "09:00 Standard", "11:30 Express", "14:00 Standard",
+                "16:30 Express", "19:00 Standard"]
+      weekend: ["07:00 Express", "10:00 Standard", "13:00 Express",
+                "16:00 Standard", "19:30 Express"]
+
+  # --- AIR: long-distance and island / northern connections ---
+
+  - id: CL-air
+    from: Celestia
+    to: Luminos
+    mode: airplane
+    distance_km: 280
+    travel_time: "55m"
+    frequency: "6 flights/day"
+    fares_usd:
+      Economy:  85
+      Business: 210
+    note: "Fastest Celestia↔Luminos option; rail alternative via Verdantia takes 5h total"
+
+  - id: LC-air
+    from: Luminos
+    to: Celestia
+    mode: airplane
+    distance_km: 280
+    travel_time: "55m"
+    frequency: "6 flights/day"
+    fares_usd:
+      Economy:  85
+      Business: 210
+    note: "Fastest Luminos↔Celestia option; direct train alternative LC takes 3h 45m"
+    sample_departures_from_Luminos:
+      daily: ["11:00", "13:30", "20:00", "21:30", "22:00",
+              "22:30"]
+
+  - id: CA-air
+    from: Celestia
+    to: Aurelia
+    mode: airplane
+    distance_km: 380
+    travel_time: "1h 05m"
+    frequency: "4 flights/day"
+    fares_usd:
+      Economy:  110
+      Business: 270
+
+  - id: LP-air
+    from: Luminos
+    to: Portalis
+    mode: airplane
+    distance_km: 320
+    travel_time: "1h"
+    frequency: "4 flights/day"
+    fares_usd:
+      Economy:  98
+      Business: 245
+
+  - id: AM-air
+    from: Aurelia
+    to: Maritima
+    mode: airplane
+    distance_km: 210
+    travel_time: "45m"
+    frequency: "3 flights/day"
+    fares_usd:
+      Economy:  72
+      Business: 180
+    note: "Coastal hop; ferry alternative $28 but takes 4h"
+
+  - id: CP-air
+    from: Celestia
+    to: Polaria
+    mode: airplane
+    distance_km: 950
+    travel_time: "2h 10m"
+    frequency: "2 flights/day"
+    fares_usd:
+      Economy:  195
+      Business: 480
+
+  - id: HP-air
+    from: Hibernia
+    to: Polaria
+    mode: airplane
+    distance_km: 640
+    travel_time: "1h 30m"
+    frequency: "2 flights/day"
+    fares_usd:
+      Economy:  155
+      Business: 390
+
+  - id: PPor-air
+    from: Pannonia
+    to: Portalis
+    mode: airplane
+    distance_km: 415
+    travel_time: "1h 10m"
+    frequency: "3 flights/day"
+    fares_usd:
+      Economy:  120
+      Business: 295
+
+  - id: FC-train
+    from: Fortuna
+    to: Celestia
+    mode: train
+    distance_km: 265
+    travel_time: "10m"
+    frequency: "4 trains/day"
+    fares_usd:
+      Economy:  2
+      Business: 5
+    note: "Direct trains-to-highlands link;"
+    sample_departures_from_Fortuna:
+      daily: ["07:00", "10:30", "15:00", "19:00"]
+
+  - id: CF-train
+    from: Celestia
+    to: Fortuna
+    mode: train
+    distance_km: 265
+    travel_time: "10m"
+    frequency: "4 trains/day"
+    fares_usd:
+      Economy:  2
+      Business: 5
+    note: "Direct highlands-to-trains link;"
+    sample_departures_from_Celestia:
+      daily: ["08:15", "12:00", "16:30", "20:15"]
+
+# ---- notable multi-city circuits ----
+multi_city_routes:
+  - name: "Arborian Highlands Loop"
+    cities: [Celestia, Harmonia, Silvara, Verdantia, Celestia]
+    total_rail_time: "9h 15m"
+    estimated_travel_cost_usd: 90
+    note: "4 trains; full highlands + forest belt circuit"
+
+  - name: "Northern Lights Circuit"
+    cities: [Celestia, Polaria, Hibernia, Caledonia]
+    modes: [airplane, airplane, train]
+    estimated_travel_cost_usd: 570
+    note: "Best Oct–Mar; fly Celestia→Polaria, then Polaria→Hibernia, then rail to Caledonia"
+
+  - name: "Coastal Grand Tour"
+    cities: [Celestia, Aurelia, Maritima, Portalis]
+    modes: [airplane, airplane, airplane]
+    estimated_travel_cost_usd: 280
+    note: "Three coastal hops all by air"
+
+  - name: "Alpine Express"
+    cities: [Celestia, Montaigne, Crystallis]
+    total_rail_time: "5h"
+    estimated_travel_cost_usd: 74
+    note: "Two trains: 3h30 then 1h30; all Standard class"
+
+  - name: "Plains Corridor"
+    cities: [Luminos, Fortuna, Pannonia]
+    total_rail_time: "2h 45m"
+    estimated_travel_cost_usd: 27
+    note: "Cheapest multi-city option; flat terrain, frequent departures"
+
+# ---- grounded example queries ----
+# Covers all 15 cities, route types, fare classes, and multi-stop trips.
+example_queries:
+  # Discovery
+  - "What cities are in the Arborian Network?"
+  - "Which cities are in the northern region?"
+  - "What coastal cities does the Arborian Network serve?"
+  - "What is the cheapest city to visit?"
+  # Named-city trips
+  - "Plan a 3-day cultural trip to Celestia, budget $400, museums and gardens"
+  - "Plan a week in Verdantia, budget $1200, eco-activities and nature walks"
+  - "4 days in Luminos for the October Light Festival, budget $700"
+  - "5-day beach trip to Aurelia in July, budget $1000, water sports"
+  - "3-day harbour history trip to Maritima, budget $500"
+  - "Skiing week in Montaigne, budget $1500 including ski pass"
+  - "4-day silver heritage trip to Silvara, budget $450"
+  - "Wellness retreat 5 days in Harmonia, budget $950, thermal baths and yoga"
+  - "4-day business trip to Fortuna, budget $650, fast rail links"
+  - "Winter aurora trip to Crystallis, 5 days, budget $1400"
+  - "Long weekend in Portalis, budget $500, coastal walk and floating market"
+  - "Viking heritage tour in Hibernia, 5 days, budget $1100"
+  - "Whisky and castle tour in Caledonia, 5 days, budget $900"
+  - "Northern lights photography in Polaria, 4 nights Oct–Mar, budget $1400"
+  - "Thermal lake and baroque weekend in Pannonia, budget $400"
+  # Transport and routes
+  - "What trains go from Celestia to Verdantia and what do they cost?"
+  - "What is the fastest way to get from Celestia to Luminos?"
+  - "How much does it cost to fly from Celestia to Aurelia?"
+  - "Plan a train journey from Luminos through Fortuna to Pannonia in one day"
+  - "What is the total fare for the Alpine Express circuit (Celestia→Montaigne→Crystallis)?"
+  # Multi-city and comparison
+  - "I want to visit all three coastal cities — best route and total cost?"
+  - "Compare Celestia and Harmonia for a 3-day wellness break"
+  - "What is the difference between Maritima and Portalis?"
+  - "I want to see the northern lights — Polaria, Crystallis, or Hibernia?"
+  - "Plan the Arborian Highlands Loop starting from Celestia"
+  - "Which is cheaper for a week: Silvara or Pannonia?"

@@ -15,7 +15,7 @@ import { Delete as DeleteIcon, Add as AddIcon } from "@mui/icons-material";
 
 const PAGE_SIZE = 20;
 
-interface DatasetItem {
+export interface DatasetItem {
   id: string | number;
   prompt: string;
   category?: string;
@@ -25,7 +25,7 @@ interface DatasetItem {
   tags?: string[];
 }
 
-interface DatasetContent {
+export interface DatasetContent {
   items: DatasetItem[];
   name?: string;
   version?: string;

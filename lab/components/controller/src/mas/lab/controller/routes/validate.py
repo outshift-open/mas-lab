@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import yaml
 from fastapi import APIRouter
 
 from mas.lab.controller.manifest_validation import validate_manifest_yaml_content
@@ -17,4 +18,19 @@ router = APIRouter()
 async def validate_manifest(library_name: str, req: ValidateRequest):
     """Validate an agent or MAS manifest in-process. Resolves refs relative to the library dir."""
     lib_dir = deps.get_library_path(library_name)
-    return validate_manifest_yaml_content(req.manifest_yaml, base_dir=lib_dir, resolve_refs=True)
+    # Unsaved drafts use __MAS_NAME__ placeholder — skip file-based ref
+    # resolution since the agent files don't exist on disk yet.
+    resolve = "__MAS_NAME__" not in req.manifest_yaml
+
+    base_dir = lib_dir
+    try:
+        data = yaml.safe_load(req.manifest_yaml)
+        kind = (data.get("kind") or "").lower() if isinstance(data, dict) else ""
+        mas_name = data.get("metadata", {}).get("name", "") if isinstance(data, dict) else ""
+        if mas_name:
+            app_dir = lib_dir / "apps" / mas_name
+            base_dir = app_dir / "agents" if kind == "agent" else app_dir
+    except Exception:
+        pass
+
+    return validate_manifest_yaml_content(req.manifest_yaml, base_dir=base_dir, resolve_refs=resolve)

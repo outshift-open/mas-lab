@@ -7,7 +7,7 @@ experiment:
     isolated trace cache (cache disabled).
   default_flavour: local
   applications:
-    - app: qa-agent
+    - manifest: ../../../labs/design-space.lab/apps/qa-agent/agents/qa-agent.yaml
       configs_dir: ../../../labs/design-space.lab/01-design-patterns/overlays
   scenarios:
     - id: pattern-cot

@@ -1,0 +1,13 @@
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: test-overlay
+  description: Placeholder overlay used by conflict tests.
+spec:
+  target:
+    kind: Agent
+  patch:
+    spec:
+      models:
+        - model: azure/gpt-4o-mini
+          temperature: 0.5

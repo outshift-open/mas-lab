@@ -1,0 +1,119 @@
+api_version: pipeline/v1
+kind: Pipeline
+metadata:
+  name: pipeline-test
+spec:
+  output:
+    base_dir: ~/.local/share/mas/labs/trip-planner-design-pattern-experiment
+  steps:
+    - name: extract-trace-stats
+      type: extract_trace_stats
+      x-node-id: pnode_6c890ac6
+      depends_on:
+        - extract-trajectories
+      config:
+        output: "{output_dir}/results/trace_stats.csv"
+        item_glob: item*
+        run_glob: r*
+    - name: extract-trajectories
+      type: extract_trajectories
+      x-node-id: pnode_ccae5da7
+      config:
+        csv_file: results.csv
+        runs_dir: runs
+        overwrite: false
+    - name: plot-multilevel-trajectory
+      type: plot_multilevel_trajectory
+      x-node-id: pnode_5eaf82d9
+      depends_on:
+        - extract-trajectories
+      config:
+        format: html
+        title: MAS Multilevel Trajectory
+        width_mode: log
+        show_user_actors: true
+        filename: multilevel_trajectory
+    - name: plotnine
+      type: plotnine
+      x-node-id: pnode_127aca60
+      depends_on:
+        - compute-ci
+      config:
+        data: "@compute-ci"
+        output: "{output_dir}/results/plot.png"
+        mapping:
+          x: scenario
+          y: mean
+          fill: scenario
+          ymin: ci_low
+          ymax: ci_high
+        geom: crossbar
+        facet: ~ metric
+        labels:
+          title: Scenario Comparison by Metric (95% CI)
+          x: Scenario
+          y: MCE Score (mean ± 95% CI)
+        width: 14
+        height: 10
+        dpi: 150
+        legend_position: bottom
+    - name: compute-ci
+      type: compute_ci
+      x-node-id: pnode_f666b765
+      depends_on:
+        - collect-metrics
+      config:
+        data: "@collect-metrics"
+        value_col: value
+        metric_col: metric
+        metrics: []
+        groupby:
+          - scenario
+          - metric
+        ci_method: t
+        ci_level: 0.95
+        min_runs: 2
+        output: "{output_dir}/ci_summary.csv"
+    - name: eval-mce
+      type: eval_mce
+      x-node-id: pnode_c3bec469
+      config:
+        metrics: []
+        overwrite: false
+        validate: true
+        max_workers: 2
+        fail_threshold: 1
+        model: azure/gpt-4o
+        metrics_filename: metrics.json
+    - name: collect-metrics
+      type: collect_metrics
+      x-node-id: pnode_040460d8
+      depends_on:
+        - eval-mce
+      config:
+        output: metrics_results.csv
+        run_glob: "*/*/r*"
+        scenarios: []
+        metrics_filename: metrics.json
+x-canvas-positions:
+  pnode_6c890ac6:
+    x: 368
+    y: -16
+  pnode_ccae5da7:
+    x: -224
+    y: 160
+  pnode_5eaf82d9:
+    x: 384
+    y: 496
+  pnode_127aca60:
+    x: 1776
+    y: 1104
+  pnode_f666b765:
+    x: 976
+    y: 1200
+  pnode_c3bec469:
+    x: -352
+    y: 1248
+  pnode_040460d8:
+    x: 320
+    y: 1280

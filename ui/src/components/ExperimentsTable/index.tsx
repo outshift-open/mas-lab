@@ -11,6 +11,7 @@ interface ExperimentsTablePropsWrapper {
   title?: string;
   onEdit?: (name: string) => void;
   onRun?: (name: string) => void;
+  onExport?: (name: string) => void;
   onDeleteCache?: (experimentName: string) => void;
   onView?: (experimentName: string) => void;
   onDelete?: (names: string[]) => void;
@@ -26,6 +27,7 @@ export const ExperimentsTableWrapper = ({
   title,
   onEdit,
   onRun,
+  onExport,
   onDeleteCache,
   onView,
   onDelete,
@@ -39,6 +41,7 @@ export const ExperimentsTableWrapper = ({
         onDelete={onDelete}
         onEdit={onEdit}
         onRun={onRun}
+        onExport={onExport}
         onDeleteCache={onDeleteCache}
         onView={onView}
         runningJobs={runningJobs}

@@ -55,7 +55,7 @@ export const MasTableWrapper = ({
   const handleDelete = useCallback(
     async (names: string[]) => {
       await Promise.all(names.map((name) => deleteMasResource(library, name)));
-      queryClient.invalidateQueries({ queryKey: ["apps", library] });
+      queryClient.resetQueries({ queryKey: ["apps", library] });
     },
     [library, queryClient],
   );

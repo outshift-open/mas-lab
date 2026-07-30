@@ -1,0 +1,18 @@
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: verbose-moderator
+spec:
+  target:
+    kind: MAS
+  patch:
+    agents:
+      moderator:
+        design_pattern:
+          type: react
+          config:
+            max_steps: 15
+        models:
+          - model: azure/gpt-4o
+            temperature: 0.5
+            max_tokens: 3000

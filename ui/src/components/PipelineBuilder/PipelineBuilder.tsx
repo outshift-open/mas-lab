@@ -82,7 +82,7 @@ function serializeGraphToYaml(
   }
 
   const baseDirValue = experimentName
-    ? `~/.mas/labs/${experimentName}`
+    ? `~/.local/share/mas/labs/${experimentName}`
     : "";
 
   const resolvedMetadata =
@@ -135,7 +135,7 @@ function deserializeYamlToGraph(yaml: string): {
 
   const output = spec?.output as Record<string, unknown> | undefined;
   const baseDir = (output?.base_dir as string) ?? "";
-  const match = baseDir.match(/~\/\.mas\/labs\/(.+)$/);
+  const match = baseDir.match(/mas\/labs\/(.+)$/);
   const experimentName = match?.[1] ?? "";
 
   const nameToNodeId = new Map<string, string>();
@@ -371,7 +371,7 @@ function PipelineFlow({
           }
         }
         if ("folder" in stepTypeDef.config && experimentNameRef.current) {
-          defaultConfig.folder = `~/.mas/labs/${experimentNameRef.current}`;
+          defaultConfig.folder = `~/.local/share/mas/labs/${experimentNameRef.current}`;
         }
         if (
           "metric_kwargs" in stepTypeDef.config &&
@@ -381,7 +381,6 @@ function PipelineFlow({
         ) {
           defaultConfig.metric_kwargs = {
             model: "azure/gpt-4o",
-            api_key_env: "OPENAI_API_KEY",
           };
         }
       }
@@ -446,7 +445,7 @@ function PipelineFlow({
   const handleExperimentChange = useCallback(
     (name: string) => {
       experimentNameRef.current = name;
-      const folderValue = name ? `~/.mas/labs/${name}` : "";
+      const folderValue = name ? `~/.local/share/mas/labs/${name}` : "";
       setNodes((nds) =>
         nds.map((node) => {
           const data = node.data as StepNodeData;

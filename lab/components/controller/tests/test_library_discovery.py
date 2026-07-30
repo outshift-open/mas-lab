@@ -13,7 +13,7 @@ def test_discover_registry_apps_includes_samples():
     from mas.lab.controller.lab_registry import get_lab_registry
 
     libs = get_lab_registry().library_paths()
-    assert "trip-planner" in libs or "qa-agent" in libs or "library-samples" in libs
+    assert "trip-planner" in libs or "library-samples" in libs
 
 
 def test_iter_experiment_files_supports_lab_layout(tmp_path: Path):

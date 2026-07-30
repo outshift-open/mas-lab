@@ -45,6 +45,7 @@ import {
 import type { PipelineSummary } from "@/api/apiCalls";
 import { useQueryClient } from "@tanstack/react-query";
 import { GLOBAL_BACKGROUND_COLOR } from "@/common/styles";
+import { ScrollableTooltip } from "@/components/ScrollableTooltip";
 
 interface PipelineJobStatus {
   jobId: string;
@@ -397,11 +398,7 @@ const Pipelines = () => {
           const stdout = job?.stdout;
           if (!stdout) return <Typography variant="body2">—</Typography>;
           return (
-            <Tooltip
-              title={<span style={{ whiteSpace: "pre-wrap" }}>{stdout}</span>}
-              placement="right"
-              slotProps={{ tooltip: { sx: { maxWidth: 600 } } }}
-            >
+            <ScrollableTooltip title={stdout} placement="right">
               <Typography
                 variant="body2"
                 sx={{
@@ -412,7 +409,7 @@ const Pipelines = () => {
               >
                 {stdout}
               </Typography>
-            </Tooltip>
+            </ScrollableTooltip>
           );
         },
       },
@@ -425,11 +422,7 @@ const Pipelines = () => {
           const stderr = job?.stderr;
           if (!stderr) return <Typography variant="body2">—</Typography>;
           return (
-            <Tooltip
-              title={<span style={{ whiteSpace: "pre-wrap" }}>{stderr}</span>}
-              placement="right"
-              slotProps={{ tooltip: { sx: { maxWidth: 600 } } }}
-            >
+            <ScrollableTooltip title={stderr} placement="right">
               <Typography
                 variant="body2"
                 sx={{
@@ -441,7 +434,7 @@ const Pipelines = () => {
               >
                 {stderr}
               </Typography>
-            </Tooltip>
+            </ScrollableTooltip>
           );
         },
       },

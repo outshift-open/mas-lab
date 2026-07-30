@@ -1,0 +1,24 @@
+apiVersion: mas/v1
+kind: MAS
+metadata:
+  name: validation-test-mas
+  description: >-
+    Validation test MAS — a coordinator delegates research tasks to a
+    specialist agent for answering general knowledge questions.
+spec:
+  agency:
+    agents:
+      - id: coordinator
+        ref: agents/coordinator.yaml
+      - id: researcher
+        ref: agents/researcher.yaml
+  workflow:
+    type: dynamic
+    entry: coordinator
+    nodes:
+      - id: coordinator
+        role: specialist
+        delegates_to:
+          - researcher
+      - id: researcher
+        role: specialist

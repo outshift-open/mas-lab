@@ -112,7 +112,14 @@ class WorkingMemoryContextSource:
         limit = _slice_limit(manifest)
         if limit <= 0 or not self.store.messages:
             return []
-        return list(self.store.messages[-limit:])
+        msgs = self.store.messages
+        start = max(0, len(msgs) - limit)
+        # Don't slice into the middle of a tool-call group: if the first
+        # message after slicing is a "tool" response, back up to include
+        # the preceding assistant message with tool_calls.
+        while start > 0 and msgs[start].get("role") == "tool":
+            start -= 1
+        return list(msgs[start:])
 
 
 def working_memory_source(store: WorkingMemoryStore) -> WorkingMemoryContextSource:

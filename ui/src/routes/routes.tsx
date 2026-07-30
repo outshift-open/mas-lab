@@ -41,7 +41,7 @@ export const PATHS = {
   pipelineTab: "/:library/pipelines/:id/:pipelineTab",
   datasets: "/:library/datasets",
   createDataset: "/:library/datasets/_create",
-  dataset: "/:library/datasets/:id",
+  dataset: "/:library/datasets/*",
   controlPanel: "/:library/control-panel",
   overlays: "/:library/overlays",
   createOverlay: "/:library/overlays/new",

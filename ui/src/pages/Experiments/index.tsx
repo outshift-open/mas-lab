@@ -1,9 +1,23 @@
 //  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 //  SPDX-License-Identifier: Apache-2.0
-import { PageWithTitle, ExperimentsTable, BenchmarkOps } from "@/components";
+import {
+  PageWithTitle,
+  ExperimentsTable,
+  BenchmarkOps,
+  TabPanel,
+} from "@/components";
 import { AddExperimentModal } from "@/components/ExperimentsTable/AddExperimentModal";
 import type { ExperimentJobStatus } from "@/components/ExperimentsTable/ExperimentsTable";
-import { Alert, Box, Button, Stack, Typography, useTheme } from "@mui/material";
+import {
+  Alert,
+  Box,
+  Button,
+  Stack,
+  Tab,
+  Tabs,
+  Typography,
+  useTheme,
+} from "@mui/material";
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router";
 import { stringify, parse } from "yaml";
@@ -20,6 +34,7 @@ import {
   fetchJobs,
   fetchJobDetail,
   deleteExperimentCache,
+  downloadBenchmarkExport,
 } from "@/api/apiCalls";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -55,6 +70,8 @@ const Experiments = () => {
     message: string;
     severity: "success" | "error";
   } | null>(null);
+  const [tab, setTab] = useState(0);
+
   const pollTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const handleAdd = () => {
@@ -77,7 +94,8 @@ const Experiments = () => {
       const expLibrary = exp?.library ?? library;
       try {
         const detail = await fetchExperimentContent(expLibrary, name);
-        const parsed = parse(detail.content) as Experiment;
+        const raw = parse(detail.content) as Record<string, unknown>;
+        const parsed = (raw?.experiment ?? raw) as Experiment;
         if (parsed) {
           if (!parsed.name) parsed.name = name;
           setEditingExperiment(parsed);
@@ -104,7 +122,7 @@ const Experiments = () => {
 
   const handleSave = useCallback(
     async (experiment: Experiment) => {
-      const yamlContent = stringify(experiment, { lineWidth: 120 });
+      const yamlContent = stringify({ experiment }, { lineWidth: 120 });
       try {
         if (editingExperiment) {
           await updateExperimentApi(library, editingExperiment.name, {
@@ -117,15 +135,14 @@ const Experiments = () => {
             content: yamlContent,
           });
         }
-        queryClient.invalidateQueries({ queryKey: ["experiments"] });
-        setModalOpen(false);
-        setEditingExperiment(null);
+        queryClient.resetQueries({ queryKey: ["experiments"] });
       } catch (err) {
         setAlertMessage({
           message:
             err instanceof Error ? err.message : "Failed to save experiment.",
           severity: "error",
         });
+        throw err;
       }
     },
     [editingExperiment, library, queryClient],
@@ -139,11 +156,13 @@ const Experiments = () => {
   const handleDelete = useCallback(
     async (names: string[]) => {
       try {
-        for (const name of names) {
-          const exp = resolveExperiment(name);
-          await deleteExperimentApi(exp?.library ?? library, name);
-        }
-        queryClient.invalidateQueries({ queryKey: ["experiments"] });
+        await Promise.all(
+          names.map((name) => {
+            const exp = resolveExperiment(name);
+            return deleteExperimentApi(exp?.library ?? library, name);
+          }),
+        );
+        queryClient.resetQueries({ queryKey: ["experiments"] });
       } catch (err) {
         setAlertMessage({
           message:
@@ -152,6 +171,7 @@ const Experiments = () => {
               : "Failed to delete experiment(s).",
           severity: "error",
         });
+        throw err;
       }
     },
     [library, queryClient, resolveExperiment],
@@ -225,8 +245,11 @@ const Experiments = () => {
 
           let experimentName: string | undefined;
           try {
-            const parsed = parse(experimentYaml);
-            experimentName = parsed?.name;
+            const parsed = parse(experimentYaml) as Record<string, unknown>;
+            const inner = (parsed?.experiment ?? parsed) as
+              | Record<string, unknown>
+              | undefined;
+            experimentName = inner?.name as string | undefined;
           } catch {
             /* ignore parse errors */
           }
@@ -349,6 +372,20 @@ const Experiments = () => {
     [library, navigate, resolveExperiment],
   );
 
+  const handleExport = useCallback(
+    async (experimentName: string) => {
+      try {
+        await downloadBenchmarkExport(library, experimentName);
+      } catch (err) {
+        setAlertMessage({
+          severity: "error",
+          message: `Export failed: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
+    },
+    [library],
+  );
+
   return (
     <Box sx={{ position: "relative" }}>
       {alertMessage && (
@@ -380,17 +417,24 @@ const Experiments = () => {
             >
               Experiments
             </Typography>
-            <Button onClick={handleAdd}>Add Experiment</Button>
+            {tab === 0 && <Button onClick={handleAdd}>Add Experiment</Button>}
           </Stack>
         }
       >
-        <Stack direction="column" sx={{ gap: "24px" }}>
-          <BenchmarkOps library={library} />
+        <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
+          <Tabs value={tab} onChange={(_e, v) => setTab(v)}>
+            <Tab label="Experiments" id="experiments-tab-0" />
+            <Tab label="Benchmark Utilities" id="experiments-tab-1" />
+          </Tabs>
+        </Box>
+
+        <TabPanel value={tab} index={0}>
           <ExperimentsTable
             data={experiments}
             isLoading={isLoading}
             onEdit={handleEdit}
             onRun={handleRun}
+            onExport={handleExport}
             onDelete={handleDelete}
             onDeleteCache={handleDeleteCache}
             onView={handleView}
@@ -398,7 +442,11 @@ const Experiments = () => {
             defaultHiddenColumns={["description", "version", "path", "library"]}
             showLibraryColumn
           />
-        </Stack>
+        </TabPanel>
+
+        <TabPanel value={tab} index={1}>
+          <BenchmarkOps library={library} />
+        </TabPanel>
       </PageWithTitle>
       <AddExperimentModal
         open={modalOpen}

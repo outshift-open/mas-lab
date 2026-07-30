@@ -25,7 +25,7 @@ experiment:
       - ci_high
       - latency_s_mean
   applications:
-    - app: qa-agent
+    - manifest: ../apps/qa-agent/agents/qa-agent.yaml
       configs_dir: ./overlays
   scenarios:
   - id: pattern-cot

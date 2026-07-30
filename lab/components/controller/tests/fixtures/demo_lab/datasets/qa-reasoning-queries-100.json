@@ -1,0 +1,1513 @@
+{
+  "name": "qa-reasoning-queries-100",
+  "description": "100 questions designed to stress-test reasoning quality across design patterns. Categories: multi-step math (25), logical deduction (25), factual synthesis (25), sequential planning (15), open-ended analysis (10). Extends qa-reasoning-queries v1 (8 items) with 92 additional items of the same style. Use limit: 100 to run the full set, or limit: N for a subset.\n",
+  "version": "1.0",
+  "tags": [
+    "qa-agent",
+    "design-patterns",
+    "reasoning"
+  ],
+  "count": 100,
+  "items": [
+    {
+      "id": "math-1",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A train travels at 120 km/h for 2.5 hours, then slows to 80 km/h for the next 1 hour 45 minutes. What is the total distance covered? Then, if a second train needs to cover the same total distance in exactly 3 hours, what constant speed must it maintain?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Leg 1: 120 × 2.5 = 300 km. Leg 2: 80 × 1.75 = 140 km. Total: 440 km. Required speed: 440 / 3 ≈ 146.7 km/h.\n"
+      },
+      "category": "multi-step-math"
+    },
+    {
+      "id": "math-2",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A store sells a jacket at 40% markup over cost. During a sale, it offers a 25% discount on the marked price. If the final sale price is $90, what was the original cost price? What is the store's actual profit or loss percentage on the cost?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Marked price = 90 / 0.75 = $120. Cost = 120 / 1.4 ≈ $85.71. Profit = (90 - 85.71) / 85.71 ≈ 5%.\n"
+      },
+      "category": "compound-reasoning"
+    },
+    {
+      "id": "math-3",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "$5,000 is invested at 6% per year, compounded monthly. What is the value after 3 years? If a second account compounds annually at 6.2%, which account has a higher value after 3 years, and by how much?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Monthly: A = 5000 × (1 + 0.06/12)^36 = 5000 × 1.19668 ≈ $5,983.40. Annual: A = 5000 × (1.062)^3 = 5000 × 1.19773 ≈ $5,988.64. Annual account is higher by ≈ $5.24.\n"
+      },
+      "category": "compound-interest"
+    },
+    {
+      "id": "math-4",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Pipe A fills a tank in 4 hours. Pipe B fills the same tank in 6 hours. Pipe C drains it in 12 hours. If all three are open simultaneously, how long does it take to fill the tank?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Combined rate: 1/4 + 1/6 - 1/12 = 3/12 + 2/12 - 1/12 = 4/12 = 1/3 tanks/hour. Time = 3 hours.\n"
+      },
+      "category": "work-rate"
+    },
+    {
+      "id": "math-5",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A 40-litre solution is 30% acid. How many litres of pure acid must be added to make it 50% acid?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Current acid: 40 × 0.30 = 12 L. Let x = litres of pure acid added. (12 + x) / (40 + x) = 0.50 → 12 + x = 20 + 0.5x → 0.5x = 8 → x = 16 L.\n"
+      },
+      "category": "mixture"
+    },
+    {
+      "id": "math-6",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Two cyclists start 120 km apart and ride towards each other. Cyclist A goes 30 km/h, Cyclist B goes 20 km/h. They also have a fly that starts at A, flies to B, bounces back to A, and so on at 60 km/h until the cyclists meet. How far does the fly travel?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "They meet after 120 / (30 + 20) = 2.4 hours. Fly distance = 60 × 2.4 = 144 km.\n"
+      },
+      "category": "multi-step-math"
+    },
+    {
+      "id": "math-7",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A ball is dropped from 10 m. Each bounce it rises to 60% of the previous height. What is the total distance the ball travels before it stops?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Down: 10 m. Then up + down infinite bouncing: 2 × 10 × 0.6 / (1 - 0.6) = 2 × 15 = 30 m. Total: 10 + 30 = 40 m.\n"
+      },
+      "category": "geometric-series"
+    },
+    {
+      "id": "math-8",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A bag has 5 red and 3 blue balls. Two balls are drawn without replacement. What is the probability both are red? What is the probability at least one is blue?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "P(both red) = (5/8) × (4/7) = 20/56 = 5/14. P(at least one blue) = 1 - 5/14 = 9/14.\n"
+      },
+      "category": "probability"
+    },
+    {
+      "id": "math-9",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A car engine produces 150 horsepower. Convert to watts (1 hp = 745.7 W). If the car runs at full power for 2 hours, how many kilowatt-hours of energy does it consume? What is the cost at $0.12/kWh?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Power: 150 × 745.7 = 111,855 W = 111.855 kW. Energy: 111.855 × 2 = 223.71 kWh. Cost: 223.71 × 0.12 ≈ $26.85.\n"
+      },
+      "category": "unit-conversion"
+    },
+    {
+      "id": "math-10",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A student's grade is computed as: 20% homework, 30% midterm, 50% final. She scores 85 on homework, 72 on midterm, 90 on final. What is her weighted grade? What final exam score would she need to achieve a 85 overall if her other scores remain the same?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Weighted grade: 0.20×85 + 0.30×72 + 0.50×90 = 17 + 21.6 + 45 = 83.6. For 85 overall: 17 + 21.6 + 0.50×F = 85 → F = (85 - 38.6)/0.50 = 92.8.\n"
+      },
+      "category": "weighted-average"
+    },
+    {
+      "id": "math-11",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A recipe for 6 people uses 450 g of flour, 3 eggs, and 200 mL of milk. Scale it to 10 people. Then, if flour costs $2.50/kg and you have exactly $3 for flour, how many people can the recipe serve?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "For 10: flour = 750 g, eggs = 5, milk = 333.3 mL. $3 buys 3/2.5 = 1.2 kg = 1200 g flour. 1200 g → 1200/450 × 6 = 16 people.\n"
+      },
+      "category": "ratio-proportion"
+    },
+    {
+      "id": "math-12",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A stock rises 20% on Monday, drops 15% on Tuesday, and rises 10% on Wednesday. Starting from $100, what is the price after Wednesday? What single percentage change from Monday open to Wednesday close does this represent?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Monday close: 100 × 1.20 = 120. Tuesday close: 120 × 0.85 = 102. Wednesday close: 102 × 1.10 = 112.20. Net change: (112.20 - 100) / 100 = +12.2%.\n"
+      },
+      "category": "percentage-change"
+    },
+    {
+      "id": "math-13",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A rectangular field is 80 m long and 50 m wide. A path 2 m wide runs all around the inside edge. What is the area of the path? If fencing costs $15 per metre, what does it cost to fence the outer perimeter?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Outer area: 80×50 = 4000 m². Inner area: 76×46 = 3496 m². Path area: 4000 - 3496 = 504 m². Outer perimeter: 2×(80+50) = 260 m. Cost: 260 × 15 = $3,900.\n"
+      },
+      "category": "area-perimeter"
+    },
+    {
+      "id": "math-14",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A ball is launched upward with initial velocity 20 m/s from height 5 m. Height h(t) = 5 + 20t - 4.9t². When does it reach maximum height? What is the maximum height? When does it hit the ground?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Max at t = 20/(2×4.9) ≈ 2.04 s. Max height: 5+20×2.04-4.9×2.04² ≈ 25.4 m. Ground: 4.9t² - 20t - 5 = 0 → t = (20 + √(400+98))/9.8 ≈ 4.33 s.\n"
+      },
+      "category": "quadratic-word-problem"
+    },
+    {
+      "id": "math-15",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "What is the remainder when 3^100 is divided by 7? Show the pattern of powers of 3 mod 7 and use it to find the answer.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "3^1≡3, 3^2≡2, 3^3≡6, 3^4≡4, 3^5≡5, 3^6≡1 (mod 7). Period = 6. 100 = 16×6 + 4, so 3^100 ≡ 3^4 ≡ 4 (mod 7). Remainder is 4.\n"
+      },
+      "category": "modular-arithmetic"
+    },
+    {
+      "id": "math-16",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A committee of 3 must be chosen from 5 men and 4 women, with at least 1 woman. How many ways can this be done?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Total C(9,3) = 84. All-men: C(5,3) = 10. At least 1 woman: 84 - 10 = 74 ways.\n"
+      },
+      "category": "combinatorics"
+    },
+    {
+      "id": "math-17",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Alice can paint a fence in 3 days, Bob in 4 days, Carol in 6 days. They work together for 1 day, then Alice leaves. How many more days do Bob and Carol need to finish?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Combined rate: 1/3+1/4+1/6 = 4/12+3/12+2/12 = 9/12 = 3/4 per day. After 1 day: 1/4 remaining. Bob+Carol rate: 1/4+1/6 = 5/12 per day. Days needed: (1/4)/(5/12) = 3/5 day.\n"
+      },
+      "category": "time-work-fractions"
+    },
+    {
+      "id": "math-18",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A sequence is defined by a₁=2, aₙ = 3aₙ₋₁ − 4 for n ≥ 2. Find a₅. Then find the general formula for aₙ.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "a₁=2, a₂=2, a₃=2, a₄=2, a₅=2. The sequence is constant at 2. Fixed point: x=3x-4 → x=2. Since a₁=2=fixed point, aₙ=2 for all n.\n"
+      },
+      "category": "sequences"
+    },
+    {
+      "id": "math-19",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Dataset: 4, 7, 13, 2, 1, 9, 7, 3, 11, 8. Calculate mean, median, mode, and population standard deviation.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Sorted: 1,2,3,4,7,7,8,9,11,13. Mean=(1+2+3+4+7+7+8+9+11+13)/10=65/10=6.5. Median=(7+7)/2=7. Mode=7. Variance=[(1-6.5)²+…+(13-6.5)²]/10: sum of squared deviations=30.25+20.25+12.25+6.25+0.25+0.25+2.25+6.25+20.25+42.25=140.5. σ=√(140.5/10)=√14.05≈3.75.\n"
+      },
+      "category": "statistics"
+    },
+    {
+      "id": "math-20",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "1% of a population has a disease. A test is 99% sensitive (true positive rate) and 95% specific (true negative rate). If a random person tests positive, what is the probability they actually have the disease?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "P(disease)=0.01, P(no disease)=0.99. P(+|disease)=0.99, P(+|no disease)=0.05. P(+)=0.01×0.99+0.99×0.05=0.0099+0.0495=0.0594. P(disease|+)=0.0099/0.0594≈16.7%.\n"
+      },
+      "category": "conditional-probability"
+    },
+    {
+      "id": "math-21",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A product costs $12 to make and sells for $20. Fixed costs are $5,000/month. At how many units does the business break even? What profit/loss at 400 units? At what price should the product sell to break even at 300 units?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Contribution margin: $20-$12=$8/unit. Break-even: 5000/8=625 units. Profit at 400: 400×8-5000=$3,200-$5,000=-$1,800 (loss). For BE at 300: 300×(P-12)=5000 → P-12=16.67 → P≈$28.67.\n"
+      },
+      "category": "revenue-cost-profit"
+    },
+    {
+      "id": "math-22",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A river flows at 4 km/h. A boat's still-water speed is 12 km/h. It travels 60 km downstream, then returns upstream. What is the total time? What would the total time be in still water?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Downstream speed: 12+4=16 km/h. Upstream: 12-4=8 km/h. Time: 60/16+60/8=3.75+7.5=11.25 h. Still water: 60/12+60/12=10 h. River adds 1.25 h.\n"
+      },
+      "category": "rate-distance"
+    },
+    {
+      "id": "math-23",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Car A gets 35 mpg and costs $25,000. Car B gets 20 mpg and costs $18,000. Fuel costs $3.50/gallon. How many miles must you drive for Car A to break even on the price difference?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Price difference: $7,000. Annual fuel saving per mile: 3.50/20-3.50/35 = 0.175-0.10=$0.075/mile. Break-even: 7000/0.075≈93,333 miles.\n"
+      },
+      "category": "fuel-efficiency"
+    },
+    {
+      "id": "math-24",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A $10,000 loan has a 6% annual interest rate, compounded monthly, over 5 years. What is the monthly payment? What is the total amount paid? How much of the first payment is interest?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Monthly rate r=0.06/12=0.005. n=60 months. M=10000×0.005×(1.005)^60/((1.005)^60-1)=10000×0.005×1.34885/0.34885 ≈$193.33/month. Total paid: 193.33×60≈$11,600. First month interest: 10000×0.005=$50; principal=$143.33.\n"
+      },
+      "category": "loan-interest"
+    },
+    {
+      "id": "math-25",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "How many distinct 4-letter codes can be formed from {A,B,C,D,E} if repetition is allowed? If repetition is not allowed? If the code must start with a vowel (A or E) and repetition is not allowed?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "With repetition: 5^4=625. Without: P(5,4)=5×4×3×2=120. Start with vowel (2 choices), rest: P(4,3)=24 each: 2×24=48.\n"
+      },
+      "category": "combinatorics"
+    },
+    {
+      "id": "logic-1",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "All mammals are warm-blooded. Some warm-blooded animals lay eggs. Dolphins are mammals. Platypuses lay eggs. (1) Are dolphins warm-blooded? Explain. (2) Does \"dolphins are mammals\" imply dolphins lay eggs? Why or why not? (3) What is the minimum additional fact needed to conclude that platypuses are mammals?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "(1) Yes — dolphins are mammals, all mammals are warm-blooded (modus ponens). (2) No — \"some warm-blooded lay eggs\" does not imply all do. (3) Need: \"platypuses are warm-blooded AND all egg-laying warm-blooded animals are mammals\" — or simply \"platypuses are mammals\" directly.\n"
+      },
+      "category": "logical-deduction"
+    },
+    {
+      "id": "logic-2",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Evaluate: \"If a number is divisible by 6, it must be divisible by both 2 and 3. Therefore if a number is divisible by 2 and 3, it must be divisible by 6.\" Is this correct? Provide proof or counterexample.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Correct. 2 and 3 are coprime, so lcm(2,3)=6. Any n divisible by both 2 and 3 must be divisible by their lcm=6. The biconditional holds.\n"
+      },
+      "category": "claim-verification"
+    },
+    {
+      "id": "logic-3",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Premises: (1) All engineers know calculus. (2) Some programmers are engineers. (3) Alice is a programmer. What can be validly concluded? What cannot be concluded?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Valid: Some programmers know calculus. Some engineers are programmers. Cannot conclude: Alice knows calculus (she may not be an engineer); all programmers are engineers; all programmers know calculus.\n"
+      },
+      "category": "syllogism"
+    },
+    {
+      "id": "logic-4",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "If it is raining, the ground is wet. The ground is not wet. What can you conclude? What if the ground IS wet — what can you conclude then?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Ground not wet → modus tollens: it is NOT raining (valid). Ground IS wet → cannot conclude it is raining (affirming the consequent — invalid fallacy). The ground could be wet for other reasons.\n"
+      },
+      "category": "modus-tollens"
+    },
+    {
+      "id": "logic-5",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Sets A={1,2,3,4,5}, B={3,4,5,6,7}, C={5,6,7,8}. Find A∩B, A∪C, A\\B, and (A∪B)∩C.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "A∩B={3,4,5}. A∪C={1,2,3,4,5,6,7,8}. A\\B={1,2}. A∪B={1,2,3,4,5,6,7}. (A∪B)∩C={5,6,7}.\n"
+      },
+      "category": "set-theory"
+    },
+    {
+      "id": "logic-6",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Is the statement \"All unicorns in this room are purple\" true or false if there are no unicorns in the room? Explain. Is \"No unicorns are purple\" also true under the same condition?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Both are vacuously true. A universally quantified statement over an empty domain is true regardless of the predicate. \"All unicorns are purple\" and \"No unicorns are purple\" can both be true simultaneously when the domain is empty — they are not contradictory in classical logic.\n"
+      },
+      "category": "vacuous-truth"
+    },
+    {
+      "id": "logic-7",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Write the negation of each: (1) \"All birds can fly.\" (2) \"Some cats are black.\" (3) \"No prime number is even.\"\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "(1) \"There exists at least one bird that cannot fly.\" (2) \"No cats are black.\" (3) \"There exists at least one prime number that is even.\" (True — 2 is even and prime, making the original statement false.)\n"
+      },
+      "category": "negation-of-universals"
+    },
+    {
+      "id": "logic-8",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "P ↔ Q means P if and only if Q. If P is \"x² = 4\" and Q is \"x = 2\", is P ↔ Q true? If Q is changed to \"x = 2 or x = -2\", is P ↔ Q true?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "P ↔ Q (\"x²=4 iff x=2\"): False. x²=4 can give x=-2, so P does not imply Q. With Q = \"x=2 or x=-2\": P ↔ Q is True. Both directions hold over the reals.\n"
+      },
+      "category": "biconditional"
+    },
+    {
+      "id": "logic-9",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Either the database is down or the network is misconfigured. The network is not misconfigured. What can you conclude? If additional evidence shows the database is also not down, what does that tell you about the disjunction?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Disjunctive syllogism: the database IS down. If database is also not down, the original disjunction was false — at least one of the two initial premises was wrong, or the situation has changed.\n"
+      },
+      "category": "disjunctive-syllogism"
+    },
+    {
+      "id": "logic-10",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "The statement is: \"If a function is differentiable, then it is continuous.\" Write the converse, inverse, and contrapositive. Which of the four forms (original, converse, inverse, contrapositive) are logically equivalent?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Original: diff → cont. Converse: cont → diff (FALSE — |x| is continuous but not differentiable at 0). Inverse: ¬diff → ¬cont (also FALSE, same reason). Contrapositive: ¬cont → ¬diff (TRUE — equiv. to original). Equivalent pairs: {original, contrapositive}; {converse, inverse}.\n"
+      },
+      "category": "contrapositive"
+    },
+    {
+      "id": "logic-11",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "All squares are rectangles. All rectangles are parallelograms. Some parallelograms are rhombuses. No circles are polygons. (1) Are all squares parallelograms? (2) Is every rhombus a rectangle? (3) Can a shape be both a square and a circle?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "(1) Yes — by transitivity of the subset chain. (2) Not necessarily — \"some parallelograms are rhombuses\" does not imply all rhombuses are rectangles (a rhombus need not have right angles). (3) No — circles are not polygons; squares are polygons; disjoint sets.\n"
+      },
+      "category": "euler-diagram"
+    },
+    {
+      "id": "logic-12",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "On an island, knights always tell the truth and knaves always lie. A says: \"B is a knave.\" B says: \"A and I are both knights.\" What are A and B?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "If A is knight: B is a knave (true). Then B says \"we are both knights\" — a lie, consistent with B being a knave. Consistent. If A is knave: \"B is a knave\" is a lie → B is a knight. But B says \"we are both knights\" which would be false (A is knave) — B cannot lie if a knight. Contradiction. Therefore A=knight, B=knave.\n"
+      },
+      "category": "knights-knaves"
+    },
+    {
+      "id": "logic-13",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Construct the truth table for (P → Q) ∧ (¬Q → ¬P). Is this a tautology, contradiction, or contingent? How does it relate to the original implication?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "P→Q ≡ ¬Q→¬P (contrapositive). So the conjunction reduces to P→Q itself. Truth table: TT→T, TF→F, FT→T, FF→T. Not a tautology (false when P=T,Q=F), not a contradiction. The formula is equivalent to P→Q.\n"
+      },
+      "category": "truth-table"
+    },
+    {
+      "id": "logic-14",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Prove that √2 is irrational using proof by contradiction.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Assume √2 = p/q in lowest terms (gcd(p,q)=1). Then 2 = p²/q² → p²=2q² → p² is even → p is even → p=2k → (2k)²=2q² → 4k²=2q² → q²=2k² → q is even. But then gcd(p,q)≥2, contradicting gcd=1. Hence √2 is irrational.\n"
+      },
+      "category": "proof-by-contradiction"
+    },
+    {
+      "id": "logic-15",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Apply De Morgan's laws to simplify ¬(A ∧ B), ¬(A ∨ B), and ¬(A ∧ ¬B ∧ C). Then verify ¬(A∧B) ≠ ¬A∧¬B with a truth-table row.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "¬(A∧B) = ¬A∨¬B. ¬(A∨B) = ¬A∧¬B. ¬(A∧¬B∧C) = ¬A∨B∨¬C. Counter-example: A=T,B=T → ¬(T∧T)=¬T=F; ¬T∧¬T=F∧F=F. (same here) Use A=T,B=F: ¬(T∧F)=¬F=T; ¬T∧¬F=F∧T=F. Shows ¬(A∧B)≠¬A∧¬B.\n"
+      },
+      "category": "de-morgan"
+    },
+    {
+      "id": "logic-16",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Are (P → Q) and (¬P ∨ Q) logically equivalent? Show by truth table. Are (P → Q) and (P → ¬Q) ever both true simultaneously?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "P→Q ≡ ¬P∨Q: same truth values for all P,Q — yes, equivalent. P→Q and P→¬Q: P→Q means \"if P then Q\"; P→¬Q means \"if P then ¬Q\". Both true when P=F (vacuously). Never both true when P=T (Q and ¬Q can't both hold). So they can be simultaneously true only when P=F.\n"
+      },
+      "category": "logical-equivalence"
+    },
+    {
+      "id": "logic-17",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Identify the fallacy: \"All dogs are animals. All animals breathe. My cat breathes. Therefore my cat is a dog.\"\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Undistributed middle (or affirming the consequent applied to set inclusion). \"All A are C, B is C\" does not imply \"B is A\". Breathing is a property of animals in general, not uniquely of dogs. The middle term \"breathes/ animals\" is undistributed.\n"
+      },
+      "category": "invalid-syllogism"
+    },
+    {
+      "id": "logic-18",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "For the statement \"A triangle is equilateral if and only if all its angles are 60°\": (1) Is \"all angles are 60°\" necessary for equilateral? (2) Is it sufficient? (3) What distinguishes necessary from sufficient?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "(1) Yes — necessary: every equilateral triangle has all angles = 60°. (2) Yes — sufficient: if all angles are 60°, it IS equilateral. (3) Necessary: the condition must hold (P implies condition). Sufficient: the condition guarantees P (condition implies P). A biconditional means both necessary and sufficient.\n"
+      },
+      "category": "necessary-sufficient"
+    },
+    {
+      "id": "logic-19",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "If Alice passes the exam, she gets the job. If she gets the job, she buys a car. If she buys a car, she moves downtown. Alice failed the exam. What can you conclude? What if she moved downtown — what then?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Failed exam: via modus tollens chain, we cannot conclude she does NOT get the job (inverse fallacy) — the chain says pass→job, not ¬pass→¬job. No valid conclusion from failure alone. Moved downtown: again by itself insufficient (she could have moved for other reasons). The chain is one-directional: pass→job→car→downtown only.\n"
+      },
+      "category": "conditional-chain"
+    },
+    {
+      "id": "logic-20",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Assess: \"Most successful people wake up early. Bob wakes up early. Therefore Bob is likely to be successful.\" Is this deductively valid? What type of argument is it?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Not deductively valid — the conclusion does not follow with certainty. \"Most\" is not \"all\"; even if most successful people wake early, most early-risers need not be successful. It is an inductive/probabilistic argument — it gives some support to the conclusion but is not logically guaranteed. Fallacy risk: affirming the consequent (probabilistic version).\n"
+      },
+      "category": "argument-validity"
+    },
+    {
+      "id": "logic-21",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Let P = set of all primes, E = set of all even numbers, N = positive integers. (1) Is P∩E empty? (2) Is N\\P finite or infinite? (3) Is P a subset of N?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "(1) No — P∩E = {2} (2 is the only even prime). (2) N\\P is infinite — there are infinitely many composite positive integers. (3) Yes — all primes are positive integers, so P ⊆ N.\n"
+      },
+      "category": "set-membership"
+    },
+    {
+      "id": "logic-22",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A circuit uses XOR: output is 1 iff exactly one input is 1. Build a truth table for A XOR B. Then show that A XOR A = 0 and A XOR 0 = A. How can you use XOR to swap two variables without a temp variable?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "XOR table: 00→0, 01→1, 10→1, 11→0. A XOR A: same input → 0 always. A XOR 0: 0→0, 1→1 → equals A. Swap: a=a^b; b=a^b; a=a^b. After step 1: a=a⊕b. Step 2: b=(a⊕b)⊕b=a. Step 3: a=(a⊕b)⊕a=b. Values swapped.\n"
+      },
+      "category": "exclusive-or"
+    },
+    {
+      "id": "logic-23",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "SQL uses three-valued logic: TRUE, FALSE, UNKNOWN. NULL represents unknown. What is the result of NULL = NULL in SQL? NULL IS NULL? Why does WHERE age = NULL return no rows?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "NULL = NULL → UNKNOWN (not TRUE). Any comparison with NULL yields UNKNOWN. NULL IS NULL → TRUE (IS NULL is a special operator, not =). WHERE filters keep only TRUE rows; UNKNOWN rows are excluded — hence WHERE age = NULL never matches. Use WHERE age IS NULL instead.\n"
+      },
+      "category": "three-way-logic"
+    },
+    {
+      "id": "logic-24",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "\"Just as a hammer is the best tool for nails, Python is the best language for all programming tasks.\" Identify the flaw in this analogy.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "False analogy / overgeneralization. Hammers are designed for one specific task; Python is a general-purpose language but has trade-offs (speed, mobile, embedded systems) vs. specialized tools (C/Rust for performance, Swift/Kotlin for mobile). The analogy incorrectly maps a narrow specialization to a universal claim. No single language is best for all tasks.\n"
+      },
+      "category": "analogy-flaw"
+    },
+    {
+      "id": "logic-25",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Five houses in a row, each a different colour, inhabited by people of different nationalities, who drink different beverages, smoke different brands, and own different pets. Clues: The Brit lives in the red house. The Swede keeps dogs. The Dane drinks tea. The green house is immediately to the left of the white house. The green house owner drinks coffee. Who owns the fish? (Simplified 3-house version: Red/Blue/Green houses. Brit in red. Green house owner drinks coffee. Blue house is to the left of green. Dane in blue drinks tea. Remaining person (Swede) drinks milk in green. Swede keeps dogs. Brit keeps cats. Who owns the fish?)\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Three houses: Blue(left)-Red(middle)-Green(right). Dane in blue, tea. Brit in red. Swede in green, coffee, dogs. Brit has cats. Remaining pet is fish — owned by the Dane.\n"
+      },
+      "category": "logic-puzzle"
+    },
+    {
+      "id": "synthesis-1",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Compare the computational complexity of binary search and linear search. For a sorted list of 1 million elements: how many comparisons does each require in the worst case? For which list sizes does linear search outperform binary search, if any?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Linear: up to 1,000,000 comparisons (O(n)). Binary: ≈20 comparisons (O(log n)). Binary requires sorted data and random access. For very small n (≤~8) or unsorted data, linear may be preferable due to lower constant overhead.\n"
+      },
+      "category": "algorithm-comparison"
+    },
+    {
+      "id": "synthesis-2",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "3 servers: A handles 50% of requests (2% error), B handles 30% (5%), C handles 20% (1%). What is the overall error rate? If a request errored, what is the probability it came from Server B?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Overall: 0.5×0.02+0.3×0.05+0.2×0.01=0.01+0.015+0.002=0.027=2.7%. P(B|error)=0.015/0.027≈55.6%.\n"
+      },
+      "category": "bayesian-reasoning"
+    },
+    {
+      "id": "synthesis-3",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Compare bubble sort, merge sort, and quicksort by: average time complexity, worst-case time complexity, space complexity, and stability. Which is best for (a) small arrays, (b) linked lists, (c) nearly sorted data?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Bubble: O(n²)/O(n²)/O(1)/stable. Merge: O(n log n)/O(n log n)/O(n)/stable. Quick: O(n log n)/O(n²)/O(log n)/not-stable (typical). (a) Insertion sort (not listed) / bubble for tiny n. (b) Merge sort (works well on linked lists; no random access needed). (c) Insertion sort or Timsort; bubble sort also near-O(n) on nearly sorted.\n"
+      },
+      "category": "sorting-algorithms"
+    },
+    {
+      "id": "synthesis-4",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Compare TCP and UDP: reliability, ordering, connection, overhead, and latency. For each use case — video streaming, file transfer, online gaming — which protocol is more appropriate and why?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "TCP: reliable, ordered, connection-oriented, higher overhead, higher latency. UDP: unreliable, unordered, connectionless, low overhead, low latency. Video streaming: UDP (acceptable loss, latency critical) or QUIC. File transfer: TCP (every byte must arrive correctly). Online gaming: UDP (latency trumps reliability for position updates).\n"
+      },
+      "category": "networking"
+    },
+    {
+      "id": "synthesis-5",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "When should you choose a relational (SQL) database over a document (NoSQL) store? Give three concrete criteria and an example where each criterion applies.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "(1) Complex relationships/JOINs: SQL when data has foreign keys and multi-table queries (e.g., banking: accounts, transactions, customers). (2) ACID guarantees: SQL when you need full transaction safety (e.g., financial ledger). (3) Strict schema: SQL when data structure is known and consistent. NoSQL preferred for flexible schema, high write throughput, or hierarchical/graph data.\n"
+      },
+      "category": "database"
+    },
+    {
+      "id": "synthesis-6",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Define ACID: Atomicity, Consistency, Isolation, Durability. For each property, give a concrete example of what breaks without it.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Atomicity: all-or-nothing. Without: a bank transfer debits one account but crashes before crediting the other. Consistency: DB stays valid. Without: a foreign key violation left undetected. Isolation: concurrent transactions don't interfere. Without: two simultaneous reads see each other's uncommitted writes (dirty read). Durability: committed data survives crash. Without: confirmed order lost on power failure.\n"
+      },
+      "category": "acid-properties"
+    },
+    {
+      "id": "synthesis-7",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A cache has a 5 ms hit time and 100 ms miss time. Hit rate is 90%. What is the effective average access time? If hit rate drops to 70%, what is the new average? What hit rate would bring average time ≤ 15 ms?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "At 90%: 0.9×5+0.1×100=4.5+10=14.5 ms. At 70%: 0.7×5+0.3×100=3.5+30=33.5 ms. For ≤15 ms: h×5+(1-h)×100≤15 → 95h≥85 → h≥0.894 → ≈89.5% hit rate.\n"
+      },
+      "category": "cache-performance"
+    },
+    {
+      "id": "synthesis-8",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "You need to transfer 10 GB over a 100 Mbps link. What is the theoretical minimum transfer time? If the link is 60% utilized by other traffic, what is the actual available bandwidth and transfer time?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "10 GB = 80 Gb. Time = 80/100 = 0.8 s theoretical. Available: 100×(1-0.6)=40 Mbps. Time = 80 Gb/40 Mbps = 2 s.\n"
+      },
+      "category": "network-bandwidth"
+    },
+    {
+      "id": "synthesis-9",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Describe the memory hierarchy from registers to disk. For each level state typical capacity and access latency. Why does locality of reference matter?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Registers: bytes, <1 ns. L1 cache: 32-64 KB, ~1 ns. L2: 256 KB-1 MB, ~4 ns. L3: 8-32 MB, ~10-30 ns. DRAM: GBs, ~60-100 ns. SSD: TBs, ~100 µs. HDD: TBs, ~5-10 ms. Locality: if recently/nearby used data stays in cache, most accesses hit fast levels, dramatically reducing average latency.\n"
+      },
+      "category": "memory-hierarchy"
+    },
+    {
+      "id": "synthesis-10",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Explain how a hash table works. What is a collision? Describe two collision resolution strategies. What is the load factor and why does it matter for performance?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Hash table: array + hash function maps keys to indices. Collision: two keys hash to same index. (1) Chaining: linked list at each slot — O(1) avg, O(n) worst. (2) Open addressing (linear probing): find next empty slot — cache friendly but degrades with high load. Load factor α=n/m. At α>0.7, collisions rise sharply; typical resize at ~75% capacity.\n"
+      },
+      "category": "hash-tables"
+    },
+    {
+      "id": "synthesis-11",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "What is the difference between stack and heap memory? Which is faster? What types of data are stored in each? What causes a stack overflow? What is a memory leak?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Stack: LIFO, auto-managed, stores local variables/call frames, fixed size, very fast (cache line friendly). Heap: dynamic allocation, manually managed (or GC), stores objects/large data, slower allocation, fragmentation risk. Stack overflow: deep/infinite recursion exceeds stack limit. Memory leak: heap memory allocated but never freed, growing over time.\n"
+      },
+      "category": "stack-vs-heap"
+    },
+    {
+      "id": "synthesis-12",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Compare processes and threads: memory isolation, creation overhead, communication, and failure isolation. When would you prefer multiple processes over multiple threads?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Processes: separate memory space, high creation cost, communicate via IPC (pipes/sockets/shared memory), strong fault isolation. Threads: share memory, low creation cost, communicate via shared state (with synchronization), one thread crash can kill process. Prefer multiple processes: safety-critical isolation (browser tabs), different language runtimes, avoiding GIL in CPython for CPU-bound work.\n"
+      },
+      "category": "process-vs-thread"
+    },
+    {
+      "id": "synthesis-13",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Compare REST and GraphQL APIs: data fetching, over-fetching, versioning, caching, and tooling complexity. When is GraphQL a better choice than REST?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "REST: multiple endpoints, fixed response shapes, easy HTTP caching (GET is cacheable), simpler to start. GraphQL: single endpoint, client specifies fields (no over/under-fetching), harder to cache (POST), more complex tooling. GraphQL better when: many client types with different data needs (mobile vs web), rapid UI iteration, or deeply nested/related data in one query.\n"
+      },
+      "category": "api-styles"
+    },
+    {
+      "id": "synthesis-14",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "State the CAP theorem. For a distributed system that suffers a network partition, which two properties must it sacrifice one of: consistency or availability? Give an example of a CP system and an AP system.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "CAP: a distributed system can guarantee at most two of Consistency, Availability, Partition-tolerance simultaneously. During a partition (P is unavoidable in practice), choose C or A. CP: HBase, Zookeeper (refuse requests to stay consistent). AP: Cassandra, CouchDB (serve stale data to remain available).\n"
+      },
+      "category": "cap-theorem"
+    },
+    {
+      "id": "synthesis-15",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Explain the cost-benefit trade-off of adding an index to a database column. When does an index hurt performance rather than help?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Benefit: dramatically faster reads/queries on indexed column (O(log n) vs O(n) scan). Cost: (1) Extra storage space. (2) Every INSERT/UPDATE/ DELETE must also update the index — slows writes. (3) Index can become fragmented. Indexes hurt: write-heavy tables with few reads; low- cardinality columns (e.g., boolean — index useless); very small tables where full scan is faster than index lookup overhead.\n"
+      },
+      "category": "database-indexes"
+    },
+    {
+      "id": "synthesis-16",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Compare git merge and git rebase: how they integrate changes, what the commit history looks like, and when to use each. What is the \"golden rule\" of rebasing?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Merge: creates a merge commit, preserves full history, non-destructive. Rebase: replays commits on top of another branch, linear history, rewrites commit SHAs. Use merge for public/shared branches; rebase for local cleanup before push. Golden rule: never rebase commits that have been pushed to a shared remote — rewrites shared history causing conflicts.\n"
+      },
+      "category": "git-merge-vs-rebase"
+    },
+    {
+      "id": "synthesis-17",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Describe the TLS 1.3 handshake in 3-4 steps. What cryptographic operations occur? Why is TLS 1.3 faster than TLS 1.2?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "(1) Client Hello: supported ciphers, key share (ECDHE public key). (2) Server Hello: chosen cipher, key share, certificate, Finished message. (3) Client: verifies cert, sends Finished. Symmetric keys derived via HKDF. TLS 1.3 is 1-RTT vs 1.5-RTT in 1.2 (removed unnecessary round trips and deprecated weak ciphers like RSA key exchange and CBC-mode ciphers). 0-RTT resumption is also supported.\n"
+      },
+      "category": "tls-handshake"
+    },
+    {
+      "id": "synthesis-18",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Trace the DNS resolution of \"www.example.com\" from a browser with an empty cache. List all parties contacted in order.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "1. Browser checks OS cache → miss. 2. Query recursive resolver (ISP or 8.8.8.8). 3. Resolver queries root nameserver → returns NS for .com. 4. Resolver queries .com TLD nameserver → returns NS for example.com. 5. Resolver queries example.com authoritative NS → returns A record IP. 6. Resolver caches & returns IP to browser. 7. Browser connects to IP.\n"
+      },
+      "category": "dns-resolution"
+    },
+    {
+      "id": "synthesis-19",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Describe three load balancing algorithms: round-robin, least-connections, and IP-hash. For which scenario is each best suited?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Round-robin: equal distribution in rotation. Best for: homogeneous requests of similar cost. Least-connections: route to server with fewest active connections. Best for: variable-length requests (long sessions). IP-hash: same client IP always goes to same server (session affinity). Best for: stateful apps that don't share session data across servers.\n"
+      },
+      "category": "load-balancing"
+    },
+    {
+      "id": "synthesis-20",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Compare RAID 0, RAID 1, RAID 5, and RAID 10 by: fault tolerance, read/write speed, and storage efficiency.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "RAID 0: no fault tolerance, best speed, 100% efficiency. RAID 1: tolerates 1 drive loss (mirror), fast reads/slower writes, 50% efficiency. RAID 5: tolerates 1 drive loss (parity), good read, write penalty (parity calc), (n-1)/n efficiency (minimum 3 drives). RAID 10: tolerates 1 loss per mirrored pair, fast R/W, 50% efficiency (minimum 4 drives). Best performance + redundancy, most expensive.\n"
+      },
+      "category": "raid-levels"
+    },
+    {
+      "id": "synthesis-21",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Compare reference counting and mark-and-sweep garbage collection. What is a cyclic reference and why is it a problem for reference counting? How does Python handle it?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Reference counting: increment/decrement on each assign/deref; immediate collection; fails on cycles (A→B→A: counts never reach 0). Mark-and-sweep: traces reachable objects from roots; collects unreachable including cycles; \"stop the world\" pauses. Python uses reference counting as primary GC but runs a cyclic garbage collector (gc module) periodically to detect and collect reference cycles.\n"
+      },
+      "category": "garbage-collection"
+    },
+    {
+      "id": "synthesis-22",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "What are the main trade-offs between a microservices architecture and a monolithic application? At what team/product scale does the trade-off typically favour microservices?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Monolith: simple development/deployment/debugging, single codebase, tight coupling, scales as unit. Microservices: independent deployment, language heterogeneity, fault isolation, network overhead, distributed debugging complexity, needs DevOps maturity. Trade-off shifts around team size 10-15+ engineers or when different components need different scaling/release cadence. Starting with monolith and extracting services is often recommended (\"modular monolith first\").\n"
+      },
+      "category": "microservices-vs-monolith"
+    },
+    {
+      "id": "synthesis-23",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Compare event-driven (pub/sub) and request-response (RPC) communication patterns. For which scenarios is each appropriate?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Request-response: synchronous, direct coupling, caller waits, simple mental model, good for read queries and user-facing actions requiring immediate response. Pub/sub: asynchronous, decoupled, publisher unaware of consumers, good for notifications, audit logs, fan-out, temporal decoupling, resilience. Event-driven better for: order placed → inventory/billing/email independently. Request-response better for: user login → return session token immediately.\n"
+      },
+      "category": "event-driven"
+    },
+    {
+      "id": "synthesis-24",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Describe blue-green and canary deployment strategies. What are the main advantages and risks of each?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Blue-green: maintain two identical environments; switch traffic atomically. Advantage: instant rollback (flip DNS back). Risk: double infra cost; DB migration complexity. Canary: gradually route small % of traffic to new version, increase if stable. Advantage: real-user testing at low blast radius. Risk: two versions live simultaneously (API compatibility required); slower rollout. Blue-green is all-or-nothing; canary is incremental.\n"
+      },
+      "category": "deployment-strategies"
+    },
+    {
+      "id": "synthesis-25",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "What are the \"three pillars of observability\"? How do they differ and complement each other? Give a concrete debugging scenario using all three.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Metrics: numerical aggregates over time (latency p99, error rate). Logs: discrete events with context (structured log lines). Traces: end-to-end request path across services (spans + parent-child). Scenario: alert fires on high p99 latency (metric). Look at error logs for the time window → find \"timeout\" messages on service B (log). Pull the distributed trace for a slow request → see service B calls DB for 200 ms (trace). Root cause: missing index on DB query.\n"
+      },
+      "category": "observability"
+    },
+    {
+      "id": "planning-1",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "You need to bake a layered cake. Steps: mix batter (20 min), bake layer 1 (35 min), bake layer 2 (35 min), cool each layer (45 min each, in parallel), make frosting (15 min), assemble (10 min). Oven fits one layer at a time. What is the minimum total time? Show the critical path.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Critical path: mix(20)→bake L1(35)→bake L2(35)→cool L1+L2 in parallel(45) +frosting(15, overlaps cooling)→assemble(10). Total: 20+35+35+45+10=145 min. Frosting fits inside the 45-min cooling window so it does not add to CP.\n"
+      },
+      "category": "critical-path"
+    },
+    {
+      "id": "planning-2",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Tasks and dependencies: A(3d), B(5d, needs A), C(2d, needs A), D(4d, needs B and C), E(1d, needs D). What is the critical path? What is the minimum project duration? By how many days can C slip without delaying the project?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Paths: A→B→D→E = 3+5+4+1=13d. A→C→D→E = 3+2+4+1=10d. Critical path: A→B→D→E = 13 days. C has float: 13-10=3 days.\n"
+      },
+      "category": "project-scheduling"
+    },
+    {
+      "id": "planning-3",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Pack items into a bag with capacity 15 kg: laptop(4kg,$800), camera(3kg,$500), clothes(5kg,$200), books(2kg,$150), charger(1kg,$100). Maximize value within weight limit. What do you take?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Value/kg: laptop=200, camera=167, charger=100, clothes=40, books=75. Greedy by ratio: laptop(4kg), camera(3kg), charger(1kg)=8kg/$1400. Add books(2kg)=10kg/$1550. Add clothes(5kg)=15kg/$1750. Optimal: laptop+camera+charger+books+clothes=15kg/$1750 (all fit exactly).\n"
+      },
+      "category": "constraint-satisfaction"
+    },
+    {
+      "id": "planning-4",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Three engineers (Alice, Bob, Carol) need to complete 4 tasks of duration 3d, 5d, 2d, 4d. Assign tasks to minimize total completion time (makespan), assuming tasks are independent and each engineer does one task at a time. (Alice can do 2 tasks.)\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Sort tasks descending: 5,4,3,2. Assign by longest-processing-time (LPT): Alice: 5d + 2d = 7d. Bob: 4d. Carol: 3d. Makespan = 7d (Alice's longer path). Alternative: Alice:5, Bob:4, Carol:3+2=5. Makespan=5d — this is optimal.\n"
+      },
+      "category": "resource-allocation"
+    },
+    {
+      "id": "planning-5",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A data pipeline has steps: ingest A (10 min), ingest B (8 min), clean A (5 min, after ingest A), clean B (6 min, after ingest B), merge (4 min, after clean A and clean B), export (3 min, after merge). Draw the critical path. What is the minimum run time?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Path via A: 10+5+4+3=22 min. Path via B: 8+6+4+3=21 min. Critical path: Ingest A → Clean A → Merge → Export = 22 min. A and B run in parallel; B finishes at 14 min, waits for A/Clean A at 15 min.\n"
+      },
+      "category": "parallel-tasks"
+    },
+    {
+      "id": "planning-6",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A dinner party for 18 needs to be ready by 7pm. You have: salad (20 min, can start anytime), pasta (45 min, oven, must finish last), garlic bread (15 min, oven, can run parallel with pasta), dessert (30 min, oven, must finish before pasta starts as you only have one oven). When should you start each dish?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Dessert before pasta (one oven). Pasta 45min + garlic bread 15min (parallel with last 15min of pasta). Latest pasta start: 7pm-45min=6:15pm. Garlic bread: 6:45pm. Dessert must finish by 6:15pm: start by 5:45pm. Salad: start any time, suggest 6:40pm (20 min → 7pm). Critical path: dessert→pasta.\n"
+      },
+      "category": "recipe-scaling"
+    },
+    {
+      "id": "planning-7",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "You have 4 hours in a city to visit: museum (90 min, closes at 3pm), park (60 min, open all day), restaurant for lunch (45 min, serves 12-2pm), souvenir shop (30 min, open all day). It is currently 10am. Sequence the visits to respect all constraints and minimize travel (assume all nearby).\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Constraints: museum before 3pm; restaurant 12-2pm. 10am start. Optimal: Museum 10:00-11:30 (90min), Park 11:30-12:30 (60min), Restaurant 12:30-1:15 (45min), Souvenir shop 1:15-1:45 (30min). Finishes at 1:45pm, well within museum constraint. No conflict.\n"
+      },
+      "category": "itinerary-optimization"
+    },
+    {
+      "id": "planning-8",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A database migration requires steps: (1) backup DB, (2) run schema migration, (3) deploy new app version, (4) run data migration, (5) enable new feature flags, (6) notify users. Step 2 needs 1 done; 3 needs 2 done; 4 needs 3 done; 5 needs 4 done; 6 needs 5 done. What is the critical path? Can any steps run in parallel?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "All steps are sequentially dependent: 1→2→3→4→5→6. No parallelism possible with the given dependency constraints. The critical path is the entire chain. Backup and notification are often the least risky to defer or parallelize if dependencies are relaxed (e.g., notify during 4 or 5, but constraints as stated require strict ordering).\n"
+      },
+      "category": "deployment-ordering"
+    },
+    {
+      "id": "planning-9",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "You are rolling out a new feature to 4 regions: EU (3% of users), US (40%), APAC (35%), LATAM (22%). Errors above 2% should trigger a halt. Design a rollout order to minimize blast radius. What is your go/no-go criterion at each step?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Order by ascending user base: EU(3%) → LATAM(22%) → APAC(35%) → US(40%). At each step: monitor error rate for 15-30 min; if error_rate ≤ 2% proceed, else rollback. EU gives early signal at minimum user impact. US is last because highest risk. Each step's go-criterion: <2% error, no P1 alerts, latency within SLA.\n"
+      },
+      "category": "rollout-sequence"
+    },
+    {
+      "id": "planning-10",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "5 exams to schedule in 3 days (2 slots/day = 6 slots). Constraints: Math and Physics cannot be same day (students take both). CS and Math must be at least 1 day apart. English has no constraints. History cannot be on Day 1. Assign exams to slots.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Day 1: English + CS. Day 2: Math + History. Day 3: Physics + (free slot). Check: Math(D2) ≠ Physics(D3) — different days ✓. CS(D1) and Math(D2) — 1 day apart ✓. History not Day 1 ✓. All 5 exams placed, constraints satisfied.\n"
+      },
+      "category": "exam-scheduling"
+    },
+    {
+      "id": "planning-11",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A factory has 2 machines. Job A needs: M1(3h) then M2(2h). Job B needs M2(4h) then M1(1h). Job C needs M1(2h) then M2(3h). Minimize makespan. (Johnson's algorithm)\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Johnson's rule: find min operation time overall. Min=1 (B on M1). B's M2=4 → schedule B last. Remaining: A(M1=3,M2=2) and C(M1=2,M2=3). Min among remaining: C M1=2 → schedule C first; A M2=2 → schedule A next. Order: C→A→B. C: M1 0-2, M2 2-5. A: M1 2-5, M2 5-7. B: M1 5-6, M2 7-11. Makespan=11h.\n"
+      },
+      "category": "factory-scheduling"
+    },
+    {
+      "id": "planning-12",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Tasks with dependencies (A must complete before B is written as A→B): A→B, A→C, B→D, C→D, D→E. List all valid topological orderings. What happens if you add E→A?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Valid orderings: A→B→C→D→E, A→C→B→D→E (both valid as B and C independent). More generally: A first, then B and C in any order, then D, then E. Adding E→A creates a cycle (E→A→…→D→E), making topological sort impossible — the graph becomes a DAG with a cycle, which is a contradiction (DAGs are acyclic by definition).\n"
+      },
+      "category": "topological-sort"
+    },
+    {
+      "id": "planning-13",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A CI/CD pipeline has: lint (2 min), unit tests (5 min, after lint), build (8 min, after lint), integration tests (10 min, after unit tests and build), deploy to staging (3 min, after integration tests), smoke tests (2 min, after staging), promote to prod (1 min, after smoke tests). What is the critical path and total duration?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "After lint(2): unit tests(5) and build(8) in parallel. Build finishes later (2+8=10 min). Integration tests start at 10min (waits for both). Critical path: lint(2)→build(8)→integration(10)→staging(3)→ smoke(2)→prod(1)=26 min. Unit tests complete at 7 min — 3 min of float.\n"
+      },
+      "category": "ci-cd-pipeline"
+    },
+    {
+      "id": "planning-14",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "A software build has packages: core (no deps), utils (needs core), api (needs core and utils), web (needs api), cli (needs api), tests (needs api, web, cli). What is the minimum number of build stages if each stage builds all packages with satisfied dependencies?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Stage 1: core (no deps). Stage 2: utils (needs core only). Stage 3: api (needs core+utils, both done). Stage 4: web and cli (both need api only — parallel). Stage 5: tests (needs api, web, cli — all done). 5 stages minimum.\n"
+      },
+      "category": "build-dependencies"
+    },
+    {
+      "id": "planning-15",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Prepare dinner for 4: roast chicken (90 min oven), roasted vegetables (45 min oven, same temperature — can share), mashed potatoes (30 min stovetop), salad (15 min, no heat). One oven and one stovetop. Target: everything ready at the same time. When does each step start?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Chicken + vegetables share oven (vegetables start 45 min after chicken goes in). Chicken: start at T=0, ready at T=90. Vegetables: start at T=45, ready at T=90. Mashed potatoes (stovetop): start at T=60, ready at T=90. Salad: start at T=75, ready at T=90. Everything ready simultaneously at T=90.\n"
+      },
+      "category": "cooking-concurrent"
+    },
+    {
+      "id": "analysis-1",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Explain why quicksort has an average case of O(n log n) but a worst case of O(n²). Under what concrete conditions does the worst case occur? What pivot selection strategy best mitigates this, and why?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Average: each partition splits roughly in half → T(n)=2T(n/2)+O(n) → O(n log n). Worst: pivot always min/max → one partition of n-1 → O(n²). Occurs with sorted/reverse-sorted input + first/last pivot. Mitigation: median-of-3 or random pivot reduces worst-case probability to near zero.\n"
+      },
+      "category": "algorithm-analysis"
+    },
+    {
+      "id": "analysis-2",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "When is merge sort preferable over quicksort in practice? Consider stability, predictability, cache performance, and external sorting.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Merge sort preferable when: (1) stability required (preserves equal-element order — quicksort typically not stable). (2) Guaranteed O(n log n) needed (quicksort degrades to O(n²) in worst case). (3) External sorting (data too large for RAM — merge sort naturally sequential on disk). (4) Linked lists (merge sort efficient; quicksort needs O(n) random access). Quicksort wins on in-memory random-access arrays due to better cache locality and lower constant factor.\n"
+      },
+      "category": "algorithm-tradeoff"
+    },
+    {
+      "id": "analysis-3",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Compare BFS and DFS for graph traversal. For which problems is BFS better than DFS, and vice versa? What data structure does each use?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "BFS: queue, explores level by level. Better for: shortest path in unweighted graph, finding nodes within K distance, web crawling by proximity. DFS: stack (or recursion), explores deep first. Better for: cycle detection, topological sort, connected components, maze solving, generating all paths. DFS uses O(depth) space; BFS uses O(width) space — BFS memory can be prohibitive on wide shallow graphs.\n"
+      },
+      "category": "graph-traversal"
+    },
+    {
+      "id": "analysis-4",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Explain the difference between dynamic programming and greedy algorithms. Give an example where greedy fails but DP succeeds, and one where greedy is optimal.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "DP: explores all sub-problems and combines optimal solutions; works when problem has overlapping subproblems and optimal substructure. Greedy: makes locally optimal choice at each step; faster but may miss global optimum. Greedy fails: 0/1 knapsack (greedy by value/weight ratio gives suboptimal for integer quantities — DP needed). Greedy optimal: fractional knapsack, activity selection, Huffman coding, Dijkstra (non-negative edges).\n"
+      },
+      "category": "dp-vs-greedy"
+    },
+    {
+      "id": "analysis-5",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Explain amortized analysis using a dynamic array (e.g., Python list). If a list doubles capacity on overflow and each copy costs O(k) for size k, show that the amortized cost per append is O(1).\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Doubling sequence: copy at sizes 1,2,4,8,…,n. Total copy cost: 1+2+4+…+n=2n-1=O(n). Over n appends: total work O(n)/n = O(1) amortized. Intuition: most appends are O(1); occasional O(n) copies are \"paid for\" by the O(1) appends since last doubling. The aggregate / amortized bound is O(1) per operation even though individual operations vary.\n"
+      },
+      "category": "amortized-analysis"
+    },
+    {
+      "id": "analysis-6",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Why do databases use B-trees instead of binary search trees or hash indexes for most workloads? What specific operations does a B-tree support that a hash index does not?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "B-trees: balanced, node size matches disk page, O(log n) for all ops, supports range queries and sorted scans. BSTs can become unbalanced (O(n) worst). Hash indexes: O(1) equality lookup but NO range queries (no ordering), no prefix scans. B-trees handle: range queries (BETWEEN, >, <), ORDER BY, LIKE 'prefix%', index scans in order — none possible with hash. Hash indexes only useful for equality predicates.\n"
+      },
+      "category": "index-structures"
+    },
+    {
+      "id": "analysis-7",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "What is the two-phase commit (2PC) protocol? What is its main failure scenario? How does Paxos/Raft improve on it?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "2PC: coordinator asks all participants to prepare (vote); if all vote yes, sends commit; else sends abort. Main failure: coordinator crashes after prepare but before commit — participants are blocked indefinitely in \"prepared\" state, holding locks. Paxos/Raft: leader-based consensus with majority quorum; can make progress as long as quorum is available even if some nodes (including leader) fail — no blocking. Trade-off: more round trips, more complex.\n"
+      },
+      "category": "distributed-consensus"
+    },
+    {
+      "id": "analysis-8",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "What is the split-brain problem in distributed systems? How does a quorum-based approach prevent it? Give the minimum cluster size to tolerate 1 node failure.\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Split-brain: network partition causes two subsets to each believe they are the active leader, leading to conflicting writes/state. Quorum: require majority (⌊n/2⌋+1) to agree before acting — only one partition can have majority. To tolerate 1 failure: need 1 failure + majority → minimum 3 nodes (quorum=2; losing 1 leaves 2/3 which is a majority).\n"
+      },
+      "category": "leader-election"
+    },
+    {
+      "id": "analysis-9",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "Describe a Bloom filter. What can it tell you with certainty? What can it NOT tell you? Why is it useful despite its limitations?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Bloom filter: probabilistic bit-array data structure with k hash functions. INSERT: set k bit positions. QUERY: if all k positions set → \"probably in set\"; if any 0 → \"definitely not in set.\" Certainty: TRUE NEGATIVES are 100% accurate. NOT certain: false positives possible (bits set by other elements). Cannot delete (without counting variant). Useful: extremely space-efficient; eliminates expensive lookups for definitely-absent items (e.g., cache pre-filter, malicious URL checks, username availability).\n"
+      },
+      "category": "bloom-filter"
+    },
+    {
+      "id": "analysis-10",
+      "inputs": {
+        "user": [
+          {
+            "role": "user",
+            "content": "What problem does consistent hashing solve compared to naive modulo hashing? Explain the role of virtual nodes. What happens when a node is added or removed?\n"
+          }
+        ]
+      },
+      "expectations": {
+        "ground_truth": "Naive modulo: adding/removing a node remaps almost all keys (k mod n changes for most k when n changes) — massive data movement. Consistent hashing: keys and nodes on a ring; key maps to next node clockwise. Adding/removing a node only remaps keys in one arc segment (~1/n of all keys). Virtual nodes: each physical node gets multiple positions on the ring — improves load balance and granularity of redistribution. Add node: only the keys between new node and its predecessor are remapped. Remove: only that node's keys are remapped to its successor.\n"
+      },
+      "category": "consistent-hashing"
+    }
+  ]
+}

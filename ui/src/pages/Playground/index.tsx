@@ -180,7 +180,7 @@ const Playground = () => {
         mas_yaml: masYaml,
         agents,
       });
-      queryClient.invalidateQueries({ queryKey: ["apps", library] });
+      queryClient.resetQueries({ queryKey: ["apps", library] });
       handleCloseSaveDialog();
       setSaveSuccess(`"${trimmedName}" saved successfully.`);
     } catch (err) {

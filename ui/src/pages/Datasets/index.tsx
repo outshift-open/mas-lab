@@ -51,7 +51,7 @@ const Datasets = () => {
   ]);
 
   const rows = useMemo<DatasetSummary[]>(
-    () => (datasets ?? []).filter((d) => d.name.endsWith(".json")),
+    () => (datasets ?? []).filter((d) => d.name.endsWith(".yaml") || d.name.endsWith(".yml")),
     [datasets],
   );
 
@@ -81,25 +81,28 @@ const Datasets = () => {
         accessorKey: "name",
         header: "Name",
         size: 300,
-        accessorFn: (row) => (
-          <Tooltip title={row.name} placement="top">
-            <Typography
-              variant="body2"
-              sx={{
-                cursor: "pointer",
-                "&:hover": { textDecoration: "underline" },
-                textOverflow: "ellipsis",
-                overflow: "hidden",
-                whiteSpace: "nowrap",
-              }}
-              onClick={() =>
-                navigate(`/${library}/datasets/${encodeURIComponent(row.name)}`)
-              }
-            >
-              {row.name}
-            </Typography>
-          </Tooltip>
-        ),
+        accessorFn: (row) => {
+          const relPath = (row.path || row.name).replace(/^datasets\//, "");
+          return (
+            <Tooltip title={relPath} placement="top">
+              <Typography
+                variant="body2"
+                sx={{
+                  cursor: "pointer",
+                  "&:hover": { textDecoration: "underline" },
+                  textOverflow: "ellipsis",
+                  overflow: "hidden",
+                  whiteSpace: "nowrap",
+                }}
+                onClick={() =>
+                  navigate(`/${library}/datasets/${relPath}`)
+                }
+              >
+                {relPath}
+              </Typography>
+            </Tooltip>
+          );
+        },
       },
       {
         accessorKey: "description",
@@ -126,7 +129,7 @@ const Datasets = () => {
       <MenuItem
         key="delete"
         onClick={() => {
-          handleRequestDelete([row.original.name]);
+          handleRequestDelete([row.original.path.replace(/^datasets\//, "")]);
           closeMenu();
         }}
       >
@@ -145,7 +148,7 @@ const Datasets = () => {
           color="negative"
           disabled={!hasSelection}
           onClick={() => {
-            const names = selectedRows.map((r) => r.original.name);
+            const names = selectedRows.map((r) => r.original.path.replace(/^datasets\//, ""));
             if (names.length > 0) handleRequestDelete(names);
           }}
         >

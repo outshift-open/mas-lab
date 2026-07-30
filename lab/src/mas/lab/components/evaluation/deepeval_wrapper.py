@@ -13,53 +13,119 @@ from typing import Any, Dict, List, Optional
 import random
 import time
 
-# Try to import deepeval, else provide mock
 try:
-    from deepeval.metrics import AnswerRelevancyMetric
+    from deepeval.metrics import AnswerRelevancyMetric as _RealAnswerRelevancyMetric
     from deepeval.test_case import LLMTestCase
     DEEPEVAL_AVAILABLE = True
 except ImportError:
+    _RealAnswerRelevancyMetric = None
     DEEPEVAL_AVAILABLE = False
-    
-    # Mock classes for demonstration without dependency
-    class AnswerRelevancyMetric:
-        metric_id = "answer_relevancy"
-
-        def __init__(self, threshold: float = 0.5, **kwargs: Any):
-            self.threshold = threshold
-            self.score = 0.0
-            self.reason = ""
-            
-        def measure(self, test_case: Any):
-            time.sleep(0.1)
-            self.score = random.uniform(0.6, 1.0)
-            self.reason = "Mock relevancy score."
-            return self.score
-
-        def compute(self, *, run_id: str, level: str, context: dict) -> dict:
-            """Interface expected by AnnotateMetricsStep."""
-            self.score = random.uniform(0.6, 1.0)
-            self.reason = "Mock relevancy score."
-            import datetime
-            return {
-                "run_id": run_id,
-                "metric": self.metric_id,
-                "level": level,
-                "score": self.score,
-                "reasoning": self.reason,
-                "model": "mock",
-                "computed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                "error": None,
-            }
-
-        def is_successful(self):
-            return self.score >= self.threshold
 
     class LLMTestCase:
         def __init__(self, input: str, actual_output: str, retrieval_context: List[str] = None):
             self.input = input
             self.actual_output = actual_output
             self.retrieval_context = retrieval_context or []
+
+
+def _resolve_model_arg(model: Any) -> Any:
+    """Build a ``deepeval.models.GPTModel`` routed through the workspace LLM proxy.
+
+    If *model* is already a ``DeepEvalBaseLLM`` instance, return as-is.
+    If it's a string (e.g. ``"azure/gpt-4o"``), create a ``GPTModel`` configured
+    with the workspace proxy base-url and API key.
+    """
+    if model is not None and not isinstance(model, str):
+        return model
+    try:
+        from mas.library.eval.mce.runner import _resolve_infra
+        import os
+        api_base, api_key_env, default_model = _resolve_infra()
+        effective_model = model or default_model or "gpt-4o"
+        api_key = os.environ.get(api_key_env) or os.environ.get("OPENAI_API_KEY") or "none"
+        from deepeval.models import GPTModel
+        return GPTModel(
+            model=effective_model,
+            api_key=api_key,
+            base_url=api_base or None,
+        )
+    except Exception:
+        return model
+
+
+class AnswerRelevancyMetric:
+    """Adapter exposing ``compute()`` and ``metric_id`` for AnnotateMetricsStep.
+
+    Delegates to deepeval's real metric when available, otherwise mocks.
+    """
+
+    metric_id = "answer_relevancy"
+
+    def __init__(self, threshold: float = 0.5, **kwargs: Any):
+        self.threshold = threshold
+        self.score = 0.0
+        self.reason = ""
+        self._delegate = None
+        if DEEPEVAL_AVAILABLE and _RealAnswerRelevancyMetric is not None:
+            try:
+                model_arg = kwargs.pop("model", None)
+                resolved_model = _resolve_model_arg(model_arg)
+                self._delegate = _RealAnswerRelevancyMetric(
+                    threshold=threshold,
+                    model=resolved_model,
+                    async_mode=False,
+                    verbose_mode=False,
+                    **kwargs,
+                )
+            except Exception:
+                pass
+
+    def measure(self, test_case: Any):
+        if self._delegate is not None:
+            self._delegate.measure(test_case)
+            self.score = float(getattr(self._delegate, "score", 0.0))
+            self.reason = str(getattr(self._delegate, "reason", ""))
+            return self.score
+        time.sleep(0.1)
+        self.score = random.uniform(0.6, 1.0)
+        self.reason = "Mock relevancy score."
+        return self.score
+
+    def compute(self, *, run_id: str, level: str, context: dict) -> dict:
+        """Interface expected by AnnotateMetricsStep."""
+        import datetime
+
+        input_text = context.get("input", "")
+        output_text = context.get("output", "")
+
+        error = None
+        if self._delegate is not None and input_text and output_text:
+            try:
+                tc = LLMTestCase(input=input_text, actual_output=output_text)
+                self._delegate.measure(tc)
+                self.score = float(getattr(self._delegate, "score", 0.0))
+                self.reason = str(getattr(self._delegate, "reason", ""))
+            except Exception as exc:
+                self.score = 0.0
+                self.reason = ""
+                error = str(exc)
+        else:
+            self.score = random.uniform(0.6, 1.0)
+            self.reason = "Mock relevancy score."
+
+        return {
+            "run_id": run_id,
+            "metric": self.metric_id,
+            "level": level,
+            "score": self.score if error is None else None,
+            "reasoning": self.reason,
+            "model": "deepeval" if self._delegate else "mock",
+            "computed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "error": error,
+        }
+
+    def is_successful(self):
+        return self.score >= self.threshold
 
 
 class DeepEvalEvaluator:

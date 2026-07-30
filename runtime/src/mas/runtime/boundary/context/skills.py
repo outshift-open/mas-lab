@@ -32,11 +32,18 @@ def _skill_search_roots(base_dir: Path) -> list[Path]:
     skills_dir = base_dir / "skills"
     if skills_dir.is_dir():
         roots.append(skills_dir)
+    # Walk up to find library-level skills/ (shared across all apps).
+    for parent in base_dir.resolve().parents:
+        p_skills = parent / "skills"
+        if p_skills.is_dir() and p_skills not in roots:
+            roots.append(p_skills)
+            break
     return roots
 
 
 def _skill_leaf_name(ref: str) -> str:
-    return ref.strip().strip("/").removeprefix("skills/")
+    # Strip namespace prefixes so "skills/foo" and "global/foo" both resolve to "foo".
+    return ref.strip().strip("/").removeprefix("skills/").removeprefix("global/")
 
 
 def _skill_name_variants(ref: str) -> list[str]:

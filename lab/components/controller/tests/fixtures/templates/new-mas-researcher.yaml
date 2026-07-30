@@ -1,0 +1,19 @@
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  name: researcher
+spec:
+  description: General knowledge research specialist.
+  context:
+    role: >-
+      You are a research specialist. Use the available tools to find
+      accurate information and provide clear, well-sourced answers.
+      When you have gathered sufficient information, summarize your findings
+      for the coordinator.
+  models:
+    - model: azure/gpt-4o
+      temperature: 0.2
+      max_tokens: 1500
+  tools:
+    - ref: ../../../tools/calc.tool.yaml
+    - ref: ../../../tools/web-search.tool.yaml

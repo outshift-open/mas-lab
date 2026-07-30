@@ -17,6 +17,9 @@ import {
   Edit as EditIcon,
   PlayArrow as PlayIcon,
   ClearAll as ClearCacheIcon,
+  ContentCopy as CopyIcon,
+  Check as CheckIcon,
+  Download as DownloadIcon,
 } from "@mui/icons-material";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
@@ -26,13 +29,38 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  IconButton,
   ListItemIcon,
   MenuItem,
+  Stack,
   Typography,
 } from "@mui/material";
 import type { ExperimentSummary } from "@/api/apiCalls";
 import { GLOBAL_BACKGROUND_COLOR } from "@/common/styles";
 import { Tags } from "@/components/Tags/Tags";
+import { ScrollableTooltip } from "@/components/ScrollableTooltip";
+
+function CopyNameButton({ name }: { name: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <IconButton
+      size="small"
+      onClick={(e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(name);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 3000);
+      }}
+      sx={{ p: 0.25 }}
+    >
+      {copied ? (
+        <CheckIcon sx={{ fontSize: 14, color: "success.main" }} />
+      ) : (
+        <CopyIcon sx={{ fontSize: 14 }} />
+      )}
+    </IconButton>
+  );
+}
 
 export interface ExperimentJobStatus {
   jobId: string;
@@ -56,9 +84,10 @@ const experimentJobKey = (row: ExperimentSummary) =>
 interface ExperimentsTableProps {
   data: ExperimentSummary[];
   isLoading: boolean;
-  onDelete?: (names: string[]) => void;
+  onDelete?: (names: string[]) => void | Promise<void>;
   onEdit?: (name: string) => void;
   onRun?: (name: string) => void;
+  onExport?: (name: string) => void;
   onDeleteCache?: (experimentName: string) => void;
   onView?: (experimentName: string) => void;
   runningJobs?: Record<string, ExperimentJobStatus>;
@@ -73,6 +102,7 @@ export const ExperimentsTable = ({
   onDelete,
   onEdit,
   onRun,
+  onExport,
   onDeleteCache,
   onView,
   runningJobs = {},
@@ -94,6 +124,7 @@ export const ExperimentsTable = ({
   const [rowSelection, setRowSelection] = useState<MRT_RowSelectionState>({});
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pendingDeleteNames, setPendingDeleteNames] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
 
   const runningJobsRef = useRef(runningJobs);
   runningJobsRef.current = runningJobs;
@@ -103,11 +134,16 @@ export const ExperimentsTable = ({
     setDeleteDialogOpen(true);
   }, []);
 
-  const handleConfirmDelete = useCallback(() => {
-    onDelete?.(pendingDeleteNames);
-    setDeleteDialogOpen(false);
-    setPendingDeleteNames([]);
-    setRowSelection({});
+  const handleConfirmDelete = useCallback(async () => {
+    setDeleting(true);
+    try {
+      await onDelete?.(pendingDeleteNames);
+      setDeleteDialogOpen(false);
+      setPendingDeleteNames([]);
+      setRowSelection({});
+    } finally {
+      setDeleting(false);
+    }
   }, [onDelete, pendingDeleteNames]);
 
   const handleCancelDelete = useCallback(() => {
@@ -134,21 +170,21 @@ export const ExperimentsTable = ({
         header: "Name",
         size: 250,
         accessorFn: (row) => (
-          <Tooltip title={row.name} placement="top">
-            <Typography
-              variant="body2"
-              sx={{
-                textOverflow: "ellipsis",
-                overflow: "hidden",
-                whiteSpace: "nowrap",
-                cursor: onView ? "pointer" : "default",
-                "&:hover": onView ? { textDecoration: "underline" } : {},
-              }}
-              onClick={() => onView?.(row.name)}
-            >
-              {row.name}
-            </Typography>
-          </Tooltip>
+          <Stack direction="row" alignItems="center" spacing={0.5}>
+            <CopyNameButton name={row.name} />
+            <Tooltip title={row.name} placement="top">
+              <Typography
+                variant="body2"
+                sx={{
+                  textOverflow: "ellipsis",
+                  overflow: "hidden",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {row.name}
+              </Typography>
+            </Tooltip>
+          </Stack>
         ),
       },
       {
@@ -200,12 +236,36 @@ export const ExperimentsTable = ({
           const job = runningJobsRef.current[experimentJobKey(row)];
           const stdout = job?.stdout;
           if (!stdout) return <Typography variant="body2">—</Typography>;
+          // Build a compact tooltip from benchmark stdout by keeping only:
+          //  1. Header (name, strategy, counts) — up to the first blank line
+          //  2. Per-run status lines, e.g. "✅ [cot] item=s1 run=1 (4857ms)"
+          //  3. Footer summary block (delimited by "======" separators)
+          // All verbose agent output between status lines is stripped.
+          const isRunLine = (l: string) => /\]\s*item=\w+\s+run=/.test(l);
+          const isSep = (l: string) => /^={3,}/.test(l);
+          const lines = stdout.split("\n");
+          const firstSepIdx = lines.findIndex(isSep);
+          // Header ends at the first blank line after benchmark settings
+          let headerEnd = 0;
+          for (let i = 1; i < lines.length; i++) {
+            if (lines[i].trim() === "" && lines[i - 1].trim() !== "") {
+              headerEnd = i;
+              break;
+            }
+          }
+          const kept: string[] = [];
+          for (let i = 0; i < lines.length; i++) {
+            if (i <= headerEnd) {
+              kept.push(lines[i]);
+            } else if (isRunLine(lines[i]) || isSep(lines[i])) {
+              kept.push(lines[i]);
+            } else if (firstSepIdx >= 0 && i > firstSepIdx) {
+              kept.push(lines[i]);
+            }
+          }
+          const summary = kept.join("\n").replace(/\n{3,}/g, "\n\n");
           return (
-            <Tooltip
-              title={<span style={{ whiteSpace: "pre-wrap" }}>{stdout}</span>}
-              placement="right"
-              slotProps={{ tooltip: { sx: { maxWidth: 600 } } }}
-            >
+            <ScrollableTooltip title={summary} placement="right">
               <Typography
                 variant="body2"
                 sx={{
@@ -216,7 +276,7 @@ export const ExperimentsTable = ({
               >
                 {stdout}
               </Typography>
-            </Tooltip>
+            </ScrollableTooltip>
           );
         },
       },
@@ -229,11 +289,7 @@ export const ExperimentsTable = ({
           const stderr = job?.stderr;
           if (!stderr) return <Typography variant="body2">—</Typography>;
           return (
-            <Tooltip
-              title={<span style={{ whiteSpace: "pre-wrap" }}>{stderr}</span>}
-              placement="right"
-              slotProps={{ tooltip: { sx: { maxWidth: 600 } } }}
-            >
+            <ScrollableTooltip title={stderr} placement="right">
               <Typography
                 variant="body2"
                 sx={{
@@ -245,7 +301,7 @@ export const ExperimentsTable = ({
               >
                 {stderr}
               </Typography>
-            </Tooltip>
+            </ScrollableTooltip>
           );
         },
       },
@@ -293,7 +349,7 @@ export const ExperimentsTable = ({
         ),
       },
     ],
-    [runningJobs, showLibraryColumn, onView],
+    [runningJobs, showLibraryColumn],
   );
 
   const enrichedData = useMemo(
@@ -352,6 +408,18 @@ export const ExperimentsTable = ({
           {isRunning ? "Running..." : "Run"}
         </MenuItem>,
         <MenuItem
+          key="export"
+          onClick={() => {
+            onExport?.(row.original.name);
+            closeMenu();
+          }}
+        >
+          <ListItemIcon>
+            <DownloadIcon />
+          </ListItemIcon>
+          Export
+        </MenuItem>,
+        <MenuItem
           key="edit"
           onClick={() => {
             onEdit?.(row.original.name);
@@ -407,10 +475,11 @@ export const ExperimentsTable = ({
       );
     },
 
-    muiTableBodyRowProps: () => {
+    muiTableBodyRowProps: ({ row }) => {
       return {
+        onClick: () => onView?.(row.original.name),
         sx: {
-          cursor: "pointer",
+          cursor: onView ? "pointer" : "default",
           backgroundColor: GLOBAL_BACKGROUND_COLOR,
           "& > td": {
             backgroundColor: `${GLOBAL_BACKGROUND_COLOR} !important`,
@@ -450,13 +519,16 @@ export const ExperimentsTable = ({
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCancelDelete}>Cancel</Button>
+          <Button onClick={handleCancelDelete} disabled={deleting}>
+            Cancel
+          </Button>
           <Button
             variant="primary"
             color="negative"
             onClick={handleConfirmDelete}
+            disabled={deleting}
           >
-            Delete
+            {deleting ? "Deleting..." : "Delete"}
           </Button>
         </DialogActions>
       </Dialog>

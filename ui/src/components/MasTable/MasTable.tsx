@@ -44,8 +44,13 @@ interface MasTableProps {
   isError?: boolean;
   onReload?: () => void;
   onMasClick?: (mas: MASManifest) => void;
-  onDelete?: (names: string[]) => void;
-  onDuplicate?: (params: { masName: string; description: string; intent: string; sourceMasName: string }) => Promise<void>;
+  onDelete?: (names: string[]) => void | Promise<void>;
+  onDuplicate?: (params: {
+    masName: string;
+    description: string;
+    intent: string;
+    sourceMasName: string;
+  }) => Promise<void>;
   defaultHiddenColumns?: string[];
   title?: string;
 }
@@ -75,6 +80,7 @@ export const MasTable = ({
   const [rowSelection, setRowSelection] = useState<MRT_RowSelectionState>({});
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pendingDeleteNames, setPendingDeleteNames] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
 
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [duplicateName, setDuplicateName] = useState("");
@@ -96,11 +102,16 @@ export const MasTable = ({
     setDeleteDialogOpen(true);
   }, []);
 
-  const handleConfirmDelete = useCallback(() => {
-    onDelete?.(pendingDeleteNames);
-    setDeleteDialogOpen(false);
-    setPendingDeleteNames([]);
-    setRowSelection({});
+  const handleConfirmDelete = useCallback(async () => {
+    setDeleting(true);
+    try {
+      await onDelete?.(pendingDeleteNames);
+      setDeleteDialogOpen(false);
+      setPendingDeleteNames([]);
+      setRowSelection({});
+    } finally {
+      setDeleting(false);
+    }
   }, [onDelete, pendingDeleteNames]);
 
   const handleCancelDelete = useCallback(() => {
@@ -145,7 +156,13 @@ export const MasTable = ({
     } finally {
       setIsDuplicating(false);
     }
-  }, [duplicateName, duplicateDescription, duplicateIntent, duplicateSourceName, onDuplicate]);
+  }, [
+    duplicateName,
+    duplicateDescription,
+    duplicateIntent,
+    duplicateSourceName,
+    onDuplicate,
+  ]);
 
   const columns = useMemo<MRT_ColumnDefList>(
     () => [
@@ -226,21 +243,28 @@ export const MasTable = ({
               }}
             >
               <Tags
-                tags={((spec?.agency?.agents ?? spec?.agents)
-                  ?.map((agent) =>
-                    typeof agent === "object" && agent !== null && "id" in agent
-                      ? (agent.id ?? "")
-                      : typeof agent === "object" &&
-                          agent !== null &&
-                          "metadata" in agent
-                        ? String(
-                            (agent as { metadata?: { name?: string } }).metadata
-                              ?.name ?? "",
-                          )
-                        : "",
-                  )
-                  .filter((id): id is string => typeof id === "string" && Boolean(id))
-                  .map((id) => ({ name: id })) ?? [])}
+                tags={
+                  (spec?.agency?.agents ?? spec?.agents)
+                    ?.map((agent) =>
+                      typeof agent === "object" &&
+                      agent !== null &&
+                      "id" in agent
+                        ? (agent.id ?? "")
+                        : typeof agent === "object" &&
+                            agent !== null &&
+                            "metadata" in agent
+                          ? String(
+                              (agent as { metadata?: { name?: string } })
+                                .metadata?.name ?? "",
+                            )
+                          : "",
+                    )
+                    .filter(
+                      (id): id is string =>
+                        typeof id === "string" && Boolean(id),
+                    )
+                    .map((id) => ({ name: id })) ?? []
+                }
                 minDisplayed={1}
               />
             </Stack>
@@ -393,13 +417,16 @@ export const MasTable = ({
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCancelDelete}>Cancel</Button>
+          <Button onClick={handleCancelDelete} disabled={deleting}>
+            Cancel
+          </Button>
           <Button
             variant="primary"
             color="negative"
             onClick={handleConfirmDelete}
+            disabled={deleting}
           >
-            Delete
+            {deleting ? "Deleting..." : "Delete"}
           </Button>
         </DialogActions>
       </Dialog>
@@ -458,7 +485,11 @@ export const MasTable = ({
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDuplicate}>Cancel</Button>
-          <Button variant="primary" onClick={handleConfirmDuplicate} disabled={isDuplicating}>
+          <Button
+            variant="primary"
+            onClick={handleConfirmDuplicate}
+            disabled={isDuplicating}
+          >
             {isDuplicating ? "Saving..." : "Save"}
           </Button>
         </DialogActions>

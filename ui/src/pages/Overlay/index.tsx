@@ -163,8 +163,8 @@ const Overlay = () => {
         });
       }
 
-      queryClient.invalidateQueries({ queryKey: ["overlays", library] });
-      queryClient.invalidateQueries({
+      queryClient.resetQueries({ queryKey: ["overlays", library] });
+      queryClient.resetQueries({
         queryKey: ["overlay", library, trimmedName],
       });
 
@@ -194,8 +194,8 @@ const Overlay = () => {
     setSaveDialogOpen(true);
   }, [overlayName]);
 
-  const handleDialogSave = useCallback(() => {
-    doSave();
+  const handleDialogSave = useCallback(async () => {
+    await doSave();
   }, [doSave]);
 
   useEffect(() => {

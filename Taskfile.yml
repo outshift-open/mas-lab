@@ -60,13 +60,15 @@ tasks:
           runtime/tests/test_infra_pipeline_bidirectional.py \
           lab/components/core/tests/ \
           lab/components/bench/tests/ \
-          lab/components/controller/tests/test_sessions.py \
-          lab/components/controller/tests/test_client.py \
-          lab/components/controller/tests/test_runtime_runners_api.py \
-          lab/components/controller/tests/test_api_calls_contract.py \
           ctl/tests/test_infra_entries.py \
           library-standard/tests/ \
           -q --tb=line
+
+  verify-controller:
+    desc: "All controller unit tests (FastAPI routes, daemon IPC, workers, discovery, manifests)"
+    deps: [install-dev]
+    cmds:
+      - "{{.VENV}}/pytest lab/components/controller/tests/ -q --tb=line"
 
   verify-tutorials:
     desc: "Tutorial integration tests (subprocess CLI; no mas-lab-tutorial package required)"
@@ -120,6 +122,7 @@ tasks:
     cmds:
       - task: verify:literals
       - task: verify-unit
+      - task: verify-controller
       - task: verify-functional
       - task: validate
 

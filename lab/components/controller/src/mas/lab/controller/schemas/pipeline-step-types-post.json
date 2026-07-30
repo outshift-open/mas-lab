@@ -18,14 +18,14 @@
     {
       "type": "extract_trajectories",
       "label": "Extract Trajectories",
-      "description": "Build trajectories.jsonl and per-run trajectory.json from benchmark CSV + trace paths.",
+      "description": "Parse benchmark run traces into a structured trajectories.jsonl file. Extracts the input prompt, final output, per-agent messages, and session metadata from each run's events.jsonl. This is typically the first step in a pipeline — downstream steps like plot_multilevel_trajectory and annotate_metrics consume its output.",
       "phase": "post",
       "category": "extraction",
       "config": {
         "csv_file": {
           "type": "string",
-          "default": "results*.csv",
-          "description": "Glob pattern for benchmark CSV"
+          "default": "results.csv",
+          "description": "Benchmark results CSV filename"
         },
         "runs_dir": {
           "type": "string",
@@ -36,6 +36,34 @@
           "type": "boolean",
           "default": false,
           "description": "Overwrite existing extractions"
+        }
+      }
+    },
+    {
+      "type": "extract_trace_stats",
+      "label": "Extract Trace Stats",
+      "description": "Compute structural metrics from raw trace files — counts LLM calls, tool invocations, governance events, and measures total duration per run. Outputs a tidy CSV (one row per run) for cost analysis and efficiency comparisons across scenarios. Reads events.jsonl directly from the benchmark output directory.",
+      "phase": "post",
+      "category": "extraction",
+      "config": {
+        "output": {
+          "type": "string",
+          "default": "{output_dir}/results/trace_stats.csv",
+          "description": "Output CSV path"
+        },
+        "scenarios": {
+          "type": "array",
+          "description": "Optional list of scenario IDs to include (all if omitted)"
+        },
+        "item_glob": {
+          "type": "string",
+          "default": "item*",
+          "description": "Glob pattern for item directories"
+        },
+        "run_glob": {
+          "type": "string",
+          "default": "r*",
+          "description": "Glob pattern for run directories"
         }
       }
     },
@@ -72,8 +100,8 @@
         },
         "metric_kwargs": {
           "type": "object",
-          "default": {},
-          "description": "Kwargs passed to metric (model, api_key_env, threshold, etc.)"
+          "default": {"model": "azure/gpt-4o"},
+          "description": "Kwargs passed to metric constructor (model, threshold, etc.)"
         },
         "level": {
           "type": "string",
@@ -295,7 +323,7 @@
     {
       "type": "plot_multilevel_trajectory",
       "label": "Plot Multilevel Trajectory",
-      "description": "Multilevel trajectory diagram (HTML/SVG) with annotations.",
+      "description": "Render an interactive timeline showing how agents, LLM calls, and tool invocations interleave across a run. The diagram reveals execution structure: which agent delegated to which, how long each step took, and where parallelism or bottlenecks occur. Outputs HTML (interactive) or SVG (static). Depends on extract_trajectories.",
       "phase": "post",
       "category": "visualization",
       "config": {
@@ -446,6 +474,228 @@
           "type": "string",
           "default": "communication_flow",
           "description": "Output filename"
+        }
+      }
+    },
+    {
+      "type": "collect_metrics",
+      "label": "Collect Metrics",
+      "description": "Aggregate all per-run metrics.json and run_info.json files into a single tidy CSV (metrics_results.csv). Each row is one (scenario, item, run, metric) observation with columns for score, latency, LLM/tool call counts, and cache keys. Optionally enriches rows with dataset item metadata (group, complexity) for richer downstream grouping. Typically depends on eval_mce.",
+      "phase": "post",
+      "category": "evaluation",
+      "config": {
+        "output_dir": {
+          "type": "string",
+          "default": "",
+          "description": "Root output directory (defaults to pipeline output_dir)"
+        },
+        "output": {
+          "type": "string",
+          "default": "metrics_results.csv",
+          "description": "Output CSV path (avoid 'results.csv' — reserved by benchmark engine)"
+        },
+        "run_glob": {
+          "type": "string",
+          "default": "*/*/r*",
+          "description": "Glob for run directories relative to output_dir"
+        },
+        "scenarios": {
+          "type": "array",
+          "default": [],
+          "description": "Optional scenario filter (all if empty)"
+        },
+        "metrics_filename": {
+          "type": "string",
+          "default": "metrics.json",
+          "description": "Name of the metrics file in each run directory"
+        },
+        "dataset": {
+          "type": "string",
+          "default": "",
+          "description": "Path to dataset YAML/JSON for item enrichment (or dict with path, join_on, columns)"
+        }
+      }
+    },
+    {
+      "type": "compute_ci",
+      "label": "Compute CI",
+      "description": "Compute confidence intervals across repeated runs. Groups the metrics CSV by scenario and metric (or custom groupby columns), then calculates mean, std, and 95% CI bounds (ci_low, ci_high) for each group. Outputs a summary CSV ready for plotting. Use ci_method 't' for small samples (<30 runs), 'bootstrap' for non-normal data. Depends on collect_metrics.",
+      "phase": "post",
+      "category": "analysis",
+      "config": {
+        "data": {
+          "type": "string",
+          "required": true,
+          "default": "@collect-metrics",
+          "description": "Input CSV path or @step-name reference (e.g. @collect-metrics)"
+        },
+        "value_col": {
+          "type": "string",
+          "default": "value",
+          "description": "Column to aggregate"
+        },
+        "metric_col": {
+          "type": "string",
+          "default": "metric",
+          "description": "Column that names each metric"
+        },
+        "metrics": {
+          "type": "array",
+          "default": [],
+          "description": "Optional: restrict to these metric values"
+        },
+        "groupby": {
+          "type": "array",
+          "default": ["scenario", "metric"],
+          "description": "Grouping columns for CI computation"
+        },
+        "ci_method": {
+          "type": "string",
+          "default": "t",
+          "enum": ["t", "bootstrap", "normal"],
+          "description": "CI method: t (default, for n<30), bootstrap, or normal"
+        },
+        "ci_level": {
+          "type": "number",
+          "default": 0.95,
+          "description": "Confidence level (e.g. 0.95 for 95% CI)"
+        },
+        "min_runs": {
+          "type": "integer",
+          "default": 2,
+          "description": "Warn when a group has fewer runs"
+        },
+        "output": {
+          "type": "string",
+          "default": "{output_dir}/ci_summary.csv",
+          "description": "Output CSV path"
+        }
+      }
+    },
+    {
+      "type": "eval_mce",
+      "label": "Eval MCE",
+      "description": "Run LLM-as-judge evaluation on every benchmark run using MCE (Metrics Computation Engine). Computes session-level quality metrics — goal success, answer relevancy, groundedness, response completeness, and more — by prompting a judge LLM to score each run's conversation. Writes a metrics.json file next to each run's traces. Expensive (one LLM call per metric per run); use max_workers to control concurrency.",
+      "phase": "post",
+      "category": "evaluation",
+      "config": {
+        "runs_dir": {
+          "type": "string",
+          "default": "",
+          "description": "Path to runs root (defaults to pipeline output_dir)"
+        },
+        "response_agent": {
+          "type": "string",
+          "default": "",
+          "description": "Agent ID whose last execution_end is the final response (auto-detected if empty)"
+        },
+        "metrics": {
+          "type": "array",
+          "default": [],
+          "description": "MCE metric IDs to compute (all session-level if empty)"
+        },
+        "overwrite": {
+          "type": "boolean",
+          "default": false,
+          "description": "Re-compute runs that already have metrics.json"
+        },
+        "validate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Validate each metrics.json against its JSON schema"
+        },
+        "max_workers": {
+          "type": "integer",
+          "default": 2,
+          "description": "Concurrent evaluation threads"
+        },
+        "fail_threshold": {
+          "type": "number",
+          "default": 1.0,
+          "description": "Fraction of items that may fail before step raises (0.0 = any, 1.0 = never)"
+        },
+        "model": {
+          "type": "string",
+          "default": "azure/gpt-4o",
+          "description": "Override judge model (re-installs LLM service with this model)"
+        },
+        "metrics_filename": {
+          "type": "string",
+          "default": "metrics.json",
+          "description": "Name of the output metrics file per run"
+        }
+      }
+    },
+    {
+      "type": "plotnine",
+      "label": "Plotnine Chart",
+      "description": "Render a publication-quality chart using plotnine (ggplot2 for Python). Maps CSV columns to aesthetics (x, y, fill, ymin, ymax) and renders bar charts (geom: col), CI rectangles (geom: crossbar), point plots, box plots, and more. Add facet to split into a grid by metric or scenario. Use as the final visualization step after compute_ci to compare scenarios across metrics.",
+      "phase": "post",
+      "category": "visualization",
+      "config": {
+        "data": {
+          "type": "string",
+          "required": true,
+          "default": "@compute-ci",
+          "description": "DataFrame source: file path (CSV/Parquet/JSON) or @step-name reference"
+        },
+        "output": {
+          "type": "string",
+          "default": "{output_dir}/results/plot.png",
+          "description": "Output file path (png/svg/pdf)"
+        },
+        "mapping": {
+          "type": "object",
+          "required": true,
+          "default": {"x": "scenario", "y": "mean", "fill": "scenario", "ymin": "ci_low", "ymax": "ci_high"},
+          "description": "aes() mapping: {x, y, fill, color, ymin, ymax, ...}. ymin+ymax auto-trigger error bars."
+        },
+        "geom": {
+          "type": "string",
+          "default": "crossbar",
+          "enum": ["bar", "col", "crossbar", "point", "boxplot", "jitter", "line", "tile"],
+          "description": "Geometry type (crossbar draws CI rectangles from ymin to ymax; col draws bars from 0 to y)"
+        },
+        "stat": {
+          "type": "string",
+          "default": "",
+          "enum": ["", "summary", "mean", "sum"],
+          "description": "Stat summary function (omit for pre-aggregated data)"
+        },
+        "facet": {
+          "type": "string",
+          "default": "~ metric",
+          "description": "Facet formula: '~ metric' or 'metric ~ .' (facet by metric is recommended for multi-metric data)"
+        },
+        "labels": {
+          "type": "object",
+          "default": {"title": "Scenario Comparison by Metric (95% CI)", "x": "Scenario", "y": "MCE Score (mean ± 95% CI)"},
+          "description": "Plot labels: {title, subtitle, x, y, fill, ...}"
+        },
+        "width": {
+          "type": "number",
+          "default": 14,
+          "description": "Figure width in inches"
+        },
+        "height": {
+          "type": "number",
+          "default": 10,
+          "description": "Figure height in inches"
+        },
+        "dpi": {
+          "type": "integer",
+          "default": 150,
+          "description": "DPI for raster output"
+        },
+        "filter": {
+          "type": "string",
+          "default": "",
+          "description": "Optional row filter (pandas query string or dict)"
+        },
+        "legend_position": {
+          "type": "string",
+          "default": "bottom",
+          "description": "Legend position: right, left, top, bottom, none, or [x,y] coords"
         }
       }
     },

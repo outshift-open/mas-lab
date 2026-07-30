@@ -506,7 +506,7 @@ export async function runBenchmark(
         experiment_yaml: request.experiment_yaml,
         progress: request.progress ?? true,
         ...(request.n_runs != null && { max_runs: request.n_runs }),
-        timeout: request.timeout ?? 600,
+        timeout: request.timeout ?? 1800,
       }),
     },
   );
@@ -1178,6 +1178,7 @@ export function useMceMetrics() {
 
 export interface DatasetSummary {
   name: string;
+  path: string;
   description: string;
 }
 
@@ -1412,6 +1413,29 @@ export async function exportBenchmark(
   return response.json();
 }
 
+export async function downloadBenchmarkExport(
+  library: string,
+  benchmarkId: string,
+): Promise<void> {
+  const url = `${API_BASE_URL}/api/libraries/${encodeURIComponent(library)}/benchmark/download?benchmark_id=${encodeURIComponent(benchmarkId)}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(
+      error?.detail ?? `Benchmark download failed with status ${response.status}`,
+    );
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get("content-disposition");
+  const filename =
+    disposition?.match(/filename="?([^"]+)"?/)?.[1] ?? `${benchmarkId}.tar.gz`;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 export interface BenchmarkImportRequest {
   tarball: string;
   output_dir?: string;
@@ -1436,6 +1460,28 @@ export async function importBenchmark(
     const error = await response.json().catch(() => null);
     throw new Error(
       error?.detail ?? `Benchmark import failed with status ${response.status}`,
+    );
+  }
+  return response.json();
+}
+
+export async function uploadImportBenchmark(
+  library: string,
+  file: File,
+): Promise<JobSubmitResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(
+    `${API_BASE_URL}/api/libraries/${encodeURIComponent(library)}/benchmark/upload-import`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(
+      error?.detail ?? `Benchmark upload-import failed with status ${response.status}`,
     );
   }
   return response.json();

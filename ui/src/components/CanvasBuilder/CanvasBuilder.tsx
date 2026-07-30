@@ -610,7 +610,10 @@ function serializeGraphToYamls(
     // spec.agency.agents: lightweight list with id + ref only
     const agents = agentNodes.map((agentNode) => {
       const agentId = getAgentId(agentNode);
-      return { id: agentId, ref: `${effectiveMasName}/agents/${agentId}.yaml` };
+      return {
+        id: agentId,
+        ref: `agents/${agentId}.yaml`,
+      };
     });
 
     // workflow.nodes: describes each agent's role and delegation targets
@@ -726,10 +729,13 @@ function deserializeYamlsToGraph(yamlMap: YamlOutputMap): {
       data: {
         name: metadata.name ?? "",
         description: spec.description ?? "",
-        intent: normalizeIntent((spec.context as Record<string, unknown> | undefined)?.intent),
+        intent: normalizeIntent(
+          (spec.context as Record<string, unknown> | undefined)?.intent,
+        ),
         role,
         instructions:
-          typeof (spec.context as Record<string, unknown> | undefined)?.role === "string"
+          typeof (spec.context as Record<string, unknown> | undefined)?.role ===
+          "string"
             ? ((spec.context as Record<string, string>).role ?? "")
             : "",
         context: spec.context ?? {},
