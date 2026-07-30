@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import sys
 import time
+import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -57,8 +58,20 @@ class SessionController:
     agent_id: str = "n/a"
     llm_id: str = "gpt-4o-mini"
     obs_recorder: Any | None = None
+    # One id for the whole MAS run — every turn this controller ever runs
+    # shares it (see _run_user_turn). Empty here means "mint a fresh one";
+    # explicitly pass an existing value (e.g. from an entry agent's own
+    # SessionController, threaded through make_workflow_send) to make a
+    # delegated agent's calls part of that SAME session instead of starting
+    # a new one — session_id is global to the MAS, unlike each turn's own
+    # task_id, which stays local to whichever agent runs it.
+    session_id: str = ""
     _turn: int = 0
     _trace_turn_start: float = 0.0
+
+    def __post_init__(self) -> None:
+        if not self.session_id:
+            self.session_id = str(uuid.uuid4())
 
     def _trace_format_options(self) -> TraceFormatOptions:
         return TraceFormatOptions(
@@ -175,7 +188,9 @@ class SessionController:
         if callable(on_working):
             on_working()
         self._setup_exchange_tracing()
-        trace = self.instance.run_user_text(text, turn_id=tid, parent_call_id=parent_call_id)
+        trace = self.instance.run_user_text(
+            text, turn_id=tid, parent_call_id=parent_call_id, session_id=self.session_id
+        )
         end_working = getattr(self.display, "end_working", None)
         if callable(end_working):
             end_working()

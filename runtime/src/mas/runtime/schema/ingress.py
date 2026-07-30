@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import uuid
 from enum import Enum
 from typing import Annotated, Literal, Union
 
@@ -29,6 +30,24 @@ class UserInputReceived(BaseModel):
     kind: Literal[IngressKind.USER_INPUT_RECEIVED] = IngressKind.USER_INPUT_RECEIVED
     user_turn_id: str
     text: str
+    # One fresh id per input prompt — distinct from user_turn_id (a short,
+    # session-sequential label like "u1", reused for delegation matching).
+    # Governance/observability read this (via Transition.task_id, propagated
+    # by the driver to every transition produced while processing this turn)
+    # to correlate a decision back to the exact prompt that triggered it,
+    # across sessions where user_turn_id alone isn't unique. task_id is
+    # always local to one agent — never propagated across delegation, unlike
+    # session_id below.
+    task_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    # One id for the whole MAS run, shared by every agent in it. The default
+    # here only ever applies to the very first input of a run (no one has a
+    # session yet, so mint one) — every subsequent UserInputReceived, whether
+    # a follow-up turn or a delegated call to another agent, is constructed
+    # with the SAME session_id explicitly passed through (see
+    # mas.ctl.session.controller.SessionController.session_id, threaded into
+    # every agent-to-agent delegation call by
+    # mas.ctl.executor.mas_session.make_workflow_send), so it never re-mints.
+    session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
 
 class LifecyclePause(BaseModel):

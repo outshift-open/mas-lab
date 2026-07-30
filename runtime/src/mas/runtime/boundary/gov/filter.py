@@ -5,17 +5,32 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from mas.runtime.boundary.gov.ingress_plugin import IngressIntentView
 from mas.runtime.boundary.gov.policy import EgressIntentView
 
+if TYPE_CHECKING:
+    from mas.runtime.boundary.gov.transition import GovTransition
+
 
 @dataclass(frozen=True)
 class GovTransitionFilter:
-    """When empty, matches all transitions on the declared hook."""
+    """When empty, matches all transitions on the declared hook.
+
+    Used two ways: ``matches_ingress``/``matches_egress`` gate an ingress
+    plugin's participation in the governance decision chain (against the
+    narrower ``IngressIntentView``/``EgressIntentView`` used to *decide*);
+    ``matches`` gates a governance plugin's ``on_transition`` subscription
+    against the full ``GovTransition`` stream (see
+    ``mas.runtime.driver.driver.KernelDriver._notify_governance``) — a
+    plugin declares one or more of these via a ``transition_filters()``
+    method to receive only the transitions it cares about, instead of
+    filtering everything itself inside ``on_transition``.
+    """
 
     hook: Literal["ingress", "egress"] = "ingress"
+    kind: tuple[str, ...] = ()  # symbol.kind — "USER_INPUT_RECEIVED", …
     response_kind: tuple[str, ...] = ()
     op: tuple[str, ...] = ()
     destructive: bool | None = None
@@ -40,6 +55,7 @@ class GovTransitionFilter:
         destructive = raw.get("destructive")
         return cls(
             hook=hook,  # type: ignore[arg-type]
+            kind=_tuple("kind"),
             response_kind=_tuple("response_kind"),
             op=_tuple("op"),
             machine=_tuple("machine"),
@@ -66,4 +82,20 @@ class GovTransitionFilter:
         if intent.op == "LLM_CALL" and self.machine and "M_model" not in self.machine:
             if self.machine:  # machine filter set but not M_model
                 return False
+        return True
+
+    def matches(self, t: "GovTransition") -> bool:
+        """Gate a governance plugin's on_transition subscription."""
+        if t.hook != self.hook:
+            return False
+        if self.kind and t.kind not in self.kind:
+            return False
+        if self.op and t.op not in self.op:
+            return False
+        if self.response_kind and t.response_kind not in self.response_kind:
+            return False
+        if self.destructive is not None and t.destructive != self.destructive:
+            return False
+        if self.machine and t.machine not in self.machine:
+            return False
         return True

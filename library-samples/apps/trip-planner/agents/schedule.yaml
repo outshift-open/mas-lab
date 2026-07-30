@@ -7,16 +7,17 @@ metadata:
   name: schedule_agent
 spec:
   models:
-  - model: azure/gpt-4o
-    temperature: 0.2
-    max_tokens: 1500
+    - model: gpt-4o
+      temperature: 0.2
+      max_tokens: 1500
   tools:
-  - ref: ../tools/lookup_schedule.tool.yaml
-  - ref: ../tools/get_attractions.tool.yaml
-  - ref: ../tools/get_attractions_description.tool.yaml
+    - ref: ../tools/lookup_schedule.tool.yaml
+    - ref: ../tools/get_attractions.tool.yaml
+    - ref: ../tools/get_attractions_description.tool.yaml
   description: Transport schedule and attractions specialist.
   context:
-    role: "You can look up train and airplane schedules and attractions inside cities.\n\
+    role:
+      "You can look up train and airplane schedules and attractions inside cities.\n\
       \      You have access to three tools:\n      1. lookup_schedule — to search\
       \ for train and airplane schedules between cities. Schedule only between cities,\
       \ not attractions\n      2. get_attractions — to fetch quick lists of attraction\

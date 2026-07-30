@@ -25,6 +25,11 @@ class NativeObservabilityPlugin(ObservabilityPlugin):
     emitters: list[EventEmitter] = field(default_factory=list)
     context: TransformContext = field(default_factory=TransformContext)
     mas_id: str = ""
+    # Override only — every real TransitionEvent already carries its own
+    # session_id/task_id (see mas.runtime.driver.driver.KernelDriver.session_id),
+    # which on_transition below prefers. This field only still matters for a
+    # caller that explicitly wants every record stamped with one fixed value
+    # regardless of what transitions report.
     session_id: str = ""
     _fanout: FanOutEmitter | None = field(default=None, init=False)
     _ctx_by_agent: dict[str, TransformContext] = field(default_factory=dict, init=False)
@@ -90,7 +95,8 @@ class NativeObservabilityPlugin(ObservabilityPlugin):
             transforms=self.transforms,
             ctx=ctx,
             mas_id=self.mas_id,
-            session_id=self.session_id,
+            session_id=event.session_id or self.session_id,
+            task_id=event.task_id,
         ):
             self._fanout.emit(rec)
         # Propagate run-global MAS call id back to the shared base so contexts

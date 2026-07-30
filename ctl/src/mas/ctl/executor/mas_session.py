@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -47,6 +48,12 @@ class PreparedEntrySession:
     enriched_manifest: dict[str, Any]
     manifest_path: Path
     entry_agent_id: str
+    # Minted here if the caller didn't already have one — this IS "the first
+    # request to the first agent of the MAS" (prepare_delegation_entry_session
+    # runs once, before the entry agent's own first turn). The caller must
+    # reuse this same value for the entry agent's own SessionController and
+    # for wire_peer_delegation, so every agent in the run shares it.
+    session_id: str = ""
 
 
 def entry_agent_id(mas_config: dict[str, Any]) -> str:
@@ -194,8 +201,17 @@ def prepare_delegation_entry_session(
     entry_manifest_path: Path | None = None,
     display: Any = None,
     verbose: int = 0,
+    session_id: str = "",
 ) -> PreparedEntrySession:
-    """Wire dynamic-delegation entry agent (same path as ``execute_run_mas``)."""
+    """Wire dynamic-delegation entry agent (same path as ``execute_run_mas``).
+
+    Mints ``session_id`` if the caller doesn't already have one — this is
+    "the first request to the first agent" for a fresh MAS run, since this
+    runs once, before the entry agent's own first turn. The caller must
+    reuse the returned ``PreparedEntrySession.session_id`` for the entry
+    agent's own ``SessionController`` and for ``wire_peer_delegation``, so
+    every agent shares the same session.
+    """
     compose = materialized.compose
     instance = materialized.materialized.instances.get(entry_id)
     if instance is None:
@@ -205,6 +221,8 @@ def prepare_delegation_entry_session(
 
     if hasattr(instance.driver, "agent_id"):
         instance.driver.agent_id = entry_id
+
+    resolved_session_id = session_id or str(uuid.uuid4())
 
     manifest_path = entry_manifest_path or agent_manifest_path(compose.bind, entry_id)
     agent_manifest = entry_manifest or load_agent_manifest_from_bind(compose.bind, entry_id) or {}
@@ -225,6 +243,7 @@ def prepare_delegation_entry_session(
             display=display,
             verbose=verbose,
             from_agent=entry_id,
+            session_id=resolved_session_id,
         ),
         entry_agent_id=entry_id,
         mas_config=compose.mas_config,
@@ -235,6 +254,7 @@ def prepare_delegation_entry_session(
         enriched_manifest=enriched,
         manifest_path=manifest_path or entry_manifest_dir / f"{entry_id}.yaml",
         entry_agent_id=entry_id,
+        session_id=resolved_session_id,
     )
 
 
@@ -245,6 +265,7 @@ def wire_peer_delegation(
     display: Any = None,
     verbose: int = 0,
     already_wired: "set[str] | None" = None,
+    session_id: str = "",
 ) -> list[str]:
     """Wire delegation onto every agent that declares its own ``delegates_to``
     peers in the MAS workflow topology — not just the entry agent.
@@ -279,6 +300,7 @@ def wire_peer_delegation(
         display=display,
         verbose=verbose,
         from_agent=entry_id,
+        session_id=session_id,
     )
     newly_wired: list[str] = []
     for agent in compose.bind.agents:
@@ -319,13 +341,26 @@ def make_workflow_send(
     display: Any,
     verbose: int,
     from_agent: str = "",
+    session_id: str = "",
 ) -> RunTurnFn:
     """Run one agent turn inside a multi-agent workflow (sequential or delegation).
 
     The returned ``send`` closure holds mutable routing state and is **not reentrant**;
     use one closure per workflow run on a single thread.
+
+    ``session_id`` (empty means mint a fresh one — the caller has none yet)
+    is captured once here and reused for every ``send()`` call this closure
+    ever makes: this is what puts session_id "on the wire" for delegation —
+    each delegate's own ``SessionController`` is constructed with this same
+    value, so a delegate's first-ever task still belongs to the entry
+    agent's session rather than starting a new one.
     """
-    state = {"prev_agent": from_agent, "correlation_id": 0, "call_seq": 0}
+    state = {
+        "prev_agent": from_agent,
+        "correlation_id": 0,
+        "call_seq": 0,
+        "session_id": session_id or str(uuid.uuid4()),
+    }
 
     def send(
         agent_id: str,
@@ -400,6 +435,7 @@ def make_workflow_send(
             verbose=verbose,
             agent_id=agent_id,
             config=ConversationConfig(single_turn=True),
+            session_id=state["session_id"],
         )
         result = controller.run_turn(prompt, turn_id=turn_id, parent_call_id=parent_call_id)
         # Do NOT close observability after a delegated sub-turn: in a multi-agent
@@ -427,14 +463,25 @@ def run_sequential_workflow_queries(
     *,
     display: Any,
     verbose: int = 0,
+    session_id: str = "",
 ) -> str:
-    """Execute sequential workflow queries; returns final response text."""
+    """Execute sequential workflow queries; returns final response text.
+
+    ``session_id`` (empty means mint a fresh one) is for parity with
+    ``prepare_delegation_entry_session``/``wire_peer_delegation`` — no
+    current caller has a prior session_id to thread in here, since a
+    sequential-workflow run is always its own top-level entry point, but the
+    parameter exists so a future caller that does (e.g. one composing a
+    sequential run into a larger session) has somewhere to pass it instead
+    of every step minting its own.
+    """
     entry = entry_agent_id(mas_config)
     send = make_workflow_send(
         materialized.materialized,
         display=display,
         verbose=verbose,
         from_agent=entry,
+        session_id=session_id,
     )
     wf = SequentialWorkflow.from_dict(sequential_workflow_payload(mas_config), send=send)
     text = ""

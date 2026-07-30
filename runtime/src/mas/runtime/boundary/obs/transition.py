@@ -31,6 +31,14 @@ class TransitionEvent:
     phase: str
     agent_id: str = "agent"
     run_id: str = ""
+    # session_id: one id for the whole MAS run, shared by every agent in it.
+    # task_id: one id per input prompt, local to this agent. Same values and
+    # same propagation rules as mas.runtime.boundary.gov.transition.GovTransition
+    # — set from mas.runtime.driver.driver.KernelDriver.session_id /
+    # _current_task_id, which is where every consumer should look to
+    # understand how these are minted/propagated.
+    session_id: str = ""
+    task_id: str = ""
     correlation_id: int = 0
     call_id: str | None = None
     parent_call_id: str | None = None
@@ -45,6 +53,8 @@ class TransitionEvent:
             "phase": self.phase,
             "agent_id": self.agent_id,
             "run_id": self.run_id,
+            "session_id": self.session_id,
+            "task_id": self.task_id,
             "correlation_id": self.correlation_id,
             "timestamp": self.timestamp,
             "boundary_kind": self.boundary_kind,
@@ -121,6 +131,8 @@ def boundary_event_to_transition(
     *,
     agent_id: str = "agent",
     run_id: str = "",
+    session_id: str = "",
+    task_id: str = "",
     timestamp: float | None = None,
     call_id: str | None = None,
     parent_call_id: str | None = None,
@@ -148,6 +160,8 @@ def boundary_event_to_transition(
         phase=_phase(event),
         agent_id=agent_id,
         run_id=run_id,
+        session_id=session_id,
+        task_id=task_id,
         correlation_id=cid,
         call_id=resolved_call_id,
         parent_call_id=parent_call_id,

@@ -4,11 +4,11 @@
   "scenario": "mock-tools",
   "item_id": "1",
   "run_idx": 0,
-  "referenced_at": "2026-07-21T07:33:18.229005Z",
+  "referenced_at": "2026-07-29T22:38:18.359720Z",
   "mas": {
     "app": "qa-agent",
-    "mas_ref": "/Users/augjorda/repos/outshift-open/mas-lab/docs/tutorials/01-building-an-agent/agent.yaml",
+    "mas_ref": "thirdparty/mas-lab/docs/tutorials/01-building-an-agent/agent.yaml",
     "overlay": "mock-tools",
-    "overlay_ref": "/Users/augjorda/repos/outshift-open/mas-lab/docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml"
+    "overlay_ref": "thirdparty/mas-lab/docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml"
   }
 }

@@ -67,6 +67,13 @@ class ObservabilityOperator:
     _seq: int = 0
     _agent_id: str = "agent"
     _run_id: str = ""
+    # Kept in sync with KernelDriver.session_id / _current_task_id (see
+    # KernelDriver._notify_governance, which updates both this operator and
+    # the governance plugin from the same source on every UserInputReceived)
+    # so observability logs the same session/task identifiers governance
+    # sees for the same transition.
+    _session_id: str = ""
+    _task_id: str = ""
     _subscribers: list = field(default_factory=list)
     _frames: _CallFrames = field(default_factory=_CallFrames, repr=False)
     _interval_call_ids: dict[tuple[int, str], str] = field(default_factory=dict)
@@ -84,11 +91,22 @@ class ObservabilityOperator:
         if plugin not in self._subscribers:
             self._subscribers.append(plugin)
 
-    def set_context(self, *, agent_id: str | None = None, run_id: str | None = None) -> None:
+    def set_context(
+        self,
+        *,
+        agent_id: str | None = None,
+        run_id: str | None = None,
+        session_id: str | None = None,
+        task_id: str | None = None,
+    ) -> None:
         if agent_id is not None:
             self._agent_id = agent_id
         if run_id is not None:
             self._run_id = run_id
+        if session_id is not None:
+            self._session_id = session_id
+        if task_id is not None:
+            self._task_id = task_id
 
     def push_call_frame(self, call_id: str) -> None:
         """Push an open execution frame (e.g. agent turn) onto the CURRENT thread's stack."""
@@ -866,6 +884,8 @@ class ObservabilityOperator:
                 ev,
                 agent_id=self._agent_id,
                 run_id=self._run_id,
+                session_id=self._session_id,
+                task_id=self._task_id,
                 call_id=call_id,
                 parent_call_id=parent_call_id,
             )
