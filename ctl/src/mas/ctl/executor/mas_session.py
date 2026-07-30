@@ -202,6 +202,11 @@ def prepare_delegation_entry_session(
     display: Any = None,
     verbose: int = 0,
     session_id: str = "",
+    trace: bool = False,
+    trace_timestamps: bool = False,
+    trace_engine: bool = False,
+    trace_summary: bool = False,
+    trace_color: bool = False,
 ) -> PreparedEntrySession:
     """Wire dynamic-delegation entry agent (same path as ``execute_run_mas``).
 
@@ -244,6 +249,11 @@ def prepare_delegation_entry_session(
             verbose=verbose,
             from_agent=entry_id,
             session_id=resolved_session_id,
+            trace=trace,
+            trace_timestamps=trace_timestamps,
+            trace_engine=trace_engine,
+            trace_summary=trace_summary,
+            trace_color=trace_color,
         ),
         entry_agent_id=entry_id,
         mas_config=compose.mas_config,
@@ -266,6 +276,11 @@ def wire_peer_delegation(
     verbose: int = 0,
     already_wired: "set[str] | None" = None,
     session_id: str = "",
+    trace: bool = False,
+    trace_timestamps: bool = False,
+    trace_engine: bool = False,
+    trace_summary: bool = False,
+    trace_color: bool = False,
 ) -> list[str]:
     """Wire delegation onto every agent that declares its own ``delegates_to``
     peers in the MAS workflow topology — not just the entry agent.
@@ -301,6 +316,11 @@ def wire_peer_delegation(
         verbose=verbose,
         from_agent=entry_id,
         session_id=session_id,
+        trace=trace,
+        trace_timestamps=trace_timestamps,
+        trace_engine=trace_engine,
+        trace_summary=trace_summary,
+        trace_color=trace_color,
     )
     newly_wired: list[str] = []
     for agent in compose.bind.agents:
@@ -342,6 +362,11 @@ def make_workflow_send(
     verbose: int,
     from_agent: str = "",
     session_id: str = "",
+    trace: bool = False,
+    trace_timestamps: bool = False,
+    trace_engine: bool = False,
+    trace_summary: bool = False,
+    trace_color: bool = False,
 ) -> RunTurnFn:
     """Run one agent turn inside a multi-agent workflow (sequential or delegation).
 
@@ -433,6 +458,11 @@ def make_workflow_send(
             instance=instance,
             display=sub_display,
             verbose=verbose,
+            trace=trace,
+            trace_timestamps=trace_timestamps,
+            trace_engine=trace_engine,
+            trace_summary=trace_summary,
+            trace_color=trace_color,
             agent_id=agent_id,
             config=ConversationConfig(single_turn=True),
             session_id=state["session_id"],
@@ -464,6 +494,11 @@ def run_sequential_workflow_queries(
     display: Any,
     verbose: int = 0,
     session_id: str = "",
+    trace: bool = False,
+    trace_timestamps: bool = False,
+    trace_engine: bool = False,
+    trace_summary: bool = False,
+    trace_color: bool = False,
 ) -> str:
     """Execute sequential workflow queries; returns final response text.
 
@@ -482,6 +517,11 @@ def run_sequential_workflow_queries(
         verbose=verbose,
         from_agent=entry,
         session_id=session_id,
+        trace=trace,
+        trace_timestamps=trace_timestamps,
+        trace_engine=trace_engine,
+        trace_summary=trace_summary,
+        trace_color=trace_color,
     )
     wf = SequentialWorkflow.from_dict(sequential_workflow_payload(mas_config), send=send)
     text = ""
