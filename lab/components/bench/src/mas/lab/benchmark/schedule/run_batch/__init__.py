@@ -29,6 +29,7 @@ async def run_mas_benchmark(
     output_dir: Optional[Path] = None,
     strategy: Optional[str] = None,
     step_overrides: Optional[list] = None,
+    pipeline_attachments: Optional[list] = None,
     clean_stale: Optional[bool] = None,
 ) -> bool:
     """Run a MAS batch benchmark from a *MASExperimentConfig* YAML.
@@ -52,6 +53,7 @@ async def run_mas_benchmark(
         infra_name=infra_name,
         trace_cache_dir=trace_cache_dir,
         step_overrides=step_overrides,
+        pipeline_attachments=pipeline_attachments,
     )
     if loaded is None:
         return False

@@ -90,6 +90,7 @@ def stamp_envelope_fields(
     *,
     mas_id: str = "",
     session_id: str = "",
+    task_id: str = "",
     transition_mealy_symbol: str = "",
     transition_summand: str = "",
 ) -> dict[str, Any]:
@@ -117,5 +118,7 @@ def stamp_envelope_fields(
         out.setdefault("session_id", session_id)
     elif run_id:
         out.setdefault("session_id", f"session-{run_id}")
+    if task_id:
+        out.setdefault("task_id", task_id)
 
     return out

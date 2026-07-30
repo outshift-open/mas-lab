@@ -208,6 +208,7 @@ def run_agent_turn(
             hitl_terminal=hitl_terminal,
             config=ConversationConfig(single_turn=True),
             verbose=0,
+            session_id=sid,
         )
         turn = controller.run_turn(prompt, turn_id=sid, auto_hitl=True)
         mapped = turn_to_agent_result(turn)

@@ -28,7 +28,16 @@ class MASExperimentConfig(MASRunBase):
     def from_yaml(cls, path: Path) -> "MASExperimentConfig":
         """Load a MASExperimentConfig from an experiment YAML file."""
         data, _manifest_version = load_experiment_data(path)
+        return cls.from_data(data, path)
 
+    @classmethod
+    def from_data(cls, data: dict, path: Path) -> "MASExperimentConfig":
+        """Construct from an already-loaded dict (e.g. after CLI merges).
+
+        Accepts the same ``data`` shape that :func:`load_experiment_data`
+        returns — a raw YAML dict that may have been modified in-memory
+        before construction (e.g. ``merge_pipeline_attachments``).
+        """
         exp_data = data.get("experiment", data)
         base_dir = path.parent
 

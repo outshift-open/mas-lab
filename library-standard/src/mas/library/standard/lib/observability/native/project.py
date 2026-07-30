@@ -50,6 +50,7 @@ def project_records(
     ctx: TransformContext,
     mas_id: str = "",
     session_id: str = "",
+    task_id: str = "",
     transition: TransitionEvent | None = None,
 ) -> list[dict]:
     """Run a transform chain on one ingest record (side-effect free)."""
@@ -74,6 +75,7 @@ def project_records(
             ),
             mas_id=mas_id,
             session_id=session_id,
+            task_id=task_id,
             transition_mealy_symbol=transition_mealy,
             transition_summand=transition_summand,
         )

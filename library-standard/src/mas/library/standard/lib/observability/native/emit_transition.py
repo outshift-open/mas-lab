@@ -18,6 +18,7 @@ def project_transition(
     ctx: TransformContext,
     mas_id: str = "",
     session_id: str = "",
+    task_id: str = "",
 ) -> list[dict]:
     """Project one kernel or session transition to native-shaped records."""
     if event.boundary_kind == "session":
@@ -37,6 +38,7 @@ def project_transition(
         ctx=ctx,
         mas_id=mas_id,
         session_id=session_id,
+        task_id=task_id,
         transition=event,
     ):
         rec.setdefault("timestamp", event.timestamp or time.time())

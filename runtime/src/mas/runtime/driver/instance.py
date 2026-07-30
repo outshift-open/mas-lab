@@ -140,8 +140,20 @@ class RuntimeInstance:
         return self.driver.feed(event)
 
     def run_user_text(
-        self, text: str, *, turn_id: str = "u1", parent_call_id: str = ""
+        self,
+        text: str,
+        *,
+        turn_id: str = "u1",
+        parent_call_id: str = "",
+        session_id: str = "",
     ) -> DriverTrace:
+        """``session_id`` empty means "no one has one yet" — a genuinely new
+        MAS session — and UserInputReceived mints one itself (see its
+        ``session_id`` field's default_factory). Pass an existing value
+        (e.g. from ``SessionController.session_id``) to continue a session
+        instead of starting a new one; that's the caller's job, not this
+        method's — it never mints one, only forwards or omits.
+        """
         op = self.driver.observability
         exec_id: str | None = None
         if op is not None and self.obs_plugin_set is not None:
@@ -156,7 +168,10 @@ class RuntimeInstance:
                 record_kwargs["parent_call_id"] = parent_call_id
             op.record_session("user_input", **record_kwargs)
 
-        trace = self.feed(UserInputReceived(user_turn_id=turn_id, text=text))
+        ingress_kwargs: dict[str, Any] = {"user_turn_id": turn_id, "text": text}
+        if session_id:
+            ingress_kwargs["session_id"] = session_id
+        trace = self.feed(UserInputReceived(**ingress_kwargs))
 
         if op is not None and exec_id is not None:
             response_text = "\n".join(

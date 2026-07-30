@@ -81,3 +81,4 @@ def call_type_color(call_type: str) -> str:
         "ProcessingCall":  PALETTE["processing"],
     }
     return _map.get(call_type, PALETTE["default"])
+

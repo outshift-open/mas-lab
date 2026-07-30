@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.kernel.egress_gate import emit_scheduled_egress
-from mas.runtime.machines.design_pattern.plugins.react import ReactPlugin
+from mas.library.standard.plugins.design_patterns.react import ReactPlugin
 from mas.runtime.schema.egress import EgressSymbol, NoOp
 from mas.runtime.schema.ingress import IngressSymbol, UserInputReceived
 from mas.runtime.kernel.state import CtxState, DpState, ModelState, QProduct, RunLedger, ToolState

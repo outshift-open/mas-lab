@@ -124,7 +124,8 @@ class OtelObservabilityPlugin(ObservabilityPlugin):
             transforms=[self.native_transform],
             ctx=self.context,
             mas_id=self.mas_id,
-            session_id=self.session_id,
+            session_id=event.session_id or self.session_id,
+            task_id=event.task_id,
         ):
             self._projected_events.append(rec)
             self.converter.process_event(rec)

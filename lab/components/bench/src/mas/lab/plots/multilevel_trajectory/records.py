@@ -343,8 +343,13 @@ def _build_call_records(events: list[dict]) -> list[dict]:
                         prev_messages=_prev_context_by_agent.get(agent_id)
                     )
                     # Update tracking: this context assembly is now the "previous"
-                    # for the next LLM call from this same agent.
-                    _prev_context_by_agent[agent_id] = _ctx_msgs
+                    # for the next LLM call from this same agent. correlation_id 0
+                    # is the trace-preview sentinel (LiveLlmEngine.exchange_preview
+                    # sets _assembly_correlation_id=0) — not a real dispatched call,
+                    # so it must not poison the "previous context" a real call
+                    # diffs against, or the real call's own diff comes out empty.
+                    if ev.get("correlation_id"):
+                        _prev_context_by_agent[agent_id] = _ctx_msgs
             if call_type == "LLMCall" and ev.get("messages"):
                 msgs = ev["messages"]
                 if isinstance(msgs, list) and msgs:
@@ -540,8 +545,12 @@ def _build_call_records(events: list[dict]) -> list[dict]:
                         prev_messages=_prev_context_by_agent.get(_agent_id)
                     )
                     # Update tracking: this context assembly is now the "previous"
-                    # for the next LLM call from this same agent.
-                    _prev_context_by_agent[_agent_id] = _ctx_msgs
+                    # for the next LLM call from this same agent. correlation_id 0
+                    # is the trace-preview sentinel (LiveLlmEngine.exchange_preview
+                    # sets _assembly_correlation_id=0) — not a real dispatched call;
+                    # see the same guard in the sibling loop above in this file.
+                    if record.get("correlation_id"):
+                        _prev_context_by_agent[_agent_id] = _ctx_msgs
                 if not record.get("context_operation"):
                     record["context_operation"] = str(ev.get("context_operation") or "")
                 if record.get("context_messages") and (not record.get("output") or str(record.get("output", "")).strip() in {"assembled", PROCESSING_NAME_CONTEXT_ASSEMBLY, "context_assembly"}):

@@ -4,10 +4,10 @@
 
 from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.kernel.state import DpState, QProduct
-from mas.runtime.machines.design_pattern.plugins.cot import CotPlugin
-from mas.runtime.machines.design_pattern.plugins.introspection import IntrospectionPlugin
-from mas.runtime.machines.design_pattern.plugins.react import ReactPlugin
-from mas.runtime.machines.design_pattern.plugins.tree_of_thoughts import (
+from mas.library.standard.plugins.design_patterns.cot import CotPlugin
+from mas.library.standard.plugins.design_patterns.introspection import IntrospectionPlugin
+from mas.library.standard.plugins.design_patterns.react import ReactPlugin
+from mas.library.standard.plugins.design_patterns.tree_of_thoughts import (
     TreeOfThoughtsPlugin,
     _parse_thoughts,
 )

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.kernel.state import DpState, QProduct, RunLedger
-from mas.runtime.machines.design_pattern.plugins.single_pass import SinglePassPlugin
+from mas.library.standard.plugins.design_patterns.single_pass import SinglePassPlugin
 from mas.runtime.schema.ingress import EngineIoReturn
 
 
@@ -26,7 +26,7 @@ def test_single_pass_engine_io_return_uses_apply_engine_io_return():
     evaluate = MagicMock(return_value=[])
 
     with patch(
-        "mas.runtime.machines.design_pattern.plugins.single_pass.apply_engine_io_return",
+        "mas.library.standard.plugins.design_patterns.single_pass.apply_engine_io_return",
         return_value=[MagicMock()],
     ) as apply_mock:
         out = plugin.handle_event(q, run, event, config=config)

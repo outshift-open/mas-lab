@@ -36,6 +36,11 @@ from mas.ctl.ui.curses_app import build_curses_controller, run_curses_session
     help="Infrastructure bundle ref",
 )
 @click.option("--no-validate", is_flag=True)
+@click.option(
+    "--model",
+    default=None,
+    help="LLM model ID (default: from LLM_MODEL env or gpt-4o-mini)",
+)
 @observability_options
 @click.pass_context
 def tui_cmd(
@@ -48,6 +53,7 @@ def tui_cmd(
     memory_seed: str | None,
     infra_refs_cli: tuple[str, ...],
     no_validate: bool,
+    model: str | None,
     events: bool | None,
     events_file: str | None,
     events_stdout: bool,

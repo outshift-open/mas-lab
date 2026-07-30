@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mas.runtime.agent_defaults import default_pattern_plugin_id
 from mas.runtime.schema.governance import GovIngressProfile, GovPolicyProfile
@@ -36,3 +36,8 @@ class KernelConfig:
     ingress_governance_plugins: tuple = field(default=(), compare=False)
     enable_governance: bool = True
     enable_envelope_observability: bool = True
+    # The agent manifest's own spec: block (manifest["spec"]), for governance
+    # plugins that need to reason about the agent's declared tools/context/
+    # models rather than just the live transition stream. None when built
+    # outside spec parsing (e.g. tests constructing KernelConfig directly).
+    agent_spec: dict[str, Any] | None = field(default=None, compare=False)

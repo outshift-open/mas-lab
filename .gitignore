@@ -23,6 +23,8 @@ COMPLIANCE_REPORT.md
 site/
 
 .vscode/
+.cursor/
+.claude/
 
 # Test / coverage artifacts
 .coverage

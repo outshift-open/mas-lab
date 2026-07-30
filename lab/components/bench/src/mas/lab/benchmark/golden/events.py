@@ -18,6 +18,7 @@ _STRIP_KEYS = frozenset({
     "turn_id",
     "call_id",
     "session_id",
+    "task_id",
     "trace_id",
     "span_id",
     "created_at",

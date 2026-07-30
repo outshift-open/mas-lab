@@ -136,13 +136,14 @@ def instantiate_runtime(
             )
 
     instance.capture_session_baseline()
-    if options.agent_manifest and options.manifest_dir:
+    # Attach tools even in CLI-only mode (manifest_dir may be None for --tool flags)
+    if options.agent_manifest:
         from mas.runtime.engine.manifest_tool_provider import attach_manifest_tools_to_instance
 
         attach_manifest_tools_to_instance(
             instance,
             options.agent_manifest,
-            options.manifest_dir,
+            options.manifest_dir or Path.cwd(),
             app_root=options.app_root or options.manifest_dir,
             workspace_root=ws.root if ws.found else None,
         )

@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+import dataclasses
 
 from mas.ctl.adapters.obs.config import ObservabilityConfig
 from mas.ctl.manifest.spec_bindings import (
@@ -13,10 +13,7 @@ from mas.ctl.manifest.spec_bindings import (
     parse_observability,
     parse_sink_from_deployment,
 )
-from mas.ctl.session.governance_loader import build_governance_plugins
 from mas.runtime.kernel.config import KernelConfig
-from mas.runtime.agent_defaults import default_pattern_plugin_id
-from mas.runtime.schema.governance import GovPolicyProfile
 
 
 # DEPRECATED: kernel_config_from_manifest is superseded by RuntimeInstance.from_spec()
@@ -27,80 +24,32 @@ def kernel_config_from_manifest(
     *,
     pattern_plugin_id: str | None = None,
 ) -> KernelConfig:
+    from mas.ctl.session.ingress_governance_loader import build_ingress_governance_plugins
+    from mas.runtime.spec.gov import build_kernel_config
+
     spec = (manifest or {}).get("spec") or {}
     gov = parse_governance(spec.get("governance"))
-    egress_plugin, gov_ingress_chain, _gov_flat = build_governance_plugins(
-        plugin_names=list(gov.plugins),
-        plugin_configs=dict(gov.plugin_configs),
+
+    # Plugin resolution (named or flags-only fallback) lives entirely in
+    # build_kernel_config — no plugin class is named here, so any governance
+    # plugin declared in the manifest's plugin registry works, not just the
+    # built-in sample_governance.
+    kernel = build_kernel_config(gov, pattern_plugin_id=pattern_plugin_id or "", agent_spec=spec)
+
+    extra_ingress = build_ingress_governance_plugins(
+        ingress_plugin_specs=list(gov.ingress_plugins),
+        error_recovery_plugin=None,
     )
-    if egress_plugin is None and (
-        gov.hitl_on_tool or gov.hitl_on_tool_result or gov.gov_trigger_destructive
-    ):
-        from mas.runtime.boundary.gov.sample import SampleGovernancePlugin
-
-        plugin_cfg = {
-            k: v
-            for k, v in {
-                "hitl_on_tool": gov.hitl_on_tool,
-                "hitl_on_tool_result": gov.hitl_on_tool_result,
-                "hitl_once_per_turn": gov.hitl_once_per_turn,
-                "gov_trigger_destructive": gov.gov_trigger_destructive,
-                "gov_block_destructive": gov.gov_block_destructive,
-                "gov_policy_profile": gov.gov_policy_profile,
-            }.items()
-            if v is not None
-        }
-        egress_plugin = SampleGovernancePlugin(**plugin_cfg)
-        if egress_plugin.config.hitl_on_tool_result:
-            from mas.runtime.boundary.gov.filter import GovTransitionFilter
-            from mas.runtime.boundary.gov.ingress_chain import RegisteredIngressPlugin
-
-            gov_ingress_chain = (
-                RegisteredIngressPlugin(
-                    plugin=egress_plugin,
-                    filter=GovTransitionFilter(hook="ingress", response_kind=("TOOL_RESULT",)),
-                    chain="stop",
-                ),
-            )
-    kwargs: dict[str, Any] = {
-        "pattern_plugin_id": pattern_plugin_id or default_pattern_plugin_id(),
-    }
-    if egress_plugin is not None:
-        kwargs["egress_governance_plugin"] = egress_plugin
-    if isinstance(gov.gov_policy_profile, str):
-        kwargs["gov_policy_profile"] = GovPolicyProfile(gov.gov_policy_profile)
-    for key, value in (
-        ("gov_block_destructive", gov.gov_block_destructive),
-        ("gov_trigger_destructive", gov.gov_trigger_destructive),
-        ("hitl_on_tool", gov.hitl_on_tool),
-        ("hitl_on_tool_result", gov.hitl_on_tool_result),
-        ("hitl_once_per_turn", gov.hitl_once_per_turn),
-        ("enable_memory_egress", gov.enable_memory_egress),
-        ("enable_transport_egress", gov.enable_transport_egress),
-        ("max_cot_pass", gov.max_cot_pass),
-        ("max_gov_retries", gov.max_gov_retries),
-    ):
-        if value is not None:
-            kwargs[key] = value
-    if isinstance(gov.gov_ingress_profile, str):
-        from mas.runtime.schema.governance import GovIngressProfile
-
-        kwargs["gov_ingress_profile"] = GovIngressProfile(gov.gov_ingress_profile)
-    from mas.ctl.session.ingress_governance_loader import build_ingress_governance_plugins
-
-    chain = list(gov_ingress_chain) + list(
-        build_ingress_governance_plugins(
-            ingress_plugin_specs=list(gov.ingress_plugins),
-            error_recovery_plugin=None,
+    if extra_ingress:
+        chain = tuple(kernel.ingress_governance_plugins) + tuple(extra_ingress)
+        kernel = dataclasses.replace(
+            kernel, ingress_governance_plugins=chain, error_recovery_plugin=None
         )
-    )
-    if chain:
-        kwargs["ingress_governance_plugins"] = chain
-        kwargs.pop("error_recovery_plugin", None)
+
     execution = spec.get("execution") or {}
     if "parallel" in execution:
-        kwargs["parallel_tool_calls"] = bool(execution["parallel"])
-    return KernelConfig(**kwargs)
+        kernel = dataclasses.replace(kernel, parallel_tool_calls=bool(execution["parallel"]))
+    return kernel
 
 
 def mas_id_from_manifest(manifest: dict | None) -> str:
