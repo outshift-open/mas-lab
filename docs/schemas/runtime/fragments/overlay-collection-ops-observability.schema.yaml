@@ -1,0 +1,51 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+title: OverlayObservabilityCollectionOps
+oneOf:
+  - $ref: "./observability-binding.schema.yaml"
+  - type: object
+    additionalProperties: false
+    required: [$op]
+    properties:
+      $op:
+        type: object
+        additionalProperties: false
+        minProperties: 1
+        properties:
+          replace:
+            $ref: "./observability-binding.schema.yaml"
+          add:
+            type: array
+            items:
+              oneOf:
+                - type: string
+                  enum: [native, otel]
+                - type: object
+                  additionalProperties: false
+                  minProperties: 1
+                  maxProperties: 1
+                  properties:
+                    native:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        path:
+                          type: string
+                        events_file:
+                          type: string
+                    otel:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        output_path:
+                          type: string
+                        otel_file:
+                          type: string
+          remove:
+            type: array
+            items:
+              type: string
+          clear:
+            type: boolean
+            const: true

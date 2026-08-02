@@ -7,6 +7,8 @@ metadata:
 # +Guardrail (fault scenario): same as with-guardrail but tested with
 # a query that contains "Shadowmere" — the policy should fire.
 spec:
+  target:
+    kind: Agent
   patch:
     observability:
       - native

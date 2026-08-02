@@ -28,21 +28,9 @@ properties:
       ref:
         type: string
       params:
-        $ref: "./collaboration-params.schema.yaml"
-  context_manager:
-    type: object
-    additionalProperties: false
-    properties:
-      type:
-        type: string
-      ref:
-        type: string
-      params:
         $ref: "./context-manager-params.schema.yaml"
       skills:
-        type: array
-        items:
-          type: string
+        $ref: "./overlay-collection-ops-string.schema.yaml"
   llm:
     $ref: "./llm-binding.schema.yaml"
   execution:
@@ -50,20 +38,9 @@ properties:
   memory:
     type: string
   tools:
-    type: array
-    items:
-      oneOf:
-        - type: string
-        - type: object
-          additionalProperties: false
-          required: [ref]
-          properties:
-            ref:
-              type: string
+    $ref: "./overlay-collection-ops-tool.schema.yaml"
   skills:
-    type: array
-    items:
-      type: string
+    $ref: "./overlay-collection-ops-string.schema.yaml"
   context:
     type: object
     additionalProperties:

@@ -6,6 +6,8 @@ kind: Overlay
 metadata:
   name: tools
 spec:
+  target:
+    kind: Agent
   patch:
     context:
       tool_usage: |

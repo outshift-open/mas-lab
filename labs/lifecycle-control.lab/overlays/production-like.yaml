@@ -6,6 +6,8 @@ metadata:
   name: production-like
 # Production-like: full governance stack
 spec:
+  target:
+    kind: Agent
   patch:
     observability:
       - native

@@ -17,6 +17,8 @@ metadata:
   tags: [topology, exp-1.2]
 
 spec:
+  target:
+    kind: MAS
   patch:
     workflow:
       entry: moderator

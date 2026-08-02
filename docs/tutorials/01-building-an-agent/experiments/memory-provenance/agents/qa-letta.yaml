@@ -22,30 +22,6 @@ spec:
       Before answering questions, CHECK your memory blocks for relevant information.
       When the user tells you something about themselves, store it immediately.
 
-  plugins:
-    - module_path: mas.runtime.plugins.memory.letta_core_memory
-      class_name: LettaCoreMemory
-      config:
-        blocks:
-          - label: persona
-            value: "I am a helpful AI assistant with persistent memory."
-            limit: 5000
-          - label: human
-            value: ""
-            limit: 5000
-
-    - module_path: mas.runtime.plugins.context_assembler
-      class_name: ContextAssemblerPlugin
-      config:
-        token_budget: 8000
-        emit_segments: true
-
-    - module_path: mas.runtime.plugins.memory.memory_session_store
-      class_name: FileSessionStore
-      config:
-        state_dir: /tmp/mas-mem-letta
-        auto_save: true
-        auto_load: true
-
-    - module_path: mas.runtime.plugins.event_log_plugin
-      class_name: EventLogPlugin
+  memory: semantic
+  context_manager:
+    type: full-history

@@ -6,6 +6,8 @@ metadata:
   name: with-budget-low
 # +Budget (low threshold): deliberately low to trigger on verbose queries
 spec:
+  target:
+    kind: Agent
   patch:
     observability:
       - native

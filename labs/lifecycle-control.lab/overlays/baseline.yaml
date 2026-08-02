@@ -6,6 +6,8 @@ metadata:
   name: baseline
 # Baseline: no governance, native observability only
 spec:
+  target:
+    kind: Agent
   patch:
     observability:
       - native

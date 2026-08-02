@@ -7,10 +7,14 @@ kind: Overlay
 metadata:
   name: governance-hitl
 spec:
+  target:
+    kind: Agent
   patch:
     governance:
-      - sample_governance:
-          hitl_on_tool: true
-          hitl_on_tool_result: true
-          hitl_once_per_turn: false
-          hitl_mode: interactive
+      $op:
+        add:
+          - sample_governance:
+              hitl_on_tool: true
+              hitl_on_tool_result: true
+              hitl_once_per_turn: false
+              hitl_mode: interactive

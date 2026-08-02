@@ -7,6 +7,8 @@ metadata:
   description: "ReAct — interleaved reasoning and acting (Yao et al. 2023)"
 
 spec:
+  target:
+    kind: Agent
   patch:
     design_pattern:
       type: react

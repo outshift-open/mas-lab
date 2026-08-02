@@ -22,32 +22,6 @@ spec:
       When the user tells you something, it will be automatically remembered.
       You can also explicitly search memory using the memory-search tool.
 
-  plugins:
-    - module_path: mas.library.standard.plugins.memory.memory_semantic
-      class_name: SemanticMemoryPlugin
-      config:
-        hybrid_enabled: true
-        max_results: 5
-        chunk_tokens: 512
-
-    - module_path: mas.runtime.plugins.memory.memory_context_plugin
-      class_name: MemoryContextPlugin
-      config:
-        memory_type: semantic
-        top_k: 5
-
-    - module_path: mas.runtime.plugins.context_assembler
-      class_name: ContextAssemblerPlugin
-      config:
-        token_budget: 8000
-        emit_segments: true
-
-    - module_path: mas.runtime.plugins.memory.memory_session_store
-      class_name: FileSessionStore
-      config:
-        state_dir: /tmp/mas-mem-semantic
-        auto_save: true
-        auto_load: true
-
-    - module_path: mas.runtime.plugins.event_log_plugin
-      class_name: EventLogPlugin
+  memory: semantic
+  context_manager:
+    type: full-history

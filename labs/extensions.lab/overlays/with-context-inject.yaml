@@ -31,6 +31,8 @@ metadata:
 # Both should outperform baseline on recall/combination groups.
 # with-context-inject is expected to be slightly faster (no retrieval latency).
 spec:
+  target:
+    kind: MAS
   patch:
     agents:
       concierge_agent:

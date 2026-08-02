@@ -18,6 +18,8 @@ metadata:
 # tool-level fault injection lands; until then it only fires on organic
 # tool failures.
 spec:
+  target:
+    kind: Agent
   patch:
     observability:
       - native

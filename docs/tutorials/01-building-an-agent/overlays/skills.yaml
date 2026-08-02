@@ -6,9 +6,15 @@ kind: Overlay
 metadata:
   name: skills
 spec:
+  target:
+    kind: Agent
   patch:
     skills:
-      - answer-formatting
+      $op:
+        add:
+          - answer-formatting
     context_manager:
       skills:
-        - answer-formatting
+        $op:
+          add:
+            - answer-formatting

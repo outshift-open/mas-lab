@@ -6,6 +6,8 @@ kind: Overlay
 metadata:
   name: live-llm
 spec:
+  target:
+    kind: Agent
   patch:
     execution:
       mocking:

@@ -7,11 +7,15 @@ metadata:
   name: cot
   description: Chain-of-Thought variant
 spec:
+  target:
+    kind: Agent
   patch:
     design_pattern:
       type: cot
       config:
         max_steps: 3
     tools:
-      - ref: samples:tools/web-search.tool.yaml
-      - ref: samples:tools/calc.tool.yaml
+      $op:
+        add:
+          - ref: samples:tools/web-search.tool.yaml
+          - ref: samples:tools/calc.tool.yaml

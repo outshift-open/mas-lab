@@ -22,14 +22,3 @@ def test_merge_agent_overlay_appends_unique_tools_remove() -> None:
 
     assert result["spec"]["tools_remove"] == ["calc", "query_graph_database"]
 
-
-def test_merge_agent_overlay_overrides_plugins_by_name() -> None:
-    base = {"spec": {"plugins": [{"name": "obs", "enabled": True}, {"name": "skills", "enabled": True}]}}
-    overlay = {"spec": {"plugins": [{"name": "obs", "enabled": False}]}}
-
-    result = merge_agent_overlay(base, overlay)
-
-    assert result["spec"]["plugins"] == [
-        {"name": "obs", "enabled": False},
-        {"name": "skills", "enabled": True},
-    ]

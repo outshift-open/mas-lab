@@ -42,6 +42,8 @@ metadata:
 #   - Past trip: Verdantia — enjoyed the Living Library, found Emerald
 #     Canyon Bridge too steep
 spec:
+  target:
+    kind: MAS
   plugins:
     - module_path: mas.library.standard.plugins.memory.memory_semantic
       class_name: SemanticMemoryPlugin

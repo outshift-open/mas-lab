@@ -12,6 +12,8 @@ metadata:
 # auto_approve is false. Semantic proximity matching is also supported
 # via hitl.resolution_mode in execution config.
 spec:
+  target:
+    kind: Agent
   patch:
     observability:
       - native

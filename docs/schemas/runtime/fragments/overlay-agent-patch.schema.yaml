@@ -1,0 +1,112 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+title: OverlayAgentPatch
+type: object
+additionalProperties: false
+patternProperties:
+  "^x-": {}
+properties:
+  params:
+    type: object
+    additionalProperties:
+      type: string
+    x-merge:
+      strategy: mapping_merge_or_ops
+  context:
+    type: object
+    additionalProperties:
+      $ref: "./context-chunk.schema.yaml"
+    x-merge:
+      strategy: context_merge
+  memory:
+    type: string
+    x-merge:
+      strategy: replace
+  memory_seed:
+    $ref: "./overlay-collection-ops-memory-seed.schema.yaml"
+    x-merge:
+      strategy: list_ops
+      identity: value
+  tools:
+    $ref: "./overlay-collection-ops-tool.schema.yaml"
+    x-merge:
+      strategy: list_ops
+      identity: value
+  skills:
+    $ref: "./overlay-collection-ops-string.schema.yaml"
+    x-merge:
+      strategy: list_ops
+      identity: value
+  context_manager:
+    type: object
+    additionalProperties: false
+    x-merge:
+      strategy: mapping_merge_or_ops
+    properties:
+      skills:
+        $ref: "./overlay-collection-ops-string.schema.yaml"
+        x-merge:
+          strategy: list_ops
+          identity: value
+  llm:
+    $ref: "./llm-binding.schema.yaml"
+    x-merge:
+      strategy: mapping_merge_or_ops
+  execution:
+    $ref: "./execution-binding.schema.yaml"
+    x-merge:
+      strategy: execution_merge
+  infra_refs:
+    $ref: "./overlay-collection-ops-string.schema.yaml"
+    x-merge:
+      strategy: list_ops
+      identity: value
+  infra_interceptors:
+    $ref: "./overlay-collection-ops-string.schema.yaml"
+    x-merge:
+      strategy: list_ops
+      identity: value
+  design_pattern:
+    type: [object, "null"]
+    additionalProperties: false
+    x-merge:
+      strategy: replace
+    properties:
+      type:
+        type: string
+      ref:
+        type: string
+      params:
+        $ref: "./design-pattern-config.schema.yaml"
+      config:
+        $ref: "./design-pattern-config.schema.yaml"
+  tools_remove:
+    $ref: "./overlay-collection-ops-string.schema.yaml"
+    x-merge:
+      strategy: list_ops
+      identity: tool_remove_key
+  context_policy:
+    type: [object, "null"]
+    x-merge:
+      strategy: replace
+  control:
+    x-merge:
+      strategy: mapping_ops
+    oneOf:
+      - type: "null"
+      - $ref: "./overlay-collection-ops-control.schema.yaml"
+  governance:
+    x-merge:
+      strategy: plugin_list_ops
+      identity: plugin_id
+    oneOf:
+      - type: "null"
+      - $ref: "./overlay-collection-ops-governance.schema.yaml"
+  observability:
+    x-merge:
+      strategy: plugin_list_ops
+      identity: plugin_id
+    oneOf:
+      - type: "null"
+      - $ref: "./overlay-collection-ops-observability.schema.yaml"

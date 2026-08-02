@@ -17,6 +17,8 @@ metadata:
     design-space benchmark alongside the multi-agent topologies.
 
 spec:
+  target:
+    kind: MAS
   patch:
     # Remove the four base agents; the generalist replaces them all.
     agents_remove:

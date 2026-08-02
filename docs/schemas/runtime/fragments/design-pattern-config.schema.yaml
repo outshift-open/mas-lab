@@ -15,3 +15,16 @@ properties:
   critique_turns:
     type: integer
     minimum: 0
+  # Params for CentralizedModeratorPlugin (centralized_moderator@v1)
+  max_rounds:
+    type: integer
+    minimum: 1
+    description: >
+      Hard upper limit on delegation rounds before the moderator is forced
+      to synthesise.  Used by CentralizedModeratorPlugin.
+  enable_peer_context:
+    type: boolean
+    description: >
+      When true, specialist outputs are injected as operator context before
+      each subsequent moderator LLM call (hybrid mode).
+      Used by CentralizedModeratorPlugin.
