@@ -1,8 +1,9 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
 kind: Overlay
 metadata:
-  id: with-vector-memory
+  name: with-vector-memory
 # Scenario: with-vector-memory (active retrieval via ToolContract)
 #
 # One overlay adds semantic memory to the trip planner:
@@ -49,7 +50,7 @@ spec:
       concierge_agent:
         # Add memory-search tool to the concierge only.
         tools:
-          - ref: ../tools/memory-search.tool.yaml
+          - ref: ../../library-samples/tools/memory-search.tool.yaml
 
         # Extend role instructions: keep original fare/calc guidance and add
         # the IMPORTANT memory_usage directive.

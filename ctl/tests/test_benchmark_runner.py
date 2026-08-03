@@ -18,11 +18,13 @@ from mas.lab.runners.protocol import RunResult
 
 
 def test_mas_bench_runner_id_is_mas_lab():
+    """Bench runner uses stable runner_id 'mas-lab' for analytics."""
     assert MasBenchRunner.runner_id == DEFAULT_LAB_RUNNER_ID
     assert select_mas_runner().runner_id == DEFAULT_LAB_RUNNER_ID
 
 
 def test_is_mas_manifest_kind_by_kind_not_filename(tmp_path: Path):
+    """MAS manifest detection uses kind field, not filename."""
     triage = tmp_path / "triage.yaml"
     triage.write_text("kind: mas\n", encoding="utf-8")
     config = {"kind": "mas", "metadata": {"name": "triage"}}
@@ -31,6 +33,7 @@ def test_is_mas_manifest_kind_by_kind_not_filename(tmp_path: Path):
 
 
 def test_is_mas_manifest_kind_rejects_agent_kind(tmp_path: Path):
+    """Agent manifests correctly rejected by MAS kind detector."""
     agent = tmp_path / "moderator.yaml"
     agent.write_text("kind: agent\n", encoding="utf-8")
     config = {"kind": "agent", "metadata": {"name": "moderator"}}
@@ -50,6 +53,7 @@ def test_entry_agent_label_from_loaded_mas_runtime_dict(tmp_path: Path):
 
 
 def test_mas_bench_runner_passes_pattern_plugin_id_from_manifest(tmp_path: Path):
+    """Design pattern from manifest propagates to runtime options."""
     manifest = {
         "metadata": {"name": "agent"},
         "spec": {"design_pattern": {"type": "cot"}},
@@ -119,17 +123,16 @@ def test_mas_bench_compose_called_once_for_mas_kind(tmp_path: Path):
     assert compose_run.call_count == 1
 
 
-def test_sequential_topology_emits_events_artifact(tmp_path: Path):
+def test_multi_agent_topology_runs_on_unified_controller_path(tmp_path: Path):
+    """Multi-agent topologies use unified SessionController path."""
     mas_path = tmp_path / "mas.yaml"
     agent_path = tmp_path / "agents" / "step-a.yaml"
     agent_path.parent.mkdir()
     agent_path.write_text("kind: agent\nmetadata:\n  name: step-a\n", encoding="utf-8")
     mas_path.write_text(
-        "kind: mas\nmetadata:\n  name: demo\nspec:\n  workflow:\n    type: sequential\n    entry: step-a\n  agency:\n    agents:\n      - id: step-a\n        ref: agents/step-a.yaml\n",
+        "kind: mas\nmetadata:\n  name: demo\nspec:\n  workflow:\n    entry: step-a\n  agency:\n    agents:\n      - id: step-a\n        ref: agents/step-a.yaml\n",
         encoding="utf-8",
     )
-    entry_manifest = {"metadata": {"name": "step-a"}, "spec": {}}
-    output_dir = tmp_path / "out"
 
     compose = ComposeResult(
         mas_id="demo",
@@ -138,7 +141,6 @@ def test_sequential_topology_emits_events_artifact(tmp_path: Path):
             "metadata": {"name": "demo"},
             "spec": {
                 "workflow": {
-                    "type": "sequential",
                     "entry": "step-a",
                     "nodes": [{"id": "step-a"}, {"id": "step-b"}],
                 },
@@ -161,96 +163,36 @@ def test_sequential_topology_emits_events_artifact(tmp_path: Path):
         ),
         plan=PlacementPlan(),
     )
+
+    prepared = SimpleNamespace(
+        instance=SimpleNamespace(load_checkpoint=lambda *_: None),
+        enriched_manifest={"metadata": {"name": "step-a"}, "spec": {}},
+        manifest_path=tmp_path / "agents" / "step-a.yaml",
+        session_id="sid-1",
+    )
+    stub_instance = SimpleNamespace(driver=SimpleNamespace(agent_id=None, observability=None))
     materialized = SimpleNamespace(
         compose=compose,
-        materialized=SimpleNamespace(instances={}),
+        materialized=SimpleNamespace(instances={"step-a": stub_instance, "step-b": stub_instance}),
         mas_base_dir=mas_path.parent,
     )
-
-    def _fake_seq(*_args, **_kwargs):
-        # Simulate the run writing events.jsonl (runner picks these up as artifacts).
-        events_path = output_dir / "traces" / "events.jsonl"
-        events_path.parent.mkdir(parents=True, exist_ok=True)
-        events_path.write_text('{"event":"turn"}\n', encoding="utf-8")
-        return "done"
 
     with patch("mas.ctl.benchmark.runner.compose_run", return_value=compose):
         with patch("mas.ctl.benchmark.runner.materialize_mas_compose", return_value=materialized):
-            with patch("mas.ctl.benchmark.runner.is_sequential_workflow", return_value=True):
-                with patch(
-                    "mas.ctl.benchmark.runner.run_sequential_workflow_queries",
-                    side_effect=_fake_seq,
-                ) as seq:
-                    result = MasBenchRunner().run(
-                        "hello",
-                        config=compose.mas_config,
-                        spec_path=mas_path,
-                        output_dir=output_dir,
-                    )
-                    assert seq.called
+            with patch("mas.ctl.benchmark.runner.prepare_delegation_entry_session", return_value=prepared):
+                with patch("mas.ctl.benchmark.runner.wire_peer_delegation"):
+                    with patch.object(MasBenchRunner, "_run_controller_turns", return_value=RunResult(content="ok", status="ok")) as run_turns:
+                        result = MasBenchRunner().run(
+                            "hello",
+                            config=compose.mas_config,
+                            spec_path=mas_path,
+                            output_dir=tmp_path / "out",
+                        )
 
     assert result.status == "ok"
-    assert any(a.kind == "events" for a in result.artifacts)
+    run_turns.assert_called_once()
 
 
-def test_sequential_topology_applies_memory_seeds(tmp_path: Path):
-    from mas.ctl.adapters.memory_seed import MemorySeed
-
-    output_dir = tmp_path / "out"
-    instance = SimpleNamespace(
-        driver=SimpleNamespace(ctx=SimpleNamespace(memory_seeds=[]), observability=None)
-    )
-    materialized = SimpleNamespace(
-        compose=SimpleNamespace(mas_config={"spec": {"workflow": {"type": "sequential"}}}),
-        materialized=SimpleNamespace(instances={"step-a": instance, "step-b": instance}),
-        mas_base_dir=tmp_path,
-    )
-    seeds = [MemorySeed(key="fact", content="seeded")]
-
-    with patch("mas.ctl.benchmark.runner.run_sequential_workflow_queries", return_value="done"):
-        with patch("mas.ctl.benchmark.runner.apply_memory_seeds") as apply_seeds:
-            MasBenchRunner()._run_sequential_with_observability(
-                materialized=materialized,
-                queries=["hello"],
-                output_dir=output_dir,
-                entry_manifest={"metadata": {"name": "demo"}},
-                entry_manifest_path=tmp_path / "demo.yaml",
-                run_seed=0,
-                memory_seeds=seeds,
-            )
-            assert apply_seeds.call_count == 2
-
-
-def test_sequential_missing_edges_returns_run_result_error(tmp_path: Path):
-    mas_path = tmp_path / "mas.yaml"
-    mas_path.write_text("kind: mas\n", encoding="utf-8")
-    output_dir = tmp_path / "out"
-    materialized = SimpleNamespace(
-        compose=SimpleNamespace(
-            mas_config={
-                "spec": {
-                    "workflow": {
-                        "type": "sequential",
-                        "entry": "a",
-                        "nodes": [{"id": "a"}, {"id": "b"}],
-                    }
-                }
-            }
-        ),
-        materialized=SimpleNamespace(instances={}),
-        mas_base_dir=mas_path.parent,
-    )
-    result = MasBenchRunner()._run_sequential_with_observability(
-        materialized=materialized,
-        queries=["hello"],
-        output_dir=output_dir,
-        entry_manifest={"metadata": {"name": "demo"}},
-        entry_manifest_path=mas_path.parent / "demo.yaml",
-        run_seed=0,
-        memory_seeds=[],
-    )
-    assert result.status == "error"
-    assert "workflow.edges" in (result.error or "")
 
 
 def test_compose_path_skips_stacked_merge_for_loaded_mas_raw(tmp_path: Path):

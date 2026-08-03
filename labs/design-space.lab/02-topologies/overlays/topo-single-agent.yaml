@@ -31,7 +31,7 @@ spec:
     # all tools + skills + a combined system prompt).
     agents_add:
       - id: generalist
-        ref: agents/generalist/agent.yaml
+        ref: ../../../library-samples/apps/trip-planner/agents/generalist/agent.yaml
 
     # Wire the single-node workflow.
     workflow:

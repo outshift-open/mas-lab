@@ -1,0 +1,27 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Example: deterministic linear/sequential chain on trip-planner agents.
+#
+# Intended semantics:
+#   moderator -> schedule_agent -> itinerary_agent -> concierge_agent
+# final user-visible answer is produced by the last agent in the chain.
+
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  id: example-sequential-linear
+  description: "Deterministic linear chain (sequential one-by-one delegation)"
+  tags: [example, topology, sequential, linear]
+
+spec:
+  patch:
+    workflow:
+      entry: moderator
+      nodes:
+        - id: moderator
+          delegates_to: [schedule_agent]
+        - id: schedule_agent
+          delegates_to: [itinerary_agent]
+        - id: itinerary_agent
+          delegates_to: [concierge_agent]
+        - id: concierge_agent

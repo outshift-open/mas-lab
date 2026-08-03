@@ -26,11 +26,11 @@ def _overlay_dir_for_namespace(lib_dir: Path, namespace: str | None) -> Path:
 
 
 def _extract_namespace_from_yaml(content: str) -> str:
-    """Extract the ``x-namespace`` field from overlay YAML content."""
+    """Extract the ``metadata.namespace`` field from overlay YAML content."""
     import yaml as _yaml
     try:
         doc = _yaml.safe_load(content) or {}
-        return doc.get("x-namespace", "global") or "global"
+        return str((doc.get("metadata") or {}).get("namespace", "global") or "global")
     except Exception:
         return "global"
 
@@ -75,7 +75,7 @@ async def list_library_overlays(library_name: str):
 async def create_overlay(library_name: str, req: SaveOverlayRequest):
     """Create a new overlay definition.
 
-    Storage location is determined by ``x-namespace`` in the YAML content:
+    Storage location is determined by ``metadata.namespace`` in the YAML content:
     ``global`` → ``{lib}/overlays/``, otherwise → ``{lib}/apps/{ns}/overlays/``.
     """
     lib_dir = deps.get_library_path(library_name)

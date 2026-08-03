@@ -31,14 +31,25 @@ properties:
   metadata:
     type: object
     additionalProperties: false
+    patternProperties:
+      "^x-":
+        description: "Extension properties (UI metadata, canvas state, etc.) — ignored by the runtime."
     properties:
       name:
         type: string
         description: "Patch identifier — also the stem of the YAML file (e.g. baseline)."
         default: ""
+      id:
+        type: string
+        description: "Alternative patch identifier (lab-style). Mutually exclusive with name."
+        default: ""
       description:
         type: string
         default: ""
+      namespace:
+        type: string
+        description: "Namespace scope for the overlay (global or app name). Defaults to global."
+        default: "global"
 
   spec:
     type: object

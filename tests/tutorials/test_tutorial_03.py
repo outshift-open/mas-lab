@@ -137,14 +137,13 @@ class TestPipelineConfig:
 
     def test_analysis_pipeline_structure(self):
         pipe = load_yaml(T03 / "pipelines" / "analysis.yaml")
-        assert pipe["kind"] == "Pipeline"
-        assert "metadata" in pipe
-        assert pipe["metadata"]["name"] == "t3-analysis"
+        assert "pipeline" in pipe
+        assert pipe["pipeline"]["name"] == "t3-analysis"
 
     def test_analysis_pipeline_has_steps(self):
         pipe = load_yaml(T03 / "pipelines" / "analysis.yaml")
-        spec = pipe.get("spec", pipe)
-        steps = spec.get("steps", spec.get("pipeline", []))
+        spec = pipe.get("spec", pipe.get("pipeline", pipe))
+        steps = spec.get("steps", [])
         assert len(steps) >= 1
         step_names = {s["name"] for s in steps}
         assert "extract" in step_names

@@ -11,7 +11,6 @@ spec:
     kind: Agent
   patch:
     design_pattern:
-      type: plan_execute
+      type: react
       config:
-        allow_replan: true
         max_steps: 20

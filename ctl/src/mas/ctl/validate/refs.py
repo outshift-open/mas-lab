@@ -25,6 +25,9 @@ REF_KEYS = frozenset(
 
 _SKIP_PREFIXES = ("bundle://", "module://", "oci://", "pkg://", "infra:", "samples:", "standard:")
 
+# Parent keys whose "path" child is a runtime output sink, not an input file ref.
+_OUTPUT_PATH_PARENTS = frozenset({"telemetry"})
+
 
 def resolve_refs_enabled() -> bool:
     return os.environ.get("MAS_MANIFEST_RESOLVE_REFS", "1") not in ("0", "false", "False")
@@ -56,7 +59,10 @@ def iter_ref_paths(obj: Any, prefix: str = "") -> list[tuple[str, str]]:
     if isinstance(obj, dict):
         for k, v in obj.items():
             p = f"{prefix}.{k}" if prefix else k
-            if k in REF_KEYS and is_path_ref(k, v):
+            parent_key = prefix.rsplit(".", 1)[-1] if "." in prefix else prefix
+            if k == "path" and parent_key in _OUTPUT_PATH_PARENTS:
+                pass  # runtime output path — not a file ref
+            elif k in REF_KEYS and is_path_ref(k, v):
                 found.append((p, v))
             found.extend(iter_ref_paths(v, p))
     elif isinstance(obj, list):

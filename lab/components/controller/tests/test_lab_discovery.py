@@ -250,7 +250,6 @@ def test_canvas_mas_manifest_passes_schema():
         "spec": {
             "agents": [{"id": "broker", "ref": "test-mas/broker.yaml"}],
             "workflow": {
-                "type": "dynamic",
                 "entry": "broker",
                 "nodes": [{"id": "broker", "role": "moderator"}],
             },

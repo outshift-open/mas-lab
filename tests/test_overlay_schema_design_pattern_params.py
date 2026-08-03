@@ -81,7 +81,7 @@ def test_overlay_schema_accepts_agents_remove_ops_for_mas_target() -> None:
             "target": {"kind": "MAS"},
             "patch": {
                 "agents_remove": {"$op": {"add": ["generalist"]}},
-                "workflow": {"type": "single", "entry": "generalist"},
+                "workflow": {"entry": "generalist"},
             },
         },
     }

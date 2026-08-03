@@ -19,7 +19,6 @@ spec:
           ref: agents/generalist/agent.yaml
 
     workflow:
-      type: single
       entry: generalist
       nodes:
         - id: generalist

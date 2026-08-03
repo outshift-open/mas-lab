@@ -12,12 +12,8 @@ from mas.ctl.compose.runner import ComposeRequest, compose_run
 from mas.ctl.deployment.runtime_id import DEFAULT_RUNTIME_ID
 from mas.ctl.executor.mas_session import (
     entry_agent_id,
-    is_sequential_workflow,
-    load_agent_manifest_from_bind,
-    make_workflow_send,
     materialize_mas_compose,
     prepare_delegation_entry_session,
-    run_sequential_workflow_queries,
     wire_peer_delegation,
 )
 
@@ -63,7 +59,7 @@ def execute_run_mas(
     trace_summary: bool = False,
     trace_color: bool = False,
 ) -> int:
-    """Compose → materialize → workflow or SessionController on entry agent."""
+    """Compose → materialize → SessionController on entry agent."""
     from mas.ctl.session.controller import ConversationConfig, SessionController, close_observability
     from mas.ctl.session.hitl_config import resolve_hitl_from_manifest
     from mas.ctl.session.controller import run_session_loop
@@ -106,22 +102,6 @@ def execute_run_mas(
         verbose = 1
 
     base = manifest_dir or manifest.parent
-
-    if is_sequential_workflow(result.mas_config, len(bind.agents)) and not interactive:
-        return _run_sequential_workflow(
-            result.mas_config,
-            materialized=materialized,
-            scripted=scripted,
-            verbose=verbose,
-            obs_config=obs_config,
-            base=base,
-            trace=trace,
-            trace_timestamps=trace_timestamps,
-            trace_engine=trace_engine,
-            trace_summary=trace_summary,
-            trace_color=trace_color,
-        )
-
     entry = entry_agent_id(result.mas_config)
     display = StdoutConversationDisplay(
         agent_label=str(entry or "Agent"),
@@ -135,11 +115,6 @@ def execute_run_mas(
             entry_id=entry,
             display=display,
             verbose=verbose,
-            trace=trace,
-            trace_timestamps=trace_timestamps,
-            trace_engine=trace_engine,
-            trace_summary=trace_summary,
-            trace_color=trace_color,
         )
     except KeyError as exc:
         logger.error("%s", exc)
@@ -161,11 +136,6 @@ def execute_run_mas(
         verbose=verbose,
         already_wired={entry},
         session_id=prepared.session_id,
-        trace=trace,
-        trace_timestamps=trace_timestamps,
-        trace_engine=trace_engine,
-        trace_summary=trace_summary,
-        trace_color=trace_color,
     )
 
     if runtime_params:
@@ -218,69 +188,3 @@ def execute_run_mas(
     if plugin_set is not None:
         _log_obs_output_paths(plugin_set)
     return exit_code
-
-
-def _run_sequential_workflow(
-    mas_config: dict,
-    *,
-    materialized,
-    scripted: list[str],
-    verbose: int,
-    obs_config,
-    base: Path,
-    trace: bool = False,
-    trace_timestamps: bool = False,
-    trace_engine: bool = False,
-    trace_summary: bool = False,
-    trace_color: bool = False,
-) -> int:
-    from mas.ctl.ui.stdout import StdoutConversationDisplay
-
-    task = scripted[0] if scripted else ""
-    if not task.strip():
-        logger.error("sequential workflow requires a prompt (--prompt or --query)")
-        return 1
-
-    display = StdoutConversationDisplay(agent_label="Workflow", verbose=verbose, show_labels=True)
-
-    from mas.ctl.session.observability import setup_run_observability
-
-    instances = dict(materialized.materialized.instances)
-    entry = entry_agent_id(mas_config)
-    shared_plugin_set, scoped_recorders = setup_run_observability(
-        instances, obs_config, base_dir=base, entry_agent_id=entry,
-    )
-
-    try:
-        text = run_sequential_workflow_queries(
-            mas_config,
-            materialized,
-            scripted,
-            display=display,
-            verbose=verbose,
-            trace=trace,
-            trace_timestamps=trace_timestamps,
-            trace_engine=trace_engine,
-            trace_summary=trace_summary,
-            trace_color=trace_color,
-        )
-    except (KeyError, RuntimeError, ValueError) as exc:
-        logger.error("sequential workflow failed: %s", exc)
-        return 1
-    finally:
-        if shared_plugin_set is not None:
-            shared_plugin_set.close()
-        for recorder in scoped_recorders:
-            recorder.close()
-    if text.strip():
-        display.on_agent(text)
-    if shared_plugin_set is not None:
-        _log_obs_output_paths(shared_plugin_set)
-    return 0
-
-
-
-def _agent_manifest_path(bind, agent_id: str) -> Path | None:
-    from mas.ctl.executor.mas_session import agent_manifest_path
-
-    return agent_manifest_path(bind, agent_id)

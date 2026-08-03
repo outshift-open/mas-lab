@@ -1,0 +1,56 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Validate directly usable topology MAS definitions from library-samples.
+
+experiment:
+  name: "trip-planner-topology-definitions-smoke"
+  description: >
+    Smoke validation that each topology-specific MAS definition in
+    library-samples can be resolved and benchmarked directly.
+
+  default_flavour: local
+
+  applications:
+    - app: trip-planner-topo-moderator-broker
+    - app: trip-planner-topo-parallel
+    - app: trip-planner-topo-linear-pipeline
+    - app: trip-planner-topo-supervised
+    - app: trip-planner-topo-verifier
+    - app: trip-planner-topo-single-agent
+
+  scenarios:
+    - id: baseline
+
+  dataset:
+    name: trip-planner-benchmark-100
+    locator: samples
+    limit: 1
+
+  execution:
+    parallel_scenarios: 2
+    timeout: 300
+    pause_between_runs: 0.2
+    strategy: coverage
+    reset_state: true
+    emulation:
+      infra:
+        llm: live
+        tools: live
+      runtime:
+        cache: content-addressed
+
+  run:
+    n_runs: 1
+
+  pipeline_bind: experiment/post
+
+  application:
+    post:
+      - name: eval-quality
+        type: eval_mce
+        config:
+          max_workers: 1
+          fail_threshold: 0.5
+          overwrite: true
+          metrics:
+            - goal_success_rate

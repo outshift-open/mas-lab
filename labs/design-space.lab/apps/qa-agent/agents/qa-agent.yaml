@@ -15,7 +15,6 @@ spec:
       When you need current information from the web, use the web-search tool.
 
       '
-  x-text-input: what is the weather in Paris today?
   models:
   - model: azure/gpt-4o-mini
     temperature: 0.7
@@ -24,6 +23,8 @@ spec:
   - ref: ../../../../../library-samples/tools/web-search.tool.yaml
   - ref: ../../../../../library-samples/tools/calc.tool.yaml
   description: Answer general knowledge questions.
+x-text-input: what is the weather in Paris today?
+x-text-input: what is the weather in Paris today?
 x-canvas-node-ids:
   role: node_515c961a
   model: node_cb0e6f39

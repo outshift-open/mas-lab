@@ -56,9 +56,6 @@ properties:
     type: object
     required: [description]
     additionalProperties: false
-    patternProperties:
-      "^x-":
-        description: "Extension properties (UI metadata) — ignored by the runtime."
     properties:
       context:
         type: object
@@ -142,7 +139,7 @@ properties:
           (which peers) lives on MAS spec.workflow (delegates_to), not here.
 
           This release: omit entirely or set type: none. Other type/ref values are
-          rejected at validate/compose. When workflow.type is dynamic, ctl wires
+          rejected at validate/compose. Ctl wires
           the default LlmDelegator at run-mas and exposes delegate_to_<id> tools
           derived from workflow topology.
         additionalProperties: false
@@ -674,7 +671,7 @@ properties:
               Controls which delegation tools are registered for this agent.
 
               typed (only value in this release): delegate_to_<id> tools derived
-              from MAS workflow.delegates_to when workflow.type is dynamic. Peer
+              from MAS workflow.delegates_to. Peer
               IDs are fixed at compose time — the LLM cannot call agents outside
               the topology.
 

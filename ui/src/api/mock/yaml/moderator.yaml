@@ -12,16 +12,15 @@ metadata:
 spec:
   agents:
     - id: moderator
-      ref: apps/trip-planner/agents/moderator.yaml
+      ref: ../../../../../library-samples/apps/trip-planner/agents/moderator.yaml
     - id: schedule_agent
-      ref: apps/trip-planner/agents/schedule.yaml
+      ref: ../../../../../library-samples/apps/trip-planner/agents/schedule.yaml
     - id: itinerary_agent
-      ref: apps/trip-planner/agents/itinerary_agent.yaml
+      ref: ../../../../../library-samples/apps/trip-planner/agents/itinerary_agent.yaml
     - id: concierge_agent
-      ref: apps/trip-planner/agents/concierge_agent.yaml
+      ref: ../../../../../library-samples/apps/trip-planner/agents/concierge_agent.yaml
 
   workflow:
-    type: dynamic
     entry: moderator
     nodes:
       - id: moderator

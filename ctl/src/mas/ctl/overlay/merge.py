@@ -563,6 +563,8 @@ def merge_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, An
         and overlay.get("kind") == "Overlay"
         and isinstance((spec.get("target") or {}).get("kind"), str)
         and isinstance(spec.get("patch"), dict)
+        and isinstance(spec.get("target"), dict)
+        and bool((spec.get("target") or {}).get("kind"))
     )
     if not canonical:
         overlay = normalize_overlay(overlay, name=str((overlay.get("metadata") or {}).get("name") or "overlay"))

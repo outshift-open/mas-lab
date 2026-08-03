@@ -97,35 +97,6 @@ spec:
     assert {a["agent_id"] for a in agents} == {"alpha", "beta"}
 
 
-def test_is_sequential_workflow_dynamic_delegates_not_sequential():
-    from mas.ctl.executor.mas_session import is_sequential_workflow
-
-    dynamic = {
-        "spec": {
-            "workflow": {
-                "entry": "moderator",
-                "nodes": [
-                    {"id": "moderator", "delegates_to": ["a", "b"]},
-                    {"id": "a"},
-                    {"id": "b"},
-                ],
-            }
-        }
-    }
-    assert is_sequential_workflow(dynamic, 3) is False
-
-    linear = {
-        "spec": {
-            "workflow": {
-                "type": "sequential",
-                "entry": "a",
-                "nodes": [{"id": "a", "delegates_to": ["b"]}, {"id": "b"}],
-            }
-        }
-    }
-    assert is_sequential_workflow(linear, 2) is True
-
-
 def test_inproc_bus_transport_handoff():
     from mas.ctl.placement.bus.adapter import RuntimeCommEndpoint
     from mas.ctl.placement.bus.inproc import InProcessCommBus

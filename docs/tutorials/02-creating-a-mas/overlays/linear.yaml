@@ -24,7 +24,6 @@ spec:
           ref: agents/concierge-agent/agent.yaml
 
     workflow:
-      type: sequential
       entry: schedule_agent
       edges:
         - from: schedule_agent

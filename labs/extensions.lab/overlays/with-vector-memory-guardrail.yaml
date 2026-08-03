@@ -1,8 +1,9 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
 kind: Overlay
 metadata:
-  id: with-vector-memory-guardrail
+  name: with-vector-memory-guardrail
 # Scenario: with-vector-memory-guardrail
 #
 # This scenario demonstrates TWO orthogonal extensions applied simultaneously:
@@ -45,7 +46,7 @@ spec:
     agents:
       concierge_agent:
         tools:
-          - ref: ../tools/memory-search.tool.yaml
+          - ref: ../../library-samples/tools/memory-search.tool.yaml
         context:
           role: |
             You can look up the prices (fares) for trains and air routes.

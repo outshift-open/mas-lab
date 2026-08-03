@@ -6,7 +6,6 @@ metadata:
   name: t3-topo-moderator
 spec:
   workflow:
-    type: dynamic
     entry: moderator
     nodes:
       - id: moderator

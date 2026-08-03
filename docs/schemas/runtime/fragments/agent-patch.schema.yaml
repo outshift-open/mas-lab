@@ -6,6 +6,8 @@ title: AgentPatch
 description: Per-agent override fields allowed in overlay patch.agents.
 type: object
 additionalProperties: false
+patternProperties:
+  "^x-": {}
 properties:
   design_pattern:
     type: object

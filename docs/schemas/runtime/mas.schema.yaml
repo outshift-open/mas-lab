@@ -194,24 +194,9 @@ properties:
         description: "Workflow topology — entry point and delegation graph."
         additionalProperties: false
         properties:
-          type:
-            type: string
-            description: >
-              Workflow strategy: dynamic, sequential, hybrid, or single.
-            enum: [dynamic, sequential, hybrid, single]
-            default: "dynamic"
-          plugin:
-            type: string
-            description: >
-              Filesystem path to a Python module registering the workflow via
-              WorkflowContract.register_impl().
           entry:
             type: string
             description: "ID of the entry-point agent (first to receive the user request)."
-          max_rounds:
-            type: integer
-            minimum: 1
-            description: "Supervised / verifier workflow round cap."
           nodes:
             type: array
             description: "Agent nodes in the workflow graph."

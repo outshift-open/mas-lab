@@ -20,7 +20,6 @@ spec:
       - id: concierge_agent
         ref: agents/concierge_agent.yaml
   workflow:
-    type: dynamic
     entry: moderator
     nodes:
       - id: moderator

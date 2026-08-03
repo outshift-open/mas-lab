@@ -1,8 +1,9 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
 kind: Overlay
 metadata:
-  id: with-context-inject
+  name: with-context-inject
 # Scenario: with-context-inject (static context injection)
 #
 # This is the tutorial-1 "context manager" pattern applied to the MAS benchmark:

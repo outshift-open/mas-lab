@@ -18,7 +18,6 @@ from mas.ctl.compose.pattern_registry import resolve_design_pattern_registry_id
 from mas.ctl.compose.placement_registry import get_placement_backend
 from mas.ctl.compose.runner import ComposeResult
 from mas.ctl.manifest.mas_agent_merge import enrich_entry_agent_for_delegation, wire_entry_engine_delegation
-from mas.ctl.orchestration.sequential import SequentialWorkflow
 from mas.ctl.session.controller import ConversationConfig, SessionController
 from mas.ctl.ui.turn_result import turn_failed
 from mas.runtime.agent_defaults import default_pattern_plugin_id
@@ -90,59 +89,6 @@ def agent_manifest_label(manifest: dict[str, Any], manifest_path: Path) -> str:
     return manifest_path.stem or "agent"
 
 
-def workflow_dict(mas_config: dict[str, Any]) -> dict[str, Any]:
-    spec = mas_config.get("spec", mas_config)
-    wf = spec.get("workflow")
-    return wf if isinstance(wf, dict) else {}
-
-
-def is_sequential_workflow(mas_config: dict[str, Any], num_agents: int) -> bool:
-    if num_agents <= 1:
-        return False
-    wf = workflow_dict(mas_config)
-    if not wf:
-        return False
-    wf_type = str(wf.get("type") or "").lower()
-    if wf_type in ("dynamic", "moderated", "broker"):
-        return False
-    if wf_type in ("sequential", "linear", "pipeline"):
-        return True
-    return False
-
-
-def sequential_workflow_payload(mas_config: dict[str, Any]) -> dict[str, Any]:
-    wf = workflow_dict(mas_config)
-    nodes_raw = wf.get("nodes") or []
-    nodes: list[dict[str, str]] = []
-    for node in nodes_raw:
-        if not isinstance(node, dict):
-            continue
-        node_id = str(node.get("id") or "")
-        if not node_id:
-            continue
-        agent = str(node.get("agent") or node_id)
-        nodes.append({"id": node_id, "agent": agent, "role": str(node.get("role") or "")})
-
-    edges: list[dict[str, str]] = []
-    for edge in wf.get("edges") or []:
-        if not isinstance(edge, dict):
-            continue
-        from_node = edge.get("from") or edge.get("from_node")
-        to_node = edge.get("to") or edge.get("to_node")
-        if from_node and to_node:
-            edges.append({"from": str(from_node), "to": str(to_node)})
-
-    entry = wf.get("entry")
-    if not entry and nodes:
-        entry = nodes[0]["id"]
-    payload = {"entry": str(entry or ""), "nodes": nodes, "edges": edges}
-    wf_type = str(wf.get("type") or "").lower()
-    if wf_type in ("sequential", "linear", "pipeline") and not edges:
-        raise RuntimeError(
-            "sequential workflow requires explicit workflow.edges "
-            "(delegates_to is not used for sequential routing)"
-        )
-    return payload
 
 
 def agent_manifest_path(bind: EffectiveBindManifest, agent_id: str) -> Path | None:
@@ -202,11 +148,6 @@ def prepare_delegation_entry_session(
     display: Any = None,
     verbose: int = 0,
     session_id: str = "",
-    trace: bool = False,
-    trace_timestamps: bool = False,
-    trace_engine: bool = False,
-    trace_summary: bool = False,
-    trace_color: bool = False,
 ) -> PreparedEntrySession:
     """Wire dynamic-delegation entry agent (same path as ``execute_run_mas``).
 
@@ -249,11 +190,6 @@ def prepare_delegation_entry_session(
             verbose=verbose,
             from_agent=entry_id,
             session_id=resolved_session_id,
-            trace=trace,
-            trace_timestamps=trace_timestamps,
-            trace_engine=trace_engine,
-            trace_summary=trace_summary,
-            trace_color=trace_color,
         ),
         entry_agent_id=entry_id,
         mas_config=compose.mas_config,
@@ -276,11 +212,6 @@ def wire_peer_delegation(
     verbose: int = 0,
     already_wired: "set[str] | None" = None,
     session_id: str = "",
-    trace: bool = False,
-    trace_timestamps: bool = False,
-    trace_engine: bool = False,
-    trace_summary: bool = False,
-    trace_color: bool = False,
 ) -> list[str]:
     """Wire delegation onto every agent that declares its own ``delegates_to``
     peers in the MAS workflow topology — not just the entry agent.
@@ -316,11 +247,6 @@ def wire_peer_delegation(
         verbose=verbose,
         from_agent=entry_id,
         session_id=session_id,
-        trace=trace,
-        trace_timestamps=trace_timestamps,
-        trace_engine=trace_engine,
-        trace_summary=trace_summary,
-        trace_color=trace_color,
     )
     newly_wired: list[str] = []
     for agent in compose.bind.agents:
@@ -362,11 +288,6 @@ def make_workflow_send(
     verbose: int,
     from_agent: str = "",
     session_id: str = "",
-    trace: bool = False,
-    trace_timestamps: bool = False,
-    trace_engine: bool = False,
-    trace_summary: bool = False,
-    trace_color: bool = False,
 ) -> RunTurnFn:
     """Run one agent turn inside a multi-agent workflow (sequential or delegation).
 
@@ -458,11 +379,6 @@ def make_workflow_send(
             instance=instance,
             display=sub_display,
             verbose=verbose,
-            trace=trace,
-            trace_timestamps=trace_timestamps,
-            trace_engine=trace_engine,
-            trace_summary=trace_summary,
-            trace_color=trace_color,
             agent_id=agent_id,
             config=ConversationConfig(single_turn=True),
             session_id=state["session_id"],
@@ -486,46 +402,3 @@ def make_workflow_send(
     return send
 
 
-def run_sequential_workflow_queries(
-    mas_config: dict[str, Any],
-    materialized: MaterializedMas,
-    queries: list[str],
-    *,
-    display: Any,
-    verbose: int = 0,
-    session_id: str = "",
-    trace: bool = False,
-    trace_timestamps: bool = False,
-    trace_engine: bool = False,
-    trace_summary: bool = False,
-    trace_color: bool = False,
-) -> str:
-    """Execute sequential workflow queries; returns final response text.
-
-    ``session_id`` (empty means mint a fresh one) is for parity with
-    ``prepare_delegation_entry_session``/``wire_peer_delegation`` — no
-    current caller has a prior session_id to thread in here, since a
-    sequential-workflow run is always its own top-level entry point, but the
-    parameter exists so a future caller that does (e.g. one composing a
-    sequential run into a larger session) has somewhere to pass it instead
-    of every step minting its own.
-    """
-    entry = entry_agent_id(mas_config)
-    send = make_workflow_send(
-        materialized.materialized,
-        display=display,
-        verbose=verbose,
-        from_agent=entry,
-        session_id=session_id,
-        trace=trace,
-        trace_timestamps=trace_timestamps,
-        trace_engine=trace_engine,
-        trace_summary=trace_summary,
-        trace_color=trace_color,
-    )
-    wf = SequentialWorkflow.from_dict(sequential_workflow_payload(mas_config), send=send)
-    text = ""
-    for query in queries:
-        wf_result = wf.run(query)
-        text = wf_result.content
-    return text

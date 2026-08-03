@@ -1,0 +1,7 @@
+scenario,topology,moderator_pattern
+collab-broker-react,moderator-broker,react
+collab-broker-cot,moderator-broker,cot
+collab-broker-reflection,moderator-broker,reflection
+collab-parallel-react,parallel,react
+collab-parallel-cot,parallel,cot
+collab-parallel-reflection,parallel,reflection

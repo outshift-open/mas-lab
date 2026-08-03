@@ -15,11 +15,18 @@ version: "0.0.2"
 
 apps:
   trip-planner: apps/trip-planner
+  trip-planner-topo-moderator-broker: apps/trip-planner/mas-topologies/moderator-broker.mas.yaml
+  trip-planner-topo-parallel: apps/trip-planner/mas-topologies/parallel.mas.yaml
+  trip-planner-topo-linear-pipeline: apps/trip-planner/mas-topologies/linear-pipeline.mas.yaml
+  trip-planner-topo-supervised: apps/trip-planner/mas-topologies/supervised.mas.yaml
+  trip-planner-topo-verifier: apps/trip-planner/mas-topologies/verifier.mas.yaml
+  trip-planner-topo-single-agent: apps/trip-planner/mas-topologies/single-agent.mas.yaml
+  qa-agent: apps/qa-agent
 
 datasets:
-  mas-necessity: datasets/mas-necessity.yaml
-  qa-reasoning-queries: datasets/qa-reasoning-queries.yaml
-  qa-reasoning-queries-100: datasets/qa-reasoning-queries-100.yaml
+  mas-necessity: datasets/generic/mas-necessity.yaml
+  qa-reasoning-queries: datasets/generic/qa-reasoning-queries.yaml
+  qa-reasoning-queries-100: datasets/generic/qa-reasoning-queries-100.yaml
   trip-planner-benchmark: datasets/trip-planner/benchmark.yaml
   trip-planner-benchmark-100: datasets/trip-planner/benchmark-100.yaml
   trip-planner-queries: datasets/trip-planner/queries.yaml

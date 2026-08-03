@@ -86,13 +86,12 @@ class TestMASStructure:
         patch = ov["spec"]["patch"]
         assert "agency" in patch
         assert "workflow" in patch
-        assert patch["workflow"]["type"] == "single"
+        assert patch["workflow"]["entry"] == "generalist"
 
     def test_overlay_linear_structure(self):
         ov = load_yaml(T02 / "overlays" / "linear.yaml")
         assert ov["kind"] == "Overlay"
         patch = ov["spec"]["patch"]
-        assert patch["workflow"]["type"] == "sequential"
         assert "edges" in patch["workflow"]
 
 
@@ -330,7 +329,7 @@ class TestMASOverlayMerging:
         overlay = load_yaml(T02 / "overlays" / "linear.yaml")
         merged = merge_overlay(base, overlay)
         merged_str = yaml.dump(merged)
-        assert "sequential" in merged_str
+        assert "schedule_agent" in merged_str
 
 
 # ═══════════════════════════════════════════════════════════════════════════

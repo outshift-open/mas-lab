@@ -18,11 +18,9 @@ from mas.ctl.paths import OverlayRefEntry, resolve_overlay_ref_entries
 from mas.ctl.executor.mas_session import (
     agent_manifest_label,
     entry_agent_id,
-    is_sequential_workflow,
     materialize_mas_compose,
     prepare_delegation_entry_session,
     resolve_entry_pattern_plugin_id,
-    run_sequential_workflow_queries,
     wire_peer_delegation,
 )
 from mas.ctl.infra.resolve import resolve_infra_refs
@@ -446,18 +444,6 @@ class MasBenchRunner:
 
         materialized = materialize_mas_compose(compose, mas_base_dir=resolved_mas_path.parent)
 
-        if is_sequential_workflow(compose.mas_config, len(bind.agents)):
-            return self._run_sequential_with_observability(
-                materialized=materialized,
-                queries=queries,
-                output_dir=output_dir,
-                entry_manifest=entry_manifest,
-                entry_manifest_path=entry_manifest_path,
-                run_seed=run_seed,
-                memory_seeds=memory_seeds,
-                flavour=flavour,
-            )
-
         try:
             events_path, obs_cfg = bench_obs_config(
                 output_dir,
@@ -563,67 +549,6 @@ class MasBenchRunner:
             ),
         )
         return _ControllerTarget(instance, store, entry_manifest, entry_manifest_path)
-
-    def _run_sequential_with_observability(
-        self,
-        *,
-        materialized,
-        queries: list[str],
-        output_dir: Path,
-        entry_manifest: dict[str, Any],
-        entry_manifest_path: Path,
-        run_seed: int,
-        memory_seeds: list[MemorySeed],
-        flavour: Any = None,
-    ) -> RunResult:
-        from mas.ctl.session.observability import setup_run_observability
-        from mas.ctl.ui.stdout import StdoutConversationDisplay
-
-        if memory_seeds:
-            for instance in materialized.materialized.instances.values():
-                apply_memory_seeds(instance, memory_seeds)
-
-        events_path, obs_cfg = bench_obs_config(
-            output_dir,
-            entry_manifest,
-            entry_manifest_path,
-            mas_config=materialized.compose.mas_config,
-            flavour=flavour,
-        )
-        entry = entry_agent_id(materialized.compose.mas_config)
-        instances = dict(materialized.materialized.instances)
-        pipeline, scoped_recorders = setup_run_observability(
-            instances, obs_cfg, base_dir=output_dir, entry_agent_id=entry,
-        )
-
-        display = StdoutConversationDisplay(show_labels=False, verbose=0)
-        try:
-            text = run_sequential_workflow_queries(
-                materialized.compose.mas_config,
-                materialized,
-                queries,
-                display=display,
-                verbose=0,
-            )
-        except (KeyError, RuntimeError, ValueError) as exc:
-            # Surface the real cause by default — never require LOG_LEVEL=DEBUG to
-            # see why a run failed. The full traceback goes to the log at ERROR
-            # (visible at default verbosity); the summary is kept on the result.
-            logger.error("Run failed: %s", exc, exc_info=True)
-            return RunResult(content="", status="error", error=str(exc))
-        finally:
-            for recorder in scoped_recorders:
-                recorder.close()
-            if pipeline is not None:
-                pipeline.close()
-            ensure_live_otel_span_files(events_path, obs_cfg)
-
-        return RunResult(
-            content=text,
-            status="ok",
-            artifacts=_events_artifacts(events_path, entry_manifest, entry_manifest_path),
-            metadata={"run_seed": run_seed, "turns": len(queries), "topology": "sequential"},
-        )
 
     @staticmethod
     def _checkpoint_store(

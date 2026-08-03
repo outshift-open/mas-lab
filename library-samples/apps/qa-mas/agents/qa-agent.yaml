@@ -5,7 +5,6 @@ metadata:
   name: qa-agent
 spec:
   description: answer user's questions
-  x-text-input: what are the top attractions to visit in Paris?
   models:
     - model: azure/gpt-4o
       temperature: 0.7
@@ -14,6 +13,7 @@ spec:
     - ref: ../../../tools/web-search.tool.yaml
   skills:
     - global/answer-formatting
+x-text-input: what are the top attractions to visit in Paris?
 x-canvas-node-ids:
   role: node_db6794a6
   model: node_98e08fad

@@ -13,10 +13,9 @@ metadata:
 spec:
   agents:
     - id: generalist
-      ref: apps/trip-planner/agents/generalist/agent.yaml
+      ref: ../../../../../library-samples/apps/trip-planner/agents/generalist/agent.yaml
 
   workflow:
-    type: single
     entry: generalist
     nodes:
       - id: generalist
