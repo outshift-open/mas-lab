@@ -7,6 +7,8 @@ metadata:
   description: "Chain-of-Thought — explicit reasoning chain before action (Wei et al. 2022)"
 
 spec:
+  target:
+    kind: Agent
   patch:
     design_pattern:
       type: cot

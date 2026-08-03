@@ -6,6 +6,8 @@ metadata:
   name: governance-off
 # Governance OFF — no policies, baseline for Exp 2.3
 spec:
+  target:
+    kind: Agent
   patch:
     observability:
       - native

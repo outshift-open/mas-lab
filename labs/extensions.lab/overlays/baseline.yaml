@@ -13,6 +13,8 @@ metadata:
 # spans only — no memory_search spans. Comparing against the memory
 # scenarios isolates the quality contribution of the memory extension.
 spec:
+  target:
+    kind: Agent
   patch:
     design_pattern:
       type: react

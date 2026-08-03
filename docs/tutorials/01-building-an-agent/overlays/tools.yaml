@@ -6,11 +6,15 @@ kind: Overlay
 metadata:
   name: tools
 spec:
+  target:
+    kind: Agent
   patch:
     context:
       tool_usage: |
         When you need to perform calculations, use the calc tool.
         When you need current information from the web, use the web-search tool.
     tools:
-      - ref: samples:tools/web-search.tool.yaml
-      - ref: samples:tools/calc.tool.yaml
+      $op:
+        add:
+          - ref: samples:tools/web-search.tool.yaml
+          - ref: samples:tools/calc.tool.yaml

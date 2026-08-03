@@ -11,5 +11,7 @@ metadata:
     answers purely from its reasoning capacity.
 
 spec:
+  target:
+    kind: Agent
   patch:
     tools: []

@@ -29,8 +29,11 @@ def _merged_tutorial_agent(*, hitl_result: bool = True) -> dict:
         base = merge_overlay(base, _load_yaml(T01 / "overlays" / name))
     gov = _load_yaml(T01 / "overlays" / "governance-hitl.yaml")
     if not hitl_result:
-        patch = gov["spec"]["patch"]["governance"][0]["sample_governance"]
-        patch["hitl_on_tool_result"] = False
+        add_items = gov["spec"]["patch"]["governance"]["$op"]["add"]
+        for item in add_items:
+            if isinstance(item, dict) and "sample_governance" in item:
+                item["sample_governance"]["hitl_on_tool_result"] = False
+                break
     base = merge_overlay(base, gov)
     return base
 

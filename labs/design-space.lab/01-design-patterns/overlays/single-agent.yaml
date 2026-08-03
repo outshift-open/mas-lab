@@ -7,4 +7,6 @@ metadata:
   description: "Baseline — single agent with no design pattern (vanilla LLM call)"
 
 spec:
+  target:
+    kind: Agent
   patch: {}

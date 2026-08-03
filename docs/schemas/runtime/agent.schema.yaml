@@ -645,52 +645,6 @@ properties:
                   additionalProperties: true
                   default: {}
 
-      plugins:
-        type: array
-        description: >
-          Plugin instances to load into this agent's registry.
-          Processed in order — use priority to control execution ordering
-          within hook chains.
-          Overlay-compatible: an overlay may append entries to this list or
-          override a named entry (matched by the name field).
-        default: []
-        items:
-          type: object
-          required: [module_path, class_name]
-          additionalProperties: false
-          properties:
-            name:
-              type: string
-              description: >
-                Logical name for this plugin instance.
-                Used as a stable key for overlay merge and registry lookup.
-                Defaults to class_name when omitted.
-              default: ""
-            module_path:
-              type: string
-              description: "Dotted Python module path, e.g. mas.runtime.plugins.guardrails_plugin."
-            class_name:
-              type: string
-              description: "Plugin class name to instantiate."
-            config:
-              type: object
-              description: "Plugin-specific init kwargs passed as plugin_cls(**config)."
-              additionalProperties: true
-              default: {}
-            params:
-              type: object
-              description: "Alias for config (backward compatibility)."
-              additionalProperties: true
-              default: {}
-            priority:
-              type: integer
-              description: "Execution order within a hook chain. Lower = earlier."
-              default: 100
-            enabled:
-              type: boolean
-              description: "Set to false to disable this plugin without removing it."
-              default: true
-
       behavior:
         type: object
         description: >

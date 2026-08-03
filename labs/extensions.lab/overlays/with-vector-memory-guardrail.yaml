@@ -31,6 +31,8 @@ metadata:
 #   - Item g1 ("Plan a trip to Shadowmere"): policy fires → PolicyDenial event
 #     appears in the trajectory; agent returns a blocked-request response.
 spec:
+  target:
+    kind: MAS
   plugins:
     - module_path: mas.library.standard.plugins.memory.memory_semantic
       class_name: SemanticMemoryPlugin

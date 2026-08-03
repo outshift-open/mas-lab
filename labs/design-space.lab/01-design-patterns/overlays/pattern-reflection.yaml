@@ -7,6 +7,8 @@ metadata:
   description: "Reflection / Introspection — periodic self-review loop after each N steps"
 
 spec:
+  target:
+    kind: Agent
   patch:
     design_pattern:
       type: introspection

@@ -25,6 +25,8 @@ metadata:
 # Retrieval trace: tool_call_end(memory_search).result.results[].key == fNNN
 
 spec:
+  target:
+    kind: MAS
   plugins:
     - module_path: mas.library.standard.plugins.memory.memory_semantic
       class_name: SemanticMemoryPlugin

@@ -19,7 +19,8 @@ def test_build_cli_overlay_none_when_empty() -> None:
 
 def test_build_cli_overlay_tools_branch() -> None:
     ov = build_cli_overlay(tools=("web-search", "calculator"))
-    assert ov["spec"]["patch"]["tools"] == ["web-search", "calculator"]
+    assert ov["spec"]["target"]["kind"] == "Agent"
+    assert ov["spec"]["patch"]["tools"] == {"$op": {"add": ["web-search", "calculator"]}}
 
 
 def test_build_cli_overlay_bad_set_raises() -> None:
@@ -32,7 +33,8 @@ def test_build_cli_overlay_is_canonical_overlay() -> None:
     assert ov["apiVersion"] == "mas/v1"
     assert ov["kind"] == "Overlay"
     patch = ov["spec"]["patch"]
-    assert patch["skills"] == ["answer-formatting"]
+    assert ov["spec"]["target"]["kind"] == "Agent"
+    assert patch["skills"] == {"$op": {"add": ["answer-formatting"]}}
     assert patch["memory"] == "semantic"
     assert patch["context"] == {"k": "v"}
     # accepted by normalize_overlay (the check that previously rejected it)

@@ -8,6 +8,8 @@ metadata:
     Single-agent topology for bit-exactness reproducibility (local copy — no cross-lab refs).
 
 spec:
+  target:
+    kind: MAS
   patch:
     agents_remove:
       - moderator

@@ -6,9 +6,13 @@ kind: Overlay
 metadata:
   name: memory-seed
 spec:
+  target:
+    kind: Agent
   patch:
     memory_seed:
-      - source: user_preference
-        content: >
-          User always refers to the fruit when asking about 'Apple',
-          not the stock.
+      $op:
+        add:
+          - source: user_preference
+            content: >
+              User always refers to the fruit when asking about 'Apple',
+              not the stock.

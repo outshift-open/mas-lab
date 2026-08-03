@@ -20,6 +20,8 @@ metadata:
 # Retrieval trace: context_part_contributed events (no memory_search tool calls)
 
 spec:
+  target:
+    kind: Agent
   plugins:
     - module_path: lib.memory.letta_wrapper
       class_name: LettaCoreMemoryWrapper

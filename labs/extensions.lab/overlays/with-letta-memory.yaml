@@ -22,6 +22,8 @@ metadata:
 #
 # Alex's profile (same content as with-vector-memory, different access pattern).
 spec:
+  target:
+    kind: Agent
   plugins:
     - module_path: memory.letta_wrapper
       class_name: LettaCoreMemoryWrapper

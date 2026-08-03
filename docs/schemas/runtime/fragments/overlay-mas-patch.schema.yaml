@@ -1,0 +1,119 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+title: OverlayMasPatch
+type: object
+additionalProperties: false
+patternProperties:
+  "^x-": {}
+properties:
+  agency:
+    type: object
+    x-merge:
+      strategy: replace
+  workflow:
+    type: object
+    x-merge:
+      strategy: replace
+  capabilities:
+    type: object
+    x-merge:
+      strategy: mapping_merge_or_ops
+  telemetry:
+    type: object
+    x-merge:
+      strategy: mapping_merge_or_ops
+  params:
+    type: object
+    additionalProperties:
+      type: string
+    x-merge:
+      strategy: mapping_merge_or_ops
+  intent:
+    type: object
+    x-merge:
+      strategy: mapping_merge_or_ops
+  governance:
+    x-merge:
+      strategy: plugin_list_ops
+      identity: plugin_id
+    oneOf:
+      - type: "null"
+      - $ref: "./overlay-collection-ops-governance.schema.yaml"
+  agents:
+    x-merge:
+      strategy: agent_collection_ops
+      identity: agency_entry_key
+    oneOf:
+      - type: object
+        additionalProperties:
+          $ref: "./agent-patch.schema.yaml"
+      - type: object
+        additionalProperties: false
+        required: [$op]
+        properties:
+          $op:
+            type: object
+            additionalProperties: false
+            minProperties: 1
+            properties:
+              replace:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [id, ref]
+                  properties:
+                    id:
+                      type: string
+                    ref:
+                      type: string
+              add:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [id, ref]
+                  properties:
+                    id:
+                      type: string
+                    ref:
+                      type: string
+              remove:
+                type: array
+                items:
+                  type: string
+              clear:
+                type: boolean
+                const: true
+  agents_add:
+    x-merge:
+      strategy: agent_collection_ops
+      identity: agency_entry_key
+    oneOf:
+      - type: array
+        items:
+          type: object
+          additionalProperties: true
+      - type: object
+        additionalProperties: false
+        required: [$op]
+        properties:
+          $op:
+            type: object
+            additionalProperties: false
+            minProperties: 1
+            properties:
+              add:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+              clear:
+                type: boolean
+                const: true
+  agents_remove:
+    $ref: "./overlay-collection-ops-string.schema.yaml"
+    x-merge:
+      strategy: list_ops
+      identity: value

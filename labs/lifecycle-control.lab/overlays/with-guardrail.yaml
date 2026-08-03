@@ -6,6 +6,8 @@ metadata:
   name: with-guardrail
 # +Guardrail: blocks forbidden content (Shadowmere)
 spec:
+  target:
+    kind: Agent
   patch:
     observability:
       - native

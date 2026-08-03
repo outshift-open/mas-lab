@@ -1,0 +1,22 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+title: OverlayControlCollectionOps
+oneOf:
+  - $ref: "./control-binding.schema.yaml"
+  - type: object
+    additionalProperties: false
+    required: [$op]
+    properties:
+      $op:
+        type: object
+        additionalProperties: false
+        minProperties: 1
+        properties:
+          replace:
+            $ref: "./control-binding.schema.yaml"
+          merge:
+            $ref: "./control-binding.schema.yaml"
+          clear:
+            type: boolean
+            const: true

@@ -7,6 +7,8 @@ metadata:
   description: "Supervised topology for bit-exactness reproducibility (local copy)."
 
 spec:
+  target:
+    kind: MAS
   patch:
     workflow:
       entry: moderator

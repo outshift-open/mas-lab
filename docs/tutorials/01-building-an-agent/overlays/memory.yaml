@@ -6,6 +6,8 @@ kind: Overlay
 metadata:
   name: memory
 spec:
+  target:
+    kind: Agent
   patch:
     context:
       memory_usage: |
@@ -13,4 +15,6 @@ spec:
         When the user corrects you or shares a preference, store it with memory_store.
     memory: semantic
     tools:
-      - ref: samples:tools/memory-search.tool.yaml
+      $op:
+        add:
+          - ref: samples:tools/memory-search.tool.yaml

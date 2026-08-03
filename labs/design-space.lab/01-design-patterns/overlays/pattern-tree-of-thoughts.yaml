@@ -7,6 +7,8 @@ metadata:
   description: "Tree-of-Thoughts — branching reasoning with evaluation and pruning (Yao et al. 2023)"
 
 spec:
+  target:
+    kind: Agent
   patch:
     design_pattern:
       type: tree_of_thoughts

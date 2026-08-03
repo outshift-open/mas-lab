@@ -6,7 +6,11 @@ kind: Overlay
 metadata:
   name: baseline-agent
 spec:
+  target:
+    kind: Agent
   patch:
     tools:
-      - ref: samples:tools/web-search.tool.yaml
-      - ref: samples:tools/calc.tool.yaml
+      $op:
+        add:
+          - ref: samples:tools/web-search.tool.yaml
+          - ref: samples:tools/calc.tool.yaml

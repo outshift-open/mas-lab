@@ -6,6 +6,8 @@ kind: Overlay
 metadata:
   name: mock-llm
 spec:
+  target:
+    kind: Agent
   patch:
     execution:
       mocking:
@@ -13,4 +15,6 @@ spec:
     llm:
       provider: mock
     infra_refs:
-      - standard:mock-llm
+      $op:
+        add:
+          - standard:mock-llm

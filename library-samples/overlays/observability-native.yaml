@@ -8,6 +8,8 @@ kind: Overlay
 metadata:
   name: observability-native
 spec:
+  target:
+    kind: Agent
   patch:
     observability:
       - native

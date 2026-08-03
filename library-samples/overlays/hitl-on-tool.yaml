@@ -6,6 +6,8 @@ kind: Overlay
 metadata:
   name: hitl-on-tool
 spec:
+  target:
+    kind: Agent
   patch:
     governance:
       - sample_governance:

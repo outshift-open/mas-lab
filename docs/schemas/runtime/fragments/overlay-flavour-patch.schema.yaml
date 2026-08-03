@@ -1,0 +1,46 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+title: OverlayFlavourPatch
+type: object
+additionalProperties: false
+patternProperties:
+  "^x-": {}
+properties:
+  agent_comm:
+    type: object
+    x-merge:
+      strategy: mapping_merge_or_ops
+  capabilities:
+    type: object
+    x-merge:
+      strategy: mapping_merge_or_ops
+  telemetry:
+    type: object
+    x-merge:
+      strategy: mapping_merge_or_ops
+  observability:
+    x-merge:
+      strategy: plugin_list_ops
+      identity: plugin_id
+    oneOf:
+      - type: "null"
+      - $ref: "./overlay-collection-ops-observability.schema.yaml"
+  control:
+    x-merge:
+      strategy: mapping_ops
+    oneOf:
+      - type: "null"
+      - $ref: "./overlay-collection-ops-control.schema.yaml"
+  tools:
+    $ref: "./overlay-collection-ops-object-merge.schema.yaml"
+    x-merge:
+      strategy: mapping_merge_or_ops
+  config:
+    $ref: "./overlay-collection-ops-object-merge.schema.yaml"
+    x-merge:
+      strategy: mapping_merge_or_ops
+  operator:
+    $ref: "./overlay-collection-ops-object-merge.schema.yaml"
+    x-merge:
+      strategy: mapping_merge_or_ops

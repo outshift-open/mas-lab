@@ -6,6 +6,8 @@ kind: Overlay
 metadata:
   name: mock-llm
 spec:
+  target:
+    kind: Agent
   patch:
     execution:
       mocking:

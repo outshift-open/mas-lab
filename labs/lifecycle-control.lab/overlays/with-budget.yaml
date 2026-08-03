@@ -6,6 +6,8 @@ metadata:
   name: with-budget
 # +Budget: adds budget governance (normal threshold)
 spec:
+  target:
+    kind: Agent
   patch:
     observability:
       - native

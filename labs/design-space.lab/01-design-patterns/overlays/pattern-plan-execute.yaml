@@ -7,6 +7,8 @@ metadata:
   description: "Plan-and-Execute — generate a full plan, then execute steps sequentially"
 
 spec:
+  target:
+    kind: Agent
   patch:
     design_pattern:
       type: plan_execute

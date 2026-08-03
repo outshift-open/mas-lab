@@ -24,9 +24,9 @@ def build_cli_overlay(
         return None
     spec: dict[str, Any] = {}
     if tools:
-        spec["tools"] = list(tools)
+        spec["tools"] = {"$op": {"add": list(tools)}}
     if skills:
-        spec["skills"] = list(skills)
+        spec["skills"] = {"$op": {"add": list(skills)}}
     if memory:
         spec["memory"] = memory
     if set_values:
@@ -44,7 +44,7 @@ def build_cli_overlay(
         "apiVersion": "mas/v1",
         "kind": "Overlay",
         "metadata": {"name": "cli-overlay"},
-        "spec": {"patch": spec},
+        "spec": {"target": {"kind": "Agent"}, "patch": spec},
     }
 
 
