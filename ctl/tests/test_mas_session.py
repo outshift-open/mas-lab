@@ -13,11 +13,9 @@ from mas.ctl.compose.runner import ComposeResult
 from mas.ctl.executor.mas_session import (
     agent_manifest_label,
     entry_agent_id,
-    is_sequential_workflow,
     make_workflow_send,
     prepare_delegation_entry_session,
     resolve_entry_pattern_plugin_id,
-    sequential_workflow_payload,
     wire_peer_delegation,
 )
 from mas.ctl.benchmark.runner_dispatch import is_mas_manifest_kind, mas_manifest_path
@@ -87,72 +85,6 @@ def test_resolve_entry_pattern_plugin_id_falls_back_to_manifest():
     assert resolve_entry_pattern_plugin_id(compose, "alpha", entry_manifest=manifest) == "plan_execute@v1"
 
 
-def test_is_sequential_workflow_rejects_dynamic():
-    dynamic = {
-        "spec": {
-            "workflow": {
-                "entry": "moderator",
-                "nodes": [{"id": "moderator", "delegates_to": ["a"]}],
-            }
-        }
-    }
-    assert is_sequential_workflow(dynamic, 2) is False
-
-
-def test_is_sequential_workflow_rejects_dynamic_with_edges():
-    dynamic = {
-        "spec": {
-            "workflow": {
-                "type": "dynamic",
-                "entry": "moderator",
-                "edges": [{"from": "moderator", "to": "worker"}],
-                "nodes": [{"id": "moderator"}, {"id": "worker"}],
-            }
-        }
-    }
-    assert is_sequential_workflow(dynamic, 2) is False
-
-
-def test_is_sequential_workflow_rejects_untyped_graph_with_edges():
-    graph = {
-        "spec": {
-            "workflow": {
-                "entry": "moderator",
-                "edges": [{"from": "moderator", "to": "worker"}],
-                "nodes": [{"id": "moderator"}, {"id": "worker"}],
-            }
-        }
-    }
-    assert is_sequential_workflow(graph, 2) is False
-
-
-def test_sequential_workflow_payload_uses_explicit_edges_only():
-    mas = {
-        "spec": {
-            "workflow": {
-                "type": "sequential",
-                "entry": "a",
-                "nodes": [{"id": "a", "delegates_to": ["b"]}, {"id": "b"}],
-                "edges": [{"from": "a", "to": "b"}],
-            }
-        }
-    }
-    payload = sequential_workflow_payload(mas)
-    assert payload["edges"] == [{"from": "a", "to": "b"}]
-
-    delegates_only = {
-        "spec": {
-            "workflow": {
-                "type": "sequential",
-                "entry": "a",
-                "nodes": [{"id": "a", "delegates_to": ["b"]}, {"id": "b"}],
-            }
-        }
-    }
-    with pytest.raises(RuntimeError, match="workflow.edges"):
-        sequential_workflow_payload(delegates_only)
-
-
 def test_prepare_delegation_entry_session_sets_driver_agent_id(tmp_path: Path):
     driver = SimpleNamespace(agent_id=None, engine=MagicMock())
     instance = SimpleNamespace(driver=driver)
@@ -195,7 +127,6 @@ def _mas_config_two_level_delegation() -> dict:
     return {
         "spec": {
             "workflow": {
-                "type": "dynamic",
                 "entry": "moderator",
                 "nodes": [
                     {"id": "moderator", "delegates_to": ["schedule_agent"]},
@@ -436,40 +367,6 @@ def test_two_separate_workflow_send_closures_get_different_session_ids_when_unsp
             send_b("schedule_agent", "q2", caller_call_id="c2")
 
     assert captured[0] != captured[1]
-
-
-def test_run_sequential_workflow_queries_threads_session_id_into_make_workflow_send():
-    from mas.ctl.executor.mas_session import run_sequential_workflow_queries
-
-    materialized = _fake_materialized_for_send(["worker"])
-    captured_kwargs: dict = {}
-
-    def _fake_make_workflow_send(materialized_arg, **kwargs):
-        captured_kwargs.update(kwargs)
-
-        def _send(agent_id, prompt, delegate_correlation_id=0, caller_call_id=""):
-            return "ok"
-
-        return _send
-
-    mas_wrapper = SimpleNamespace(materialized=materialized)
-    mas_config = {"spec": {"workflow": {"entry": "worker"}}}
-
-    with patch("mas.ctl.executor.mas_session.make_workflow_send", side_effect=_fake_make_workflow_send):
-        with patch("mas.ctl.executor.mas_session.sequential_workflow_payload", return_value={}):
-            with patch("mas.ctl.executor.mas_session.SequentialWorkflow") as mock_wf_cls:
-                mock_wf = MagicMock()
-                mock_wf.run.return_value = SimpleNamespace(content="done")
-                mock_wf_cls.from_dict.return_value = mock_wf
-                run_sequential_workflow_queries(
-                    mas_config,
-                    mas_wrapper,
-                    ["hello"],
-                    display=None,
-                    session_id="seq-session-xyz",
-                )
-
-    assert captured_kwargs.get("session_id") == "seq-session-xyz"
 
 
 def test_prepare_delegation_entry_session_mints_session_id_when_none_given(tmp_path: Path):

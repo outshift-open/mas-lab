@@ -51,16 +51,10 @@ tasks:
           tests/test_oss_agent_manifests_strict.py \
           tests/test_lab_manifests_strict.py \
           tests/test_workspace_imports.py \
-          runtime/tests/test_flavour_separation.py \
-          runtime/tests/test_flavour_manifest_load_rejects_infra_refs.py \
-          runtime/tests/test_manifest_composition.py \
-          runtime/tests/test_overlay_merge.py \
-          runtime/tests/test_library_catalog.py \
-          runtime/tests/test_mealy_envelope.py \
-          runtime/tests/test_infra_pipeline_bidirectional.py \
+          runtime/tests/ \
           lab/components/core/tests/ \
           lab/components/bench/tests/ \
-          ctl/tests/test_infra_entries.py \
+          ctl/tests/ \
           library-standard/tests/ \
           -q --tb=line
 
@@ -175,14 +169,12 @@ tasks:
           -o overlays/governance-hitl.yaml
 
   verify:
-    desc: "Full pre-commit gate — versions, unit + functional tests, chat smoke"
+    desc: "Full pre-commit gate — CI gates + env check, version check, chat smoke, HITL"
     deps: [install-dev]
     cmds:
       - python3 scripts/version_manager.py check
       - task: verify-ctl-env
-      - task: verify:literals
-      - task: verify-unit
-      - task: verify-functional
+      - task: ci
       - task: verify-chat-smoke
       - task: verify-hitl-gate
 

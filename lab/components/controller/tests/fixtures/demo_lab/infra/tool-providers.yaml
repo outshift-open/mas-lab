@@ -23,41 +23,27 @@ spec:
       kind: python
       module_path: library-samples/tools/query_graph_database.py
       class_name: QueryGraphDatabaseTool
-      params:
-        dataset_path: datasets/arborian-network.yaml
     lookup_schedule:
       kind: python
       module_path: library-samples/tools/lookup_schedule.py
       class_name: LookupScheduleTool
-      params:
-        dataset_path: datasets/arborian-network.yaml
     get_attractions:
       kind: python
       module_path: library-samples/tools/get_attractions.py
       class_name: GetAttractionsTool
-      params:
-        dataset_path: datasets/arborian-network.yaml
     get_attractions_description:
       kind: python
       module_path: library-samples/tools/get_attractions_description.py
       class_name: GetAttractionsDescriptionTool
-      params:
-        dataset_path: datasets/arborian-network.yaml
     get_attraction_fare:
       kind: python
       module_path: library-samples/tools/get_attraction_fare.py
       class_name: GetAttractionFareTool
-      params:
-        dataset_path: datasets/arborian-network.yaml
     get_trip_fares:
       kind: python
       module_path: library-samples/tools/get_trip_fares.py
       class_name: GetTripFaresTool
-      params:
-        dataset_path: datasets/arborian-network.yaml
     get_fares:
       kind: python
       module_path: library-samples/tools/get_fares.py
       class_name: GetFaresTool
-      params:
-        dataset_path: datasets/arborian-network.yaml

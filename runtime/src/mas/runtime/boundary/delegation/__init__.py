@@ -11,7 +11,6 @@ from mas.runtime.boundary.delegation.policy import (
     openai_delegation_tools,
     parse_delegate_tool_name,
     uses_llm_peer_delegation,
-    workflow_type,
 )
 from mas.runtime.boundary.delegation.protocol import DelegationContract
 
@@ -25,5 +24,4 @@ __all__ = [
     "openai_delegation_tools",
     "parse_delegate_tool_name",
     "uses_llm_peer_delegation",
-    "workflow_type",
 ]

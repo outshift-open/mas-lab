@@ -10,7 +10,7 @@ experiment:
     notes: Created via mas-lab UI experiment builder.
   default_flavour: local
   applications:
-    - manifest: apps/trip-planner/mas.yaml
+    - manifest: ../demo_lab/apps/trip-planner/mas.yaml
   scenarios:
     - id: cot
       description: Chain-of-thought moderator reasoning
@@ -19,7 +19,7 @@ experiment:
         - baseline
       overlays:
         logic:
-          - ref: overlays/cot-moderator.yaml
+          - ref: ../demo_lab/overlays/cot-moderator.yaml
         control: []
         infra: []
     - id: react
@@ -28,7 +28,7 @@ experiment:
         - design-pattern
       overlays:
         logic:
-          - ref: overlays/react-moderator.yaml
+          - ref: ../demo_lab/overlays/react-moderator.yaml
         control: []
         infra: []
     - id: reflection
@@ -37,11 +37,11 @@ experiment:
         - design-pattern
       overlays:
         logic:
-          - ref: overlays/reflection-moderator.yaml
+          - ref: ../demo_lab/overlays/reflection-moderator.yaml
         control: []
         infra: []
   dataset:
-    path: datasets/trip-planner/queries.yaml
+    path: ../demo_lab/datasets/trip-planner/queries.yaml
     limit: 5
   run:
     n_runs: 3

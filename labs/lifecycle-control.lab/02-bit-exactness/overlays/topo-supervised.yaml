@@ -12,7 +12,6 @@ spec:
   patch:
     workflow:
       entry: moderator
-      max_rounds: 20
       nodes:
         - id: moderator
           delegates_to: [schedule_agent, itinerary_agent, concierge_agent]

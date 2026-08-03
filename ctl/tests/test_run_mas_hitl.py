@@ -10,6 +10,7 @@ from mas.ctl.executor.run_mas import execute_run_mas
 
 
 def test_run_mas_no_auto_hitl_uses_operator_console(tmp_path):
+    """With auto_hitl=False, run-mas uses OperatorConsole for interactive HITL."""
     agent = tmp_path / "agent.yaml"
     agent.write_text(
         """apiVersion: mas/v1
@@ -53,6 +54,7 @@ spec:
 
 
 def test_run_mas_auto_hitl_batch_skips_operator_console(tmp_path):
+    """With auto_hitl=True (batch mode), run-mas bypasses OperatorConsole."""
     agent = tmp_path / "agent.yaml"
     agent.write_text(
         """apiVersion: mas/v1
@@ -98,3 +100,4 @@ spec:
     assert rc == 0
     mock_console.run.assert_not_called()
     run_turn.assert_called()
+

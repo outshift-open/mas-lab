@@ -9,11 +9,10 @@ spec:
   agency:
     agents:
       - id: coordinator
-        ref: agents/coordinator.yaml
+        ref: new-mas-coordinator.yaml
       - id: researcher
-        ref: agents/researcher.yaml
+        ref: new-mas-researcher.yaml
   workflow:
-    type: dynamic
     entry: coordinator
     nodes:
       - id: coordinator

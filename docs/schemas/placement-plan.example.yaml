@@ -13,12 +13,12 @@ metadata:
 spec:
   agents:
     - id: orchestrator
-      manifest: agents/orchestrator.yaml
+      manifest: ../../library-samples/apps/trip-planner/agents/moderator.yaml
       placement:
         unit: default
       bind_address: inproc://orchestrator
     - id: transport
-      manifest: agents/transport.yaml
+      manifest: ../../library-samples/apps/trip-planner/agents/concierge_agent.yaml
       placement:
         unit: default
       bind_address: inproc://transport
@@ -39,9 +39,4 @@ spec:
     runs_dir: logs/trip-planner/
 
   executor:
-    docker:
-      image: mas-runtime:2.0
-      network: mas-bridge
-    k8s:
-      namespace: mas-dev
-      service_account: mas-agent
+    mode: local

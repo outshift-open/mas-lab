@@ -12,7 +12,6 @@ spec:
           type: react
           config:
             max_steps: 15
-        models:
-          - model: azure/gpt-4o
-            temperature: 0.5
-            max_tokens: 3000
+        llm:
+          temperature: 0.5
+          max_tokens: 3000

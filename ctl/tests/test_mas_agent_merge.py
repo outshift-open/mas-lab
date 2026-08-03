@@ -34,7 +34,6 @@ def test_enrich_entry_agent_injects_workflow(tmp_path: Path):
             "agents": [{"id": "alpha", "ref": "agents/alpha.yaml"}],
             "workflow": {
                 "entry": "entry",
-                "type": "dynamic",
                 "nodes": [{"id": "entry", "delegates_to": ["alpha", "beta"]}],
             },
         }

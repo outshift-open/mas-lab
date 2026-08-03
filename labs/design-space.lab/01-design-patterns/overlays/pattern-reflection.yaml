@@ -11,8 +11,6 @@ spec:
     kind: Agent
   patch:
     design_pattern:
-      type: introspection
+      type: reflection
       config:
-        mode: health_check
-        trigger_every_n_steps: 2
-        max_introspection_tokens: 1000
+        max_steps: 10

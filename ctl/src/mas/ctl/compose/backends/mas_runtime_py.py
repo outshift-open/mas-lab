@@ -59,6 +59,20 @@ class MasRuntimePyKernelBackend:
                         agent_manifest = apply_agency_entry_overlay(
                             agent_manifest, agency_entry
                         )
+                    # Make MAS topology available inside per-agent spec for
+                    # runtime design-pattern plugins that are deterministic and
+                    # infer participant routing from workflow/agency metadata.
+                    if isinstance(mas_config, dict):
+                        mas_spec = mas_config.get("spec") if isinstance(mas_config.get("spec"), dict) else mas_config
+                        if isinstance(mas_spec, dict):
+                            wf = mas_spec.get("workflow")
+                            if isinstance(wf, dict):
+                                agent_manifest.setdefault("spec", {})["workflow"] = dict(wf)
+                            agency = mas_spec.get("agency")
+                            if isinstance(agency, dict) and isinstance(agency.get("agents"), list):
+                                agent_manifest.setdefault("spec", {})["agency"] = {
+                                    "agents": list(agency.get("agents") or [])
+                                }
                     parse_collaboration((agent_manifest.get("spec") or {}).get("collaboration"))
                     agent_manifest = resolve_manifest_tool_refs(agent_manifest, manifest_dir)
 

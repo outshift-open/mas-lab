@@ -8,7 +8,6 @@ spec:
       - id: qa-agent
         ref: agents/qa-agent.yaml
   workflow:
-    type: dynamic
     entry: qa-agent
     nodes:
       - id: qa-agent

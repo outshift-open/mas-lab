@@ -1,8 +1,9 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
 kind: Overlay
 metadata:
-  id: vector-bigk
+  name: vector-bigk
 # Scenario: with-vector-memory-factrecall
 #
 # Purpose: measure retrieval precision/recall/F1 per query using provenance.
@@ -41,7 +42,7 @@ spec:
     agents:
       moderator:
         tools:
-          - ref: ../tools/memory-search.tool.yaml
+          - ref: ../../library-samples/tools/memory-search.tool.yaml
 
         context:
           role: |

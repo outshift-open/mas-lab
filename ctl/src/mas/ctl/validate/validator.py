@@ -15,6 +15,7 @@ from mas.ctl.validate.schema_errors import humanize_schema_error
 from mas.ctl.validate.schemas import declared_kind, load_schema, schema_path_for_kind
 from mas.ctl.validate.refs import check_refs, resolve_refs_enabled
 from mas.ctl.validate.separation import check_separation
+from mas.ctl.overlay.normalize import normalize_overlay
 
 
 @dataclass
@@ -143,11 +144,20 @@ def validate_file(
 ) -> ValidationResult:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
-        return ValidationResult(
-            ok=False,
-            source=str(path),
-            issues=[ValidationIssue("error", "manifest must be a YAML mapping")],
-        )
+        # Not a mapping — not a MAS manifest; skip gracefully.
+        return ValidationResult(ok=True, kind=None, source=str(path), issues=[])
+    if declared_kind(raw) is None and kind is None:
+        return ValidationResult(ok=True, kind=None, source=str(path), issues=[])
+    if (kind == "overlay") or (kind is None and declared_kind(raw) == "overlay"):
+        try:
+            raw = normalize_overlay(raw, name=path.stem)
+        except Exception as exc:
+            return ValidationResult(
+                ok=False,
+                kind="overlay",
+                source=str(path),
+                issues=[ValidationIssue("error", str(exc))],
+            )
     return validate_data(
         raw,
         source=str(path),

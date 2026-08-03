@@ -18,7 +18,7 @@ spec:
       - concierge_agent
     agents_add:
       - id: generalist
-        ref: agents/generalist/agent.yaml
+        ref: ../../../library-samples/apps/trip-planner/agents/generalist/agent.yaml
     workflow:
       entry: generalist
       nodes:

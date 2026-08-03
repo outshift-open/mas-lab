@@ -68,7 +68,9 @@ def instantiate_runtime(
         store.memory_seeds = [{"key": s.key, "content": s.content} for s in seeds]
 
     ctx = AutoCtxAssembler(pattern_plugin_id=options.pattern_plugin_id)
-    skill_base = options.app_root or options.manifest_dir
+    # Resolve skills relative to the agent manifest directory first.
+    # app_root can be '.' for some compose flows and would break relative refs.
+    skill_base = options.manifest_dir or options.app_root
     _apply_manifest_context(
         ctx,
         options.agent_manifest,
@@ -84,7 +86,23 @@ def instantiate_runtime(
             base_dir=skill_base,
         )
     ctx.capture_baseline()
-    spec = (options.agent_manifest or {}).get("spec") or {}
+    spec = dict((options.agent_manifest or {}).get("spec") or {})
+    # Keep agent spec isolated from MAS workflow policy. We only surface agency
+    # participants (read-only) when available for context/routing helpers.
+    if "agency" not in spec:
+        mas_cfg = None
+        composed_app = getattr(getattr(options, "bind", None), "composed_application", None)
+        if composed_app is not None:
+            mas_cfg = getattr(composed_app, "config", None)
+        # Fallback source when available through agent_manifest wrappers.
+        if mas_cfg is None and options.agent_manifest and isinstance(options.agent_manifest.get("mas"), dict):
+            mas_cfg = options.agent_manifest.get("mas")
+
+        if isinstance(mas_cfg, dict):
+            mas_spec = mas_cfg.get("spec") if isinstance(mas_cfg.get("spec"), dict) else mas_cfg
+            agency = mas_spec.get("agency") if isinstance(mas_spec, dict) else None
+            if isinstance(agency, dict) and agency.get("agents"):
+                spec["agency"] = {"agents": list(agency.get("agents") or [])}
     ws = options.workspace or WorkspaceConfig.load(options.manifest_dir or Path.cwd())
     # Pre-parse spec to derive kernel config once; pass to build_engine to avoid double-parsing.
     from mas.runtime.spec.parser import parse_agent_spec

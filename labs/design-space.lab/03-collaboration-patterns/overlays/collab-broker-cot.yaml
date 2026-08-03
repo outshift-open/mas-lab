@@ -1,0 +1,25 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  id: collab-broker-cot
+  description: "Moderator-broker topology + CoT moderator"
+  tags: [topology, pattern, collaboration, exp-1.3]
+
+spec:
+  patch:
+    workflow:
+      entry: moderator
+      nodes:
+        - id: moderator
+          delegates_to: [schedule_agent, itinerary_agent, concierge_agent]
+        - id: schedule_agent
+        - id: itinerary_agent
+        - id: concierge_agent
+    agents:
+      moderator:
+        design_pattern:
+          type: cot
+          config:
+            max_steps: 10

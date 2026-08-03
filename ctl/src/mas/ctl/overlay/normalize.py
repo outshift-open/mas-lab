@@ -8,23 +8,71 @@ from typing import Any
 
 
 def normalize_overlay(data: dict[str, Any], *, name: str = "overlay") -> dict[str, Any]:
-    """Require canonical ``mas/v1`` ``Overlay`` with ``spec.patch`` (dict)."""
+    """Normalize legacy and canonical overlays to ``mas/v1`` ``Overlay`` shape.
+
+    This function is intentionally validation-oriented: it keeps legacy overlays
+    loadable by coercing common historical shapes into a schema-valid envelope.
+    """
     if not isinstance(data, dict):
         raise ValueError("overlay must be a mapping")
 
-    api = str(data.get("apiVersion") or "")
     kind = str(data.get("kind") or "")
-    if api != "mas/v1" or kind != "Overlay":
+    if kind != "Overlay":
         raise ValueError(
-            f"unsupported overlay shape (apiVersion={api!r}, kind={kind!r}); "
-            "use mas/v1 kind: Overlay with spec.patch"
+            f"unsupported overlay shape (kind={kind!r}); expected apiVersion: mas/v1, kind: Overlay"
         )
 
-    spec = data.get("spec")
+    out = dict(data)
+    out["apiVersion"] = "mas/v1"
+
+    md = out.get("metadata")
+    if not isinstance(md, dict):
+        md = {}
+    md_name = md.get("name") or md.get("id") or name
+    md_desc = md.get("description", "")
+    out["metadata"] = {"name": str(md_name), "description": str(md_desc)}
+
+    spec = out.get("spec")
     if not isinstance(spec, dict):
         raise ValueError("Overlay spec must be a mapping")
+
+    target = spec.get("target") if isinstance(spec.get("target"), dict) else None
     patch = spec.get("patch")
     if not isinstance(patch, dict):
-        raise ValueError("Overlay spec.patch is required and must be a mapping")
+        patch = {}
 
-    return dict(data)
+    # Fold legacy top-level spec keys into patch if they are not already present.
+    for k, v in spec.items():
+        if k in {"target", "patch"}:
+            continue
+        patch.setdefault(k, v)
+
+    if not isinstance(target, dict):
+        target = {}
+    if not target.get("kind"):
+        # Don't infer target kind — require explicit spec.target.kind
+        # Overlays without a target will fail later in merge_overlay validation
+        pass
+
+    # Coerce legacy MAS-level design_pattern to moderator agent patch.
+    if target.get("kind") == "MAS" and "design_pattern" in patch:
+        agents = patch.get("agents")
+        if not isinstance(agents, dict):
+            agents = {}
+        mod = agents.get("moderator")
+        if not isinstance(mod, dict):
+            mod = {}
+        mod.setdefault("design_pattern", patch.get("design_pattern"))
+        agents["moderator"] = mod
+        patch["agents"] = agents
+        patch.pop("design_pattern", None)
+
+    # Preserve unsupported legacy fields as extension fields for strict schema.
+    for legacy_key in ("plugins",):
+        if legacy_key in patch:
+            patch[f"x-{legacy_key}"] = patch.pop(legacy_key)
+
+    if not isinstance(patch, dict):
+        raise ValueError("Overlay spec.patch is required and must be a mapping")
+    out["spec"] = {"target": target, "patch": patch}
+    return out

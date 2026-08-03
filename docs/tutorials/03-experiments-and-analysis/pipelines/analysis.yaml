@@ -1,32 +1,24 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-apiVersion: mas/v1
-kind: Pipeline
-
-metadata:
+pipeline:
   name: t3-analysis
   description: >
     Tutorial 03 analysis pipeline — extract trajectories + trace stats across a
     benchmark's runs, then plot the primary run's multilevel trajectory. Point it
     at a completed benchmark with `-o <lab-output-dir>` (see §B.4); the extract
     step reads that dir's results.csv and the plot steps resolve a trace from it.
-
-spec:
   steps:
     - name: extract
       type: extract_trajectories
-      description: "Extract per-agent trajectories from each run's events.jsonl"
 
     - name: trace-stats
       type: extract_trace_stats
-      description: "Aggregate trace statistics per run"
       depends_on: [extract]
       config:
         output: "{{run.output_dir}}/results/trace_stats.csv"
 
     - name: plot-svg
       type: plot_multilevel_trajectory
-      description: "Multilevel trajectory SVG for the primary run"
       depends_on: [extract]
       config:
         format: svg
@@ -34,7 +26,6 @@ spec:
 
     - name: plot-html
       type: plot_multilevel_trajectory
-      description: "Multilevel swimlane HTML for the primary run"
       depends_on: [extract]
       config:
         format: html

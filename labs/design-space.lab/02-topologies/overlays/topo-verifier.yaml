@@ -20,7 +20,6 @@ spec:
   patch:
     workflow:
       entry: moderator
-      max_rounds: 12
       nodes:
         - id: moderator
           delegates_to: [itinerary_agent, schedule_agent]

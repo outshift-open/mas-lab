@@ -15,5 +15,5 @@ spec:
       temperature: 0.2
       max_tokens: 1500
   tools:
-    - ref: ../../../tools/calc.tool.yaml
-    - ref: ../../../tools/web-search.tool.yaml
+    - ref: ../demo_lab/tools/calc.tool.yaml
+    - ref: ../demo_lab/tools/web-search.tool.yaml

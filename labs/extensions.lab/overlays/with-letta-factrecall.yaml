@@ -1,8 +1,9 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
 kind: Overlay
 metadata:
-  id: with-letta-factrecall
+  name: with-letta-factrecall
 # Scenario: with-letta-factrecall (passive injection via ContextContract)
 #
 # Comparison point for with-vector-memory-factrecall:

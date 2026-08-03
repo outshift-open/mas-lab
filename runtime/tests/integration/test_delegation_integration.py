@@ -7,7 +7,6 @@ from mas.runtime.boundary.delegation import (
     openai_delegation_tools,
     parse_delegate_tool_name,
     uses_llm_peer_delegation,
-    workflow_type,
 )
 
 
@@ -65,28 +64,26 @@ def test_collaboration_none_allows_delegation_tools():
     assert delegation_targets(manifest, agent_id="entry") == ["alpha"]
 
 
-def test_sequential_workflow_suppresses_delegate_tools():
+def test_topology_only_workflow_allows_delegate_tools_when_style_is_typed():
     manifest = {
         "metadata": {"name": "schedule_agent"},
         "spec": {
             "workflow": {
-                "type": "sequential",
                 "entry": "schedule_agent",
                 "nodes": [{"id": "schedule_agent", "delegates_to": ["itinerary_agent"]}],
             },
         },
     }
-    assert workflow_type(manifest) == "sequential"
-    assert not uses_llm_peer_delegation(manifest)
-    assert delegation_targets(manifest, agent_id="schedule_agent") == []
+    assert uses_llm_peer_delegation(manifest)
+    assert delegation_targets(manifest, agent_id="schedule_agent") == ["itinerary_agent"]
 
 
-def test_single_workflow_suppresses_delegate_tools():
+def test_topology_without_delegates_uses_capability_contract():
     manifest = {
         "metadata": {"name": "generalist"},
-        "spec": {"workflow": {"type": "single", "entry": "generalist", "nodes": [{"id": "generalist"}]}},
+        "spec": {"workflow": {"entry": "generalist", "nodes": [{"id": "generalist"}]}},
     }
-    assert not uses_llm_peer_delegation(manifest)
+    assert uses_llm_peer_delegation(manifest)
     assert delegation_targets(manifest) == []
 
 

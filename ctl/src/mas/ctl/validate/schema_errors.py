@@ -17,6 +17,9 @@ _UNKNOWN_PROPERTY_SINGLE_RE = re.compile(
 _ADDITIONAL_PROPERTY_RE = re.compile(
     r"^Additional properties are not allowed \('(?P<field>[^']+)' was unexpected\)$"
 )
+_ADDITIONAL_PROPERTIES_MULTI_RE = re.compile(
+    r"^Additional properties are not allowed \((?P<fields>(?:'[^']+'(?:,\s*)?)+) were unexpected\)$"
+)
 _REQUIRED_RE = re.compile(r"^'(?P<field>[^']+)' is a required property$")
 
 
@@ -46,6 +49,14 @@ def humanize_schema_error(err: Any) -> str:
     m = _ADDITIONAL_PROPERTY_RE.match(message)
     if m:
         return f"{_field_path(path, m.group('field'))} is not a valid property"
+
+    m = _ADDITIONAL_PROPERTIES_MULTI_RE.match(message)
+    if m:
+        fields = re.findall(r"'([^']+)'", m.group("fields"))
+        if len(fields) == 1:
+            return f"{_field_path(path, fields[0])} is not a valid property"
+        joined = ", ".join(_field_path(path, name) for name in fields)
+        return f"{joined} are not valid properties"
 
     m = _REQUIRED_RE.match(message)
     if m:

@@ -2,6 +2,7 @@ apiVersion: mas/v1
 kind: Overlay
 metadata:
   name: react-moderator
+  namespace: global
 spec:
   target:
     kind: MAS
@@ -12,7 +13,6 @@ spec:
           type: react
           config:
             max_steps: 10
-x-namespace: global
 x-canvas-positions:
   node_0ae0343f:
     x: 912

@@ -11,8 +11,6 @@ spec:
     kind: Agent
   patch:
     design_pattern:
-      type: tree_of_thoughts
+      type: cot
       config:
-        depth: 2
-        breadth: 3
-        eval_threshold: 0.7
+        max_steps: 12
