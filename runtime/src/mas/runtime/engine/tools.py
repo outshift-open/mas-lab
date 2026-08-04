@@ -107,7 +107,7 @@ def _manifest_agent_id(manifest: dict | None, agent_id: str | None) -> str | Non
 
 
 def tool_entry_name(item: Any, *, base_dir: Path | None = None) -> str | None:
-    """Resolved logical name for a ``spec.tools`` or ``spec.tools_remove`` entry."""
+    """Resolved logical name for a ``spec.tools`` entry (string, ref, or inline dict)."""
     if isinstance(item, str):
         return item or None
     if not isinstance(item, dict):

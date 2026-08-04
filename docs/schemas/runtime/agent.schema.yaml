@@ -64,8 +64,23 @@ properties:
           Keys are author-defined (role, intent, tool_usage, …). Values may be
           inline text, a path to an existing file (./prompts/role.md or
           prompts/role.md), or {ref: path} which always loads the file.
+        x-merge:
+          strategy: context_merge
         additionalProperties:
           $ref: "./fragments/context-chunk.schema.yaml"
+
+      params:
+        type: object
+        description: >
+          Free-form key/value params threaded onto the merged spec dict for
+          infra middleware and session-scoped side-channels to read (e.g.
+          ctl/session/params_sidecar.py, engine/infra_pipeline.py). Not
+          consumed directly by the kernel — a passthrough bag.
+        x-merge:
+          strategy: mapping_merge_or_ops
+        additionalProperties:
+          type: string
+        default: {}
 
       description:
         type: string
@@ -105,8 +120,10 @@ properties:
               default: 2000
 
       design_pattern:
-        type: object
+        type: [object, "null"]
         description: "Reasoning strategy. Defaults to react if absent."
+        x-merge:
+          strategy: replace
         additionalProperties: false
         properties:
           type:
@@ -131,37 +148,14 @@ properties:
             additionalProperties: true
             default: {}
 
-      collaboration:
-        type: object
-        description: >
-          Coordination plugin binding for DelegationContract (how peer delegation
-          executes — transport, limits, parallel policy). The delegation *graph*
-          (which peers) lives on MAS spec.workflow (delegates_to), not here.
-
-          This release: omit entirely or set type: none. Other type/ref values are
-          rejected at validate/compose. Ctl wires
-          the default LlmDelegator at run-mas and exposes delegate_to_<id> tools
-          derived from workflow topology.
-        additionalProperties: false
-        properties:
-          type:
-            type: string
-            description: >
-              Only ``none`` is supported in this release.
-          ref:
-            type: string
-            description: >
-              Not supported in this release.
-          params:
-            $ref: "./fragments/collaboration-params.schema.yaml"
-            default: {}
-
       context_manager:
         type: object
         description: >
           Context window management strategy. Defaults to stack (StackConversation,
           unbounded history) when absent. Builtin types: stack | sliding-window |
           summarising | full-history.
+        x-merge:
+          strategy: mapping_merge_or_ops
         additionalProperties: false
         properties:
           type:
@@ -181,6 +175,9 @@ properties:
               spec.skills (app-local → libraries → packages).
               This is the context path — complements the tool path
               (spec.skills → consult_skills tool).
+            x-merge:
+              strategy: list_ops
+              identity: value
             default: []
             items:
               type: string
@@ -200,6 +197,9 @@ properties:
           Useful for demos and tests that need pre-populated memory
           without a persistent store.  Each entry is indexed via
           index_document(source, content, metadata?).
+        x-merge:
+          strategy: list_ops
+          identity: value
         items:
           $ref: "./fragments/memory-seed-entry.schema.yaml"
 
@@ -210,6 +210,8 @@ properties:
           - Array shorthand: ["semantic", "episodic"] — multiple bundles.
           - Full object: memory.types, memory.compaction, etc.
           When absent, the active flavour decides defaults.
+        x-merge:
+          strategy: replace
         oneOf:
           - type: string
             description: >
@@ -255,51 +257,12 @@ properties:
                       $ref: "./fragments/memory-backend-params.schema.yaml"
                       default: {}
 
-              compaction:
-                type: object
-                description: >
-                  Conversation compaction configuration.  Controls how old turns are
-                  summarized to stay within the context window.  Maps to the
-                  ConversationStrategy used by ContextAssemblerPlugin.
-                additionalProperties: false
-                properties:
-                  strategy:
-                    type: string
-                    description: >
-                      Compaction strategy name: keep_recent | summarize | chunked_summarize.
-                      chunked_summarize splits long context into multiple summarized chunks.
-                    default: "keep_recent"
-                  reserve_tokens:
-                    type: integer
-                    description: "Minimum tokens reserved for the LLM reply."
-                    default: 20000
-                  keep_recent_ratio:
-                    type: number
-                    description: "Fraction of recent messages to preserve verbatim (0.0–1.0)."
-                    minimum: 0.0
-                    maximum: 1.0
-                    default: 0.4
-                  min_chunk_ratio:
-                    type: number
-                    description: "Minimum fraction per compaction chunk."
-                    minimum: 0.0
-                    maximum: 1.0
-                    default: 0.15
-                  safety_margin:
-                    type: number
-                    description: "Buffer multiplier for token estimation error."
-                    default: 1.2
-                  identifier_preservation:
-                    type: boolean
-                    description: >
-                      Preserve opaque identifiers (UUIDs, hashes, URLs, file names)
-                      Preserve opaque identifiers (UUIDs, hashes, URLs, file names)
-                      during summarization.
-                    default: true
-                  summarize_instructions:
-                    type: string
-                    description: "Custom instructions prepended to the summarization prompt."
-                    default: ""
+              # NOTE: compaction lived here (spec.memory.compaction) but was
+              # never wired to any code -- zero consumers anywhere in the
+              # repo. Removed; conversation compaction is now
+              # spec.working_memory.compaction (below), backed by the real,
+              # tested context_manager/CMFactory machinery. See
+              # docs/design/working-memory-compaction.md.
 
               persistence:
                 type: object
@@ -524,6 +487,74 @@ properties:
                     type: number
                     default: 4.0
 
+      working_memory:
+        type: object
+        description: >
+          Controls whether this agent's committed conversation history
+          (user/assistant turns — never the system prompt, which is always
+          rebuilt fresh from the manifest at materialize time) survives
+          across separate delegation calls within the same mas-ctl session,
+          keyed by (session_id, agent_id) in an in-process registry.
+          Distinct from spec.memory: that's the MemoryContract retrieval-store
+          subsystem (semantic/episodic/procedural search); this is the raw
+          turn buffer a delegated agent falls back on. Only consulted on the
+          delegation path — an entry agent driven directly by the user
+          already keeps its own history across turns regardless of this
+          field.
+        x-merge:
+          strategy: mapping_merge_or_ops
+        additionalProperties: false
+        properties:
+          persistent:
+            type: boolean
+            description: >
+              true (default): reuse committed turn history across delegate
+              calls within the same session_id — the sub-agent continues its
+              previous exchange instead of starting fresh. false: clear
+              working memory before every delegate call, even within the
+              same session, for agents that must stay stateless per call.
+            default: true
+          compaction:
+            type: object
+            description: >
+              How much of this agent's committed history to keep as it grows.
+              Facade over spec.context_manager/CMFactory — instantiate_runtime()
+              translates this into a context_manager binding; set
+              spec.context_manager directly instead for lower-level control
+              (it takes precedence if both are set). See
+              docs/design/working-memory-compaction.md.
+            additionalProperties: false
+            properties:
+              strategy:
+                type: string
+                enum: [keep_recent, sliding_window, summarize]
+                default: keep_recent
+                description: >
+                  keep_recent (default): cap total messages at max_messages,
+                  no LLM call. sliding_window: keep the last window_size
+                  user/assistant exchange pairs, no LLM call. summarize:
+                  compress older turns into one summary block via an LLM
+                  call using this agent's own model, keep the last
+                  keep_turns pairs verbatim.
+              max_messages:
+                type: integer
+                minimum: 1
+                description: "keep_recent — cap on total committed messages."
+              window_size:
+                type: integer
+                minimum: 1
+                description: "sliding_window — number of recent exchange pairs to keep."
+              summary_threshold:
+                type: integer
+                minimum: 1
+                default: 4000
+                description: "summarize — estimated-token threshold before compaction triggers."
+              keep_turns:
+                type: integer
+                minimum: 1
+                default: 10
+                description: "summarize — recent exchange pairs kept verbatim alongside the summary."
+
       skills:
         type: array
         description: >
@@ -543,6 +574,9 @@ properties:
           1. App-local skills/ directory (if present).
           2. Libraries declared under 'libraries:' in config.yaml.
           3. Installed Python packages.
+        x-merge:
+          strategy: list_ops
+          identity: value
         default: []
         items:
           type: string
@@ -562,6 +596,9 @@ properties:
 
       tools:
         type: array
+        x-merge:
+          strategy: list_ops
+          identity: value
         description: >
           Tool declarations for this agent.  Three forms are supported:
 
@@ -683,26 +720,38 @@ properties:
         description: >
           Governance bindings (typically applied via overlay). See
           spec-contract-bindings.md — flat scalars + ingress_plugins[] only.
+        x-merge:
+          strategy: plugin_list_ops
+          identity: plugin_id
         default: {}
 
       llm:
         $ref: "./fragments/llm-binding.schema.yaml"
         description: "EngineContract / LiveLlmEngine overrides."
+        x-merge:
+          strategy: mapping_merge_or_ops
         default: {}
 
       execution:
         $ref: "./fragments/execution-binding.schema.yaml"
         description: "EngineContract execution mode (mock, cache, parallel)."
+        x-merge:
+          strategy: execution_merge
         default: {}
 
       control:
         $ref: "./fragments/control-binding.schema.yaml"
+        x-merge:
+          strategy: mapping_ops
         description: "Control-plane plugin configs keyed by plugin id."
         default: {}
 
       observability:
         $ref: "./fragments/observability-binding.schema.yaml"
         description: "ObservabilitySink plugin list — list form only."
+        x-merge:
+          strategy: plugin_list_ops
+          identity: plugin_id
         default: null
 
       infra_refs:
@@ -710,12 +759,18 @@ properties:
         description: >
           Infra manifest references (LLM proxy, tool registry). Merged additively
           from overlays.
+        x-merge:
+          strategy: list_ops
+          identity: value
         items:
           type: string
         default: []
 
       infra_interceptors:
         type: array
+        x-merge:
+          strategy: list_ops
+          identity: value
         description: >
           Cross-cutting infra middleware (cache, chaos, …) outer-first in front
           of merged infra_refs providers.

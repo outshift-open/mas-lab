@@ -19,6 +19,11 @@ from mas.ctl.executor.mas_session import (
     wire_peer_delegation,
 )
 from mas.ctl.benchmark.runner_dispatch import is_mas_manifest_kind, mas_manifest_path
+from mas.runtime.boundary.context.working_memory_registry import (
+    WorkingMemoryConfig,
+    reset_working_memory_registry,
+)
+from mas.runtime.driver.mocks import AutoCtxAssembler
 
 
 def test_entry_agent_id_from_workflow_entry():
@@ -367,6 +372,82 @@ def test_two_separate_workflow_send_closures_get_different_session_ids_when_unsp
             send_b("schedule_agent", "q2", caller_call_id="c2")
 
     assert captured[0] != captured[1]
+
+
+def _fake_instance_with_ctx(*, persistent: bool = True) -> SimpleNamespace:
+    return SimpleNamespace(
+        driver=SimpleNamespace(agent_id=None, ctx=AutoCtxAssembler()),
+        working_memory=WorkingMemoryConfig(persistent=persistent),
+    )
+
+
+def _capturing_working_memory_key_run_turn(captured: list[str]):
+    """Fake SessionController.run_turn that captures self.working_memory_key
+    (real __init__/__post_init__ ran -- only the method is patched) --
+    proves what send() actually wires, without needing a real kernel/driver.
+
+    The real persistence/isolation/persistent:false behavior itself is now
+    owned entirely by SessionController (sync_working_memory_in/out in
+    _run_user_turn/_finalize_turn) and covered end-to-end with a REAL
+    SessionController + RuntimeInstance in
+    test_session_controller_working_memory.py -- this file only needs to
+    prove make_workflow_send resolves and passes the right key through."""
+
+    def _fake_run_turn(self, prompt, *, turn_id=None, parent_call_id="", auto_hitl=True):
+        captured.append(self._working_memory_key())
+        return SimpleNamespace(text="ok")
+
+    return _fake_run_turn
+
+
+def test_send_passes_session_id_as_the_default_working_memory_key():
+    """No context_id given -> the constructed SessionController's working
+    memory syncs under the session's default bucket (session_id)."""
+    reset_working_memory_registry()
+    session_id = "session-xyz"
+    captured: list[str] = []
+    materialized = SimpleNamespace(
+        instances={"schedule_agent": _fake_instance_with_ctx()}, bus=None
+    )
+
+    with patch(
+        "mas.ctl.executor.mas_session.SessionController.run_turn",
+        _capturing_working_memory_key_run_turn(captured),
+    ):
+        with patch("mas.ctl.executor.mas_session.turn_failed", return_value=False):
+            send = make_workflow_send(
+                materialized, display=None, verbose=0, from_agent="moderator", session_id=session_id
+            )
+            send("schedule_agent", "Please generate Foo", caller_call_id="c1")
+
+    assert captured == [session_id]
+
+
+def test_send_passes_context_id_as_the_working_memory_key_when_given():
+    """An explicit context_id (LLM-chosen, via the delegate tool's optional
+    context_id argument) overrides the session default as the working-memory
+    bucket key -- lets a moderator run more than one context with the same
+    peer inside one session."""
+    reset_working_memory_registry()
+    session_id = "session-two-contexts"
+    captured: list[str] = []
+    materialized = SimpleNamespace(
+        instances={"schedule_agent": _fake_instance_with_ctx()}, bus=None
+    )
+
+    with patch(
+        "mas.ctl.executor.mas_session.SessionController.run_turn",
+        _capturing_working_memory_key_run_turn(captured),
+    ):
+        with patch("mas.ctl.executor.mas_session.turn_failed", return_value=False):
+            send = make_workflow_send(
+                materialized, display=None, verbose=0, from_agent="moderator", session_id=session_id
+            )
+            send("schedule_agent", "plan a Paris trip", caller_call_id="c1", context_id="trip-paris")
+            send("schedule_agent", "plan a Tokyo trip", caller_call_id="c2", context_id="trip-tokyo")
+            send("schedule_agent", "plan a Rome trip", caller_call_id="c3")  # no context_id
+
+    assert captured == ["trip-paris", "trip-tokyo", session_id]
 
 
 def test_prepare_delegation_entry_session_mints_session_id_when_none_given(tmp_path: Path):

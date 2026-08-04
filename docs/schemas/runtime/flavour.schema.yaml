@@ -86,6 +86,8 @@ properties:
     properties:
       agent_comm:
         type: object
+        x-merge:
+          strategy: mapping_merge_or_ops
         additionalProperties: true
         description: "Agent-to-agent communication settings."
         properties:
@@ -105,11 +107,15 @@ properties:
 
       capabilities:
         type: object
+        x-merge:
+          strategy: mapping_merge_or_ops
         additionalProperties: true
         description: "Feature flags and capability overrides."
 
       telemetry:
         type: object
+        x-merge:
+          strategy: mapping_merge_or_ops
         additionalProperties: true
         description: "Basic telemetry / log sink configuration."
         properties:
@@ -123,6 +129,9 @@ properties:
         oneOf:
           - type: "null"
           - $ref: "./fragments/observability-binding.schema.yaml"
+        x-merge:
+          strategy: plugin_list_ops
+          identity: plugin_id
         description: >
           Observability sink plugin selection (e.g. [native], [otel],
           [native, {otel: {output_path: traces/otel}}]). This is the
@@ -135,11 +144,15 @@ properties:
         oneOf:
           - type: "null"
           - $ref: "./fragments/control-binding.schema.yaml"
+        x-merge:
+          strategy: mapping_ops
         description: "Control-plane plugin selection (budget, circuit_breaker, rate_limiter)."
         default: null
 
       tools:
         type: object
+        x-merge:
+          strategy: mapping_merge_or_ops
         additionalProperties: true
         description: "Tool-level configuration overrides."
         properties:
@@ -152,6 +165,8 @@ properties:
 
       config:
         type: object
+        x-merge:
+          strategy: mapping_merge_or_ops
         additionalProperties: true
         description: >
           Free-form deployment config: infrastructure URLs, non-secret
@@ -160,5 +175,7 @@ properties:
 
       operator:
         type: object
+        x-merge:
+          strategy: mapping_merge_or_ops
         additionalProperties: true
         description: "Operator / provisioner metadata."

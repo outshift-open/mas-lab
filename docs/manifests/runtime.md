@@ -63,15 +63,16 @@ Enforced by `mas-lab check-config` and flavour separation validators:
 Formal **contracts** (hook interception, protocol validation, governance) are
 implemented in `mas-runtime`. In manifests, trajectory-shaping logic is declared via:
 
-- `spec.design_pattern` — intra-agent Mealy step selection (`DesignPatternPlugin` via registry)
-- `spec.collaboration` — *design:* `DelegationContract` plugin binding (how peer delegation executes). *This release:* omit or `type: none`; peer tools come from MAS `workflow.delegates_to` when `workflow.type` is `dynamic`; ctl wires default `LlmDelegator` at `run-mas`
+- `spec.design_pattern` — intra-agent Mealy step selection (`DesignPatternPlugin` via registry); peer
+  delegation (`delegate_to_*` tool calls) runs through this same contract — there is no separate
+  delegation-transport plugin binding on the agent
 - `spec.plugins[]` — hook-plane plugins (module_path + class_name)
 - `MAS.spec.workflow` — topology (`entry`, `delegates_to`, `type`) and ctl workflow driver (dynamic ReAct vs `SequentialWorkflow`)
 
 `MAS.spec.workflow.plugin` (custom `WorkflowContract` registration) is a **design target** — not
 resolved in OSS; see [topology-and-workflow.md](topology-and-workflow.md).
 
-Authoring detail: [agent.md](agent.md#delegation-and-collaboration) · [mas.md](mas.md).
+Authoring detail: [agent.md](agent.md#delegation) · [mas.md](mas.md).
 
 ---
 

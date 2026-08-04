@@ -34,7 +34,18 @@ from typing import Any
 DELEGATE_TOOL_PREFIX = "delegate_to_"
 _DELEGATE_PARAMS = {
     "type": "object",
-    "properties": {"task": {"type": "string", "description": "Task for the delegate agent."}},
+    "properties": {
+        "task": {"type": "string", "description": "Task for the delegate agent."},
+        "context_id": {
+            "type": "string",
+            "description": (
+                "Optional: continue a specific prior working-memory context with this "
+                "peer instead of the current session's default one — e.g. to run two "
+                "independent conversations with the same specialist in one session. "
+                "Omit to use the session's default context for this peer."
+            ),
+        },
+    },
     "required": ["task"],
 }
 

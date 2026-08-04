@@ -120,6 +120,19 @@ def instantiate_runtime(
     )
     logger.info("Engine mode=%s (%s)", selection.mode, selection.reason)
 
+    from mas.runtime.boundary.context.working_memory_compaction import (
+        apply_working_memory_compaction,
+    )
+
+    apply_working_memory_compaction(spec, engine=selection.engine)
+    if "context_manager" in spec and options.agent_manifest is not None:
+        # LiveLlmEngine holds a live reference to options.agent_manifest (not
+        # `spec` above, a separate shallow copy) and reads context_manager
+        # fresh from it on every assemble_llm_messages() call -- keep both in
+        # sync so the facade takes effect for the engine actually constructed
+        # above, not just the copy this function goes on to use locally.
+        options.agent_manifest.setdefault("spec", {})["context_manager"] = spec["context_manager"]
+
     instance = RuntimeInstance.from_spec(
         spec,
         base_dir=options.manifest_dir,
@@ -131,6 +144,13 @@ def instantiate_runtime(
         enable_governance=options.enable_governance,
         enable_coordination=options.enable_coordination,
     )
+    working_memory_spec = spec.get("working_memory")
+    if isinstance(working_memory_spec, dict):
+        from mas.runtime.boundary.context.working_memory_registry import WorkingMemoryConfig
+
+        instance.working_memory = WorkingMemoryConfig(
+            persistent=bool(working_memory_spec.get("persistent", True))
+        )
     apply_memory_seeds(instance, seeds)
     if seeds and options.agent_manifest:
         from mas.ctl.executor.mas_session import agent_manifest_label

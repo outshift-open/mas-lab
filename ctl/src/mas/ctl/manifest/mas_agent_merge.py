@@ -12,7 +12,7 @@ from typing import Any
 
 import yaml
 
-from mas.ctl.manifest.spec_bindings import parse_collaboration
+from mas.ctl.overlay.merge import _ops_dict
 from mas.runtime.boundary.context.manifest_context import routing_description_from_agent
 from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
 from mas.runtime.boundary.delegation.policy import delegation_targets
@@ -58,6 +58,37 @@ def _merge_tool_ref_list(existing: list[Any], added: list[Any]) -> list[Any]:
             out.append(copy.deepcopy(item))
             seen.add(key)
     return out
+
+
+def _merge_agency_entry_tools(existing: list[Any], incoming: Any) -> list[Any]:
+    """Merge an agency-entry's inline ``tools`` override onto the base list.
+
+    A plain list is an ADD (dedup-merged onto existing) — unchanged,
+    long-standing behavior (see ``_merge_tool_ref_list``). An
+    ``{"$op": {...}}`` value additionally supports ``remove``/``replace``/
+    ``clear`` — the same sugar ``tools: {"$op": {"remove": [...]}}`` already
+    means at the overlay-patch level (``ctl/overlay/merge.py``), now also
+    available here: this is the mechanism that replaces the old, separate
+    ``tools_remove`` field for agency-entry inline overrides too (removed as
+    a concept — a plain list previously fed straight to ``list(val)`` would
+    have silently mangled an ``$op`` dict into its key names, so this isn't
+    a behavior change for anyone actually relying on ``$op`` here; nothing
+    could have).
+    """
+    ops = _ops_dict(incoming)
+    if ops is None:
+        return _merge_tool_ref_list(existing, list(incoming))
+    result = list(existing)
+    if ops.get("clear") is True:
+        result = []
+    if "replace" in ops:
+        result = list(ops.get("replace") or [])
+    if "remove" in ops:
+        to_remove = {_tool_ref_key(t) for t in (ops.get("remove") or [])}
+        result = [t for t in result if _tool_ref_key(t) not in to_remove]
+    if "add" in ops:
+        result = _merge_tool_ref_list(result, list(ops.get("add") or []))
+    return result
 
 
 def _agency_entries_by_id(mas_config: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -133,10 +164,9 @@ def apply_agency_entry_overlay(
 
     _apply_description_overlay(spec, agency_entry, entry_spec)
 
-    for field in ("tools", "tools_remove"):
-        val = _entry_val(agency_entry, entry_spec, field)
-        if val:
-            spec[field] = _merge_tool_ref_list(list(spec.get(field) or []), list(val))
+    tools_val = _entry_val(agency_entry, entry_spec, "tools")
+    if tools_val:
+        spec["tools"] = _merge_agency_entry_tools(list(spec.get("tools") or []), tools_val)
 
     for field in ("design_pattern", "skills", "memory", "governance"):
         if (val := _entry_val(agency_entry, entry_spec, field)) is not None:
@@ -182,8 +212,6 @@ def enrich_entry_agent_for_delegation(
     mas_base_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Attach MAS ``workflow`` to the entry agent; resolve tool refs and peer descriptions."""
-    spec = agent_manifest.get("spec") or {}
-    parse_collaboration(spec.get("collaboration"))
     out = copy.deepcopy(agent_manifest)
     mas_spec = mas_config.get("spec", mas_config) if isinstance(mas_config, dict) else {}
     wf = mas_spec.get("workflow")

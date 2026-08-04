@@ -17,6 +17,7 @@ class DelegationContract(Protocol):
         *,
         correlation_id: int = 0,
         caller_call_id: str = "",
+        context_id: str = "",
     ) -> str: ...
 
     def call_delegate_tool(

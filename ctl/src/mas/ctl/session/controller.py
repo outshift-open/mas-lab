@@ -10,6 +10,11 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from mas.runtime.boundary.context.working_memory_registry import (
+    get_working_memory_registry,
+    sync_working_memory_in,
+    sync_working_memory_out,
+)
 from mas.runtime.driver.driver import DriverTrace
 from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.schema.egress import EmitClientResponse
@@ -66,12 +71,21 @@ class SessionController:
     # a new one — session_id is global to the MAS, unlike each turn's own
     # task_id, which stays local to whichever agent runs it.
     session_id: str = ""
+    # Overrides session_id as the WorkingMemoryRegistry key for this
+    # controller's own agent (see _working_memory_key). Empty (the default,
+    # every direct/chat controller) means "use session_id" — set explicitly
+    # by make_workflow_send for a delegated call whose LLM-supplied
+    # context_id should pick an independent bucket from the session default.
+    working_memory_key: str = ""
     _turn: int = 0
     _trace_turn_start: float = 0.0
 
     def __post_init__(self) -> None:
         if not self.session_id:
             self.session_id = str(uuid.uuid4())
+
+    def _working_memory_key(self) -> str:
+        return self.working_memory_key or self.session_id
 
     def _trace_format_options(self) -> TraceFormatOptions:
         return TraceFormatOptions(
@@ -122,6 +136,11 @@ class SessionController:
         except RuntimeError as exc:
             self.display.on_system(str(exc))
             return False
+        # Drop this agent's registry snapshot too -- otherwise the *next*
+        # turn's sync_working_memory_in() would restore the pre-reset
+        # history right back, silently undoing the reset the user just asked
+        # for (see docs/design/working-memory-compaction.md).
+        get_working_memory_registry().drop(self._working_memory_key(), self.agent_id)
         self._turn = 0
         self.display.on_system(
             "session reset — working memory and turn history cleared; system prompt restored"
@@ -129,14 +148,31 @@ class SessionController:
         return True
 
     def _finalize_turn(self, result: TurnResult, *, trace: DriverTrace | None = None) -> None:
-        """Commit completed turn to ctx (chat history + tool trajectory)."""
-        if result.awaiting_hitl:
-            return
+        """Commit completed turn to ctx (chat history + tool trajectory).
+
+        Folds working memory into committed history whenever there's
+        anything to fold — a final response, tool calls that already ran
+        this turn, or both — even when the turn is still paused awaiting
+        HITL. Whatever already executed this turn (e.g. a delegated
+        sub-agent's tool calls before an approval gate) is real conversation
+        content: it must not be silently dropped the moment the *next* turn
+        starts and ``note_user_input()`` clears working memory (see
+        ``docs/design/working-memory-compaction.md``). Checkpointing is
+        unaffected — still only for a turn that actually completed.
+        """
         response_text = result.text
         ctx = getattr(self.instance.driver, "ctx", None)
         note_resp = getattr(ctx, "note_agent_response", None)
-        if callable(note_resp) and response_text:
+        has_working_memory = bool(
+            getattr(getattr(ctx, "working_memory", None), "messages", None)
+        )
+        if callable(note_resp) and (response_text or has_working_memory):
             note_resp(response_text)
+        sync_working_memory_out(
+            self.instance, memory_key=self._working_memory_key(), agent_id=self.agent_id
+        )
+        if result.awaiting_hitl:
+            return
         if self.config.save_checkpoint_each_turn and self.checkpoint_store is not None:
             snap = self.instance.record_checkpoint(
                 f"{self.config.checkpoint_label_prefix}-{self._turn}"
@@ -181,6 +217,9 @@ class SessionController:
         from mas.ctl.manifest.mas_agent_merge import reset_engine_delegation
 
         reset_engine_delegation(getattr(self.instance.driver, "engine", None))
+        sync_working_memory_in(
+            self.instance, memory_key=self._working_memory_key(), agent_id=self.agent_id
+        )
         self._turn += 1
         tid = turn_id or f"u{self._turn}"
         self.display.on_user(text, turn_id=tid)

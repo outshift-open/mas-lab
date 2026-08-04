@@ -92,7 +92,7 @@ class TestMASStructure:
         ov = load_yaml(T02 / "overlays" / "linear.yaml")
         assert ov["kind"] == "Overlay"
         patch = ov["spec"]["patch"]
-        assert "edges" in patch["workflow"]
+        assert "nodes" in patch["workflow"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════

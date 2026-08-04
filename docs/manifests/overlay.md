@@ -35,7 +35,7 @@ spec:
     design_pattern: { type: cot, config: { max_steps: 10 } }
     agents:
       broker:
-        tools_remove: [web-search]
+        tools: { "$op": { remove: [web-search] } }
     workflow: { ... }   # topology replacement
     params:
       incident_fixture: datasets/fixtures/timeout.yaml
@@ -50,8 +50,9 @@ RFC 7396-style merge on the target resource. Separation rules reject model endpo
 api keys, and raw system-prompt rewrites in `patch` (use agent `role` / overlay agent blocks).
 
 Merge semantics: later overlays in a scenario stack win on conflicting keys.
-Patches use RFC 7396 JSON merge; list fields such as `tools_remove` are handled
-explicitly by the runtime.
+Patches use RFC 7396 JSON merge; list fields such as `tools` accept an explicit
+`{"$op": {replace|add|remove|clear: [...]}}` form (handled explicitly by the
+runtime) alongside plain-list implicit replace.
 
 ---
 

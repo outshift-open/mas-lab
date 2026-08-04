@@ -114,16 +114,44 @@ def load_schema(kind: str) -> dict:
     return _resolve_local_refs(raw, path.parent)
 
 
+def _resolve_json_pointer(doc: Any, pointer: str, *, ref: str, source: Path) -> Any:
+    target = doc
+    for segment in pointer.strip("/").split("/"):
+        segment = segment.replace("~1", "/").replace("~0", "~")
+        if not isinstance(target, dict) or segment not in target:
+            raise KeyError(f"$ref {ref!r} — pointer segment {segment!r} not found in {source}")
+        target = target[segment]
+    return target
+
+
+def _is_local_ref(ref: Any) -> bool:
+    return isinstance(ref, str) and (ref.startswith("./") or ref.startswith("../"))
+
+
 def _resolve_local_refs(node: Any, base_dir: Path) -> Any:
-    """Inline ``./`` JSON Schema refs so validation does not depend on ``$id`` URIs."""
+    """Inline relative (``./``, ``../``) JSON Schema refs so validation does
+    not depend on ``$id`` URIs.
+
+    Supports an optional ``#/json/pointer`` suffix to reference one specific
+    node inside the target file — e.g. ``../agent.schema.yaml#/properties/
+    spec/properties/working_memory`` — instead of loading (and inlining) the
+    whole file. This lets a schema like an overlay-patch fragment point
+    straight at a property the canonical schema already declares, rather
+    than re-declaring its shape by hand — one definition, referenced, not
+    copied.
+    """
     if isinstance(node, dict):
         ref = node.get("$ref")
-        if isinstance(ref, str) and ref.startswith("./"):
-            frag_path = (base_dir / ref[2:]).resolve()
+        if _is_local_ref(ref):
+            file_part, _, pointer_part = ref.partition("#")
+            frag_path = (base_dir / file_part).resolve()
             with frag_path.open(encoding="utf-8") as fh:
                 loaded = yaml.safe_load(fh)
-            return _resolve_local_refs(loaded, frag_path.parent)
-        return {k: _resolve_local_refs(v, base_dir) for k, v in node.items() if k != "$ref" or not isinstance(ref, str) or not ref.startswith("./")}
+            target = loaded
+            if pointer_part:
+                target = _resolve_json_pointer(loaded, pointer_part, ref=ref, source=frag_path)
+            return _resolve_local_refs(target, frag_path.parent)
+        return {k: _resolve_local_refs(v, base_dir) for k, v in node.items() if k != "$ref" or not _is_local_ref(ref)}
     if isinstance(node, list):
         return [_resolve_local_refs(item, base_dir) for item in node]
     return node

@@ -56,10 +56,13 @@ def test_merge_skills():
     assert merged["spec"]["skills"] == ["s1", "s2"]
 
 
-def test_merge_tools_remove():
-    base = {"spec": {"tools_remove": ["a"]}}
-    merged = merge_overlay(base, _overlay({"tools_remove": {"$op": {"add": ["a", "b"]}}}))
-    assert merged["spec"]["tools_remove"] == ["a", "b"]
+def test_merge_tools_remove_via_op_remove():
+    """tools_remove (a separate attribute) was removed as a concept: tools
+    itself already supports {"$op": {"remove": [...]}} (list_ops), the same
+    subtraction without a second, separately-named attribute."""
+    base = {"spec": {"tools": ["calc", "web-search"]}}
+    merged = merge_overlay(base, _overlay({"tools": {"$op": {"remove": ["web-search"]}}}))
+    assert merged["spec"]["tools"] == ["calc"]
 
 
 def test_merge_plugins_patch_is_rejected() -> None:
@@ -78,6 +81,65 @@ def test_merge_memory_and_seed():
     )
     assert merged["spec"]["memory"] == "letta"
     assert len(merged["spec"]["memory_seed"]) == 2
+
+
+def test_merge_params_overlay_field():
+    """params was a real, consumed field (params_sidecar.py, infra_pipeline.py)
+    with no base-schema declaration until the Agent overlay-patch/base-schema
+    unification -- confirms it's now a real, mergeable field end to end."""
+    base = {"spec": {}}
+    merged = merge_overlay(base, _overlay({"params": {"foo": "bar"}}))
+    assert merged["spec"]["params"] == {"foo": "bar"}
+
+
+def test_merge_context_policy_is_rejected_as_dead_field():
+    """context_policy had zero consumers anywhere in the repo -- removed as
+    dead schema during the Agent overlay-patch/base-schema unification."""
+    import pytest
+
+    base = {"spec": {}}
+    with pytest.raises(OverlayTargetError, match="Unsupported Agent overlay patch field"):
+        merge_overlay(base, _overlay({"context_policy": {"foo": "bar"}}))
+
+
+def test_merge_mas_params_field_was_a_real_gap_now_closed():
+    """mas.schema.yaml didn't declare spec.params at all even though
+    merge_mas_overlay always wrote patched params under spec.params --
+    closed as part of the MAS overlay-patch/base-schema unification
+    (same pattern as Agent's params gap)."""
+    base = {"kind": "MAS", "spec": {}}
+    merged = merge_overlay(base, _overlay({"params": {"foo": "bar"}}, target_kind="MAS"))
+    assert merged["spec"]["params"] == {"foo": "bar"}
+
+
+def test_merge_mas_capabilities_field_was_a_real_gap_now_closed():
+    base = {"kind": "MAS", "spec": {}}
+    merged = merge_overlay(base, _overlay({"capabilities": {"streaming": True}}, target_kind="MAS"))
+    assert merged["spec"]["capabilities"] == {"streaming": True}
+
+
+def test_merge_mas_governance_is_rejected_as_a_dead_field():
+    """MAS-level governance was special-cased out of the generic merge
+    dispatch but never had an actual merge implementation -- patching it
+    was a silent no-op with zero test coverage. Removed as dead, mirroring
+    context_policy's removal from the Agent overlay-patch fragment."""
+    import pytest
+
+    base = {"kind": "MAS", "spec": {}}
+    with pytest.raises(OverlayTargetError, match="Unsupported MAS overlay patch field"):
+        merge_overlay(base, _overlay({"governance": ["policy-a"]}, target_kind="MAS"))
+
+
+def test_merge_working_memory_persistent():
+    base = {"spec": {}}
+    merged = merge_overlay(base, _overlay({"working_memory": {"persistent": True}}))
+    assert merged["spec"]["working_memory"] == {"persistent": True}
+
+
+def test_merge_working_memory_persistent_merges_over_existing_block():
+    base = {"spec": {"working_memory": {"persistent": True}}}
+    merged = merge_overlay(base, _overlay({"working_memory": {"persistent": False}}))
+    assert merged["spec"]["working_memory"] == {"persistent": False}
 
 
 def test_merge_governance_null_removes_key():
@@ -307,7 +369,6 @@ def test_runtime_semantics_registry_covers_non_trivial_agent_fields() -> None:
     for field in (
         "tools",
         "skills",
-        "tools_remove",
         "memory_seed",
         "infra_refs",
         "observability",

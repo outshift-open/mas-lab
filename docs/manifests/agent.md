@@ -22,20 +22,20 @@ sees, and which plugins hook its execution.
 | Area | `spec` fields | Trajectory impact |
 |------|---------------|-------------------|
 | Reasoning loop | `design_pattern` | Selects DesignPatternContract (ReAct, CoT, …) — intra-agent δ transitions |
-| Peer delegation | MAS `workflow` (when embedded in a MAS) | `delegates_to` graph + `workflow.type`; see [mas.md](mas.md) |
-| Collaboration plugin | `collaboration` | *Design:* `DelegationContract` binding (how delegation executes). *This release:* omit or `type: none` — see below |
+| Peer delegation | MAS `workflow` (when embedded in a MAS) | `delegates_to` graph + `workflow.type`; executed by the entry agent's own `design_pattern` (ReAct tool loop) — see [mas.md](mas.md) |
 | Context window | `context_manager` | Stack / sliding-window / summarising |
 | Prompt / role | `description`, `context` | `description` → delegation tools; `context.*` → system prompt |
 | Models | `models[]` | LLM routing (ids, temperature, max_tokens) |
 | Tools | `tools`, `tools_ref` | ToolContract surface |
 | Skills | `skills`, `context_manager.skills` | Context facets + `consult_skills` |
 | Memory | `memory`, `memory_seed` | Stores + startup seeds |
+| Working memory | `working_memory.persistent` | Cross-turn buffer survives repeat delegate calls within one session (default `true`) — see below |
 | Kernel plugins | `plugins[]`, `governance[]`, `observability[]` | Governance and observability on Mealy envelope chokepoints (not a hook plane) |
 | Execution bounds | `execution` | Timeouts, retries |
 
 ---
 
-## Delegation and collaboration
+## Delegation
 
 **Who** an agent may delegate to is declared on the **MAS** manifest, not on the agent alone:
 
@@ -47,18 +47,68 @@ sees, and which plugins hook its execution.
 
 When `workflow.type` is **dynamic**, the entry agent's LLM receives one OpenAI tool per allowed peer:
 `delegate_to_<agent_id>` with a `task` argument. `mas-ctl run-mas` executes those calls over the
-materialized in-process CommBus via the default `LlmDelegator` plugin.
-
-**`spec.collaboration`** is the reserved **coordination plugin binding** (1 spec attribute →
-`DelegationContract` → 0/1/N plugins in the target model). It will select *how* delegation runs
-(for example in-proc bus vs remote transport) and optional collaboration params. It does **not**
-replace the MAS workflow graph.
-
-**This release:** omit `spec.collaboration` entirely, or set `type: none`. Other `type` / `ref`
-values are rejected at validate/compose time. Routing among `delegates_to` peers is performed by
-the entry agent's design pattern (ReAct tool loop), not by a separate collaboration plugin.
+materialized in-process CommBus via the default `LlmDelegator` plugin. There is no separate
+delegation-transport plugin binding on the agent — *how* peer delegation executes is the entry
+agent's own `design_pattern` (the ReAct tool loop dispatching `delegate_to_*` tool calls), the same
+contract that drives its own reasoning.
 
 See [topology-and-workflow.md](topology-and-workflow.md) and [mas.md](mas.md).
+
+---
+
+## Working memory across delegate calls
+
+A delegated agent's `RuntimeInstance` is materialized once per MAS run and reused for every
+`delegate_to_<agent_id>` call in that run — so by default a sub-agent already sees its own prior
+exchange on the second call: `moderator` asks for "Foo", gets it, then says "add Bar" without
+repeating context, and the sub-agent still has "Foo" in its committed history.
+
+**`spec.working_memory.persistent`** (default `true`) makes this explicit and controllable per
+agent, keyed by `(session_id, agent_id)` in an in-process registry rather than relying on Python
+object reuse:
+
+```yaml
+working_memory:
+  persistent: true   # default — continue this agent's history across delegate calls in-session
+```
+
+Set `persistent: false` for a sub-agent that must be stateless per call (e.g. a formatter or
+translator that should never see a previous, unrelated delegation's turns) — its committed history
+is cleared before every delegate call even though the underlying instance is reused.
+
+**Overlays can set this too** (`spec.patch.working_memory.persistent` on an `Overlay` targeting
+`kind: Agent`) — useful to flip a shared agent manifest's default per deployment/experiment without
+forking it.
+
+**`context_id`** — the delegating agent's LLM may optionally pass `context_id` as an extra argument
+on `delegate_to_<agent_id>`, alongside `task`. When given, it selects an independent working-memory
+bucket for that peer instead of the session's default one — e.g. a moderator running two unrelated
+conversations with the same specialist (`context_id: "trip-paris"` vs. `"trip-tokyo"`) within one
+session, with neither leaking into the other. Omit it (the common case) to use the session's
+default bucket, as described above.
+
+This is in-memory and scoped to one mas-ctl session/run — it does not persist across separate CLI
+invocations. Cross-process persistence (`spec.memory.persistence`) is a tracked follow-up.
+
+**`spec.working_memory.compaction`** — how much of the committed history to keep as it grows. A
+facade over `spec.context_manager`/`CMFactory` (set `context_manager` directly instead for
+lower-level control — it takes precedence if both are set):
+
+```yaml
+working_memory:
+  compaction:
+    strategy: keep_recent   # keep_recent (default, no LLM call) | sliding_window | summarize
+    max_messages: 200       # keep_recent
+    window_size: 20         # sliding_window
+    summary_threshold: 4000 # summarize
+    keep_turns: 10          # summarize — recent exchanges kept verbatim alongside the summary
+```
+
+`summarize` calls an LLM (using this agent's own resolved model) to compress older turns into one
+summary block; it degrades to `keep_recent` rather than failing if no live model is available.
+`keep_recent`/`sliding_window` never spend a model call. See
+`docs/design/working-memory-compaction.md` for the full design and why the two dead schema surfaces
+this replaces were removed.
 
 ---
 
@@ -67,7 +117,7 @@ See [topology-and-workflow.md](topology-and-workflow.md) and [mas.md](mas.md).
 - **Standalone:** single `agent.yaml` via `mas-ctl chat agent.yaml` (or `mas-ctl run-mas` when embedded in a MAS).
 - **In a MAS:** referenced by `MAS.spec.agency.agents[].ref`.
 - **Inline:** full agent spec embedded in MAS (studio export) — same fields under agent entry.
-- **Overridden:** `Overlay.spec.patch.agents.<id>` or global `design_pattern` / `tools_remove`.
+- **Overridden:** `Overlay.spec.patch.agents.<id>` or global `design_pattern` / `tools: {"$op": {"remove": [...]}}`.
 
 ---
 

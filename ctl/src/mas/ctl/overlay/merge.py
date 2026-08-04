@@ -15,11 +15,26 @@ import yaml
 logger = logging.getLogger(__name__)
 
 
+# Every kind reads merge metadata straight off its own canonical schema --
+# every overlay-patchable field carries its own x-merge annotation inline on
+# the field it actually describes, so adding a new patchable field is a
+# single edit in a single file (docs/schemas/runtime/<kind>.schema.yaml),
+# not a second hand-maintained overlay-*-patch fragment kept in sync by hand.
 _OVERLAY_PATCH_SCHEMA_FILES: dict[str, str] = {
-    "Agent": "docs/schemas/runtime/fragments/overlay-agent-patch.schema.yaml",
-    "MAS": "docs/schemas/runtime/fragments/overlay-mas-patch.schema.yaml",
-    "Flavour": "docs/schemas/runtime/fragments/overlay-flavour-patch.schema.yaml",
-    "Infra": "docs/schemas/runtime/fragments/overlay-infra-patch.schema.yaml",
+    "Agent": "docs/schemas/runtime/agent.schema.yaml",
+    "MAS": "docs/schemas/runtime/mas.schema.yaml",
+    "Flavour": "docs/schemas/runtime/flavour.schema.yaml",
+    "Infra": "docs/schemas/runtime/infra.schema.yaml",
+}
+
+# Where to start reading "properties" from, per schema file, relative to that
+# file's own root -- every canonical kind schema nests its patchable fields
+# one level deeper (properties.spec.properties.*) than the root.
+_OVERLAY_PATCH_SCHEMA_ROOT: dict[str, tuple[str, ...]] = {
+    "Agent": ("properties", "spec"),
+    "MAS": ("properties", "spec"),
+    "Flavour": ("properties", "spec"),
+    "Infra": ("properties", "spec"),
 }
 
 
@@ -33,6 +48,17 @@ def _load_yaml_schema(rel_path: str) -> dict[str, Any]:
     schema_path = _repo_root() / rel_path
     data = yaml.safe_load(schema_path.read_text(encoding="utf-8"))
     return data if isinstance(data, dict) else {}
+
+
+def _overlay_patch_root_schema(kind: str) -> dict[str, Any]:
+    """The schema node whose ``properties`` are this kind's patchable fields."""
+    rel_path = _OVERLAY_PATCH_SCHEMA_FILES.get(kind)
+    if rel_path is None:
+        return {}
+    schema = _load_yaml_schema(rel_path)
+    for key in _OVERLAY_PATCH_SCHEMA_ROOT.get(kind, ()):
+        schema = schema.get(key) or {}
+    return schema
 
 
 def _format_semantic(meta: dict[str, Any]) -> str:
@@ -66,10 +92,7 @@ def _collect_merge_meta(
     return out
 
 def _schema_property_keys(kind: str) -> frozenset[str]:
-    rel_path = _OVERLAY_PATCH_SCHEMA_FILES.get(kind)
-    if rel_path is None:
-        return frozenset()
-    schema = _load_yaml_schema(rel_path)
+    schema = _overlay_patch_root_schema(kind)
     props = schema.get("properties")
     if not isinstance(props, dict):
         return frozenset()
@@ -78,10 +101,7 @@ def _schema_property_keys(kind: str) -> frozenset[str]:
 
 @lru_cache(maxsize=3)
 def _overlay_merge_meta(kind: str) -> dict[str, dict[str, Any]]:
-    rel_path = _OVERLAY_PATCH_SCHEMA_FILES.get(kind)
-    if rel_path is None:
-        return {}
-    return _collect_merge_meta(_load_yaml_schema(rel_path))
+    return _collect_merge_meta(_overlay_patch_root_schema(kind))
 
 
 def overlay_runtime_semantics() -> dict[str, dict[str, str]]:
@@ -256,12 +276,8 @@ def _merge_value_by_meta(existing: Any, incoming: Any, meta: dict[str, Any]) -> 
         return None
 
     if strategy == "list_ops":
-        dedupe_key = None
-        identity = str(meta.get("identity") or "")
-        if identity == "tool_remove_key":
-            dedupe_key = _tool_remove_key
         existing_list = list(existing or []) if isinstance(existing, list) else []
-        return _merge_list_ops(existing_list, incoming, dedupe_key=dedupe_key)
+        return _merge_list_ops(existing_list, incoming, dedupe_key=None)
 
     if strategy == "plugin_list_ops":
         existing_list = list(existing or []) if isinstance(existing, list) else []
@@ -338,12 +354,6 @@ def apply_merge_patch(target: Any, patch: Any) -> Any:
         else:
             target[key] = value
     return target
-
-
-def _tool_remove_key(item: Any) -> str:
-    if isinstance(item, dict):
-        return str(item.get("ref") or item)
-    return str(item)
 
 
 class OverlayTargetError(ValueError):
@@ -440,7 +450,7 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
     base_spec = merged.setdefault("spec", {})
     mas_meta = _overlay_merge_meta("MAS")
 
-    special_keys = {"governance", "agents", "agents_add", "agents_remove"}
+    special_keys = {"agents", "agents_add", "agents_remove"}
     for key, value in patch.items():
         if key in special_keys:
             continue

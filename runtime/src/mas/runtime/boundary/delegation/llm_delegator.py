@@ -7,7 +7,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-RunTurnFn = Callable[[str, str, int, str], str]
+RunTurnFn = Callable[[str, str, int, str, str], str]
 
 
 class LlmDelegator:
@@ -19,7 +19,7 @@ class LlmDelegator:
         run_turn: RunTurnFn,
     ) -> None:
         self._run_turn = run_turn
-        self._completed_peers: dict[tuple[str, str], str] = {}
+        self._completed_peers: dict[tuple[str, str, str], str] = {}
 
     def reset_session(self) -> None:
         """Clear per-session delegate cache (new user incident)."""
@@ -39,11 +39,12 @@ class LlmDelegator:
         *,
         correlation_id: int = 0,
         caller_call_id: str = "",
+        context_id: str = "",
     ) -> str:
         if not target_agent_id:
             return "[delegation] missing target agent id"
         task_key = task.strip()
-        cache_key = (target_agent_id, task_key)
+        cache_key = (target_agent_id, task_key, context_id)
         if cache_key in self._completed_peers:
             return (
                 f"[delegation] {target_agent_id!r} already consulted this session for "
@@ -51,7 +52,9 @@ class LlmDelegator:
                 f"{self._completed_peers[cache_key]}"
             )
         try:
-            result = self._run_turn(target_agent_id, task_key, correlation_id, caller_call_id)
+            result = self._run_turn(
+                target_agent_id, task_key, correlation_id, caller_call_id, context_id
+            )
         except KeyError:
             return f"[delegation] agent {target_agent_id!r} not available on bus"
         except RuntimeError as exc:
@@ -75,6 +78,11 @@ class LlmDelegator:
         task = str((arguments or {}).get("task") or "").strip()
         if not task:
             return f"[delegation] missing task for {target!r}"
+        context_id = str((arguments or {}).get("context_id") or "").strip()
         return self.delegate(
-            target, task, correlation_id=correlation_id, caller_call_id=caller_call_id
+            target,
+            task,
+            correlation_id=correlation_id,
+            caller_call_id=caller_call_id,
+            context_id=context_id,
         )

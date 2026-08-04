@@ -2,48 +2,39 @@
 #  SPDX-License-Identifier: Apache-2.0
 $schema: "https://json-schema.org/draft-07/schema#"
 title: OverlayMasPatch
+# Structural (type-shape) validation ONLY for `mas-ctl validate <overlay.yaml>`.
+# Merge BEHAVIOR (which fields are patchable, how they merge) is no longer
+# read from this file at all -- ctl/src/mas/ctl/overlay/merge.py reads
+# x-merge annotations straight off ../mas.schema.yaml's own spec properties
+# (single source of truth; see that file's `x-merge` blocks). Same pattern
+# as overlay-agent-patch.schema.yaml -- see that file's header comment.
+#
+# `governance` was removed from here: merge_mas_overlay special-cases the
+# key (excludes it from the generic x-merge dispatch) but has never had a
+# merge implementation for it -- patching spec.governance via a MAS-targeted
+# overlay was a silent no-op with zero test coverage. Agent-level governance
+# (a different, real, working mechanism) is unaffected.
 type: object
 additionalProperties: false
 patternProperties:
   "^x-": {}
 properties:
   agency:
-    type: object
-    x-merge:
-      strategy: replace
+    $ref: "../mas.schema.yaml#/properties/spec/properties/agency"
   workflow:
-    type: object
-    x-merge:
-      strategy: replace
-  capabilities:
-    type: object
-    x-merge:
-      strategy: mapping_merge_or_ops
+    $ref: "../mas.schema.yaml#/properties/spec/properties/workflow"
   telemetry:
-    type: object
-    x-merge:
-      strategy: mapping_merge_or_ops
+    $ref: "../mas.schema.yaml#/properties/spec/properties/telemetry"
   params:
-    type: object
-    additionalProperties:
-      type: string
-    x-merge:
-      strategy: mapping_merge_or_ops
+    $ref: "../mas.schema.yaml#/properties/spec/properties/params"
+  capabilities:
+    $ref: "../mas.schema.yaml#/properties/spec/properties/capabilities"
   intent:
-    type: object
-    x-merge:
-      strategy: mapping_merge_or_ops
-  governance:
-    x-merge:
-      strategy: plugin_list_ops
-      identity: plugin_id
-    oneOf:
-      - type: "null"
-      - $ref: "./overlay-collection-ops-governance.schema.yaml"
+    $ref: "../mas.schema.yaml#/properties/spec/properties/intent"
   agents:
-    x-merge:
-      strategy: agent_collection_ops
-      identity: agency_entry_key
+    # Not a plain $ref: two genuinely different accepted shapes (per-agent
+    # override map, or a {"$op": {...}} collection op) that only make sense
+    # in overlay context -- irreducible, not duplication.
     oneOf:
       - type: object
         additionalProperties:
@@ -87,9 +78,6 @@ properties:
                 type: boolean
                 const: true
   agents_add:
-    x-merge:
-      strategy: agent_collection_ops
-      identity: agency_entry_key
     oneOf:
       - type: array
         items:
@@ -114,6 +102,3 @@ properties:
                 const: true
   agents_remove:
     $ref: "./overlay-collection-ops-string.schema.yaml"
-    x-merge:
-      strategy: list_ops
-      identity: value

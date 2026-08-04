@@ -83,6 +83,13 @@ class AutoCtxAssembler:
         if self.last_user_text:
             self.committed_messages.append({"role": "user", "content": self.last_user_text})
             self.turn_history.append((self.last_user_text, text))
+            # A turn can now be finalized more than once (HITL pause, then
+            # resume — see SessionController._finalize_turn): once the user
+            # turn is committed, clear it so a second finalize of the SAME
+            # turn doesn't re-append it. Safe within a turn's own multi-step
+            # tool loop too, since note_agent_response only ever runs at
+            # turn end/pause, never between a turn's own internal LLM calls.
+            self.last_user_text = ""
         if self.working_memory.messages:
             self.committed_messages.extend(self.working_memory.messages)
         if text.strip():
