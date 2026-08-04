@@ -447,6 +447,42 @@ def _kg_to_plot_inputs(
     return records, events
 
 
+def _enrich_kg_plot_data(
+    kg: dict[str, Any],
+    records: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Enrich a raw ``(kg_to_call_records(kg), kg_to_events(kg))`` pair:
+    adds synthesized ``AgentCall`` records for delegate agents that only
+    appear via LLM/tool calls (:func:`_synthesize_agent_calls`) and
+    ``context_part_contributed`` events rebuilt from ``ContextContribution``
+    nodes (:func:`_synthesize_context_contributions`), then normalizes
+    timestamps to start at ``t=0``.
+
+    This is a separate, non-composable entry point from
+    :func:`_kg_to_plot_inputs` -- that function already synthesizes
+    ``context_part_contributed`` events internally, so it is not meant to
+    feed its output back into this one. As a safety net against exactly
+    that mistake, CPR synthesis here is idempotent on ``part_id``: any
+    ``context_part_contributed`` event already present in *events* is left
+    alone rather than duplicated.
+    """
+    records = list(records) + _synthesize_agent_calls(kg, records)
+    existing_part_ids = {
+        e.get("part_id") for e in events if e.get("kind") == "context_part_contributed"
+    }
+    new_cpr_events = [
+        e
+        for e in _synthesize_context_contributions(kg, records)
+        if e.get("part_id") not in existing_part_ids
+    ]
+    events = list(events) + new_cpr_events
+    records.sort(key=lambda r: r["start_ts"])
+    events.sort(key=lambda e: float(e.get("timestamp") or 0))
+    _normalize_timestamps(records, events)
+    return records, events
+
+
 def kg_to_events(kg: dict[str, Any]) -> list[dict[str, Any]]:
     """Convert kg.json into a flat event list for plotters that expect events.
 

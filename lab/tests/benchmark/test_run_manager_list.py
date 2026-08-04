@@ -24,10 +24,26 @@ def _write_metadata(path: Path, *, experiment: str, benchmark_id: str) -> None:
     meta.to_yaml(path / "metadata.yaml")
 
 
-def test_list_finds_flat_metadata_at_output_root(tmp_path):
+def _isolate_search_roots(monkeypatch, *roots: Path) -> None:
+    """BenchmarkRunManager.list_runs() always scans the configured default
+    roots (labs_root()/runs_root(), which resolve to real machine-wide
+    $XDG_DATA_HOME paths absent an env override) IN ADDITION to whatever
+    benchmarks_root is passed in -- so on any machine that has ever run a
+    real benchmark, these tests would also pick up unrelated runs sitting in
+    ~/.local/share/mas/labs/ and fail with len(runs) > 1. Pin the search
+    roots to exactly what the test set up, the same isolation
+    test_list_scans_runs_root_when_different_from_labs already uses below."""
+    monkeypatch.setattr(
+        "mas.lab.benchmark.run_manager.manager.default_search_roots",
+        lambda extra=None: [r.resolve() for r in roots],
+    )
+
+
+def test_list_finds_flat_metadata_at_output_root(tmp_path, monkeypatch):
     out = tmp_path / "smoke-out"
     out.mkdir()
     _write_metadata(out, experiment="smoke-trip-planner", benchmark_id="11111111-1111-1111-1111-111111111111")
+    _isolate_search_roots(monkeypatch, out)
 
     mgr = BenchmarkRunManager(benchmarks_root=out)
     runs = mgr.list_runs()
@@ -35,11 +51,12 @@ def test_list_finds_flat_metadata_at_output_root(tmp_path):
     assert runs[0].experiment_name == "smoke-trip-planner"
 
 
-def test_list_finds_nested_timestamp_directories(tmp_path):
+def test_list_finds_nested_timestamp_directories(tmp_path, monkeypatch):
     root = tmp_path / "labs"
     nested = root / "2026-07-01_12-00-00_deadbeef"
     nested.mkdir(parents=True)
     _write_metadata(nested, experiment="nested-run", benchmark_id="22222222-2222-2222-2222-222222222222")
+    _isolate_search_roots(monkeypatch, root)
 
     mgr = BenchmarkRunManager(benchmarks_root=root)
     runs = mgr.list_runs()

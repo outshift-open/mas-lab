@@ -50,20 +50,6 @@ def test_delegation_without_collaboration_block():
     ]
 
 
-def test_collaboration_none_allows_delegation_tools():
-    manifest = {
-        "metadata": {"name": "entry"},
-        "spec": {
-            "collaboration": {"type": "none"},
-            "workflow": {
-                "entry": "entry",
-                "nodes": [{"id": "entry", "delegates_to": ["alpha"]}],
-            },
-        },
-    }
-    assert delegation_targets(manifest, agent_id="entry") == ["alpha"]
-
-
 def test_topology_only_workflow_allows_delegate_tools_when_style_is_typed():
     manifest = {
         "metadata": {"name": "schedule_agent"},

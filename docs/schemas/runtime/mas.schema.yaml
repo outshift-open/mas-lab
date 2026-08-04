@@ -84,37 +84,47 @@ properties:
         description: "Extension properties (UI metadata) — ignored by the runtime."
     properties:
       agents:
-        type: array
         description: >
-          Short form: flat list of agent refs (equivalent to agency.agents).
-        default: []
-        items:
-          oneOf:
-            - type: object
-              required: [ref]
-              additionalProperties: false
-              properties:
-                id:
-                  type: string
-                ref:
-                  type: string
-            - type: object
-              required: [kind, metadata, spec]
-              additionalProperties: false
-              patternProperties:
-                "^x-":
-                  description: "UI extension — ignored by the runtime."
-              properties:
-                apiVersion:
-                  type: string
-                  const: "mas/v1"
-                kind:
-                  type: string
-                  const: "Agent"
-                metadata:
-                  type: object
-                spec:
-                  type: object
+          On a base MAS manifest: short form, a flat list of agent refs
+          (equivalent to agency.agents). On an Overlay patch
+          (spec.patch.agents): overlay-only, either a per-agent-id override
+          map (each value is an Agent-patch object applied to that
+          agency.agents entry) or a {"$op": {replace|add|remove|clear}}
+          collection op on spec.agency.agents — special-cased merge logic
+          (merge_mas_overlay), not part of the generic x-merge dispatch, and
+          not meaningful to set in this object form on a base MAS manifest
+          (there's nothing yet to override/remove from).
+        oneOf:
+          - type: array
+            default: []
+            items:
+              oneOf:
+                - type: object
+                  required: [ref]
+                  additionalProperties: false
+                  properties:
+                    id:
+                      type: string
+                    ref:
+                      type: string
+                - type: object
+                  required: [kind, metadata, spec]
+                  additionalProperties: false
+                  patternProperties:
+                    "^x-":
+                      description: "UI extension — ignored by the runtime."
+                  properties:
+                    apiVersion:
+                      type: string
+                      const: "mas/v1"
+                    kind:
+                      type: string
+                      const: "Agent"
+                    metadata:
+                      type: object
+                    spec:
+                      type: object
+          - type: object
 
       transport:
         type: object
@@ -153,6 +163,8 @@ properties:
       agency:
         type: object
         description: "The agents and their topology."
+        x-merge:
+          strategy: replace
         additionalProperties: false
         properties:
           agents:
@@ -192,6 +204,8 @@ properties:
       workflow:
         type: object
         description: "Workflow topology — entry point and delegation graph."
+        x-merge:
+          strategy: replace
         additionalProperties: false
         properties:
           entry:
@@ -213,6 +227,9 @@ properties:
       infra_refs:
         type: array
         description: "Infra manifest paths relative to the MAS manifest directory."
+        x-merge:
+          strategy: list_ops
+          identity: value
         default: []
         items:
           type: string
@@ -239,9 +256,62 @@ properties:
       telemetry:
         type: object
         description: "Telemetry output config."
+        x-merge:
+          strategy: mapping_merge_or_ops
         additionalProperties: false
         properties:
           path:
             type: string
             description: "Path to the event log file (JSONL), relative to mas.yaml."
             default: ""
+
+      params:
+        type: object
+        description: >
+          Free-form key/value params for this MAS, read by lab/benchmark
+          tooling (e.g. mas.lab.lab.config.scenario_loading) — not consumed
+          by the runtime kernel directly.
+        x-merge:
+          strategy: mapping_merge_or_ops
+        additionalProperties:
+          type: string
+        default: {}
+
+      capabilities:
+        type: object
+        description: >
+          Free-form capability declarations read by lab/benchmark manifest
+          loading (mas.lab.manifest.load) when synthesizing a LoadedMAS
+          runtime dict — not consumed by the runtime kernel directly.
+        x-merge:
+          strategy: mapping_merge_or_ops
+        additionalProperties: true
+        default: {}
+
+      intent:
+        type: object
+        description: >
+          Overlay-patchable form of the top-level intent block (patches
+          always land under spec.intent, not the top-level intent —
+          see merge_mas_overlay). Prefer the top-level intent field when
+          authoring a base MAS manifest directly.
+        x-merge:
+          strategy: mapping_merge_or_ops
+        additionalProperties: true
+        default: {}
+
+      agents_add:
+        description: >
+          Overlay-only shorthand: agent entries to append to
+          spec.agency.agents, or {"$op": {add|clear}}. Special-cased merge
+          logic (merge_mas_overlay).
+        type: object
+
+      agents_remove:
+        description: >
+          Overlay-only shorthand: agent ids to remove from
+          spec.agency.agents, or {"$op": {replace|add|remove|clear}}
+          (list_ops). Special-cased merge logic (merge_mas_overlay).
+        type: array
+        items:
+          type: string

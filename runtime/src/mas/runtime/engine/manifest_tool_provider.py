@@ -465,7 +465,7 @@ def attach_manifest_tools(
     """Load ``spec.tools`` and attach provider to the leaf engine."""
     from mas.runtime.engine.leaf import leaf_engine
     from mas.runtime.engine.llm_live import LiveLlmEngine
-    from mas.runtime.engine.tools import tool_entry_name, tools_with_resolved_names
+    from mas.runtime.engine.tools import tools_with_resolved_names
 
     spec = (manifest or {}).get("spec") or {}
     if manifest_dir is None and spec.get("tools"):
@@ -475,9 +475,6 @@ def attach_manifest_tools(
         if manifest_dir
         else list(spec.get("tools") or [])
     )
-    if tools_remove := spec.get("tools_remove"):
-        drop = {n for x in tools_remove if (n := tool_entry_name(x, base_dir=manifest_dir))}
-        tools = [t for t in tools if not (n := tool_entry_name(t, base_dir=manifest_dir)) or n not in drop]
     if not tools:
         return None
 

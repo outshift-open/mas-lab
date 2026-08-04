@@ -71,7 +71,7 @@ def _apply_patch_to_agents(
             ctx = fragment.get("context")
             if isinstance(ctx, dict):
                 stub["spec"]["context"] = copy.deepcopy(ctx)
-            for key in ("design_pattern", "tools", "tools_remove", "skills", "llm"):
+            for key in ("design_pattern", "tools", "skills", "llm"):
                 if key in fragment:
                     stub["spec"][key] = copy.deepcopy(fragment[key])
             agents_by_id[agent_id] = merge_agent_overlay(agents_by_id[agent_id], stub)

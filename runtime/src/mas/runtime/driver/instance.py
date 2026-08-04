@@ -15,6 +15,7 @@ from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.kernel.orchestrator import RuntimeKernel
 from mas.runtime.driver.driver import DriverTrace, KernelDriver
 from mas.runtime.driver.mocks import AutoCtxAssembler
+from mas.runtime.boundary.context.working_memory_registry import WorkingMemoryConfig
 from mas.runtime.schema.ingress import (
     IngressSymbol,
     LifecycleAbort,
@@ -36,6 +37,12 @@ class RuntimeInstance:
     driver: KernelDriver
     _checkpoints: list[dict] = field(default_factory=list)
     obs_plugin_set: Any | None = field(default=None, repr=False)
+    # Mirrors spec.working_memory on the agent manifest (default:
+    # persistent=True). Set by instantiate_runtime() from the agent
+    # manifest; only consulted on the delegation path (make_workflow_send) —
+    # an entry agent driven directly by the user already keeps its own
+    # history for free across turns. See WorkingMemoryConfig.
+    working_memory: WorkingMemoryConfig = field(default_factory=WorkingMemoryConfig)
 
     @classmethod
     def from_parts(

@@ -2,24 +2,26 @@
 #  SPDX-License-Identifier: Apache-2.0
 $schema: "https://json-schema.org/draft-07/schema#"
 title: OverlayFlavourPatch
+# Structural (type-shape) validation ONLY for `mas-ctl validate <overlay.yaml>`.
+# Merge BEHAVIOR is no longer read from this file -- ctl/src/mas/ctl/overlay/
+# merge.py reads x-merge annotations straight off ../flavour.schema.yaml's
+# own spec properties (single source of truth). Same pattern as
+# overlay-agent-patch.schema.yaml -- see that file's header comment.
 type: object
 additionalProperties: false
 patternProperties:
   "^x-": {}
 properties:
   agent_comm:
-    type: object
-    x-merge:
-      strategy: mapping_merge_or_ops
+    $ref: "../flavour.schema.yaml#/properties/spec/properties/agent_comm"
   capabilities:
-    type: object
-    x-merge:
-      strategy: mapping_merge_or_ops
+    $ref: "../flavour.schema.yaml#/properties/spec/properties/capabilities"
   telemetry:
-    type: object
-    x-merge:
-      strategy: mapping_merge_or_ops
+    $ref: "../flavour.schema.yaml#/properties/spec/properties/telemetry"
   observability:
+    # Not a plain $ref: overlay context accepts the {"$op": {...}}
+    # plugin-list sugar, unlike the base schema's plain plugin-list shape --
+    # a genuine difference, not duplication.
     x-merge:
       strategy: plugin_list_ops
       identity: plugin_id
@@ -33,14 +35,10 @@ properties:
       - type: "null"
       - $ref: "./overlay-collection-ops-control.schema.yaml"
   tools:
+    # Not a plain $ref: overlay context accepts {"$op": {replace|merge|clear}}
+    # alongside a plain object, unlike the base schema's plain object.
     $ref: "./overlay-collection-ops-object-merge.schema.yaml"
-    x-merge:
-      strategy: mapping_merge_or_ops
   config:
     $ref: "./overlay-collection-ops-object-merge.schema.yaml"
-    x-merge:
-      strategy: mapping_merge_or_ops
   operator:
     $ref: "./overlay-collection-ops-object-merge.schema.yaml"
-    x-merge:
-      strategy: mapping_merge_or_ops

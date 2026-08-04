@@ -10,7 +10,7 @@ from mas.runtime.engine.tool_dispatch import ToolExecutionError, execute_engine_
 
 
 def test_execute_engine_tool_routes_delegate_tools():
-    delegator = LlmDelegator(run_turn=lambda aid, task, cid, ccid: f"delegated:{aid}:{task}")
+    delegator = LlmDelegator(run_turn=lambda aid, task, cid, ccid, ctx_id: f"delegated:{aid}:{task}")
     out = execute_engine_tool(
         "delegate_to_db",
         delegation=delegator,
@@ -25,7 +25,7 @@ def test_execute_engine_tool_forwards_caller_call_id_to_delegation():
     delegate's own execution_start.parent_call_id is a real native value."""
     seen: list[str] = []
     delegator = LlmDelegator(
-        run_turn=lambda aid, task, cid, ccid: seen.append(ccid) or f"delegated:{aid}"
+        run_turn=lambda aid, task, cid, ccid, ctx_id: seen.append(ccid) or f"delegated:{aid}"
     )
     execute_engine_tool(
         "delegate_to_db",

@@ -2,76 +2,72 @@
 #  SPDX-License-Identifier: Apache-2.0
 $schema: "https://json-schema.org/draft-07/schema#"
 title: OverlayAgentPatch
+# Structural (type-shape) validation ONLY for `mas-ctl validate <overlay.yaml>`.
+# Merge BEHAVIOR (which fields are patchable, how they merge) is no longer
+# read from this file at all -- ctl/src/mas/ctl/overlay/merge.py reads
+# x-merge annotations straight off ../agent.schema.yaml's own spec
+# properties (single source of truth; see that file's `x-merge` blocks).
+#
+# Fields below whose overlay-patch shape is IDENTICAL to the base schema's
+# just $ref into agent.schema.yaml's own property node -- one pointer, so the
+# TYPE can never drift out of sync the way context_policy/params once did
+# here (context_policy was dead: no consumer anywhere in the repo; params
+# was a real field nothing declared on the base schema -- fixed by adding
+# it to agent.schema.yaml directly). tools_remove was removed as a concept
+# entirely: `tools: {"$op": {"remove": [...]}}` (list_ops, already native to
+# spec.tools) already expresses the same subtraction without a second,
+# separately-named attribute for the same operation.
+#
+# Fields whose overlay-patch shape is genuinely NOT the same as the base
+# field (accepts the {"$op": {...}} list-ops sugar, or -- for design_pattern
+# -- a stricter params/config shape than the base's permissive one) keep
+# their own hand-written definition here; that's real, irreducible
+# information, not duplication. Adding a new SIMPLE overlay-patchable field
+# still needs one line here (a $ref pointer) alongside its definition in
+# agent.schema.yaml -- JSON Schema has no "any property the base schema
+# declares" wildcard -- but the type body itself never needs to be copied.
 type: object
 additionalProperties: false
 patternProperties:
   "^x-": {}
 properties:
   params:
-    type: object
-    additionalProperties:
-      type: string
-    x-merge:
-      strategy: mapping_merge_or_ops
+    $ref: "../agent.schema.yaml#/properties/spec/properties/params"
   context:
-    type: object
-    additionalProperties:
-      $ref: "./context-chunk.schema.yaml"
-    x-merge:
-      strategy: context_merge
+    $ref: "../agent.schema.yaml#/properties/spec/properties/context"
   memory:
-    type: string
-    x-merge:
-      strategy: replace
+    $ref: "../agent.schema.yaml#/properties/spec/properties/memory"
+  working_memory:
+    $ref: "../agent.schema.yaml#/properties/spec/properties/working_memory"
+  llm:
+    $ref: "../agent.schema.yaml#/properties/spec/properties/llm"
+  execution:
+    $ref: "../agent.schema.yaml#/properties/spec/properties/execution"
   memory_seed:
     $ref: "./overlay-collection-ops-memory-seed.schema.yaml"
-    x-merge:
-      strategy: list_ops
-      identity: value
   tools:
     $ref: "./overlay-collection-ops-tool.schema.yaml"
-    x-merge:
-      strategy: list_ops
-      identity: value
   skills:
     $ref: "./overlay-collection-ops-string.schema.yaml"
-    x-merge:
-      strategy: list_ops
-      identity: value
+  infra_refs:
+    $ref: "./overlay-collection-ops-string.schema.yaml"
+  infra_interceptors:
+    $ref: "./overlay-collection-ops-string.schema.yaml"
   context_manager:
+    # Not a plain $ref: the nested `skills` sub-field accepts the
+    # {"$op": {...}} list-ops sugar in overlay context, unlike the base
+    # schema's plain array -- a genuine shape difference, not duplication.
     type: object
     additionalProperties: false
-    x-merge:
-      strategy: mapping_merge_or_ops
     properties:
       skills:
         $ref: "./overlay-collection-ops-string.schema.yaml"
-        x-merge:
-          strategy: list_ops
-          identity: value
-  llm:
-    $ref: "./llm-binding.schema.yaml"
-    x-merge:
-      strategy: mapping_merge_or_ops
-  execution:
-    $ref: "./execution-binding.schema.yaml"
-    x-merge:
-      strategy: execution_merge
-  infra_refs:
-    $ref: "./overlay-collection-ops-string.schema.yaml"
-    x-merge:
-      strategy: list_ops
-      identity: value
-  infra_interceptors:
-    $ref: "./overlay-collection-ops-string.schema.yaml"
-    x-merge:
-      strategy: list_ops
-      identity: value
   design_pattern:
+    # Not a plain $ref: params/config use the stricter design-pattern-config
+    # fragment here, vs. the base schema's permissive additionalProperties:
+    # true -- overlay-time validation is intentionally tighter.
     type: [object, "null"]
     additionalProperties: false
-    x-merge:
-      strategy: replace
     properties:
       type:
         type: string
@@ -81,32 +77,15 @@ properties:
         $ref: "./design-pattern-config.schema.yaml"
       config:
         $ref: "./design-pattern-config.schema.yaml"
-  tools_remove:
-    $ref: "./overlay-collection-ops-string.schema.yaml"
-    x-merge:
-      strategy: list_ops
-      identity: tool_remove_key
-  context_policy:
-    type: [object, "null"]
-    x-merge:
-      strategy: replace
   control:
-    x-merge:
-      strategy: mapping_ops
     oneOf:
       - type: "null"
       - $ref: "./overlay-collection-ops-control.schema.yaml"
   governance:
-    x-merge:
-      strategy: plugin_list_ops
-      identity: plugin_id
     oneOf:
       - type: "null"
       - $ref: "./overlay-collection-ops-governance.schema.yaml"
   observability:
-    x-merge:
-      strategy: plugin_list_ops
-      identity: plugin_id
     oneOf:
       - type: "null"
       - $ref: "./overlay-collection-ops-observability.schema.yaml"

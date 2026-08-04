@@ -2,24 +2,48 @@
 #  SPDX-License-Identifier: Apache-2.0
 $schema: "https://json-schema.org/draft-07/schema#"
 title: OverlayInfraPatch
+# Structural (type-shape) validation ONLY for `mas-ctl validate <overlay.yaml>`.
+# Infra overlays merge via plain RFC 7396 JSON Merge Patch (see
+# merge_overlay's target_kind == "infra" branch, ctl/src/mas/ctl/overlay/
+# merge.py) -- no per-field x-merge strategy is consulted, so unlike Agent/
+# MAS/Flavour there's no merge-metadata duplication to eliminate here. What
+# WAS duplicated (and is fixed below) is the field list itself: every
+# property used to be a bare `{}` stub -- a name with zero type safety,
+# re-declared here instead of reusing ../infra.schema.yaml's real,
+# already-typed declaration.
 type: object
 additionalProperties: false
 properties:
-  entries: {}
-  includes: {}
-  interceptors: {}
-  middleware: {}
-  applies_to: {}
-  proxy: {}
-  server: {}
-  models: {}
-  endpoints: {}
-  tool_servers: {}
-  tools: {}
-  token_refs: {}
-  stores: {}
-  provider: {}
-  params: {}
+  entries:
+    $ref: "../infra.schema.yaml#/properties/spec/properties/entries"
+  includes:
+    $ref: "../infra.schema.yaml#/properties/spec/properties/includes"
+  interceptors:
+    $ref: "../infra.schema.yaml#/properties/spec/properties/interceptors"
+  middleware:
+    $ref: "../infra.schema.yaml#/properties/spec/properties/middleware"
+  applies_to:
+    $ref: "../infra.schema.yaml#/properties/spec/properties/applies_to"
+  proxy:
+    $ref: "../infra.schema.yaml#/properties/spec/properties/proxy"
+  server:
+    $ref: "../infra.schema.yaml#/properties/spec/properties/server"
+  models:
+    $ref: "../infra.schema.yaml#/properties/spec/properties/models"
+  endpoints:
+    $ref: "../infra.schema.yaml#/properties/spec/properties/endpoints"
+  tool_servers:
+    $ref: "../infra.schema.yaml#/properties/spec/properties/tool_servers"
+  tools:
+    $ref: "../infra.schema.yaml#/properties/spec/properties/tools"
+  token_refs:
+    $ref: "../infra.schema.yaml#/properties/spec/properties/token_refs"
+  stores:
+    $ref: "../infra.schema.yaml#/properties/spec/properties/stores"
+  provider:
+    $ref: "../infra.schema.yaml#/properties/spec/properties/provider"
+  params:
+    $ref: "../infra.schema.yaml#/properties/spec/properties/params"
 description: >
   Infra overlays follow JSON Merge Patch semantics on Infra spec blocks.
   Raw objects replace at field level unless explicit $op mapping/list operators

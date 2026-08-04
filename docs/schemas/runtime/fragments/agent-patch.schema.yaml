@@ -4,49 +4,34 @@ $schema: "https://json-schema.org/draft-07/schema#"
 $id: "mas/v1#agent-patch"
 title: AgentPatch
 description: Per-agent override fields allowed in overlay patch.agents.
+# Field shapes below are NOT re-declared here -- they $ref straight into
+# overlay-agent-patch.schema.yaml's own properties, which in turn $ref into
+# agent.schema.yaml for the fields whose overlay shape is identical to the
+# base schema's. One definition per field, not three: this file used to hand
+# -copy design_pattern/llm/execution/memory/tools/skills/context a THIRD
+# time (and carried a `collaboration` property that was a copy-paste bug --
+# its `params` pointed at context-manager-params.schema.yaml, unrelated to
+# collaboration at all -- moot now: spec.collaboration was removed as a
+# concept, see docs/manifests/agent.md#delegation).
 type: object
 additionalProperties: false
 patternProperties:
   "^x-": {}
 properties:
   design_pattern:
-    type: object
-    additionalProperties: false
-    properties:
-      type:
-        type: string
-      ref:
-        type: string
-      params:
-        $ref: "./design-pattern-config.schema.yaml"
-      config:
-        $ref: "./design-pattern-config.schema.yaml"
-  collaboration:
-    type: object
-    additionalProperties: false
-    properties:
-      type:
-        type: string
-      ref:
-        type: string
-      params:
-        $ref: "./context-manager-params.schema.yaml"
-      skills:
-        $ref: "./overlay-collection-ops-string.schema.yaml"
+    $ref: "./overlay-agent-patch.schema.yaml#/properties/design_pattern"
   llm:
-    $ref: "./llm-binding.schema.yaml"
+    $ref: "./overlay-agent-patch.schema.yaml#/properties/llm"
   execution:
-    $ref: "./execution-binding.schema.yaml"
+    $ref: "./overlay-agent-patch.schema.yaml#/properties/execution"
   memory:
-    type: string
+    $ref: "./overlay-agent-patch.schema.yaml#/properties/memory"
   tools:
-    $ref: "./overlay-collection-ops-tool.schema.yaml"
+    $ref: "./overlay-agent-patch.schema.yaml#/properties/tools"
   skills:
-    $ref: "./overlay-collection-ops-string.schema.yaml"
+    $ref: "./overlay-agent-patch.schema.yaml#/properties/skills"
   context:
-    type: object
-    additionalProperties:
-      $ref: "./context-chunk.schema.yaml"
+    $ref: "./overlay-agent-patch.schema.yaml#/properties/context"
   description:
     type: string
   ref:

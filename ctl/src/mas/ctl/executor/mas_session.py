@@ -24,7 +24,7 @@ from mas.runtime.agent_defaults import default_pattern_plugin_id
 
 logger = logging.getLogger(__name__)
 
-RunTurnFn = Callable[[str, str, int, str], str]
+RunTurnFn = Callable[[str, str, int, str, str], str]
 
 # Max length for a single-line context value probed as a relative file path.
 _MAX_PROBE_PATH_LEN = 512
@@ -313,6 +313,7 @@ def make_workflow_send(
         prompt: str,
         delegate_correlation_id: int = 0,
         caller_call_id: str = "",
+        context_id: str = "",
     ) -> str:
         bus = getattr(materialized, "bus", None)
         prev_agent = state["prev_agent"]
@@ -360,6 +361,15 @@ def make_workflow_send(
             raise KeyError(f"agent {agent_id!r} not materialized (have: {list(materialized.instances)})")
         if hasattr(instance.driver, "agent_id"):
             instance.driver.agent_id = agent_id
+        # An explicit context_id (LLM-chosen, via the delegate tool's optional
+        # context_id argument) picks a working-memory bucket independent of
+        # the ambient session_id — lets the delegating agent run more than
+        # one context with the same peer inside one session. Omitted (the
+        # common case) falls back to the session's default bucket. Passed to
+        # SessionController below as working_memory_key -- the controller
+        # syncs working memory itself (same mechanism a directly-driven chat
+        # session uses), so this closure doesn't sync it a second time.
+        memory_key = context_id or state["session_id"]
         sub_display = display
         if from_agent and agent_id != from_agent:
             import sys
@@ -382,6 +392,7 @@ def make_workflow_send(
             agent_id=agent_id,
             config=ConversationConfig(single_turn=True),
             session_id=state["session_id"],
+            working_memory_key=memory_key,
         )
         result = controller.run_turn(prompt, turn_id=turn_id, parent_call_id=parent_call_id)
         # Do NOT close observability after a delegated sub-turn: in a multi-agent

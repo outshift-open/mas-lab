@@ -88,7 +88,6 @@ def load_scenario_config(
       Domain-specific key/value pairs opaque to the runner.  Consumers (e.g.
       the demo server) may extract and act on them — for instance by writing
       ``artifacts/scene.yaml`` from ``params.incident_fixture``.
-    * ``spec.patch.tools_remove``  → ``config["tools_remove"]`` (replace list)
     * ``spec.patch.skills_exclude``→ ``config["skills_exclude"]`` (replace list)
 
     Returns
@@ -172,15 +171,13 @@ def load_scenario_config(
         if "params" in overlay_spec:
             config["params"] = overlay_spec["params"]
         # Tool / skill filtering declared at overlay level
-        if "tools_remove" in overlay_spec:
-            config["tools_remove"] = overlay_spec["tools_remove"]
         if "skills_exclude" in overlay_spec:
             config["skills_exclude"] = overlay_spec["skills_exclude"]
         # skills_include: global skills to ADD to every agent (array-append semantics
         # that RFC 7396 Merge Patch cannot express natively).
         if "skills_include" in overlay_spec:
             config["skills_include"] = overlay_spec["skills_include"]
-        # Per-agent overrides: spec.patch.agents.<id>.context / design_pattern / tools_remove
+        # Per-agent overrides: spec.patch.agents.<id>.context / design_pattern
         if "agents" in overlay_spec:
             overlay_agents: dict = overlay_spec["agents"]
             agents_list: list = config.get("agents", [])
@@ -199,12 +196,6 @@ def load_scenario_config(
                     if key in per_agent:
                         agent_cfg[key] = per_agent[key]
                         logger.info("[overlay] agent '%s': %s overridden (scenario=%s)", agent_id, key, scenario_id)
-                if "tools_remove" in per_agent:
-                    existing = set(agent_cfg.get("tools_remove") or [])
-                    added = set(per_agent["tools_remove"]) - existing
-                    agent_cfg["tools_remove"] = sorted(existing | set(per_agent["tools_remove"]))
-                    if added:
-                        logger.info("[overlay] agent '%s': tools_remove += %s (scenario=%s)", agent_id, sorted(added), scenario_id)
                 # Per-agent tools: merge new tool names into spec_tools.
                 if "tools" in per_agent:
                     existing_tools = list(agent_cfg.get("spec_tools") or [])
@@ -423,13 +414,11 @@ def load_stacked_config(
             )
         if "params" in overlay_spec:
             config["params"] = overlay_spec["params"]
-        if "tools_remove" in overlay_spec:
-            config["tools_remove"] = overlay_spec["tools_remove"]
         if "skills_exclude" in overlay_spec:
             config["skills_exclude"] = overlay_spec["skills_exclude"]
         if "skills_include" in overlay_spec:
             config["skills_include"] = overlay_spec["skills_include"]
-        # Per-agent overrides: spec.patch.agents.<id>.context / design_pattern / tools_remove
+        # Per-agent overrides: spec.patch.agents.<id>.context / design_pattern
         if "agents" in overlay_spec:
             overlay_agents: dict = overlay_spec["agents"]
             agents_list: list = config.get("agents", [])
@@ -446,9 +435,6 @@ def load_stacked_config(
                 for key in ("design_pattern",):
                     if key in per_agent:
                         agent_cfg[key] = per_agent[key]
-                if "tools_remove" in per_agent:
-                    existing = set(agent_cfg.get("tools_remove") or [])
-                    agent_cfg["tools_remove"] = sorted(existing | set(per_agent["tools_remove"]))
                 if "tools" in per_agent:
                     existing_tools = list(agent_cfg.get("spec_tools") or [])
                     for t in per_agent["tools"]:

@@ -46,7 +46,6 @@ class MasRuntimePyKernelBackend:
                         apply_agency_entry_overlay,
                         find_agency_entry,
                     )
-                    from mas.ctl.manifest.spec_bindings import parse_collaboration
                     from mas.runtime.engine.tools import resolve_manifest_tool_refs
 
                     mas_config = (
@@ -73,7 +72,6 @@ class MasRuntimePyKernelBackend:
                                 agent_manifest.setdefault("spec", {})["agency"] = {
                                     "agents": list(agency.get("agents") or [])
                                 }
-                    parse_collaboration((agent_manifest.get("spec") or {}).get("collaboration"))
                     agent_manifest = resolve_manifest_tool_refs(agent_manifest, manifest_dir)
 
         instance, _ = instantiate_runtime(

@@ -197,7 +197,6 @@ def _reject_unknown_keys(raw: dict[str, Any], *, allowed: frozenset[str], field:
 
 
 _DESIGN_PATTERN_KEYS = frozenset({"type", "ref", "params", "config"})
-_COLLABORATION_KEYS = frozenset({"type", "ref", "params"})
 _CONTEXT_MANAGER_KEYS = frozenset({"type", "ref", "params", "skills", "memory"})
 
 
@@ -207,24 +206,6 @@ def parse_design_pattern(raw: Any) -> None:
     if not isinstance(raw, dict):
         raise SpecBindingError(f"spec.design_pattern must be an object, got {type(raw).__name__}")
     _reject_unknown_keys(raw, allowed=_DESIGN_PATTERN_KEYS, field="spec.design_pattern")
-
-
-def parse_collaboration(raw: Any) -> None:
-    if raw is None:
-        return
-    if not isinstance(raw, dict):
-        raise SpecBindingError(f"spec.collaboration must be an object, got {type(raw).__name__}")
-    _reject_unknown_keys(raw, allowed=_COLLABORATION_KEYS, field="spec.collaboration")
-    if raw.get("ref"):
-        raise SpecBindingError(
-            "spec.collaboration.ref is not supported in this release; omit spec.collaboration"
-        )
-    typ = raw.get("type")
-    if isinstance(typ, str) and typ.strip() and typ.strip().lower() != "none":
-        raise SpecBindingError(
-            f"spec.collaboration.type {typ.strip()!r} is not supported in this release; "
-            "omit spec.collaboration or set type: none"
-        )
 
 
 def parse_context_manager(raw: Any) -> None:
@@ -307,8 +288,6 @@ def validate_agent_spec_bindings(spec: Any) -> None:
         parse_control(spec["control"])
     if "design_pattern" in spec:
         parse_design_pattern(spec["design_pattern"])
-    if "collaboration" in spec:
-        parse_collaboration(spec["collaboration"])
     if "context_manager" in spec:
         parse_context_manager(spec["context_manager"])
     parse_infra_lists(spec)

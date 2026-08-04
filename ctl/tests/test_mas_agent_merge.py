@@ -4,11 +4,9 @@
 
 from pathlib import Path
 
-import pytest
 import yaml
 
 from mas.ctl.manifest.mas_agent_merge import enrich_entry_agent_for_delegation, wire_entry_engine_delegation
-from mas.ctl.manifest.spec_bindings import SpecBindingError
 from mas.runtime.engine.llm_live import LiveLlmEngine
 from mas.runtime.engine.tools import openai_tools, resolve_manifest_tool_refs
 
@@ -69,16 +67,6 @@ def test_enrich_entry_agent_injects_workflow(tmp_path: Path):
     assert "delegate_to_alpha" in by_name
     assert "Alpha specialist" in by_name["delegate_to_alpha"]["function"]["description"]
     assert by_name["delegate_to_beta"]["function"]["description"] == "Delegate a sub-task to agent beta."
-
-
-def test_enrich_rejects_unsupported_collaboration():
-    agent = {
-        "metadata": {"name": "entry"},
-        "spec": {"collaboration": {"type": "llm-delegator"}},
-    }
-    mas = {"spec": {"workflow": {"entry": "entry", "nodes": [{"id": "entry"}]}}}
-    with pytest.raises(SpecBindingError):
-        enrich_entry_agent_for_delegation(agent, mas)
 
 
 def test_resolve_tool_refs_from_yaml(tmp_path: Path):
@@ -204,11 +192,11 @@ def test_reset_engine_delegation_clears_delegate_cache():
 
     class _Engine:
         def __init__(self) -> None:
-            self.delegation = LlmDelegator(run_turn=lambda _a, _t, _c, _ccid: "ok")
+            self.delegation = LlmDelegator(run_turn=lambda _a, _t, _c, _ccid, _ctx_id: "ok")
 
     engine = _Engine()
     engine.delegation.delegate("peer", "task")
-    assert ("peer", "task") in engine.delegation._completed_peers
+    assert ("peer", "task", "") in engine.delegation._completed_peers
     reset_engine_delegation(engine)
     assert not engine.delegation._completed_peers
 
@@ -230,24 +218,53 @@ def test_apply_agency_entry_overlay_merges_context_and_tools():
     assert merged["spec"]["tools"] == [{"ref": "tools/memory-search.tool.yaml"}]
 
 
-def test_apply_agency_entry_overlay_merges_tools_remove():
+def test_apply_agency_entry_overlay_tools_op_remove_strips_from_base_list():
+    """tools_remove (a separate, redundant field) was removed as a concept
+    here too -- agency-entry inline tool removal now goes through the same
+    tools: {"$op": {"remove": [...]}} sugar the overlay-patch level already
+    supports (see docs/manifests/overlay.md), not a second attribute name
+    for the same operation."""
     from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
 
-    manifest = {"metadata": {"name": "a"}, "spec": {"tools_remove": ["calc"]}}
-    entry = {"id": "a", "tools_remove": ["web-search"]}
-    merged = apply_agency_entry_overlay(manifest, entry)
-    assert merged["spec"]["tools_remove"] == ["calc", "web-search"]
-
-    manifest2 = {"metadata": {"name": "b"}, "spec": {}}
-    entry2 = {
-        "id": "b",
-        "tools_remove": [{"ref": "samples:tools/calc.tool.yaml"}, "web-search"],
+    manifest = {
+        "metadata": {"name": "a"},
+        "spec": {"tools": ["calc", "web-search"]},
     }
-    merged2 = apply_agency_entry_overlay(manifest2, entry2)
-    assert merged2["spec"]["tools_remove"] == [
-        {"ref": "samples:tools/calc.tool.yaml"},
-        "web-search",
-    ]
+    entry = {"id": "a", "tools": {"$op": {"remove": ["calc"]}}}
+    merged = apply_agency_entry_overlay(manifest, entry)
+    assert merged["spec"]["tools"] == ["web-search"]
+
+
+def test_apply_agency_entry_overlay_tools_op_remove_by_ref():
+    from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
+
+    manifest = {
+        "metadata": {"name": "b"},
+        "spec": {"tools": [{"ref": "samples:tools/calc.tool.yaml"}, "web-search"]},
+    }
+    entry = {"id": "b", "tools": {"$op": {"remove": ["samples:tools/calc.tool.yaml"]}}}
+    merged = apply_agency_entry_overlay(manifest, entry)
+    assert merged["spec"]["tools"] == ["web-search"]
+
+
+def test_apply_agency_entry_overlay_tools_op_add_still_dedups():
+    from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
+
+    manifest = {"metadata": {"name": "c"}, "spec": {"tools": ["calc"]}}
+    entry = {"id": "c", "tools": {"$op": {"add": ["calc", "web-search"]}}}
+    merged = apply_agency_entry_overlay(manifest, entry)
+    assert merged["spec"]["tools"] == ["calc", "web-search"]
+
+
+def test_apply_agency_entry_overlay_plain_tools_list_still_adds_not_replaces():
+    """Unchanged, long-standing behavior: a plain list (no $op) is an ADD,
+    dedup-merged onto the existing tools -- not a replace."""
+    from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
+
+    manifest = {"metadata": {"name": "d"}, "spec": {"tools": ["calc"]}}
+    entry = {"id": "d", "tools": ["web-search"]}
+    merged = apply_agency_entry_overlay(manifest, entry)
+    assert merged["spec"]["tools"] == ["calc", "web-search"]
 
 
 def test_merge_tool_ref_list_keeps_entries_without_key(caplog):

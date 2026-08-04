@@ -307,13 +307,13 @@ spec:
         ref: agents/concierge-agent/agent.yaml
 
     workflow:
-      type: sequential
       entry: schedule_agent
-      edges:
-        - from: schedule_agent
-          to: [ itinerary_agent ]
-        - from: itinerary_agent
-          to: [ concierge_agent ]
+      nodes:
+        - id: schedule_agent
+          delegates_to: [ itinerary_agent ]
+        - id: itinerary_agent
+          delegates_to: [ concierge_agent ]
+        - id: concierge_agent
 ```
 
 Overlays are referenced by their `metadata.id` in experiment scenarios:
@@ -387,7 +387,7 @@ agent definitions.
 |---------|----------|----------|--------------------|
 | (no overlay) | `dynamic` | moderator + 3 specialists | Moderator LLM |
 | `-o overlays/single-agent.yaml` | `single` | 1 generalist | N/A |
-| `-o overlays/linear.yaml` | `sequential` | 3 specialists | Declared edges |
+| `-o overlays/linear.yaml` | `sequential` | 3 specialists | Fixed workflow nodes |
 
 Ask: *"I want to visit Thornhaven for 3 days, budget €500, interested in history and food."*
 
@@ -474,7 +474,7 @@ Live `mas-ctl run-mas` steps need `TUTORIAL_ONLINE=1` and LLM credentials (Tutor
 
 1. **MAS = topology**: agents are wired by `workflow` (entry, nodes, delegation), not code
 2. **Agents own capabilities**: each agent declares its own tools and skills in its `agent.yaml`
-3. **Separation of concerns**: agents (nodes) and workflow (edges) are distinct YAML sections
+3. **Separation of concerns**: agents and workflow topology (entry + nodes) are distinct YAML sections
 4. **Overlays switch topologies**: a single overlay can collapse to one agent or chain into a pipeline — agent tool declarations stay unchanged
 5. **Dynamic delegation**: the moderator's ReAct loop drives delegation dynamically
 6. **Event stream captures delegation**: `tool_call_start` / `tool_call_end` on `delegate_to_<id>` trace peer handoffs

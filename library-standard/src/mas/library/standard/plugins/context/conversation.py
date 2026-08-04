@@ -88,7 +88,7 @@ class SummarizingConversation(ContextManagerContract):
 
     def __init__(
         self,
-        threshold_tokens: int = 4000,
+        summary_threshold: int = 4000,
         keep_turns: int = 10,
         summarize_fn: Callable[[list[dict[str, Any]]], str] | None = None,
     ) -> None:
@@ -97,7 +97,7 @@ class SummarizingConversation(ContextManagerContract):
                 "SummarizingConversation requires summarize_fn; "
                 "register an LLM-backed summarizer via manifest params or plugin wiring"
             )
-        self.threshold_tokens = threshold_tokens
+        self.summary_threshold = summary_threshold
         self.keep_turns = keep_turns
         self._summarize_fn = summarize_fn
         self.last_compaction_metadata: dict[str, Any] | None = None
@@ -119,7 +119,7 @@ class SummarizingConversation(ContextManagerContract):
         if not past:
             return past
 
-        effective = budget_tokens if budget_tokens else self.threshold_tokens
+        effective = budget_tokens if budget_tokens else self.summary_threshold
         if self._estimate_tokens(past) <= effective:
             return past
 
