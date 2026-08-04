@@ -30,6 +30,7 @@ module_base: mas.library.lab
 types:
   - step
   - codec
+  - design_pattern
 
 plugins:
   - type: step
@@ -208,3 +209,25 @@ plugins:
     attributes:
       artifact_kind: events
       store_type: filesystem
+
+  # Experimental deterministic design patterns (local, not OSS)
+  - type: design_pattern
+    name: deterministic_voting
+    urn: mas.dp.deterministic_voting
+    module: mas.library.lab.plugins.design_patterns.voting
+    class: DeterministicVotingPlugin
+  - type: design_pattern
+    name: deterministic_staged_debate
+    urn: mas.dp.deterministic_staged_debate
+    module: mas.library.lab.plugins.design_patterns.staged_debate
+    class: DeterministicStagedDebatePlugin
+  - type: design_pattern
+    name: deterministic_supervised
+    urn: mas.dp.deterministic_supervised
+    module: mas.library.lab.plugins.design_patterns.supervised
+    class: DeterministicSupervisedPlugin
+  - type: design_pattern
+    name: deterministic_verifier
+    urn: mas.dp.deterministic_verifier
+    module: mas.library.lab.plugins.design_patterns.verifier
+    class: DeterministicVerifierPlugin

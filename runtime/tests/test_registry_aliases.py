@@ -6,7 +6,6 @@ from __future__ import annotations
 
 from mas.runtime.registry import PluginEntry, PluginRegistry, VariantInfo
 from mas.runtime.registry.bootstrap import (
-    _candidate_from_target,
     register_manifest_data,
     register_manifest_file,
 )
@@ -106,13 +105,6 @@ aliases:
     file_registry = PluginRegistry()
     register_manifest_file(file_registry, manifest_file)
     assert file_registry.resolve("file_sample") is not None
-
-
-def test_candidate_from_target_builds_canonical_urn() -> None:
-    candidate = _candidate_from_target("codec", "my-codec", "pathlib:Path")
-
-    assert candidate.urn == "mas.codec.my_codec"
-    assert candidate.shortcuts == ["my-codec"]
 
 
 def test_registry_create_uses_defaults_and_manifest_bindings() -> None:

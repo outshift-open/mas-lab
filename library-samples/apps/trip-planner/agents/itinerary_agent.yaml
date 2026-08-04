@@ -7,15 +7,16 @@ metadata:
   name: itinerary_agent
 spec:
   models:
-  - model: gpt-4o-mini
-    temperature: 0.2
-    max_tokens: 1500
+    - model: gpt-4o-mini
+      temperature: 0.2
+      max_tokens: 1500
   tools:
-  - ref: ../../../tools/query_graph_database.tool.yaml
-  - ref: ../../../tools/get_fares.tool.yaml
+    - ref: ../../../tools/query_graph_database.tool.yaml
+    - ref: ../../../tools/get_fares.tool.yaml
   description: Route planner and itinerary specialist.
   context:
-    role: "You are an itinerary specialist. You have access to the query_graph_database\n\
+    role:
+      "You are an itinerary specialist. You have access to the query_graph_database\n\
       \      tool which queries a graph of cities and returns feasible paths with\
       \ their\n      travel times.\n\n      Use this tool to find feasible routes\
       \ and their corresponding average travel\n      times. Present your findings\

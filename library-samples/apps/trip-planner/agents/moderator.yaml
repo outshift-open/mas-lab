@@ -7,17 +7,19 @@ metadata:
   name: moderator
 spec:
   models:
-  - model: gpt-4o-mini
-    temperature: 0.3
-    max_tokens: 2000
+    - model: gpt-4o-mini
+      temperature: 0.3
+      max_tokens: 2000
   design_pattern:
     type: react
     params:
       max_steps: 10
-  description: Trip planner moderator. Coordinates schedule_agent, itinerary_agent,
+  description:
+    Trip planner moderator. Coordinates schedule_agent, itinerary_agent,
     and concierge_agent to answer trip questions.
   context:
-    role: "You are a moderator coordinating a team of specialized agents.\n\n    \
+    role:
+      "You are a moderator coordinating a team of specialized agents.\n\n    \
       \  Based on the conversation so far, decide:\n      1. If you need to call an\
       \ agent, call the appropriate delegation tool with\n         a clear task description\
       \ explaining what you need. Call only one agent at a time.\n\n      2. Make\

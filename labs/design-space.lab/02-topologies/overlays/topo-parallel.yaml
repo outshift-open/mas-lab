@@ -5,15 +5,9 @@ kind: Overlay
 metadata:
   id: topo-parallel
   description: >
-    Parallel topology — moderator fans out to ALL specialists simultaneously
-    (dispatch: parallel), waits for all results, then aggregates into a single
-    coherent answer.  Structurally equivalent to moderator-broker except that
-    sub-agent calls are concurrent rather than sequential.
-  notes: >
-    Contrasts with topo-linear-pipeline (sequential, deterministic chain) and
-    topo-moderator-broker (sequential, dynamic delegation).  Parallel dispatch
-    should reduce latency vs moderator-broker on multi-aspect queries while
-    preserving full coverage — the moderator always calls all three specialists.
+    Parallel topology — deterministic fan-out to all specialists simultaneously.
+    Entry agent receives task and dispatches to all participants in parallel,
+    then aggregates results.
   tags: [topology, exp-1.2]
 
 spec:
@@ -29,3 +23,7 @@ spec:
         - id: schedule_agent
         - id: itinerary_agent
         - id: concierge_agent
+    agents:
+      moderator:
+        design_pattern:
+          type: deterministic_parallel

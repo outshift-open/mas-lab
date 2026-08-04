@@ -4,7 +4,7 @@ apiVersion: mas/v1
 kind: Overlay
 metadata:
   id: topo-linear-pipeline
-  description: "Sequential pipeline: schedule_agent → itinerary_agent → concierge_agent"
+  description: "Linear pipeline — deterministic sequential delegation"
   tags: [topology, exp-1.2]
 
 spec:
@@ -12,10 +12,14 @@ spec:
     kind: MAS
   patch:
     workflow:
-      entry: schedule_agent
+      entry: moderator
       nodes:
+        - id: moderator
+          delegates_to: [schedule_agent, itinerary_agent, concierge_agent]
         - id: schedule_agent
-          delegates_to: [itinerary_agent]
         - id: itinerary_agent
-          delegates_to: [concierge_agent]
         - id: concierge_agent
+    agents:
+      moderator:
+        design_pattern:
+          type: deterministic_linear

@@ -5,9 +5,8 @@ kind: Overlay
 metadata:
   id: topo-verifier
   description: >
-    Verifier topology — moderator orchestrates a propose-then-verify pattern:
-    itinerary_agent drafts the plan (proposer), schedule_agent fact-checks all
-    stated fares and departure times (verifier), moderator reconciles.
+    Verifier topology — deterministic propose-then-verify pattern.
+    itinerary_agent proposes, schedule_agent verifies factual correctness.
   notes: >
     concierge_agent intentionally excluded — this topology focuses on factual
     correctness of schedule/cost claims. Comparing with topo-moderator-broker
@@ -25,3 +24,7 @@ spec:
           delegates_to: [itinerary_agent, schedule_agent]
         - id: itinerary_agent
         - id: schedule_agent
+    agents:
+      moderator:
+        design_pattern:
+          type: deterministic_verifier
