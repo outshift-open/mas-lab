@@ -19,8 +19,14 @@ module_base: mas.library.standard
 
 types:
   - observability
+  - design_pattern
+  - context_manager
+  - context_plugin
+  - memory
+  - governance
 
 plugins:
+  # Observability plugins
   - type: observability
     name: native
     urn: mas.observability.native
@@ -31,3 +37,90 @@ plugins:
     urn: mas.observability.otel
     module: mas.library.standard.plugins.observability.otel_plugin
     class: OtelObservabilityPlugin
+
+  # Deterministic design patterns (OSS only)
+  - type: design_pattern
+    name: deterministic_single
+    urn: mas.dp.deterministic_single
+    module: mas.library.standard.plugins.design_patterns.single
+    class: DeterministicSingleAgentPlugin
+  - type: design_pattern
+    name: deterministic_linear
+    urn: mas.dp.deterministic_linear
+    module: mas.library.standard.plugins.design_patterns.linear
+    class: DeterministicLinearPlugin
+  - type: design_pattern
+    name: deterministic_parallel
+    urn: mas.dp.deterministic_parallel
+    module: mas.library.standard.plugins.design_patterns.parallel
+    class: DeterministicParallelPlugin
+
+  # Other OSS design patterns
+  - type: design_pattern
+    name: react
+    urn: mas.dp.react
+    module: mas.library.standard.plugins.design_patterns.react
+    class: ReactPlugin
+  - type: design_pattern
+    name: cot
+    urn: mas.dp.cot
+    module: mas.library.standard.plugins.design_patterns.cot
+    class: CotPlugin
+  - type: design_pattern
+    name: single_pass
+    urn: mas.dp.single_pass
+    module: mas.library.standard.plugins.design_patterns.single_pass
+    class: SinglePassPlugin
+  - type: design_pattern
+    name: introspection
+    urn: mas.dp.introspection
+    module: mas.library.standard.plugins.design_patterns.introspection
+    class: IntrospectionPlugin
+  - type: design_pattern
+    name: plan_execute
+    urn: mas.dp.plan_execute
+    module: mas.library.standard.plugins.design_patterns.plan_execute
+    class: PlanExecutePlugin
+  - type: design_pattern
+    name: tree_of_thoughts
+    urn: mas.dp.tree_of_thoughts
+    module: mas.library.standard.plugins.design_patterns.tree_of_thoughts
+    class: TreeOfThoughtsPlugin
+
+  # Context managers
+  - type: context_manager
+    name: stack
+    urn: mas.cm.stack
+    module: mas.library.standard.plugins.context.conversation
+    class: StackConversation
+  - type: context_manager
+    name: sliding_window
+    urn: mas.cm.sliding_window
+    module: mas.library.standard.plugins.context.conversation
+    class: SlidingWindowConversation
+  - type: context_manager
+    name: summarising
+    urn: mas.cm.summarising
+    module: mas.library.standard.plugins.context.conversation
+    class: SummarizingConversation
+
+  # Context plugins
+  - type: context_plugin
+    name: assembler
+    urn: mas.ctx.assembler
+    module: mas.library.standard.plugins.context.assembler
+    class: ContextAssemblerPlugin
+
+  # Memory plugins
+  - type: memory
+    name: semantic
+    urn: mas.mem.semantic
+    module: mas.library.standard.plugins.memory.memory_semantic
+    class: SemanticMemoryPlugin
+
+  # Governance plugins (SampleGovernancePlugin lives in the runtime boundary layer)
+  - type: governance
+    name: sample
+    urn: mas.gov.sample
+    module: mas.runtime.boundary.gov.sample
+    class: SampleGovernancePlugin

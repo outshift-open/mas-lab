@@ -27,187 +27,6 @@ from .defaults import load_defaults
 
 logger = logging.getLogger(__name__)
 
-_BUILTIN_TYPES = {
-    "design_pattern",
-    "context_manager",
-    "context_plugin",
-    "memory",
-    "governance",
-    # The kernel/runtime understands the *shape* of these categories (a
-    # pipeline step, an artifact codec) but ships no built-in
-    # implementations of its own -- those are pure library plugins (see
-    # library-lab's plugin manifests). Pre-registering the type here means
-    # a library's plugin manifest doesn't need a redundant `types: [step]`
-    # declaration just to register the first one.
-    "step",
-    "codec",
-}
-
-_BUILTIN_RUNTIME_SPEC_KEYS = {
-    "design_pattern",
-    "context_manager",
-    "context_plugin",
-}
-
-_BUILTIN_PLUGINS = [
-    {
-        "type": "design_pattern",
-        "urn": "mas.dp.react",
-        "description": "ReAct design pattern (native Mealy kernel plugin).",
-        "default_variant": "builtin",
-        "variants": {
-            "builtin": {
-                "module": "mas.library.standard.plugins.design_patterns.react",
-                "class_name": "ReactPlugin",
-                "version": "1.0.0",
-            }
-        },
-    },
-    {
-        "type": "design_pattern",
-        "urn": "mas.dp.cot",
-        "description": "Chain-of-thought design pattern.",
-        "default_variant": "builtin",
-        "variants": {
-            "builtin": {
-                "module": "mas.library.standard.plugins.design_patterns.cot",
-                "class_name": "CotPlugin",
-                "version": "1.0.0",
-            }
-        },
-    },
-    {
-        "type": "design_pattern",
-        "urn": "mas.dp.single_pass",
-        "description": "Single LLM call without tool loop.",
-        "default_variant": "builtin",
-        "variants": {
-            "builtin": {
-                "module": "mas.library.standard.plugins.design_patterns.single_pass",
-                "class_name": "SinglePassPlugin",
-                "version": "1.0.0",
-            }
-        },
-    },
-    {
-        "type": "design_pattern",
-        "urn": "mas.dp.introspection",
-        "description": "Introspection / reflection over execution log.",
-        "default_variant": "builtin",
-        "variants": {
-            "builtin": {
-                "module": "mas.library.standard.plugins.design_patterns.introspection",
-                "class_name": "IntrospectionPlugin",
-                "version": "1.0.0",
-            }
-        },
-    },
-    {
-        "type": "design_pattern",
-        "urn": "mas.dp.plan_execute",
-        "description": "Plan-then-execute tool scheduling.",
-        "default_variant": "builtin",
-        "variants": {
-            "builtin": {
-                "module": "mas.library.standard.plugins.design_patterns.plan_execute",
-                "class_name": "PlanExecutePlugin",
-                "version": "1.0.0",
-            }
-        },
-    },
-    {
-        "type": "design_pattern",
-        "urn": "mas.dp.tree_of_thoughts",
-        "description": "Tree-of-thoughts multi-pass reasoning.",
-        "default_variant": "builtin",
-        "variants": {
-            "builtin": {
-                "module": "mas.library.standard.plugins.design_patterns.tree_of_thoughts",
-                "class_name": "TreeOfThoughtsPlugin",
-                "version": "1.0.0",
-            }
-        },
-    },
-    {
-        "type": "context_manager",
-        "urn": "mas.cm.stack",
-        "description": "Unbounded or max-messages-capped history (StackConversation).",
-        "default_variant": "builtin",
-        "variants": {
-            "builtin": {
-                "module": "mas.library.standard.plugins.context.conversation",
-                "class_name": "StackConversation",
-                "version": "1.0.0",
-            }
-        },
-    },
-    {
-        "type": "context_manager",
-        "urn": "mas.cm.sliding_window",
-        "description": "Fixed-size sliding window over recent exchange pairs.",
-        "default_variant": "builtin",
-        "variants": {
-            "builtin": {
-                "module": "mas.library.standard.plugins.context.conversation",
-                "class_name": "SlidingWindowConversation",
-                "version": "1.0.0",
-            }
-        },
-    },
-    {
-        "type": "context_manager",
-        "urn": "mas.cm.summarising",
-        "description": "Summarise older turns into a compact system block.",
-        "default_variant": "builtin",
-        "variants": {
-            "builtin": {
-                "module": "mas.library.standard.plugins.context.conversation",
-                "class_name": "SummarizingConversation",
-                "version": "1.0.0",
-            }
-        },
-    },
-    {
-        "type": "context_plugin",
-        "urn": "mas.ctx.assembler",
-        "description": "Hook-plane context assembler (M_ctx assembly phase).",
-        "default_variant": "builtin",
-        "variants": {
-            "builtin": {
-                "module": "mas.library.standard.plugins.context.assembler",
-                "class_name": "ContextAssemblerPlugin",
-                "version": "1.0.0",
-            }
-        },
-    },
-    {
-        "type": "memory",
-        "urn": "mas.mem.semantic",
-        "description": "Semantic memory - FTS/hybrid retrieval and context injection.",
-        "default_variant": "builtin",
-        "variants": {
-            "builtin": {
-                "module": "mas.library.standard.plugins.memory.memory_semantic",
-                "class_name": "SemanticMemoryPlugin",
-                "version": "1.0.0",
-            }
-        },
-    },
-    {
-        "type": "governance",
-        "urn": "mas.gov.sample",
-        "description": "Sample governance - HITL on tool egress and tool-result ingress.",
-        "default_variant": "builtin",
-        "variants": {
-            "builtin": {
-                "module": "mas.runtime.boundary.gov.sample",
-                "class_name": "SampleGovernancePlugin",
-                "version": "1.0.0",
-            }
-        },
-    },
-]
-
 
 @dataclass
 class _ManifestPluginCandidate:
@@ -285,25 +104,6 @@ def _parse_generic_manifest(
 
     return known_types, candidates, role_aliases, defaults, runtime_spec_keys
 
-
-def _candidate_from_target(
-    plugin_type: str,
-    name: str,
-    target: str,
-    *,
-    attrs: dict[str, Any] | None = None,
-) -> _ManifestPluginCandidate:
-    module_path, _, class_name = str(target).rpartition(":")
-    return _ManifestPluginCandidate(
-        plugin_type=str(plugin_type),
-        urn=_urn_for_type_name(plugin_type, name),
-        default_variant="builtin",
-        variants={"builtin": VariantInfo(module=module_path, class_name=class_name)},
-        shortcuts=[str(name)],
-        description="",
-        attributes=dict(attrs or {}),
-        provides_types=set(),
-    )
 
 
 def _candidate_from_manifest_item(item: dict[str, Any]) -> _ManifestPluginCandidate | None:
@@ -384,14 +184,6 @@ def _register_candidates_fixpoint(
 def load_registry(config: RuntimeWorkspaceConfig | None = None) -> PluginRegistry:
     reg = PluginRegistry()
 
-    _register_builtin_plugins(reg)
-
-    for alias, urn in load_aliases(config).items():
-        reg.register_alias(alias, urn)
-    reg.validate_aliases()
-
-    reg.register_types(_BUILTIN_TYPES)
-    reg.register_runtime_spec_keys(_BUILTIN_RUNTIME_SPEC_KEYS)
     # "model" is a default LLM model id, not a registry plugin type/spec_key
     # -- exposed separately via mas.runtime.agent_defaults.default_model().
     for spec_key, plugin_id in load_defaults(config).items():
@@ -399,7 +191,15 @@ def load_registry(config: RuntimeWorkspaceConfig | None = None) -> PluginRegistr
             continue
         reg.set_default(spec_key, plugin_id)
 
+    # Discover and register all plugins from libraries (library.yaml manifests)
+    # NO hardcoded plugins in bootstrap: all plugins come from libraries!
     _register_library_plugins(reg)
+
+    # Register aliases AFTER plugins are discovered (so URNs exist)
+    for alias, urn in load_aliases(config).items():
+        reg.register_alias(alias, urn)
+    reg.validate_aliases()
+
     return reg
 
 
@@ -437,33 +237,6 @@ def _register_library_plugins(reg: PluginRegistry) -> None:
             raise ValueError(
                 f"Failed to register plugin manifest {manifest_path}: {exc}"
             ) from exc
-
-
-def _register_builtin_plugins(reg: PluginRegistry) -> None:
-    # Defaults are set once in load_registry() via load_defaults(config), which
-    # has access to the workspace config; this function only registers the
-    # built-in plugin catalog itself.
-    reg.register_runtime_spec_keys(set(_BUILTIN_RUNTIME_SPEC_KEYS))
-    for entry in _BUILTIN_PLUGINS:
-        reg.register_type(str(entry["type"]))
-        variants = {
-            vname: VariantInfo(
-                module=vdata["module"],
-                class_name=vdata["class_name"],
-                version=vdata.get("version", ""),
-                description=vdata.get("description", ""),
-            )
-            for vname, vdata in (entry.get("variants") or {}).items()
-        }
-        reg.register(
-            PluginEntry(
-                urn=str(entry["urn"]),
-                description=str(entry.get("description") or ""),
-                default_variant=str(entry.get("default_variant") or "builtin"),
-                variants=variants,
-                attributes={"plugin_type": str(entry["type"])},
-            )
-        )
 
 
 def register_plugin(

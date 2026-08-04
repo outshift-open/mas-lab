@@ -4,7 +4,7 @@ apiVersion: mas/v1
 kind: Overlay
 metadata:
   id: topo-supervised
-  description: "Supervised topology — broker with a supervisor review loop after each sub-agent"
+  description: "Supervised topology — deterministic sequential review loop"
   tags: [topology, exp-1.2]
 
 spec:
@@ -19,3 +19,7 @@ spec:
         - id: schedule_agent
         - id: itinerary_agent
         - id: concierge_agent
+    agents:
+      moderator:
+        design_pattern:
+          type: deterministic_supervised

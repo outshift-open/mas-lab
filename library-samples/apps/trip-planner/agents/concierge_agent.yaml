@@ -7,17 +7,18 @@ metadata:
   name: concierge_agent
 spec:
   models:
-  - model: gpt-4o-mini
-    temperature: 0.2
-    max_tokens: 2000
+    - model: gpt-4o-mini
+      temperature: 0.2
+      max_tokens: 2000
   tools:
-  - ref: ../../../tools/get_trip_fares.tool.yaml
-  - ref: ../../../tools/get_attraction_fare.tool.yaml
-  - ref: ../../../tools/query_graph_database.tool.yaml
-  - ref: ../../../tools/calc.tool.yaml
+    - ref: ../../../tools/get_trip_fares.tool.yaml
+    - ref: ../../../tools/get_attraction_fare.tool.yaml
+    - ref: ../../../tools/query_graph_database.tool.yaml
+    - ref: ../../../tools/calc.tool.yaml
   description: Fare lookup specialist.
   context:
-    role: "You can look up the prices (fares) for trains, air routes, and attraction\
+    role:
+      "You can look up the prices (fares) for trains, air routes, and attraction\
       \ admissions.\n      You have access to four tools: get_fares for transport\
       \ fares, get_attraction_fare\n      for attraction admission details, query_graph_database\
       \ to discover valid route IDs,\n      and calc for calculations.\n\n      IMPORTANT:\

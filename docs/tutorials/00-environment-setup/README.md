@@ -14,7 +14,7 @@
 ## Choose your path
 
 | Path | Best for | You need |
-|------|----------|----------|
+| ------ | ---------- | ---------- |
 | **[Fast path — Docker only](#fast-path-docker-only)** | Users, demos, benchmarks | Docker, git, `OPENAI_API_KEY` for live LLM runs |
 | **[Path A — Docker (full)](#path-a--docker-users)** | Same as fast path + CLI patterns, mounts, `task` helpers | Docker, optional [go-task](https://taskfile.dev/) |
 | **[Path B — Developers](#path-b--developers-uv--task)** | Patching runtime, ctl, or lab | Python ≥ 3.11, `uv`, `task`, [direnv](https://direnv.net/) recommended |
@@ -43,7 +43,7 @@ images, and run a few `mas-ctl` commands to confirm the install.
 Three separate concerns — never mix secrets into YAML:
 
 | Piece | What it is | Where it lives |
-|-------|------------|----------------|
+| ------- | ------------ | ---------------- |
 | **Infra manifest** | Non-secret endpoint config (API base URL, allowed models, `api_key_env` name) | `infra_refs` in `config.yaml` or `--infra-ref` on CLI |
 | **Credential** | API key or token | `docker/.env` (Docker) or gitignored `.env` (developers) |
 | **Flavour** | Runtime environment bundle (`local` = default in `library-standard`) | `mas_ctl.flavour` / `mas_lab.flavour` in workspace, or manifest |
@@ -135,7 +135,7 @@ docker compose -f docker/compose.yaml run --rm --no-deps cli mas-ctl chat \
 ```
 
 | CLI | What it does |
-|-----|----------------|
+| ----- | ---------------- |
 | `mas-ctl validate <agent.yaml>` | Schema + refs without running |
 | `mas-ctl chat <agent.yaml> -q "…"` | Single agent, one turn |
 | `mas-ctl run-mas <mas.yaml> -q "…"` | Full MAS workflow |
@@ -148,7 +148,7 @@ To write the trace elsewhere, use **`--events-file /path/to/events.jsonl`**.
 ### 5 — Trace cache and finding results
 
 | Store | Default location | Purpose |
-|-------|------------------|---------|
+| ------- | ------------------ | --------- |
 | **Trace cache** | `$XDG_CACHE_HOME/mas/traces/` (default `~/.cache/mas/traces/`) | Content-addressed LLM traces — **re-runs skip cached completions** |
 | **Lab outputs** | `$XDG_DATA_HOME/mas/labs/<lab>/<experiment>/…` | Benchmark trees: `…/itemN/rN/traces/events.jsonl`, `results/` |
 | **CLI chat traces** | Next to manifest: `traces/events.jsonl` unless `--events-file` set | Ad-hoc `mas-ctl chat` runs |
@@ -162,7 +162,7 @@ mas-lab config
 **Override output location**
 
 | Tool | Flag | Effect |
-|------|------|--------|
+| ------ | ------ | -------- |
 | `mas-lab benchmark run` | `-o` / `--output-dir PATH` | Write this experiment under `PATH` instead of the global labs tree |
 | `mas-lab benchmark run` | `--trace-cache PATH` | Separate trace cache (bypass shared cache) |
 | `mas-ctl chat` | `--events-file PATH` | Write `events.jsonl` to `PATH` |
@@ -184,8 +184,8 @@ cd docker && docker compose up -d
 
 | Service | URL |
 |---------|-----|
-| **Web UI** | http://localhost:8080 |
-| Controller API | http://localhost:8090/api/health |
+| **Web UI** | <http://localhost:8080> |
+| Controller API | <http://localhost:8090/api/health> |
 
 What to try: open an experiment under `labs/` or `docs/tutorials/`, validate it,
 and inspect `results/` from a completed run. Guide: [Web UI](../../ui/index.md).
@@ -251,7 +251,7 @@ The `cli` service uses the **tools** profile — it is the service for one-off C
 Install [go-task](https://taskfile.dev/), then from the **repository root**:
 
 | Task | Purpose |
-|------|---------|
+| ------ | --------- |
 | `task start` | Build if needed, start UI + backend detached |
 | `task restart` | Rebuild + recreate after `docker/.env` or code changes |
 | `task verify-env` | Confirm `OPENAI_API_KEY` inside the running backend container |
@@ -271,7 +271,7 @@ Use this path when you change Python sources in `runtime/`, `ctl/`, or `lab/`.
 ### 1 — Prerequisites (one-time)
 
 | Tool | Purpose | Install |
-|------|---------|---------|
+| ------ | --------- | --------- |
 | **Python ≥ 3.11** | Runtime | `python3 --version` |
 | **uv** | Fast installs | `brew install uv` or [astral.sh/uv](https://astral.sh/uv/) |
 | **task** | Repo automation | `brew install go-task` |
@@ -322,7 +322,7 @@ automatically. **Never** commit API keys.
 ### 4 — Environment overrides (no YAML edits)
 
 | Variable | Purpose |
-|----------|---------|
+| ---------- | --------- |
 | `MAS_INFRA_REFS` | Replace `infra_refs` from `config.yaml` (e.g. `standard:llm-proxy`) |
 | `MAS_CTL_MODEL` | Override the agent model for one run (e.g. `gpt-4o-mini`, or a provider-prefixed id via a proxy gateway) |
 | `MAS_LLM_MODEL` | Alias for `MAS_CTL_MODEL` (legacy `.env` name) |
@@ -373,7 +373,7 @@ mas-lab config
 Run `task --list` from the repo root. Common tasks:
 
 | Task | Purpose |
-|------|---------|
+| ------ | --------- |
 | `task install` / `install-dev` / `install-all` | Editable package installs |
 | `task verify` | Pre-commit gate (unit + tutorial manifests + smoke) |
 | `task verify-tutorials` | Replay tutorial `demo/scenario.yaml` commands |
@@ -417,7 +417,7 @@ secret **API key** in `.env` or `docker/.env`.
 ### OSS infra bundles (`library-standard`)
 
 | Bundle | Use when |
-|--------|----------|
+| -------- | ---------- |
 | `standard:openai` | OpenAI API (`OPENAI_API_KEY`) |
 | `standard:ollama` | Local Ollama at `http://localhost:11434/v1` (no key) |
 | `standard:production` | **Default for tutorials** — wraps `standard:openai` |
@@ -445,7 +445,7 @@ mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
 ### Data directories
 
 | Setting | Contents |
-|---------|----------|
+| --------- | ---------- |
 | `labs_dir` | Experiment trees (`<name>/<scenario>/itemN/rN/traces/events.jsonl`) |
 | `cache_dir/traces/` | Content-addressed trace store |
 | `cache_dir/artifacts/` | Pipeline step cache |

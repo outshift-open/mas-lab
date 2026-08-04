@@ -4,7 +4,7 @@ apiVersion: mas/v1
 kind: Overlay
 metadata:
   id: topo-moderator-broker
-  description: "Moderator-broker topology — moderator dynamically delegates to the appropriate specialist(s)"
+  description: "Moderator-broker topology — LLM-driven dynamic delegation"
   tags: [topology, exp-1.2]
 
 spec:
@@ -19,3 +19,9 @@ spec:
         - id: schedule_agent
         - id: itinerary_agent
         - id: concierge_agent
+    agents:
+      moderator:
+        design_pattern:
+          type: react
+          config:
+            max_steps: 10
