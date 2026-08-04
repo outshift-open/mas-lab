@@ -75,9 +75,13 @@ cp config/infra/openai.example.yaml "${XDG_CONFIG_HOME:-$HOME/.config}/mas/infra
 ```
 
 Workspace checkouts use the sample at
-[`examples/sample-workspace/config.yaml`](../examples/sample-workspace/config.yaml)
+[`examples/config.yaml`](../examples/config.yaml)
 (`MAS_WORKSPACE_ROOT` is set automatically in pytest; copy to your project root
 or export `MAS_WORKSPACE_ROOT` for local CLI runs).
+
+For first-time setup via `mas-lab init`, generated files come from public OSS templates:
+[`examples/config.yaml`](../examples/config.yaml)
+and [`examples/infra/llmprovider.yaml`](../examples/infra/llmprovider.yaml).
 
 ### 3. Set API key
 

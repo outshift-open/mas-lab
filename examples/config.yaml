@@ -1,0 +1,17 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Canonical config sample leveraged by `mas-lab init`.
+
+mas_lab:
+  flavour: local
+  benchmark_flavour: local-benchmark
+
+# Included when infra setup is enabled by mas-lab init.
+# infra_refs registers additional infra yaml files into the library,
+# making them available by their metadata.name.
+infra_refs:
+  - ~/.config/mas/infra/__INFRA_NAME__.yaml
+
+# default_infra is a name (from metadata.name of a registered infra),
+# a library ref (standard:openai), or a full path.
+default_infra: __INFRA_NAME__

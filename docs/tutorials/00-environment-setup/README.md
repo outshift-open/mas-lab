@@ -48,40 +48,31 @@ Three separate concerns — never mix secrets into YAML:
 | **Credential** | API key or token | `docker/.env` (Docker) or gitignored `.env` (developers) |
 | **Flavour** | Runtime environment bundle (`local` = default in `library-standard`) | `mas_ctl.flavour` / `mas_lab.flavour` in workspace, or manifest |
 
-**Copy-ready examples** (Tutorial 0 directory):
+**Initialize your user config** (creates `~/.config/mas/config.yaml` and an optional infra manifest):
 
 ```bash
-cp docs/tutorials/00-environment-setup/config.openai.example.yaml config.yaml
+mas-lab init
+# Prompts for LLM provider URL, API key env var, and model alias.
+# Skip the infra step if you use a bundled provider (standard:openai, standard:ollama).
+```
+
+Then set your API key:
+
+```bash
 cp docs/tutorials/00-environment-setup/.env.example docker/.env   # Docker path
 # Edit docker/.env — set OPENAI_API_KEY=sk-...
 ```
 
-`config.openai.example.yaml` sets:
+The generated `~/.config/mas/config.yaml` sets:
 
-- `mas_ctl.flavour: local` and `mas_lab.flavour: local` (library-standard defaults)
-- `infra_refs: [standard:openai]` — resolves to the bundled OpenAI `LLMProxy` manifest
+- `infra_refs` — the manifest(s) to register (your custom file or a bundled ref like `standard:openai`)
+- **`default_infra`** — which registered manifest is used by default when no `--infra-ref` flag is given
 
-**Bring your own infra manifest.** Drop a manifest in `~/.config/mas/infra/`
-(e.g. `llm-proxy.yaml`) and reference it from `config.yaml`. Two keys work
-together, and the difference trips people up:
-
-- **`infra_refs`** — the list of manifests to *register* (make available). Each
-  entry is a bundled ref (`standard:openai`, `standard:llm-proxy`) **or** a path
-  to your own file (`~/.config/mas/infra/llm-proxy.yaml`). Override per-shell
-  with `MAS_INFRA_REFS`; `--infra-ref` on the CLI still wins.
-- **`default_infra`** — which registered manifest is *used by default* when a
-  command doesn't name one. Set it to your manifest's path/ref so `mas-ctl chat`
-  and `mas-lab benchmark` pick it up with no extra flag.
-
-Keep secrets out of the file: a manifest can source both the endpoint and the
-key from the environment — `api_base: env:LLM_PROXY_API_BASE|<fallback-url>` and
-`api_key_env: OPENAI_API_KEY` (the key is read from that env var / `.env`, never
-written in the manifest). See `~/.config/mas/infra/llm-proxy.yaml` for a
-ready-made example.
+Keep secrets out of YAML: the infra manifest sources the key from an env var
+(`api_key_env: OPENAI_API_KEY`) — the key is never written in the file.
 
 Schema: [`docs/schemas/config.schema.yaml`](../../schemas/config.schema.yaml).
-Machine-wide path defaults: copy [`config.example.yaml`](config.example.yaml) to
-`$XDG_CONFIG_HOME/mas/config.yaml` (default: `~/.config/mas/config.yaml`).
+Full reference: [user-config.md](../../user-config.md).
 
 ### 3 — Build images
 
@@ -112,16 +103,16 @@ docker compose -f docker/compose.yaml run --rm --no-deps cli mas-ctl validate \
   docs/tutorials/01-building-an-agent/agent.yaml
 ```
 
-**Live LLM** (after `OPENAI_API_KEY` is in `docker/.env`; use `gpt-4o-mini` on corporate proxies):
+**Live LLM** (after `OPENAI_API_KEY` is in `docker/.env`):
 
 ```bash
-MAS_CTL_MODEL=gpt-4o-mini docker compose -f docker/compose.yaml run --rm --no-deps cli mas-ctl chat \
+docker compose -f docker/compose.yaml run --rm --no-deps cli mas-ctl chat \
   docs/tutorials/01-building-an-agent/agent.yaml \
   -q "What is the capital of France?"
 ```
 
 **Corporate / OpenAI-compatible proxy** — set `infra_refs: [standard:llm-proxy]` in
-`config.yaml` (or `MAS_INFRA_REFS=standard:llm-proxy`) and
+`~/.config/mas/config.yaml` (via `mas-lab init`) and
 `LLM_PROXY_API_BASE` in `.env` / `docker/.env`. See
 [`.env.example`](.env.example).
 
@@ -215,9 +206,13 @@ MAS_WORKSPACE_MOUNT=/path/to/your/project
 MAS_DATA_MOUNT=/path/to/persistent-data
 ```
 
-The sample workspace file is at [`examples/sample-workspace/config.yaml`](../../../examples/sample-workspace/config.yaml).
+The sample workspace file is at [`examples/config.yaml`](../../../examples/config.yaml).
 Copy it to your project root as `config.yaml`, or set
-`MAS_WORKSPACE_ROOT=examples/sample-workspace` when working from this checkout.
+`MAS_WORKSPACE_ROOT=examples` when working from this checkout.
+
+`mas-lab init` uses OSS templates from:
+- [`examples/config.yaml`](../../../examples/config.yaml)
+- [`examples/infra/llmprovider.yaml`](../../../examples/infra/llmprovider.yaml)
 
 ### Configuration priority (inside Docker)
 
@@ -319,7 +314,11 @@ EOF
 `mas-lab benchmark run` and `mas-ctl chat` walk up from the cwd and load `.env`
 automatically. **Never** commit API keys.
 
-### 4 — Environment overrides (no YAML edits)
+### 4 — Per-run overrides
+
+Configure LLM access via `mas-lab init` (writes `~/.config/mas/config.yaml`). The variables
+below are for **one-run overrides** only — they take precedence over `config.yaml` for that
+shell session and should not substitute for a proper config file.
 
 | Variable | Purpose |
 | ---------- | --------- |
@@ -330,36 +329,13 @@ automatically. **Never** commit API keys.
 | `LLM_PROXY_API_BASE` | API base for `standard:llm-proxy` (read from `.env`) |
 | `OPENAI_API_KEY` | Credential named by the LLMProxy manifest |
 
-Example (proxy gateway, Tutorial 0 CI smoke):
-
-```bash
-export MAS_INFRA_REFS=standard:llm-proxy
-export MAS_CTL_MODEL=gpt-4o-mini
-export OPENAI_API_KEY=...
-export LLM_PROXY_API_BASE=https://your-proxy.example/v1
-mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
-  -q "What is the capital of France?"
-```
-
 ### 5 — User config (`$XDG_CONFIG_HOME/mas/config.yaml`)
 
 Machine-wide paths and default infra bundle:
 
 ```bash
-mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/mas"
-cp docs/tutorials/00-environment-setup/config.example.yaml \
-  "${XDG_CONFIG_HOME:-$HOME/.config}/mas/config.yaml"
-```
-
-Or create manually:
-
-```yaml
-apiVersion: mas.config/v1
-kind: UserConfig
-default_infra: standard:production
-runs_dir: ~/.local/share/mas/runs
-cache_dir: ~/.cache/mas
-labs_dir: ~/.local/share/mas/labs
+mas-lab init
+# Interactive: sets up ~/.config/mas/config.yaml and optionally ~/.config/mas/infra/<name>.yaml
 ```
 
 Check effective paths:

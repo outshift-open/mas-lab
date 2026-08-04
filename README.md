@@ -21,7 +21,28 @@ contracts, reproducible experiments, and built-in observability.
 
 ## Get started
 
-**[Tutorial 0 — Environment setup](docs/tutorials/00-environment-setup/README.md)** — install once (Docker or developer path), then:
+```bash
+# 1 — Install (Docker or developer path — see Tutorial 0)
+pip install mas-lab mas-library-standard mas-library-samples
+
+# 2 — Configure LLM access (interactive, writes ~/.config/mas/config.yaml)
+mas-lab init
+
+# 3 — Export the API key printed by init
+export OPENAI_API_KEY=<your-key>
+
+# 4 — Run the trip-planner sample (mock LLM, no key required)
+mas-ctl run-mas library-samples/apps/trip-planner/mas.yaml \
+  --infra-ref standard:mock-llm \
+  -q "Plan a trip from Celestia to Verdantia"
+
+# 5 — Inspect traces
+mas-lab telemetry show library-samples/apps/trip-planner/traces/events.jsonl
+mas-lab plot trajectory library-samples/apps/trip-planner/traces/events.jsonl \
+  --format html -o traces/trip-planner-trajectory.html
+```
+
+Then continue with:
 
 | Path        | Link                                       |
 | ----------- | ------------------------------------------ |
@@ -29,6 +50,7 @@ contracts, reproducible experiments, and built-in observability.
 | Web UI demo | [docs/ui/index.md](docs/ui/index.md)       |
 | Paper labs  | [docs/paper/index.md](docs/paper/index.md) |
 
+Full install instructions: **[Tutorial 0 — Environment setup](docs/tutorials/00-environment-setup/README.md)**.
 Full site content mirrors [`docs/`](docs/) — see [docs/index.md](docs/index.md) for the full introduction.
 
 ## The problem
