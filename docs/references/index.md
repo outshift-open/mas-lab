@@ -18,7 +18,7 @@ Declarative YAML kinds and how they compose.
 |-------|-----------|
 | Overview & composition | [Manifest overview](../manifests/README.md) |
 | Agent | [agent.md](../manifests/agent.md) |
-| MAS & workflow | [mas.md](../manifests/mas.md), [workflow.md](../manifests/workflow.md) |
+| MAS & workflow | [mas.md](../manifests/mas.md) |
 | Overlay | [overlay.md](../manifests/overlay.md) |
 | Flavour & environment | [flavour.md](../manifests/flavour.md), [infra.md](../manifests/infra.md) |
 | Workspace file | [user-config.md](../user-config.md), [config.schema.yaml](../schemas/config.schema.yaml) |
