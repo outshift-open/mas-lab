@@ -14,10 +14,6 @@ overlay, pipeline, run, flavour).
 (agent) → [Tutorial 2](../tutorials/02-creating-a-mas/README.md) (MAS) →
 [Tutorial 3](../tutorials/03-experiments-and-analysis/README.md) (experiments).
 
-**Writing YAML:** [How to write manifests](writing-manifests.md) — inline vs
-file vs catalog id, `LIBRARY:` prefix, `name@version`, and file-name
-conventions (`mas.yaml`, `*.tool.yaml`, `experiment.yaml`, …).
-
 ---
 
 ## How manifests fit together
@@ -28,47 +24,38 @@ experiment.yaml          ← what to run (scenarios × dataset × n_runs + pipel
     ├── applications[]   → mas.yaml / registered app
     ├── scenarios[]    → overlay stacks per variant
     ├── dataset        → prompts, turns, memory seeds
-    └── post: / scenario.post / item.post / run.post  → pipeline steps (metrics, plots)
+    └── application.post / scenario.post / …  → pipeline steps (metrics, plots)
 
 mas.yaml                 ← team topology, workflow, transport
     └── agents/*.yaml    ← design pattern, tools, skills, observability
 
-config.yaml       ← project defaults — [reference](../references/config.yaml.md)
+config.yaml       ← project defaults (flavour, infra_refs, .env path)
 ```
 
 | Layer | Manifest kinds | Reference |
 |-------|----------------|-----------|
-| **Agent** | `Agent`, `Tool` | [agent.md](agent.md) · [plugin-bindings.md](plugin-bindings.md) · [context-assembly.md](context-assembly.md) · [summarization.md](summarization.md) · [tool.md](tool.md) |
-| **Runtime engine** | `RuntimeEngine` (`infra/v1`, via workspace / CLI) | [runtime-engine.md](runtime-engine.md) · [execution.md](execution.md) (migration) |
-| **MAS** | `MAS`, `Workflow` | [mas.md](mas.md), [workflow.md](workflow.md) |
+| **Agent** | `Agent` | [agent.md](agent.md) |
+| **MAS** | `MAS`, `Workflow` | [mas.md](mas.md) |
 | **Override** | `Overlay` | [overlay.md](overlay.md) |
-| **Environment** | `Flavour`, `InfraBundle`, `LLMProxy`, `InfraMiddleware`, `ToolServerRegistry` | [flavour.md](flavour.md), [infra.md](infra.md), [llm-cache.md](llm-cache.md) · [ref](../references/llm-cache.md), [ToolServerRegistry](../references/tool-server-registry.md) |
-| **Experiment** | `experiment:` | [experiment.md](experiment.md) — `models` slot map (`main` / `summarizer` / `judge`) |
+| **Environment** | `Flavour`, `InfraBundle`, `LLMProxy` | [flavour.md](flavour.md), [infra.md](infra.md) |
+| **Experiment** | `experiment:` | [experiment.md](experiment.md) |
 | **Inputs** | `Dataset` | [dataset.md](dataset.md) |
 | **Processing** | `pipeline:` / `kind: Pipeline` | [pipeline.md](pipeline.md) |
 | **Interactive demo** | `lab:` | [lab.md](lab.md) |
-| **Library** | `kind: Library` (`library.yaml`) | [labs-and-libraries.md](../labs-and-libraries.md) |
 
 Runtime execution manifests (`Agent`, `MAS`, overlays, infra) are documented under
 [runtime.md](runtime.md).
 
 ---
 
-## Resolution: inline vs file vs id
-
-See [writing-manifests.md](writing-manifests.md) for the full convention.
-Short form:
+## Resolution: `ref` vs `id`
 
 | Form | Example | Meaning |
 |------|---------|---------|
-| **Inline object** | `design_pattern: { type: react }` | Embedded in the parent YAML |
-| **File path** | `ref: ./agents/broker.yaml` | Relative, absolute, or `library:path` |
-| **Catalog id** | `app: example-library:sre-triage@v2` | `[library:]name@version` for versioned families |
-| **Library path** | `samples:apps/trip-planner/mas.yaml` | Slash after `LIBRARY:` is a path, not an id |
+| **File path** | `ref: ./agents/broker.yaml` | Relative to the referring manifest |
+| **Catalog name** | `dataset.name: arborian-network` | Resolved under the lab or library |
+| **Library ref** | `standard:openai` | Bundled infra from `library-standard` |
 | **CLI override** | `--infra-ref`, `-o overlay.yaml` | One-shot for `mas-ctl` |
-
-Do not write `../../apps/foo/mas.yaml`. Do not use `sre-triage-v2` or
-`sre-triage/v2` as catalog ids.
 
 ---
 
@@ -91,21 +78,17 @@ Both forms are valid in `experiment.applications[]`:
 
 | Style | Example | When to use |
 | --- | --- | --- |
-| **Inline / local file** | `manifest: ./agent.yaml` + optional `configs_dir` | Tutorials, self-contained experiments |
-| **Registered app** | `app: example-library:sre-triage@v2` | Shared apps; prefer this over `../../apps/...` |
+| **Inline manifest** | `manifest: ./agent.yaml` + optional `configs_dir` | Tutorials, self-contained experiments |
+| **Registered app** | `app: trip-planner` + `configs_dir: overlays/` | Paper labs, shared apps under `library-samples/apps/` |
 
-Scenarios reference overlay **ids** from `configs_dir`. Dataset: `path: ./dataset.yaml` (tutorial) or `name` + optional `locator` (catalogued benchmarks).
+Scenarios reference overlay **ids** from `configs_dir` (e.g. tutorial `cot` vs lab `pattern-cot`). Dataset: `path: ./dataset.yaml` (tutorial) or `name` + `locator: samples` (catalogued benchmarks).
 
-See [topology-and-workflow.md](topology-and-workflow.md) for workflow vs routing overlays.
+See [Topology, workflow, and routing](mas.md#topology-workflow-and-routing) for workflow vs routing overlays.
 
 ---
 
 ## See also
 
-- [labs-and-libraries.md](../labs-and-libraries.md) — lab vs library vs local plugin
-- [user-config.md](../user-config.md) — XDG paths
-- [config.yaml reference](../references/config.yaml.md) — workspace YAML fields
-- [cli/index.md](../cli/index.md) — CLIs
-- [cli/mas-ctl.md](../cli/mas-ctl.md) — `mas-ctl` flags
-- [cli/observability.md](../cli/observability.md) — `events.jsonl`
+- [user-config.md](../user-config.md) — XDG user config and project `config.yaml`
+- [cli/observability.md](../cli/observability.md) — `events.jsonl` and CLI flags
 - [paper/index.md](../paper/index.md) — sample labs that ship with the repo
