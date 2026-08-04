@@ -59,7 +59,7 @@ OPENAI_API_KEY=sk-...
 ```
 
 Project `config.yaml` on the workspace mount (copy from
-[`examples/sample-workspace/config.yaml`](../../examples/sample-workspace/config.yaml))
+[`examples/config.yaml`](../../examples/config.yaml))
 takes precedence over `$XDG_CONFIG_HOME/mas/config.yaml`. Without a project file, the Docker
 image falls back to the baked sample. See [user-config.md](../user-config.md).
 

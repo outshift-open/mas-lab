@@ -16,7 +16,7 @@ import logging
 import click
 from dotenv import find_dotenv, load_dotenv
 
-from mas.lab.cli.commands import serve, check, benchmark, eval_output, plot, telemetry, run, config as _config_mod, validate as _validate_mod, pipe as _pipe_mod
+from mas.lab.cli.commands import serve, check, benchmark, eval_output, plot, telemetry, run, config as _config_mod, validate as _validate_mod, pipe as _pipe_mod, init as _init_mod
 from mas.lab.cli.extensions import register_extension_components
 
 
@@ -86,6 +86,7 @@ app.add_command(plot.plot_group,             name="plot")
 app.add_command(telemetry.telemetry_group,   name="telemetry")
 app.add_command(run.run_group,               name="run")
 app.add_command(_config_mod.config_cmd,      name="config")
+app.add_command(_init_mod.init_cmd,          name="init")
 app.add_command(_validate_mod.validate_cmd,  name="validate")
 app.add_command(_pipe_mod.pipe_group,        name="pipe")
 

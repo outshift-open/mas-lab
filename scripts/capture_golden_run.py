@@ -76,9 +76,6 @@ def _capture_one(
     # Isolate XDG so the user's personal ~/.config/mas/config.yaml (which may
     # point at a private standard:llm-proxy) cannot bleed into the OSS capture.
     os.environ["XDG_CONFIG_HOME"] = str(tmp / "xdg-config")
-    # Isolate from personal ~/.cache/mas/llm_cache.json so MockModelAccess uses
-    # its deterministic fallback rather than stale real-LLM cache entries.
-    os.environ["MAS_LLM_CACHE"] = str(tmp / "llm_cache.json")
     # Pin the workspace so find_workspace_file() always finds the OSS workspace
     # config (infra_refs: [standard:mock-llm]).  Without this, the walk stops at
     # .git (no config.yaml at repo root), falls back to the now-isolated XDG
@@ -86,7 +83,7 @@ def _capture_one(
     # standard:production — hitting a real LLM and causing a 401 or wrong event
     # count.  MAS_INFRA_REFS can still override this for real-LLM captures.
     if "MAS_WORKSPACE_ROOT" not in os.environ:
-        os.environ["MAS_WORKSPACE_ROOT"] = str(ROOT / "examples" / "sample-workspace")
+        os.environ["MAS_WORKSPACE_ROOT"] = str(ROOT / "examples")
     print(
         f"  workspace: MAS_WORKSPACE_ROOT={os.environ['MAS_WORKSPACE_ROOT']!r}",
         f"  infra:     MAS_INFRA_REFS={os.environ.get('MAS_INFRA_REFS', '<not set — workspace infra_refs used>')!r}",
