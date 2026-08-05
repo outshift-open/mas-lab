@@ -51,8 +51,9 @@ def pattern_for_agent(
         name = entry.get("name", entry.get("id", ""))
         if name != agent_id:
             continue
-        if entry.get("design_pattern"):
-            return resolve_design_pattern_registry_id(entry["design_pattern"])
+        dp = entry.get("design_pattern") or (entry.get("spec") or {}).get("design_pattern")
+        if dp:
+            return resolve_design_pattern_registry_id(dp)
         ref = entry.get("ref") or entry.get("manifest")
         if ref and mas_base_dir:
             agent_path = (mas_base_dir / ref).resolve()
