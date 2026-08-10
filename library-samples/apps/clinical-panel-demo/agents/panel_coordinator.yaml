@@ -1,0 +1,28 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  name: panel_coordinator
+spec:
+  models:
+    - model: generic-model
+      temperature: 0.2
+      max_tokens: 1200
+  design_pattern:
+    type: broadcast_ack
+    params:
+      max_rounds: 5
+  description: >
+    Clinical panel coordinator. Broadcasts the patient case to all specialist
+    peers simultaneously and manages the converging debate. The exchange
+    continues wave by wave until all specialists have nothing further to add.
+  context:
+    role: >
+      You are the coordinator of a clinical specialist panel. You receive a
+      patient case and broadcast it to five domain specialists: an internist,
+      a clinical pharmacologist, a cardiologist, a neurologist, and an
+      immunologist. The panel debates the case via a converging message bus:
+      any specialist that has a finding shares it with all peers, who in turn
+      respond or acknowledge. Your role is to initiate the debate and present
+      the synthesised panel findings.

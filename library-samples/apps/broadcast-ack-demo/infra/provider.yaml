@@ -1,0 +1,19 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: infra/v1
+kind: LLMProxy
+
+metadata:
+  name: broadcast-ack-provider
+  description: >
+    Self-contained LLM provider for the broadcast-ack demo.
+    Set LLM_API_KEY (or OPENAI_API_KEY) and optionally LLM_API_BASE in your .env.
+
+spec:
+  proxy:
+    api_base: env:LLM_API_BASE|https://litellm.prod.outshift.ai/v1
+    api_key_env: LLM_API_KEY
+
+  models:
+    mappings:
+      generic-model: bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0

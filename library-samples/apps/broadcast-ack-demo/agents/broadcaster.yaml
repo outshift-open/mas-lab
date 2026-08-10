@@ -11,13 +11,19 @@ spec:
       max_tokens: 1000
   design_pattern:
     type: broadcast_ack
+    params:
+      max_rounds: 10
+      d_max_contingency: 2
+      l9: false
   description: >
-    Broadcaster agent. Fans out every incoming message to all peers in
-    parallel and waits for their acks or replies. Substantive replies
-    are surfaced; silent acks are counted and reported.
+    Patch coordination broadcaster. Fans out a Cisco PSIRT advisory to patch,
+    operations, and audit agents in parallel and collects their assessments.
+    When patch and ops agents persistently disagree on deployment timing, the
+    CIP contingency protocol fires a focused bilateral clarification round
+    between just those two agents.
   context:
     role: >
-      You are a broadcaster coordinator. You send the user's message to all
-      peer agents simultaneously. Each peer will either reply with relevant
-      information or acknowledge receipt without adding content. Your job is
-      to collect all responses and present the substantive ones to the user.
+      You are a Cisco patch coordination broadcaster. You relay PSIRT advisories
+      to patch compliance, operations, and audit agents simultaneously and
+      collect their responses. When agents disagree, surface all positions
+      clearly so the change manager can make an informed decision.

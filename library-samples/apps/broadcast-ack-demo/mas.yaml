@@ -5,31 +5,46 @@ kind: MAS
 metadata:
   name: broadcast-ack-demo
   description: >
-    Broadcast-and-ack demo MAS. The broadcaster fans out every message to
-    all peers simultaneously. Each peer either replies with domain-relevant
-    content or sends a bare "ACK" if the message falls outside its domain.
-    The broadcaster surfaces only the substantive replies and reports how many
-    peers silently acknowledged receipt.
+    Broadcast-and-ack demo MAS with CIP contingency handling.
+
+    Three Cisco agents — patch_agent, ops_agent, and audit_agent — debate
+    the timing of an emergency patch deployment via the converging broadcast
+    bus. Any agent that has a domain-relevant position broadcasts it to all
+    peers; peers that have nothing to add respond with "ACK".
+
+    The demo is designed so patch_agent (PSIRT compliance: patch now, window
+    closes at 16:30) and ops_agent (trading floor ops: no changes during
+    trading hours, window closes at 16:00) naturally disagree for multiple
+    waves, triggering the CIP contingency protocol. A focused bilateral
+    clarification round is then dispatched between just those two agents,
+    asking each to directly address the other's specific concern. The
+    outcome — resolved or exhausted — is recorded in the final summary.
+
+    Example input:
+      "PSIRT ADVISORY SY-2026-0847 [CRITICAL]: CVE-2026-NX-4471 affects
+       50 Catalyst 9300 switches. 4-hour patch window closes at 16:30.
+       Patch compliance, operations impact, and device inventory assessment
+       needed immediately."
 spec:
   agency:
     agents:
       - id: broadcaster
         ref: agents/broadcaster.yaml
-      - id: sensor_agent
-        ref: agents/sensor_agent.yaml
-      - id: inventory_agent
-        ref: agents/inventory_agent.yaml
-      - id: maintenance_agent
-        ref: agents/maintenance_agent.yaml
+      - id: patch_agent
+        ref: agents/patch_agent.yaml
+      - id: ops_agent
+        ref: agents/ops_agent.yaml
+      - id: audit_agent
+        ref: agents/audit_agent.yaml
   workflow:
     entry: broadcaster
     nodes:
       - id: broadcaster
         dispatch: parallel
         delegates_to:
-          - sensor_agent
-          - inventory_agent
-          - maintenance_agent
-      - id: sensor_agent
-      - id: inventory_agent
-      - id: maintenance_agent
+          - patch_agent
+          - ops_agent
+          - audit_agent
+      - id: patch_agent
+      - id: ops_agent
+      - id: audit_agent

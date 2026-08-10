@@ -1,0 +1,54 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: MAS
+metadata:
+  name: l9-demo
+  description: >
+    L9 protocol value demonstration — failover capacity go/no-go.
+
+    capacity_agent uses steady-state average CPU (45%) and recommends PROCEED.
+    traffic_agent has peak-burst failover simulation data (89%, above the 85% SLA
+    threshold) and recommends DEFER. They are not in conflict — they are measuring
+    different quantities — but in open broadcast they talk past each other.
+
+    WITHOUT L9 (set l9: false in agents/planner.yaml):
+      capacity_agent defends its rolling-average methodology. traffic_agent repeats
+      the simulation result but is never directly confronted with the average-vs-peak
+      distinction. After 3 waves without acknowledgment, traffic_agent gives up and
+      defers to the capacity assessment. Broadcast converges on PROCEED.
+      Outcome: maintenance executes, west DC hits 89% peak CPU, SLA breached.
+
+    WITH L9 (default — l9: true or omit the line):
+      After 2 consecutive waves of mutual disagreement, CIP fires a bilateral
+      clarification round between capacity_agent and traffic_agent. The bilateral
+      prompt forces capacity_agent to directly address traffic_agent's specific
+      concern. capacity_agent recognizes the methodological mismatch (rolling average
+      vs. peak burst), updates its recommendation to DEFER, and traffic_agent ACKs.
+      Broadcast converges on DEFER.
+      Outcome: maintenance postponed, SLA protected.
+
+    Example input:
+      "GO/NO-GO: East datacenter maintenance window opens in 30 minutes. All
+       production traffic will fail over to west datacenter. Assess whether west
+       DC has sufficient capacity to absorb the failover load without breaching
+       the 85% CPU SLA threshold."
+spec:
+  agency:
+    agents:
+      - id: planner
+        ref: agents/planner.yaml
+      - id: capacity_agent
+        ref: agents/capacity_agent.yaml
+      - id: traffic_agent
+        ref: agents/traffic_agent.yaml
+  workflow:
+    entry: planner
+    nodes:
+      - id: planner
+        dispatch: parallel
+        delegates_to:
+          - capacity_agent
+          - traffic_agent
+      - id: capacity_agent
+      - id: traffic_agent

@@ -1,0 +1,34 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  name: planner
+spec:
+  models:
+    - model: generic-model
+      temperature: 0.2
+      max_tokens: 800
+  design_pattern:
+    type: broadcast_ack
+    params:
+      max_rounds: 8
+      d_max_contingency: 2
+      l9: false
+  description: >
+    East datacenter maintenance coordinator. Collects capacity and traffic
+    assessments before committing to the maintenance window. When capacity_agent
+    and traffic_agent persistently disagree, the L9 CIP protocol fires a focused
+    bilateral clarification round between them to resolve the factual conflict.
+
+    Set l9: false to disable CIP and observe how the broadcast converges on the
+    wrong recommendation when agents talk past each other in open broadcast.
+  context:
+    role: >
+      You are the datacenter maintenance coordinator. A planned east datacenter
+      maintenance window begins in 30 minutes. During east DC maintenance, all
+      production traffic fails over to the west datacenter.
+
+      You have asked capacity_agent and traffic_agent to assess whether the west DC
+      can absorb the failover load. Once agents reach consensus, state clearly:
+      PROCEED or DEFER.

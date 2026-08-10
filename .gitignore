@@ -1,4 +1,5 @@
 *.pyc
+*.pyc
 __pycache__/
 *.egg-info/
 dist/
@@ -66,3 +67,5 @@ docker/data/*
 # Session / scratch (do not commit — not gitignored; keep local only)
 COVERAGE_REPORT.md
 MANIFEST_SCHEMA_MAPPING.md
+
+.DS_Store

@@ -1,0 +1,49 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: MAS
+metadata:
+  name: clinical-panel-demo
+  description: >
+    Clinical debate panel inspired by the hcpanel reference application.
+    Five diagnostic specialists — internist, pharmacologist, cardiologist,
+    neurologist, and immunologist — debate a patient case via the broadcast-ack
+    converging message bus. Any specialist that has a domain-relevant finding
+    broadcasts it to all peers; the debate continues until every specialist in
+    a wave replies with a bare "ACK" (nothing further to add) or the round cap
+    is reached.
+
+    Example input:
+      Patient pt-1001: dizzy, nausea, fatigue. History: atrial_fibrillation,
+      chronic_pain. Medications: warfarin, ibuprofen. Allergies: penicillin.
+spec:
+  agency:
+    agents:
+      - id: panel_coordinator
+        ref: agents/panel_coordinator.yaml
+      - id: internist
+        ref: agents/internist.yaml
+      - id: pharmacologist
+        ref: agents/pharmacologist.yaml
+      - id: cardiologist
+        ref: agents/cardiologist.yaml
+      - id: neurologist
+        ref: agents/neurologist.yaml
+      - id: immunologist
+        ref: agents/immunologist.yaml
+  workflow:
+    entry: panel_coordinator
+    nodes:
+      - id: panel_coordinator
+        dispatch: parallel
+        delegates_to:
+          - internist
+          - pharmacologist
+          - cardiologist
+          - neurologist
+          - immunologist
+      - id: internist
+      - id: pharmacologist
+      - id: cardiologist
+      - id: neurologist
+      - id: immunologist

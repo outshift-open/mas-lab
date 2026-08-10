@@ -121,12 +121,17 @@ class _DeterministicBase(DesignPatternPlugin):
         spec = getattr(config, "agent_spec", None) or {}
         wf = (spec.get("workflow") or {}) if isinstance(spec, dict) else {}
 
-        # 1) moderator.delegates_to (dynamic topology)
         nodes = wf.get("nodes") or []
+        # entry_id: use workflow.entry when present, fall back to "moderator" for
+        # backwards-compatibility with existing tests and manifests that omit the
+        # key and rely on the conventional entry-node name.
+        entry_id = str(wf.get("entry") or "moderator").strip()
+
+        # 1) entry node's delegates_to (dynamic topology)
         for node in nodes:
             if not isinstance(node, dict):
                 continue
-            if str(node.get("id") or "").strip() != "moderator":
+            if str(node.get("id") or "").strip() != entry_id:
                 continue
             delegates = node.get("delegates_to") or []
             if isinstance(delegates, list):
@@ -141,19 +146,19 @@ class _DeterministicBase(DesignPatternPlugin):
             if out:
                 return out
 
-        # 3) fallback: workflow.nodes excluding moderator
+        # 3) fallback: workflow.nodes excluding entry
         out: list[str] = []
         for node in nodes:
             if not isinstance(node, dict):
                 continue
             node_id = str(node.get("id") or node.get("agent") or "").strip()
-            if not node_id or node_id == "moderator":
+            if not node_id or node_id == entry_id:
                 continue
             out.append(node_id)
         if out:
             return out
 
-        # 4) fallback: agency agents list from MAS spec (exclude moderator/self)
+        # 4) fallback: agency agents list from MAS spec (exclude entry)
         agency = (spec.get("agency") or {}) if isinstance(spec, dict) else {}
         rows = agency.get("agents") or []
         out = []
@@ -161,7 +166,7 @@ class _DeterministicBase(DesignPatternPlugin):
             if not isinstance(row, dict):
                 continue
             aid = str(row.get("id") or row.get("name") or "").strip()
-            if not aid or aid == "moderator":
+            if not aid or aid == entry_id:
                 continue
             out.append(aid)
         return out
