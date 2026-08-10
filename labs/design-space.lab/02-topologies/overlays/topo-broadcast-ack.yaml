@@ -1,0 +1,30 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  id: topo-broadcast-ack
+  description: >
+    Broadcast-and-ack topology — entry agent fans out the same message to all
+    peers simultaneously.  Each peer independently replies with content or
+    returns a bare acknowledgement.  The broadcaster aggregates substantive
+    replies and counts silent acks, confirming delivery to every peer.
+  tags: [topology, broadcast, ack]
+
+spec:
+  target:
+    kind: MAS
+  patch:
+    workflow:
+      entry: moderator
+      nodes:
+        - id: moderator
+          dispatch: parallel
+          delegates_to: [schedule_agent, itinerary_agent, concierge_agent]
+        - id: schedule_agent
+        - id: itinerary_agent
+        - id: concierge_agent
+    agents:
+      moderator:
+        design_pattern:
+          type: broadcast_ack

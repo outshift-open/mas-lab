@@ -1,0 +1,23 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  name: broadcaster
+spec:
+  models:
+    - model: generic-model
+      temperature: 0.2
+      max_tokens: 1000
+  design_pattern:
+    type: broadcast_ack
+  description: >
+    Broadcaster agent. Fans out every incoming message to all peers in
+    parallel and waits for their acks or replies. Substantive replies
+    are surfaced; silent acks are counted and reported.
+  context:
+    role: >
+      You are a broadcaster coordinator. You send the user's message to all
+      peer agents simultaneously. Each peer will either reply with relevant
+      information or acknowledge receipt without adding content. Your job is
+      to collect all responses and present the substantive ones to the user.

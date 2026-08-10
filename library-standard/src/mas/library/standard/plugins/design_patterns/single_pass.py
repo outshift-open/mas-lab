@@ -73,7 +73,6 @@ class SinglePassPlugin(DesignPatternPlugin):
         self,
         q: QProduct,
         run: RunLedger,
-        *,
         config: KernelConfig,
     ) -> list[EgressSymbol]:
         if q.dp != DpState.EVALUATING:

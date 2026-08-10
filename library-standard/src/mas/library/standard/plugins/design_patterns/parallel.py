@@ -18,7 +18,7 @@ class DeterministicParallelPlugin(_DeterministicBase):
     plugin_id = "deterministic_parallel@v1"
     mode = "parallel"
 
-    def evaluate_next(self, q: QProduct, run: RunLedger, *, config: KernelConfig) -> list[EgressSymbol]:
+    def evaluate_next(self, q: QProduct, run: RunLedger, config: KernelConfig) -> list[EgressSymbol]:
         st = self._state()
         if not st.participants:
             return self._no_participants(q)

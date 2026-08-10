@@ -56,7 +56,6 @@ class MealyPlugin(Protocol):
         self,
         ctx: ContextView,
         run: RunLedger,
-        *,
         config: KernelConfigProtocol,
     ) -> list[EgressSymbol]:
         """Drive the next evaluation step (the kernel calls this on its hot loop)."""
@@ -95,7 +94,6 @@ class DesignPatternPlugin(ABC):
         self,
         ctx: ContextView,
         run: RunLedger,
-        *,
         config: KernelConfigProtocol,
     ) -> list[EgressSymbol]:
         return []

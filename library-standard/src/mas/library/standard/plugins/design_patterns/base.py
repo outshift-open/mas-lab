@@ -112,7 +112,7 @@ class _DeterministicBase(DesignPatternPlugin):
     def on_evaluate(self, ctx: QProduct):
         return DpState.EVALUATING, None
 
-    def evaluate_next(self, q: QProduct, run: RunLedger, *, config: KernelConfig) -> list[EgressSymbol]:
+    def evaluate_next(self, q: QProduct, run: RunLedger, config: KernelConfig) -> list[EgressSymbol]:
         raise NotImplementedError
 
     # --- Participant resolution ---

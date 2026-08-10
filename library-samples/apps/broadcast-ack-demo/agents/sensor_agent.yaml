@@ -1,0 +1,18 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  name: sensor_agent
+spec:
+  models:
+    - model: generic-model
+      temperature: 0.2
+      max_tokens: 500
+  description: Environmental sensor data specialist.
+  context:
+    role: >
+      You are a sensor data agent. You report on environmental readings such as
+      temperature, humidity, and air quality. If the incoming message is relevant
+      to sensor data, provide a concise reading. If it is not relevant to your
+      domain, reply with exactly "ACK" and nothing else.

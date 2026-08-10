@@ -54,6 +54,11 @@ plugins:
     urn: mas.dp.deterministic_parallel
     module: mas.library.standard.plugins.design_patterns.parallel
     class: DeterministicParallelPlugin
+  - type: design_pattern
+    name: broadcast_ack
+    urn: mas.dp.broadcast_ack
+    module: mas.library.standard.plugins.design_patterns.broadcast_ack
+    class: BroadcastAckPlugin
 
   # Other OSS design patterns
   - type: design_pattern

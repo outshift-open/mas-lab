@@ -1,0 +1,35 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: MAS
+metadata:
+  name: broadcast-ack-demo
+  description: >
+    Broadcast-and-ack demo MAS. The broadcaster fans out every message to
+    all peers simultaneously. Each peer either replies with domain-relevant
+    content or sends a bare "ACK" if the message falls outside its domain.
+    The broadcaster surfaces only the substantive replies and reports how many
+    peers silently acknowledged receipt.
+spec:
+  agency:
+    agents:
+      - id: broadcaster
+        ref: agents/broadcaster.yaml
+      - id: sensor_agent
+        ref: agents/sensor_agent.yaml
+      - id: inventory_agent
+        ref: agents/inventory_agent.yaml
+      - id: maintenance_agent
+        ref: agents/maintenance_agent.yaml
+  workflow:
+    entry: broadcaster
+    nodes:
+      - id: broadcaster
+        dispatch: parallel
+        delegates_to:
+          - sensor_agent
+          - inventory_agent
+          - maintenance_agent
+      - id: sensor_agent
+      - id: inventory_agent
+      - id: maintenance_agent
