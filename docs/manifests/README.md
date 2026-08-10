@@ -35,7 +35,7 @@ config.yaml       ← project defaults (flavour, infra_refs, .env path)
 | Layer | Manifest kinds | Reference |
 |-------|----------------|-----------|
 | **Agent** | `Agent` | [agent.md](agent.md) |
-| **MAS** | `MAS`, `Workflow` | [mas.md](mas.md), [workflow.md](workflow.md) |
+| **MAS** | `MAS`, `Workflow` | [mas.md](mas.md) |
 | **Override** | `Overlay` | [overlay.md](overlay.md) |
 | **Environment** | `Flavour`, `InfraBundle`, `LLMProxy` | [flavour.md](flavour.md), [infra.md](infra.md) |
 | **Experiment** | `experiment:` | [experiment.md](experiment.md) |
@@ -83,7 +83,7 @@ Both forms are valid in `experiment.applications[]`:
 
 Scenarios reference overlay **ids** from `configs_dir` (e.g. tutorial `cot` vs lab `pattern-cot`). Dataset: `path: ./dataset.yaml` (tutorial) or `name` + `locator: samples` (catalogued benchmarks).
 
-See [topology-and-workflow.md](topology-and-workflow.md) for workflow vs routing overlays.
+See [Topology, workflow, and routing](mas.md#topology-workflow-and-routing) for workflow vs routing overlays.
 
 ---
 

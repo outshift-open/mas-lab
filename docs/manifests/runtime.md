@@ -19,7 +19,7 @@ Validated by `mas-ctl validate` (agents, MAS, overlays) and `mas-lab validate`
 | Agent | `agent.schema.yaml` | [agent.md](agent.md) |
 | MAS | `mas.schema.yaml` | [mas.md](mas.md) |
 | Overlay | `overlay.schema.yaml` | [overlay.md](overlay.md) |
-| Workflow topology | `workflow.schema.yaml` | [workflow.md](workflow.md) |
+| Workflow topology | `workflow.schema.yaml` | [mas.md — Standalone workflow manifest](mas.md#standalone-workflow-manifest-kind-workflow) |
 | Flavour | `flavour.schema.yaml` | [flavour.md](flavour.md) |
 | Infrastructure | Python models (`infra_manifest.py`) | [infra.md](infra.md) |
 | Tool | `tool.schema.yaml` | below |
@@ -70,7 +70,7 @@ implemented in `mas-runtime`. In manifests, trajectory-shaping logic is declared
 - `MAS.spec.workflow` — topology (`entry`, `delegates_to`, `type`) and ctl workflow driver (dynamic ReAct vs `SequentialWorkflow`)
 
 `MAS.spec.workflow.plugin` (custom `WorkflowContract` registration) is a **design target** — not
-resolved in OSS; see [topology-and-workflow.md](topology-and-workflow.md).
+resolved in OSS; see [Topology, workflow, and routing](mas.md#topology-workflow-and-routing).
 
 Authoring detail: [agent.md](agent.md#delegation) · [mas.md](mas.md).
 
