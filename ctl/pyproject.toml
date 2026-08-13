@@ -13,6 +13,7 @@ requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 dependencies = [
     "mas-runtime",
+    "mas-library-standard",
     "click>=8.0",
     "pyyaml>=6.0",
     "python-dotenv>=1.0",
@@ -46,3 +47,4 @@ exclude = ["src/mas/ctl/testing/**"]
 
 [tool.uv.sources]
 mas-runtime = { workspace = true }
+mas-library-standard = { workspace = true }
