@@ -45,6 +45,7 @@ Issues = "https://github.com/outshift-open/mas-lab/issues"
 
 [project.scripts]
 mas-lab = "mas.lab.cli:app"
+mas-ctl = "mas.ctl.cli.main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mas"]
