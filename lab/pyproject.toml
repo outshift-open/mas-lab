@@ -49,3 +49,10 @@ mas-ctl = "mas.ctl.cli.main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mas"]
+
+# Package a copy of the top-level examples/ tree inside mas.lab so
+# 'mas-lab init' still works when installed as a wheel (e.g. via
+# 'uv tool install'), where there is no repo checkout to read examples/
+# from. See mas.lab.cli.commands.init._templates_root().
+[tool.hatch.build.targets.wheel.force-include]
+"../examples" = "src/mas/lab/_examples"

@@ -45,6 +45,13 @@ packages = ["src/mas"]
 # are excluded from the published wheel.
 exclude = ["src/mas/ctl/testing/**"]
 
+# Package a copy of the canonical runtime/lab manifest schemas inside mas.ctl so
+# overlay merging and manifest validation still work when installed as a wheel
+# (e.g. via 'uv tool install'), where there is no repo checkout to read
+# docs/schemas/ from. See mas.ctl.validate.schemas.schema_root().
+[tool.hatch.build.targets.wheel.force-include]
+"../docs/schemas" = "src/mas/ctl/_schemas"
+
 [tool.uv.sources]
 mas-runtime = { workspace = true }
 mas-library-standard = { workspace = true }
