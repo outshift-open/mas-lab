@@ -222,7 +222,8 @@ class SessionController:
         )
         self._turn += 1
         tid = turn_id or f"u{self._turn}"
-        self.display.on_user(text, turn_id=tid)
+        if self.display is not None:
+            self.display.on_user(text, turn_id=tid)
         on_working = getattr(self.display, "on_working", None)
         if callable(on_working):
             on_working()
