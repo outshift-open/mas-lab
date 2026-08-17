@@ -1,0 +1,150 @@
+id: checkout-timeout-enable-debug-logging
+description: >
+  Checkout timeout issue is intermittent and multi-factor; existing telemetry is
+  insufficient to choose between retry policy rollback, runtime restart, or cache remediation.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: checkout-service
+  action: enable_debug_logging
+  reasoning: >
+    Signals are contradictory: some windows suggest retry amplification, others
+    suggest stale routing metadata, and no single failure path dominates. Enable
+    targeted debug logging for retry lineage, timeout taxonomy, and cache generation
+    correlation before taking disruptive mitigation.
+source_evidence:
+  - source: google_sre_handling_overload
+    url: https://sre.google/sre-book/handling-overload/
+    facts:
+      - Utilization and per-task signals are needed to diagnose overload behavior correctly.
+      - Aggregated request rate can hide the true cost and shape of expensive requests.
+  - source: aws_timeouts_retries_backoff_jitter
+    url: https://builder.aws.com/content/3EumjoZascWd1oZiEgL8ORlv3qE/timeouts-retries-and-backoff-with-jitter
+    facts:
+      - Retries can be harmful when overload is the underlying cause.
+      - Distinguishing timeout classes and retry paths is necessary before tuning policy.
+observed_symptoms:
+  - Timeout clusters are periodic and correlate with batch client windows.
+  - Some failures include stale-route signatures while others are pure downstream slow responses.
+  - Current logs omit retry attempt lineage and cache generation metadata.
+services:
+  checkout-service:
+    aliases: [checkout_service, checkout]
+    metrics:
+      latency_ms: { p50: 500.0, p95: 1820.0, p99: 3290.0 }
+      error_rate: 0.084
+      requests_per_second: 256.0
+      named:
+        ambiguous_timeout_share:
+          value: 0.58
+          unit: ratio
+          status: critical
+        retry_lineage_logged:
+          value: 0
+          unit: boolean
+          status: critical
+        cache_generation_tagged:
+          value: 0
+          unit: boolean
+          status: critical
+        periodic_spike_interval_s:
+          value: 60
+          unit: seconds
+          status: warning
+        db_pool_utilization:
+          value: 0.43
+          unit: ratio
+          status: normal
+        deadlock_count:
+          value: 0
+          unit: count
+          status: normal
+        lock_wait_count:
+          value: 3
+          unit: count
+          status: normal
+        active_connections:
+          value: 43
+          unit: connections
+          status: normal
+    health:
+      status: degraded
+      uptime_percent: 99.8
+      error_rate_percent: 8.4
+      dependencies:
+        payment-gateway: degraded
+        cart-service: degraded
+        route-cache: degraded
+    deployments:
+      - version: "3.7.2"
+        status: success
+        deployed_hours_before_incident: 16
+        deployed_by: ci/cd-pipeline
+        commit_sha: a17c90d
+        commit_message: "feat(checkout): async retry path and timeout tuning"
+        duration_seconds: 96
+        overlap_with_incident: false
+      - version: "3.7.1"
+        status: success
+        deployed_days_before_incident: 4
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "deploy: previous stable"
+        duration_seconds: 89
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[checkout-service] Timeout category unknown: missing upstream phase marker"
+      - level: WARN
+        message: "[checkout-service] Retry burst observed, but request lineage not captured"
+      - level: WARN
+        message: "[checkout-service] Cache generation mismatch suspected for subset of timed-out requests"
+    feature_flags:
+      checkout_timeout_debug:
+        enabled: false
+        rollout_percent: 0
+        enabled_since_hours_before_incident: null
+        changed_by: no-change
+      retry_jitter_enabled:
+        enabled: false
+        rollout_percent: 0
+        enabled_since_hours_before_incident: null
+        changed_by: no-change
+    config_changes:
+      - key: checkout_timeout_debug_sample_rate
+        old_value: 0.0
+        new_value: 0.0
+        changed_by: no-change
+        changed_hours_before_incident: null
+      - key: retry_policy_correlation_id_required
+        old_value: false
+        new_value: false
+        changed_by: no-change
+        changed_hours_before_incident: null
+    connection_pool:
+      pool_size: 100
+      active: 43
+      idle: 57
+      waiting: 1
+      utilisation_pct: 43
+      status: healthy
+      note: "No sustained DB saturation; ambiguity is in application-layer timeout taxonomy."
+    pg_stat_activity:
+      total_connections: 52
+      max_connections: 200
+      active_queries: 8
+      idle_connections: 44
+      waiting_queries: 1
+      blocking_queries: []
+      longest_running_query_seconds: 1.1
+      max_lock_wait_ms: 27
+      conclusion: "DB conditions are stable and do not disambiguate root cause alone."
+    blocking:
+      blocking_pids: []
+      blocked_pids: []
+      deadlocks_last_hour: 0
+      lock_wait_count_last_hour: 3
+      conclusion: "No DB blocking chain; enable richer app logging to classify timeout classes."
+    rollback:
+      from_version: "3.7.2"
+      to_version: "3.7.1"
+      message: "Rollback available, but insufficient diagnostic signal to justify yet."

@@ -1,0 +1,36 @@
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  x-node-id: backend
+  name: backend
+spec:
+  description: Backend specialist. Call me to investigate deployment changes, API
+    failures, connection pool saturation, and upstream/downstream dependency
+    failures. Requires telemetry findings as context.
+  context:
+    role:
+      ref: prompts/backend/1.1.0.md
+  models:
+    - model: vertex_ai/gemini-2.5-flash
+      temperature: 0.1
+      max_tokens: 1000
+  design_pattern:
+    type: react
+    params:
+      max_steps: 10
+  tools:
+    - ref: ../tools/get_deployments.tool.yaml
+    - ref: ../tools/get_logs.tool.yaml
+    - ref: ../tools/get_metrics.tool.yaml
+    - ref: ../tools/run_action.tool.yaml
+  skills:
+    - connection-pool-analysis
+    - deployment-investigation
+    - data-access-protocol
+    - uncertainty-protocol
+    - memory-protocol
+x-canvas-node-ids:
+  model: node_2916e6a3
+  design_pattern: node_df9782fc
+  tools: node_2c188454
+  promptSkills: node_10c4897e

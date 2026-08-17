@@ -1,0 +1,93 @@
+id: routing-policy-clear-cache
+description: >
+  Edge gateway is serving stale route-decision cache entries after a successful
+  control-plane sync, producing inconsistent precedence outcomes across pods.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: edge-gateway
+  action: clear_cache
+  reasoning: >
+    Control-plane state is healthy and the current config version is correct,
+    but edge-gateway caches still contain obsolete route decisions. Clearing the
+    policy cache forces fresh evaluation without rolling back healthy code.
+source_evidence:
+  - source: envoy_circuit_breaking
+    url: https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/circuit_breaking
+    facts:
+      - Cached upstream decisions can remain stale even when control-plane propagation succeeds.
+      - Data freshness problems should be remediated at the cache layer, not by reverting good config.
+  - source: kubernetes_observability
+    url: https://kubernetes.io/blog/2018/08/03/out-of-the-clouds-into-the-ground-how-to-make-your-kubernetes-cluster-observable/
+    facts:
+      - Comparing cache-hit and cache-bypass paths helps isolate stale-decision incidents.
+observed_symptoms:
+  - Requests that bypass the policy cache route correctly within SLO.
+  - Mismatches are concentrated on pods with older route-decision cache generations.
+  - Current control-plane snapshot version matches intended policy bundle on all pods.
+services:
+  edge-gateway:
+    aliases: [edge_gateway, routing-gateway]
+    metrics:
+      latency_ms: { p50: 360.0, p95: 1290.0, p99: 2190.0 }
+      error_rate: 0.081
+      requests_per_second: 246.0
+      named:
+        stale_policy_cache_entries:
+          value: 9421
+          unit: entries
+          status: critical
+        cache_bypass_success_rate:
+          value: 0.992
+          unit: ratio
+          status: normal
+        snapshot_version_mismatch:
+          value: 0
+          unit: count
+          status: normal
+    health:
+      status: critical
+      uptime_percent: 99.8
+      error_rate_percent: 8.1
+      dependencies:
+        routing-control-plane: healthy
+        policy-cache: critical
+    deployments:
+      - version: "2.18.3"
+        status: success
+        deployed_days_before_incident: 2
+        deployed_by: ci/cd-pipeline
+        commit_sha: 6ab4c91
+        commit_message: "feat(edge): reorder route precedence evaluation for tenant policy bundles"
+        duration_seconds: 102
+        overlap_with_incident: false
+      - version: "2.18.2"
+        status: success
+        deployed_days_before_incident: 6
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(edge): stabilize route precedence across canary regions"
+        duration_seconds: 88
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[edge-gateway] Cached decision references deleted rule graph node for tenant=emerald-eu"
+      - level: WARN
+        message: "[edge-gateway] Cache bypass request routed correctly while cached request misrouted to default backend"
+      - level: INFO
+        message: "[edge-gateway] ADS snapshot version current on all pods; stale cache suspected"
+    rollback:
+      from_version: "2.18.3"
+      to_version: "2.18.2"
+      message: "Rollback available, but unnecessary when current policy bundle is correct and only cached decisions are stale."
+
+  policy-cache:
+    aliases: [policy_cache]
+    metrics:
+      latency_ms: { p50: 2.3, p95: 6.4, p99: 15.2 }
+      error_rate: 0.0007
+      requests_per_second: 4120.0
+    health:
+      status: critical
+      uptime_percent: 99.99
+      error_rate_percent: 0.07
+      dependencies: {}

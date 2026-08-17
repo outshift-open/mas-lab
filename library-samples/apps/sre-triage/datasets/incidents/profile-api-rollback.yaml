@@ -1,0 +1,147 @@
+id: profile-api-rollback
+description: >
+  Profile API schema rollout introduced a cache-key/version mismatch that caused
+  stale object reuse, cache refresh amplification, and elevated backend load.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: profile-service
+  action: rollback
+  to_version: "5.2.3"
+  reasoning: >
+    Version 5.2.4 changed the profile cache namespace from profile:v2 to
+    profile:v3 without backward-compatible readers at the edge. The rollout is
+    tightly correlated with the incident, stale cache hides some failures, and
+    miss-driven refreshes amplified load. Rollback is the fastest way to restore
+    the old key contract and stop the mismatch.
+source_evidence:
+  - source: redis_distributed_locks
+    url: https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/
+    facts:
+      - Safe single-instance locking relies on SET resource_name value NX PX ttl.
+      - Lock release must verify owner identity; deleting a lock blindly is unsafe.
+      - Short TTL windows and retry behavior matter when many workers contend for the same key.
+  - source: nginx_thundering_herd
+    url: https://blog.nginx.org/blog/mitigating-thundering-herd-problem-pbs-nginx
+    facts:
+      - Simultaneous cache misses can stampede the backend during repopulation windows.
+      - Serving stale while updating can collapse 100 concurrent refreshes down to 1 backend request.
+      - Stale cache can mask backend errors, so monitoring must still show underlying failures.
+observed_symptoms:
+  - profile cards intermittently return old field names avatar_url and locale_code.
+  - Cache hit ratio fell immediately after the 5.2.4 rollout while Redis CPU stayed high.
+  - Hot user profiles triggered synchronized refreshes and backend saturation during cache expiry.
+services:
+  profile-service:
+    aliases: [profile_service, profile-api]
+    metrics:
+      latency_ms: { p50: 930.0, p95: 2890.0, p99: 4360.0 }
+      error_rate: 0.172
+      requests_per_second: 246.0
+      named:
+        cache_hit_ratio:
+          value: 0.41
+          unit: ratio
+          status: critical
+        stale_response_share:
+          value: 0.37
+          unit: ratio
+          status: warning
+        cache_refresh_inflight:
+          value: 73
+          unit: workers
+          status: critical
+        schema_mismatch_rate:
+          value: 0.19
+          unit: ratio
+          status: critical
+    health:
+      status: critical
+      uptime_percent: 99.2
+      error_rate_percent: 17.2
+      dependencies:
+        profile-cache: critical
+        user-db: healthy
+        edge-cache: degraded
+    deployments:
+      - version: "5.2.4"
+        status: success
+        deployed_minutes_before_incident: 18
+        deployed_by: ci/cd-pipeline
+        commit_sha: a17c90d
+        commit_message: "feat(profile): namespace cache keys by schema version"
+        duration_seconds: 96
+        overlap_with_incident: true
+      - version: "5.2.3"
+        status: success
+        deployed_hours_before_incident: 19
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(profile): stabilize cache hydration"
+        duration_seconds: 89
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[profile-service] Cache hydration failed: expected key profile:v3:{user_id} but found profile:v2:{user_id}"
+      - level: WARN
+        message: "[profile-service] Refresh fanout exceeded budget for hot key user:8421 (68 concurrent misses)"
+      - level: WARN
+        message: "[profile-service] Edge served stale profile payload while origin refresh retried"
+      - level: ERROR
+        message: "[profile-service] Serializer mismatch: field preferred_pronouns missing from cached object"
+    feature_flags:
+      profile_schema_v3_reader:
+        enabled: true
+        rollout_percent: 100
+        enabled_since_minutes_before_incident: 18
+        changed_by: ci/cd-pipeline
+      edge_stale_profiles:
+        enabled: true
+        rollout_percent: 100
+        enabled_since_days_before_incident: 14
+        changed_by: sre-team
+    config_changes:
+      - key: profile_cache_namespace
+        old_value: profile:v2
+        new_value: profile:v3
+        changed_by: ci/cd-pipeline
+        changed_minutes_before_incident: 18
+        reason: "Schema versioned cache namespace introduced without dual-read fallback"
+      - key: profile_cache_stale_while_revalidate
+        old_value: true
+        new_value: true
+        changed_by: no-change
+        changed_hours_before_incident: null
+    rollback:
+      from_version: "5.2.4"
+      to_version: "5.2.3"
+      message: "Rollback plan prepared for profile-service."
+
+  profile-cache:
+    aliases: [profile_cache, redis-profile]
+    metrics:
+      latency_ms: { p50: 3.1, p95: 12.4, p99: 29.8 }
+      error_rate: 0.006
+      requests_per_second: 4810.0
+      named:
+        keyspace_hit_ratio:
+          value: 0.44
+          unit: ratio
+          status: critical
+        expired_keys_per_second:
+          value: 812
+          unit: keys_per_second
+          status: warning
+        lock_acquire_p95_ms:
+          value: 46
+          unit: ms
+          status: warning
+    health:
+      status: degraded
+      uptime_percent: 99.98
+      error_rate_percent: 0.6
+      dependencies: {}
+    logs:
+      - level: WARN
+        message: "[profile-cache] Lock contention spike on refresh:profile:v3:user:8421"
+      - level: INFO
+        message: "[profile-cache] TTL jitter active, but repopulation misses remain bursty"
