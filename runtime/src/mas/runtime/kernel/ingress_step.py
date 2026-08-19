@@ -94,7 +94,7 @@ def commit_engine_io_return(
     q.dp = DpState.EVALUATING
     apply_control_valid(q)
     coord_after_ingress(q)
-    return evaluate(q, run, config)
+    return evaluate(q, run, config=config)
 
 
 def apply_engine_io_return(
@@ -203,6 +203,6 @@ def apply_engine_io_return(
         )
         q.inflight_kind = "NONE"
         q.dp = DpState.EVALUATING
-        return evaluate(q, run, config)
+        return evaluate(q, run, config=config)
 
     return commit_engine_io_return(q, run, event, config=config, evaluate=evaluate)
