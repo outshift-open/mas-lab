@@ -102,7 +102,7 @@ def test_schedule_parallel_tools_egress_siblings_share_one_parent() -> None:
             text="ok",
         )
         with runtime_binding(None, op):
-            apply_engine_io_return(q, run, event, config=config, evaluate=lambda *_: [])
+            apply_engine_io_return(q, run, event, config=config, evaluate=lambda *_, **__: [])
 
     ends = [
         e
