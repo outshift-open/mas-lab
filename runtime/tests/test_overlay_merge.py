@@ -44,10 +44,39 @@ def test_merge_context_dict():
     assert merged["spec"]["context"] == {"role": "a", "intent": "b"}
 
 
-def test_merge_context_list():
-    base = {"spec": {"context": ["a"]}}
-    merged = merge_overlay(base, _overlay({"context": ["b"]}))
-    assert merged["spec"]["context"] == ["a", "b"]
+def test_merge_context_op_add_appends_without_duplicating_base_text():
+    base = {"spec": {"context": {"role": "You are a triage agent."}}}
+    merged = merge_overlay(
+        base, _overlay({"context": {"role": {"$op": {"add": ["Escalate P1s immediately."]}}}})
+    )
+    assert merged["spec"]["context"]["role"] == [
+        "You are a triage agent.",
+        "Escalate P1s immediately.",
+    ]
+
+
+def test_merge_context_op_remove():
+    base = {"spec": {"context": {"role": ["a", "b", "c"]}}}
+    merged = merge_overlay(base, _overlay({"context": {"role": {"$op": {"remove": ["b"]}}}}))
+    assert merged["spec"]["context"]["role"] == ["a", "c"]
+
+
+def test_merge_context_op_replace():
+    base = {"spec": {"context": {"role": ["a", "b"]}}}
+    merged = merge_overlay(base, _overlay({"context": {"role": {"$op": {"replace": ["z"]}}}}))
+    assert merged["spec"]["context"]["role"] == ["z"]
+
+
+def test_merge_context_op_clear():
+    base = {"spec": {"context": {"role": ["a", "b"]}}}
+    merged = merge_overlay(base, _overlay({"context": {"role": {"$op": {"clear": True}}}}))
+    assert merged["spec"]["context"]["role"] == []
+
+
+def test_merge_context_plain_value_still_fully_replaces_chunk():
+    base = {"spec": {"context": {"role": "old role"}}}
+    merged = merge_overlay(base, _overlay({"context": {"role": "new role"}}))
+    assert merged["spec"]["context"]["role"] == "new role"
 
 
 def test_merge_skills():

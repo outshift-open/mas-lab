@@ -298,16 +298,10 @@ def _merge_value_by_meta(existing: Any, incoming: Any, meta: dict[str, Any]) -> 
         return deepcopy(incoming)
 
     if strategy == "context_merge":
-        if isinstance(incoming, dict) and isinstance(existing, dict):
-            merged = deepcopy(existing)
-            merged.update(incoming)
-            return merged
         if isinstance(incoming, dict):
-            return deepcopy(incoming)
-        if isinstance(incoming, list):
-            existing_list = list(existing or []) if isinstance(existing, list) else []
-            existing_list.extend(incoming)
-            return existing_list
+            from mas.runtime.boundary.context.manifest_context import merge_context_map
+
+            return merge_context_map(existing, incoming)
         return deepcopy(incoming)
 
     if strategy == "execution_merge":

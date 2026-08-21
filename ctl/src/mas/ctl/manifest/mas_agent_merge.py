@@ -13,7 +13,10 @@ from typing import Any
 import yaml
 
 from mas.ctl.overlay.merge import _ops_dict
-from mas.runtime.boundary.context.manifest_context import routing_description_from_agent
+from mas.runtime.boundary.context.manifest_context import (
+    merge_context_map,
+    routing_description_from_agent,
+)
 from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
 from mas.runtime.boundary.delegation.policy import delegation_targets
 from mas.runtime.engine.llm_live import LiveLlmEngine
@@ -148,19 +151,7 @@ def apply_agency_entry_overlay(
 
     ctx = entry_spec.get("context")
     if isinstance(ctx, dict) and ctx:
-        base_ctx = spec.get("context")
-        if isinstance(base_ctx, dict):
-            for key, ov in ctx.items():
-                if (bv := base_ctx.get(key)) is not None and type(bv) is not type(ov):
-                    logger.warning(
-                        "agency overlay context[%r] type %s overrides base type %s",
-                        key,
-                        type(ov).__name__,
-                        type(bv).__name__,
-                    )
-            spec["context"] = {**base_ctx, **copy.deepcopy(ctx)}
-        else:
-            spec["context"] = copy.deepcopy(ctx)
+        spec["context"] = merge_context_map(spec.get("context"), ctx)
 
     _apply_description_overlay(spec, agency_entry, entry_spec)
 

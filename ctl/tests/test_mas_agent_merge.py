@@ -276,10 +276,12 @@ def test_merge_tool_ref_list_keeps_entries_without_key(caplog):
     assert "no ref/name" in caplog.text
 
 
-def test_apply_agency_entry_overlay_warns_context_type_mismatch(caplog):
+def test_apply_agency_entry_overlay_plain_context_value_replaces_regardless_of_shape():
+    """A plain (non-$op) chunk patch value is an implicit full replace, even
+    when it changes shape (e.g. {ref} -> inline string) -- same ergonomics as
+    every other overlay merge strategy in this repo."""
     from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
 
-    caplog.set_level("WARNING")
     manifest = {
         "metadata": {"name": "a"},
         "spec": {"context": {"role": {"ref": "role.md"}}},
@@ -287,7 +289,24 @@ def test_apply_agency_entry_overlay_warns_context_type_mismatch(caplog):
     entry = {"id": "a", "spec": {"context": {"role": "inline role"}}}
     merged = apply_agency_entry_overlay(manifest, entry)
     assert merged["spec"]["context"]["role"] == "inline role"
-    assert "type str overrides base type dict" in caplog.text
+
+
+def test_apply_agency_entry_overlay_context_op_add_appends_without_duplicating():
+    from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
+
+    manifest = {
+        "metadata": {"name": "a"},
+        "spec": {"context": {"role": "You are a triage agent."}},
+    }
+    entry = {
+        "id": "a",
+        "spec": {"context": {"role": {"$op": {"add": ["Escalate P1s immediately."]}}}},
+    }
+    merged = apply_agency_entry_overlay(manifest, entry)
+    assert merged["spec"]["context"]["role"] == [
+        "You are a triage agent.",
+        "Escalate P1s immediately.",
+    ]
 
 
 def test_agency_entries_by_id_prefers_agency_bucket():

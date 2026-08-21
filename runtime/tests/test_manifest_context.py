@@ -10,6 +10,8 @@ from mas.runtime.boundary.context.manifest_context import (
     ContextChunkError,
     ContextRefNotFoundError,
     context_chunks_from_spec,
+    merge_context_chunk,
+    merge_context_map,
     resolve_context_chunk,
     routing_description_from_agent,
 )
@@ -83,3 +85,76 @@ def test_resolve_context_chunk_long_inline_role_without_slash(tmp_path: Path):
         "Always include your reasoning before calling an agent or producing a final answer."
     )
     assert resolve_context_chunk(role, base_dir=tmp_path) == role
+
+
+def test_resolve_context_chunk_array_joins_fragments(tmp_path: Path):
+    value = ["You are a triage agent.", "Always cite your sources."]
+    assert (
+        resolve_context_chunk(value, base_dir=tmp_path)
+        == "You are a triage agent.\nAlways cite your sources."
+    )
+
+
+def test_resolve_context_chunk_array_mixes_inline_and_ref(tmp_path: Path):
+    escalation = tmp_path / "escalation.md"
+    escalation.write_text("Escalate P1 incidents immediately.", encoding="utf-8")
+    value = ["You are a triage agent.", {"ref": "escalation.md"}]
+    assert resolve_context_chunk(value, base_dir=tmp_path) == (
+        "You are a triage agent.\nEscalate P1 incidents immediately."
+    )
+
+
+def test_resolve_context_chunk_array_missing_ref_raises(tmp_path: Path):
+    with pytest.raises(ContextRefNotFoundError, match="missing.md"):
+        resolve_context_chunk(["ok", {"ref": "missing.md"}], base_dir=tmp_path)
+
+
+def test_resolve_context_chunk_nested_array_raises(tmp_path: Path):
+    with pytest.raises(ContextChunkError, match="nested array"):
+        resolve_context_chunk(["ok", ["nested"]], base_dir=tmp_path)
+
+
+def test_context_chunks_from_spec_resolves_array_chunk(tmp_path: Path):
+    spec = {"context": {"role": ["You are a triage agent.", "Be concise."]}}
+    chunks = context_chunks_from_spec(spec, base_dir=tmp_path)
+    assert chunks == ["[role] You are a triage agent.\nBe concise."]
+
+
+def test_merge_context_chunk_add_appends_without_duplicating():
+    merged = merge_context_chunk("You are a triage agent.", {"$op": {"add": ["Be concise."]}})
+    assert merged == ["You are a triage agent.", "Be concise."]
+
+
+def test_merge_context_chunk_add_is_idempotent():
+    merged = merge_context_chunk(["a", "b"], {"$op": {"add": ["b", "c"]}})
+    assert merged == ["a", "b", "c"]
+
+
+def test_merge_context_chunk_remove():
+    merged = merge_context_chunk(["a", "b", "c"], {"$op": {"remove": ["b"]}})
+    assert merged == ["a", "c"]
+
+
+def test_merge_context_chunk_replace():
+    merged = merge_context_chunk(["a", "b"], {"$op": {"replace": ["z"]}})
+    assert merged == ["z"]
+
+
+def test_merge_context_chunk_clear():
+    merged = merge_context_chunk(["a", "b"], {"$op": {"clear": True}})
+    assert merged == []
+
+
+def test_merge_context_chunk_plain_value_replaces():
+    """No `$op` sugar -- implicit full replace, same ergonomics as list_ops."""
+    assert merge_context_chunk("old role", "new role") == "new role"
+
+
+def test_merge_context_map_adds_new_key_and_patches_existing():
+    base = {"role": "You are a triage agent."}
+    patch = {"role": {"$op": {"add": ["Be concise."]}}, "intent": "Stay on task."}
+    merged = merge_context_map(base, patch)
+    assert merged == {
+        "role": ["You are a triage agent.", "Be concise."],
+        "intent": "Stay on task.",
+    }
