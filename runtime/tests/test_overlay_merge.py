@@ -79,6 +79,14 @@ def test_merge_context_plain_value_still_fully_replaces_chunk():
     assert merged["spec"]["context"]["role"] == "new role"
 
 
+def test_merge_context_plain_array_still_fully_replaces_chunk():
+    """A plain array patch (no `$op`) replaces the chunk wholesale, same as a
+    plain string always has -- only `$op` opts into add/remove fragment merging."""
+    base = {"spec": {"context": {"role": ["a", "b"]}}}
+    merged = merge_overlay(base, _overlay({"context": {"role": ["c", "d"]}}))
+    assert merged["spec"]["context"]["role"] == ["c", "d"]
+
+
 def test_merge_skills():
     base = {"spec": {"skills": ["s1"]}}
     merged = merge_overlay(base, _overlay({"skills": {"$op": {"add": ["s1", "s2"]}}}))

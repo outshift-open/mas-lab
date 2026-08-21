@@ -291,6 +291,20 @@ def test_apply_agency_entry_overlay_plain_context_value_replaces_regardless_of_s
     assert merged["spec"]["context"]["role"] == "inline role"
 
 
+def test_apply_agency_entry_overlay_plain_array_context_value_replaces_not_adds():
+    """A plain array chunk patch (no `$op`) fully replaces, mirroring the
+    plain-string case above -- it does NOT append onto the base fragments."""
+    from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
+
+    manifest = {
+        "metadata": {"name": "a"},
+        "spec": {"context": {"role": ["a", "b"]}},
+    }
+    entry = {"id": "a", "spec": {"context": {"role": ["c", "d"]}}}
+    merged = apply_agency_entry_overlay(manifest, entry)
+    assert merged["spec"]["context"]["role"] == ["c", "d"]
+
+
 def test_apply_agency_entry_overlay_context_op_add_appends_without_duplicating():
     from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
 

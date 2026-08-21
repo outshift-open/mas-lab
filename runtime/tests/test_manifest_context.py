@@ -145,9 +145,22 @@ def test_merge_context_chunk_clear():
     assert merged == []
 
 
-def test_merge_context_chunk_plain_value_replaces():
+def test_merge_context_chunk_plain_string_value_replaces():
     """No `$op` sugar -- implicit full replace, same ergonomics as list_ops."""
     assert merge_context_chunk("old role", "new role") == "new role"
+
+
+def test_merge_context_chunk_plain_array_value_replaces():
+    """A plain array (no `$op`) is also an implicit full replace, not an add --
+    `$op` is what opts into fragment-level merging; a bare list is a new chunk
+    value, same as a bare string or {ref} would be."""
+    merged = merge_context_chunk(["a", "b"], ["c", "d"])
+    assert merged == ["c", "d"]
+
+
+def test_merge_context_chunk_plain_array_replaces_existing_string_chunk():
+    merged = merge_context_chunk("old role", ["fragment one", "fragment two"])
+    assert merged == ["fragment one", "fragment two"]
 
 
 def test_merge_context_map_adds_new_key_and_patches_existing():
