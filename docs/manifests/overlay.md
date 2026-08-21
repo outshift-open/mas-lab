@@ -63,10 +63,15 @@ restating the rest of the base prompt:
 ```yaml
 patch:
   context:
-    role: {"$op": {"add": ["Escalate P1 incidents immediately."]}}
-    # remove: ["Escalate P1 incidents immediately."]
-    # replace: ["Whole new role text."]
-    # clear: true
+    role:
+      $op:
+        add:
+          - "Escalate P1 incidents immediately."
+        # remove:
+        #   - "Escalate P1 incidents immediately."
+        # replace:
+        #   - "Whole new role text."
+        # clear: true
 ```
 
 ---
