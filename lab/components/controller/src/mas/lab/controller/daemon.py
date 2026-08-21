@@ -110,11 +110,30 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=int(os.environ.get("MAS_CONTROLLER_PORT", DEFAULT_HTTP_PORT)))
     parser.add_argument("--socket", type=Path, default=None)
     parser.add_argument("--no-http", action="store_true")
+    jobs_group = parser.add_mutually_exclusive_group()
+    jobs_group.add_argument(
+        "--jobs-db",
+        type=Path,
+        default=None,
+        help="SQLite file for durable job persistence (default: ~/.local/share/mas/jobs.db)",
+    )
+    jobs_group.add_argument(
+        "--ephemeral",
+        action="store_true",
+        help="Disable job persistence — jobs live only in memory",
+    )
     args = parser.parse_args(argv)
     socket = args.socket or cfg.socket_path()
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     ensure_mas_dirs()
+
+    from mas.lab.controller.job_store import init_job_store
+    if args.ephemeral:
+        init_job_store(db_path=None)
+    else:
+        db_path = args.jobs_db or (cfg.mas_dir() / "jobs.db")
+        init_job_store(db_path=db_path)
 
     global _api
     try:

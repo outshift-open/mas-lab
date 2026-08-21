@@ -13,6 +13,7 @@ from mas.lab.controller.routes import (
     eval_output,
     experiments,
     health,
+    ioc,
     jobs,
     libraries,
     overlays,
@@ -38,3 +39,4 @@ def register_routes(app: FastAPI) -> None:
     app.include_router(eval_output.router)
     app.include_router(apps.router)
     app.include_router(health.router)
+    app.include_router(ioc.router)

@@ -8,7 +8,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 
-from mas.lab.controller.jobs import JobStatus, _jobs
+from mas.lab.controller.jobs import TERMINAL_STATUSES, JobStatus, _jobs
 
 router = APIRouter()
 
@@ -50,8 +50,7 @@ async def cancel_job(job_id: str):
 @router.delete("/api/jobs", tags=["Jobs"])
 async def clear_finished_jobs():
     """Remove all completed/failed/cancelled/timeout jobs from the list."""
-    terminal = {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.TIMEOUT}
-    to_remove = [jid for jid, j in _jobs.items() if j.status in terminal]
+    to_remove = [jid for jid, j in _jobs.items() if j.status in TERMINAL_STATUSES]
     for jid in to_remove:
         del _jobs[jid]
     return {"removed": len(to_remove)}

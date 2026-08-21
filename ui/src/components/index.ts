@@ -15,4 +15,22 @@ export { OverlayBuilder } from "./OverlayBuilder/OverlayBuilder";
 export { DatasetEditor } from "./DatasetEditor/DatasetEditor";
 export { BenchmarkOps } from "./BenchmarkOps";
 
+export { IoCRunsTable } from "./IoCRunsTable/IoCRunsTable";
+export { IoCRunHeader } from "./IoCRunHeader/IoCRunHeader";
+export { IoCVerdictScorecard } from "./IoCVerdictScorecard/IoCVerdictScorecard";
+export { IoCSignatureHeatmap } from "./IoCSignatureHeatmap/IoCSignatureHeatmap";
+export { IoCChallengeDetail } from "./IoCChallengeDetail/IoCChallengeDetail";
+export { IoCBaselineNoiseFloor } from "./IoCBaselineNoiseFloor/IoCBaselineNoiseFloor";
+export { ProgressView, ErrorView } from "./IoCResultsStatus/IoCResultsStatus";
+export {
+  VerdictBadge,
+  ConfidenceBadge,
+  fmtPct,
+  fmtDelta,
+  fmtCost,
+  fmtModel,
+  fmtTimestamp,
+  deltaColor,
+} from "./IoCResultsHelpers/IoCResultsHelpers";
+
 export { MasTable, ExperimentsTable };

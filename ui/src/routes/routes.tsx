@@ -13,7 +13,7 @@ import Application from "@/pages/Application";
 import type { AppRoute } from "@/routes/types.ts";
 import Playground from "@/pages/Playground";
 import { Transport as PlaygroundIcon } from "@/assets/icons";
-import { Flaky as ExperimentsIcon, AccountTree as PipelinesIcon, Storage as DatasetsIcon, Settings as ControlPanelIcon, Layers as OverlaysIcon } from "@mui/icons-material";
+import { Flaky as ExperimentsIcon, AccountTree as PipelinesIcon, Storage as DatasetsIcon, Settings as ControlPanelIcon, Layers as OverlaysIcon, Lightbulb as IoCMotivationIcon } from "@mui/icons-material";
 import Experiments from "@/pages/Experiments";
 import Experiment from "@/pages/Experiment";
 import Pipelines from "@/pages/Pipelines";
@@ -24,6 +24,9 @@ import Dataset from "@/pages/Dataset";
 import ControlPanel from "@/pages/ControlPanel";
 import Overlays from "@/pages/Overlays";
 import Overlay from "@/pages/Overlay";
+import IoCMotivation from "@/pages/IoCMotivation";
+import NewIoCRun from "@/pages/NewIoCRun";
+import IoCResults from "@/pages/IoCResults";
 import { LibraryRedirect } from "./LibraryRedirect";
 
 export const PATHS = {
@@ -43,6 +46,9 @@ export const PATHS = {
   createDataset: "/:library/datasets/_create",
   dataset: "/:library/datasets/*",
   controlPanel: "/:library/control-panel",
+  iocMotivation: "/:library/ioc-motivation",
+  newIocRun: "/:library/ioc-motivation/new",
+  iocResults: "/:library/ioc-motivation/:jobId",
   overlays: "/:library/overlays",
   createOverlay: "/:library/overlays/new",
   createOverlayTab: "/:library/overlays/new/:overlayTab",
@@ -188,6 +194,25 @@ export const routes: {
         title: "Control Panel",
         icon: ControlPanelIcon,
       },
+    },
+    {
+      name: "IoCMotivation",
+      path: PATHS.iocMotivation,
+      element: <IoCMotivation />,
+      sideBarProps: {
+        title: "IoC Motivation",
+        icon: IoCMotivationIcon,
+      },
+    },
+    {
+      name: "NewIoCRun",
+      path: PATHS.newIocRun,
+      element: <NewIoCRun />,
+    },
+    {
+      name: "IoCResults",
+      path: PATHS.iocResults,
+      element: <IoCResults />,
     },
   ],
 };

@@ -20,6 +20,10 @@ Endpoints are scoped under /api/libraries/{library_name}/:
     /api/libraries/{name}/pipeline/run  — run an analysis pipeline
     /api/libraries/{name}/eval-output   — run LLM-as-judge evaluation
 
+IoC catalog (requires IOC_REPO env var):
+    /api/ioc/catalog            — full challenge catalog (apps/challenges/overlays/metrics)
+    /api/ioc/overlays/{id}      — overlay YAML content by catalog id
+
 Job tracking:
     POST endpoints return a job_id. Use GET /api/jobs to list all jobs,
     GET /api/jobs/{job_id} to poll status, or DELETE /api/jobs/{job_id} to cancel.
@@ -77,14 +81,28 @@ def _get_library_path(library_name: str):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Emit discovery report once the API process starts."""
+    """Emit discovery report and restore persisted jobs on startup."""
     try:
         store = get_manifest_store()
         report = store._registry.discovery_report()
         logger.info("MAS Lab API startup discovery: %s", report)
     except Exception as exc:
         logger.warning("Startup discovery report failed: %s", exc)
+
+    from mas.lab.controller.jobs import load_jobs_from_store, reconcile_jobs
+    try:
+        load_jobs_from_store()
+        reconcile_jobs()
+    except Exception as exc:
+        logger.warning("Job store startup failed: %s", exc)
+
     yield
+
+    from mas.lab.controller.job_store import get_job_store
+    try:
+        get_job_store().close()
+    except Exception:
+        pass
 
 
 def create_app() -> FastAPI:
