@@ -7,6 +7,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from mas.lab.controller.routes._api import deps, jobs, LIBRARIES_DIR, validate_pipeline_yaml
+from mas.runtime.constants import LIBRARY_MANIFEST_FILENAME
 
 router = APIRouter()
 
@@ -27,7 +28,7 @@ async def list_libraries():
     for lib_dir in sorted(libraries_dir.iterdir()):
         if not lib_dir.is_dir() or not lib_dir.name.startswith("library-"):
             continue
-        lib_yaml = lib_dir / "library.yaml"
+        lib_yaml = lib_dir / LIBRARY_MANIFEST_FILENAME
         name = lib_dir.name
         description = ""
         if lib_yaml.exists():

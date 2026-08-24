@@ -16,14 +16,14 @@ from importlib.metadata import entry_points as _entry_points
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from mas.runtime.constants import WORKSPACE_CONFIG_FILENAME
+from mas.runtime.constants import LAB_CONFIG_FILENAME, WORKSPACE_CONFIG_FILENAME
 from mas.runtime.spec.source import load_yaml_file
 
 logger = logging.getLogger(__name__)
 
 
 def _library_description(path: Path) -> str:
-    for candidate in (path / "lab-config.yaml", path / "mas.yaml", path / "README.md"):
+    for candidate in (path / LAB_CONFIG_FILENAME, path / "mas.yaml", path / "README.md"):
         if candidate.exists():
             try:
                 if candidate.suffix == ".yaml":

@@ -32,6 +32,8 @@ from mas.lab.benchmark.pipeline.resources import (
 )
 from mas.lab.benchmark.pipeline.schema_validation import validate_payload
 from mas.lab import paths as _paths
+from mas.library_roots import find_ancestor_with_file
+from mas.runtime.constants import LAB_CONFIG_FILENAME
 
 
 logger = logging.getLogger(__name__)
@@ -229,24 +231,24 @@ def _find_lab_meta(
     if config_path is None:
         return override_name, None
 
-    candidate = config_path.resolve().parent
-    for _ in range(6):  # max 6 levels up
-        lab_yaml = candidate / "lab-config.yaml"
-        if lab_yaml.exists():
-            name = override_name
-            if not name and _yaml is not None:
-                try:
-                    with open(lab_yaml, encoding="utf-8") as fh:
-                        data = _yaml.safe_load(fh) or {}
-                    name = (data.get("lab") or {}).get("name", "")
-                except Exception as exc:
-                    logger.debug("Could not read lab name from %s: %s", lab_yaml, exc)
-            if not name:
-                # Fallback: strip .lab suffix from directory name
-                name = candidate.name.removesuffix(".lab")
-            data_dir = candidate / "data"
-            return name, (data_dir if data_dir.is_dir() else None)
-        candidate = candidate.parent
+    candidate = find_ancestor_with_file(
+        config_path.resolve().parent, LAB_CONFIG_FILENAME, stop_at_suffix=".lab"
+    )
+    if candidate is not None:
+        lab_yaml = candidate / LAB_CONFIG_FILENAME
+        name = override_name
+        if not name and _yaml is not None:
+            try:
+                with open(lab_yaml, encoding="utf-8") as fh:
+                    data = _yaml.safe_load(fh) or {}
+                name = (data.get("lab") or {}).get("name", "")
+            except Exception as exc:
+                logger.debug("Could not read lab name from %s: %s", lab_yaml, exc)
+        if not name:
+            # Fallback: strip .lab suffix from directory name
+            name = candidate.name.removesuffix(".lab")
+        data_dir = candidate / "data"
+        return name, (data_dir if data_dir.is_dir() else None)
 
     # Not found — best-effort from directory name
     fallback_name = override_name or config_path.parent.parent.name.removesuffix(".lab")

@@ -13,5 +13,11 @@ LEGACY_WORKSPACE_CONFIG_FILENAME = "mas-workspace.yaml"
 
 CONNECTIONS_CONFIG_FILENAME = "connections.yaml"
 
+# A manifest library's root marker (see mas.library_roots).
+LIBRARY_MANIFEST_FILENAME = "library.yaml"
+
+# A lab's root marker (see mas.lab.lab.config.lab_context).
+LAB_CONFIG_FILENAME = "lab-config.yaml"
+
 # Kernel backend id (must match component-registry.yaml).
 DEFAULT_RUNTIME_ID = "mas-runtime-py"

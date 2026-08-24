@@ -9,19 +9,26 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List, Optional, Union
 
+from mas.library_roots import find_ancestor_with_file
+from mas.runtime.constants import LAB_CONFIG_FILENAME
+
 logger = logging.getLogger(__name__)
 
 PluginSpec = Union[str, dict[str, Any]]
 
+_LAB_DIR_SUFFIX = ".lab"
+
 
 def _discover_lab_name(yaml_path: Path) -> Optional[str]:
     """Infer the lab name for an experiment YAML from its surrounding context."""
-    lab_yaml = yaml_path.parent / "lab-config.yaml"
-    if lab_yaml.exists():
+    lab_dir = find_ancestor_with_file(
+        yaml_path, LAB_CONFIG_FILENAME, stop_at_suffix=_LAB_DIR_SUFFIX
+    )
+    if lab_dir is not None:
         try:
             from mas.runtime.spec.source import load_yaml_file
 
-            _data = load_yaml_file(lab_yaml)
+            _data = load_yaml_file(lab_dir / LAB_CONFIG_FILENAME)
             _lab_section = _data.get("lab", _data) if isinstance(_data, dict) else {}
             _name = _lab_section.get("name")
             if _name:
@@ -29,13 +36,9 @@ def _discover_lab_name(yaml_path: Path) -> Optional[str]:
         except Exception:
             logger.debug('suppressed', exc_info=True)
 
-    parent = yaml_path.parent
-    if parent.name.endswith(".lab"):
-        return parent.name[:-4]
-
-    for parent in yaml_path.parents:
-        if parent.name.endswith(".lab"):
-            return parent.name[:-4]
+    for parent in [yaml_path.parent, *yaml_path.parents]:
+        if parent.name.endswith(_LAB_DIR_SUFFIX):
+            return parent.name[: -len(_LAB_DIR_SUFFIX)]
 
     return None
 
@@ -52,9 +55,21 @@ class LabContext:
 
 
 def discover_lab_context(yaml_path: Path) -> LabContext:
-    """Find sibling ``lab-config.yaml`` and plugin specs for *yaml_path*."""
-    ctx = LabContext(lab_dir=yaml_path.parent)
-    lab_yaml = yaml_path.parent / "lab-config.yaml"
+    """Find the enclosing ``lab-config.yaml`` (walking up to the lab root,
+    same as :func:`_discover_lab_name`) and its plugin specs for *yaml_path*.
+
+    Most labs nest experiment YAMLs several directories below the lab root
+    (e.g. ``<lab>.lab/experiments/<name>/experiment.yaml``), so checking only
+    the immediate parent directory -- as this used to do -- never finds the
+    lab's own ``lab-config.yaml``, and ``libraries:``/``plugins:`` entries
+    declared there are silently never applied.
+    """
+    lab_dir = (
+        find_ancestor_with_file(yaml_path, LAB_CONFIG_FILENAME, stop_at_suffix=_LAB_DIR_SUFFIX)
+        or yaml_path.parent
+    )
+    ctx = LabContext(lab_dir=lab_dir)
+    lab_yaml = lab_dir / LAB_CONFIG_FILENAME
     if lab_yaml.is_file():
         ctx.lab_yaml = lab_yaml
         try:

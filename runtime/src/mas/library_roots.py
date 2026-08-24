@@ -37,14 +37,36 @@ import json
 import os
 from pathlib import Path
 
+from mas.runtime.constants import LIBRARY_MANIFEST_FILENAME
+
+
+def find_ancestor_with_file(
+    start: Path, filename: str, *, stop_at_suffix: str | None = None
+) -> Path | None:
+    """Walk upward from *start* to find a directory containing *filename*.
+
+    Checks *start* itself (or its parent, if *start* is a file) first, then
+    each ancestor in turn. If *stop_at_suffix* is given, the ancestor whose
+    name carries that suffix is still checked (so e.g. a ``.lab`` root is
+    itself eligible) but the walk does not continue past it -- this avoids
+    picking up an unrelated outer lab's or checkout's marker file.
+
+    Shared by every "find the enclosing root" discovery in this codebase
+    (manifest libraries via ``library.yaml``, labs via ``lab-config.yaml``)
+    so the walk-and-stop semantics stay in exactly one place.
+    """
+    here = start if start.is_dir() else start.parent
+    for parent in [here, *here.parents]:
+        if (parent / filename).is_file():
+            return parent.resolve()
+        if stop_at_suffix and parent.name.endswith(stop_at_suffix):
+            break
+    return None
+
 
 def _find_library_root(start: Path) -> Path | None:
     """Walk upward from *start* to find a directory with ``library.yaml``."""
-    here = start if start.is_dir() else start.parent
-    for parent in [here, *here.parents]:
-        if (parent / "library.yaml").is_file():
-            return parent.resolve()
-    return None
+    return find_ancestor_with_file(start, LIBRARY_MANIFEST_FILENAME)
 
 
 def _root_from_spec(module: str) -> Path | None:
@@ -191,11 +213,11 @@ def _known_library_paths() -> list[Path]:
         base = Path(entry).expanduser()
         if not base.is_dir():
             continue
-        if (base / "library.yaml").is_file():
+        if (base / LIBRARY_MANIFEST_FILENAME).is_file():
             roots.append(base.resolve())
             continue
         for child in sorted(base.iterdir()):
-            if child.is_dir() and (child / "library.yaml").is_file():
+            if child.is_dir() and (child / LIBRARY_MANIFEST_FILENAME).is_file():
                 roots.append(child.resolve())
     return roots
 
@@ -234,10 +256,10 @@ def discover_library_roots(*anchors: Path | None) -> list[Path]:
         if not here.is_dir():
             here = here.parent
         for parent in (here, *here.parents):
-            if (parent / "library.yaml").is_file():
+            if (parent / LIBRARY_MANIFEST_FILENAME).is_file():
                 _add(parent)
             samples = parent / "library-samples"
-            if (samples / "library.yaml").is_file():
+            if (samples / LIBRARY_MANIFEST_FILENAME).is_file():
                 _add(samples)
             if (parent / ".git").is_dir():
                 break
