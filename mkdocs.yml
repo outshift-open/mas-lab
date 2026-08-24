@@ -97,7 +97,15 @@ nav:
       - user-config.md
       - libraries.md
       - cli/observability.md
-      - Web UI: ui/index.md
+      - Web UI:
+          - ui/index.md
+          - Applications: ui/applications.md
+          - Playground: ui/playground.md
+          - Experiments: ui/experiments.md
+          - Pipelines: ui/pipelines.md
+          - Datasets: ui/datasets.md
+          - Overlays: ui/overlays.md
+          - Control Panel: ui/control-panel.md
       - ctl/tui.md
       - glossary.md
   - Tutorials:
@@ -106,6 +114,7 @@ nav:
       - "1 — Build an agent": tutorials/01-building-an-agent/README.md
       - "2 — Orchestrate your MAS": tutorials/02-creating-a-mas/README.md
       - "3 — Run an experiment": tutorials/03-experiments-and-analysis/README.md
+      - "4 — The Web UI, end to end": tutorials/04-ui-walkthrough/README.md
   - References:
       - Overview: references/index.md
       - "ADR 0001 — lab terminology": references/adr-0001-lab-terminology.md
