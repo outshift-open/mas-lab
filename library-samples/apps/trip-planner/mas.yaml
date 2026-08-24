@@ -71,6 +71,9 @@ x-canvas-positions:
   node_f450b48c:
     x: 992
     y: 208
+  node_5cd0a66a:
+    x: -560
+    y: 1696
 intent:
   summary: >-
     I plan trips between cities in the Arborian Network (fictional city

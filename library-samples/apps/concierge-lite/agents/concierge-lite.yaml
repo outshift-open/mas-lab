@@ -1,0 +1,28 @@
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  x-node-id: node_87698413
+  name: concierge-lite
+spec:
+  description: answer trip planning questions
+  context:
+    role: Answer trip questions about a single city using the fare and attraction
+      tools you have access to.
+  x-text-input: What are the main attractions in Celestia and how much does the
+    train there cost?
+  models:
+    - model: azure/gpt-4o-mini
+      temperature: 0.7
+      max_tokens: 4096
+  design_pattern:
+    type: react
+    params:
+      max_steps: 10
+  tools:
+    - ref: ../../../tools/get_fares.tool.yaml
+    - ref: ../../../tools/get_attractions.tool.yaml
+x-canvas-node-ids:
+  role: node_a998bc5a
+  model: node_dfd2af13
+  design_pattern: node_f3e7848a
+  tools: node_f993b79d

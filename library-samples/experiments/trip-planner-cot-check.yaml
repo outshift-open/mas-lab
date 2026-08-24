@@ -1,0 +1,28 @@
+experiment:
+  name: trip-planner-cot-check
+  applications:
+    - manifest: apps/trip-planner/mas.yaml
+  scenarios:
+    - id: concierge-cot
+      description: oncierge    agent patched to Chain-of-Thought
+      tags: []
+      overlays:
+        logic:
+          - ref: overlays/concierge-cot.yaml
+        control: []
+        infra: []
+  dataset:
+    path: datasets/trip-planner/tutorial-queries.yaml
+  run:
+    n_runs: 1
+  execution:
+    parallel_scenarios: 3
+    timeout: 300
+    pause_between_runs: 1
+    strategy: coverage
+    emulation:
+      infra:
+        llm: live
+        tools: live
+      runtime:
+        cache: content-addressed

@@ -29,7 +29,7 @@ depends on (not the sidebar order):
 2. **Playground** — build a small new agent from scratch, reusing its tools
 3. **Overlays** — patch one trip-planner agent's reasoning pattern
 4. **Datasets** — create a small benchmark dataset
-5. **Experiments** — compare the base MAS against your overlay on that dataset
+5. **Experiments** — run the base MAS with your overlay applied against that dataset
 6. **Pipelines** — extract and plot the run's trajectories
 7. **Control Panel** — confirm what infra config actually backed the run
 
@@ -80,8 +80,7 @@ live.
 4. Click **Run MAS**. The moderator agent ships with a default query already
    wired into its Text Input node ("What trains run from Celestia to
    Verdantia?"), so Run MAS uses that as-is. Wait for the button to stop
-   reading "Running MAS..." — the answer (or an error) appears as a banner at
-   the top of the page.
+   reading "Running MAS..." — the answer (or an error) appears in the Run Output tab.
 5. Switch to the **Yaml** tab to see the generated `mas.yaml` and each agent's
    manifest side by side with what you just ran.
 
@@ -139,9 +138,9 @@ without touching its saved manifest.
    moderator.
 5. Switch to the **YAML** tab to confirm the generated overlay only contains
    a patch for `concierge_agent`'s `design_pattern` — nothing else changes.
-6. Click **Validate**, then **Save**. In the **Save Overlay** dialog, name it
-   `concierge-cot` with a short description ("Concierge agent using
-   Chain-of-Thought instead of ReAct"), and confirm.
+6. Click **Validate**, then **Save**. Name it `concierge-cot` with
+   description "Concierge agent using Chain-of-Thought instead of ReAct",
+   and confirm.
 
 ---
 
@@ -165,30 +164,26 @@ without touching its saved manifest.
 
 ---
 
-## Part 5 — Experiments: baseline vs. your overlay
+## Part 5 — Experiments: run the trip-planner MAS with your overlay
 
 1. Go to **Experiments** and click **Add Experiment**.
 2. Under **Basic Info**, set **Name** to `trip-planner-cot-check`.
 3. Under **Scenarios**, check **Use Patch Overlays** — this reveals an
    **Overlay** column per scenario plus a **MAS Configuration** section below.
-4. Fill in the first scenario row: **ID** `baseline`, leave **Overlay**
-   unselected, **Description** "Unpatched trip-planner MAS".
-5. Click the **+** to add a second scenario row: **ID** `concierge-cot`,
-   **Overlay** set to the `concierge-cot` overlay you saved in Part 3,
-   **Description** "Concierge agent patched to Chain-of-Thought".
-6. Under **MAS Configuration**, set **Base MAS Application** to
-   **`trip-planner`** — both scenarios run against this same base MAS, each
-   with its own overlay (or none) applied on top.
-7. Under **Dataset**, set **Dataset Path** to the
+4. Under **MAS Configuration**, set **Base MAS Application** to
+   **`trip-planner`**.
+5. Fill in the scenario row: **ID** `concierge-cot`, **Overlay** set to the
+   `concierge-cot` overlay you saved in Part 3, **Description** "Concierge
+   agent patched to Chain-of-Thought".
+6. Under **Dataset**, set **Dataset Path** to the
    `trip-planner/tutorial-queries` dataset from Part 4.
-8. Under **Execution**, set **Strategy** to `coverage` so both scenarios run,
-   and leave **Number of Runs** at 1 for a quick pass.
-9. Under **Emulation**, pick **Infra LLM**: `live` if you have a model API key
+7. Under **Execution**, leave **Number of Runs** at 1 for a quick pass.
+8. Under **Emulation**, pick **Infra LLM**: `live` if you have a model API key
    configured (see Tutorial 0), or `mock`/`replay` for an offline dry run.
-10. Click **Save**, then open the new row's action menu and click **Run**.
-    Watch the **Status** column move from Running to Completed (or Failed).
-11. Once it's Completed, click the row to open the results browser and use
-    the **Files** tree to compare the two scenarios' outputs.
+9. Click **Save**, then open the new row's action menu and click **Run**.
+   Watch the **Status** column move from Running to Completed (or Failed).
+10. Once it's Completed, click the row to open the results browser and use
+    the **Files** tree to inspect the run's output.
 
 ---
 
@@ -197,9 +192,9 @@ without touching its saved manifest.
 1. Go to **Pipelines** and click **Add Pipeline**.
 2. On the **Graph** tab, use the **Experiment** dropdown to attach
    `trip-planner-cot-check`.
-3. Drag in a step from the **extraction** category that extracts run
+3. Drag in the Extract Trajectories step from the **extraction** category that extracts run
    trajectories, and name it `extract`.
-4. Drag in a step from the **visualization** category that plots a
+4. Drag in the Plot Multilevel Trajectories step from the **visualization** category that plots a
    trajectory, name it `plot`, and connect `extract → plot` so `plot`'s
    `depends_on` includes `extract`.
 5. Switch to the **Yaml** tab to review the generated `pipeline.yaml`.
@@ -207,11 +202,13 @@ without touching its saved manifest.
    `trip-planner-cot-analysis`.
 7. From the Pipelines table, click **Run** on the new row and watch
    **Status**/**Output**/**Errors** update.
+8. After the pipeline completed successfully, open the **trip-planner-cot-check** experiment page.
+   There the extracted trajectories can be inspected inside the trajectories.jsonl file, and the trajectory plot through multilevel_trajectory.html
 
 !!! note
 The exact step names available in the palette depend on which pipeline
-step plugins your install has registered — if `extract`/`plot` aren't the
-literal labels you see, look for the extraction- and visualization-category
+step plugins your install has registered — if steps above cannot be found,
+look for the extraction and visualization category
 steps closest to "extract trajectories" and "plot trajectory".
 
 ---
@@ -234,12 +231,21 @@ answer key for everything you built in Parts 1–6.
 
 ## What's next
 
-- Compare `baseline` vs `concierge-cot` more rigorously by adding an
-  evaluation step (e.g. an answer-relevancy metric) to your pipeline — see
+- Compare `concierge-cot` against the concierge's default ReAct behavior: add
+  a second overlay that pins **Pattern Type** back to **ReAct** (the
+  Experiments UI requires every patch-overlay scenario to reference an
+  overlay, so this stands in for an unpatched "baseline"), add it as a second
+  scenario in the same experiment, then add an evaluation step (e.g. an
+  answer-relevancy metric) to your pipeline — see
   [Tutorial 3](../03-experiments-and-analysis/) for the CLI-side equivalent
   (`AnswerRelevancyMetric`, MCEv1).
 - Try patching a different agent or design pattern combination, or add a
   `Tools (Remove)` node to an overlay to see how it changes the concierge's
   behavior.
-- Extend `concierge-lite` from Part 2 into a small MAS of its own by adding a
-  second agent and an `agent_output → text_input` delegation edge.
+- Extend `concierge-lite` from Part 2 into a small MAS of its own: drag in a
+  second **Agent** node, then draw a connection from `concierge-lite`'s
+  output handle (right side) to the new agent's **Text Input** handle (left
+  side). That turns it into a delegation edge — the same mechanism wiring the
+  trip-planner's moderator to its three specialists in Part 1 — so
+  `concierge-lite` can now hand off tasks to the new agent instead of
+  handling everything itself.

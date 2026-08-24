@@ -270,21 +270,30 @@ function buildAgentManifest(
   const spec: Record<string, unknown> = {};
   const canvasNodeIds: Record<string, string> = {};
 
-  const context = { ...((agentData.context as Record<string, string>) ?? {}) };
+  const contextFlat = {
+    ...((agentData.context as Record<string, string>) ?? {}),
+  };
+  const contextRefKeys = new Set<string>(
+    (agentData.contextRefKeys as string[] | undefined) ?? [],
+  );
   const description = agentData.description as string | undefined;
   const instructions = agentData.instructions as string | undefined;
   if (description?.trim()) {
     spec.description = description.trim();
   }
   if (instructions?.trim()) {
-    context.role = instructions.trim();
+    contextFlat.role = instructions.trim();
   }
   const intent = agentData.intent as string | undefined;
   if (intent?.trim()) {
-    context.intent = intent.trim();
+    contextFlat.intent = intent.trim();
   }
-  if (Object.keys(context).length > 0) {
-    spec.context = context;
+  if (Object.keys(contextFlat).length > 0) {
+    const contextOut: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(contextFlat)) {
+      contextOut[k] = contextRefKeys.has(k) ? { ref: v } : v;
+    }
+    spec.context = contextOut;
   }
 
   // TextInput node → x-text-input (used as query for Run MAS)
@@ -690,7 +699,25 @@ function deserializeYamlsToGraph(yamlMap: YamlOutputMap): {
           "string"
             ? ((spec.context as Record<string, string>).role ?? "")
             : "",
-        context: spec.context ?? {},
+        context: Object.fromEntries(
+          Object.entries(
+            (spec.context as Record<string, unknown>) ?? {},
+          ).map(([k, v]) => [
+            k,
+            typeof v === "string"
+              ? v
+              : v && typeof v === "object" && "ref" in v
+                ? String((v as Record<string, unknown>).ref ?? "")
+                : JSON.stringify(v),
+          ]),
+        ),
+        contextRefKeys: Object.entries(
+          (spec.context as Record<string, unknown>) ?? {},
+        )
+          .filter(
+            ([, v]) => v && typeof v === "object" && "ref" in v,
+          )
+          .map(([k]) => k),
         chatHistory,
         connectedModel: "",
         connectedDesignPattern: "",

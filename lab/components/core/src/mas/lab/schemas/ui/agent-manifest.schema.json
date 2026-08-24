@@ -6,6 +6,11 @@
   "type": "object",
   "required": ["kind", "spec"],
   "additionalProperties": false,
+  "patternProperties": {
+    "^x-": {
+      "description": "Extension properties (UI metadata, canvas state, etc.) — ignored by the runtime."
+    }
+  },
   "properties": {
     "apiVersion": {
       "type": "string",
@@ -49,7 +54,12 @@
           "items": { "type": "string" }
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {
+          "description": "Extension properties (UI metadata) — ignored by the runtime."
+        }
+      }
     },
     "AgentSpec": {
       "type": "object",
@@ -98,7 +108,12 @@
           "$ref": "#/definitions/Execution"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {
+          "description": "Extension properties (UI metadata, test inputs, etc.) — ignored by the runtime."
+        }
+      }
     },
     "ModelEntry": {
       "type": "object",

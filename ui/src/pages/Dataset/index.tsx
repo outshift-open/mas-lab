@@ -1,7 +1,10 @@
 //  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 //  SPDX-License-Identifier: Apache-2.0
 import { PageWithTitle, DatasetEditor } from "@/components";
-import type { DatasetContent, DatasetItem } from "@/components/DatasetEditor/DatasetEditor";
+import type {
+  DatasetContent,
+  DatasetItem,
+} from "@/components/DatasetEditor/DatasetEditor";
 import {
   Alert,
   Box,
@@ -50,7 +53,8 @@ function yamlToEditorContent(yamlStr: string): DatasetContent {
       const userMsgs = it.inputs?.user ?? [];
       const prompt = userMsgs.map((m) => m.content).join("\n") || "";
       const result: DatasetItem = { id: it.id, prompt };
-      if (it.expectations?.ground_truth) result.ground_truth = it.expectations.ground_truth;
+      if (it.expectations?.ground_truth)
+        result.ground_truth = it.expectations.ground_truth;
       if (it.group) result.group = it.group;
       if (it.target_agents?.length) result.target_agents = it.target_agents;
       if (it.category) result.category = it.category;
@@ -70,7 +74,8 @@ function editorContentToYaml(
       id: it.id,
       inputs: { user: [{ role: "user", content: it.prompt }] },
     };
-    if (it.ground_truth) result.expectations = { ground_truth: it.ground_truth };
+    if (it.ground_truth)
+      result.expectations = { ground_truth: it.ground_truth };
     if (it.group) result.group = it.group;
     if (it.target_agents?.length) result.target_agents = it.target_agents;
     if (it.category) result.category = it.category;
@@ -103,7 +108,11 @@ const Dataset = () => {
 
   const isNew = !id;
 
-  const { data: dataset, isLoading, isError } = useDatasetDetail(library, isNew ? "" : id);
+  const {
+    data: dataset,
+    isLoading,
+    isError,
+  } = useDatasetDetail(library, isNew ? "" : id);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
@@ -141,7 +150,9 @@ const Dataset = () => {
     try {
       const parsed: DatasetContent = JSON.parse(currentContent);
       if (parsed.description) setSaveDescription(parsed.description);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setSaveDialogOpen(true);
   };
 
@@ -155,7 +166,9 @@ const Dataset = () => {
     try {
       const parsed: DatasetContent = JSON.parse(currentContent);
       contentToSave = editorContentToYaml(parsed, saveName, saveDescription);
-    } catch { /* send as-is */ }
+    } catch {
+      /* send as-is */
+    }
 
     if (isNew) {
       createMutation.mutate({ name: saveName, content: contentToSave });
@@ -191,14 +204,18 @@ const Dataset = () => {
   useEffect(() => {
     if (createMutation.isSuccess) {
       queryClient.removeQueries({ queryKey: ["datasets-list", library] });
-      setSaveAlert({ severity: "success", message: "Dataset created successfully" });
+      setSaveAlert({
+        severity: "success",
+        message: "Dataset created successfully",
+      });
       navigate(`/${library}/datasets/${lastSavedName}`, { replace: true });
     }
     if (createMutation.isError) {
       const err = createMutation.error;
       setSaveAlert({
         severity: "error",
-        message: err instanceof Error ? err.message : "Failed to create dataset",
+        message:
+          err instanceof Error ? err.message : "Failed to create dataset",
       });
     }
   }, [createMutation.isSuccess, createMutation.isError]);
@@ -278,7 +295,9 @@ const Dataset = () => {
               onClick={openSaveDialog}
               disabled={saveMutation.isPending || createMutation.isPending}
             >
-              {saveMutation.isPending || createMutation.isPending ? "Saving..." : "Save"}
+              {saveMutation.isPending || createMutation.isPending
+                ? "Saving..."
+                : "Save"}
             </Button>
             {!isNew && (
               <Button
@@ -310,9 +329,16 @@ const Dataset = () => {
       )}
       <DatasetEditor content={currentContent} onChange={setEditedContent} />
 
-      <Dialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)}>
+      <Dialog
+        open={saveDialogOpen}
+        onClose={() => setSaveDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>Save Dataset</DialogTitle>
-        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 1 }}>
+        <DialogContent
+          sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 1 }}
+        >
           <TextField
             label="Name"
             variant="standard"
@@ -332,7 +358,11 @@ const Dataset = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSaveDialogOpen(false)}>Cancel</Button>
-          <Button variant="primary" onClick={handleSave} disabled={!saveName.trim()}>
+          <Button
+            variant="primary"
+            onClick={handleSave}
+            disabled={!saveName.trim()}
+          >
             Save
           </Button>
         </DialogActions>
