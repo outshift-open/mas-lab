@@ -10,8 +10,6 @@ from mas.runtime.boundary.context.manifest_context import (
     ContextChunkError,
     ContextRefNotFoundError,
     context_chunks_from_spec,
-    merge_context_chunk,
-    merge_context_map,
     resolve_context_chunk,
     routing_description_from_agent,
 )
@@ -118,56 +116,3 @@ def test_context_chunks_from_spec_resolves_array_chunk(tmp_path: Path):
     spec = {"context": {"role": ["You are a triage agent.", "Be concise."]}}
     chunks = context_chunks_from_spec(spec, base_dir=tmp_path)
     assert chunks == ["[role] You are a triage agent.\nBe concise."]
-
-
-def test_merge_context_chunk_add_appends_without_duplicating():
-    merged = merge_context_chunk("You are a triage agent.", {"$op": {"add": ["Be concise."]}})
-    assert merged == ["You are a triage agent.", "Be concise."]
-
-
-def test_merge_context_chunk_add_is_idempotent():
-    merged = merge_context_chunk(["a", "b"], {"$op": {"add": ["b", "c"]}})
-    assert merged == ["a", "b", "c"]
-
-
-def test_merge_context_chunk_remove():
-    merged = merge_context_chunk(["a", "b", "c"], {"$op": {"remove": ["b"]}})
-    assert merged == ["a", "c"]
-
-
-def test_merge_context_chunk_replace():
-    merged = merge_context_chunk(["a", "b"], {"$op": {"replace": ["z"]}})
-    assert merged == ["z"]
-
-
-def test_merge_context_chunk_clear():
-    merged = merge_context_chunk(["a", "b"], {"$op": {"clear": True}})
-    assert merged == []
-
-
-def test_merge_context_chunk_plain_string_value_replaces():
-    """No `$op` sugar -- implicit full replace, same ergonomics as list_ops."""
-    assert merge_context_chunk("old role", "new role") == "new role"
-
-
-def test_merge_context_chunk_plain_array_value_replaces():
-    """A plain array (no `$op`) is also an implicit full replace, not an add --
-    `$op` is what opts into fragment-level merging; a bare list is a new chunk
-    value, same as a bare string or {ref} would be."""
-    merged = merge_context_chunk(["a", "b"], ["c", "d"])
-    assert merged == ["c", "d"]
-
-
-def test_merge_context_chunk_plain_array_replaces_existing_string_chunk():
-    merged = merge_context_chunk("old role", ["fragment one", "fragment two"])
-    assert merged == ["fragment one", "fragment two"]
-
-
-def test_merge_context_map_adds_new_key_and_patches_existing():
-    base = {"role": "You are a triage agent."}
-    patch = {"role": {"$op": {"add": ["Be concise."]}}, "intent": "Stay on task."}
-    merged = merge_context_map(base, patch)
-    assert merged == {
-        "role": ["You are a triage agent.", "Be concise."],
-        "intent": "Stay on task.",
-    }

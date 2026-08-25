@@ -12,11 +12,8 @@ from typing import Any
 
 import yaml
 
-from mas.ctl.overlay.merge import _ops_dict
-from mas.runtime.boundary.context.manifest_context import (
-    merge_context_map,
-    routing_description_from_agent,
-)
+from mas.ctl.overlay.merge import _ops_dict, merge_context_map
+from mas.runtime.boundary.context.manifest_context import routing_description_from_agent
 from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
 from mas.runtime.boundary.delegation.policy import delegation_targets
 from mas.runtime.engine.llm_live import LiveLlmEngine

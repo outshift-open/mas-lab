@@ -2,7 +2,14 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Overlay merge tests."""
 
-from mas.ctl.overlay.merge import OverlayTargetError, apply_merge_patch, merge_overlay, overlay_runtime_semantics
+from mas.ctl.overlay.merge import (
+    OverlayTargetError,
+    apply_merge_patch,
+    merge_context_chunk,
+    merge_context_map,
+    merge_overlay,
+    overlay_runtime_semantics,
+)
 
 
 def _overlay(patch: dict, *, name: str = "test", target_kind: str = "Agent") -> dict:
@@ -85,6 +92,59 @@ def test_merge_context_plain_array_still_fully_replaces_chunk():
     base = {"spec": {"context": {"role": ["a", "b"]}}}
     merged = merge_overlay(base, _overlay({"context": {"role": ["c", "d"]}}))
     assert merged["spec"]["context"]["role"] == ["c", "d"]
+
+
+def test_merge_context_chunk_add_appends_without_duplicating():
+    merged = merge_context_chunk("You are a triage agent.", {"$op": {"add": ["Be concise."]}})
+    assert merged == ["You are a triage agent.", "Be concise."]
+
+
+def test_merge_context_chunk_add_is_idempotent():
+    merged = merge_context_chunk(["a", "b"], {"$op": {"add": ["b", "c"]}})
+    assert merged == ["a", "b", "c"]
+
+
+def test_merge_context_chunk_remove():
+    merged = merge_context_chunk(["a", "b", "c"], {"$op": {"remove": ["b"]}})
+    assert merged == ["a", "c"]
+
+
+def test_merge_context_chunk_replace():
+    merged = merge_context_chunk(["a", "b"], {"$op": {"replace": ["z"]}})
+    assert merged == ["z"]
+
+
+def test_merge_context_chunk_clear():
+    merged = merge_context_chunk(["a", "b"], {"$op": {"clear": True}})
+    assert merged == []
+
+
+def test_merge_context_chunk_plain_string_value_replaces():
+    """No `$op` sugar -- implicit full replace, same ergonomics as list_ops."""
+    assert merge_context_chunk("old role", "new role") == "new role"
+
+
+def test_merge_context_chunk_plain_array_value_replaces():
+    """A plain array (no `$op`) is also an implicit full replace, not an add --
+    `$op` is what opts into fragment-level merging; a bare list is a new chunk
+    value, same as a bare string or {ref} would be."""
+    merged = merge_context_chunk(["a", "b"], ["c", "d"])
+    assert merged == ["c", "d"]
+
+
+def test_merge_context_chunk_plain_array_replaces_existing_string_chunk():
+    merged = merge_context_chunk("old role", ["fragment one", "fragment two"])
+    assert merged == ["fragment one", "fragment two"]
+
+
+def test_merge_context_map_adds_new_key_and_patches_existing():
+    base = {"role": "You are a triage agent."}
+    patch = {"role": {"$op": {"add": ["Be concise."]}}, "intent": "Stay on task."}
+    merged = merge_context_map(base, patch)
+    assert merged == {
+        "role": ["You are a triage agent.", "Be concise."],
+        "intent": "Stay on task.",
+    }
 
 
 def test_merge_skills():
