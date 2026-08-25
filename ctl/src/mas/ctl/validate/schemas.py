@@ -1,16 +1,37 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Manifest JSON Schema loader — schemas live under docs/schemas/."""
+"""Manifest JSON Schema loader — schemas live under docs/schemas/.
+
+Two layouts are supported so this works both in a source checkout (dev /
+editable install, where ``docs/schemas`` sits a few parents above this file)
+and when installed as a built wheel (e.g. via ``uv tool install``, where
+there is no repo root — the schemas are instead packaged inside ``mas.ctl``
+itself via ``force-include`` and resolved through ``importlib.resources``).
+"""
 
 from __future__ import annotations
 
 from functools import lru_cache
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-_SCHEMA_ROOT = Path(__file__).resolve().parents[5] / "docs" / "schemas"
+
+def _repo_checkout_schema_root() -> Path | None:
+    # .../mas-lab/ctl/src/mas/ctl/validate/schemas.py -> parents[5] == repo root
+    candidate = Path(__file__).resolve().parents[5] / "docs" / "schemas"
+    return candidate if candidate.is_dir() else None
+
+
+def _packaged_schema_root() -> Path:
+    # Falls back to the copy of docs/schemas packaged inside mas.ctl (see
+    # [tool.hatch.build.targets.wheel.force-include] in ctl/pyproject.toml).
+    return Path(str(resources.files("mas.ctl") / "_schemas"))
+
+
+_SCHEMA_ROOT = _repo_checkout_schema_root() or _packaged_schema_root()
 
 _KIND_MAP: dict[str, str] = {
     "agent": "runtime/agent.schema.yaml",

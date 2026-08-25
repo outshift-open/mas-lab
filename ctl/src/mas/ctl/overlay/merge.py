@@ -7,10 +7,11 @@ from __future__ import annotations
 from functools import lru_cache
 import logging
 from copy import deepcopy
-from pathlib import Path
 from typing import Any
 
 import yaml
+
+from mas.ctl.validate.schemas import schema_root
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +22,10 @@ logger = logging.getLogger(__name__)
 # single edit in a single file (docs/schemas/runtime/<kind>.schema.yaml),
 # not a second hand-maintained overlay-*-patch fragment kept in sync by hand.
 _OVERLAY_PATCH_SCHEMA_FILES: dict[str, str] = {
-    "Agent": "docs/schemas/runtime/agent.schema.yaml",
-    "MAS": "docs/schemas/runtime/mas.schema.yaml",
-    "Flavour": "docs/schemas/runtime/flavour.schema.yaml",
-    "Infra": "docs/schemas/runtime/infra.schema.yaml",
+    "Agent": "runtime/agent.schema.yaml",
+    "MAS": "runtime/mas.schema.yaml",
+    "Flavour": "runtime/flavour.schema.yaml",
+    "Infra": "runtime/infra.schema.yaml",
 }
 
 # Where to start reading "properties" from, per schema file, relative to that
@@ -38,14 +39,9 @@ _OVERLAY_PATCH_SCHEMA_ROOT: dict[str, tuple[str, ...]] = {
 }
 
 
-def _repo_root() -> Path:
-    # .../mas-lab/ctl/src/mas/ctl/overlay/merge.py -> parents[5] == repo root
-    return Path(__file__).resolve().parents[5]
-
-
 @lru_cache(maxsize=8)
 def _load_yaml_schema(rel_path: str) -> dict[str, Any]:
-    schema_path = _repo_root() / rel_path
+    schema_path = schema_root() / rel_path
     data = yaml.safe_load(schema_path.read_text(encoding="utf-8"))
     return data if isinstance(data, dict) else {}
 
