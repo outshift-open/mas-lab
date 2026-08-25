@@ -60,7 +60,17 @@ def test_submit_hitl_commits_tool_trajectory_for_next_turn() -> None:
 
     pending = controller.run_turn("Who is current POTUS ?", auto_hitl=False)
     assert pending.awaiting_hitl
-    assert not instance.driver.ctx.committed_messages
+    # _finalize_turn folds working memory into committed history even while
+    # paused at HITL (see its own docstring, and
+    # docs/design/working-memory-compaction.md): the tool call that already
+    # ran this turn must not be silently dropped if the next turn's
+    # note_user_input() clears working memory before HITL resolves.
+    early_committed = instance.driver.ctx.committed_messages
+    assert any(
+        m.get("role") == "user" and m.get("content") == "Who is current POTUS ?"
+        for m in early_committed
+    )
+    assert any(m.get("role") == "assistant" and m.get("tool_calls") for m in early_committed)
 
     request = pending.trace.hitl_requests[-1]
     done = controller.submit_hitl(

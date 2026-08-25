@@ -11,12 +11,18 @@ experiment:
   default_flavour: local
 
   applications:
-    - app: trip-planner-topo-moderator-broker
-    - app: trip-planner-topo-parallel
-    - app: trip-planner-topo-linear-pipeline
-    - app: trip-planner-topo-supervised
-    - app: trip-planner-topo-verifier
-    - app: trip-planner-topo-single-agent
+    # trip-planner-topo-* names are declared in library-samples/library.yaml,
+    # but as direct .mas.yaml file paths, not app *directories* -- the only
+    # shape discover_apps() registers from a library manifest (see
+    # runtime/src/mas/library_catalog.py:_discover_apps_from_manifest). Use
+    # manifest: (the schema's own direct-path alternative to app:) with the
+    # samples: library scheme instead of a ../../../ relative path.
+    - manifest: samples:apps/trip-planner/mas-topologies/moderator-broker.mas.yaml
+    - manifest: samples:apps/trip-planner/mas-topologies/parallel.mas.yaml
+    - manifest: samples:apps/trip-planner/mas-topologies/linear-pipeline.mas.yaml
+    - manifest: samples:apps/trip-planner/mas-topologies/supervised.mas.yaml
+    - manifest: samples:apps/trip-planner/mas-topologies/verifier.mas.yaml
+    - manifest: samples:apps/trip-planner/mas-topologies/single-agent.mas.yaml
 
   scenarios:
     - id: baseline

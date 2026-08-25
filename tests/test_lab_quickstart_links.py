@@ -9,7 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 TARGETS = [
     REPO_ROOT / "lab" / "README.md",
-    REPO_ROOT / "library-samples" / "apps" / "trip-planner" / "tools" / "README.md",
+    REPO_ROOT / "library-samples" / "tools" / "README.md",
 ]
 
 
