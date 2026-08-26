@@ -1,0 +1,152 @@
+id: checkout-timeout-scale-up
+description: >
+  Checkout is experiencing sustained overload and timeout errors from legitimate
+  demand growth; no dominant software fault is present.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: checkout-service
+  action: scale_up
+  reasoning: >
+    Capacity is the limiting factor: CPU, active thread load, and connection
+    pressure are all near saturation while configuration and deployment signals
+    remain stable. Scaling up checkout-service replicas is the correct immediate
+    mitigation.
+source_evidence:
+  - source: google_sre_handling_overload
+    url: https://sre.google/sre-book/handling-overload/
+    facts:
+      - Utilization and active-thread load are preferred overload signals.
+      - Backends should continue serving at capacity and reject excess load gracefully.
+      - Overload protections should prevent cascading failure under large bursts.
+  - source: aws_timeouts_retries_backoff_jitter
+    url: https://builder.aws.com/content/3EumjoZascWd1oZiEgL8ORlv3qE/timeouts-retries-and-backoff-with-jitter
+    facts:
+      - Retry traffic can worsen overload if clients synchronize or retry aggressively.
+      - Jitter and capped backoff reduce retry burst correlation.
+observed_symptoms:
+  - Traffic increased 6x during promotional event and remained elevated for 20 minutes.
+  - CPU and active worker load exceeded safe thresholds across all checkout pods.
+  - No new deploy or high-confidence config fault correlates with incident start.
+services:
+  checkout-service:
+    aliases: [checkout_service, checkout]
+    metrics:
+      latency_ms: { p50: 540.0, p95: 2010.0, p99: 3360.0 }
+      error_rate: 0.069
+      requests_per_second: 1390.0
+      named:
+        cpu_utilization:
+          value: 0.96
+          unit: ratio
+          status: critical
+        active_threads:
+          value: 236
+          unit: threads
+          status: critical
+        queue_depth:
+          value: 812
+          unit: requests
+          status: critical
+        retry_rate:
+          value: 0.22
+          unit: ratio
+          status: critical
+        db_pool_utilization:
+          value: 0.88
+          unit: ratio
+          status: warning
+        deadlock_count:
+          value: 0
+          unit: count
+          status: normal
+        lock_wait_count:
+          value: 4
+          unit: count
+          status: warning
+        active_connections:
+          value: 88
+          unit: connections
+          status: warning
+    health:
+      status: critical
+      uptime_percent: 99.8
+      error_rate_percent: 6.9
+      dependencies:
+        payment-gateway: degraded
+        cart-service: degraded
+        feature-config: healthy
+    deployments:
+      - version: "3.7.2"
+        status: success
+        deployed_days_before_incident: 4
+        deployed_by: ci/cd-pipeline
+        commit_sha: a17c90d
+        commit_message: "feat(checkout): async retry path and timeout tuning"
+        duration_seconds: 96
+        overlap_with_incident: false
+      - version: "3.7.1"
+        status: success
+        deployed_days_before_incident: 7
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "deploy: previous stable"
+        duration_seconds: 89
+        overlap_with_incident: false
+    logs:
+      - level: WARN
+        message: "[checkout-service] Executor load average exceeded 2.1x core count"
+      - level: WARN
+        message: "[checkout-service] Request queue growth sustained for 12 minutes"
+      - level: INFO
+        message: "[checkout-service] No recent release or feature toggle change near incident onset"
+    config_changes:
+      - key: autoscaling_max_replicas
+        old_value: 12
+        new_value: 12
+        changed_by: no-change
+        changed_hours_before_incident: null
+      - key: retry_jitter_enabled
+        old_value: false
+        new_value: false
+        changed_by: no-change
+        changed_hours_before_incident: null
+    connection_pool:
+      pool_size: 100
+      active: 88
+      idle: 12
+      waiting: 9
+      utilisation_pct: 88
+      status: warning
+      note: "High but stable utilization; overload is primarily compute/thread capacity."
+    pg_stat_activity:
+      total_connections: 104
+      max_connections: 120
+      active_queries: 25
+      idle_connections: 79
+      waiting_queries: 5
+      blocking_queries: []
+      longest_running_query_seconds: 3.8
+      max_lock_wait_ms: 210
+      conclusion: "DB is pressured but not failing; service-level capacity is the bottleneck."
+    blocking:
+      blocking_pids: []
+      blocked_pids: []
+      deadlocks_last_hour: 0
+      lock_wait_count_last_hour: 4
+      conclusion: "No blocking chain; recommend scaling compute replicas."
+    rollback:
+      from_version: "3.7.2"
+      to_version: "3.7.1"
+      message: "Rollback available, but load profile indicates capacity saturation as primary issue."
+
+  payment-gateway:
+    aliases: [payment_gateway]
+    metrics:
+      latency_ms: { p50: 73.0, p95: 240.0, p99: 420.0 }
+      error_rate: 0.027
+      requests_per_second: 920.0
+    health:
+      status: degraded
+      uptime_percent: 99.97
+      error_rate_percent: 2.7
+      dependencies: {}

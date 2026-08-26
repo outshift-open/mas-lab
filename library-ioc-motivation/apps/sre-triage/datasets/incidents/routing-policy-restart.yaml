@@ -1,0 +1,94 @@
+id: routing-policy-restart
+description: >
+  Edge gateway route watchers stopped applying fresh policy snapshots after a
+  control-plane reconnect storm, leaving in-memory evaluation state wedged.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: edge-gateway
+  action: restart
+  reasoning: >
+    The dominant issue is stuck in-memory watcher state inside edge-gateway, not
+    a bad rollout. Restarting edge-gateway clears wedged xDS subscriptions and
+    reloads the latest healthy route snapshot.
+source_evidence:
+  - source: envoy_circuit_breaking
+    url: https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/circuit_breaking
+    facts:
+      - Runtime state can degrade independently from deployment chronology when upstream watchers wedge.
+      - Fast local recovery is often safer than reverting a healthy control-plane version.
+  - source: kubernetes_observability
+    url: https://kubernetes.io/blog/2018/08/03/out-of-the-clouds-into-the-ground-how-to-make-your-kubernetes-cluster-observable/
+    facts:
+      - A stale control snapshot age is an actionable runtime signal.
+      - Restart candidates should be distinguished from rollout-induced faults.
+observed_symptoms:
+  - Incident started 7 hours after the last successful edge deployment.
+  - Snapshot age grows past 900s on affected pods while control-plane publishes continue successfully.
+  - Restarting one unhealthy pod restored correct policy evaluation without any config rollback.
+services:
+  edge-gateway:
+    aliases: [edge_gateway, routing-gateway]
+    metrics:
+      latency_ms: { p50: 680.0, p95: 2150.0, p99: 3380.0 }
+      error_rate: 0.104
+      requests_per_second: 218.0
+      named:
+        xds_snapshot_age_s:
+          value: 932
+          unit: seconds
+          status: critical
+        watcher_heartbeat_gap_s:
+          value: 287
+          unit: seconds
+          status: critical
+        stale_policy_reads:
+          value: 1286
+          unit: reads_per_minute
+          status: warning
+    health:
+      status: critical
+      uptime_percent: 99.4
+      error_rate_percent: 10.4
+      dependencies:
+        routing-control-plane: healthy
+        envoy-admin: degraded
+    deployments:
+      - version: "2.18.3"
+        status: success
+        deployed_hours_before_incident: 7
+        deployed_by: ci/cd-pipeline
+        commit_sha: 6ab4c91
+        commit_message: "feat(edge): reorder route precedence evaluation for tenant policy bundles"
+        duration_seconds: 102
+        overlap_with_incident: false
+      - version: "2.18.2"
+        status: success
+        deployed_days_before_incident: 3
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(edge): stabilize route precedence across canary regions"
+        duration_seconds: 88
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[edge-gateway] xDS watcher stalled for 287s on pod edge-gateway-7fb4d6b7b7-j9m2q"
+      - level: WARN
+        message: "[edge-gateway] Last applied snapshot remains 933s old despite healthy ADS stream reconnects"
+      - level: INFO
+        message: "[edge-gateway] Pod restart restored snapshot age to 3s without changing active config version"
+    rollback:
+      from_version: "2.18.3"
+      to_version: "2.18.2"
+      message: "Rollback remains available, but evidence points to wedged runtime state rather than faulty config."
+
+  routing-control-plane:
+    aliases: [routing_control_plane]
+    metrics:
+      latency_ms: { p50: 27.0, p95: 64.0, p99: 101.0 }
+      error_rate: 0.001
+      requests_per_second: 39.0
+    health:
+      status: healthy
+      uptime_percent: 99.99
+      error_rate_percent: 0.1
+      dependencies: {}

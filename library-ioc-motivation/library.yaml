@@ -1,0 +1,32 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# MAS Library Metadata — IoC Motivation
+# Packages the IoC challenge-reproduction workflow as native MAS-Lab artifacts:
+# an experiment (baseline + challenge overlays over a seed query) and a pipeline
+# that runs the 13-metric cognitive judge + baseline-vs-overlay delta + heatmap.
+# The eval LOGIC stays in ioc-core-mas-lab (referenced at runtime via IOC_REPO);
+# the two step types below are thin adapters that shell out to those scripts.
+
+apiVersion: mas/v1
+kind: Library
+
+name: mas-library-ioc-motivation
+description: >
+  IoC cognitive-challenge reproduction as native experiments + pipeline steps.
+  Custom steps (ioc_cognitive_eval, ioc_delta) adapt ioc-core's eval scripts.
+version: "0.1.0"
+
+module_base: mas.library.ioc_motivation
+
+types:
+  - step
+
+plugins:
+  - type: step
+    name: ioc_cognitive_eval
+    module: mas.library.ioc_motivation.steps.ioc_cognitive_eval
+    class: IocCognitiveEvalStep
+  - type: step
+    name: ioc_delta
+    module: mas.library.ioc_motivation.steps.ioc_delta
+    class: IocDeltaStep

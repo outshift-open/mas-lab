@@ -1,0 +1,51 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Reproduce the 4 priority IoC cognitive challenges on the sre-triage MAS.
+# baseline (no overlay) + one scenario per challenge overlay, N reps each.
+# Scoring is done by the companion `ioc-cognitive-eval` pipeline, not inline.
+#
+# Structure mirrors library-samples/experiments/moderator-design-patterns.yaml
+# (the shape the UI form populates): applications[].manifest, overlays.logic as
+# {ref: <library-root path>}, dataset.path — ALL paths relative to the LIBRARY ROOT.
+#
+# IMPORTANT: each scenario `id` must start with the challenge code (DR-1/DC-2/CC-3/CR-1);
+# the eval/delta attribute challenges by that prefix. `baseline` is the reference run.
+experiment:
+  name: ioc-sre-reproduction
+  description: >
+    Baseline + DR-1/DC-2/CC-3/CR-1 overlays on sre-triage over the incident seed query,
+    N reps. Produces the traces the ioc-cognitive-eval pipeline scores.
+  applications:
+    - manifest: apps/sre-triage/mas.yaml
+  scenarios:
+    - id: baseline
+      overlays:
+        logic: [ { ref: overlays/baseline.yaml } ]   # no-op overlay so the baseline scenario runs
+        control: []
+        infra: []
+    - id: DR-1-semantic-mismatch
+      overlays:
+        logic: [ { ref: overlays/DR-1-semantic-mismatch.yaml } ]
+        control: []
+        infra: []
+    - id: DC-2-UR-under-reading
+      overlays:
+        logic: [ { ref: overlays/DC-2-UR-under-reading.yaml } ]
+        control: []
+        infra: []
+    - id: CC-3-conflict-handling
+      overlays:
+        logic: [ { ref: overlays/CC-3-conflict-handling.yaml } ]
+        control: []
+        infra: []
+    - id: CR-1-divergent-goal
+      overlays:
+        logic: [ { ref: overlays/CR-1-divergent-goal.yaml } ]
+        control: []
+        infra: []
+  dataset:
+    path: datasets/sre-queries.yaml
+  run:
+    n_runs: 5              # (1 baseline + 4 challenges) × 5 = 25 traces
+  evaluation:
+    method: trace_only     # metrics computed by the ioc-cognitive-eval pipeline

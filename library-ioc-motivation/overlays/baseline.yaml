@@ -1,0 +1,15 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# No-op overlay: the reference (baseline) run with the app UNCHANGED.
+# It exists only so the baseline scenario actually executes — the experiment runner
+# skips a scenario that lists no overlay. `patch: {}` is an empty RFC 7396 merge patch,
+# so nothing is modified and the MAS runs as-is.
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: baseline
+  description: No-op reference overlay (app unchanged) so the baseline scenario runs.
+spec:
+  target:
+    kind: MAS
+  patch: {}

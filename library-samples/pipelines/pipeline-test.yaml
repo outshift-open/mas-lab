@@ -1,10 +1,14 @@
-pipeline:
+api_version: pipeline/v1
+kind: Pipeline
+metadata:
   name: pipeline-test
+spec:
   output:
     base_dir: ~/.local/share/mas/labs/moderator-design-patterns
   steps:
     - name: extract-trace-stats
       type: extract_trace_stats
+      x-node-id: pnode_cee8e873
       depends_on:
         - extract-trajectories
       config:
@@ -13,12 +17,14 @@ pipeline:
         run_glob: r*
     - name: extract-trajectories
       type: extract_trajectories
+      x-node-id: pnode_41cde669
       config:
         csv_file: results.csv
         runs_dir: runs
         overwrite: false
     - name: plot-multilevel-trajectory
       type: plot_multilevel_trajectory
+      x-node-id: pnode_03d8447d
       depends_on:
         - extract-trajectories
       config:
@@ -27,8 +33,30 @@ pipeline:
         width_mode: log
         show_user_actors: true
         filename: multilevel_trajectory
+    - name: eval-mce
+      type: eval_mce
+      x-node-id: pnode_4b2ff9d8
+      config:
+        metrics: []
+        overwrite: false
+        validate: true
+        max_workers: 2
+        fail_threshold: 1
+        model: azure/gpt-4o
+        metrics_filename: metrics.json
+    - name: collect-metrics
+      type: collect_metrics
+      x-node-id: pnode_25097e36
+      depends_on:
+        - eval-mce
+      config:
+        output: metrics_results.csv
+        run_glob: "*/*/r*"
+        scenarios: []
+        metrics_filename: metrics.json
     - name: plotnine
       type: plotnine
+      x-node-id: pnode_2f18ff6e
       depends_on:
         - compute-ci
       config:
@@ -52,6 +80,7 @@ pipeline:
         legend_position: bottom
     - name: compute-ci
       type: compute_ci
+      x-node-id: pnode_f55e5608
       depends_on:
         - collect-metrics
       config:
@@ -66,22 +95,25 @@ pipeline:
         ci_level: 0.95
         min_runs: 2
         output: "{output_dir}/ci_summary.csv"
-    - name: eval-mce
-      type: eval_mce
-      config:
-        metrics: []
-        overwrite: false
-        validate: true
-        max_workers: 2
-        fail_threshold: 1
-        model: azure/gpt-4o
-        metrics_filename: metrics.json
-    - name: collect-metrics
-      type: collect_metrics
-      depends_on:
-        - eval-mce
-      config:
-        output: metrics_results.csv
-        run_glob: "*/*/r*"
-        scenarios: []
-        metrics_filename: metrics.json
+x-canvas-positions:
+  pnode_cee8e873:
+    x: 48
+    y: 64
+  pnode_41cde669:
+    x: -960
+    y: 544
+  pnode_03d8447d:
+    x: -128
+    y: 624
+  pnode_4b2ff9d8:
+    x: -1104
+    y: 1376
+  pnode_25097e36:
+    x: -512
+    y: 1408
+  pnode_2f18ff6e:
+    x: 432
+    y: 1424
+  pnode_f55e5608:
+    x: -32
+    y: 1440

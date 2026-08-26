@@ -1,0 +1,24 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Overlay
+
+metadata:
+  name: hybrid-moderator-sre
+  x-compatible-prompt-versions:
+    sre: ["1.2.0"]
+  description: >
+    Topology overlay for SRE-Triage. Switch the SRE lead agent from react
+    to centralized_moderator with peer-context redistribution enabled.
+
+spec:
+  target:
+    kind: MAS
+  patch:
+    agents:
+      sre:
+        design_pattern:
+          type: centralized_moderator
+          params:
+            max_rounds: 5
+            enable_peer_context: true

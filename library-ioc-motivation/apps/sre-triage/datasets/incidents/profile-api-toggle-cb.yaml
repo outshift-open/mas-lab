@@ -1,0 +1,58 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+id: profile-api-toggle-cb
+description: >
+  Hybrid/public-derived regression scenario for profile-service with action toggle_circuit_breaker.
+timestamp: "2025-06-16T10:00:00"
+provenance:
+  source_type: hybrid
+  source_name: GitHub status narrative + Loghub failure-shape synthesis
+  source_url:
+    - https://www.githubstatus.com/history
+    - https://github.com/logpai/loghub
+  license: mixed-public
+  accessed_at: "2026-07-16"
+  extraction_method: manual-plus-synthetic
+  transformations:
+    - normalized incident narrative into fixture schema
+    - synthesized metrics/log signatures for deterministic eval
+  synthetic_fraction: 0.68
+  reviewer: pending
+  review_date: null
+  confidence: medium
+correct_action:
+  service: profile-service
+  action: toggle_circuit_breaker
+  reasoning: >
+    Action-stratified remediation case for profile-api-toggle-cb: toggle_circuit_breaker.
+services:
+  profile-service:
+    aliases: [profile_service]
+    metrics:
+      latency_ms: { p50: 118.5, p95: 392.4, p99: 804.2 }
+      error_rate: 0.087
+      requests_per_second: 214.3
+      named:
+        incident_signal:
+          value: 1
+          unit: flag
+          status: critical
+    health:
+      status: degraded
+      uptime_percent: 99.91
+      error_rate_percent: 8.7
+      dependencies: {}
+    deployments:
+      - version: "candidate"
+        status: success
+        deployed_minutes_before_incident: 12
+        deployed_by: app-ci
+        commit_sha: a1b2c3d
+        commit_message: "feature rollout"
+        duration_seconds: 64
+        overlap_with_incident: true
+    logs:
+      - level: ERROR
+        message: "[profile-service] regression signal detected after rollout"
+      - level: WARN
+        message: "elevated latency and intermittent failures"

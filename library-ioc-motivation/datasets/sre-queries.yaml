@@ -1,0 +1,18 @@
+apiVersion: lab/v1
+kind: Dataset
+metadata:
+  name: extensions-queries
+  display_name: Extensions Lab Queries
+  version: '1.0'
+  description: 'Queries for the extensions lab: tests context injection, memory, and facet providers.'
+  tags:
+  - ioc
+  - challenges
+spec:
+  items:
+  - id: ctx-1
+    group: context-source
+    inputs:
+      user:
+        - role: user
+          content: 'triage critical payment-service incident: p99 latency spiked to 4200ms, error rate at 0.12, checkout flow impacted'

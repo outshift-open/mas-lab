@@ -1,0 +1,35 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Overlay: independent parallel pattern for SRE-Triage
+#
+# All five specialists receive the same incident description simultaneously
+# and independently.  Outputs are concatenated (no voting, no peer
+# communication, no moderator LLM).  Useful as a breadth-first initial
+# scan where each specialist brings a different lens to the same event.
+#
+# No sre role prompt changes are required (sre is bypassed in this mode).
+# Specialist prompts are unchanged and appropriate.
+#
+# Usage:
+#   mas-ctl run-mas thirdparty/mas-lab-internal/apps/sre-triage/mas.yaml \
+#     --overlay thirdparty/mas-lab-internal/apps/sre-triage/pattern-overlays/independent-parallel-sre.yaml \
+#     -q "Checkout latency spiked 10× since 14:00 UTC" --single-turn
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: independent-parallel-sre
+  # Deterministic: sre coordinator is bypassed entirely; specialist prompts
+  # are unchanged (react, task-focused). No version constraint needed.
+  x-compatible-prompt-versions: {}
+spec:
+  target:
+    kind: MAS
+  patch:
+    workflow:
+      type: parallel
+      participants:
+        - telemetry
+        - backend
+        - db
+        - comms
+        - verifier
