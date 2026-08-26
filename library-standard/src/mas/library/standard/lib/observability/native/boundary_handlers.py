@@ -111,6 +111,12 @@ def _boundary_engine_io_return(
             "output": payload.get("text", ""),
             "next_step": payload.get("next_step", "STOP"),
         }
+        usage = payload.get("usage")
+        if usage:
+            rec["tokens_used"] = usage
+        finish_reason = payload.get("finish_reason")
+        if finish_reason:
+            rec["finish_reason"] = finish_reason
         out.append(_with_parent(rec, record, ctx))
     if op == "TOOL_CALL" and key not in ctx._seen_engine_returns:
         ctx._seen_engine_returns.add(key)

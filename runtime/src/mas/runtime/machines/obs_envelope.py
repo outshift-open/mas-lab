@@ -124,6 +124,8 @@ class ObsEnvelopeMachine:
                             # already passes to record_engine_io below for the
                             # matching start event.
                             tool_name=ctx.tool_name,
+                            usage=ev.usage,
+                            finish_reason=ev.finish_reason,
                         )
         elif symbol == EnvelopeSymbol.CONTRACT_EXECUTE:
             payload["tool_name"] = str(ctx.tool_name or ctx.scheduled_op or ctx.operation or "tool")

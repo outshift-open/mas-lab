@@ -503,24 +503,31 @@ class ObservabilityOperator:
         next_step: str = "STOP",
         response_kind: str = "",
         tool_name: str = "",
+        usage: dict | None = None,
+        finish_reason: str = "",
     ) -> ObservabilityEvent:
         machine = _machine_for_op(op)
         resolved_tool = str(tool_name or "").strip()
         if not resolved_tool and op == "TOOL_CALL":
             resolved_tool = "tool"
+        payload: dict = {
+            "op": op,
+            "text": text,
+            "next_step": next_step,
+            "response_kind": response_kind,
+            "tool_name": resolved_tool,
+            "envelope": True,
+        }
+        if usage:
+            payload["usage"] = dict(usage)
+        if finish_reason:
+            payload["finish_reason"] = finish_reason
         return self._emit(
             ObsEventKind.ENGINE_IO_RETURN,
             ObsPhase.RESULT,
             machine,
             correlation_id=correlation_id,
-            payload={
-                "op": op,
-                "text": text,
-                "next_step": next_step,
-                "response_kind": response_kind,
-                "tool_name": resolved_tool,
-                "envelope": True,
-            },
+            payload=payload,
         )
 
     def record_engine_llm_return(

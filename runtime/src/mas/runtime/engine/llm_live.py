@@ -248,7 +248,11 @@ class LiveLlmEngine:
                     text=classify_llm_http_error(exc),
                 )
 
-        return self._message_to_engine_return(io, message, messages, tool_defs, answering_from_tools)
+        usage = message.pop("usage", None) or {}
+        finish_reason = message.pop("finish_reason", None) or ""
+        return self._message_to_engine_return(
+            io, message, messages, tool_defs, answering_from_tools, usage, finish_reason
+        )
 
     def _message_to_engine_return(
         self,
@@ -257,6 +261,8 @@ class LiveLlmEngine:
         messages: list[dict[str, Any]],
         tool_defs: list[dict[str, Any]],
         answering_from_tools: bool,
+        usage: dict[str, Any],
+        finish_reason: str,
     ) -> EngineIoReturn:
         tool_calls = message.get("tool_calls") or []
         if tool_calls and self.use_tool_loop:
@@ -281,6 +287,8 @@ class LiveLlmEngine:
                         ToolCallSpec(tool_name=name, tool_arguments=args) for name, args in parsed
                     ),
                     text="",
+                    usage=usage,
+                    finish_reason=finish_reason,
                 )
             name, args = parsed[0]
             self._pending_tool = name
@@ -292,6 +300,8 @@ class LiveLlmEngine:
                 tool_name=name,
                 tool_arguments=args,
                 text="",
+                usage=usage,
+                finish_reason=finish_reason,
             )
 
         text = str(message.get("content") or "").strip()
@@ -305,6 +315,8 @@ class LiveLlmEngine:
             response_kind="MODEL_TEXT",
             next_step="STOP",
             text=text,
+            usage=usage,
+            finish_reason=finish_reason,
         )
 
     def _model_access_chat(
@@ -382,7 +394,14 @@ class LiveLlmEngine:
         choices = data.get("choices") or []
         if not choices:
             return {}
-        return choices[0].get("message") or {}
+        message = dict(choices[0].get("message") or {})
+        usage = data.get("usage") or {}
+        if usage:
+            message["usage"] = usage
+        finish_reason = choices[0].get("finish_reason")
+        if finish_reason:
+            message["finish_reason"] = finish_reason
+        return message
 
     def _persist_cache(self) -> None:
         if not self.cache_path:
