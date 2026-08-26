@@ -34,7 +34,10 @@ properties:
   params:
     $ref: "../agent.schema.yaml#/properties/spec/properties/params"
   context:
-    $ref: "../agent.schema.yaml#/properties/spec/properties/context"
+    # Not a plain $ref: overlay-time patches accept the {"$op": {...}} sugar
+    # per chunk name (add/remove/replace/clear a chunk's fragment list) --
+    # a genuine shape difference from the base schema's plain ContextChunk map.
+    $ref: "./overlay-collection-ops-context.schema.yaml"
   memory:
     $ref: "../agent.schema.yaml#/properties/spec/properties/memory"
   working_memory:

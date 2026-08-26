@@ -54,6 +54,23 @@ def test_apply_manifest_context_reads_context_path_string(tmp_path: Path):
     assert ctx.injected_context == ["[role] Path string role."]
 
 
+def test_apply_manifest_context_reads_array_chunk_as_one_joined_line(tmp_path: Path):
+    escalation = tmp_path / "escalation.md"
+    escalation.write_text("Escalate P1 incidents immediately.", encoding="utf-8")
+    ctx = AutoCtxAssembler()
+    manifest = {
+        "spec": {
+            "context": {
+                "role": ["You are a triage agent.", {"ref": "escalation.md"}],
+            }
+        }
+    }
+    _apply_manifest_context(ctx, manifest, tmp_path)
+    assert ctx.injected_context == [
+        "[role] You are a triage agent.\nEscalate P1 incidents immediately."
+    ]
+
+
 def test_apply_manifest_context_only_reads_context_chunks():
     ctx = AutoCtxAssembler()
     manifest = {

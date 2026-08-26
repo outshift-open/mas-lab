@@ -3,6 +3,7 @@
 """Resolve manifest schema files from installed package dependencies."""
 from __future__ import annotations
 
+from importlib import resources
 from pathlib import Path
 
 
@@ -13,14 +14,25 @@ def runtime_schema_dir() -> Path:
     return _SCHEMA_ROOT / "runtime"
 
 
-def _repo_root() -> Path:
-    """Repository root (contains docs/schemas/)."""
-    return Path(__file__).resolve().parents[7]
+def _repo_checkout_root() -> Path | None:
+    """Repository root (contains docs/schemas/), if running from a checkout."""
+    candidate = Path(__file__).resolve().parents[7]
+    return candidate if (candidate / "docs" / "schemas").is_dir() else None
+
+
+def _packaged_lab_schema_dir() -> Path:
+    # Falls back to the copy of docs/schemas/lab packaged inside
+    # mas.lab.schemas (see [tool.hatch.build.targets.wheel.force-include] in
+    # lab/components/core/pyproject.toml).
+    return Path(str(resources.files("mas.lab.schemas") / "_schemas"))
 
 
 def lab_schema_dir() -> Path:
     """YAML/JSON schemas for mas-lab manifests (experiment, pipeline, dataset, lab-config)."""
-    return _repo_root() / "docs" / "schemas" / "lab"
+    repo_root = _repo_checkout_root()
+    if repo_root is not None:
+        return repo_root / "docs" / "schemas" / "lab"
+    return _packaged_lab_schema_dir()
 
 
 def lab_artefact_schema_dir() -> Path:

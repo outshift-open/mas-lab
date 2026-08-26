@@ -7,10 +7,11 @@ from __future__ import annotations
 from functools import lru_cache
 import logging
 from copy import deepcopy
-from pathlib import Path
 from typing import Any
 
 import yaml
+
+from mas.ctl.validate.schemas import schema_root
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +22,10 @@ logger = logging.getLogger(__name__)
 # single edit in a single file (docs/schemas/runtime/<kind>.schema.yaml),
 # not a second hand-maintained overlay-*-patch fragment kept in sync by hand.
 _OVERLAY_PATCH_SCHEMA_FILES: dict[str, str] = {
-    "Agent": "docs/schemas/runtime/agent.schema.yaml",
-    "MAS": "docs/schemas/runtime/mas.schema.yaml",
-    "Flavour": "docs/schemas/runtime/flavour.schema.yaml",
-    "Infra": "docs/schemas/runtime/infra.schema.yaml",
+    "Agent": "runtime/agent.schema.yaml",
+    "MAS": "runtime/mas.schema.yaml",
+    "Flavour": "runtime/flavour.schema.yaml",
+    "Infra": "runtime/infra.schema.yaml",
 }
 
 # Where to start reading "properties" from, per schema file, relative to that
@@ -38,14 +39,9 @@ _OVERLAY_PATCH_SCHEMA_ROOT: dict[str, tuple[str, ...]] = {
 }
 
 
-def _repo_root() -> Path:
-    # .../mas-lab/ctl/src/mas/ctl/overlay/merge.py -> parents[5] == repo root
-    return Path(__file__).resolve().parents[5]
-
-
 @lru_cache(maxsize=8)
 def _load_yaml_schema(rel_path: str) -> dict[str, Any]:
-    schema_path = _repo_root() / rel_path
+    schema_path = schema_root() / rel_path
     data = yaml.safe_load(schema_path.read_text(encoding="utf-8"))
     return data if isinstance(data, dict) else {}
 
@@ -197,8 +193,43 @@ def _merge_list_ops(
                 key = dedupe_key(item)
                 if key not in keys:
                     result.append(item)
-        
+
     return result
+
+
+def _as_fragment_list(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return list(value)
+    return [value]
+
+
+def merge_context_chunk(existing: Any, incoming: Any) -> Any:
+    """Merge one spec.context.<key> overlay patch value onto its base value.
+
+    A plain value (string/{ref}/list) fully replaces the base chunk -- implicit
+    replace ergonomics, consistent with every other overlay merge strategy in
+    this repo. A `{"$op": {replace|add|remove|clear}}` value instead operates on
+    the base chunk's fragment list via the same list-patch semantics spec.tools
+    already uses (_merge_list_ops above), coercing a scalar base value to a
+    one-item list first -- so an overlay can add or remove a single fragment
+    (e.g. append one sentence to spec.context.role) without restating the rest.
+    """
+    if _ops_dict(incoming) is None:
+        return deepcopy(incoming)
+    return _merge_list_ops(_as_fragment_list(existing), incoming)
+
+
+def merge_context_map(existing: Any, incoming: dict[str, Any]) -> dict[str, Any]:
+    """Merge an overlay's spec.context patch onto the base spec.context map."""
+    merged = deepcopy(existing) if isinstance(existing, dict) else {}
+    for key, value in incoming.items():
+        if value is None:
+            merged.pop(key, None)
+            continue
+        merged[key] = merge_context_chunk(merged.get(key), value)
+    return merged
 
 
 def _merge_mapping_ops(existing: dict[str, Any], incoming: Any) -> dict[str, Any]:
@@ -277,7 +308,10 @@ def _merge_value_by_meta(existing: Any, incoming: Any, meta: dict[str, Any]) -> 
 
     if strategy == "list_ops":
         existing_list = list(existing or []) if isinstance(existing, list) else []
-        return _merge_list_ops(existing_list, incoming, dedupe_key=None)
+        try:
+            return _merge_list_ops(existing_list, incoming, dedupe_key=None)
+        except ValueError as exc:
+            raise OverlayTargetError(str(exc)) from exc
 
     if strategy == "plugin_list_ops":
         existing_list = list(existing or []) if isinstance(existing, list) else []
@@ -298,16 +332,8 @@ def _merge_value_by_meta(existing: Any, incoming: Any, meta: dict[str, Any]) -> 
         return deepcopy(incoming)
 
     if strategy == "context_merge":
-        if isinstance(incoming, dict) and isinstance(existing, dict):
-            merged = deepcopy(existing)
-            merged.update(incoming)
-            return merged
         if isinstance(incoming, dict):
-            return deepcopy(incoming)
-        if isinstance(incoming, list):
-            existing_list = list(existing or []) if isinstance(existing, list) else []
-            existing_list.extend(incoming)
-            return existing_list
+            return merge_context_map(existing, incoming)
         return deepcopy(incoming)
 
     if strategy == "execution_merge":

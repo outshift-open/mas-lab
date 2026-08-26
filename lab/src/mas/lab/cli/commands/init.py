@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import re
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -21,9 +22,20 @@ _DEFAULT_MODEL_ALIAS = "generic-model"
 _DEFAULT_TARGET_MODEL = "gpt-4o-mini"
 
 
-def _templates_root() -> Path:
+def _repo_checkout_examples_root() -> Path | None:
     # lab/src/mas/lab/cli/commands/init.py -> repo root/examples
-    return Path(__file__).resolve().parents[6] / "examples"
+    candidate = Path(__file__).resolve().parents[6] / "examples"
+    return candidate if candidate.is_dir() else None
+
+
+def _packaged_examples_root() -> Path:
+    # Falls back to the copy of examples/ packaged inside mas.lab (see
+    # [tool.hatch.build.targets.wheel.force-include] in lab/pyproject.toml).
+    return Path(str(resources.files("mas.lab") / "_examples"))
+
+
+def _templates_root() -> Path:
+    return _repo_checkout_examples_root() or _packaged_examples_root()
 
 
 def _load_template(rel_path: str) -> str:

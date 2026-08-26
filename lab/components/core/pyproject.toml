@@ -19,5 +19,12 @@ dependencies = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/mas"]
 
+# Package a copy of the lab manifest schemas inside mas.lab.schemas so
+# mas-lab-core still works when installed as a wheel (e.g. via
+# 'uv tool install'), where there is no repo checkout to read
+# docs/schemas/lab from. See mas.lab.schemas.paths.lab_schema_dir().
+[tool.hatch.build.targets.wheel.force-include]
+"../../../docs/schemas/lab" = "src/mas/lab/schemas/_schemas"
+
 [project.entry-points."mas.lab.controller.plugins"]
 local-inproc = "mas.lab.controllers.local_inproc:LocalInprocController"

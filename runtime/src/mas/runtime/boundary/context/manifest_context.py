@@ -51,7 +51,14 @@ def _is_probeable_path_candidate(text: str) -> bool:
 
 
 def resolve_context_chunk(value: Any, *, base_dir: Path) -> str | None:
-    """Expand one spec.context entry to prompt text."""
+    """Expand one spec.context entry to prompt text.
+
+    A list value is a sequence of fragments (each itself a string or {ref}),
+    resolved individually and joined with newlines -- lets a chunk be composed
+    from multiple pieces (e.g. a base fragment plus one an overlay appended,
+    see mas.ctl.overlay.merge.merge_context_chunk) instead of one monolithic
+    string.
+    """
     if isinstance(value, str):
         text = value.strip()
         if not text:
@@ -76,6 +83,17 @@ def resolve_context_chunk(value: Any, *, base_dir: Path) -> str | None:
         ref = value.get("ref")
         if isinstance(ref, str) and ref.strip():
             return _read_context_file((base_dir / ref.strip()).resolve())
+    elif isinstance(value, list):
+        fragments: list[str] = []
+        for item in value:
+            if isinstance(item, list):
+                raise ContextChunkError(
+                    f"unsupported context chunk value: nested array {item!r}"
+                )
+            text = resolve_context_chunk(item, base_dir=base_dir)
+            if text:
+                fragments.append(text)
+        return "\n".join(fragments) if fragments else None
     raise ContextChunkError(f"unsupported context chunk value: {value!r}")
 
 

@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Outshift-open reproduction gate — dry-run all declared experiments + doc checks."""
+"""Reproduction gate — dry-run all declared experiments + doc checks."""
 
 from __future__ import annotations
 

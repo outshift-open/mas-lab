@@ -54,6 +54,26 @@ Patches use RFC 7396 JSON merge; list fields such as `tools` accept an explicit
 `{"$op": {replace|add|remove|clear: [...]}}` form (handled explicitly by the
 runtime) alongside plain-list implicit replace.
 
+`context` (prompt/role text) gets the same `$op` sugar, but per chunk name.
+Each `spec.context.<key>` value may be a plain string/`{ref}` (implicit full
+replace, same as always) or a list of fragments — a `$op` patch operates on
+that fragment list, so an overlay can append or drop one line without
+restating the rest of the base prompt:
+
+```yaml
+patch:
+  context:
+    role:
+      $op:
+        add:
+          - "Escalate P1 incidents immediately."
+        # remove:
+        #   - "Escalate P1 incidents immediately."
+        # replace:
+        #   - "Whole new role text."
+        # clear: true
+```
+
 ---
 
 ## Experiment linkage

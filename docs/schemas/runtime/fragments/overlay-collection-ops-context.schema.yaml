@@ -1,0 +1,60 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+title: OverlayContextCollectionOps
+description: >
+  Per-chunk overlay patch for spec.context. Each chunk name maps either to a
+  plain ContextChunk value (implicit replace -- same as the base schema) or to
+  `$op` sugar operating on that chunk's fragment list (replace/add/remove/clear),
+  the same vocabulary list-valued fields such as spec.tools already use. `add`
+  lets an overlay append one fragment to an existing chunk (e.g. spec.context.role)
+  without restating the rest of its text.
+type: object
+additionalProperties:
+  oneOf:
+    - $ref: "./context-chunk.schema.yaml"
+    - type: object
+      additionalProperties: false
+      required: [$op]
+      properties:
+        $op:
+          type: object
+          additionalProperties: false
+          minProperties: 1
+          properties:
+            replace:
+              type: array
+              items:
+                oneOf:
+                  - type: string
+                  - type: object
+                    additionalProperties: false
+                    required: [ref]
+                    properties:
+                      ref:
+                        type: string
+            add:
+              type: array
+              items:
+                oneOf:
+                  - type: string
+                  - type: object
+                    additionalProperties: false
+                    required: [ref]
+                    properties:
+                      ref:
+                        type: string
+            remove:
+              type: array
+              items:
+                oneOf:
+                  - type: string
+                  - type: object
+                    additionalProperties: false
+                    required: [ref]
+                    properties:
+                      ref:
+                        type: string
+            clear:
+              type: boolean
+              const: true

@@ -86,7 +86,7 @@ tasks:
     desc: "Dry-run paper lab experiments (design-space, lifecycle-control, extensions)"
     deps: [install-dev]
     cmds:
-      - "{{.VENV}}/pytest tests/test_outshift_reproduction.py -q --tb=line -k 'test_experiment_dry_run and labs/'"
+      - "{{.VENV}}/pytest tests/test_reproduction.py -q --tb=line -k 'test_experiment_dry_run and labs/'"
 
   reproduce:
     desc: "Reproduce all paper experiments. Uses content-addressed trace cache — re-runs complete in seconds."
@@ -100,7 +100,7 @@ tasks:
     desc: "Dry-run paper + tutorial experiments (see tests/fixtures/reproduction/experiments.yaml)"
     deps: [install-dev]
     cmds:
-      - "{{.VENV}}/pytest tests/test_outshift_reproduction.py -q --tb=line -k test_experiment_dry_run"
+      - "{{.VENV}}/pytest tests/test_reproduction.py -q --tb=line -k test_experiment_dry_run"
 
   verify-functional:
     desc: "Functional / integration tests (lab smoke + golden runs + tutorial CLI tests)"
@@ -138,7 +138,7 @@ tasks:
     deps: [install-dev]
     cmds:
       - python3 scripts/gen_docs.py --check
-      - "{{.VENV}}/pytest tests/test_outshift_reproduction.py tests/test_hitl_tool_gate.py -q --tb=line"
+      - "{{.VENV}}/pytest tests/test_reproduction.py tests/test_hitl_tool_gate.py -q --tb=line"
 
   verify-ctl-env:
     desc: "mas-ctl resolves from this repo .venv"

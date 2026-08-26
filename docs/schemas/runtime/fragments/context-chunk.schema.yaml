@@ -13,6 +13,11 @@ description: >
 
   Object form — {ref: path} always loads the file; raises at bootstrap when the
   path is missing.
+
+  Array form — a list of fragments (each a plain string or {ref: path}); the
+  resolved chunk text is the fragments joined with newlines. This lets an overlay
+  add or remove one fragment (via the `$op` sugar on overlay context patches)
+  without having to restate the rest of the chunk's text.
 oneOf:
   - type: string
   - type: object
@@ -24,3 +29,16 @@ oneOf:
         description: >
           File path relative to the agent manifest directory. Must exist;
           missing refs fail bootstrap with ContextRefNotFoundError.
+  - type: array
+    items:
+      oneOf:
+        - type: string
+        - type: object
+          additionalProperties: false
+          required: [ref]
+          properties:
+            ref:
+              type: string
+              description: >
+                File path relative to the agent manifest directory. Must exist;
+                missing refs fail bootstrap with ContextRefNotFoundError.

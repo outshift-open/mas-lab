@@ -16,6 +16,9 @@ Dataset policy:
 - neither `mas-runtime` nor `mas-ctl` should coordinate fixtures through
   hidden sidecars or implicit files for this example
 
+Related docs: [lab/docs/labs-quickstart.md](../../lab/docs/labs-quickstart.md) ·
+[lab/docs/labs-going-further.md](../../lab/docs/labs-going-further.md).
+
 Files:
 
 - `query_graph_database.py` — route topology and connection search

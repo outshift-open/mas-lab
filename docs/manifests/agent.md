@@ -144,6 +144,17 @@ context:
     ref: "./prompts/broker.md"
 ```
 
+Array of fragments — resolved and joined with newlines. Lets an overlay
+append (or remove) one fragment via `context: {role: {"$op": {"add": [...]}}}`
+without restating the rest of the prompt (see overlay.md#merge-semantics):
+
+```yaml
+context:
+  role:
+    - "You are a telemetry analyst…"
+    - ref: "./prompts/escalation.md"
+```
+
 ---
 
 ## Schema source
