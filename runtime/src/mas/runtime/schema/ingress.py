@@ -85,6 +85,8 @@ class EngineIoReturn(BaseModel):
     tool_arguments: dict = Field(default_factory=dict)
     parallel_tools: tuple[ToolCallSpec, ...] = ()
     text: str = ""
+    usage: dict = Field(default_factory=dict)
+    finish_reason: str = ""
 
 
 class CtxAssemblyComplete(BaseModel):
