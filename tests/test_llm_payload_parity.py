@@ -149,6 +149,87 @@ def test_invoke_payload_matches_preview_tools_and_temperature(
 
 
 @pytest.mark.timeout(60)
+def test_empty_tool_result_still_lands_a_paired_tool_message() -> None:
+    """A completed tool call with empty output must not leave its tool_calls id orphaned.
+
+    Regression for a Bedrock/Anthropic-style rejection ("Expected toolResult
+    blocks ... for the following Ids: call_N") that fires whenever an
+    assistant message declares a tool_calls id with no matching `role=tool`
+    message later in the same payload — e.g. a delegate_to_* specialist call
+    that completes with no final text.
+    """
+    from mas.ctl.overlay import merge_overlay
+    from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
+    from mas.ctl.session.controller import ConversationConfig, SessionController, close_observability
+    from mas.runtime.engine.manifest_tool_provider import build_manifest_tool_provider
+    from mas.runtime.engine.worker_pool import EngineWorkerPool
+
+    base = yaml.safe_load((T01 / "agent.yaml").read_text(encoding="utf-8"))
+    for name in ("mock-llm.yaml", "tools.yaml"):
+        base = merge_overlay(base, yaml.safe_load((T01 / f"overlays/{name}").read_text()))
+
+    instance, _ = instantiate_runtime(
+        InstantiationOptions(agent_manifest=base, manifest_dir=T01, validate_manifests=False),
+        hitl=None,
+    )
+    ctx = instance.driver.ctx
+    tools_spec = (base.get("spec") or {}).get("tools") or []
+    tool_provider = build_manifest_tool_provider(tools_spec, T01)
+    tool_provider.call_tool = MagicMock(return_value="")  # type: ignore[method-assign]
+
+    captured: dict = {"n": 0}
+
+    class CaptureLive(LiveLlmEngine):
+        def invoke(self, io: InvokeEngineIo) -> EngineIoReturn:
+            if io.op != "LLM_CALL":
+                return super().invoke(io)
+            captured["n"] += 1
+            if captured["n"] == 1:
+                return EngineIoReturn(
+                    correlation_id=io.correlation_id,
+                    response_kind="MODEL_TEXT",
+                    next_step="TOOL_CALL",
+                    tool_name="web-search",
+                    tool_arguments={"query": "POTUS"},
+                    text="",
+                )
+            captured["messages"] = self._build_messages()
+            return EngineIoReturn(
+                correlation_id=io.correlation_id,
+                response_kind="MODEL_TEXT",
+                next_step="STOP",
+                text="done",
+            )
+
+    instance.driver.engine = CaptureLive(
+        ctx=ctx, manifest=base, use_tool_loop=True, tool_provider=tool_provider
+    )
+    instance.driver.engine_pool = EngineWorkerPool(worker=instance.driver.engine.invoke)
+
+    controller = SessionController(
+        instance=instance,
+        display=MagicMock(),
+        config=ConversationConfig(single_turn=True),
+    )
+    controller.run_turn("Who is current POTUS ?")
+    close_observability(controller)
+
+    assert captured["n"] == 2
+    messages = captured["messages"]
+    declared_ids = {
+        call.get("id")
+        for m in messages
+        if m.get("role") == "assistant"
+        for call in (m.get("tool_calls") or [])
+    }
+    resolved_ids = {m.get("tool_call_id") for m in messages if m.get("role") == "tool"}
+    assert declared_ids, "expected at least one assistant tool_calls entry"
+    assert declared_ids == resolved_ids, (
+        f"orphaned tool_calls ids (no matching tool-role message): {declared_ids - resolved_ids}"
+    )
+
+
+@pytest.mark.timeout(60)
 def test_hitl_egress_skip_steering_in_second_llm_payload(
     tutorial_tool_provider,
 ) -> None:

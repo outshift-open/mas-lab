@@ -638,8 +638,6 @@ class KernelDriver:
                 text = row.text or text
                 cid = row.correlation_id
                 break
-        if not text:
-            return
         open_id = getattr(store, "_open_tool_call_id", "") or ""
         call_id = open_id or (f"call_{cid}" if cid else "")
         if not call_id:
