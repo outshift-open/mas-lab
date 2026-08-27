@@ -1,6 +1,5 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-from __future__ import annotations
 """Benchmark execution worker — programmatic API (CLI-free).
 
 This module is the single authoritative entry point for running benchmarks
@@ -33,11 +32,12 @@ Pass ``log_sink`` to capture log lines emitted during the run::
     success = run_benchmark_sync(..., log_sink=lines.append)
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from pathlib import Path
 from typing import Callable, Optional
-
 
 __all__ = [
     "run_benchmark_sync",
@@ -68,6 +68,7 @@ def run_benchmark_sync(
     infra_name: Optional[str] = None,
     step_overrides: Optional[list] = None,
     pipeline_attachments: Optional[list] = None,
+    experiment_overlays: Optional[list] = None,
     log_sink: Optional[Callable[[str], None]] = None,
     clean_stale: Optional[bool] = None,
 ) -> bool:
@@ -136,6 +137,7 @@ def run_benchmark_sync(
             infra_name=infra_name,
             step_overrides=step_overrides or [],
             pipeline_attachments=pipeline_attachments or [],
+            experiment_overlays=experiment_overlays or [],
             clean_stale=clean_stale,
         )
         return asyncio.run(run_benchmark_async(experiment_yaml, options=opts))
@@ -147,7 +149,7 @@ def run_benchmark_sync(
 async def run_benchmark_async(
     experiment_yaml: str | Path,
     *,
-    options: "BenchmarkRunOptions | None" = None,
+    options: "BenchmarkRunOptions | None" = None,  # noqa: F821
 ) -> bool:
     """Async variant — use when already inside an asyncio event loop.
 

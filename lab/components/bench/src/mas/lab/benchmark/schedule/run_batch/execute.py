@@ -1,11 +1,12 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
 
-from __future__ import annotations
-
 """Execute MAS benchmark runs according to the execution plan."""
 
+from __future__ import annotations
+
 import asyncio
+import json as _json
 import logging
 import time as _time
 from dataclasses import dataclass
@@ -51,13 +52,14 @@ async def execute_batch(
 ) -> ExecutionResult:
     """Run all planned (scenario × item × run) executions."""
     import contextlib
+
     from mas.lab.benchmark.service_manager import ServiceManager as _ServiceManager
     from mas.lab.emulation_resolver import resolve_emulation_plugins
 
     exp = loaded.exp
     experiment_yaml = loaded.experiment_yaml
     _flavour = loaded.flavour
-    flavour_name = loaded.flavour_name
+    _flavour_name = loaded.flavour_name
     trace_cache_dir = loaded.trace_cache_dir
     output_dir = prepared.output_dir
 
@@ -94,13 +96,18 @@ async def execute_batch(
     _io_lock  = asyncio.Lock()
 
     _emulation = getattr(exp.execution, "emulation", None)
-    _cache_policy = getattr(getattr(_emulation, "runtime", None), "cache", "content-addressed") if _emulation else "content-addressed"
+    _cache_policy = (
+        getattr(getattr(_emulation, "runtime", None), "cache", "content-addressed")
+        if _emulation
+        else "content-addressed"
+    )
 
     if progress:
         print()
         print(f"Running MAS benchmark '{exp.name}'")
         print(f"  strategy   : {_effective_strategy}")
-        print(f"  {len(prepared.loaded_ids)} scenarios × {len(prepared.dataset_items)} items × {loaded.n_runs} run(s) = {len(_execution_plan)} executions")
+        n_sc, n_items = len(prepared.loaded_ids), len(prepared.dataset_items)
+        print(f"  {n_sc} scenarios × {n_items} items × {loaded.n_runs} run(s) = {len(_execution_plan)} executions")
         print(f"  parallel   : {_parallel}   pause: {_pause}s")
         if _emulation:
             _inf = _emulation.infra
@@ -175,11 +182,35 @@ async def execute_batch(
         _events_path = run_output_dir / "traces" / "events.jsonl"
 
         _use_cache = _cache_policy != "disabled"
+
+        # A global cache hit requires the trace to exist AND the prior run to
+        # have completed successfully.  Absent result.json means the run crashed
+        # before writing its outcome (also a miss).  A run with status=error
+        # may have written a partial events.jsonl — reusing it silently returns
+        # wrong/empty results and corrupts downstream evaluation metrics.
+        _global_result_ok = False
+        _global_result_path = _global_run_dir / "result.json"
+        if _global_result_path.exists():
+            try:
+                _prior = _json.loads(_global_result_path.read_text(encoding="utf-8"))
+                if _prior.get("status") != "error":
+                    _global_result_ok = True
+                else:
+                    logger.debug(
+                        "Cache miss (prior run failed): hash=%s error=%r",
+                        _run_hash[:12], _prior.get("error", "")[:80],
+                    )
+            except Exception:
+                logger.debug(
+                    "Cache miss (result.json unreadable): hash=%s", _run_hash[:12]
+                )
+
         _global_hit = (
             _use_cache
             and not force
             and _cached_events.exists()
             and _cached_events.stat().st_size > 0
+            and _global_result_ok
         )
         _local_hit = (
             _use_cache

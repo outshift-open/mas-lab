@@ -79,6 +79,20 @@ import click
         "Levels: run, test, scenario, application (experiment aliases application)."
     ),
 )
+@click.option(
+    "-x", "--experiment-overlay",
+    "experiment_overlays",
+    multiple=True,
+    metavar="OVERLAY_YAML",
+    help=(
+        "Apply an experiment overlay before running. "
+        "Overlays deep-merge into experiment.yaml; pipeline hook lists (run.post, "
+        "application.post, …) are appended rather than replaced, so overlays can "
+        "add evaluation pipelines without removing base ones. "
+        "Multiple -x flags are applied in order. "
+        "Paths are resolved relative to experiment.yaml's directory."
+    ),
+)
 @click.option("-b", "--background", "background", is_flag=True, default=False,
               help="Submit via controller daemon and return immediately (print worker id).")
 @click.option("--clean-stale", "clean_stale", is_flag=True, default=False,
@@ -91,6 +105,7 @@ def run_cmd(experiment_yaml: Path, force: bool, resume: bool, benchmark_id: str 
             data_cache_dir: Path | None,
             force_lock: bool, flavour: str | None, infra: str | None, strategy: str | None,
             step_overrides: tuple[str, ...], pipeline_attachments: tuple[str, ...],
+            experiment_overlays: tuple[str, ...],
             background: bool, clean_stale: bool) -> None:
     """Run a benchmark from an experiment YAML via the controller daemon.
 
@@ -122,6 +137,7 @@ def run_cmd(experiment_yaml: Path, force: bool, resume: bool, benchmark_id: str 
                 strategy=strategy,
                 step_overrides=list(step_overrides),
                 pipeline_attachments=list(pipeline_attachments),
+                experiment_overlays=list(experiment_overlays),
                 clean_stale=clean_stale or None,
             )
             raise SystemExit(0 if ok else 1)
@@ -148,6 +164,7 @@ def run_cmd(experiment_yaml: Path, force: bool, resume: bool, benchmark_id: str 
         "strategy": strategy,
         "step_overrides": list(step_overrides),
         "pipeline_attachments": list(pipeline_attachments),
+        "experiment_overlays": list(experiment_overlays),
         "clean_stale": clean_stale,
     }
 

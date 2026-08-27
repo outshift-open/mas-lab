@@ -1,9 +1,9 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
 
-from __future__ import annotations
-
 """Load and validate a MAS experiment for batch execution."""
+
+from __future__ import annotations
 
 import logging
 import sys as _sys
@@ -47,6 +47,7 @@ def load_experiment(
     trace_cache_dir: Optional[Path] = None,
     step_overrides: Optional[list] = None,
     pipeline_attachments: Optional[list] = None,
+    experiment_overlays: Optional[list] = None,
 ) -> LoadedExperiment | None:
     """Load MASExperimentConfig and resolve scenarios, dataset, flavour."""
     try:
@@ -56,13 +57,23 @@ def load_experiment(
         return None
 
     try:
-        from mas.runtime.spec.source import load_yaml_file
         from mas.lab.manifests.validator import (
             ManifestValidationError,
             validate_manifest,
         )
+        from mas.runtime.spec.source import load_yaml_file
 
         raw = load_yaml_file(experiment_yaml)
+
+        if experiment_overlays:
+            from mas.lab.benchmark.execution.experiment_overlay import (
+                apply_experiment_overlays,
+            )
+            raw = apply_experiment_overlays(
+                raw,
+                [Path(p) for p in experiment_overlays],
+                base_dir=experiment_yaml.parent,
+            )
 
         if pipeline_attachments:
             raw = merge_pipeline_attachments(raw, pipeline_attachments)
