@@ -9,13 +9,14 @@ from pathlib import Path
 from typing import Any
 
 from mas.library_roots import discover_library_roots
+from mas.runtime.constants import LIBRARY_MANIFEST_FILENAME
 from mas.runtime.spec.source import load_yaml_file
 
 logger = logging.getLogger(__name__)
 
 
 def _load_library_manifest(root: Path) -> dict[str, Any]:
-    manifest_path = root / "library.yaml"
+    manifest_path = root / LIBRARY_MANIFEST_FILENAME
     if not manifest_path.is_file():
         # A genuinely absent library.yaml is a valid, optional case.
         return {}
@@ -301,7 +302,7 @@ def discover_plugin_manifests() -> list[Path]:
         manifest = _load_library_manifest(root)
         candidates: list[Path] = []
         if _declares_plugins(manifest):
-            candidates.append((root / "library.yaml").resolve())
+            candidates.append((root / LIBRARY_MANIFEST_FILENAME).resolve())
         candidates.extend(_discover_plugin_manifests_from_catalog(root, manifest))
         candidates.extend(_discover_plugin_manifests_from_scan(root))
         for path in candidates:

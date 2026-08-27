@@ -18,6 +18,7 @@ from mas.library_roots import (
     _root_from_import,
     _root_from_spec,
     discover_library_roots,
+    find_ancestor_with_file,
     resolve_manifest_library_package,
 )
 
@@ -35,6 +36,67 @@ def test_find_library_root_returns_none_when_absent(tmp_path) -> None:
     nested = tmp_path / "a" / "b" / "c"
     nested.mkdir(parents=True)
     assert _find_library_root(nested) is None
+
+
+def test_find_ancestor_with_file_checks_start_itself(tmp_path) -> None:
+    (tmp_path / "marker.txt").write_text("x", encoding="utf-8")
+    assert find_ancestor_with_file(tmp_path, "marker.txt") == tmp_path.resolve()
+
+
+def test_find_ancestor_with_file_walks_multiple_levels_up(tmp_path) -> None:
+    root = tmp_path / "root"
+    nested = root / "a" / "b" / "c" / "d"
+    nested.mkdir(parents=True)
+    (root / "marker.txt").write_text("x", encoding="utf-8")
+
+    assert find_ancestor_with_file(nested, "marker.txt") == root.resolve()
+
+
+def test_find_ancestor_with_file_accepts_a_file_path_not_just_a_dir(tmp_path) -> None:
+    root = tmp_path / "root"
+    nested = root / "a" / "b"
+    nested.mkdir(parents=True)
+    (root / "marker.txt").write_text("x", encoding="utf-8")
+    some_file = nested / "experiment.yaml"
+    some_file.write_text("x", encoding="utf-8")
+
+    assert find_ancestor_with_file(some_file, "marker.txt") == root.resolve()
+
+
+def test_find_ancestor_with_file_returns_none_when_absent(tmp_path) -> None:
+    nested = tmp_path / "a" / "b" / "c"
+    nested.mkdir(parents=True)
+    assert find_ancestor_with_file(nested, "marker.txt") is None
+
+
+def test_find_ancestor_with_file_stops_at_suffix_boundary(tmp_path) -> None:
+    """A marker file beyond the ``.lab``-suffixed ancestor must not be found --
+    otherwise nesting one lab checkout inside another's tree would let a
+    deeply-nested experiment pick up the *outer* lab's config."""
+    outer_lab = tmp_path / "outer.lab"
+    inner_lab = outer_lab / "nested" / "inner.lab"
+    experiment = inner_lab / "experiments" / "01-smoke"
+    experiment.mkdir(parents=True)
+    (outer_lab / "marker.txt").write_text("outer", encoding="utf-8")
+
+    assert (
+        find_ancestor_with_file(experiment, "marker.txt", stop_at_suffix=".lab")
+        is None
+    )
+
+
+def test_find_ancestor_with_file_finds_marker_at_the_suffix_boundary_itself(
+    tmp_path,
+) -> None:
+    """The ``.lab`` directory itself must still be checked, not skipped."""
+    lab_root = tmp_path / "some.lab"
+    experiment = lab_root / "experiments" / "01-smoke"
+    experiment.mkdir(parents=True)
+    (lab_root / "marker.txt").write_text("x", encoding="utf-8")
+
+    assert find_ancestor_with_file(experiment, "marker.txt", stop_at_suffix=".lab") == (
+        lab_root.resolve()
+    )
 
 
 def test_root_from_spec_resolves_real_importable_module() -> None:

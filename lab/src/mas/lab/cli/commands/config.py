@@ -10,6 +10,8 @@ from pathlib import Path
 import click
 
 from mas.lab import paths as _paths
+from mas.library_roots import find_ancestor_with_file
+from mas.runtime.constants import LAB_CONFIG_FILENAME
 
 
 def _lab_output_label(lab_output: Path, slug: str) -> str:
@@ -25,11 +27,8 @@ def _lab_output_label(lab_output: Path, slug: str) -> str:
 
 def _find_lab_config(start: Path) -> Path | None:
     """Walk up from *start* looking for lab-config.yaml."""
-    for directory in [start, *start.parents]:
-        candidate = directory / "lab-config.yaml"
-        if candidate.exists():
-            return candidate
-    return None
+    lab_dir = find_ancestor_with_file(start, LAB_CONFIG_FILENAME, stop_at_suffix=".lab")
+    return (lab_dir / LAB_CONFIG_FILENAME) if lab_dir is not None else None
 
 
 def _resolve_lab_output() -> Path:
@@ -72,7 +71,7 @@ def config_cmd(as_json: bool) -> None:
             lab_slug = _raw_slug.removesuffix(".lab")
             if lab_section.get("output_dir"):
                 lab_output = (lab_config_path.parent / lab_section["output_dir"]).resolve()
-                lout_source_override = "lab-config.yaml"
+                lout_source_override = LAB_CONFIG_FILENAME
         except Exception:
             pass  # fall back to global default
 
@@ -120,7 +119,7 @@ def config_cmd(as_json: bool) -> None:
             "lab_output": {
                 "path": str(lab_output),
                 "label": _lab_output_label(lab_output, lab_slug or lab_output.parent.name),
-                "source": "lab-config.yaml" if lout_source_override == "lab-config.yaml" else "default",
+                "source": LAB_CONFIG_FILENAME if lout_source_override == LAB_CONFIG_FILENAME else "default",
             },
             "lab_config": str(lab_config_path) if lab_config_path else None,
             "workspace_config": str(workspace_config_path) if workspace_config_path else None,
@@ -158,7 +157,7 @@ def config_cmd(as_json: bool) -> None:
     runs_source = summary["runs_dir"].source
     click.echo(f"\n  {'runs root':<22} {summary['runs_dir'].path}  {_tag(runs_source)}")
 
-    lout_source = "lab-config.yaml" if lout_source_override == "lab-config.yaml" else "default"
+    lout_source = LAB_CONFIG_FILENAME if lout_source_override == LAB_CONFIG_FILENAME else "default"
     _lout_label = _lab_output_label(lab_output, lab_slug or lab_output.parent.name)
     click.echo(f"\n  {'lab output':<22} {click.style(_lout_label, bold=True)}  {_tag(lout_source)}")
     click.echo(f"  {'  path':<22} {click.style(str(lab_output), dim=True)}")

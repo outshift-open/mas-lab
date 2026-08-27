@@ -38,7 +38,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from mas.runtime.constants import WORKSPACE_CONFIG_FILENAME
+from mas.runtime.constants import LAB_CONFIG_FILENAME, WORKSPACE_CONFIG_FILENAME
 from mas.runtime.workspace_config import (
     RuntimeWorkspaceConfig,
     find_workspace_file,
@@ -308,7 +308,7 @@ def source_tag(
 ) -> str:
     """Return a short human-readable string describing the path source."""
     if lab_config:
-        return "lab-config.yaml"
+        return LAB_CONFIG_FILENAME
     if specific_env and os.environ.get(specific_env):
         return f"${specific_env}"
     return resolve_path(key).source
