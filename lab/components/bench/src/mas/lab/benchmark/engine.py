@@ -1,14 +1,14 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
 
-from __future__ import annotations
-
 """Benchmark engine — MAS experiments only; no CLI concerns."""
 
-from dataclasses import dataclass, field
+from __future__ import annotations
+
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,7 @@ class BenchmarkRunOptions:
     strategy: str | None = None
     step_overrides: list = field(default_factory=list)
     pipeline_attachments: list = field(default_factory=list)
+    experiment_overlays: list = field(default_factory=list)
     clean_stale: bool | None = None
 
     @classmethod
@@ -58,6 +59,7 @@ class BenchmarkRunOptions:
             strategy=spec.get("strategy"),
             step_overrides=spec.get("step_overrides") or [],
             pipeline_attachments=spec.get("pipeline_attachments") or [],
+            experiment_overlays=spec.get("experiment_overlays") or [],
             clean_stale=spec.get("clean_stale"),
         )
 
@@ -131,6 +133,7 @@ async def run_benchmark(
         strategy=opts.strategy,
         step_overrides=opts.step_overrides,
         pipeline_attachments=opts.pipeline_attachments,
+        experiment_overlays=opts.experiment_overlays,
         clean_stale=opts.clean_stale,
     )
 

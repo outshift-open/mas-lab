@@ -1,6 +1,5 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-from __future__ import annotations
 """PlotNineStep — render a plotnine (ggplot2-style) chart from a DataFrame.
 
 The ``data`` field accepts a file path (CSV, Parquet, JSON) or an in-memory
@@ -104,6 +103,8 @@ Example YAML — raw tidy CSV with stat_summary::
       depends_on: [collect-metrics]
 """
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import Any
@@ -119,17 +120,36 @@ class PlotNineStep(PipelineStep):
 
     type = "plotnine"
 
-    async def execute(self, ctx: "ExecutionContext") -> StepOutput:
+    async def execute(self, ctx: "ExecutionContext") -> StepOutput:  # noqa: F821
+        # Force non-interactive backend before any matplotlib/plotnine import so
+        # the step works from worker threads (benchmark run) as well as the main
+        # thread (benchmark pipeline run).
+        import matplotlib
+        matplotlib.use("Agg")
+
         import numpy as np
         from plotnine import (
-            ggplot, aes,
-            geom_col, geom_bar, geom_point, geom_boxplot, geom_jitter,
-            geom_crossbar, geom_errorbar, geom_errorbarh, geom_line, geom_tile,
-            facet_wrap, facet_grid,
-            labs, theme_minimal, theme, element_text,
+            aes,
+            coord_cartesian,
+            element_text,
+            facet_grid,
+            facet_wrap,
+            geom_bar,
+            geom_boxplot,
+            geom_col,
+            geom_crossbar,
+            geom_errorbar,
+            geom_errorbarh,
+            geom_jitter,
+            geom_line,
+            geom_point,
+            geom_tile,
+            ggplot,
+            labs,
             scale_fill_brewer,
             stat_summary,
-            coord_cartesian,
+            theme,
+            theme_minimal,
         )
 
         config = self.config
@@ -297,7 +317,8 @@ class PlotNineStep(PipelineStep):
             if isinstance(layer_filter, dict):
                 for col, vals in layer_filter.items():
                     if col in layer_df.columns:
-                        layer_df = layer_df[layer_df[col].isin(vals) if isinstance(vals, list) else layer_df[col] == vals]
+                        mask = layer_df[col].isin(vals) if isinstance(vals, list) else layer_df[col] == vals
+                        layer_df = layer_df[mask]
             elif layer_filter:
                 layer_df = layer_df.query(layer_filter)
 
@@ -336,8 +357,15 @@ class PlotNineStep(PipelineStep):
                 point_kwargs.update(layer_geom_kwargs)
                 p = p + geom_point(data=layer_df, mapping=layer_aes, **point_kwargs)
                 # Optional x-out-of-viewport marker for this layer
-                x_col_layer = layer_mapping_cfg.get("x") if isinstance(layer_mapping_cfg, dict) else None
-                if oov_enabled and oov_max is not None and isinstance(x_col_layer, str) and x_col_layer in layer_df.columns:
+                x_col_layer = (
+                    layer_mapping_cfg.get("x") if isinstance(layer_mapping_cfg, dict) else None
+                )
+                if (
+                    oov_enabled
+                    and oov_max is not None
+                    and isinstance(x_col_layer, str)
+                    and x_col_layer in layer_df.columns
+                ):
                     oov_layer_df = layer_df[layer_df[x_col_layer] > float(oov_max)].copy()
                     if not oov_layer_df.empty:
                         oov_layer_df[x_col_layer] = float(oov_max)
@@ -446,7 +474,7 @@ class PlotNineStep(PipelineStep):
             p = p + labs(**labels_cfg)
 
         # ── Theme ──────────────────────────────────────────────────────
-        from plotnine import element_blank, guides
+        from plotnine import element_blank
         p = p + theme_minimal()
         hide_x = config.get("hide_x_labels", False)
         hide_legend = config.get("hide_legend", False)

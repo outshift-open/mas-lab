@@ -1,9 +1,9 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
 
-from __future__ import annotations
-
 """MAS batch scheduler — plan runs, invoke runtime plugins, post-pipeline."""
+
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
@@ -30,6 +30,7 @@ async def run_mas_benchmark(
     strategy: Optional[str] = None,
     step_overrides: Optional[list] = None,
     pipeline_attachments: Optional[list] = None,
+    experiment_overlays: Optional[list] = None,
     clean_stale: Optional[bool] = None,
 ) -> bool:
     """Run a MAS batch benchmark from a *MASExperimentConfig* YAML.
@@ -54,6 +55,7 @@ async def run_mas_benchmark(
         trace_cache_dir=trace_cache_dir,
         step_overrides=step_overrides,
         pipeline_attachments=pipeline_attachments,
+        experiment_overlays=experiment_overlays,
     )
     if loaded is None:
         return False
