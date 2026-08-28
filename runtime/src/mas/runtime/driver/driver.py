@@ -97,7 +97,7 @@ class KernelDriver:
     ctx: AutoCtxAssembler | None = field(default_factory=AutoCtxAssembler)
     observability: ObservabilityOperator | None = field(default_factory=ObservabilityOperator)
     coordination: ChokepointCoordinator | None = field(default_factory=ChokepointCoordinator)
-    max_auto_steps: int = 64
+    max_auto_steps: int = 512
     agent_id: str = "agent"
     on_exchange: Callable[[ExchangeRecord], None] | None = None
     capture_engine_io: bool = False
@@ -220,6 +220,19 @@ class KernelDriver:
             if engine_ios:
                 queue.extend(self._dispatch_engine_batch(engine_ios, trace))
 
+        if queue:
+            # auto_steps hit max_auto_steps while items were still queued —
+            # anything left in the queue will be abandoned: exit with error
+            trace.boundary_errors.append(
+                RaiseBoundaryError(
+                    code="STEP_BUDGET_EXHAUSTED",
+                    recoverable=False,
+                    message=(
+                        f"max_auto_steps ({self.max_auto_steps}) exhausted with "
+                        f"{len(queue)} item(s) still queued and undispatched "
+                    ),
+                )
+            )
         trace.awaiting_hitl = gov_is_hitl_pending(self.kernel.q)
         if self.observability is not None:
             trace.observability_events = list(self.observability.events)
