@@ -110,7 +110,7 @@ def preload_scenario_configs(loaded: LoadedExperiment) -> tuple[dict, dict, list
                     infra_refs=infra_refs,
                 )
                 _scenario_overlay_stacks[_sid] = list(_scenario_spec.overlays.flattened())
-            elif configs_dir is None and exp.mas and exp.mas.manifest:
+            elif (configs_dir is None or (_scenario_spec and not _scenario_spec.overlays.flattened())) and exp.mas and exp.mas.manifest:
                 from mas.lab.manifest.load import load_mas_config
                 _mas_man = load_mas_config(
                     exp.mas.manifest, validate=False, infra_refs=infra_refs

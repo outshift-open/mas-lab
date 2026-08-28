@@ -26,8 +26,6 @@ class OverlayStack:
         logic = list(data.get("logic") or [])
         control = list(data.get("control") or [])
         infra = list(data.get("infra") or [])
-        if not logic and not control and not infra:
-            logic = [scenario_id]
         return cls(logic=logic, control=control, infra=infra)
 
 
