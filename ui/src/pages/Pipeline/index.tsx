@@ -137,7 +137,7 @@ const Pipeline = () => {
       }
       const { job_id } = await runPipeline(library, {
         pipeline_yaml: yamlToRun,
-        timeout: 1200,
+        timeout: 10800,
       });
 
       const POLL_INTERVAL = 1500;

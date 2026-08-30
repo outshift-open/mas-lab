@@ -1,7 +1,7 @@
 apiVersion: mas/v1
 kind: Overlay
 metadata:
-  name: dr-1CE-1-rubber-stamp-verifier.yaml-semantic-mismatch
+  name: DR-1-semantic-mismatch
   description: |
     DR-1 semantic mismatch injection — key decision terms are interpreted
     differently by different agents at interface boundaries.

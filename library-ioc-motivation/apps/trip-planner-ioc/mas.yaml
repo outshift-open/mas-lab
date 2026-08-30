@@ -1,0 +1,44 @@
+apiVersion: mas/v1
+kind: MAS
+
+metadata:
+  name: trip-planner-ioc
+  version: "1.0.0"
+  description: >
+    Trip Planner MAS — the canonical four-agent Arborian Network example.
+    A moderator orchestrates three specialists (schedule_agent,
+    itinerary_agent, concierge_agent) to answer transport queries, plan
+    routes, and assemble full itineraries.  This is the v1 baseline: no
+    memory or ontology enhancement, standard keyword-based skill retrieval.
+  tags:
+    - travel
+    - demo
+    - tutorial
+
+intent:
+  summary: >
+    I plan trips between cities in the Arborian Network (fictional city
+    universe).  Tell me your destination preferences, travel dates, budget
+    (in EUR), and interests, and I will select the best city, produce a
+    detailed local guide, and assemble a complete day-by-day itinerary.
+
+spec:
+  agency:
+    agents:
+      - id: moderator
+        ref: agents/moderator.yaml
+      - id: schedule_agent
+        ref: agents/schedule_agent.yaml
+      - id: itinerary_agent
+        ref: agents/itinerary_agent.yaml
+      - id: concierge_agent
+        ref: agents/concierge_agent.yaml
+  
+  workflow:
+    entry: moderator
+    nodes:
+      - id: moderator
+        delegates_to: [schedule_agent, itinerary_agent, concierge_agent]
+      - id: schedule_agent
+      - id: itinerary_agent
+      - id: concierge_agent

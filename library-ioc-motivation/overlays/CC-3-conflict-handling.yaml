@@ -1,7 +1,7 @@
 apiVersion: mas/v1
 kind: Overlay
 metadata:
-  name: cc-3-conflict-handling
+  name: CC-3-conflict-handling
   description: |
     CC-3 — Incomplete Synthesis: central orchestrator (SRE) receives conflicting
     specialist recommendations on the same decision variable (incident severity

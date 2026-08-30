@@ -1,7 +1,7 @@
 apiVersion: mas/v1
 kind: Overlay
 metadata:
-  name: cr-1-divergent-goals
+  name: CR-1-divergent-goal
   description: |
     CR-1 shared-task-model failure via divergent goals at initialization.
 

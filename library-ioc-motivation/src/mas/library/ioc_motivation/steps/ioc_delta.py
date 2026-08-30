@@ -72,8 +72,17 @@ class IocDeltaStep(PipelineStep):
         report: Dict[str, Any] = json.loads(proc.stdout)
 
         # Flatten challenges[].per_metric[] -> ablation_matrix for the native heatmap.
+        # The native `plot` ablation_heatmap renderer keys rows on ``challenge`` (y),
+        # columns on ``dimension`` (x, defaulted), and cells on ``delta`` (value), and
+        # does a hard ``row["dimension"]`` lookup — so emit ``dimension`` as an alias of
+        # the metric name (kept alongside ``metric`` for readers that use either).
         ablation_matrix: List[Dict[str, Any]] = [
-            {"challenge": ch.get("code") or ch.get("scenario"), "metric": pm["metric"], "delta": pm["delta"]}
+            {
+                "challenge": ch.get("code") or ch.get("scenario"),
+                "dimension": pm["metric"],
+                "metric": pm["metric"],
+                "delta": pm["delta"],
+            }
             for ch in report.get("challenges", [])
             for pm in ch.get("per_metric", [])
             if pm.get("delta") is not None

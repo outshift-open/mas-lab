@@ -1,49 +1,48 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-# Structure mirrors library-samples/pipelines/pipeline-test.yaml (the shape the UI reads):
-# api_version / kind / metadata / spec, steps with x-node-id, and x-canvas-positions.
-# Scores an ioc-sre-reproduction experiment: 13-metric cognitive judge -> baseline-vs-overlay
-# delta/verdict -> challenge×metric heatmap (paper Fig 4, native `plot` + ablation_heatmap).
-# Custom-step path/creds config comes from the env (IOC_REPO, MAS_LAB_OSS, CLARIS_LIB,
-# EVALUATOR_ENV) — see README §Environment.
+# Trip-planner variant of ioc-cognitive-eval. Scores an ioc-trip-planner-reproduction
+# experiment: 13-metric cognitive judge -> baseline-vs-overlay delta/verdict -> challenge×
+# metric heatmap (paper Fig 4). Only difference vs the SRE pipeline: service_name (domain
+# routing) and base_dir (the trip experiment's output). Env config (IOC_REPO, MAS_LAB_OSS,
+# CLARIS_LIB, EVALUATOR_ENV) — see README §Environment.
 api_version: pipeline/v1
 kind: Pipeline
 metadata:
-  name: ioc-cognitive-eval
+  name: ioc-trip-cognitive-eval
 spec:
   output:
-    base_dir: ~/.local/share/mas/labs/ioc-sre-reproduction   # the experiment's output dir (traces live here)
+    base_dir: ~/.local/share/mas/labs/ioc-trip-planner-reproduction   # the experiment's output dir (traces live here)
   steps:
     - name: cognitive-eval
       type: ioc_cognitive_eval
-      x-node-id: pnode_ioc_ceval
+      x-node-id: pnode_ioc_tp_ceval
       config:
-        service_name: sre-triage      # domain token: bundle name -> evaluator domain routing
+        service_name: trip-planner    # domain token: bundle name -> evaluator domain routing (NOT 'sre-triage')
         suite: paper_v2
         shards: 4
         # runs_dir defaults to output_dir (the experiment traces above)
         # ioc_repo / mas_lab_oss / claris_lib / evaluator_env resolved from env if unset
     - name: delta
       type: ioc_delta
-      x-node-id: pnode_ioc_delta
+      x-node-id: pnode_ioc_tp_delta
       depends_on:
         - cognitive-eval
       config: {}                      # metrics_long resolved from the cognitive-eval step output
     - name: heatmap
       type: plot
-      x-node-id: pnode_ioc_heatmap
+      x-node-id: pnode_ioc_tp_heatmap
       depends_on:
         - delta
       config:
         spec: ioc_reproduction_heatmap  # rows=challenge, cols=metric, cell=Δ failure rate (overlay−baseline)
         data: "@delta"                # reads ablation_matrix from the delta step output
 x-canvas-positions:
-  pnode_ioc_ceval:
+  pnode_ioc_tp_ceval:
     x: -600
     y: 0
-  pnode_ioc_delta:
+  pnode_ioc_tp_delta:
     x: -100
     y: 0
-  pnode_ioc_heatmap:
+  pnode_ioc_tp_heatmap:
     x: 400
     y: 0

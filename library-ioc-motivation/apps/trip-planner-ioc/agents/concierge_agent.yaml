@@ -1,0 +1,51 @@
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  name: concierge_agent
+  version: 0.1.0
+spec:
+  description: "Fare lookup specialist."
+  context:
+    role: |
+      You can look up the prices (fares) for trains, air routes, and attraction admissions.
+      You have access to three tools: get_fares for transport fares, get_attraction_fare
+      for attraction admission details, and calc for calculations.
+
+      Use these tools to find train and airplane fares as well as attraction entry
+      prices. When you have gathered sufficient information, provide a clear overview
+      of the prices for each itinerary.
+      If the user ask for pricing of a trip with some specific routes, don't assume it's rount trip unless explicitly stated.
+
+      Never add information that is not supported by the tools. 
+      If the user asks for something that cannot be answered with the information from the tools, say you don't know.
+      Never lie
+
+      Ontology:
+      - 'accessible' means 'wheelchair-friendly with ramps, elevators, and step-free paths (it applies to attractions only, not transportation).'
+      - 'affordable' means 'within the user's budget.'
+    intent: Concierge Agent — fare lookup, cost estimation, budget tracking, and day-by-day itinerary assembly. Receives FareQuery
+      + RouteOptions from the moderator and returns FareResult with a complete cost breakdown.
+  models:
+    - id: main
+      model: vertex_ai/gemini-2.5-flash
+      temperature: 0.2
+      max_tokens: 2000
+  design_pattern:
+    type: react
+#  skills:
+#  - fare-and-itinerary-assembly
+  plugins:
+  - name: session_diagnostic
+    module_path: mas.library.ioc.plugins.diagnostics.session_diagnostic
+    class_name: SessionDiagnosticPlugin
+    config:
+      enabled: true
+      max_messages: 24
+      max_tokens: 1000
+      temperature: 0.0
+      max_annotation_chars: 5000
+  tools:
+    - ref: ../tools/get_trip_fares.tool.yaml
+    - ref: ../tools/get_attraction_fare.tool.yaml
+#    - ref: ../tools/query_graph_database.tool.yaml
+    - ref: ../tools/calc.tool.yaml

@@ -1,0 +1,841 @@
+apiVersion: lab/v1
+kind: Dataset
+metadata:
+  name: trip-planner-benchmark-v1
+  display_name: Trip Planner Benchmark v1
+  version: '1.0'
+  description: '125 baseline prompts for the Arborian Network trip planner. Distribution: 50 single_agent, 75 two_agents.'
+  tags:
+  - trip-planner
+  - benchmark
+  - arborian-network
+spec:
+  items:
+  - id: 1
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: what trains go from Celestia to Verdantia?
+  - id: 2
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: show me airplane schedules from Celestia to Luminos
+  - id: 3
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: what attractions are available in Crystallis?
+  - id: 4
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: list all attractions in Polaria
+  - id: 5
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: what trains run from Verdantia to Luminos?
+  - id: 6
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: show me trains from Luminos to Fortuna
+  - id: 7
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: what trains go from Fortuna to Pannonia?
+  - id: 8
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: show me train schedules from Celestia to Harmonia
+  - id: 9
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: what trains run between Harmonia and Silvara?
+  - id: 10
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: show me trains from Silvara to Verdantia
+  - id: 11
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: what trains go from Celestia to Montaigne?
+  - id: 12
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: show me train schedules between Montaigne and Crystallis
+  - id: 13
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: what trains run from Hibernia to Caledonia?
+  - id: 14
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: show me trains from Fortuna to Maritima
+  - id: 15
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: what flights go from Celestia to Aurelia?
+  - id: 16
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: show me airplane schedules from Celestia to Polaria
+  - id: 17
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: what flights run from Pannonia to Portalis?
+  - id: 18
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: show me flights from Aurelia to Maritima
+  - id: 19
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: what flights connect Hibernia and Polaria?
+  - id: 20
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: what flights go from Luminos to Portalis?
+  - id: 21
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: what attractions are in Harmonia?
+  - id: 22
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: list attractions available in Silvara
+  - id: 23
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: what can I visit in Maritima?
+  - id: 24
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: show me attractions in Pannonia
+  - id: 25
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - schedule_agent
+    prompt: what attractions does Hibernia have?
+  - id: 26
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - itinerary_agent
+    prompt: what routes are available from Celestia to Verdantia?
+  - id: 27
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - itinerary_agent
+    prompt: show me all possible paths from Verdantia to Luminos
+  - id: 28
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - itinerary_agent
+    prompt: what is the fastest route from Pannonia to Portalis?
+  - id: 29
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - itinerary_agent
+    prompt: how do I get from Celestia to Polaria?
+  - id: 30
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - itinerary_agent
+    prompt: what connections are there from Luminos to Portalis?
+  - id: 31
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - itinerary_agent
+    prompt: what routes connect Harmonia to Verdantia?
+  - id: 32
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - itinerary_agent
+    prompt: how do I travel from Silvara to Luminos?
+  - id: 33
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - itinerary_agent
+    prompt: find all routes from Celestia to Caledonia
+  - id: 34
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - itinerary_agent
+    prompt: what paths are available from Montaigne to Pannonia?
+  - id: 35
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - itinerary_agent
+    prompt: how do I get from Verdantia to Aurelia?
+  - id: 36
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - concierge_agent
+    prompt: how much does the train from Celestia to Verdantia cost?
+  - id: 37
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - concierge_agent
+    prompt: what are the train fares from Luminos to Fortuna?
+  - id: 38
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - concierge_agent
+    prompt: tell me the price for the flight from Celestia to Polaria
+  - id: 39
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - concierge_agent
+    prompt: what is the fare for the Celestia to Aurelia flight?
+  - id: 40
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - concierge_agent
+    prompt: how much does the Pannonia to Portalis flight cost?
+  - id: 41
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - concierge_agent
+    prompt: what is the train fare between Verdantia and Luminos?
+  - id: 42
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - concierge_agent
+    prompt: how much does the Celestia to Montaigne train cost?
+  - id: 43
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - concierge_agent
+    prompt: give me the fare for the Hibernia to Polaria flight
+  - id: 44
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - concierge_agent
+    prompt: how much is business class on the Celestia to Luminos flight?
+  - id: 45
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - concierge_agent
+    prompt: what is the standard class train fare from Fortuna to Maritima?
+  - id: 46
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - concierge_agent
+    prompt: how much does the Harmonia to Silvara train cost?
+  - id: 47
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - concierge_agent
+    prompt: give me the fare for the night train from Celestia to Verdantia
+  - id: 48
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - concierge_agent
+    prompt: how much is the Luminos to Portalis flight in economy class?
+  - id: 49
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - concierge_agent
+    prompt: what is the express train fare from Celestia to Harmonia?
+  - id: 50
+    scenario: baseline
+    group: single_agent
+    target_agents:
+    - concierge_agent
+    prompt: how much does the Montaigne to Crystallis train cost in standard class?
+  - id: 51
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: show me trains from Celestia to Verdantia and tell me which is fastest
+  - id: 52
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: what is the best route from Luminos to Maritima considering travel time?
+  - id: 53
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: compare the scenic and fastest routes from Celestia to Montaigne
+  - id: 54
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: I need to arrive in Verdantia by 6pm from Celestia — what are my options?
+  - id: 55
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: find trains departing after 10am from Luminos showing which is quickest to Fortuna
+  - id: 56
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: what is the optimal path from Celestia to Polaria and what departs when?
+  - id: 57
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: show schedules and fastest route from Pannonia to Portalis
+  - id: 58
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: find morning departures from Harmonia to Verdantia and which route is direct
+  - id: 59
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: compare travel time for all connections from Celestia to Hibernia
+  - id: 60
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: what is the quickest way from Fortuna to Portalis — show me the timetable
+  - id: 61
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: I want to leave Silvara early morning and reach Luminos by noon — is it possible?
+  - id: 62
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: show trains from Caledonia to Hibernia and tell me the fastest connection
+  - id: 63
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: what evening trains go from Crystallis to Celestia and which route do they take?
+  - id: 64
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: find the fastest route from Aurelia to Portalis and what flights are available
+  - id: 65
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: I prefer trains — what is my best option from Celestia to Polaria indirectly?
+  - id: 66
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: what is the cheapest route from Celestia to Polaria?
+  - id: 67
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: find the most economical way to travel from Verdantia to Portalis
+  - id: 68
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: compare all transport options from Luminos to Hibernia by cost
+  - id: 69
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: I have $100 for transport — what is the furthest I can go from Celestia?
+  - id: 70
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: plan a day trip from Luminos to Pannonia with total transport budget under $50
+  - id: 71
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: find the cheapest route from Celestia to Caledonia
+  - id: 72
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: compare costs for all routes from Fortuna to Maritima
+  - id: 73
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: what is the most affordable path from Harmonia to Aurelia?
+  - id: 74
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: find cheapest connection from Silvara to Portalis
+  - id: 75
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: compare rail vs air cost for Celestia to Aurelia
+  - id: 76
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: I have €80 for transport — what cities can I reach from Verdantia?
+  - id: 77
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: is it cheaper to fly or take the train from Celestia to Aurelia?
+  - id: 78
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: what is the total transport cost for the Alps Express circuit (Celestia, Montaigne, Crystallis)?
+  - id: 79
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: find cheapest multi-hop connection from Pannonia to Caledonia
+  - id: 80
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: what are the route options and total cost from Crystallis to Portalis?
+  - id: 81
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: show me train schedules from Celestia to Verdantia with prices
+  - id: 82
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: what are morning train options and costs from Harmonia to Silvara?
+  - id: 83
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: give me airplane schedules with fares for Celestia to Aurelia
+  - id: 84
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: show flight times and fares from Celestia to Polaria
+  - id: 85
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: list trains from Verdantia to Luminos with their standard and express prices
+  - id: 86
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: show me the NightTrain schedule from Celestia to Verdantia and its couchette fare
+  - id: 87
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: what are the afternoon flights from Luminos to Portalis and how much do they cost?
+  - id: 88
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: show trains from Celestia to Montaigne with both standard and express fares
+  - id: 89
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: give me all departure times and prices for Fortuna to Maritima trains
+  - id: 90
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: show me flight schedules and economy fares from Aurelia to Maritima
+  - id: 91
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: what weekend trains go from Luminos to Fortuna and what do they cost?
+  - id: 92
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: show flights from Hibernia to Polaria with business class prices
+  - id: 93
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: what trains depart Celestia to Harmonia in the morning and what are their fares?
+  - id: 94
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: give me the evening train options from Montaigne to Crystallis with costs
+  - id: 95
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: show trains from Pannonia toward the northern cities and total fare
+  - id: 96
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: list all departures from Caledonia to Hibernia and their ticket prices
+  - id: 97
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: show trains from Silvara to Verdantia with their fares
+  - id: 98
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: what are the schedules and fares for flights from Pannonia to Portalis?
+  - id: 99
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: give me economy and business fares for flights from Celestia to Luminos with departure times
+  - id: 100
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: show departure times and full price breakdown for trains on the Alpine corridor Celestia to Montaigne
+  - id: 101
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: what trains depart Fortuna after 2pm to Pannonia and how much do they cost?
+  - id: 102
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: what routes connect Caledonia to Celestia and what are the travel times?
+  - id: 103
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: I need to get from Polaria to Verdantia — show me all options and their travel times
+  - id: 104
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: compare travel times for Celestia to Hibernia by all available modes
+  - id: 105
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - itinerary_agent
+    prompt: find early morning departures from Aurelia to Portalis with route options
+  - id: 106
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: find the most budget-friendly route from Silvara to Aurelia
+  - id: 107
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: compare all ways to travel from Caledonia to Luminos by price
+  - id: 108
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: what is the cheapest connection from Polaria to Pannonia?
+  - id: 109
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: find cheapest round trip between Celestia and Crystallis
+  - id: 110
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: what is the total transport cost for the Coastal Grand Tour (Celestia via Aurelia, Maritima, Portalis)?
+  - id: 111
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: compare transport costs for reaching the three coastal cities from Luminos
+  - id: 112
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: what is the most affordable way to get from Pannonia to Polaria?
+  - id: 113
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: total transport cost for the Highlands Loop (Celestia, Harmonia, Silvara, Verdantia)?
+  - id: 114
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: find cheapest round trip from Luminos to Hibernia
+  - id: 115
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - itinerary_agent
+    - concierge_agent
+    prompt: compare cost of standard vs express train for the Celestia–Verdantia–Luminos corridor
+  - id: 116
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: show me the cheapest morning flight from Celestia to Polaria on a weekday
+  - id: 117
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: what is the last train of the day from Montaigne to Crystallis and how much does it cost?
+  - id: 118
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: show weekend timetable and fares for Celestia to Verdantia trains
+  - id: 119
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: what is the first train from Verdantia to Luminos and its price?
+  - id: 120
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: find the latest evening train from Luminos to Fortuna with its fare
+  - id: 121
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: show all flights from Celestia to Aurelia today with economy prices
+  - id: 122
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: what trains are available from Celestia to Harmonia on Saturday with fares?
+  - id: 123
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: show me the NightTrain couchette fare and departure time from Celestia to Verdantia
+  - id: 124
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: give me flight times and business class fares from Luminos to Portalis
+  - id: 125
+    scenario: baseline
+    group: two_agents
+    target_agents:
+    - schedule_agent
+    - concierge_agent
+    prompt: show all Hibernia to Caledonia trains with prices on a weekday
+  groups:
+  - id: single_agent
+  - id: two_agents

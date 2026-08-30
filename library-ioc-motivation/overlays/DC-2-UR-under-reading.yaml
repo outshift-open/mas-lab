@@ -1,7 +1,7 @@
 apiVersion: mas/v1
 kind: Overlay
 metadata:
-  name: dc-2
+  name: DC-2-UR-under-reading
   description: |
     DC-2-UR — Illocutionary Misidentification (Under-Reading): SRE softly asks
     Telemetry to check other services in addition to the main mandatory service,

@@ -260,7 +260,7 @@ const Pipelines = () => {
       try {
         const { job_id } = await runPipeline(library, {
           pipeline_yaml: `pipelines/${filename}`,
-          timeout: 1200,
+          timeout: 10800,
         });
         setRunningJobs((prev) => ({
           ...prev,

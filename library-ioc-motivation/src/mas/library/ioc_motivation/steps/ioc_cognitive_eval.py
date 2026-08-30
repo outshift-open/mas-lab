@@ -18,7 +18,7 @@ ioc_repo       str  ioc-core-mas-lab checkout (default env IOC_REPO)   [required
 mas_lab_oss    str  OSS mas-lab checkout, for the venv python the span-converter needs
                     (default env MAS_LAB_OSS)                          [required]
 claris_lib     str  claris-lib checkout (default env CLARIS_LIB)       [required]
-evaluator_env  str  judge creds file (default env EVALUATOR_ENV or <ioc_repo>/evaluator.env)
+evaluator_env  str  judge creds file (default env EVALUATOR_ENV or <ioc_repo>/.env.evaluator)
 service_name   str  domain token for bundle naming / --service-name (e.g. "sre-triage") [required]
 runs_dir       str  experiment trace root (default: ctx.output_dir)
 suite / shards      eval suite (default paper_v2) / shard count (default 4)
@@ -110,7 +110,7 @@ class IocCognitiveEvalStep(PipelineStep):
         mas_oss = _need(cfg, "mas_lab_oss", "MAS_LAB_OSS")
         claris = _need(cfg, "claris_lib", "CLARIS_LIB")
         evaluator_env = Path(cfg.get("evaluator_env") or os.environ.get("EVALUATOR_ENV")
-                             or (ioc_repo / "evaluator.env")).expanduser()
+                             or (ioc_repo / ".env.evaluator")).expanduser()
         service = cfg.get("service_name")
         if not service:
             raise ValueError("ioc_cognitive_eval: config.service_name is required (domain token)")

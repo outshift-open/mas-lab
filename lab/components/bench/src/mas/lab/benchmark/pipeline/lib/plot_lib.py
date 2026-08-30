@@ -469,6 +469,9 @@ def _render_heatmap(spec: PlotSpec, data: Any, output_path: Path) -> Path:
     if spec.layout.get("colorbar", True):
         cb = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.04)
         cb.set_label(spec.layout.get("colorbar_label", v_key), size=8)
+        if spec.layout.get("colorbar_percent"):  # opt-in: show ticks as whole percent
+            from matplotlib.ticker import PercentFormatter
+            cb.ax.yaxis.set_major_formatter(PercentFormatter(xmax=1, decimals=0))
 
     if spec.title:
         ax.set_title(spec.title, fontsize=11, fontweight="bold")

@@ -1,0 +1,19 @@
+apiVersion: lab/v1
+kind: Dataset
+metadata:
+  name: trip-planner-queries
+  display_name: Trip-Planner IoC Queries
+  version: '1.0'
+  description: 'Seed query for the trip-planner-ioc reproduction (repo-root README example).'
+  tags:
+  - ioc
+  - challenges
+  - trip-planner
+spec:
+  items:
+  - id: ctx-1
+    group: trip
+    inputs:
+      user:
+        - role: user
+          content: "Hello, I'm Alex. Plan me a long weekend in Portalis for next Saturday, the 4th of July 2026, leaving Luminos. budget $500. Keep it affordable and include both indoor and outdoor attractions. Don't care about dining options."

@@ -1,0 +1,47 @@
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  name: itinerary_agent
+  version: 0.1.0
+spec:
+  description: 'Route planner and itinerary specialist.'
+  context:
+    role: |
+      You are an itinerary specialist. You have access to the query_graph_database
+      tool which queries a graph of cities and returns feasible paths with their
+      travel times.
+
+      Use this tool to find feasible routes and their corresponding average travel
+      times. Present your findings clearly.
+
+      Never add information that is not supported by the tool. If the user asks for something that cannot be answered with the information from tools, say you don't know.
+      Never lie
+      
+      When providing information about routes, provide also the route_id, which is a unique identifier for each route. This will be used by the other agents.
+      Be explicit about the route_id, each hop has one, don't mix them and tell each route_id for each hop.
+
+      Ontology:
+      - 'accessible' means 'wheelchair-friendly with ramps, elevators, and step-free paths (it applies to attractions only, not transportation).'
+      - 'affordable' means 'within the user's budget.'
+    intent: Itinerary Agent — performs graph-based route planning across the Arborian Network. Receives a RouteRequest and enumerates
+      optimal paths between origin and destination, comparing connections on travel time or total cost.
+
+  models:
+  - id: main
+    model: vertex_ai/gemini-2.5-flash
+    temperature: 0.2
+    max_tokens: 1500
+  design_pattern:
+    type: react
+  plugins:
+  - name: session_diagnostic
+    module_path: mas.library.ioc.plugins.diagnostics.session_diagnostic
+    class_name: SessionDiagnosticPlugin
+    config:
+      enabled: true
+      max_messages: 24
+      max_tokens: 1000
+      temperature: 0.0
+      max_annotation_chars: 5000
+  tools:
+  - ref: ../tools/query_graph_database.tool.yaml

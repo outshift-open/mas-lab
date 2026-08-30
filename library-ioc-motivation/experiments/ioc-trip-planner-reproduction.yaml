@@ -1,9 +1,9 @@
 experiment:
-  name: ioc-sre-reproduction
-  description: Baseline + DR-1/DC-2/CC-3/CR-1 overlays on sre-triage over the incident seed query, N reps. Produces the
-    traces the ioc-cognitive-eval pipeline scores.
+  name: ioc-trip-planner-reproduction
+  description: Baseline + DR-1/DC-2/CC-3/CR-1 overlays on trip-planner-ioc over the README seed query, N reps. Produces
+    the traces the ioc-trip-cognitive-eval pipeline scores.
   applications:
-    - manifest: apps/sre-triage/mas.yaml
+    - manifest: apps/trip-planner-ioc/mas.yaml
   scenarios:
     - id: baseline
       tags: []
@@ -12,36 +12,36 @@ experiment:
           - ref: overlays/baseline.yaml
         control: []
         infra: []
-    - id: DR-1-semantic-mismatch
+    - id: DR-1-semantic-affordable
       tags: []
       overlays:
         logic:
-          - ref: overlays/DR-1-semantic-mismatch.yaml
+          - ref: apps/trip-planner-ioc/overlays/DR-1-semantic-affordable-attractions-mismatch.yaml
         control: []
         infra: []
-    - id: DC-2-UR-under-reading
+    - id: DC-2-under-reading
       tags: []
       overlays:
         logic:
-          - ref: overlays/DC-2-UR-under-reading.yaml
+          - ref: apps/trip-planner-ioc/overlays/DC-2-UR-under-reading-trip-planner.yaml
         control: []
         infra: []
-    - id: CC-3-conflict-handling
+    - id: CC-3-missing-consensus
       tags: []
       overlays:
         logic:
-          - ref: overlays/CC-3-conflict-handling.yaml
+          - ref: apps/trip-planner-ioc/overlays/CC-3-missing-consensus-protocol.yaml
         control: []
         infra: []
     - id: CR-1-divergent-goal
       tags: []
       overlays:
         logic:
-          - ref: overlays/CR-1-divergent-goal.yaml
+          - ref: apps/trip-planner-ioc/overlays/CR-1-divergent-goal.yaml
         control: []
         infra: []
   dataset:
-    path: datasets/sre-queries.yaml
+    path: datasets/trip-planner-queries.yaml
   run:
     n_runs: 20
   execution:
