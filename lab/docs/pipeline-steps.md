@@ -78,7 +78,12 @@ Paper labs register matplotlib figure steps, e.g.:
 
 Pattern: subclass `PipelineStep`, `register_step_type`, declare in `experiment.yaml`.
 
+See **[custom-pipeline-steps.md](custom-pipeline-steps.md)** for the full authoring
+guide — including the `per_run: true` pattern, artifact resolution APIs, and the
+`lib/steps/register_steps.py` discovery convention.
+
 ## Related
 
 - [pipeline.md](pipeline.md)
+- [custom-pipeline-steps.md](custom-pipeline-steps.md)
 - [benchmark.md](benchmark.md)
