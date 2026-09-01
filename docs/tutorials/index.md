@@ -18,6 +18,7 @@ verification. Same setup for CLI and web UI.
 | 1 | [Build an agent](01-building-an-agent/) | Agent manifest, tools, skills, memory, CLI, traces |
 | 2 | [Orchestrate your MAS](02-creating-a-mas/) | MAS manifest, delegation, topology overlays |
 | 3 | [Run an experiment](03-experiments-and-analysis/) | Experiments, benchmarks, pipelines, MCEv1 evaluation |
+| 4 | [The Web UI, end to end](04-ui-walkthrough/) | The same trip-planner scenario, driven entirely from the browser |
 
 After Tutorial 3, reproduce all paper results across 3 labs: [Paper](../paper/index.md).
 

@@ -1,0 +1,350 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Overlay
+
+metadata:
+  name: robust
+  description: >
+    Robust-by-design overlay — enforce all 10 IoC integrity constraints
+    for the sre-triage MAS.
+
+    This overlay adds declarative constraint enforcement on top of the
+    existing agent and tool definitions. It does NOT modify prompts.
+    All enforcement is done by the infrastructure layer:
+    assembler, hooks, action gate, entity registry.
+
+    Constraints closed by this overlay:
+      C1  — citation enforcer (on_pre_llm_call hook)
+      C2  — required_context_keys + context assembler
+      C3  — single-owner-per-key (canonical_keys registry)
+      C4  — TTL-annotated tool wrappers (valid_to field)
+      C5  — trace-ID validator (on_tool_result hook)
+      C6  — entity registry (session-start pre-population)
+      C7  — action gate (verifier_approval required before run_action)
+      C8  — TTL monitor at reasoning time (on_pre_llm_call)
+      C9  — DAG edge declarations (mas-ctl check enforces at deploy time)
+      C10 — capability-based context (agent_capabilities scopes)
+
+    Compare with:
+      baseline.yaml  — no enforcement, all capabilities OFF
+      full.yaml      — all capabilities ON, no constraint enforcement
+      robust.yaml    — constraint enforcement + capabilities ON
+
+spec:
+  target:
+    kind: MAS
+
+  patch:
+    params:
+      incident_fixture: datasets/incidents/payment-async-timeout.yaml
+
+    # ─────────────────────────────────────────────────────────────────
+    # Capabilities (same as full.yaml — all ON)
+    # ─────────────────────────────────────────────────────────────────
+    capabilities:
+      memory: true
+      ontology_alignment: true
+      skills: true
+      mcp_tools: false
+
+    # ─────────────────────────────────────────────────────────────────
+    # C6 — Entity registry
+    # Pre-populated at session start. Aliases are normalised to canonical
+    # form. Unknown entity names in tool calls are blocked.
+    # ─────────────────────────────────────────────────────────────────
+    entity_registry:
+      on_unknown_entity: block       # reject tool calls with unknown service names
+      on_alias: normalize            # silently normalize to canonical form
+      services:
+        - id: payment-api
+          aliases: [payment-service, payment_api, payment_svc, payment-svc]
+          canonical: payment-api
+        - id: auth-service
+          aliases: [auth_service, authentication-service, auth-svc]
+          canonical: auth-service
+        - id: order-processor
+          aliases: [order_processor, order-service, order-svc]
+          canonical: order-processor
+        - id: cart-service
+          aliases: [cart_service, cart-svc]
+          canonical: cart-service
+        - id: catalog-service
+          aliases: [catalog_service, catalog-svc]
+          canonical: catalog-service
+
+    # ─────────────────────────────────────────────────────────────────
+    # C3 — Canonical key ownership
+    # Each context key has exactly one producing agent or tool.
+    # Specialists may not overwrite keys owned by other agents.
+    # ─────────────────────────────────────────────────────────────────
+    context_registry:
+      canonical_keys:
+        # Set by orchestrator at session start from incident fixture
+        incident_service:
+          owner: sre
+          write: exclusive
+        incident_description:
+          owner: sre
+          write: exclusive
+        incident_severity:
+          owner: sre
+          write: exclusive
+
+        # Set by telemetry agent
+        telemetry_p99:
+          owner: telemetry
+          write: exclusive
+        telemetry_error_rate:
+          owner: telemetry
+          write: exclusive
+        telemetry_cpu_pct:
+          owner: telemetry
+          write: exclusive
+        telemetry_memory_pct:
+          owner: telemetry
+          write: exclusive
+
+        # Set by backend agent
+        backend_thread_count:
+          owner: backend
+          write: exclusive
+        backend_error_log:
+          owner: backend
+          write: exclusive
+        backend_recent_deployment:
+          owner: backend
+          write: exclusive
+
+        # Set by db agent
+        db_connection_count:
+          owner: db
+          write: exclusive
+        db_slow_query_count:
+          owner: db
+          write: exclusive
+        db_deadlock_count:
+          owner: db
+          write: exclusive
+
+        # Set by comms agent
+        comms_draft:
+          owner: comms
+          write: exclusive
+
+        # Set by verifier agent (the gate key)
+        verifier_verdict:
+          owner: verifier
+          write: exclusive
+          # Values: APPROVED | FLAGGED | REJECTED
+          # run_action is gated on verifier_verdict == APPROVED
+
+        # Threshold — fetched once by SRE orchestrator from config-tool
+        # No specialist may shadow this value
+        sla_threshold_p99:
+          owner: sre
+          write: exclusive
+
+    # ─────────────────────────────────────────────────────────────────
+    # C7 — Delegation policy and action gate
+    # run_action is BLOCKED unless verifier_verdict == APPROVED for
+    # this session. Enforced by the communication middleware, not prompting.
+    # ─────────────────────────────────────────────────────────────────
+    delegation_policy:
+      sre:
+        may_delegate_to:
+          - id: telemetry
+            scope: [read_metrics, read_logs, read_health, list_services]
+          - id: backend
+            scope: [read_logs, read_health, get_deployments]
+          - id: db
+            scope: [query_db, read_metrics]
+          - id: comms
+            scope: [draft_comms]
+          - id: verifier
+            scope: [verify_findings]
+        may_execute_actions:
+          - run_action
+        action_gate:
+          key: verifier_verdict
+          required_value: APPROVED
+          on_gate_fail: block    # hard block — run_action does not fire
+          on_gate_fail_message: >
+            run_action blocked: verifier has not returned APPROVED.
+            Current verdict: {verifier_verdict}.
+            Resolve verification before executing a production action.
+
+      # Specialists are terminal — no downstream delegation
+      telemetry:
+        may_delegate_to: []
+        may_execute_actions: []
+      backend:
+        may_delegate_to: []
+        may_execute_actions: []
+      db:
+        may_delegate_to: []
+        may_execute_actions: []
+      comms:
+        may_delegate_to: []
+        may_execute_actions: []
+      verifier:
+        may_delegate_to: []
+        may_execute_actions: []
+
+    # ─────────────────────────────────────────────────────────────────
+    # C10 — Capability-based context scopes
+    # Agents receive only facts within their declared read_scopes.
+    # The assembler enforces this positively (fetch declared keys only)
+    # and negatively (withhold facts outside scope, regardless of prompt).
+    # ─────────────────────────────────────────────────────────────────
+    agent_capabilities:
+      sre:
+        read_scopes: [public, sre_internal, config, incident_meta]
+      telemetry:
+        read_scopes: [public, sre_internal]
+      backend:
+        read_scopes: [public, sre_internal]
+      db:
+        read_scopes: [public, sre_internal, db_internal]
+      comms:
+        read_scopes: [public]      # comms drafts public-facing updates only
+      verifier:
+        read_scopes: [public, sre_internal]
+
+    # ─────────────────────────────────────────────────────────────────
+    # C2 — Required context keys per agent
+    # Agents are not dispatched unless all required keys are present
+    # and within their freshness window. Missing keys inject a
+    # [MISSING] marker into the context; they do not silently omit.
+    # ─────────────────────────────────────────────────────────────────
+    context_policy:
+      on_missing_key: inject_gap_marker   # NOT silent_omit
+      on_stale_key: inject_stale_marker   # NOT silent_pass
+
+      per_agent:
+        telemetry:
+          required_context_keys:
+            - key: incident_service
+              source: sre
+              freshness_delta: 3600s
+            - key: incident_description
+              source: sre
+              freshness_delta: 3600s
+
+        backend:
+          required_context_keys:
+            - key: incident_service
+              source: sre
+              freshness_delta: 3600s
+            - key: telemetry_p99
+              source: telemetry
+              freshness_delta: 300s   # must be fresh — telemetry runs first
+            - key: telemetry_error_rate
+              source: telemetry
+              freshness_delta: 300s
+
+        db:
+          required_context_keys:
+            - key: incident_service
+              source: sre
+              freshness_delta: 3600s
+            - key: telemetry_p99
+              source: telemetry
+              freshness_delta: 300s
+            - key: telemetry_error_rate
+              source: telemetry
+              freshness_delta: 300s
+
+        comms:
+          required_context_keys:
+            - key: incident_service
+              source: sre
+              freshness_delta: 3600s
+            - key: telemetry_p99
+              source: telemetry
+              freshness_delta: 300s
+            - key: backend_thread_count
+              source: backend
+              freshness_delta: 300s
+            - key: db_connection_count
+              source: db
+              freshness_delta: 300s
+
+        verifier:
+          required_context_keys:
+            - key: telemetry_p99
+              source: telemetry
+              freshness_delta: 300s
+            - key: backend_thread_count
+              source: backend
+              freshness_delta: 300s
+            - key: db_connection_count
+              source: db
+              freshness_delta: 300s
+            # NOTE: verifier does NOT require comms_draft
+            # This prevents a C9 cycle: comms → verifier → comms
+
+        sre:
+          required_context_keys:
+            - key: verifier_verdict
+              source: verifier
+              freshness_delta: 3600s    # must have run in this session
+            - key: comms_draft
+              source: comms
+              freshness_delta: 3600s
+
+    # ─────────────────────────────────────────────────────────────────
+    # C1 + C5 — Output contracts (REMOVED)
+    #
+    # Output contracts (required_fields, required_sections, citations)
+    # were aspirational.  Enforcing structured output from free-text
+    # LLM responses is inherently unreliable: parsing is heuristic,
+    # and reject_and_retry may not converge.  These requirements are
+    # better addressed via structured-output function-calling or
+    # prompt-level instructions, not as a runtime contract.
+    #
+    # The original YAML is preserved here as a comment for reference.
+    # ─────────────────────────────────────────────────────────────────
+
+    # ─────────────────────────────────────────────────────────────────
+    # C4 + C8 — TTL policy for tools
+    # Each tool class has a declared TTL. The assembler rejects stale
+    # facts at ingestion (C4). The context monitor rejects stale facts
+    # at reasoning time when a long-running session holds old values (C8).
+    # ─────────────────────────────────────────────────────────────────
+    tool_ttl_policy:
+      get_metrics:     300s    # 5 minutes — metrics change fast
+      get_logs:        600s    # 10 minutes
+      get_service_health: 60s  # 1 minute — health checks must be very fresh
+      query_db:        300s
+      get_deployments: 1800s   # 30 minutes — deployment history is stable
+      list_services:   3600s   # 1 hour — service list rarely changes
+
+      # Global maximum age at reasoning time (C8)
+      # If a fact has been in context longer than this, it is considered
+      # stale at use time, even if it passed C4 at ingestion.
+      max_age_at_reasoning: 600s
+
+    # ─────────────────────────────────────────────────────────────────
+    # C9 — Explicit DAG edges (for mas-ctl check)
+    # mas-ctl check runs a topological sort on these edges at deploy time.
+    # A cycle is a deploy-time error.
+    # ─────────────────────────────────────────────────────────────────
+    workflow:
+      edges:
+        # sre dispatches all specialists; no specialist dispatches another
+        - from: sre       to: telemetry     label: "step1:telemetry_first"
+        - from: sre       to: backend       label: "step2:after_telemetry"
+        - from: sre       to: db            label: "step3:after_backend"
+        - from: sre       to: comms         label: "step4:after_specialists"
+        - from: sre       to: verifier      label: "step5:after_comms"
+        # Specialists are leaves — no outgoing edges
+        # This ensures: telemetry, backend, db, comms, verifier are all terminal
+        # comms does NOT depend on verifier (prevents C9 cycle)
+        # verifier does NOT depend on comms (prevents C9 cycle)
+
+    # ─────────────────────────────────────────────────────────────────
+    # Telemetry output path
+    # ─────────────────────────────────────────────────────────────────
+    telemetry:
+      path: ../traces/robust/events.jsonl

@@ -1,0 +1,96 @@
+id: webhook-worker-scale-up
+description: >
+  Webhook-worker is healthy but underprovisioned during a burst of legitimate partner
+  retries and backlog growth after an external endpoint outage recovered.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: webhook-worker
+  action: scale_up
+  reasoning: >
+    The dominant signal is sustained backlog and worker saturation under load.
+    Queue consumer logic is healthy and there is no correlated rollout, so scaling
+    up webhook-worker is the correct immediate response.
+source_evidence:
+  - source: idempotent_receiver
+    url: https://martinfowler.com/articles/patterns-of-distributed-systems/idempotent-receiver.html
+    facts:
+      - Backlog growth can remain safe when the consumer stays idempotent and ordered.
+  - source: aws_retry_limits
+    url: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_limit_retries.html
+    facts:
+      - External retry bursts create transient demand spikes that require capacity rather than rollback.
+observed_symptoms:
+  - Downstream partner outage recovery produced a 9x replay burst of legitimate webhook deliveries.
+  - Consumers are processing correctly but cannot drain backlog fast enough at current replica count.
+  - No new deploy or consumer-logic regression aligns with incident onset.
+services:
+  webhook-worker:
+    aliases: [webhook_worker, webhook-consumer]
+    metrics:
+      latency_ms: { p50: 430.0, p95: 1440.0, p99: 2380.0 }
+      error_rate: 0.041
+      requests_per_second: 1480.0
+      named:
+        queue_depth:
+          value: 88412
+          unit: messages
+          status: critical
+        active_consumers:
+          value: 96
+          unit: consumers
+          status: critical
+        cpu_utilization:
+          value: 0.94
+          unit: ratio
+          status: critical
+        retry_replay_share:
+          value: 0.58
+          unit: ratio
+          status: warning
+    health:
+      status: critical
+      uptime_percent: 99.8
+      error_rate_percent: 4.1
+      dependencies:
+        event-broker: healthy
+        webhook-endpoint-cache: healthy
+    deployments:
+      - version: "1.33.7"
+        status: success
+        deployed_days_before_incident: 6
+        deployed_by: ci/cd-pipeline
+        commit_sha: 7de61af
+        commit_message: "feat(webhook): refactor consumer ack pipeline and idempotency bookkeeping"
+        duration_seconds: 99
+        overlap_with_incident: false
+      - version: "1.33.6"
+        status: success
+        deployed_days_before_incident: 9
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(webhook): stabilize queue ack ordering"
+        duration_seconds: 87
+        overlap_with_incident: false
+    logs:
+      - level: WARN
+        message: "[webhook-worker] Backlog exceeded 88k after partner endpoint recovery replay burst"
+      - level: WARN
+        message: "[webhook-worker] All consumers busy, but ack ordering and idempotency checks remain healthy"
+      - level: INFO
+        message: "[webhook-worker] No new deploy or config change near backlog onset"
+    rollback:
+      from_version: "1.33.7"
+      to_version: "1.33.6"
+      message: "Rollback is available, but current signals point to demand saturation rather than bad code."
+
+  event-broker:
+    aliases: [event_broker, queue-broker]
+    metrics:
+      latency_ms: { p50: 11.0, p95: 29.0, p99: 55.0 }
+      error_rate: 0.001
+      requests_per_second: 4120.0
+    health:
+      status: healthy
+      uptime_percent: 99.99
+      error_rate_percent: 0.1
+      dependencies: {}

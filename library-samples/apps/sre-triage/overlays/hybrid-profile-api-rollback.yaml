@@ -1,0 +1,20 @@
+apiVersion: mas/v1
+kind: Overlay
+
+metadata:
+  name: hybrid-profile-api-rollback
+  description: "Hybrid/public-derived fixture: profile-api-rollback."
+  annotations:
+    provenance.mix: hybrid_public_seed
+    provenance.source_type: public_incident_pattern_plus_synthetic_trace
+    provenance.confidence: medium
+    provenance.owner: sre-eval
+    provenance.review_status: draft
+    provenance.fixture: datasets/incidents/profile-api-rollback.yaml
+
+spec:
+  target:
+    kind: MAS
+  patch:
+    params:
+      incident_fixture: datasets/incidents/profile-api-rollback.yaml

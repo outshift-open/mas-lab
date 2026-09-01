@@ -176,7 +176,14 @@ export function AgentNode({ data, selected }: NodeProps<AgentNodeType>) {
             className="agent-node__handle agent-node__handle--tools"
           />
           <span className="agent-node__slot-label">TOOLS</span>
-          <span className="agent-node__slot-value">
+          <span
+            className="agent-node__slot-value"
+            title={
+              data.connectedTools && data.connectedTools.length > 0
+                ? data.connectedTools.join(", ")
+                : undefined
+            }
+          >
             {data.connectedTools && data.connectedTools.length > 0
               ? data.connectedTools.join(", ")
               : "—"}
@@ -191,7 +198,15 @@ export function AgentNode({ data, selected }: NodeProps<AgentNodeType>) {
             className="agent-node__handle agent-node__handle--prompt-skills"
           />
           <span className="agent-node__slot-label">PROMPT SKILLS</span>
-          <span className="agent-node__slot-value">
+          <span
+            className="agent-node__slot-value"
+            title={
+              data.connectedPromptSkills &&
+              data.connectedPromptSkills.length > 0
+                ? data.connectedPromptSkills.join(", ")
+                : undefined
+            }
+          >
             {data.connectedPromptSkills && data.connectedPromptSkills.length > 0
               ? data.connectedPromptSkills.join(", ")
               : "—"}
@@ -206,7 +221,15 @@ export function AgentNode({ data, selected }: NodeProps<AgentNodeType>) {
             className="agent-node__handle agent-node__handle--context-skills"
           />
           <span className="agent-node__slot-label">CONTEXT SKILLS</span>
-          <span className="agent-node__slot-value">
+          <span
+            className="agent-node__slot-value"
+            title={
+              data.connectedContextSkills &&
+              data.connectedContextSkills.length > 0
+                ? data.connectedContextSkills.join(", ")
+                : undefined
+            }
+          >
             {data.connectedContextSkills &&
             data.connectedContextSkills.length > 0
               ? data.connectedContextSkills.join(", ")

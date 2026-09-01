@@ -244,7 +244,11 @@ class LabRegistry:
                 data = load_yaml_file(path)
                 meta = data.get("metadata", {})
                 entry["description"] = str(meta.get("description", "") or "")
-                entry["namespace"] = str((data.get("metadata") or {}).get("namespace", "global") or "global")
+                entry["namespace"] = str(
+                    data.get("x-namespace")
+                    or (data.get("metadata") or {}).get("namespace")
+                    or "global"
+                )
             except Exception:
                 entry["description"] = ""
                 entry["namespace"] = "global"
