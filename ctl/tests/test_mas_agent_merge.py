@@ -185,20 +185,28 @@ def test_wire_entry_engine_delegation_enables_tool_loop_on_leaf():
     assert inner.manifest is manifest
 
 
-def test_reset_engine_delegation_clears_delegate_cache():
+def test_reset_engine_delegation_does_not_suppress_repeated_delegation():
     from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
 
     from mas.ctl.manifest.mas_agent_merge import reset_engine_delegation
 
+    calls: list[str] = []
+
+    def run_turn(
+        agent_id: str, task: str, correlation_id: int, caller_call_id: str, context_id: str
+    ) -> str:
+        calls.append(agent_id)
+        return f"findings:{agent_id}:{task}"
+
     class _Engine:
         def __init__(self) -> None:
-            self.delegation = LlmDelegator(run_turn=lambda _a, _t, _c, _ccid, _ctx_id: "ok")
+            self.delegation = LlmDelegator(run_turn=run_turn)
 
     engine = _Engine()
-    engine.delegation.delegate("peer", "task")
-    assert ("peer", "task", "") in engine.delegation._completed_peers
+    assert engine.delegation.delegate("peer", "task") == "findings:peer:task"
     reset_engine_delegation(engine)
-    assert not engine.delegation._completed_peers
+    assert engine.delegation.delegate("peer", "task") == "findings:peer:task"
+    assert calls == ["peer", "peer"]
 
 
 def test_apply_agency_entry_overlay_merges_context_and_tools():
