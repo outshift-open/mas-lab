@@ -19,6 +19,9 @@ class LlmDelegator:
         run_turn: RunTurnFn,
     ) -> None:
         self._run_turn = run_turn
+        # Compatibility cache retained for reset/session lifecycle hooks and tests.
+        # Delegations are intentionally executed fresh each round; this cache is only
+        # a bookkeeping record and must never suppress a new call.
         self._completed_peers: dict[tuple[str, str, str], str] = {}
 
     def reset_session(self) -> None:
@@ -44,13 +47,6 @@ class LlmDelegator:
         if not target_agent_id:
             return "[delegation] missing target agent id"
         task_key = task.strip()
-        cache_key = (target_agent_id, task_key, context_id)
-        if cache_key in self._completed_peers:
-            return (
-                f"[delegation] {target_agent_id!r} already consulted this session for "
-                "the same task — use the findings below; call the next specialist instead.\n\n"
-                f"{self._completed_peers[cache_key]}"
-            )
         try:
             result = self._run_turn(
                 target_agent_id, task_key, correlation_id, caller_call_id, context_id
@@ -59,7 +55,10 @@ class LlmDelegator:
             return f"[delegation] agent {target_agent_id!r} not available on bus"
         except RuntimeError as exc:
             return f"[delegation] agent {target_agent_id!r} failed: {exc}"
-        self._completed_peers[cache_key] = result
+
+        # Keep the completion cache for compatibility/reset hooks without blocking
+        # future delegations. Fresh execution remains the source of truth.
+        self._completed_peers[(target_agent_id, task_key, caller_call_id)] = result
         return result
 
     def call_delegate_tool(

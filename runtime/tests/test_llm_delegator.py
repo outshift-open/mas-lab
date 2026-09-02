@@ -36,7 +36,7 @@ def test_llm_delegator_is_delegate_tool():
     assert not delegator.is_delegate_tool("delegate_to_")
 
 
-def test_llm_delegator_caches_identical_task_per_session():
+def test_llm_delegator_repeats_identical_task_per_session():
     calls: list[str] = []
 
     def run_turn(
@@ -47,10 +47,9 @@ def test_llm_delegator_caches_identical_task_per_session():
 
     delegator = LlmDelegator(run_turn=run_turn)
     assert delegator.delegate("telemetry", "task1") == "findings:telemetry:task1"
-    cached = delegator.delegate("telemetry", "task1")
-    assert "already consulted" in cached
-    assert "findings:telemetry:task1" in cached
-    assert calls == ["telemetry"]
+    repeated = delegator.delegate("telemetry", "task1")
+    assert repeated == "findings:telemetry:task1"
+    assert calls == ["telemetry", "telemetry"]
 
 
 def test_llm_delegator_different_tasks_call_peer_again():
