@@ -19,9 +19,16 @@ _TEMPLATES = Path(__file__).resolve().parent / "fixtures" / "templates"
 
 
 def _fake_store(lab: Path):
+    from mas.lab.controller.lab_registry import LabRegistry
     from mas.lab.controller.manifest_store import ManifestStore
 
-    store = ManifestStore(workspace=None)
+    # Normal construction: the autouse `_controller_test_defaults` fixture sets
+    # MAS_LAB_REGISTRY_EAGER_REFRESH=0, so LabRegistry() does no discovery here.
+    # Only one in-memory demo library is needed, injected after construction.
+    registry = LabRegistry(workspace=None)
+    registry._libraries = {"demo": lab}
+    registry._library_sources = {"demo": "test-fixture"}
+    store = ManifestStore(registry=registry)
     store._libraries = {"demo": lab}
     return store
 
@@ -38,9 +45,11 @@ def demo_lab(tmp_path: Path) -> Path:
 def client(demo_lab, monkeypatch):
     from mas.lab.controller import fastapi_app
 
+    store = _fake_store(demo_lab)
+
     monkeypatch.setattr(
         "mas.lab.controller.deps.get_manifest_store",
-        lambda: _fake_store(demo_lab),
+        lambda: store,
     )
     return TestClient(fastapi_app.app)
 
@@ -92,14 +101,29 @@ def test_experiments_crud(client, demo_lab):
     assert resp.status_code == 201
     assert (demo_lab / "experiments" / "newone.yaml").exists()
 
+    # Regression guard: the list endpoint must reflect the write immediately,
+    # not a listing cached from before the create (invalidate() on write).
+    # `filename` (unlike `name`, which is parsed from the YAML content and may
+    # differ from the on-disk name) is a reliable proxy for the written file.
+    after_create = client.get("/api/libraries/demo/experiments").json()["experiments"]
+    assert any(e["filename"] == "newone.yaml" for e in after_create)
+
     client.put(
         "/api/libraries/demo/experiments/newone",
-        json={"name": "renamed", "content": "metadata:\n  name: renamed\n"},
+        json={"name": "renamed", "content": newone_yaml.replace("name: new-experiment", "name: renamed")},
     )
     assert (demo_lab / "experiments" / "renamed.yaml").exists()
 
+    after_rename = client.get("/api/libraries/demo/experiments").json()["experiments"]
+    after_rename_filenames = {e["filename"] for e in after_rename}
+    assert "renamed.yaml" in after_rename_filenames
+    assert "newone.yaml" not in after_rename_filenames
+
     client.delete("/api/libraries/demo/experiments/renamed")
     assert not (demo_lab / "experiments" / "renamed.yaml").exists()
+
+    after_delete = client.get("/api/libraries/demo/experiments").json()["experiments"]
+    assert "renamed.yaml" not in {e["filename"] for e in after_delete}
 
 
 # -- Pipelines & Overlays ----------------------------------------------------

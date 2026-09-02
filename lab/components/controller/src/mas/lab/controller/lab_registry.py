@@ -12,6 +12,7 @@ import contextlib
 import importlib.resources
 import logging
 import os
+from functools import lru_cache
 from importlib.metadata import entry_points as _entry_points
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -100,11 +101,57 @@ class LabRegistry:
         self._workspace = workspace
         self._libraries: Dict[str, Path] = {}
         self._library_sources: Dict[str, str] = {}
-        self.refresh()
+        self._refreshed = False
+        # Cache of classified manifest paths keyed by (lib_dir, expected_kind,
+        # parent_dir): populated lazily on first access per library/kind and
+        # reused for the lifetime of the current refresh() cycle. Without this,
+        # every list_experiments()/list_pipelines()/list_datasets()/
+        # list_overlays() call re-walked the entire library tree and re-parsed
+        # every YAML file to reclassify its declared kind, even though the
+        # result is invariant until the next explicit refresh().
+        self._manifest_file_cache: Dict[tuple[Path, str, str | None], List[Path]] = {}
+        eager = os.environ.get("MAS_LAB_REGISTRY_EAGER_REFRESH", "1").strip().lower()
+        if eager not in {"0", "false", "no"}:
+            self.refresh()
+
+    def _ensure_ready(self) -> None:
+        if self._libraries:
+            return
+        if not self._refreshed:
+            self.refresh()
 
     def refresh(self) -> None:
         self._libraries, self._library_sources = self._discover_library_paths()
+        self._manifest_file_cache = {}
         self._log_discovery()
+        self._refreshed = True
+
+    def invalidate_manifest_cache(self) -> None:
+        """Drop cached experiment/pipeline/dataset/overlay file listings.
+
+        The CRUD routes write/delete manifest files directly on the
+        filesystem rather than through this registry, so they must call this
+        after any such write so the next ``list_*`` call rescans instead of
+        returning a listing cached from before the write.
+        """
+        self._manifest_file_cache = {}
+
+    def _cached_manifest_files(
+        self, lib_dir: Path, expected_kind: str, *, parent_dir: str | None = None
+    ) -> List[Path]:
+        """Scan-once wrapper around :func:`_iter_manifest_files`.
+
+        The underlying scan (full ``rglob`` + YAML-parse-and-classify per file)
+        is only ever performed once per (library, kind) pair for the current
+        refresh() cycle; subsequent calls reuse the cached path list.
+        """
+        cache = self._manifest_file_cache
+        key = (lib_dir, expected_kind, parent_dir)
+        cached = cache.get(key)
+        if cached is None:
+            cached = list(_iter_manifest_files(lib_dir, expected_kind, parent_dir=parent_dir))
+            cache[key] = cached
+        return cached
 
     # ── Unified query API (UI / CLI / daemon) ─────────────────────────────
     #
@@ -146,11 +193,19 @@ class LabRegistry:
         raise KeyError(f"LabRegistry.list: unknown spec key {spec_key!r}")
 
     def runtime_objects(self, kind: str) -> Dict[str, Path]:
-        """Objects from ``mas.<kind>s`` entry points (app, dataset, tool)."""
-        try:
-            from mas.registry import list_names, get
+        """Objects from ``mas.<kind>s`` entry points (app, dataset, tool).
 
-            return {name: get(kind, name) for name in list_names(kind)}
+        Uses a single discovery pass (``list_objects``) rather than looping
+        ``get(kind, name)`` per name — each call to ``get``/``list_names``
+        independently re-walks every library root and re-parses every
+        manifest of that kind, so a per-name loop turns an O(1) scan into an
+        O(N) one (this was the actual source of multi-second discovery
+        reports, not the directory walk itself).
+        """
+        try:
+            from mas.registry import list_objects
+
+            return list_objects(kind)
         except ImportError:
             return {}
 
@@ -172,9 +227,11 @@ class LabRegistry:
     # ── Libraries ───────────────────────────────────────────────────────
 
     def library_paths(self) -> Dict[str, Path]:
+        self._ensure_ready()
         return dict(self._libraries)
 
     def libraries(self) -> List[Dict[str, str]]:
+        self._ensure_ready()
         items: List[Dict[str, str]] = []
         for slug, path in sorted(self._libraries.items()):
             items.append(
@@ -187,6 +244,7 @@ class LabRegistry:
         return items
 
     def library_root(self, library: str) -> Path:
+        self._ensure_ready()
         root = self._libraries.get(library)
         if root is None:
             raise KeyError(f"Library {library!r} not found")
@@ -261,6 +319,7 @@ class LabRegistry:
 
     def list_all_experiments(self) -> List[Dict[str, Any]]:
         """All experiment definitions across discovered libraries."""
+        self._ensure_ready()
         items: List[Dict[str, Any]] = []
         for slug in sorted(self._libraries):
             for exp in self.list_experiments(slug):
@@ -269,6 +328,7 @@ class LabRegistry:
 
     def discovery_report(self) -> Dict[str, Any]:
         """Snapshot of paths scanned and libraries resolved (for debugging / UI)."""
+        self._ensure_ready()
         ws_root = self._workspace_root()
         return {
             "workspace_root": str(ws_root) if ws_root else None,
@@ -451,16 +511,16 @@ class LabRegistry:
             )
 
     def _iter_experiment_files(self, lib_dir: Path):
-        yield from _iter_manifest_files(lib_dir, "experiment")
+        yield from self._cached_manifest_files(lib_dir, "experiment")
 
     def _iter_pipeline_files(self, lib_dir: Path):
-        yield from _iter_manifest_files(lib_dir, "pipeline")
+        yield from self._cached_manifest_files(lib_dir, "pipeline")
 
     def _iter_dataset_files(self, lib_dir: Path):
-        yield from _iter_manifest_files(lib_dir, "dataset", parent_dir="datasets")
+        yield from self._cached_manifest_files(lib_dir, "dataset", parent_dir="datasets")
 
     def _iter_overlay_files(self, lib_dir: Path):
-        yield from _iter_manifest_files(lib_dir, "overlay", parent_dir="overlays")
+        yield from self._cached_manifest_files(lib_dir, "overlay", parent_dir="overlays")
 
     def _collect_mas_resources(self, lib_dir: Path) -> Dict[str, Dict[str, Any]]:
         result: Dict[str, Dict[str, Any]] = {}
@@ -563,6 +623,7 @@ class LabRegistry:
         return None
 
     @staticmethod
+    @lru_cache(maxsize=1)
     def discover_bundled_infra() -> Dict[str, str]:
         """Infra bundle YAML from installed ``mas.runtime.manifest_libraries`` packages."""
         bundled: Dict[str, str] = {}

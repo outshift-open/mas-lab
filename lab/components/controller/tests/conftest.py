@@ -10,6 +10,14 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _controller_test_defaults(monkeypatch: pytest.MonkeyPatch):
+    """Speed up controller tests by disabling startup discovery noise and churn."""
+    monkeypatch.setenv("MAS_CONTROLLER_DISABLE_STARTUP_DISCOVERY", "1")
+    monkeypatch.setenv("MAS_CONTROLLER_REFRESH_INTERVAL_S", "5")
+    monkeypatch.setenv("MAS_LAB_REGISTRY_EAGER_REFRESH", "0")
+
+
 @pytest.fixture
 def temp_mas_home(monkeypatch: pytest.MonkeyPatch):
     with tempfile.TemporaryDirectory() as tmp:

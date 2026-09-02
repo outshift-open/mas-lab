@@ -145,7 +145,7 @@ def test_lab_library_includes_workspace_apps(nested_lab: Path, monkeypatch):
     reset_lab_registry()
 
 
-def test_config_files_include_workspace_infra(tmp_path: Path):
+def test_config_files_include_workspace_infra(tmp_path: Path, monkeypatch):
     ws = tmp_path / "workspace"
     ws.mkdir()
     (ws / "infra").mkdir()
@@ -156,20 +156,26 @@ def test_config_files_include_workspace_infra(tmp_path: Path):
     lab = ws / "labs" / "demo.lab"
     lab.mkdir(parents=True)
 
-    reset_lab_registry()
-    reg = LabRegistry()
-    reg._libraries = {"demo": lab}
-    monkeypatch_ws = type("Ws", (), {"_path": ws, "_data": {}})()
-    reg._workspace = monkeypatch_ws
+    monkeypatch.setattr(
+        "mas.lab.controller.lab_registry.LabRegistry.discover_bundled_infra",
+        classmethod(lambda cls: {}),
+    )
 
     from mas.lab.controller.manifest_store import ManifestStore
 
-    store = ManifestStore(monkeypatch_ws)
+    monkeypatch_ws = type("Ws", (), {"_path": ws, "_data": {}})()
+    # Normal construction: the autouse `_controller_test_defaults` fixture sets
+    # MAS_LAB_REGISTRY_EAGER_REFRESH=0, so LabRegistry() does no discovery here.
+    registry = LabRegistry(workspace=monkeypatch_ws)
+    registry._libraries = {"demo": lab}
+    registry._library_sources = {"demo": "test-fixture"}
+    store = ManifestStore(workspace=monkeypatch_ws, registry=registry)
     store._libraries = {"demo": lab}
     configs = store.config_files("demo")
     assert any(k.startswith("workspace/infra/") for k in configs["infra"])
     assert "config.yaml" not in configs["workspace"] or configs["workspace"] == {}
     reset_lab_registry()
+
 
 
 def test_list_all_experiments_across_libraries(tmp_path: Path):
@@ -188,6 +194,95 @@ def test_list_all_experiments_across_libraries(tmp_path: Path):
     all_exps = reg.list_all_experiments()
     assert len(all_exps) == 2
     assert {e["library"] for e in all_exps} == {"a", "b"}
+    reset_lab_registry()
+
+
+def test_manifest_file_cache_reused_until_refresh(nested_lab: Path, monkeypatch):
+    """_iter_manifest_files is only invoked once per (library, kind); repeated
+    list_*() calls must reuse the cached path list until refresh() runs."""
+    import mas.lab.controller.lab_registry as lab_registry_mod
+
+    reset_lab_registry()
+    reg = LabRegistry()
+    reg._libraries = {"design-space": nested_lab}
+
+    calls = {"n": 0}
+    real_iter = lab_registry_mod._iter_manifest_files
+
+    def counting_iter(*args, **kwargs):
+        calls["n"] += 1
+        return real_iter(*args, **kwargs)
+
+    monkeypatch.setattr(lab_registry_mod, "_iter_manifest_files", counting_iter)
+
+    reg.list_experiments("design-space")
+    reg.list_experiments("design-space")
+    assert calls["n"] == 1, "second call should reuse the cached path list"
+
+    reg.refresh()
+    reg._libraries = {"design-space": nested_lab}
+    reg.list_experiments("design-space")
+    assert calls["n"] == 2, "refresh() must force a rescan"
+
+    reset_lab_registry()
+
+
+def test_invalidate_manifest_cache_forces_rescan(nested_lab: Path, monkeypatch):
+    """CRUD routes write manifest files directly to disk, bypassing the
+    registry, so invalidate_manifest_cache() must force the next list_*()
+    call to rescan instead of returning a listing cached from before the
+    write."""
+    import mas.lab.controller.lab_registry as lab_registry_mod
+
+    reset_lab_registry()
+    reg = LabRegistry()
+    reg._libraries = {"design-space": nested_lab}
+
+    calls = {"n": 0}
+    real_iter = lab_registry_mod._iter_manifest_files
+
+    def counting_iter(*args, **kwargs):
+        calls["n"] += 1
+        return real_iter(*args, **kwargs)
+
+    monkeypatch.setattr(lab_registry_mod, "_iter_manifest_files", counting_iter)
+
+    reg.list_experiments("design-space")
+    assert calls["n"] == 1
+
+    reg.invalidate_manifest_cache()
+    reg.list_experiments("design-space")
+    assert calls["n"] == 2, "invalidate_manifest_cache() must force a rescan"
+
+    reset_lab_registry()
+
+
+def test_manifest_store_invalidate_delegates_to_registry(nested_lab: Path, monkeypatch):
+    reset_lab_registry()
+    registry = LabRegistry()
+    registry._libraries = {"design-space": nested_lab}
+
+    calls = {"n": 0}
+    monkeypatch.setattr(
+        registry, "invalidate_manifest_cache", lambda: calls.__setitem__("n", calls["n"] + 1)
+    )
+
+    store = ManifestStore(registry=registry)
+    store._libraries = {"design-space": nested_lab}
+    store.invalidate()
+    assert calls["n"] == 1
+    reset_lab_registry()
+
+
+def test_manifest_store_registry_injection_bypasses_singleton():
+    """ManifestStore(registry=...) must use the injected registry instead of
+    the process-wide get_lab_registry() singleton."""
+    reset_lab_registry()
+    registry = LabRegistry()
+    registry._libraries = {"demo": Path("/nonexistent")}
+
+    store = ManifestStore(registry=registry)
+    assert store._registry is registry
     reset_lab_registry()
 
 

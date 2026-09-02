@@ -34,6 +34,7 @@ def create_dataset(library_name: str, req: SaveDatasetRequest):
         raise HTTPException(status_code=409, detail=f"Dataset '{filename}' already exists")
 
     file_path.write_text(req.content, encoding="utf-8")
+    deps.get_manifest_store().invalidate()
     return {"name": filename}
 
 
@@ -71,6 +72,7 @@ def update_dataset(library_name: str, dataset_name: str, req: SaveDatasetRequest
     if old_path != new_path:
         old_path.unlink()
     new_path.write_text(req.content, encoding="utf-8")
+    deps.get_manifest_store().invalidate()
     return {"name": new_name}
 
 
@@ -85,4 +87,5 @@ def delete_dataset(library_name: str, dataset_name: str):
         raise HTTPException(status_code=404, detail=f"Dataset '{dataset_name}' not found")
 
     file_path.unlink()
+    deps.get_manifest_store().invalidate()
     return {"deleted": dataset_name}

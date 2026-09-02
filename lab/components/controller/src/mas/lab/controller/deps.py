@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -16,11 +17,25 @@ from mas.lab.controller.constants import HIDDEN_FILES, LIBRARIES_DIR
 logger = logging.getLogger(__name__)
 
 _manifest_store = None
+_manifest_store_last_refresh = 0.0
+
+
+def _refresh_interval_seconds() -> float:
+    """Return manifest refresh throttle interval.
+
+    Set MAS_CONTROLLER_REFRESH_INTERVAL_S=0 to keep legacy refresh-on-every-call behavior.
+    """
+    raw = os.environ.get("MAS_CONTROLLER_REFRESH_INTERVAL_S", "1.0").strip()
+    try:
+        interval = float(raw)
+    except ValueError:
+        return 1.0
+    return max(0.0, interval)
 
 
 def get_manifest_store():
     """Lazy ManifestStore — discovers *.lab dirs and manifest_libraries."""
-    global _manifest_store
+    global _manifest_store, _manifest_store_last_refresh
     if _manifest_store is None:
         from mas.lab.controller.manifest_store import ManifestStore
 
@@ -31,8 +46,13 @@ def get_manifest_store():
         except Exception:
             ws = None
         _manifest_store = ManifestStore(ws)
+        _manifest_store_last_refresh = time.monotonic()
     else:
-        _manifest_store.refresh()
+        now = time.monotonic()
+        interval = _refresh_interval_seconds()
+        if interval <= 0.0 or (now - _manifest_store_last_refresh) >= interval:
+            _manifest_store.refresh()
+            _manifest_store_last_refresh = now
     return _manifest_store
 
 

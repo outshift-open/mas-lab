@@ -95,6 +95,7 @@ async def create_overlay(library_name: str, req: SaveOverlayRequest):
             raise HTTPException(status_code=422, detail=result)
 
     file_path.write_text(req.content, encoding="utf-8")
+    deps.get_manifest_store().invalidate()
     return {"name": req.name, "filename": filename}
 
 
@@ -137,6 +138,7 @@ async def update_overlay(library_name: str, overlay_name: str, req: SaveOverlayR
     if old_path != new_path:
         old_path.unlink()
     new_path.write_text(req.content, encoding="utf-8")
+    deps.get_manifest_store().invalidate()
     return {"name": req.name, "filename": new_filename}
 
 
@@ -150,4 +152,5 @@ async def delete_overlay(library_name: str, overlay_name: str):
         raise HTTPException(status_code=404, detail=f"Overlay '{overlay_name}' not found")
 
     file_path.unlink()
+    deps.get_manifest_store().invalidate()
     return {"deleted": overlay_name}
