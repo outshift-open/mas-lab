@@ -199,6 +199,48 @@ async def test_run_job_paths(monkeypatch, tmp_path):
     assert job2.status == jobs.JobStatus.FAILED
 
 
+@pytest.mark.asyncio
+async def test_lifespan_disabled_skips_discovery(monkeypatch):
+    """MAS_CONTROLLER_DISABLE_STARTUP_DISCOVERY must short-circuit before
+    touching the manifest store at all."""
+    from mas.lab.controller import fastapi_app
+
+    monkeypatch.setenv("MAS_CONTROLLER_DISABLE_STARTUP_DISCOVERY", "1")
+
+    def _boom():
+        raise AssertionError("get_manifest_store() must not be called when startup discovery is disabled")
+
+    monkeypatch.setattr(fastapi_app, "get_manifest_store", _boom)
+
+    async with fastapi_app.lifespan(fastapi_app.app):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_lifespan_enabled_emits_discovery_report(monkeypatch):
+    """Default behavior (flag unset/false): lifespan fetches the manifest
+    store and logs a single discovery report on startup."""
+    from mas.lab.controller import fastapi_app
+
+    monkeypatch.setenv("MAS_CONTROLLER_DISABLE_STARTUP_DISCOVERY", "0")
+    calls = {"n": 0}
+
+    class _FakeRegistry:
+        def discovery_report(self):
+            calls["n"] += 1
+            return {"libraries": []}
+
+    class _FakeStore:
+        _registry = _FakeRegistry()
+
+    monkeypatch.setattr(fastapi_app, "get_manifest_store", lambda: _FakeStore())
+
+    async with fastapi_app.lifespan(fastapi_app.app):
+        pass
+
+    assert calls["n"] == 1
+
+
 def test_api_info_and_topologies(client, demo_lab):
     info = client.get("/api/info").json()
     assert "libraries_dir" in info

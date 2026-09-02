@@ -191,6 +191,7 @@ def test_ensure_running_failure(temp_mas_home, monkeypatch):
 
     monkeypatch.setattr(client_mod, "start_daemon", lambda **kw: None)
     monkeypatch.setattr(client_mod.ControllerClient, "is_running", lambda self: False)
+    monkeypatch.setattr(client_mod.time, "sleep", lambda _s: None)
     client = ControllerClient()
     with pytest.raises(RuntimeError, match="failed to start"):
         client.ensure_running(auto_start=True)

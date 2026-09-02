@@ -314,6 +314,86 @@ def test_contract_scenarios_and_datasets(client):
         assert "path" in d
 
 
+# --- Datasets CRUD (apiCalls: create/update/delete dataset) ---
+
+
+def test_contract_datasets_crud(client, demo_lab):
+    dataset_yaml = (
+        "apiVersion: lab/v1\nkind: Dataset\nmetadata:\n  name: new-dataset\n"
+        "spec:\n  items: []\n"
+    )
+    created = client.post(
+        "/api/libraries/demo/datasets",
+        json={"name": "new-dataset", "content": dataset_yaml},
+    )
+    assert created.status_code == 201
+    assert (demo_lab / "datasets" / "new-dataset.yaml").exists()
+
+    after_create = client.get("/api/libraries/demo/datasets").json()
+    assert "new-dataset.yaml" in {d["name"] for d in after_create["datasets"]}
+
+    renamed_yaml = dataset_yaml.replace("name: new-dataset", "name: renamed-dataset")
+    updated = client.put(
+        "/api/libraries/demo/datasets/new-dataset",
+        json={"name": "renamed-dataset", "content": renamed_yaml},
+    )
+    assert updated.status_code == 200
+    assert not (demo_lab / "datasets" / "new-dataset.yaml").exists()
+    assert (demo_lab / "datasets" / "renamed-dataset.yaml").exists()
+
+    after_rename = client.get("/api/libraries/demo/datasets").json()
+    after_rename_names = {d["name"] for d in after_rename["datasets"]}
+    assert "renamed-dataset.yaml" in after_rename_names
+    assert "new-dataset.yaml" not in after_rename_names
+
+    deleted = client.delete("/api/libraries/demo/datasets/renamed-dataset")
+    assert deleted.status_code in (200, 204)
+    assert not (demo_lab / "datasets" / "renamed-dataset.yaml").exists()
+
+    after_delete = client.get("/api/libraries/demo/datasets").json()
+    assert "renamed-dataset.yaml" not in {d["name"] for d in after_delete["datasets"]}
+
+
+# --- Overlays CRUD (apiCalls: create/update/delete overlay) ---
+
+
+def test_contract_overlays_crud(client, demo_lab):
+    overlay_yaml = (
+        "apiVersion: mas/v1\nkind: Overlay\nmetadata:\n  name: new-overlay\n"
+        "  namespace: global\n  description: new overlay\n"
+    )
+    created = client.post(
+        "/api/libraries/demo/overlays",
+        json={"name": "new-overlay", "content": overlay_yaml, "run_validation": False},
+    )
+    assert created.status_code == 201
+    assert (demo_lab / "overlays" / "new-overlay.yaml").exists()
+
+    after_create = client.get("/api/libraries/demo/overlays").json()
+    assert "new-overlay" in {o["name"] for o in after_create["overlays"]}
+
+    renamed_yaml = overlay_yaml.replace("name: new-overlay", "name: renamed-overlay")
+    updated = client.put(
+        "/api/libraries/demo/overlays/new-overlay",
+        json={"name": "renamed-overlay", "content": renamed_yaml, "run_validation": False},
+    )
+    assert updated.status_code == 200
+    assert not (demo_lab / "overlays" / "new-overlay.yaml").exists()
+    assert (demo_lab / "overlays" / "renamed-overlay.yaml").exists()
+
+    after_rename = client.get("/api/libraries/demo/overlays").json()
+    after_rename_names = {o["name"] for o in after_rename["overlays"]}
+    assert "renamed-overlay" in after_rename_names
+    assert "new-overlay" not in after_rename_names
+
+    deleted = client.delete("/api/libraries/demo/overlays/renamed-overlay")
+    assert deleted.status_code in (200, 204)
+    assert not (demo_lab / "overlays" / "renamed-overlay.yaml").exists()
+
+    after_delete = client.get("/api/libraries/demo/overlays").json()
+    assert "renamed-overlay" not in {o["name"] for o in after_delete["overlays"]}
+
+
 # --- Experiments CRUD (apiCalls: fetch/create/update/delete experiment) ---
 
 
@@ -336,6 +416,11 @@ def test_contract_experiments_crud(client, demo_lab):
     assert created.status_code == 201
     assert (demo_lab / "experiments" / "new-experiment.yaml").exists()
 
+    # Regression guard: the manifest-file cache must be invalidated on write,
+    # otherwise this list would still be the one scanned before the create.
+    after_create = client.get("/api/libraries/demo/experiments").json()
+    assert "new-experiment" in {e["name"] for e in after_create["experiments"]}
+
     readback = client.get("/api/libraries/demo/experiments/new-experiment").json()
     assert "content" in readback
     import yaml as _yaml
@@ -355,9 +440,17 @@ def test_contract_experiments_crud(client, demo_lab):
     assert not (demo_lab / "experiments" / "new-experiment.yaml").exists()
     assert (demo_lab / "experiments" / "renamed-experiment.yaml").exists()
 
+    after_rename = client.get("/api/libraries/demo/experiments").json()
+    after_rename_names = {e["name"] for e in after_rename["experiments"]}
+    assert "renamed-experiment" in after_rename_names
+    assert "new-experiment" not in after_rename_names
+
     deleted = client.delete("/api/libraries/demo/experiments/renamed-experiment")
     assert deleted.status_code in (200, 204)
     assert not (demo_lab / "experiments" / "renamed-experiment.yaml").exists()
+
+    after_delete = client.get("/api/libraries/demo/experiments").json()
+    assert "renamed-experiment" not in {e["name"] for e in after_delete["experiments"]}
 
 
 # --- Experiment cache / detail (apiCalls: deleteExperimentCache, fetchExperimentDetail) ---
@@ -425,6 +518,9 @@ def test_contract_pipelines(mock_submit_job, client, demo_lab):
     assert created.status_code == 201
     assert (demo_lab / "pipelines" / "analysis-pipeline.yaml").exists()
 
+    after_create = client.get("/api/libraries/demo/pipelines").json()
+    assert "analysis-pipeline" in {p["name"] for p in after_create["pipelines"]}
+
     renamed_yaml = pipeline_yaml.replace(
         "name: analysis-pipeline", "name: renamed-pipeline"
     )
@@ -436,6 +532,11 @@ def test_contract_pipelines(mock_submit_job, client, demo_lab):
     assert not (demo_lab / "pipelines" / "analysis-pipeline.yaml").exists()
     assert (demo_lab / "pipelines" / "renamed-pipeline.yaml").exists()
 
+    after_rename = client.get("/api/libraries/demo/pipelines").json()
+    after_rename_names = {p["name"] for p in after_rename["pipelines"]}
+    assert "renamed-pipeline" in after_rename_names
+    assert "analysis-pipeline" not in after_rename_names
+
     run = client.post(
         "/api/libraries/demo/pipeline/run",
         json={"pipeline_yaml": renamed_yaml},
@@ -443,9 +544,20 @@ def test_contract_pipelines(mock_submit_job, client, demo_lab):
     assert run.status_code == 202
     assert "job_id" in run.json()
 
+    # /pipeline/run writes an inline-content temp file (pipeline-*.yaml) directly
+    # under the library root; mock_submit_job doesn't run the real cleanup, so
+    # remove it here to isolate the delete-reflects-in-list assertion below
+    # from this unrelated temp-file artifact (unrestricted pipeline discovery
+    # scans the whole library tree, not just pipelines/).
+    for tmp_file in demo_lab.glob("pipeline-*.yaml"):
+        tmp_file.unlink()
+
     deleted = client.delete("/api/libraries/demo/pipelines/renamed-pipeline")
     assert deleted.status_code in (200, 204)
     assert not (demo_lab / "pipelines" / "renamed-pipeline.yaml").exists()
+
+    after_delete = client.get("/api/libraries/demo/pipelines").json()
+    assert "renamed-pipeline" not in {p["name"] for p in after_delete["pipelines"]}
 
 
 # --- Overlays CRUD + validate (apiCalls) ---

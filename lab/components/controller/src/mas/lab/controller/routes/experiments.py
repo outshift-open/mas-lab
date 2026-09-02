@@ -35,6 +35,7 @@ async def create_experiment(library_name: str, req: SaveExperimentRequest):
         raise HTTPException(status_code=409, detail=f"Experiment '{req.name}' already exists")
 
     file_path.write_text(req.content, encoding="utf-8")
+    deps.get_manifest_store().invalidate()
     return {"name": req.name, "filename": filename}
 
 
@@ -85,6 +86,7 @@ async def update_experiment(library_name: str, experiment_name: str, req: SaveEx
     if old_path != new_path:
         old_path.unlink()
     new_path.write_text(req.content, encoding="utf-8")
+    deps.get_manifest_store().invalidate()
     return {"name": req.name, "filename": new_filename}
 
 
@@ -99,4 +101,5 @@ async def delete_library_experiment(library_name: str, experiment_name: str):
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_name}' not found")
 
     file_path.unlink()
+    deps.get_manifest_store().invalidate()
     return {"deleted": experiment_name}

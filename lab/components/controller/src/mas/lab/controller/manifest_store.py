@@ -27,17 +27,39 @@ _SUBDIRS = {
 class ManifestStore:
     """Read/write YAML resources under library roots."""
 
-    def __init__(self, workspace: Any = None) -> None:
+    def __init__(self, workspace: Any = None, *, registry: LabRegistry | None = None) -> None:
+        """Create a store, optionally injecting a specific ``registry``.
+
+        By default the store uses the process-wide :func:`get_lab_registry`
+        singleton. Pass ``registry`` (e.g. a ``LabRegistry`` built with
+        ``MAS_LAB_REGISTRY_EAGER_REFRESH=0`` and manually populated
+        ``_libraries``) to use an isolated registry instead — this is how
+        tests avoid both the global singleton and expensive discovery,
+        without bypassing ``__init__`` via ``__new__``.
+        """
         self._workspace = workspace
-        self._registry = get_lab_registry(workspace)
+        self._registry = registry if registry is not None else get_lab_registry(workspace)
         self._libraries: Dict[str, Path] = {}
-        self.refresh()
+        self._refreshed = False
+
+    def _ensure_ready(self) -> None:
+        # Many tests override _libraries directly; avoid expensive discovery if already injected.
+        if self._libraries:
+            return
+        if not self._refreshed:
+            self.refresh()
 
     def refresh(self) -> None:
         self._registry.refresh()
         self._libraries = self._registry.library_paths()
+        self._refreshed = True
+
+    def invalidate(self) -> None:
+        """Drop cached manifest-file listings (see LabRegistry.invalidate_manifest_cache)."""
+        self._registry.invalidate_manifest_cache()
 
     def libraries(self) -> List[Dict[str, str]]:
+        self._ensure_ready()
         items: List[Dict[str, str]] = []
         for slug, path in sorted(self._libraries.items()):
             items.append(
@@ -50,6 +72,7 @@ class ManifestStore:
         return items
 
     def library_root(self, library: str) -> Path:
+        self._ensure_ready()
         root = self._libraries.get(library)
         if root is not None:
             return root
@@ -138,11 +161,11 @@ class ManifestStore:
         flavours: Dict[str, str] = {}
         infra: Dict[str, str] = {}
 
-        for path in sorted(root.rglob("flavours/*.yaml")) + sorted(root.rglob("flavours/*.yml")):
+        for path in sorted(p for p in root.rglob("flavours/*") if p.suffix in (".yaml", ".yml")):
             if path.is_file():
                 flavours[str(path.relative_to(root))] = path.read_text(encoding="utf-8")
 
-        for path in sorted(root.rglob("infra/*.yaml")) + sorted(root.rglob("infra/*.yml")):
+        for path in sorted(p for p in root.rglob("infra/*") if p.suffix in (".yaml", ".yml")):
             if path.is_file():
                 infra[str(path.relative_to(root))] = path.read_text(encoding="utf-8")
 

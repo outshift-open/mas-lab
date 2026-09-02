@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -54,3 +55,41 @@ def test_controller_api_submit_benchmark_worker():
         assert api.get_worker(result["worker_id"]) is not None
     finally:
         Path(exp_path).unlink(missing_ok=True)
+
+
+def test_get_manifest_store_refresh_throttled(monkeypatch):
+    import mas.lab.controller.deps as deps
+
+    fake_store = SimpleNamespace(refresh=lambda: None)
+    calls = {"n": 0}
+
+    def _refresh():
+        calls["n"] += 1
+
+    fake_store.refresh = _refresh
+
+    monkeypatch.setattr(deps, "_manifest_store", fake_store)
+    monkeypatch.setattr(deps, "_manifest_store_last_refresh", 100.0)
+    monkeypatch.setattr(deps.time, "monotonic", lambda: 100.2)
+    monkeypatch.setenv("MAS_CONTROLLER_REFRESH_INTERVAL_S", "1.0")
+
+    deps.get_manifest_store()
+    assert calls["n"] == 0
+
+
+def test_get_manifest_store_refresh_forced_with_zero_interval(monkeypatch):
+    import mas.lab.controller.deps as deps
+
+    calls = {"n": 0}
+
+    def _refresh():
+        calls["n"] += 1
+
+    fake_store = SimpleNamespace(refresh=_refresh)
+    monkeypatch.setattr(deps, "_manifest_store", fake_store)
+    monkeypatch.setattr(deps, "_manifest_store_last_refresh", 100.0)
+    monkeypatch.setattr(deps.time, "monotonic", lambda: 100.1)
+    monkeypatch.setenv("MAS_CONTROLLER_REFRESH_INTERVAL_S", "0")
+
+    deps.get_manifest_store()
+    assert calls["n"] == 1

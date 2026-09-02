@@ -59,6 +59,29 @@ def test_default_model_is_gpt4o_mini():
     reset_lab_registry()
 
 
+def test_runtime_objects_delegates_to_list_objects_single_pass(monkeypatch):
+    """runtime_objects() must call mas.registry.list_objects() exactly once,
+    not loop get()/list_names() per name (the source of the N+1 rescan bug)."""
+    import mas.registry as registry_mod
+
+    reset_lab_registry()
+    reg = get_lab_registry()
+
+    calls = {"n": 0}
+    real_list_objects = registry_mod.list_objects
+
+    def counting_list_objects(kind: str):
+        calls["n"] += 1
+        return real_list_objects(kind)
+
+    monkeypatch.setattr(registry_mod, "list_objects", counting_list_objects)
+
+    objects = reg.runtime_objects("dataset")
+    assert calls["n"] == 1
+    assert objects == real_list_objects("dataset")
+    reset_lab_registry()
+
+
 def test_list_experiments_lab_layout(tmp_path: Path):
     lab = tmp_path / "demo.lab"
     lab.mkdir()

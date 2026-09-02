@@ -29,6 +29,7 @@ Job tracking:
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -78,6 +79,13 @@ def _get_library_path(library_name: str):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Emit discovery report once the API process starts."""
+    if os.environ.get("MAS_CONTROLLER_DISABLE_STARTUP_DISCOVERY", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }:
+        yield
+        return
     try:
         store = get_manifest_store()
         report = store._registry.discovery_report()

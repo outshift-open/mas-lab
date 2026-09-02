@@ -58,6 +58,18 @@ def list_names(kind: str) -> list[str]:
     return sorted(_discover(kind))
 
 
+def list_objects(kind: str) -> dict[str, Path]:
+    """Return the full ``{name: path}`` mapping for *kind* in a single discovery pass.
+
+    Prefer this over calling :func:`get` once per name from :func:`list_names`
+    — each call to :func:`get`/:func:`list_names` independently re-walks the
+    filesystem and re-parses every manifest of that kind (no caching, since
+    library roots/env can change between calls), so building a full mapping
+    via a per-name ``get()`` loop is O(N) full rescans instead of one.
+    """
+    return dict(_discover(kind))
+
+
 def resolve_locator(
     locator: Union[str, dict],
     kind: str,
