@@ -19,14 +19,10 @@ class LlmDelegator:
         run_turn: RunTurnFn,
     ) -> None:
         self._run_turn = run_turn
-        # Compatibility cache retained for reset/session lifecycle hooks and tests.
-        # Delegations are intentionally executed fresh each round; this cache is only
-        # a bookkeeping record and must never suppress a new call.
-        self._completed_peers: dict[tuple[str, str, str], str] = {}
 
     def reset_session(self) -> None:
-        """Clear per-session delegate cache (new user incident)."""
-        self._completed_peers.clear()
+        """Compatibility hook retained for lifecycle callers; no cache persists."""
+        return None
 
     def is_delegate_tool(self, tool_name: str) -> bool:
         from mas.runtime.boundary.delegation.policy import DELEGATE_TOOL_PREFIX
@@ -56,9 +52,6 @@ class LlmDelegator:
         except RuntimeError as exc:
             return f"[delegation] agent {target_agent_id!r} failed: {exc}"
 
-        # Keep the completion cache for compatibility/reset hooks without blocking
-        # future delegations. Fresh execution remains the source of truth.
-        self._completed_peers[(target_agent_id, task_key, caller_call_id)] = result
         return result
 
     def call_delegate_tool(

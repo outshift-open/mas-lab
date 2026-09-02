@@ -111,7 +111,7 @@ tasks:
       - task: verify-tutorials
 
   ci:
-    desc: "CI parity — same gates as .github/workflows/test.yml (unit + functional + dry-run)"
+    desc: "CI parity — same gates as .github/workflows/test.yml (unit + functional + dry-run + chat smoke + HITL)"
     deps: [install-dev]
     cmds:
       - task: verify:literals
@@ -119,6 +119,8 @@ tasks:
       - task: verify-controller
       - task: verify-functional
       - task: validate
+      - task: verify-chat-smoke
+      - task: verify-hitl-gate
 
   ci-fast:
     desc: "Fast CI — literals + unit gate only (skips slow functional/dry-run gates)."
@@ -169,14 +171,12 @@ tasks:
           -o overlays/governance-hitl.yaml
 
   verify:
-    desc: "Full pre-commit gate — CI gates + env check, version check, chat smoke, HITL"
+    desc: "Full pre-commit gate — CI gates + local env check, version check"
     deps: [install-dev]
     cmds:
       - python3 scripts/version_manager.py check
       - task: verify-ctl-env
       - task: ci
-      - task: verify-chat-smoke
-      - task: verify-hitl-gate
 
   test:
     desc: "Run full verify suite (verbose tutorials)"
