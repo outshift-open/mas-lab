@@ -120,13 +120,17 @@ class _DeterministicBase(DesignPatternPlugin):
     def _participants_from_spec(self, config: KernelConfig) -> list[str]:
         spec = getattr(config, "agent_spec", None) or {}
         wf = (spec.get("workflow") or {}) if isinstance(spec, dict) else {}
+        # The coordinator/entry node isn't always literally named "moderator"
+        # (e.g. sre-triage's entry node is "sre") — use workflow.entry when
+        # present so the coordinator never ends up delegating to itself.
+        coordinator_id = str(wf.get("entry") or "moderator").strip() or "moderator"
 
-        # 1) moderator.delegates_to (dynamic topology)
+        # 1) coordinator.delegates_to (dynamic topology)
         nodes = wf.get("nodes") or []
         for node in nodes:
             if not isinstance(node, dict):
                 continue
-            if str(node.get("id") or "").strip() != "moderator":
+            if str(node.get("id") or "").strip() != coordinator_id:
                 continue
             delegates = node.get("delegates_to") or []
             if isinstance(delegates, list):
@@ -141,19 +145,19 @@ class _DeterministicBase(DesignPatternPlugin):
             if out:
                 return out
 
-        # 3) fallback: workflow.nodes excluding moderator
+        # 3) fallback: workflow.nodes excluding the coordinator
         out: list[str] = []
         for node in nodes:
             if not isinstance(node, dict):
                 continue
             node_id = str(node.get("id") or node.get("agent") or "").strip()
-            if not node_id or node_id == "moderator":
+            if not node_id or node_id == coordinator_id:
                 continue
             out.append(node_id)
         if out:
             return out
 
-        # 4) fallback: agency agents list from MAS spec (exclude moderator/self)
+        # 4) fallback: agency agents list from MAS spec (exclude coordinator/self)
         agency = (spec.get("agency") or {}) if isinstance(spec, dict) else {}
         rows = agency.get("agents") or []
         out = []
@@ -161,7 +165,7 @@ class _DeterministicBase(DesignPatternPlugin):
             if not isinstance(row, dict):
                 continue
             aid = str(row.get("id") or row.get("name") or "").strip()
-            if not aid or aid == "moderator":
+            if not aid or aid == coordinator_id:
                 continue
             out.append(aid)
         return out
