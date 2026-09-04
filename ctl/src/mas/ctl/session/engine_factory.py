@@ -128,6 +128,7 @@ def build_engine(
     kernel_config: KernelConfig | None = None,
     cache_read_override: bool | None = None,
     cache_write_override: bool | None = None,
+    stream_override: bool | None = None,
 ) -> EngineSelection:
     pid = pattern_plugin_id or default_pattern_plugin_id()
     # Use pre-parsed kernel config if provided (spec-aware path); fall back to manifest parsing.
@@ -170,6 +171,7 @@ def build_engine(
     cache_write = _cache_write_enabled(manifest, override=cache_write_override)
     cache_active = (cache_read or cache_write) and not mock and not (llm_proxy.get("pipeline"))
     cache_path = Path(str(cache_raw)) if cache_raw else resolve_cache_path() if cache_active else None
+    stream = _stream_enabled(manifest, override=stream_override)
 
     engine = _wrap_with_infra_pipeline(
         LiveLlmEngine(
@@ -184,6 +186,7 @@ def build_engine(
             use_cache=cache_active,
             cache_read=cache_read,
             cache_write=cache_write,
+            stream=stream,
             use_tool_loop=tool_loop,
             parallel_tool_calls=kernel_cfg.parallel_tool_calls,
             llm_proxy=llm_proxy,
@@ -259,6 +262,24 @@ def _cache_write_enabled(manifest: dict | None, *, override: bool | None = None)
     if env is not None:
         return env
     return True
+
+
+def _stream_enabled(manifest: dict | None, *, override: bool | None = None) -> bool:
+    """Whether to stream the LLM response over SSE instead of waiting for
+    the full completion. Precedence: explicit CLI override -> spec.execution.
+    stream -> MAS_LLM_STREAM env var -> default false (opt-in: streaming
+    changes what a caller can observe mid-call, e.g. via ctx.on_stream_chunk,
+    so it shouldn't turn on silently for an existing deployment)."""
+    if override is not None:
+        return override
+    spec = (manifest or {}).get("spec") or {}
+    execution = spec.get("execution") or {}
+    if isinstance(execution.get("stream"), bool):
+        return execution["stream"]
+    env = _bool_env("MAS_LLM_STREAM")
+    if env is not None:
+        return env
+    return False
 
 
 def _wrap_with_infra_pipeline(engine: Any, pipeline: list[dict[str, Any]]) -> Any:

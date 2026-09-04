@@ -66,6 +66,7 @@ class InstantiationOptions:
     user_io_contract: object | None = None
     cache_read_override: bool | None = None
     cache_write_override: bool | None = None
+    stream_override: bool | None = None
 
 
 def instantiate_runtime(
@@ -148,6 +149,7 @@ def instantiate_runtime(
         kernel_config=_kernel_cfg,
         cache_read_override=options.cache_read_override,
         cache_write_override=options.cache_write_override,
+        stream_override=options.stream_override,
     )
     logger.info("Engine mode=%s (%s)", selection.mode, selection.reason)
 
