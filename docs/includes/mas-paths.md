@@ -28,6 +28,10 @@ $XDG_CACHE_HOME/mas/traces
 $XDG_CACHE_HOME/mas/artifacts
 --8<-- [end:xdg-artifacts-cache]
 
+--8<-- [start:xdg-llm-cache]
+$XDG_CACHE_HOME/mas/llm_cache.json
+--8<-- [end:xdg-llm-cache]
+
 --8<-- [start:xdg-last-run]
 $XDG_STATE_HOME/mas/last-run.json
 --8<-- [end:xdg-last-run]

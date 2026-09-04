@@ -19,7 +19,13 @@ from mas.runtime.boundary.context.assemble import (
 )
 from mas.runtime.boundary.gov.budget import BudgetTracker, budget_from_manifest
 from mas.runtime.engine.exchange_preview import format_llm_messages, format_tool_invoke
-from mas.runtime.engine.llm_cache import load_cache, llm_cache_key, persist_cache
+from mas.runtime.engine.llm_cache import (
+    assistant_message_from_cache_content,
+    load_cache,
+    lookup_response,
+    llm_cache_key,
+    persist_cache,
+)
 from mas.runtime.engine.llm_http import classify_llm_http_error, resolve_ssl_verify
 from mas.runtime.engine.tool_dispatch import execute_engine_tool
 from mas.runtime.engine.tools import openai_tools
@@ -45,6 +51,8 @@ class LiveLlmEngine:
     max_tokens: int = 2000
     cache_path: Path | None = None
     use_cache: bool = True
+    cache_read: bool = True
+    cache_write: bool = True
     use_tool_loop: bool = False
     parallel_tool_calls: bool = True
     llm_proxy: dict[str, Any] | None = None
@@ -73,7 +81,7 @@ class LiveLlmEngine:
 
     def __post_init__(self) -> None:
         self._budget = budget_from_manifest(self.manifest)
-        if self.cache_path:
+        if self.cache_path and self._cache_reads_enabled():
             self._cache = load_cache(self.cache_path)
         from mas.runtime.engine.model_access import load_model_access
 
@@ -85,6 +93,12 @@ class LiveLlmEngine:
 
     def _uses_model_access(self) -> bool:
         return self._model_access is not None
+
+    def _cache_reads_enabled(self) -> bool:
+        return self.use_cache and self.cache_read
+
+    def _cache_writes_enabled(self) -> bool:
+        return self.use_cache and self.cache_write
 
     def reset_turn_state(self) -> None:
         self._pending_tool = ""
@@ -200,14 +214,24 @@ class LiveLlmEngine:
         answering_from_tools = has_tool_results(messages)
 
         cache_key = llm_cache_key(self.model, messages, tool_defs or None)
-        if self.use_cache and not answering_from_tools and cache_key in self._cache:
-            text = self._cache[cache_key]
-            return EngineIoReturn(
-                correlation_id=io.correlation_id,
-                response_kind="MODEL_TEXT",
-                next_step="STOP",
-                text=text,
+        if self._cache_reads_enabled():
+            content, cached_usage, _source = lookup_response(
+                self._cache,
+                self.model,
+                messages,
+                tools=tool_defs or None,
             )
+            cached_message = assistant_message_from_cache_content(content)
+            if cached_message is not None:
+                return self._message_to_engine_return(
+                    io,
+                    cached_message,
+                    messages,
+                    tool_defs,
+                    answering_from_tools,
+                    cached_usage or {},
+                    "stop",
+                )
 
         if self._uses_model_access():
             try:
@@ -267,6 +291,8 @@ class LiveLlmEngine:
         finish_reason: str,
     ) -> EngineIoReturn:
         tool_calls = message.get("tool_calls") or []
+        if self._cache_writes_enabled():
+            self._cache_message(messages, tool_defs, message, usage)
         if tool_calls and self.use_tool_loop:
             parsed: list[tuple[str, dict[str, Any]]] = []
             for call in tool_calls:
@@ -307,11 +333,6 @@ class LiveLlmEngine:
             )
 
         text = str(message.get("content") or "").strip()
-        cache_key = llm_cache_key(self.model, messages, tool_defs or None)
-        if self.use_cache and not answering_from_tools:
-            self._cache[cache_key] = text
-            self._persist_cache()
-
         return EngineIoReturn(
             correlation_id=io.correlation_id,
             response_kind="MODEL_TEXT",
@@ -320,6 +341,33 @@ class LiveLlmEngine:
             usage=usage,
             finish_reason=finish_reason,
         )
+
+    def _cache_message(
+        self,
+        messages: list[dict[str, Any]],
+        tool_defs: list[dict[str, Any]],
+        message: dict[str, Any],
+        usage: dict[str, Any],
+    ) -> None:
+        cache_key = llm_cache_key(self.model, messages, tool_defs or None)
+        tool_calls = message.get("tool_calls") or []
+        if tool_calls:
+            self._cache[cache_key] = {
+                "tool_calls": tool_calls,
+                "usage": usage,
+                "source": "cache",
+            }
+            self._persist_cache()
+            return
+        text = str(message.get("content") or "").strip()
+        if not text:
+            return
+        self._cache[cache_key] = {
+            "content": text,
+            "usage": usage,
+            "source": "cache",
+        }
+        self._persist_cache()
 
     def _model_access_chat(
         self,

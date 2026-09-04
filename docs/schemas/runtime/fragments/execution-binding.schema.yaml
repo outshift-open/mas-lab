@@ -19,6 +19,16 @@ properties:
     properties:
       enabled:
         type: boolean
+        description: >
+          Master on/off switch. false disables both read and write outright,
+          regardless of the read/write fields below. Omit (or true) to let
+          read/write each control their own default independently.
+      read:
+        type: boolean
+        description: "Look up a cached response before calling the LLM. Default: true."
+      write:
+        type: boolean
+        description: "Persist a response to the cache after calling the LLM. Default: true."
   parallel:
     type: boolean
   live:
