@@ -53,6 +53,7 @@ class LiveLlmEngine:
     use_cache: bool = True
     cache_read: bool = True
     cache_write: bool = True
+    stream: bool = False
     use_tool_loop: bool = False
     parallel_tool_calls: bool = True
     llm_proxy: dict[str, Any] | None = None
@@ -437,6 +438,8 @@ class LiveLlmEngine:
             "Content-Type": "application/json",
         }
         verify = resolve_ssl_verify(self.llm_proxy)
+        if self.stream:
+            return self._chat_completion_streamed(url, payload, headers, verify=verify)
         with httpx.Client(timeout=120.0, verify=verify) as client:
             resp = client.post(url, json=payload, headers=headers)
             resp.raise_for_status()
@@ -449,6 +452,97 @@ class LiveLlmEngine:
         if usage:
             message["usage"] = usage
         finish_reason = choices[0].get("finish_reason")
+        if finish_reason:
+            message["finish_reason"] = finish_reason
+        return message
+
+    def _chat_completion_streamed(
+        self,
+        url: str,
+        payload: dict[str, Any],
+        headers: dict[str, str],
+        *,
+        verify: Any,
+    ) -> dict[str, Any]:
+        """SSE-streamed variant of _chat_completion, same OpenAI-compatible
+        endpoint with ``stream: true``.
+
+        Reassembles the same message shape ({"content", "tool_calls",
+        "usage", "finish_reason"}) the non-streamed path returns, so nothing
+        downstream (_message_to_engine_return, caching) needs to know
+        streaming happened -- the only externally visible difference is that
+        content deltas are also forwarded, as they arrive, to
+        ``ctx.on_stream_chunk(text)`` if the caller set one (a plain
+        attribute read fresh per call, not a constructor field, so a caller
+        like a chat UI can install/replace it per turn without touching
+        engine construction).
+
+        Tool-call argument deltas are accumulated but never forwarded to
+        on_stream_chunk (only content text is): reconstructing valid partial
+        JSON mid-stream is unreliable and not what a "show the answer as
+        it's typed" UI wants anyway.
+        """
+        import httpx
+
+        stream_payload = dict(payload)
+        stream_payload["stream"] = True
+        on_chunk = getattr(self.ctx, "on_stream_chunk", None) if self.ctx is not None else None
+
+        content_parts: list[str] = []
+        tool_call_accum: dict[int, dict[str, Any]] = {}
+        finish_reason = ""
+        usage: dict[str, Any] = {}
+
+        with httpx.Client(timeout=120.0, verify=verify) as client:
+            with client.stream("POST", url, json=stream_payload, headers=headers) as resp:
+                resp.raise_for_status()
+                for raw_line in resp.iter_lines():
+                    line = raw_line if isinstance(raw_line, str) else raw_line.decode("utf-8", "replace")
+                    if not line.startswith("data:"):
+                        continue
+                    data_str = line[len("data:") :].strip()
+                    if not data_str or data_str == "[DONE]":
+                        continue
+                    try:
+                        chunk = json.loads(data_str)
+                    except (TypeError, ValueError):
+                        continue
+                    if isinstance(chunk.get("usage"), dict):
+                        usage = chunk["usage"]
+                    choices = chunk.get("choices") or []
+                    if not choices:
+                        continue
+                    choice = choices[0]
+                    fr = choice.get("finish_reason")
+                    if fr:
+                        finish_reason = fr
+                    delta = choice.get("delta") or {}
+                    text = delta.get("content")
+                    if text:
+                        content_parts.append(text)
+                        if callable(on_chunk):
+                            try:
+                                on_chunk(text)
+                            except Exception:
+                                logger.exception("on_stream_chunk callback failed")
+                    for tc in delta.get("tool_calls") or []:
+                        idx = int(tc.get("index", 0) or 0)
+                        slot = tool_call_accum.setdefault(
+                            idx, {"id": "", "type": "function", "function": {"name": "", "arguments": ""}}
+                        )
+                        if tc.get("id"):
+                            slot["id"] = tc["id"]
+                        fn = tc.get("function") or {}
+                        if fn.get("name"):
+                            slot["function"]["name"] += fn["name"]
+                        if fn.get("arguments"):
+                            slot["function"]["arguments"] += fn["arguments"]
+
+        message: dict[str, Any] = {"content": "".join(content_parts) or None}
+        if tool_call_accum:
+            message["tool_calls"] = [tool_call_accum[i] for i in sorted(tool_call_accum)]
+        if usage:
+            message["usage"] = usage
         if finish_reason:
             message["finish_reason"] = finish_reason
         return message

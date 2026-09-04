@@ -72,6 +72,12 @@ from mas.ctl.ui.stdout import StdoutConversationDisplay
     "(default: spec.execution.cache.write / MAS_LLM_CACHE_WRITE / true)",
 )
 @click.option(
+    "--stream/--no-stream",
+    default=None,
+    help="Stream the LLM response over SSE instead of waiting for the full "
+    "completion (default: spec.execution.stream / MAS_LLM_STREAM / false)",
+)
+@click.option(
     "--without-obs",
     is_flag=True,
     help="Disable envelope observability summand (M_obs) and event recording",
@@ -111,6 +117,7 @@ def chat_cmd(
     no_validate: bool,
     cache_read: bool | None,
     cache_write: bool | None,
+    stream: bool | None,
     without_obs: bool,
     without_gov: bool,
     events: bool | None,
@@ -211,6 +218,7 @@ def chat_cmd(
                     validate_manifests=not no_validate,
                     cache_read_override=cache_read,
                     cache_write_override=cache_write,
+                    stream_override=stream,
                     agent_manifest=agent_data,
                     manifest_dir=session.manifest_dir if manifest else None,
                     resolved_infra=resolve_session_infra(

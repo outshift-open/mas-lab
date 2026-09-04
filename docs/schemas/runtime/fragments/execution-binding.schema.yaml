@@ -33,6 +33,12 @@ properties:
     type: boolean
   live:
     type: boolean
+  stream:
+    type: boolean
+    description: >
+      Stream the LLM response over SSE instead of waiting for the full
+      completion, forwarding content deltas to ctx.on_stream_chunk as they
+      arrive. Default: false.
   timeout:
     type: number
     minimum: 0
