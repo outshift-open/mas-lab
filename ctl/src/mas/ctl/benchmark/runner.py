@@ -267,8 +267,16 @@ class MasBenchRunner:
         flavour: Any = None,
         **kwargs: Any,
     ) -> RunResult:
+        import os
+
         from mas.lab.benchmark.runners.fixtures import write_tool_fixtures_sidecar
         from mas.lab.inputs import RunInput
+
+        # Bench/lab runs are non-interactive by nature — no human is present to
+        # resolve agent-initiated HITL requests, so auto-resolve them instead of
+        # blocking for up to 60s per request (see execute_run_mas for the CLI
+        # equivalent).
+        os.environ.setdefault("MAS_HITL_AUTO_RESOLVE", "1")
 
         ri: RunInput | None = run_input if isinstance(run_input, RunInput) else None
 

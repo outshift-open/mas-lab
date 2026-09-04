@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 import time
 import uuid
@@ -15,15 +16,58 @@ from mas.runtime.boundary.context.working_memory_registry import (
     sync_working_memory_in,
     sync_working_memory_out,
 )
-from mas.runtime.driver.driver import DriverTrace
+from mas.runtime.boundary.obs.exchange_plugin import ExchangePlugin
+from mas.runtime.driver.driver import DriverTrace, ExchangeRecord
 from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.schema.egress import EmitClientResponse
 
 from mas.ctl.session.exchange_log import (
+    CliTraceExchangePlugin,
     TraceFormatOptions,
-    print_exchange,
 )
 from mas.ctl.ui.display import ConversationDisplay
+
+_logger = logging.getLogger("mas.runtime")
+_RED = "\033[1;31m"
+_RESET = "\033[0m"
+
+
+class _ToolErrorAndListenerBridge(ExchangePlugin):
+    """Second, independent ExchangePlugin subscriber alongside CliTraceExchangePlugin.
+
+    Two behaviors that aren't display formatting, so they don't belong in
+    CliTraceExchangePlugin (a generic, reusable trace renderer):
+      - Always-on tool-call error surfacing: a TOOL->AGENT exchange whose text
+        is a JSON error result is printed in RED to stderr and logged at ERROR
+        level, regardless of --trace/--verbose, so a failing tool call (e.g.
+        run_skill_script returning {"error": ...}) can never silently
+        disappear from view.
+      - Forwards every exchange record to an optional external listener (e.g.
+        a chat-UI plugin) via SessionController.exchange_listener, if set.
+    Subscribing this as its own plugin (rather than folding it into
+    CliTraceExchangePlugin) keeps each subscriber single-purpose, and proves
+    the additive subscribe_exchange() interface actually supports more than
+    one concurrent consumer.
+    """
+
+    def __init__(self) -> None:
+        self.agent_id = "n/a"
+        self.exchange_listener: Any | None = None
+
+    def configure(self, *, agent_id: str, exchange_listener: Any | None) -> None:
+        self.agent_id = agent_id
+        self.exchange_listener = exchange_listener
+
+    def on_exchange(self, record: ExchangeRecord) -> None:
+        if record.tag == "TOOL->AGENT" and '"error"' in record.text:
+            message = f"[{self.agent_id}] TOOL ERROR: {record.text.strip()}"
+            print(f"{_RED}{message}{_RESET}", file=sys.stderr, flush=True)
+            _logger.error(message)
+        if callable(self.exchange_listener):
+            try:
+                self.exchange_listener(record)
+            except Exception:
+                _logger.exception("session exchange listener failed")
 
 
 @dataclass
@@ -63,6 +107,7 @@ class SessionController:
     agent_id: str = "n/a"
     llm_id: str = "gpt-4o-mini"
     obs_recorder: Any | None = None
+    exchange_listener: Any | None = None
     # One id for the whole MAS run — every turn this controller ever runs
     # shares it (see _run_user_turn). Empty here means "mint a fresh one";
     # explicitly pass an existing value (e.g. from an entry agent's own
@@ -79,6 +124,8 @@ class SessionController:
     working_memory_key: str = ""
     _turn: int = 0
     _trace_turn_start: float = 0.0
+    _trace_plugin: CliTraceExchangePlugin | None = field(default=None, repr=False)
+    _bridge_plugin: _ToolErrorAndListenerBridge | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if not self.session_id:
@@ -99,35 +146,50 @@ class SessionController:
         )
 
     def _setup_exchange_tracing(self) -> None:
-        """Setup realtime exchange tracing via driver callback (if trace or verbose)."""
-        # Skip if neither trace nor verbose logging requested
+        """Configure the CLI trace + error/listener-bridge ExchangePlugins.
+
+        Subscribes two persistent, single-purpose plugins to the driver's
+        exchange_plugins list the first time this runs, then only updates
+        their config on every subsequent turn — the driver's subscriber
+        list is additive (see KernelDriver.subscribe_exchange), so
+        re-running this every turn no longer risks discarding any other
+        plugin (e.g. an external chat-UI plugin) registered on the same
+        driver:
+          - CliTraceExchangePlugin: normal exchange display (AGENT/LLM/TOOL
+            lines), gated by --trace or --verbose as before.
+          - _ToolErrorAndListenerBridge: tool-call *errors* are always
+            surfaced — unconditionally printed in RED to stderr and logged
+            at ERROR level, regardless of trace/verbose settings, so a
+            failing tool call (e.g. run_skill_script returning
+            {"error": ...}) can never silently disappear from view. Also
+            forwards every exchange record to self.exchange_listener, if set.
+        """
+        if self._trace_plugin is None:
+            self._trace_plugin = CliTraceExchangePlugin()
+            self.instance.driver.subscribe_exchange(self._trace_plugin)
+        if self._bridge_plugin is None:
+            self._bridge_plugin = _ToolErrorAndListenerBridge()
+            self.instance.driver.subscribe_exchange(self._bridge_plugin)
+        self._bridge_plugin.configure(agent_id=self.agent_id, exchange_listener=self.exchange_listener)
+
+        # Skip normal display if neither trace nor verbose logging requested
+        # (the error/listener bridge stays active regardless).
         if not self.trace and self.verbose < 1:
-            self.instance.driver.on_exchange = None
+            self._trace_plugin.configure(
+                trace=False, verbose=0, agent_id=self.agent_id, fmt=self._trace_format_options()
+            )
             self.instance.driver.capture_engine_io = False
             return
 
         self._trace_turn_start = time.perf_counter()
         self.instance.driver.capture_engine_io = self.trace_engine
-        fmt = self._trace_format_options()
-        logger = __import__("logging").getLogger("mas.runtime")
+        self._trace_plugin.configure(
+            trace=self.trace,
+            verbose=self.verbose,
+            agent_id=self.agent_id,
+            fmt=self._trace_format_options(),
+        )
 
-        def on_exchange(ex: object) -> None:
-            from mas.runtime.driver.driver import ExchangeRecord
-            from mas.ctl.session.exchange_log import format_exchange
-
-            if not isinstance(ex, ExchangeRecord):
-                return
-
-            # Realtime stderr output (if --trace) — primary display path
-            if self.trace:
-                print_exchange(ex, err=sys.stderr, agent_id=self.agent_id, fmt=fmt)
-            # Verbose logging only if NOT using --trace (alternative logging path)
-            elif self.verbose >= 1:
-                formatted = format_exchange(self.agent_id, ex, fmt=fmt).strip()
-                for line in formatted.splitlines():
-                    logger.info("[%s] %s", self.agent_id, line)
-
-        self.instance.driver.on_exchange = on_exchange
 
     def _handle_list_skills(self) -> TurnResult:
         """Handle /skills command — list all available skills."""

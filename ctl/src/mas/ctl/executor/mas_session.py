@@ -148,6 +148,11 @@ def prepare_delegation_entry_session(
     display: Any = None,
     verbose: int = 0,
     session_id: str = "",
+    trace: bool = False,
+    trace_timestamps: bool = False,
+    trace_engine: bool = False,
+    trace_summary: bool = False,
+    trace_color: bool = False,
 ) -> PreparedEntrySession:
     """Wire dynamic-delegation entry agent (same path as ``execute_run_mas``).
 
@@ -190,6 +195,11 @@ def prepare_delegation_entry_session(
             verbose=verbose,
             from_agent=entry_id,
             session_id=resolved_session_id,
+            trace=trace,
+            trace_timestamps=trace_timestamps,
+            trace_engine=trace_engine,
+            trace_summary=trace_summary,
+            trace_color=trace_color,
         ),
         entry_agent_id=entry_id,
         mas_config=compose.mas_config,
@@ -212,6 +222,11 @@ def wire_peer_delegation(
     verbose: int = 0,
     already_wired: "set[str] | None" = None,
     session_id: str = "",
+    trace: bool = False,
+    trace_timestamps: bool = False,
+    trace_engine: bool = False,
+    trace_summary: bool = False,
+    trace_color: bool = False,
 ) -> list[str]:
     """Wire delegation onto every agent that declares its own ``delegates_to``
     peers in the MAS workflow topology — not just the entry agent.
@@ -247,6 +262,11 @@ def wire_peer_delegation(
         verbose=verbose,
         from_agent=entry_id,
         session_id=session_id,
+        trace=trace,
+        trace_timestamps=trace_timestamps,
+        trace_engine=trace_engine,
+        trace_summary=trace_summary,
+        trace_color=trace_color,
     )
     newly_wired: list[str] = []
     for agent in compose.bind.agents:
@@ -288,6 +308,11 @@ def make_workflow_send(
     verbose: int,
     from_agent: str = "",
     session_id: str = "",
+    trace: bool = False,
+    trace_timestamps: bool = False,
+    trace_engine: bool = False,
+    trace_summary: bool = False,
+    trace_color: bool = False,
 ) -> RunTurnFn:
     """Run one agent turn inside a multi-agent workflow (sequential or delegation).
 
@@ -393,6 +418,11 @@ def make_workflow_send(
             config=ConversationConfig(single_turn=True),
             session_id=state["session_id"],
             working_memory_key=memory_key,
+            trace=trace,
+            trace_timestamps=trace_timestamps,
+            trace_engine=trace_engine,
+            trace_summary=trace_summary,
+            trace_color=trace_color,
         )
         result = controller.run_turn(prompt, turn_id=turn_id, parent_call_id=parent_call_id)
         # Do NOT close observability after a delegated sub-turn: in a multi-agent
@@ -408,6 +438,18 @@ def make_workflow_send(
         state["prev_agent"] = agent_id
         if turn_failed(result):
             raise RuntimeError(f"agent {agent_id!r} turn failed")
+        
+        # Propagate awaiting_hitl state via side channel (not return value)
+        # This allows external systems (Webex bot) to detect and resolve HITL
+        # from delegated agents without breaking the delegation contract.
+        if result.awaiting_hitl:
+            from mas.runtime.boundary.hitl.registry import get_hitl_resolver_registry
+            registry = get_hitl_resolver_registry()
+            # Check if there are any pending HITL requests for this agent
+            if registry.has_pending(state["session_id"], agent_id):
+                # Mark in state that this agent has pending HITL
+                state.setdefault("pending_hitl_agents", set()).add(agent_id)
+        
         return result.text
 
     return send

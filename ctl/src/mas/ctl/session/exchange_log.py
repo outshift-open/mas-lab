@@ -12,11 +12,13 @@ Color semantics for CLI trace output:
 from __future__ import annotations
 
 import json
+import logging
 import re
 import sys
 from dataclasses import dataclass
 from typing import Any
 
+from mas.runtime.boundary.obs.exchange_plugin import ExchangePlugin
 from mas.runtime.driver.driver import ExchangeRecord
 
 # ANSI color codes for CLI trace output
@@ -175,6 +177,54 @@ def format_exchange(
         for line in ex.text.splitlines():
             lines.append(f"  {line}")
     return "\n".join(lines) + "\n"
+
+
+class CliTraceExchangePlugin(ExchangePlugin):
+    """ExchangePlugin driving mas-ctl's own --trace/--verbose stdout/log output.
+
+    One persistent instance per SessionController, subscribed exactly once
+    via KernelDriver.subscribe_exchange() (see
+    SessionController._setup_exchange_tracing()) instead of being rebuilt
+    and reassigned to a single driver.on_exchange callback every turn —
+    per-turn state (trace/verbose toggles, turn_start_mono baseline) is
+    updated in place via configure(), so subscribing only ever happens once
+    per controller/driver pair, and other subscribers (e.g. a chat-UI
+    plugin) are never silently discarded.
+    """
+
+    def __init__(self) -> None:
+        self.enabled = False
+        self.trace = False
+        self.verbose = 0
+        self.agent_id = "agent"
+        self.fmt = TraceFormatOptions()
+        self._logger = logging.getLogger("mas.runtime")
+
+    def configure(
+        self,
+        *,
+        trace: bool,
+        verbose: int,
+        agent_id: str,
+        fmt: TraceFormatOptions,
+    ) -> None:
+        self.enabled = trace or verbose >= 1
+        self.trace = trace
+        self.verbose = verbose
+        self.agent_id = agent_id
+        self.fmt = fmt
+
+    def on_exchange(self, record: ExchangeRecord) -> None:
+        if not self.enabled:
+            return
+        # Realtime stderr output (if --trace) — primary display path
+        if self.trace:
+            print_exchange(record, err=sys.stderr, agent_id=self.agent_id, fmt=self.fmt)
+        # Verbose logging only if NOT using --trace (alternative logging path)
+        elif self.verbose >= 1:
+            formatted = format_exchange(self.agent_id, record, fmt=self.fmt).strip()
+            for line in formatted.splitlines():
+                self._logger.info("[%s] %s", self.agent_id, line)
 
 
 

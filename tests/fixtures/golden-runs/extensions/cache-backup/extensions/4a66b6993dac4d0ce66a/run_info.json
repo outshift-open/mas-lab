@@ -4,11 +4,11 @@
   "scenario": "golden",
   "item_id": "1",
   "run_idx": 0,
-  "referenced_at": "2026-08-03T08:34:01.730593Z",
+  "referenced_at": "2026-09-04T13:21:06.463683Z",
   "mas": {
     "app": "trip-planner",
-    "mas_ref": "thirdparty/mas-lab/library-samples/apps/trip-planner/mas.yaml",
+    "mas_ref": "/Users/augjorda/repos/outshift-open/mas-lab/library-samples/apps/trip-planner/mas.yaml",
     "overlay": "golden",
-    "overlay_ref": "thirdparty/mas-lab/docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml"
+    "overlay_ref": "/Users/augjorda/repos/outshift-open/mas-lab/docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml"
   }
 }

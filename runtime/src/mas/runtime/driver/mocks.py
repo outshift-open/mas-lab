@@ -44,6 +44,10 @@ class AutoCtxAssembler:
     skill_session_state: Any | None = None
     # ActivatedSkillsContextPlugin for compaction protection (agentskills.io Step 5).
     activated_skills_plugin: Any | None = None
+    # Runtime context for system tools (session_id, agent_id, correlation_id)
+    session_id: str = ""
+    agent_id: str = ""
+    correlation_id: int = 0
 
     def capture_baseline(self) -> None:
         """Snapshot manifest-derived system context for /reset."""
