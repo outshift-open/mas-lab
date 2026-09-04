@@ -35,6 +35,7 @@ config.yaml       ← project defaults (flavour, infra_refs, .env path)
 | Layer | Manifest kinds | Reference |
 |-------|----------------|-----------|
 | **Agent** | `Agent` | [agent.md](agent.md) |
+| **Execution** | `spec.execution` (part of `Agent`) | [execution.md](execution.md) |
 | **MAS** | `MAS`, `Workflow` | [mas.md](mas.md), [workflow.md](workflow.md) |
 | **Override** | `Overlay` | [overlay.md](overlay.md) |
 | **Environment** | `Flavour`, `InfraBundle`, `LLMProxy` | [flavour.md](flavour.md), [infra.md](infra.md) |

@@ -12,14 +12,17 @@ from typing import Any
 
 
 def resolve_cache_path(cache_path: str | Path | None = None) -> Path:
+    """Explicit ``cache_path`` wins, then ``MAS_LLM_CACHE``, then the shared
+    XDG cache root (``$XDG_CACHE_HOME/mas/llm_cache.json`` — same convention
+    as the trace/artifacts caches in ``mas.runtime.xdg``)."""
     if cache_path:
         return Path(cache_path).expanduser().resolve()
     env = os.environ.get("MAS_LLM_CACHE", "").strip()
     if env:
         return Path(env).expanduser().resolve()
-    xdg = os.environ.get("XDG_CACHE_HOME", "").strip()
-    base = Path(xdg) if xdg else Path.home() / ".cache"
-    return (base / "mas" / "llm_cache.json").resolve()
+    from mas.runtime.xdg import mas_cache_root
+
+    return (mas_cache_root() / "llm_cache.json").resolve()
 
 
 def load_cache(path: Path) -> dict[str, Any]:

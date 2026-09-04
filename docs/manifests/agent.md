@@ -31,7 +31,7 @@ sees, and which plugins hook its execution.
 | Memory | `memory`, `memory_seed` | Stores + startup seeds |
 | Working memory | `working_memory.persistent` | Cross-turn buffer survives repeat delegate calls within one session (default `true`) — see below |
 | Kernel plugins | `plugins[]`, `governance[]`, `observability[]` | Governance and observability on Mealy envelope chokepoints (not a hook plane) |
-| Execution bounds | `execution` | Timeouts, retries |
+| Execution mode | `execution` | Mocking, LLM response cache read/write, parallel tool calls — see [execution.md](execution.md) |
 
 ---
 
@@ -171,6 +171,7 @@ curl http://localhost:8090/api/schemas/agent
 
 ## See also
 
+- [Execution parameters](execution.md) — `spec.execution`: mocking, LLM cache, parallel tool calls
 - [MAS manifest](mas.md) — topology and transport
 - [Overlay manifest](overlay.md) — overrides
 - [Tutorial: building an agent](../tutorials/01-building-an-agent/README.md)

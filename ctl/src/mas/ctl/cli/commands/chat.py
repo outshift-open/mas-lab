@@ -60,6 +60,18 @@ from mas.ctl.ui.stdout import StdoutConversationDisplay
 @click.option("--save-checkpoint/--no-save-checkpoint", default=False)
 @click.option("--no-validate", is_flag=True, help="Skip schema validation for seeds/checkpoints")
 @click.option(
+    "--cache-read/--no-cache-read",
+    default=None,
+    help="Look up a cached response before calling the LLM "
+    "(default: spec.execution.cache.read / MAS_LLM_CACHE_READ / true)",
+)
+@click.option(
+    "--cache-write/--no-cache-write",
+    default=None,
+    help="Persist a response to the cache after calling the LLM "
+    "(default: spec.execution.cache.write / MAS_LLM_CACHE_WRITE / true)",
+)
+@click.option(
     "--without-obs",
     is_flag=True,
     help="Disable envelope observability summand (M_obs) and event recording",
@@ -97,6 +109,8 @@ def chat_cmd(
     load_checkpoint: str | None,
     save_checkpoint: bool,
     no_validate: bool,
+    cache_read: bool | None,
+    cache_write: bool | None,
     without_obs: bool,
     without_gov: bool,
     events: bool | None,
@@ -195,6 +209,8 @@ def chat_cmd(
                     checkpoint_path=_opt_file(load_checkpoint),
                     checkpoint_dir=_opt_dir(checkpoint_dir),
                     validate_manifests=not no_validate,
+                    cache_read_override=cache_read,
+                    cache_write_override=cache_write,
                     agent_manifest=agent_data,
                     manifest_dir=session.manifest_dir if manifest else None,
                     resolved_infra=resolve_session_infra(

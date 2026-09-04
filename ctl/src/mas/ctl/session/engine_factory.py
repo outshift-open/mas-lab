@@ -16,6 +16,7 @@ from mas.ctl.infra.resolve import InfraResolveError
 from mas.ctl.infra.resolve import api_key_for_infra
 from mas.ctl.session.manifest_config import engine_use_tool_loop, kernel_config_from_manifest  # kernel_config_from_manifest: deprecated; prefer RuntimeInstance.from_spec()
 from mas.ctl.workspace.config import UserConfig, WorkspaceConfig, collect_mas_infra_refs, merge_infra_refs
+from mas.runtime.engine.llm_cache import resolve_cache_path
 from mas.runtime.engine.llm_live import LiveLlmEngine
 from mas.runtime.agent_defaults import default_pattern_plugin_id, resolve_default_model
 from mas.runtime.driver.mocks import AutoCtxAssembler
@@ -125,6 +126,8 @@ def build_engine(
     anchor: Path | None = None,
     workspace: WorkspaceConfig | None = None,
     kernel_config: KernelConfig | None = None,
+    cache_read_override: bool | None = None,
+    cache_write_override: bool | None = None,
 ) -> EngineSelection:
     pid = pattern_plugin_id or default_pattern_plugin_id()
     # Use pre-parsed kernel config if provided (spec-aware path); fall back to manifest parsing.
@@ -163,7 +166,10 @@ def build_engine(
 
     model = resolve_model_name(manifest, resolved, workspace_default=workspace_default_model)
     cache_raw = llm_proxy.get("cache_path")
-    cache_path = Path(str(cache_raw)) if cache_raw else None
+    cache_read = _cache_read_enabled(manifest, override=cache_read_override)
+    cache_write = _cache_write_enabled(manifest, override=cache_write_override)
+    cache_active = (cache_read or cache_write) and not mock and not (llm_proxy.get("pipeline"))
+    cache_path = Path(str(cache_raw)) if cache_raw else resolve_cache_path() if cache_active else None
 
     engine = _wrap_with_infra_pipeline(
         LiveLlmEngine(
@@ -175,7 +181,9 @@ def build_engine(
             temperature=float(llm_spec.get("temperature", 0.7)),
             max_tokens=int(llm_spec.get("max_tokens", 2000)),
             cache_path=cache_path,
-            use_cache=_use_cache(manifest) and not mock and not (llm_proxy.get("pipeline")),
+            use_cache=cache_active,
+            cache_read=cache_read,
+            cache_write=cache_write,
             use_tool_loop=tool_loop,
             parallel_tool_calls=kernel_cfg.parallel_tool_calls,
             llm_proxy=llm_proxy,
@@ -201,12 +209,55 @@ def build_engine(
     return EngineSelection(engine=engine, mode=mode, reason=reason)
 
 
-def _use_cache(manifest: dict | None) -> bool:
+def _bool_env(name: str) -> bool | None:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return None
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
+def _cache_settings(manifest: dict | None) -> dict[str, Any]:
     spec = (manifest or {}).get("spec") or {}
     execution = spec.get("execution") or {}
-    cache = execution.get("cache") or {}
+    return execution.get("cache") or {}
+
+
+def _cache_read_enabled(manifest: dict | None, *, override: bool | None = None) -> bool:
+    """Whether to look up a cached response before calling the LLM.
+
+    Precedence (highest first): explicit CLI override -> spec.execution.cache.
+    enabled: false (a hard kill-switch for both read and write) -> spec.
+    execution.cache.read -> MAS_LLM_CACHE_READ env var -> default true.
+    """
+    if override is not None:
+        return override
+    cache = _cache_settings(manifest)
     if cache.get("enabled") is False:
         return False
+    if isinstance(cache.get("read"), bool):
+        return cache["read"]
+    env = _bool_env("MAS_LLM_CACHE_READ")
+    if env is not None:
+        return env
+    return True
+
+
+def _cache_write_enabled(manifest: dict | None, *, override: bool | None = None) -> bool:
+    """Whether to persist a response to the cache after calling the LLM.
+
+    Same precedence as _cache_read_enabled, mirrored for spec.execution.
+    cache.write / MAS_LLM_CACHE_WRITE.
+    """
+    if override is not None:
+        return override
+    cache = _cache_settings(manifest)
+    if cache.get("enabled") is False:
+        return False
+    if isinstance(cache.get("write"), bool):
+        return cache["write"]
+    env = _bool_env("MAS_LLM_CACHE_WRITE")
+    if env is not None:
+        return env
     return True
 
 

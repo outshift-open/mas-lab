@@ -64,6 +64,8 @@ class InstantiationOptions:
     enable_coordination: bool = True
     hitl_contract: object | None = None
     user_io_contract: object | None = None
+    cache_read_override: bool | None = None
+    cache_write_override: bool | None = None
 
 
 def instantiate_runtime(
@@ -144,6 +146,8 @@ def instantiate_runtime(
         anchor=options.manifest_dir or Path.cwd(),
         workspace=ws,
         kernel_config=_kernel_cfg,
+        cache_read_override=options.cache_read_override,
+        cache_write_override=options.cache_write_override,
     )
     logger.info("Engine mode=%s (%s)", selection.mode, selection.reason)
 

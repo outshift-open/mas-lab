@@ -25,6 +25,7 @@ can include values via
 | `$XDG_CACHE_HOME` | `~/.cache` | Base for caches |
 | `--8<-- "includes/mas-paths.md:xdg-trace-cache"` | under `$XDG_CACHE_HOME` | Content-addressed trace cache |
 | `--8<-- "includes/mas-paths.md:xdg-artifacts-cache"` | under `$XDG_CACHE_HOME` | Pipeline step cache |
+| `--8<-- "includes/mas-paths.md:xdg-llm-cache"` | under `$XDG_CACHE_HOME` | LLM response cache — see [execution.md](manifests/execution.md#cache--the-llm-response-cache) for read/write controls |
 | `$XDG_STATE_HOME` | `~/.local/state` | Base for state files |
 | `--8<-- "includes/mas-paths.md:xdg-last-run"` | under `$XDG_STATE_HOME` | Last benchmark run pointer |
 | `MAS_LABS_ROOT` | — | Env override for labs root |
@@ -32,6 +33,8 @@ can include values via
 | `MAS_DATA_ROOT` / `MAS_LAB_DATA` | — | Env override for data root |
 | `MAS_TRACE_CACHE` | — | Env override for trace cache |
 | `MAS_DATA_CACHE` | — | Env override for pipeline cache |
+| `MAS_LLM_CACHE` | — | Env override for the LLM response cache file path |
+| `MAS_LLM_CACHE_READ` / `MAS_LLM_CACHE_WRITE` | — | Env override to disable LLM cache reads/writes independently — see [execution.md](manifests/execution.md#cache--the-llm-response-cache) |
 | `MAS_HOME` | `--8<-- "includes/mas-paths.md:mas-home"` | Env override for controller data root |
 | `MAS_CONTROLLER_SOCKET` | `--8<-- "includes/mas-paths.md:controller-socket"` | Env override for controller socket |
 
@@ -57,7 +60,7 @@ Default data paths follow the [XDG Base Directory Specification](https://specifi
 |--------------|---------|-----------|
 | `XDG_CONFIG_HOME` | `~/.config` | `$XDG_CONFIG_HOME/mas/config.yaml`, `…/infra/` |
 | `XDG_DATA_HOME` | `~/.local/share` | `$XDG_DATA_HOME/mas/labs`, `…/runs`, `…/data` |
-| `XDG_CACHE_HOME` | `~/.cache` | `$XDG_CACHE_HOME/mas/traces`, `…/artifacts` |
+| `XDG_CACHE_HOME` | `~/.cache` | `$XDG_CACHE_HOME/mas/traces`, `…/artifacts`, `…/llm_cache.json` |
 | `XDG_STATE_HOME` | `~/.local/state` | `$XDG_STATE_HOME/mas/last-run.json` |
 
 ## Quick Start

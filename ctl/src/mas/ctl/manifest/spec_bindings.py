@@ -235,7 +235,9 @@ def parse_execution(raw: Any) -> None:
         _reject_unknown_keys(mocking, allowed=frozenset({"enabled"}), field="spec.execution.mocking")
     cache = raw.get("cache")
     if isinstance(cache, dict):
-        _reject_unknown_keys(cache, allowed=frozenset({"enabled"}), field="spec.execution.cache")
+        _reject_unknown_keys(
+            cache, allowed=frozenset({"enabled", "read", "write"}), field="spec.execution.cache"
+        )
 
 
 def parse_control(raw: Any) -> None:

@@ -118,6 +118,12 @@ This deduplication means: if you re-run the same experiment with the same
 inputs, the cache is hit and no new trace is produced. To force a fresh run,
 delete the `.run_ref` file (breaks the link) and re-execute.
 
+> **Not to be confused with the LLM response cache.** This trace cache
+> deduplicates whole *experiment runs*. Each individual LLM call within a run
+> has its own separate cache (`spec.execution.cache` — enabled by default via
+> `overlays/mock-llm.yaml`), with independent read/write controls. See
+> [execution.md](../../manifests/execution.md#cache--the-llm-response-cache).
+
 ### A.1 — The raw event stream
 
 Every agent run produces an `events.jsonl` — one JSON object per line, one
