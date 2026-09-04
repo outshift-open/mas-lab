@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -58,7 +59,42 @@ class HitlResolverRegistry:
         # pending[(session_id, agent_id, correlation_id)] = PendingHitlRequest
         self._pending: dict[tuple[str, str, int], PendingHitlRequest] = {}
         self._user_updates: dict[tuple[str, str, int], PendingUserUpdate] = {}
-    
+        # Additive, never-reset subscriber lists -- same pattern as
+        # ObservabilityOperator.subscribe()/KernelDriver.subscribe_exchange():
+        # multiple consumers (e.g. a Webex bot and a CLI console) can each
+        # register once and coexist, instead of one overwriting another.
+        self._hitl_subscribers: list[Callable[[PendingHitlRequest], None]] = []
+        self._user_update_subscribers: list[Callable[[PendingUserUpdate], None]] = []
+
+    def subscribe(self, callback: Callable[[PendingHitlRequest], None]) -> None:
+        """Notify *callback* the instant a HITL request is registered.
+
+        Replaces polling get_pending_for_session() in a retry loop to bridge
+        the gap between "tool call started" (an early, structural signal a
+        caller may see before the request itself exists) and "the request is
+        actually in the registry" (written by the tool's own execution) --
+        subscribers are notified synchronously, inside register(), so there
+        is no such gap to poll around.
+        """
+        with self._lock:
+            if callback not in self._hitl_subscribers:
+                self._hitl_subscribers.append(callback)
+
+    def unsubscribe(self, callback: Callable[[PendingHitlRequest], None]) -> None:
+        with self._lock:
+            if callback in self._hitl_subscribers:
+                self._hitl_subscribers.remove(callback)
+
+    def subscribe_user_update(self, callback: Callable[[PendingUserUpdate], None]) -> None:
+        with self._lock:
+            if callback not in self._user_update_subscribers:
+                self._user_update_subscribers.append(callback)
+
+    def unsubscribe_user_update(self, callback: Callable[[PendingUserUpdate], None]) -> None:
+        with self._lock:
+            if callback in self._user_update_subscribers:
+                self._user_update_subscribers.remove(callback)
+
     def register(
         self,
         *,
@@ -74,7 +110,7 @@ class HitlResolverRegistry:
         """Register a pending HITL request."""
         with self._lock:
             key = (session_id, agent_id, correlation_id)
-            self._pending[key] = PendingHitlRequest(
+            request = PendingHitlRequest(
                 session_id=session_id,
                 agent_id=agent_id,
                 correlation_id=correlation_id,
@@ -84,6 +120,13 @@ class HitlResolverRegistry:
                 context_data=dict(context_data),
                 resolver_callback=resolver_callback,
             )
+            self._pending[key] = request
+            subscribers = list(self._hitl_subscribers)
+        for callback in subscribers:
+            try:
+                callback(request)
+            except Exception:
+                logging.getLogger("mas.runtime").exception("HITL registry subscriber failed")
 
     def register_user_update(
         self,
@@ -99,7 +142,7 @@ class HitlResolverRegistry:
         """Register a non-blocking user update emitted from a delegating agent."""
         with self._lock:
             key = (session_id, agent_id, correlation_id)
-            self._user_updates[key] = PendingUserUpdate(
+            update = PendingUserUpdate(
                 session_id=session_id,
                 agent_id=agent_id,
                 correlation_id=correlation_id,
@@ -108,6 +151,13 @@ class HitlResolverRegistry:
                 involved_agents=list(involved_agents or []),
                 metadata=dict(metadata or {}),
             )
+            self._user_updates[key] = update
+            subscribers = list(self._user_update_subscribers)
+        for callback in subscribers:
+            try:
+                callback(update)
+            except Exception:
+                logging.getLogger("mas.runtime").exception("HITL registry user-update subscriber failed")
     
     def resolve(
         self,
