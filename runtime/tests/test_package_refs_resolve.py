@@ -79,11 +79,11 @@ def test_resolve_path_ref_absolute_path(tmp_path: Path) -> None:
     assert resolve_path_ref(str(abs_path), tmp_path) == abs_path
 
 
-def test_resolve_path_ref_unknown_scheme_falls_through_to_path(tmp_path: Path, monkeypatch) -> None:
+def test_resolve_path_ref_unknown_scheme_raises(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(package_refs, "_manifest_library_root", lambda scheme: None)
-    # Unknown scheme -> not treated as a library ref, resolved as a plain path.
-    out = resolve_path_ref("unknown:thing", tmp_path)
-    assert out == (tmp_path / "unknown:thing").resolve()
+    # Unknown/unregistered scheme -> explicit error, not a silent literal-path fallback.
+    with pytest.raises(package_refs.UnresolvedLibrarySchemeError, match="unknown"):
+        resolve_path_ref("unknown:thing", tmp_path)
 
 
 def test_resolve_path_ref_pkg_without_resource_path_raises() -> None:

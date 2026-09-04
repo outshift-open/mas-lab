@@ -18,6 +18,29 @@ from mas.ctl.validate.separation import check_separation
 from mas.ctl.overlay.normalize import normalize_overlay
 
 
+def _path_sort_key(path: Any) -> tuple[tuple[int, str | int], ...]:
+    """Stable sort key for JSON Schema error paths with mixed string and int segments.
+
+    ``jsonschema`` exposes list indexes as integers and mapping keys as strings,
+    which cannot be compared directly in Python 3. In the validator we sort error
+    paths before reporting them, so the key must normalize each segment into a
+    comparable tuple instead of relying on the raw mixed-type sequence.
+    """
+    if path is None:
+        return ((0, ""),)
+    if isinstance(path, (str, int)):
+        return ((0, str(path)),) if isinstance(path, str) else ((1, path),)
+    normalized: list[tuple[int, str | int]] = []
+    for segment in path:
+        if isinstance(segment, str):
+            normalized.append((0, segment))
+        elif isinstance(segment, int):
+            normalized.append((1, segment))
+        else:
+            normalized.append((0, str(segment)))
+    return tuple(normalized)
+
+
 @dataclass
 class ValidationIssue:
     level: str  # error | warning
@@ -84,7 +107,7 @@ def validate_data(
 
     schema = load_schema(resolved_kind)
     validator = jsonschema.Draft7Validator(schema)
-    for err in sorted(validator.iter_errors(data), key=lambda e: list(e.path)):
+    for err in sorted(validator.iter_errors(data), key=lambda e: _path_sort_key(e.path)):
         path = ".".join(str(p) for p in err.path) or "(root)"
         level = "error" if strict else "warning"
         result.issues.append(ValidationIssue(level, humanize_schema_error(err), path=path))

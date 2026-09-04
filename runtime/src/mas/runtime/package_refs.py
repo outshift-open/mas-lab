@@ -31,6 +31,17 @@ def resolve_library_scheme_root(scheme: str) -> Path | None:
     return _manifest_library_root(scheme)
 
 
+class UnresolvedLibrarySchemeError(RuntimeError):
+    """Raised when a ``scheme:relative/path`` ref's scheme has no registered
+    ``mas.runtime.manifest_libraries`` entry point (or its resolution failed).
+
+    Previously this case fell through silently and the whole ``scheme:path``
+    string was treated as a literal filesystem path, which surfaced later —
+    if at all — as a confusing "file not found" error containing a stray
+    colon, with no indication that a library scheme was involved.
+    """
+
+
 def _ctl_example_package_root(package: str) -> Path | None:
     """Resolve ctl-shipped example apps (editable ``ctl/src/<package>/`` layout)."""
     try:
@@ -74,6 +85,11 @@ def resolve_path_ref(ref: str, base_dir: Path) -> Path:
             lib_root = _manifest_library_root(scheme)
             if lib_root is not None:
                 return _resolve_in_library(lib_root, rel_path)
+            raise UnresolvedLibrarySchemeError(
+                f"unregistered manifest library scheme {scheme!r} in ref {ref!r} "
+                f"\u2014 no 'mas.runtime.manifest_libraries' entry point named {scheme!r} "
+                "is installed in this environment; is the library package installed?"
+            )
 
     p = Path(ref)
     return p if p.is_absolute() else (base_dir / ref).resolve()
