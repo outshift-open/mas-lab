@@ -2,5 +2,4 @@
 #  SPDX-License-Identifier: Apache-2.0
 # v2 plugin registry — URNs for ctl/runtime adapters
 plugins:
-  mas.plugin.skill.builder: mas.runtime.boundary.context.skills.build_skill_plugin
   mas.cm.sliding_window: mas.runtime.boundary.context.trim.build_sliding_window_plugin

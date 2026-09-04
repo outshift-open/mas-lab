@@ -150,6 +150,6 @@ class OperatorConsole:
 
     def _print_help(self) -> None:
         self.err.write(
-            "commands: /reset /pause /resume /abort /steer <text> /quit\n"
+            "commands: /reset /pause /resume /abort /steer <text> /skills /skill <name> /quit\n"
         )
         self.err.flush()

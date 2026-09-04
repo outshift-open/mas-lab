@@ -3,7 +3,6 @@
 """Context pipeline — working memory, CMFactory-backed assembly."""
 
 from mas.runtime.boundary.context.assemble import assemble_llm_messages
-from mas.runtime.boundary.context.skills import inject_skills_into_context, skill_refs_from_manifest
 from mas.runtime.boundary.context.trim import context_manager_spec
 from mas.runtime.boundary.context.working_memory import (
     SOURCE_TYPE,
@@ -20,7 +19,5 @@ __all__ = [
     "WorkingMemoryStore",
     "assemble_llm_messages",
     "context_manager_spec",
-    "inject_skills_into_context",
-    "skill_refs_from_manifest",
     "working_memory_source",
 ]

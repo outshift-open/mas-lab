@@ -1,0 +1,53 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# MAS Library Skills — ContextContract catalog plugin + ToolContract skill-access tools.
+# See docs/schemas/library.schema.yaml for schema.
+
+apiVersion: mas/v1
+kind: Library
+
+name: mas-library-skills
+description: >
+  Skills library for MAS. Implements progressive-disclosure skill support:
+  SkillCatalogPlugin (ContextContract, SYSTEM_SKILLS band) injects a compact
+  catalog; SkillToolsPlugin (ToolContract) provides activate_skill,
+  list_skill_files, and read_skill_file for model-driven full loading.
+version: "0.1.0"
+dependencies:
+  - mas-runtime
+
+module_base: mas.library.skills
+
+types:
+  - skill_catalog
+  - skill_tools
+  - skill_shell
+
+plugins:
+  - type: skill_catalog
+    name: catalog
+    urn: mas.skills.catalog
+    description: >
+      Injects skill catalog (name + description) into the SYSTEM_SKILLS
+      context band at ctx_collect_execute. Triggered per the ContextContract
+      collect_context() interface.
+    module: mas.library.skills.plugins.sk_catalog
+    class: SkillCatalogPlugin
+
+  - type: skill_tools
+    name: tools
+    urn: mas.skills.tools
+    description: >
+      Provides activate_skill, list_skill_files, and read_skill_file
+      ToolContract tools for model-driven skill activation (stochastic path).
+    module: mas.library.skills.plugins.sk_tools
+    class: SkillToolsPlugin
+
+  - type: skill_shell
+    name: shell
+    urn: mas.skills.shell
+    description: >
+      Provides run_skill_script ToolContract tool for sandboxed execution of
+      scripts bundled in a skill's scripts/ directory.
+    module: mas.library.skills.plugins.sk_shell
+    class: RunSkillScriptPlugin

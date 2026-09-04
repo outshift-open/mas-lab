@@ -1,0 +1,35 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Quickstart agent — answers general questions.
+# Without any overlay: terse answers, no formatting rules.
+# With skills overlay: model activates the answer-expert skill and formats answers
+# with a structured layout (summary + bullets + confidence).
+#
+# Run without skill (baseline):
+#   mas-ctl chat agent.yaml -q "What is the speed of light?"
+#
+# Run with skill overlay (different, structured answer):
+#   mas-ctl chat agent.yaml \
+#     -o overlays/with-skills.yaml \
+#     -q "What is the speed of light?"
+#
+# Run offline (no API key needed):
+#   mas-ctl chat agent.yaml \
+#     -o overlays/with-skills.yaml \
+#     -o pkg://standard/overlays/observability-native.yaml \
+#     -i -q "What is the speed of light?"
+
+apiVersion: mas/v1
+kind: Agent
+
+metadata:
+  name: quickstart-agent
+
+spec:
+  models:
+    - model: gpt-4o-mini
+
+  description: "Answer general knowledge questions."
+  context:
+    role: |
+      Answer questions clearly and concisely.

@@ -33,6 +33,9 @@ oneOf:
                   properties:
                     ref:
                       type: string
+                    params:
+                      type: object
+                      additionalProperties: true
           add:
             type: array
             items:
@@ -44,10 +47,20 @@ oneOf:
                   properties:
                     ref:
                       type: string
+                    params:
+                      type: object
+                      additionalProperties: true
           remove:
             type: array
             items:
-              type: string
+              oneOf:
+                - type: string
+                - type: object
+                  additionalProperties: false
+                  required: [ref]
+                  properties:
+                    ref:
+                      type: string
           clear:
             type: boolean
             const: true

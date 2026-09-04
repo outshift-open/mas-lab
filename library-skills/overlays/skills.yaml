@@ -1,0 +1,32 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Skills overlay — adds skill access tools (activate_skill, list_skill_files,
+# read_skill_file) to any agent that already declares skills in its manifest.
+#
+# Usage:
+#   mas-ctl chat agents/my-agent.yaml \
+#     -o pkg://skills/overlays/skills.yaml
+#
+# Or compose in a MAS application manifest:
+#   spec:
+#     agents:
+#       - ref: agents/my-agent.yaml
+#         overlays:
+#           - pkg://skills/overlays/skills.yaml
+#
+# The overlay appends the skill-access tool provider to spec.tools.
+# The SkillCatalogPlugin is activated automatically at bootstrap when
+# spec.skills lists one or more skill refs.
+
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: skills
+spec:
+  target:
+    kind: Agent
+  patch:
+    spec:
+      tools:
+        - $append:
+          - ref: "skills:tools/skill-access.tool.yaml"

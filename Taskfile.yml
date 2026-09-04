@@ -14,6 +14,7 @@ tasks:
 
   install:
     desc: "Install core MAS packages into this repo's .venv (editable mode). Run from repo root."
+    run: once
     summary: |
       Installs runtime, ctl, library-standard, library-lab, and mas-lab
       (pulls mas-lab-controller, mas-lab-bench, mas-lab-core as transitive editable deps).
@@ -21,18 +22,20 @@ tasks:
       new dependencies. For all libraries + extras use: task install-all
     cmds:
       - test -d .venv || uv venv .venv
-      - uv pip install -e runtime -e ctl -e library-standard -e library-eval -e library-lab -e lab/components/core -e lab/components/bench -e lab/components/controller -e lab
+      - uv pip install -e runtime -e ctl -e library-standard -e library-skills -e library-eval -e library-lab -e lab/components/core -e lab/components/bench -e lab/components/controller -e lab
       - .venv/bin/python -c "import mas.lab.controller; print('mas-lab-controller OK')"
 
   install-dev:
     desc: "Editable runtime+ctl+lab install with dev test dependencies."
+    run: once
     summary: |
       One-time after clone (or when pyproject.toml changes). Same as install plus
       library-samples (app/dataset registry), pyarrow, and pytest tooling.
     cmds:
       - task: install
       - uv pip install -e library-samples
-      - uv pip install pytest pytest-asyncio pytest-cov pytest-timeout import-linter pyyaml click python-dotenv jsonschema httpx certifi truststore pyarrow
+      - uv pip install -e "library-skills[all]"
+      - uv pip install pytest pytest-asyncio pytest-cov pytest-timeout import-linter pyyaml click python-dotenv jsonschema httpx httpx2 certifi truststore pyarrow opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
 
   verify:literals:
     desc: "Forbidden path/id literal gate (scripts/check_literals.py)"
@@ -57,6 +60,13 @@ tasks:
           ctl/tests/ \
           library-standard/tests/ \
           -q --tb=line
+      - |
+        # Separate invocation: library-skills/tests/ is its own `tests` package
+        # (needs __init__.py for its relative `from .conftest import ...`
+        # imports) and collides with lab/components/bench/tests/'s identically
+        # named package under pytest's default import mode if run in the same
+        # process.
+        {{.VENV}}/pytest library-skills/tests/ -q --tb=line
 
   verify-controller:
     desc: "All controller unit tests (FastAPI routes, daemon IPC, workers, discovery, manifests)"

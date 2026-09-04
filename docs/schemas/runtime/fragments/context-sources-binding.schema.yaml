@@ -1,0 +1,66 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#context-sources-binding"
+title: ContextSourcesBinding
+description: >
+  List of ContextContract source plugin ids. Same list-of-plugins shape as
+  observability/governance. Currently used to select the skill-plugin engine
+  (native, adk, langchain) that backs SkillCatalogPlugin/SkillToolsPlugin —
+  see library-skills/library.yaml. Plugin implementations are resolved at
+  runtime from the plugin registry; unknown ids fail at load time.
+type: array
+items:
+  oneOf:
+    - type: string
+      enum: [native, adk, langchain]
+    - type: object
+      additionalProperties: false
+      minProperties: 1
+      maxProperties: 1
+      properties:
+        native:
+          type: object
+          additionalProperties: false
+          properties:
+            base_dir:
+              type: string
+            auto_inject:
+              type: boolean
+              default: false
+              description: >
+                When true, also auto-grant run-skill-script.tool.yaml (script
+                execution) to any agent that declares spec.skills — not just
+                skill-access.tool.yaml (read-only). Off by default: declaring
+                skills must not silently grant script execution; opt in per
+                deployment here instead of hand-declaring the tool ref.
+        adk:
+          type: object
+          additionalProperties: false
+          properties:
+            base_dir:
+              type: string
+            auto_inject:
+              type: boolean
+              default: false
+              description: >
+                When true, also auto-grant run-skill-script.tool.yaml (script
+                execution) to any agent that declares spec.skills — not just
+                skill-access.tool.yaml (read-only). Off by default: declaring
+                skills must not silently grant script execution; opt in per
+                deployment here instead of hand-declaring the tool ref.
+        langchain:
+          type: object
+          additionalProperties: false
+          properties:
+            base_dir:
+              type: string
+            auto_inject:
+              type: boolean
+              default: false
+              description: >
+                When true, also auto-grant run-skill-script.tool.yaml (script
+                execution) to any agent that declares spec.skills — not just
+                skill-access.tool.yaml (read-only). Off by default: declaring
+                skills must not silently grant script execution; opt in per
+                deployment here instead of hand-declaring the tool ref.

@@ -1,0 +1,20 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentskills"
+version = "0.1.0"
+description = "agentskills.io client library — skill discovery, parsing, and lifecycle management."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "pyyaml>=6.0",
+    "python-frontmatter>=1.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentskills"]

@@ -146,15 +146,21 @@ def openai_tools(
     agent_id: str | None = None,
     tool_provider: ManifestToolProvider | None = None,
     peer_descriptions: dict[str, str] | None = None,
+    ctx: Any = None,
 ) -> list[dict[str, Any]]:
-    """Build OpenAI ``tools`` from loaded manifest tools and MAS delegation topology."""
+    """Build OpenAI ``tools`` from loaded manifest tools and MAS delegation topology.
+
+    ``ctx`` is forwarded to ``tool_provider.list_openai_tools()`` so tools
+    whose valid-argument set is only known at runtime can build an accurate
+    schema (see ManifestToolProvider.list_tools's docstring).
+    """
     aid = _manifest_agent_id(manifest, agent_id)
     out: list[dict[str, Any]] = list(
         openai_delegation_tools(manifest, agent_id=aid, peer_descriptions=peer_descriptions)
     )
     seen = {t["function"]["name"] for t in out if t.get("function")}
     if tool_provider is not None:
-        for tool in tool_provider.list_openai_tools():
+        for tool in tool_provider.list_openai_tools(ctx=ctx):
             name = tool.get("function", {}).get("name")
             if name and name not in seen:
                 out.append(tool)

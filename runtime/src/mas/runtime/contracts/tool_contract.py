@@ -304,8 +304,14 @@ class ToolContract(CapabilityContract):
     def execute(self, **kwargs: Any) -> Dict[str, Any]:
         raise NotImplementedError(f"{self.__class__.__name__} must implement execute()")
 
-    def on_collect_tools(self) -> List[Dict[str, Any]]:
-        """Hook handler: list tools when requested."""
+    def on_collect_tools(self, **_: Any) -> List[Dict[str, Any]]:
+        """Hook handler: list tools when requested.
+
+        Accepts and ignores arbitrary kwargs (e.g. ``ctx``) for forward
+        compatibility with callers that pass extra context to subclasses
+        that want it (see SkillToolsPlugin, which uses ``ctx`` to build a
+        live ``enum`` constraint) -- most tools don't need it.
+        """
         return self.list_tools()
 
     def on_execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:

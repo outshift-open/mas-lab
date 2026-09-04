@@ -167,20 +167,6 @@ properties:
           params:
             $ref: "./fragments/context-manager-params.schema.yaml"
             default: {}
-          skills:
-            type: array
-            description: >
-              Skill names to auto-inject into the system prompt via
-              ContextFacetProvider.  Resolved by the same locator chain as
-              spec.skills (app-local → libraries → packages).
-              This is the context path — complements the tool path
-              (spec.skills → consult_skills tool).
-            x-merge:
-              strategy: list_ops
-              identity: value
-            default: []
-            items:
-              type: string
           memory:
             type: array
             description: >
@@ -641,6 +627,14 @@ properties:
                   type: integer
                   description: "Registration priority (higher = loaded first)."
                   default: 100
+                params:
+                  type: object
+                  description: >
+                    Init kwargs merged into the referenced tool's own
+                    spec.impl.params (this entry's keys win on conflict) —
+                    e.g. {impl: adk, base_dir: ./skills/} for a skill tool ref.
+                  additionalProperties: true
+                  default: {}
 
             # ── Form B: inline anonymous (backward-compatible) ───────────
             - type: object
@@ -749,6 +743,17 @@ properties:
       observability:
         $ref: "./fragments/observability-binding.schema.yaml"
         description: "ObservabilitySink plugin list — list form only."
+        x-merge:
+          strategy: plugin_list_ops
+          identity: plugin_id
+        default: null
+
+      context_sources:
+        $ref: "./fragments/context-sources-binding.schema.yaml"
+        description: >
+          ContextContract source plugin list — list form only, same shape as
+          observability/governance. Selects which skill-plugin engine
+          (native, adk, langchain) backs SkillCatalogPlugin/SkillToolsPlugin.
         x-merge:
           strategy: plugin_list_ops
           identity: plugin_id

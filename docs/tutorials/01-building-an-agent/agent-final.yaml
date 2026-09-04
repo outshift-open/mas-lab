@@ -47,9 +47,6 @@ spec:
   # ── Skills (from skills overlay) ──────────────────────────────────────────
   skills:
     - answer-formatting
-  context_manager:
-    skills:
-      - answer-formatting
 
   # ── Tools (from tools overlay + memory overlay, deduplicated) ─────────────
   # memory-search provider exposes: memory_search, memory_get, memory_store

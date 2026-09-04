@@ -103,6 +103,7 @@ class LiveLlmEngine:
                     base_dir=self.manifest_dir,
                     tool_provider=self.tool_provider,
                     peer_descriptions=self.delegation_peer_descriptions,
+                    ctx=self.ctx,
                 )
                 if self.use_tool_loop
                 else []
@@ -190,6 +191,7 @@ class LiveLlmEngine:
                 base_dir=self.manifest_dir,
                 tool_provider=self.tool_provider,
                 peer_descriptions=self.delegation_peer_descriptions,
+                ctx=self.ctx,
             )
             if self.use_tool_loop
             else []

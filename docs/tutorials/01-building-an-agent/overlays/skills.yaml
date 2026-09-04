@@ -13,8 +13,3 @@ spec:
       $op:
         add:
           - answer-formatting
-    context_manager:
-      skills:
-        $op:
-          add:
-            - answer-formatting

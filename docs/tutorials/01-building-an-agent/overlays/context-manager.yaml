@@ -9,8 +9,7 @@ spec:
   target:
     kind: Agent
   patch:
-    context_manager:
-      skills:
-        $op:
-          add:
-            - answer-formatting
+    skills:
+      $op:
+        add:
+          - answer-formatting
