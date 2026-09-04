@@ -62,6 +62,8 @@ class InstantiationOptions:
     enable_observability: bool = True
     enable_governance: bool = True
     enable_coordination: bool = True
+    hitl_contract: object | None = None
+    user_io_contract: object | None = None
 
 
 def instantiate_runtime(
@@ -209,6 +211,8 @@ def instantiate_runtime(
             options.manifest_dir or Path.cwd(),
             app_root=options.app_root or options.manifest_dir,
             workspace_root=ws.root if ws.found else None,
+            hitl_contract=options.hitl_contract,
+            user_io_contract=options.user_io_contract,
         )
     return instance, store
 

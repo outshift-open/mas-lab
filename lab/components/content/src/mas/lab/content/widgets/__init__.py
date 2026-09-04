@@ -38,7 +38,7 @@ def render_widget(name: str, body: str, attrs: dict[str, str]) -> str:
     if fn:
         return fn(body, attrs)
     # Fallback: render as fenced block with name label
-    safe_body = body.replace("&", "&amp;").replace("<", "&lt;")
+    safe_body = body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     return (
         f'<div class="widget-unknown">'
         f'<div class="widget-label">{name}</div>'

@@ -115,6 +115,8 @@ class TestSkillPluginRegistry:
         assert isinstance(plugin, NativeSkillPlugin)
 
     def test_langchain_get_plugin(self, tmp_path):
+        if not HAS_DEEPAGENTS:
+            pytest.skip(MISSING_EXTRA_REASON)
         with patch("deepagents.backends.FilesystemBackend"):
             with patch("deepagents.middleware.skills._list_skills"):
                 reg = SkillPluginRegistry(impl="langchain")
@@ -122,6 +124,8 @@ class TestSkillPluginRegistry:
                 assert isinstance(plugin, LangChainSkillPlugin)
 
     def test_adk_get_plugin_mocked(self, tmp_path):
+        if not HAS_ADK:
+            pytest.skip(MISSING_EXTRA_REASON)
         with patch("google.adk.skills.load_skill_from_dir"):
             reg = SkillPluginRegistry(impl="adk")
             plugin = reg.get_plugin(base_dir=tmp_path)

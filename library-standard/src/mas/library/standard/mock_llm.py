@@ -9,6 +9,13 @@ from typing import Any
 
 _ARITH_EXPR = re.compile(r"(\d+\s*[\+\-\*/%]+\s*\d+|\d[\d\s+\-*/().%]*\d)")
 
+# request_human_input/inform_user are auto-injected onto every agent
+# (including delegates) regardless of what the manifest itself declares --
+# they're runtime capabilities, not the task-specific tool a scenario is
+# actually exercising. Never let them win the "nothing else matched"
+# fallback below; a mocked agent should still exercise its own real tools.
+_SYSTEM_TOOL_NAMES = frozenset({"request_human_input", "inform_user"})
+
 __all__ = [
     "openai_tools_to_specs",
     "pick_tool_call",
@@ -62,6 +69,10 @@ def pick_tool_call(
     """Choose a tool and stub args from declared schemas (no hardcoded tool ids)."""
     if not tool_specs or not user.strip():
         return None
+
+    real_specs = [spec for spec in tool_specs if spec[0] not in _SYSTEM_TOOL_NAMES]
+    if real_specs:
+        tool_specs = real_specs
 
     props_by_tool: list[tuple[str, dict[str, Any], set[str]]] = []
     for name, params in tool_specs:

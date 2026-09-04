@@ -58,11 +58,32 @@ def test_build_manifest_tool_provider_from_ref(calculator_tool_tree: Path):
     provider = build_manifest_tool_provider(
         [{"ref": "tools/calculator.tool.yaml"}],
         calculator_tool_tree,
+        include_system_tools=False,
     )
     names = [t["function"]["name"] for t in provider.list_openai_tools()]
     assert names == ["calculator"]
     out = provider.call_tool("calculator", {"expression": "2**16"})
     assert out["result"] == 65536
+
+
+def test_redundant_system_tool_entry_is_skipped_not_raised(calculator_tool_tree: Path):
+    """spec.tools entries with kind: system (e.g. request_human_input) are
+    always auto-injected by build_manifest_tool_provider itself; an explicit
+    manifest declaration for one is redundant and must be skipped rather than
+    raising ManifestToolLoadError (regression: this previously crashed
+    instantiate_runtime for any manifest declaring a system tool in
+    spec.tools, silently degrading agents to an empty tool/skill setup)."""
+    provider = build_manifest_tool_provider(
+        [
+            {"ref": "tools/calculator.tool.yaml"},
+            {"name": "request_human_input", "kind": "system"},
+        ],
+        calculator_tool_tree,
+    )
+    names = {t["function"]["name"] for t in provider.list_openai_tools()}
+    assert "calculator" in names
+    assert "request_human_input" in names
+    assert "inform_user" in names
 
 
 def test_ref_entry_params_override_yaml_impl_params(tmp_path: Path):
@@ -117,7 +138,9 @@ class EchoImplTool:
 
 def test_openai_tools_uses_provider(calculator_tool_tree: Path):
     manifest = {"spec": {"tools": [{"ref": "tools/calculator.tool.yaml"}]}}
-    provider = build_manifest_tool_provider(manifest["spec"]["tools"], calculator_tool_tree)
+    provider = build_manifest_tool_provider(
+        manifest["spec"]["tools"], calculator_tool_tree, include_system_tools=False
+    )
     tools = openai_tools(manifest, tool_provider=provider)
     assert tools[0]["function"]["name"] == "calculator"
 

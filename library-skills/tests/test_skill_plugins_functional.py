@@ -358,6 +358,7 @@ class TestCrossPluginConsistency:
 
     PLUGINS = [LangChainSkillPlugin, ADKSkillPlugin]
 
+    @pytest.mark.skipif(not (HAS_DEEPAGENTS and HAS_ADK), reason=MISSING_EXTRA_REASON)
     def test_same_skill_discovered_by_all(self, tmp_path):
         make_skill(tmp_path, "common-skill", description="Shared skill.")
         for cls in self.PLUGINS:
@@ -366,6 +367,7 @@ class TestCrossPluginConsistency:
             assert "common-skill" in skills, f"{cls.__name__} missed common-skill"
             assert skills["common-skill"].description == "Shared skill."
 
+    @pytest.mark.skipif(not (HAS_DEEPAGENTS and HAS_ADK), reason=MISSING_EXTRA_REASON)
     def test_path_traversal_blocked_by_all(self, tmp_path):
         make_skill(tmp_path, "s", description="S.")
         for cls in self.PLUGINS:

@@ -9,7 +9,6 @@ import logging
 import time
 import uuid
 from collections import deque
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Literal
@@ -20,6 +19,7 @@ from mas.runtime.kernel.inflight import pending_for_validate, register_inflight
 from mas.runtime.boundary.coordination.chokepoint import ChokepointCoordinator
 from mas.runtime.kernel.runtime_context import runtime_binding
 from mas.runtime.machines.gov import gov_is_hitl_pending
+from mas.runtime.boundary.obs.exchange_plugin import ExchangePlugin
 from mas.runtime.boundary.obs.operator import ObservabilityOperator
 from mas.runtime.engine.simulated import SimulatedEngine
 from mas.runtime.engine.worker_pool import EngineWorkerPool
@@ -99,7 +99,15 @@ class KernelDriver:
     coordination: ChokepointCoordinator | None = field(default_factory=ChokepointCoordinator)
     max_auto_steps: int = 512
     agent_id: str = "agent"
-    on_exchange: Callable[[ExchangeRecord], None] | None = None
+    # Read-only, additive subscribers for the driver's own display-oriented
+    # exchange log (see ExchangeRecord/ExchangePlugin) — mirrors
+    # ObservabilityOperator._subscribers: subscribe_exchange()/
+    # unsubscribe_exchange() append/remove entries in place, so registering
+    # a new plugin (e.g. mas-ctl's own CLI trace plugin, or an external
+    # chat-UI plugin) never silently discards another one already
+    # registered — unlike the single mutable callback this replaced, which
+    # a caller re-running setup every turn could (and did) overwrite.
+    exchange_plugins: list[ExchangePlugin] = field(default_factory=list)
     capture_engine_io: bool = False
     # One id for the whole run. Defaults to a fresh id per driver (correct
     # for a single-agent run); re-adopted from UserInputReceived.session_id
@@ -166,6 +174,10 @@ class KernelDriver:
                 # replaces the placeholder session_id this driver was built
                 # with (see KernelDriver.session_id).
                 self.session_id = ingress.session_id
+                # Sync session_id and agent_id to ctx for system tools
+                if self.ctx is not None:
+                    self.ctx.session_id = self.session_id
+                    self.ctx.agent_id = self.agent_id
                 if self.observability is not None:
                     # Same values, same source, as what governance sees on
                     # this and every subsequent transition this turn (see
@@ -296,10 +308,20 @@ class KernelDriver:
 
         return []
 
+    def subscribe_exchange(self, plugin: ExchangePlugin) -> None:
+        """Register a read-only ExchangePlugin (additive; never overwrites others)."""
+        if plugin not in self.exchange_plugins:
+            self.exchange_plugins.append(plugin)
+
+    def unsubscribe_exchange(self, plugin: ExchangePlugin) -> None:
+        """Remove a previously subscribed ExchangePlugin, if still present."""
+        if plugin in self.exchange_plugins:
+            self.exchange_plugins.remove(plugin)
+
     def _emit_exchange(self, trace: DriverTrace, record: ExchangeRecord) -> None:
         trace.exchanges.append(record)
-        if self.on_exchange is not None:
-            self.on_exchange(record)
+        for plugin in self.exchange_plugins:
+            plugin.on_exchange(record)
 
     def _notify_governance(
         self, hook: Literal["ingress", "egress"], symbol: IngressSymbol | EgressSymbol

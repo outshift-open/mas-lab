@@ -252,6 +252,7 @@ def test_send_gives_each_delegation_invocation_a_unique_turn_id():
 
     class _FakeResult:
         text = "ok"
+        awaiting_hitl = False
 
     def _fake_run_turn(self, prompt, *, turn_id=None, parent_call_id="", auto_hitl=True):
         captured_turn_ids.append(turn_id)
@@ -279,6 +280,7 @@ def test_send_sequential_workflow_calls_without_caller_call_id_still_get_unique_
 
     class _FakeResult:
         text = "ok"
+        awaiting_hitl = False
 
     def _fake_run_turn(self, prompt, *, turn_id=None, parent_call_id="", auto_hitl=True):
         captured_turn_ids.append(turn_id)
@@ -310,6 +312,7 @@ def _capturing_run_turn(captured_session_ids: list[str]):
 
     class _FakeResult:
         text = "ok"
+        awaiting_hitl = False
 
     def _fake_run_turn(self, prompt, *, turn_id=None, parent_call_id="", auto_hitl=True):
         captured_session_ids.append(self.session_id)
@@ -395,7 +398,7 @@ def _capturing_working_memory_key_run_turn(captured: list[str]):
 
     def _fake_run_turn(self, prompt, *, turn_id=None, parent_call_id="", auto_hitl=True):
         captured.append(self._working_memory_key())
-        return SimpleNamespace(text="ok")
+        return SimpleNamespace(text="ok", awaiting_hitl=False)
 
     return _fake_run_turn
 

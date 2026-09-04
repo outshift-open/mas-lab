@@ -19,6 +19,12 @@ class ToolExecutionError(RuntimeError):
 
 
 def format_tool_result(result: Any) -> str:
+    """Format tool result as string for LLM consumption.
+    
+    Agent-initiated HITL (via request_human_input) is now fully synchronous:
+    the wrapper blocks until resolution, so the result is always the user's
+    choice, not a marker. No special HITL detection needed here.
+    """
     if isinstance(result, str):
         return result
     if isinstance(result, dict):

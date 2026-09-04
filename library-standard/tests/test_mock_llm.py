@@ -60,3 +60,52 @@ def test_stub_arguments_fills_required_string():
     }
     args = stub_arguments(params, "weather in Paris")
     assert args["query"] == "weather in Paris"
+
+
+def _system_tool_specs() -> list:
+    """request_human_input/inform_user, shaped as they're actually auto-injected
+    onto every agent (see manifest_tool_provider._inject_system_tools) -- neither
+    has an "expression" or "query" property, so the fallback branch is what's
+    under test here."""
+    return [
+        (
+            "request_human_input",
+            {
+                "type": "object",
+                "properties": {
+                    "question": {"type": "string"},
+                    "question_type": {"type": "string"},
+                    "choices": {"type": "array"},
+                    "context_data": {"type": "object"},
+                    "timeout": {"type": "number"},
+                },
+                "required": ["question"],
+            },
+        ),
+        ("inform_user", {"type": "object", "properties": {"message": {"type": "string"}}}),
+    ]
+
+
+def test_pick_tool_call_skips_system_tools_in_favor_of_a_real_tool():
+    """Regression: request_human_input/inform_user are unconditionally present
+    on every agent's tool list (including delegates), so the "nothing else
+    matched" fallback used to always pick request_human_input (list index 0)
+    instead of the agent's own real tool -- a mocked delegate would call
+    request_human_input and get auto-resolved instead of doing its actual job."""
+    specs = _system_tool_specs() + [
+        (
+            "lookup_schedule",
+            {
+                "type": "object",
+                "properties": {"origin": {"type": "string"}, "destination": {"type": "string"}},
+                "required": ["origin", "destination"],
+            },
+        )
+    ]
+    name, _args = pick_tool_call("Find a route from Celestia to Verdantia", specs) or ("", {})
+    assert name == "lookup_schedule"
+
+
+def test_pick_tool_call_falls_back_to_a_system_tool_when_nothing_else_exists():
+    name, _args = pick_tool_call("anything", _system_tool_specs()) or ("", {})
+    assert name == "request_human_input"

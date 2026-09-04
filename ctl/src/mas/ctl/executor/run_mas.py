@@ -60,10 +60,21 @@ def execute_run_mas(
     trace_color: bool = False,
 ) -> int:
     """Compose → materialize → SessionController on entry agent."""
+    import os
+
     from mas.ctl.session.controller import ConversationConfig, SessionController, close_observability
     from mas.ctl.session.hitl_config import resolve_hitl_from_manifest
     from mas.ctl.session.controller import run_session_loop
     from mas.ctl.ui.stdout import StdoutConversationDisplay
+
+    # Batch/CLI runs with auto-hitl (the default) have no external resolver
+    # (Webex bot, operator console) listening for agent-initiated
+    # request_human_input() calls, so the synchronous HITL wait in
+    # manifest_tool_provider would otherwise always time out. Signal batch
+    # mode via env var (mirrors the existing MAS_MANIFEST_RESOLVE_REFS
+    # pattern) so it auto-resolves instead of blocking. Interactive sessions
+    # never set this, so real HITL resolution still blocks as intended.
+    os.environ["MAS_HITL_AUTO_RESOLVE"] = "1" if (auto_hitl and not interactive) else "0"
 
     scripted = list(queries or [])
     if prompt:
@@ -115,6 +126,11 @@ def execute_run_mas(
             entry_id=entry,
             display=display,
             verbose=verbose,
+            trace=trace,
+            trace_timestamps=trace_timestamps,
+            trace_engine=trace_engine,
+            trace_summary=trace_summary,
+            trace_color=trace_color,
         )
     except KeyError as exc:
         logger.error("%s", exc)
@@ -136,6 +152,11 @@ def execute_run_mas(
         verbose=verbose,
         already_wired={entry},
         session_id=prepared.session_id,
+        trace=trace,
+        trace_timestamps=trace_timestamps,
+        trace_engine=trace_engine,
+        trace_summary=trace_summary,
+        trace_color=trace_color,
     )
 
     if runtime_params:
