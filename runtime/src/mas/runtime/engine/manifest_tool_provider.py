@@ -114,12 +114,20 @@ class ManifestToolProvider:
     def has_tools(self) -> bool:
         return bool(self._tool_instances)
 
-    def list_tools(self) -> list[dict[str, Any]]:
-        """Aggregate OpenAI-style tool specs from loaded instances."""
+    def list_tools(self, *, ctx: Any = None) -> list[dict[str, Any]]:
+        """Aggregate OpenAI-style tool specs from loaded instances.
+
+        ``ctx`` is forwarded to each instance's ``on_collect_tools(ctx=ctx)``
+        so a tool whose valid-argument set is only known at runtime (e.g.
+        SkillToolsPlugin's activate_skill, constrained to ctx.skill_registry's
+        actual names) can build an accurate schema instead of an unconstrained
+        one -- real validation at the LLM API boundary, not a downstream
+        fallback for names the schema should have rejected in the first place.
+        """
         result: list[dict[str, Any]] = []
         for instance in self._tool_instances:
             try:
-                specs = instance.on_collect_tools()
+                specs = instance.on_collect_tools(ctx=ctx)
                 if specs:
                     for spec in specs:
                         merged = dict(spec)
@@ -154,9 +162,9 @@ class ManifestToolProvider:
                 ) from exc
         return result
 
-    def list_openai_tools(self) -> list[dict[str, Any]]:
+    def list_openai_tools(self, *, ctx: Any = None) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
-        for spec in self.list_tools():
+        for spec in self.list_tools(ctx=ctx):
             name = str(spec.get("name") or "")
             if not name:
                 continue
@@ -185,7 +193,7 @@ class ManifestToolProvider:
             owns = False
             legacy_match = False
             try:
-                specs = instance.on_collect_tools()
+                specs = instance.on_collect_tools(ctx=ctx)
                 owns = any(s.get("name") == tool_name for s in (specs or []))
             except NotImplementedError:
                 pass
@@ -280,6 +288,7 @@ def _normalize_tool_entry(
     containment_roots: tuple[Path, ...],
 ) -> tuple[dict[str, Any], Path, dict[str, Any] | None]:
     catalog_ref_path: Path | None = None
+    raw_entry_params: dict[str, Any] = {}
     if isinstance(raw, str):
         from mas.library_catalog import find_tool_manifest
 
@@ -296,6 +305,7 @@ def _normalize_tool_entry(
         raise ManifestToolLoadError(f"spec.tools[{index}]: expected mapping, got {type(raw).__name__}")
     else:
         tool_def = dict(raw)
+        raw_entry_params = dict(tool_def.get("params") or {})
 
     mdir = manifest_dir
     manifest_contract: dict[str, Any] | None = None
@@ -335,6 +345,10 @@ def _normalize_tool_entry(
             "class_name": impl.get("class_name"),
             "params": dict(impl.get("params") or {}),
         }
+        if raw_entry_params:
+            merged_params = dict(tool_def["params"])
+            merged_params.update(raw_entry_params)
+            tool_def["params"] = merged_params
         mdir = ref_path.parent
     elif tool_def.get("module_path"):
         pass

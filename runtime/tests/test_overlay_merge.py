@@ -411,12 +411,6 @@ def test_merge_memory_seed_explicit_ops():
     ]
 
 
-def test_merge_context_manager_skills_explicit_ops():
-    base = {"spec": {"context_manager": {"skills": ["s1"]}}}
-    merged = merge_overlay(base, _overlay({"context_manager": {"skills": {"$op": {"add": ["s2"]}}}}))
-    assert merged["spec"]["context_manager"]["skills"] == ["s1", "s2"]
-
-
 def test_merge_mas_agents_remove_explicit_ops():
     base = {
         "kind": "MAS",

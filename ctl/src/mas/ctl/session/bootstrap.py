@@ -4,9 +4,11 @@
 
 from __future__ import annotations
 
+import os
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.driver.mocks import AutoCtxAssembler
@@ -26,6 +28,23 @@ from mas.runtime.agent_defaults import default_pattern_plugin_id
 from mas.runtime.boundary.context.manifest_context import context_chunks_from_spec
 
 logger = logging.getLogger(__name__)
+
+_SKILL_TOOL_REFS = {
+    "skills:tools/skill-access.tool.yaml",
+    "pkg://skills/tools/skill-access.tool.yaml",
+}
+_SKILL_SHELL_REFS = {
+    "skills:tools/run-skill-script.tool.yaml",
+    "pkg://skills/tools/run-skill-script.tool.yaml",
+}
+_SUPPORTED_SKILL_IMPLS = {"native", "adk", "langchain"}
+
+
+@dataclass(frozen=True)
+class _SkillPluginConfig:
+    impl: str = "native"
+    base_dir: Path | None = None
+    auto_inject_scripts: bool = False
 
 
 @dataclass
@@ -71,6 +90,11 @@ def instantiate_runtime(
     # Resolve skills relative to the agent manifest directory first.
     # app_root can be '.' for some compose flows and would break relative refs.
     skill_base = options.manifest_dir or options.app_root
+    skill_cfg = _resolve_skill_plugin_config(
+        options.agent_manifest,
+        default_base_dir=skill_base or Path.cwd(),
+    )
+    _auto_inject_skill_tools(options.agent_manifest, auto_inject_scripts=skill_cfg.auto_inject_scripts)
     _apply_manifest_context(
         ctx,
         options.agent_manifest,
@@ -78,12 +102,13 @@ def instantiate_runtime(
         app_root=options.app_root,
     )
     if options.agent_manifest and skill_base:
-        from mas.runtime.boundary.context.skills import inject_skills_into_context
+        from mas.library.skills.plugins.sk_catalog import attach_skill_catalog_plugin
 
-        ctx.injected_context = inject_skills_into_context(
-            ctx.injected_context,
+        attach_skill_catalog_plugin(
+            ctx,
             options.agent_manifest,
-            base_dir=skill_base,
+            skill_cfg.base_dir or skill_base,
+            impl=skill_cfg.impl,
         )
     ctx.capture_baseline()
     spec = dict((options.agent_manifest or {}).get("spec") or {})
@@ -200,3 +225,158 @@ def _apply_manifest_context(
     spec = manifest.get("spec") or {}
     base = app_root or manifest_dir or Path.cwd()
     ctx.injected_context.extend(context_chunks_from_spec(spec, base_dir=base))
+
+
+def _resolve_skill_plugin_config(
+    manifest: dict[str, Any] | None,
+    *,
+    default_base_dir: Path,
+) -> _SkillPluginConfig:
+    """Resolve skill plugin implementation from overlay/manifest/env settings.
+
+    Priority: spec.context_sources (plugin list, same shape as observability)
+    > legacy manifest tool/context declarations > env var > default.
+    """
+    env_impl = str(os.getenv("MAS_SKILL_IMPL") or "").strip().lower() or "native"
+    impl = env_impl if env_impl in _SUPPORTED_SKILL_IMPLS else "native"
+    rel_base: str | None = None
+    auto_inject_scripts = False
+
+    spec = manifest.get("spec") if isinstance(manifest, dict) and isinstance(manifest.get("spec"), dict) else {}
+    context_sources_raw = spec.get("context_sources") if isinstance(spec, dict) else None
+    if context_sources_raw:
+        from mas.runtime.spec.context_sources import parse_context_sources
+
+        plugins, configs = parse_context_sources(context_sources_raw)
+        for candidate_impl in plugins:
+            if candidate_impl in _SUPPORTED_SKILL_IMPLS:
+                impl = candidate_impl
+            else:
+                logger.warning(
+                    "Unknown context_sources plugin %r; expected one of %s",
+                    candidate_impl,
+                    sorted(_SUPPORTED_SKILL_IMPLS),
+                )
+        for cfg in configs.values():
+            candidate_base = cfg.get("base_dir")
+            if isinstance(candidate_base, str) and candidate_base.strip():
+                rel_base = candidate_base
+            if "auto_inject" in cfg:
+                auto_inject_scripts = bool(cfg.get("auto_inject"))
+
+    for entry in _iter_skill_plugin_entries(manifest):
+        candidate_impl = _entry_skill_impl(entry)
+        if candidate_impl:
+            normalized = candidate_impl.strip().lower()
+            if normalized in _SUPPORTED_SKILL_IMPLS:
+                impl = normalized
+            else:
+                logger.warning(
+                    "Unknown skill impl %r; expected one of %s",
+                    candidate_impl,
+                    sorted(_SUPPORTED_SKILL_IMPLS),
+                )
+        candidate_base = _entry_skill_base_dir(entry)
+        if candidate_base:
+            rel_base = candidate_base
+
+    resolved_base = default_base_dir
+    if rel_base:
+        p = Path(rel_base)
+        resolved_base = p.resolve() if p.is_absolute() else (default_base_dir / p).resolve()
+
+    return _SkillPluginConfig(impl=impl, base_dir=resolved_base, auto_inject_scripts=auto_inject_scripts)
+
+
+def _iter_skill_plugin_entries(manifest: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not manifest:
+        return []
+
+    entries: list[dict[str, Any]] = []
+    spec = manifest.get("spec") if isinstance(manifest.get("spec"), dict) else {}
+
+    for tools_block in (spec.get("tools"), manifest.get("tools")):
+        if not isinstance(tools_block, list):
+            continue
+        for item in tools_block:
+            if not isinstance(item, dict):
+                continue
+            ref = str(item.get("ref") or "").strip()
+            if ref in _SKILL_TOOL_REFS or ref in _SKILL_SHELL_REFS:
+                entries.append(item)
+
+    return entries
+
+
+def _entry_skill_impl(entry: dict[str, Any]) -> str | None:
+    impl = entry.get("impl")
+    if isinstance(impl, str) and impl.strip():
+        return impl
+    params = entry.get("params")
+    if isinstance(params, dict):
+        p_impl = params.get("impl")
+        if isinstance(p_impl, str) and p_impl.strip():
+            return p_impl
+    return None
+
+
+def _entry_skill_base_dir(entry: dict[str, Any]) -> str | None:
+    for key in ("base-dir", "base_dir"):
+        value = entry.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+    params = entry.get("params")
+    if isinstance(params, dict):
+        value = params.get("base_dir")
+        if isinstance(value, str) and value.strip():
+            return value
+    return None
+
+
+def _auto_inject_skill_tools(manifest: dict[str, Any] | None, *, auto_inject_scripts: bool = False) -> None:
+    """Auto-add skill tool refs when ``spec.skills`` is set.
+
+    SkillCatalogPlugin/SkillToolsPlugin should not require the user to
+    hand-declare ``skill-access.tool.yaml`` — presence of ``spec.skills: [...]``
+    is enough to enable model-driven skill activation. That one is always
+    auto-injected: it is read-only (activate_skill/list_skill_files/
+    read_skill_file).
+
+    ``run-skill-script.tool.yaml`` (shell/script execution) is a trust
+    decision, not a manifest-authoring convenience — see
+    library-skills/docs/user-guide.md's "Shell tool" section. It is only
+    auto-injected when the deployment has opted in via
+    ``spec.context_sources: [{native: {auto_inject: true}}]`` (see
+    _resolve_skill_plugin_config), never merely because ``spec.skills`` is
+    non-empty. Default is off: declaring skills must not silently grant
+    script execution.
+    """
+    if not manifest:
+        return
+    spec = manifest.get("spec")
+    if not isinstance(spec, dict):
+        return
+    skills = spec.get("skills")
+    if not isinstance(skills, list) or not skills:
+        return
+
+    tools = spec.get("tools")
+    if not isinstance(tools, list):
+        tools = []
+
+    existing_refs = {
+        str(item.get("ref") or "").strip()
+        for item in tools
+        if isinstance(item, dict)
+    }
+
+    def _add_if_missing(ref: str) -> None:
+        if ref not in existing_refs and f"pkg://{ref.split(':', 1)[1]}" not in existing_refs:
+            tools.append({"ref": ref})
+            existing_refs.add(ref)
+
+    _add_if_missing("skills:tools/skill-access.tool.yaml")
+    if auto_inject_scripts:
+        _add_if_missing("skills:tools/run-skill-script.tool.yaml")
+
+    spec["tools"] = tools

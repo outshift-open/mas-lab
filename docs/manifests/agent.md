@@ -27,7 +27,7 @@ sees, and which plugins hook its execution.
 | Prompt / role | `description`, `context` | `description` → delegation tools; `context.*` → system prompt |
 | Models | `models[]` | LLM routing (ids, temperature, max_tokens) |
 | Tools | `tools`, `tools_ref` | ToolContract surface |
-| Skills | `skills`, `context_manager.skills` | Context facets + `consult_skills` |
+| Skills | `skills` | Context facet (catalog) + `activate_skill`/`read_skill_file` tools |
 | Memory | `memory`, `memory_seed` | Stores + startup seeds |
 | Working memory | `working_memory.persistent` | Cross-turn buffer survives repeat delegate calls within one session (default `true`) — see below |
 | Kernel plugins | `plugins[]`, `governance[]`, `observability[]` | Governance and observability on Mealy envelope chokepoints (not a hook plane) |

@@ -1,0 +1,38 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Skill-access multi-tool provider — activate_skill, list_skill_files, read_skill_file.
+# Reference this from an agent manifest's spec.tools to enable model-driven skill loading.
+#
+# Example agent manifest entry:
+#   spec:
+#     tools:
+#       - ref: pkg://skills/tools/skill-access.tool.yaml
+#
+# The SkillToolsPlugin reads ctx.skill_registry (set by SkillCatalogPlugin at
+# bootstrap) at call time — no constructor arguments needed.
+
+apiVersion: mas/v1
+kind: Tool
+
+metadata:
+  name: skill-access
+  description: "Skill access tools — activate_skill, list_skill_files, read_skill_file."
+  version: "0.1.0"
+  tags: [skills, context]
+
+spec:
+  description: >
+    Multi-tool provider for agent-skill progressive disclosure (tier 2 + tier 3).
+    Exposes three tools:
+
+      activate_skill(name)          — load full SKILL.md body on demand
+      list_skill_files(skill)       — enumerate bundled resources
+      read_skill_file(skill, path)  — read a specific resource file
+
+    Requires SkillCatalogPlugin to have populated ctx.skill_registry at session
+    start (done automatically by attach_skill_catalog_plugin in bootstrap).
+
+  impl:
+    kind: python
+    module_path: mas.library.skills.plugins.sk_tools
+    class_name: SkillToolsPlugin

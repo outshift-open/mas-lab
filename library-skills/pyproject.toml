@@ -1,0 +1,45 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mas-library-skills"
+version = "0.1.0"
+description = "Skills library for MAS — ContextContract catalog plugin + ToolContract skill-access tools."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "mas-runtime",
+    "agentskills",
+    "skill-sandbox",
+]
+
+[project.optional-dependencies]
+# Pulls in the two optional skill-implementation engines (see README.md
+# "Choosing an implementation"). Needed to run the functional tests in
+# tests/test_skill_plugins_functional.py against the real frameworks
+# rather than mocks.
+all = [
+    "google-adk>=1.0.0",
+    "deepagents>=0.7.0",
+]
+
+[project.entry-points."mas.runtime.manifest_libraries"]
+skills = "mas.library.skills"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mas"]
+
+[tool.hatch.build.targets.wheel.force-include]
+
+"library.yaml" = "src/mas/library/skills/library.yaml"
+"tools/skill-access.tool.yaml" = "src/mas/library/skills/tools/skill-access.tool.yaml"
+"tools/run-skill-script.tool.yaml" = "src/mas/library/skills/tools/run-skill-script.tool.yaml"
+"overlays/skills.yaml" = "src/mas/library/skills/overlays/skills.yaml"
+"overlays/skills-shell.yaml" = "src/mas/library/skills/overlays/skills-shell.yaml"

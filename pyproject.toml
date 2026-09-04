@@ -12,6 +12,7 @@ dependencies = [
     "mas-lab-controller",
     "mas-ctl",
     "mas-library-standard",
+    "mas-library-skills",
     "mas-library-samples",
     "mas-library-lab",
     "mas-library-eval",
@@ -50,6 +51,9 @@ members = [
     "runtime",
     "ctl",
     "library-standard",
+    "library-skills",
+    "library-skills/agentskills",
+    "library-skills/skill-sandbox",
     "library-samples",
     "library-lab",
     "library-eval",
@@ -64,6 +68,7 @@ members = [
 mas-runtime = { workspace = true }
 mas-ctl         = { workspace = true }
 mas-library-standard = { workspace = true }
+mas-library-skills   = { workspace = true }
 mas-library-samples  = { workspace = true }
 mas-library-lab      = { workspace = true }
 mas-library-eval     = { workspace = true }
@@ -72,6 +77,8 @@ mas-lab-core    = { workspace = true }
 mas-lab-bench   = { workspace = true }
 mas-lab-controller = { workspace = true }
 mas-lab-content = { workspace = true }
+agentskills = { workspace = true }
+skill-sandbox = { workspace = true }
 [tool.ruff]
 line-length = 120
 target-version = "py311"

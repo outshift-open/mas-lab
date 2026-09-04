@@ -481,6 +481,36 @@ class ContextPart:
             **kwargs,
         )
 
+    @classmethod
+    def skills(cls, content: str, source: str = "skills", **kwargs: Any) -> "ContextPart":
+        """Shorthand: skill catalog section (pinned by default).
+
+        Placed at ``SYSTEM_SKILLS`` (priority 40), between tool directory and
+        ontology.  Pinned so context-budget strategies do not evict the
+        catalog — the model needs it throughout the session to know which
+        skills are available.
+        """
+        kwargs.setdefault("role", "instruction")
+        kwargs.setdefault("pinned", True)
+        kwargs.setdefault(
+            "provenance",
+            {
+                "mechanism": "inject",
+                "trigger": "session_start",
+                "actor": "runtime",
+                "source_type": "skill",
+                "operation": "skill_catalog_injection",
+                "via": "collect_context",
+            },
+        )
+        return cls(
+            content=content,
+            placement=ContextPlacement.SYSTEM_SKILLS,
+            priority=40,
+            source=source,
+            **kwargs,
+        )
+
 
 # ---------------------------------------------------------------------------
 # ContextContract — base class for contributing plugins

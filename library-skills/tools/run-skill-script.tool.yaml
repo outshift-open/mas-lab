@@ -1,0 +1,35 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# run_skill_script tool — sandboxed execution of scripts bundled with a skill.
+# Reference from an agent manifest's spec.tools to enable model-driven script execution.
+#
+# Example agent manifest entry:
+#   spec:
+#     tools:
+#       - ref: pkg://skills/tools/run-skill-script.tool.yaml
+#
+# IMPORTANT: This tool executes subprocesses.  Only enable it when the agent
+# is operating in a trusted environment and the skill scripts have been reviewed.
+# The governance policy engine applies at the ToolContract boundary (authorize +
+# validate), but the subprocess runs with the agent process's OS-level permissions.
+
+apiVersion: mas/v1
+kind: Tool
+
+metadata:
+  name: run-skill-script
+  description: "Execute a bundled script from a skill's scripts/ directory."
+  version: "0.1.0"
+  tags: [skills, shell, execution]
+
+spec:
+  description: >
+    Sandboxed execution of skill support scripts.  Only scripts inside the
+    skill's scripts/ subdirectory may be run.  Returns stdout, stderr, and
+    exit code.  Passes through the runtime governance policy engine before
+    execution.
+
+  impl:
+    kind: python
+    module_path: mas.library.skills.plugins.sk_shell
+    class_name: RunSkillScriptPlugin

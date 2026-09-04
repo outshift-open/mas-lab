@@ -66,6 +66,12 @@ def assemble_llm_messages(
             system_parts.append(str(line).strip())
     for key, content in getattr(ctx, "memory_seeds", []) or []:
         system_parts.append(f"[memory:{key}] {content}")
+    # ctx_collect_execute — v0.1 wiring: call collect_context() on all registered
+    # ContextContract plugins via plugin_collection.collect_results().
+    # This uses the same interface that ContextAssemblerPlugin.on_pre_llm_call()
+    # expects as agent.registry — so when the full assembler is wired into the
+    # kernel this bridge can be removed without changing plugin behavior.
+    _inject_context_plugins(ctx, system_parts)
     if system_parts:
         messages.append({"role": "system", "content": "\n\n".join(system_parts)})
 
@@ -106,6 +112,51 @@ def assemble_llm_messages(
 
 def _has_tool_results(messages: list[dict[str, Any]]) -> bool:
     return any(m.get("role") == "tool" for m in messages)
+
+
+def _inject_context_plugins(ctx: Any, system_parts: list[str]) -> None:
+    """Dispatch ctx_collect_execute to registered ContextContract plugins.
+
+    Calls ``plugin_collection.collect_results("collect_context")`` on the
+    context object's ``plugin_collection`` (a ``PluginCollection`` instance).
+    Gathered ``ContextPart`` objects are sorted by placement order + priority
+    before their content is appended to *system_parts*.
+
+    This is the v0.1 bridge for the ctx_collect_execute FSM symbol.  It uses
+    the same ``collect_results()`` interface that ``ContextAssemblerPlugin``
+    expects as ``agent.registry``, so the bridge can be removed once the full
+    assembler plugin is wired into the kernel without any change to plugins.
+    """
+    collection = getattr(ctx, "plugin_collection", None)
+    if not collection:
+        return
+
+    from mas.runtime.contracts.context_contract import (
+        ContextPart,
+        ContextPlacement,
+        _SYSTEM_PLACEMENTS_ORDER,
+    )
+
+    raw_parts = collection.collect_results("collect_context")
+    if not raw_parts:
+        return
+
+    # Sort by placement band then priority, matching ContextAssemblerPlugin order.
+    placement_order = {pl: i for i, pl in enumerate(_SYSTEM_PLACEMENTS_ORDER)}
+
+    def _sort_key(part: Any) -> tuple[int, int]:
+        placement = getattr(part, "placement", ContextPlacement.SYSTEM_BODY)
+        priority = getattr(part, "priority", 60)
+        return (placement_order.get(placement, 99), priority)
+
+    sorted_parts = sorted(
+        (p for p in raw_parts if isinstance(p, ContextPart)),
+        key=_sort_key,
+    )
+
+    for part in sorted_parts:
+        if str(part.content).strip():
+            system_parts.append(str(part.content).strip())
 
 
 def llm_request_tools(

@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from mas.runtime.boundary.context.dp_inject import inject_dp_protocol
+from mas.runtime.boundary.context.plugin_collection import PluginCollection
 from mas.runtime.boundary.context.working_memory import WorkingMemoryStore
 from mas.runtime.schema.egress import RequestCtxAssembly
 from mas.runtime.schema.ingress import CtxAssemblyComplete
@@ -32,6 +33,17 @@ class AutoCtxAssembler:
     q_product: QProduct | None = None
     observability: Any | None = None
     _assembly_correlation_id: int = 0
+    # PluginCollection holding ContextContract plugins (e.g. SkillCatalogPlugin).
+    # collect_results("collect_context") is called by assemble_llm_messages() on
+    # every pre-LLM assembly pass (v0.1 wiring for ctx_collect_execute FSM symbol).
+    # Also serves as agent.registry for ContextAssemblerPlugin.attach_agent().
+    plugin_collection: PluginCollection = field(default_factory=PluginCollection)
+    # SkillRegistry populated by SkillCatalogPlugin; read by SkillToolsPlugin.
+    skill_registry: Any | None = None
+    # SkillSessionState for activation deduplication (agentskills.io Step 5).
+    skill_session_state: Any | None = None
+    # ActivatedSkillsContextPlugin for compaction protection (agentskills.io Step 5).
+    activated_skills_plugin: Any | None = None
 
     def capture_baseline(self) -> None:
         """Snapshot manifest-derived system context for /reset."""

@@ -1,0 +1,17 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "skill-sandbox"
+version = "0.1.0"
+description = "Portable subprocess sandbox for skill script execution — resource limits, environment filtering, path guards."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = []
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sandbox"]

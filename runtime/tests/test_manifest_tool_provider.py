@@ -65,6 +65,56 @@ def test_build_manifest_tool_provider_from_ref(calculator_tool_tree: Path):
     assert out["result"] == 65536
 
 
+def test_ref_entry_params_override_yaml_impl_params(tmp_path: Path):
+    tool_dir = tmp_path / "tools"
+    tool_dir.mkdir()
+    (tool_dir / "echo_impl.py").write_text(
+        """
+class EchoImplTool:
+    def __init__(self, impl="native", base_dir=None):
+        self.impl = impl
+        self.base_dir = base_dir
+
+    def on_collect_tools(self, **_):
+        return [{"name": "echo_impl", "description": "echo", "parameters": {"type": "object", "properties": {}}}]
+
+    def on_execute_tool(self, name, args, **_):
+        if name != "echo_impl":
+            return None
+        return {"impl": self.impl, "base_dir": self.base_dir}
+""",
+        encoding="utf-8",
+    )
+    (tool_dir / "echo_impl.tool.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "kind": "Tool",
+                "metadata": {"name": "echo_impl"},
+                "spec": {
+                    "impl": {
+                        "module_path": "./echo_impl.py",
+                        "class_name": "EchoImplTool",
+                        "params": {"impl": "native", "base_dir": "./skills"},
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    provider = build_manifest_tool_provider(
+        [
+            {
+                "ref": "tools/echo_impl.tool.yaml",
+                "params": {"impl": "langchain", "base_dir": "./custom"},
+            }
+        ],
+        tmp_path,
+    )
+    out = provider.call_tool("echo_impl", {})
+    assert out == {"impl": "langchain", "base_dir": "./custom"}
+
+
 def test_openai_tools_uses_provider(calculator_tool_tree: Path):
     manifest = {"spec": {"tools": [{"ref": "tools/calculator.tool.yaml"}]}}
     provider = build_manifest_tool_provider(manifest["spec"]["tools"], calculator_tool_tree)

@@ -13,10 +13,8 @@ from mas.runtime.boundary.context.manifest_context import (
     ContextRefNotFoundError,
     resolve_context_chunk,
 )
-from mas.runtime.boundary.context.skills import (
-    inject_skills_into_context,
-    resolve_skill_path,
-)
+from mas.library.skills.lib.resolver import resolve_skill_path
+from mas.library.skills.plugins.sk_catalog import SkillCatalogPlugin
 from mas.runtime.driver.mocks import AutoCtxAssembler
 
 
@@ -98,17 +96,21 @@ def test_resolve_context_chunk_missing_ref_raises(tmp_path: Path):
 def test_resolve_skill_path_finds_skills_subdir_with_hyphen_slug(tmp_path: Path):
     skill_dir = tmp_path / "skills" / "triage-protocol"
     skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text("# Triage protocol", encoding="utf-8")
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: triage-protocol\ndescription: Handles triage requests.\n---\n# Triage protocol",
+        encoding="utf-8",
+    )
 
     path = resolve_skill_path("triage_protocol", base_dir=tmp_path)
     assert path is not None
-    text_chunks = inject_skills_into_context(
-        [],
-        {"spec": {"skills": ["triage_protocol"]}},
-        base_dir=tmp_path,
-    )
-    assert len(text_chunks) == 1
-    assert "Triage protocol" in text_chunks[0]
+
+    # Verify catalog plugin emits the catalog (not full text)
+    manifest = {"spec": {"skills": ["triage_protocol"]}}
+    plugin = SkillCatalogPlugin(manifest=manifest, base_dir=tmp_path)
+    parts = plugin.collect_context()
+    assert len(parts) == 1
+    assert "triage-protocol" in parts[0].content
+    assert "Handles triage" in parts[0].content
 
 
 def test_inject_skills_uses_app_root_not_agent_dir(tmp_path: Path):
@@ -117,16 +119,87 @@ def test_inject_skills_uses_app_root_not_agent_dir(tmp_path: Path):
     agents_dir.mkdir(parents=True)
     skill_dir = app_root / "skills" / "data-access-protocol"
     skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text("# Data access", encoding="utf-8")
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: data-access-protocol\ndescription: Data access guidance.\n---\n# Data access",
+        encoding="utf-8",
+    )
 
     manifest = {"spec": {"skills": ["data_access_protocol"]}}
 
     # Skills in parent skills/ dir are found even from agents/ subdirectory
-    # (parent-walk resolution).
-    from_agents = inject_skills_into_context([], manifest, base_dir=agents_dir)
-    assert len(from_agents) == 1
-    assert "Data access" in from_agents[0]
+    # (parent-walk resolution) — verified via SkillCatalogPlugin directly.
+    plugin_from_agents = SkillCatalogPlugin(manifest=manifest, base_dir=agents_dir)
+    parts_agents = plugin_from_agents.collect_context()
+    assert len(parts_agents) == 1
+    assert "data-access-protocol" in parts_agents[0].content
 
-    from_app_root = inject_skills_into_context([], manifest, base_dir=app_root)
-    assert len(from_app_root) == 1
-    assert "Data access" in from_app_root[0]
+    plugin_from_root = SkillCatalogPlugin(manifest=manifest, base_dir=app_root)
+    parts_root = plugin_from_root.collect_context()
+    assert len(parts_root) == 1
+    assert "data-access-protocol" in parts_root[0].content
+
+
+def test_resolve_skill_plugin_config_prefers_manifest_entry_over_env(monkeypatch, tmp_path: Path):
+    from mas.ctl.session.bootstrap import _resolve_skill_plugin_config
+
+    monkeypatch.setenv("MAS_SKILL_IMPL", "native")
+    manifest = {
+        "spec": {
+            "tools": [
+                {
+                    "ref": "skills:tools/skill-access.tool.yaml",
+                    "params": {"impl": "adk", "base_dir": "./skills"},
+                }
+            ]
+        }
+    }
+    cfg = _resolve_skill_plugin_config(manifest, default_base_dir=tmp_path)
+    assert cfg.impl == "adk"
+    assert cfg.base_dir == (tmp_path / "skills").resolve()
+
+
+def test_auto_inject_skill_tools_adds_only_skill_access_not_shell():
+    """run-skill-script is opt-in (trusted environments only) — never auto-granted."""
+    from mas.ctl.session.bootstrap import _auto_inject_skill_tools
+
+    manifest = {"spec": {"skills": ["answer-formatting"]}}
+    _auto_inject_skill_tools(manifest)
+
+    refs = [item["ref"] for item in manifest["spec"]["tools"]]
+    assert refs == ["skills:tools/skill-access.tool.yaml"]
+
+
+def test_auto_inject_skill_tools_noop_without_skills():
+    from mas.ctl.session.bootstrap import _auto_inject_skill_tools
+
+    manifest = {"spec": {}}
+    _auto_inject_skill_tools(manifest)
+    assert "tools" not in manifest["spec"]
+
+
+def test_auto_inject_skill_tools_adds_shell_when_opted_in():
+    from mas.ctl.session.bootstrap import _auto_inject_skill_tools
+
+    manifest = {"spec": {"skills": ["answer-formatting"]}}
+    _auto_inject_skill_tools(manifest, auto_inject_scripts=True)
+
+    refs = {item["ref"] for item in manifest["spec"]["tools"]}
+    assert refs == {
+        "skills:tools/skill-access.tool.yaml",
+        "skills:tools/run-skill-script.tool.yaml",
+    }
+
+
+def test_resolve_skill_plugin_config_reads_auto_inject_from_context_sources(tmp_path: Path):
+    from mas.ctl.session.bootstrap import _resolve_skill_plugin_config
+
+    manifest = {"spec": {"context_sources": [{"native": {"auto_inject": True}}]}}
+    cfg = _resolve_skill_plugin_config(manifest, default_base_dir=tmp_path)
+    assert cfg.auto_inject_scripts is True
+
+
+def test_resolve_skill_plugin_config_auto_inject_defaults_false(tmp_path: Path):
+    from mas.ctl.session.bootstrap import _resolve_skill_plugin_config
+
+    cfg = _resolve_skill_plugin_config({"spec": {}}, default_base_dir=tmp_path)
+    assert cfg.auto_inject_scripts is False

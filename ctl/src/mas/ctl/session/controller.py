@@ -129,6 +129,70 @@ class SessionController:
 
         self.instance.driver.on_exchange = on_exchange
 
+    def _handle_list_skills(self) -> TurnResult:
+        """Handle /skills command — list all available skills."""
+        ctx = getattr(self.instance.driver, "ctx", None)
+        registry = getattr(ctx, "skill_registry", None)
+        if registry is None:
+            self.display.on_system(
+                "Skills are not configured for this agent (no SkillCatalogPlugin attached)."
+            )
+        elif not registry:
+            self.display.on_system("No skills registered for this agent.")
+        else:
+            lines = ["Available skills:"]
+            for rec in registry.all():
+                activated = ""
+                session_state = getattr(ctx, "skill_session_state", None)
+                if session_state and session_state.is_activated(rec.name):
+                    activated = " [activated]"
+                lines.append(f"  /skill {rec.name}{activated} — {rec.description}")
+            lines.append("Use /skill <name> to activate a skill.")
+            self.display.on_system("\n".join(lines))
+        return TurnResult(trace=None, responses=[])
+
+    def _handle_activate_skill(self, name: str) -> TurnResult:
+        """Handle /skill <name> command — user-explicit skill activation.
+
+        Calls activate_skill() directly (harness-side), injects the body into
+        ctx.injected_context so the model sees it on the next turn, and prints
+        a confirmation.  This is the agentskills.io Step 4 user-explicit path:
+        the harness handles lookup and injection without an LLM turn.
+        """
+        if not name:
+            self.display.on_system("Usage: /skill <name>")
+            return TurnResult(trace=None, responses=[])
+
+        ctx = getattr(self.instance.driver, "ctx", None)
+
+        try:
+            from mas.library.skills.plugins.sk_tools import SkillToolsPlugin
+        except ImportError:
+            self.display.on_system("mas-library-skills not installed.")
+            return TurnResult(trace=None, responses=[])
+
+        plugin = SkillToolsPlugin()
+        result = plugin.on_execute_tool("activate_skill", {"name": name}, ctx=ctx)
+
+        if "error" in result:
+            self.display.on_system(f"Skill error: {result['error']}")
+        elif result.get("already_activated"):
+            self.display.on_system(result.get("notice", f"Skill '{name}' already active."))
+        else:
+            content = result.get("content", "")
+            if content and ctx is not None:
+                injected = getattr(ctx, "injected_context", None)
+                if injected is not None:
+                    injected.append(content)
+                    # Re-capture baseline so /reset preserves the injected skill
+                    capture = getattr(ctx, "capture_baseline", None)
+                    if callable(capture):
+                        capture()
+            compat = result.get("compatibility")
+            note = f" (compatibility: {compat})" if compat else ""
+            self.display.on_system(f"Skill '{name}' activated{note}.")
+        return TurnResult(trace=None, responses=[])
+
     def reset_session(self) -> bool:
         """Clear working memory and turn history; restore baseline system prompt."""
         try:
@@ -202,6 +266,15 @@ class SessionController:
                 trace = self._drain_hitl(trace)
             self._present_trace(trace)
             return TurnResult(trace=trace, responses=list(trace.client_responses))
+
+        # User-explicit skill activation (agentskills.io Step 4 §User-explicit activation)
+        stripped = text.strip()
+        if stripped.lower() == "/skills":
+            return self._handle_list_skills()
+        if stripped.lower() == "/skill" or stripped.lower().startswith("/skill "):
+            skill_name = stripped[len("/skill"):].strip()
+            return self._handle_activate_skill(skill_name)
+
         return self._run_user_turn(
             text, turn_id=turn_id, auto_hitl=auto_hitl, parent_call_id=parent_call_id
         )

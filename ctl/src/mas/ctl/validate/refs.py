@@ -23,8 +23,6 @@ REF_KEYS = frozenset(
     }
 )
 
-_SKIP_PREFIXES = ("bundle://", "module://", "oci://", "pkg://", "infra:", "samples:", "standard:")
-
 # Parent keys whose "path" child is a runtime output sink, not an input file ref.
 _OUTPUT_PATH_PARENTS = frozenset({"telemetry"})
 
@@ -33,10 +31,26 @@ def resolve_refs_enabled() -> bool:
     return os.environ.get("MAS_MANIFEST_RESOLVE_REFS", "1") not in ("0", "false", "False")
 
 
+def _is_scheme_ref(value: str) -> bool:
+    """True if ``value`` looks like ``<scheme>:<rest>`` — a library/package ref, not a filesystem path.
+
+    Mirrors ``mas.runtime.engine.tools._looks_like_scheme_ref``: any single-segment
+    prefix before the first ``:`` with no path separators is a resolvable scheme
+    (``pkg://``, ``bundle://``, or any manifest-library scheme registered via the
+    ``mas.runtime.manifest_libraries`` entry-point group — see
+    ``mas.runtime.package_refs.resolve_path_ref``). No library name is hardcoded here;
+    the set of valid schemes is whatever is actually registered at runtime.
+    """
+    if value.startswith(("/", "\\")):
+        return False
+    scheme, sep, _ = value.partition(":")
+    return bool(sep and scheme and "/" not in scheme and "\\" not in scheme)
+
+
 def is_path_ref(key: str, value: Any) -> bool:
     if not isinstance(value, str) or not value.strip():
         return False
-    if any(value.startswith(p) for p in _SKIP_PREFIXES):
+    if _is_scheme_ref(value):
         return False
     if key in ("configs_dir", "path"):
         return True

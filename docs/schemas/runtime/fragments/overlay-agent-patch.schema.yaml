@@ -56,15 +56,6 @@ properties:
     $ref: "./overlay-collection-ops-string.schema.yaml"
   infra_interceptors:
     $ref: "./overlay-collection-ops-string.schema.yaml"
-  context_manager:
-    # Not a plain $ref: the nested `skills` sub-field accepts the
-    # {"$op": {...}} list-ops sugar in overlay context, unlike the base
-    # schema's plain array -- a genuine shape difference, not duplication.
-    type: object
-    additionalProperties: false
-    properties:
-      skills:
-        $ref: "./overlay-collection-ops-string.schema.yaml"
   design_pattern:
     # Not a plain $ref: params/config use the stricter design-pattern-config
     # fragment here, vs. the base schema's permissive additionalProperties:
