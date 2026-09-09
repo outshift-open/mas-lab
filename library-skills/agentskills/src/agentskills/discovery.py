@@ -197,7 +197,9 @@ class Discovery:
     def _walk_ancestors(self, start: Path, seen: dict[Path, None]) -> None:
         """Walk up the directory tree looking for skills/ directories.
 
-        Stops at git root (or after ancestor_walk_depth levels, if set).
+        Includes the git root's own skills/ dir (monorepo-shared skills live
+        there), then stops. Also stops after ancestor_walk_depth levels, if
+        set.
         """
         try:
             git_root = Path(
@@ -213,9 +215,6 @@ class Discovery:
             git_root = None
 
         for depth, parent in enumerate(start.resolve().parents):
-            # Stop at git root or depth limit
-            if git_root and parent == git_root:
-                break
             if (
                 self.ancestor_walk_depth is not None
                 and depth > self.ancestor_walk_depth
@@ -226,6 +225,11 @@ class Discovery:
             r = p_skills.resolve()
             if r not in seen and r.exists():
                 seen[r] = None
+
+            # Stop after processing git root — its skills/ dir (just above)
+            # is the last stop for a monorepo walk-up.
+            if git_root and parent == git_root:
+                break
 
     def _classify_scope(self, skill_path: Path) -> str:
         """Classify skill as 'project', 'user', or 'builtin'."""
