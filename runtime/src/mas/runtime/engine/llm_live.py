@@ -50,6 +50,9 @@ class LiveLlmEngine:
     model: str = "gpt-4o-mini"
     temperature: float = 0.7
     max_tokens: int = 2000
+    # Reasoning models (Gemini 2.5, o-series) bill internal thinking against
+    # max_tokens, so an unbounded budget can leave zero tokens for the answer.
+    reasoning_effort: str | None = None
     cache_path: Path | None = None
     use_cache: bool = True
     cache_read: bool = True
@@ -448,6 +451,8 @@ class LiveLlmEngine:
             "temperature": self.temperature if temperature is None else temperature,
             "max_tokens": self.max_tokens,
         }
+        if self.reasoning_effort:
+            payload["reasoning_effort"] = self.reasoning_effort
         if tools:
             payload["tools"] = tools
             choice = llm_tool_choice(messages, tools=tools)

@@ -118,6 +118,11 @@ properties:
               type: integer
               minimum: 1
               default: 2000
+            reasoning_effort:
+              type: string
+              description: >
+                Optional bound on internal reasoning for models that bill thinking
+                against max_tokens (e.g. Gemini 2.5, o-series).
 
       design_pattern:
         type: [object, "null"]
@@ -721,7 +726,10 @@ properties:
 
       llm:
         $ref: "./fragments/llm-binding.schema.yaml"
-        description: "EngineContract / LiveLlmEngine overrides."
+        description: >
+          Deprecated compat shim for model id and sampling params. Prefer
+          spec.models[]. Overlays may still patch provider/mock hints here until
+          migrated.
         x-merge:
           strategy: mapping_merge_or_ops
         default: {}

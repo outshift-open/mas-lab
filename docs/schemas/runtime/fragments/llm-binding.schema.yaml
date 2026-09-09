@@ -3,7 +3,9 @@
 $schema: "https://json-schema.org/draft-07/schema#"
 $id: "mas/v1#llm-binding"
 title: LlmBinding
-description: EngineContract / LiveLlmEngine parameters — not free-form config.
+description: >
+  Deprecated compat shim for model id and sampling params on kind: Agent.
+  Prefer spec.models[]. Retained for overlay patches (e.g. provider: mock).
 type: object
 additionalProperties: false
 properties:

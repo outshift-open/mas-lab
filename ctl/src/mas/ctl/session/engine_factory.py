@@ -24,6 +24,21 @@ from mas.runtime.kernel.config import KernelConfig
 
 logger = logging.getLogger(__name__)
 
+_LLM_SPEC_DEPRECATION = (
+    "spec.llm is deprecated; declare model settings under spec.models[] instead"
+)
+
+
+def _primary_model_entry(spec: dict[str, Any]) -> dict[str, Any] | None:
+    models = spec.get("models") or []
+    if isinstance(models, list) and models and isinstance(models[0], dict):
+        return models[0]
+    return None
+
+
+def _warn_llm_spec_fallback(field: str) -> None:
+    logger.warning("%s (read %s from spec.llm)", _LLM_SPEC_DEPRECATION, field)
+
 
 @dataclass(frozen=True)
 class EngineSelection:
@@ -65,13 +80,15 @@ def resolve_model_name(
         raw = forced
     else:
         spec = (manifest or {}).get("spec") or {}
-        llm = spec.get("llm") or {}
-        models = spec.get("models") or []
-        model = llm.get("model") or spec.get("model")
-        if not model and isinstance(models, list) and models:
-            first = models[0]
-            if isinstance(first, dict):
-                model = first.get("model")
+        entry = _primary_model_entry(spec)
+        model = entry.get("model") if entry else None
+        if not model:
+            model = spec.get("model")
+        if not model:
+            llm = spec.get("llm") or {}
+            if llm.get("model"):
+                _warn_llm_spec_fallback("model")
+                model = llm.get("model")
         if isinstance(model, str) and model.strip():
             raw = model.strip()
         elif workspace_default:
@@ -84,6 +101,32 @@ def resolve_model_name(
                 raw = str(default)
     mappings = llm_proxy.get("mappings") or {}
     return str(mappings.get(raw, raw))
+
+
+def _resolve_sampling_param(manifest: dict | None, key: str, default: float) -> float:
+    """Read a sampling param from ``spec.models[0]``, then deprecated ``spec.llm``."""
+    spec = (manifest or {}).get("spec") or {}
+    entry = _primary_model_entry(spec)
+    if entry and key in entry:
+        return float(entry[key])
+    llm = spec.get("llm") or {}
+    if key in llm:
+        _warn_llm_spec_fallback(key)
+        return float(llm[key])
+    return default
+
+
+def _resolve_model_option(manifest: dict | None, key: str) -> str | None:
+    """Read a string model option from ``spec.models[0]``, then deprecated ``spec.llm``."""
+    spec = (manifest or {}).get("spec") or {}
+    entry = _primary_model_entry(spec)
+    value = entry.get(key) if entry else None
+    if value is None:
+        llm = spec.get("llm") or {}
+        value = llm.get(key)
+        if value is not None:
+            _warn_llm_spec_fallback(key)
+    return str(value) if value else None
 
 
 def _resolve_infra_for_engine(
@@ -142,7 +185,6 @@ def build_engine(
     llm_proxy = dict(resolved.llm_proxy or {})
     mock = is_mock_mode(manifest, resolved) or bool(llm_proxy.get("mock"))
 
-    llm_spec = ((manifest or {}).get("spec") or {}).get("llm") or {}
     api_base = str(llm_proxy.get("api_base") or "").strip()
     api_key_env = str(llm_proxy.get("api_key_env") or "OPENAI_API_KEY")
 
@@ -180,8 +222,9 @@ def build_engine(
             api_base=api_base or "mock://local",
             api_key_env=api_key_env,
             model=model,
-            temperature=float(llm_spec.get("temperature", 0.7)),
-            max_tokens=int(llm_spec.get("max_tokens", 2000)),
+            temperature=_resolve_sampling_param(manifest, "temperature", 0.7),
+            max_tokens=int(_resolve_sampling_param(manifest, "max_tokens", 2000)),
+            reasoning_effort=_resolve_model_option(manifest, "reasoning_effort"),
             cache_path=cache_path,
             use_cache=cache_active,
             cache_read=cache_read,

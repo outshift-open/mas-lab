@@ -4,10 +4,17 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from mas.ctl.compose.models import ResolvedInfra
-from mas.ctl.session.engine_factory import build_engine
+from mas.ctl.session.engine_factory import (
+    _resolve_model_option,
+    _resolve_sampling_param,
+    build_engine,
+    resolve_model_name,
+)
 from mas.runtime.driver.mocks import AutoCtxAssembler
 
 
@@ -50,3 +57,39 @@ def test_build_engine_mock_mode_from_execution_flag(monkeypatch, tmp_path):
 
     assert isinstance(leaf_engine(sel.engine), LiveLlmEngine)
     assert leaf_engine(sel.engine)._model_access is not None
+
+
+def test_resolve_sampling_param_prefers_spec_models():
+    manifest = {
+        "spec": {
+            "models": [{"model": "gpt-4", "temperature": 0.1, "max_tokens": 8000}],
+            "llm": {"temperature": 0.9, "max_tokens": 500},
+        }
+    }
+    assert _resolve_sampling_param(manifest, "temperature", 0.7) == 0.1
+    assert _resolve_sampling_param(manifest, "max_tokens", 2000) == 8000
+
+
+def test_resolve_model_name_prefers_spec_models(monkeypatch):
+    monkeypatch.delenv("MAS_CTL_MODEL", raising=False)
+    monkeypatch.delenv("MAS_LLM_MODEL", raising=False)
+    manifest = {
+        "spec": {
+            "models": [{"model": "vertex_ai/gemini-2.5-pro"}],
+            "llm": {"model": "gpt-4o"},
+        }
+    }
+    assert resolve_model_name(manifest, None) == "vertex_ai/gemini-2.5-pro"
+
+
+def test_resolve_sampling_param_falls_back_to_deprecated_spec_llm(caplog):
+    manifest = {"spec": {"llm": {"temperature": 0.2, "max_tokens": 4096}}}
+    with caplog.at_level(logging.WARNING):
+        assert _resolve_sampling_param(manifest, "temperature", 0.7) == 0.2
+        assert _resolve_sampling_param(manifest, "max_tokens", 2000) == 4096
+    assert "spec.llm is deprecated" in caplog.text
+
+
+def test_resolve_model_option_from_spec_models():
+    manifest = {"spec": {"models": [{"model": "gpt-4", "reasoning_effort": "low"}]}}
+    assert _resolve_model_option(manifest, "reasoning_effort") == "low"
