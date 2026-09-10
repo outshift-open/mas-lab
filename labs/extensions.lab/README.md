@@ -19,20 +19,23 @@ application code.
 Vector-memory scenarios use in-tree `SemanticMemoryPlugin` (no extra install).
 
 **Letta scenarios** (`with-letta-memory`, `with-letta-factrecall`) require the
-upstream [`letta`](https://pypi.org/project/letta/) package:
+upstream [`letta`](https://pypi.org/project/letta/) package, declared in
+[`requirements.txt`](requirements.txt). It is **not** a `mas-lab` extra: letta
+pins `opentelemetry-sdk==1.30.0`, which is incompatible with `google-adk` used
+by `mas-library-skills[all]`. It therefore gets its own venv:
 
 ```bash
-# workspace dev (recommended)
-uv sync --group labs-full
-
-# or install via mas-lab extra
-pip install 'mas-lab[extensions]'
+# from the repo root
+task install-lab LAB=labs/extensions.lab
 ```
 
 ## Run
 
 ```bash
 mas-lab benchmark run labs/extensions.lab/experiment.yaml --progress
+
+# Letta scenarios (dedicated venv, see Dependencies)
+labs/extensions.lab/.venv/bin/mas-lab benchmark run labs/extensions.lab/experiment.yaml --progress
 ```
 
 Runs all **scenarios** × **dataset** items × `n_runs`, then the **embedded

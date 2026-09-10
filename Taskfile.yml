@@ -37,6 +37,41 @@ tasks:
       - uv pip install -e "library-skills[all]"
       - uv pip install pytest pytest-asyncio pytest-cov pytest-timeout import-linter pyyaml click python-dotenv jsonschema httpx httpx2 certifi truststore pyarrow opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
 
+  install-lab:
+    desc: "Install a lab's optional deps into a dedicated venv: task install-lab LAB=labs/extensions.lab"
+    summary: |
+      Labs may need third-party backends that cannot coexist with the core
+      workspace (extensions.lab needs letta, which pins opentelemetry-sdk==1.30.0
+      and is incompatible with google-adk from library-skills[all]).
+      Those deps live in <lab>/requirements.txt and are installed into
+      <lab>/.venv together with the editable MAS packages, leaving the repo
+      .venv untouched. Run the lab with <lab>/.venv/bin/mas-lab.
+    vars:
+      LAB: '{{.LAB | default "labs/extensions.lab"}}'
+      LAB_VENV: "{{.ROOT_DIR}}/{{.LAB}}/.venv"
+    cmds:
+      - test -f {{.LAB}}/requirements.txt || { echo "No {{.LAB}}/requirements.txt — this lab needs no extra deps, use the repo .venv" >&2; exit 1; }
+      - uv venv {{.LAB_VENV}}
+      - VIRTUAL_ENV={{.LAB_VENV}} uv pip install -e runtime -e ctl -e library-standard -e library-skills -e library-eval -e library-lab -e library-samples -e lab/components/core -e lab/components/bench -e lab/components/controller -e lab
+      - VIRTUAL_ENV={{.LAB_VENV}} uv pip install -r {{.LAB}}/requirements.txt
+      - echo "Lab env ready — run with {{.LAB_VENV}}/bin/mas-lab"
+
+  verify-lock:
+    desc: "uv.lock is in sync with every workspace pyproject.toml"
+    summary: |
+      Guards against dependency drift: a new upstream release (or a new extra)
+      that makes the workspace unresolvable fails here instead of in a
+      contributor's `uv sync`.
+    cmds:
+      - uv lock --check
+
+  verify-docs:
+    desc: "Generated reference docs are in sync (scripts/gen_docs.py --check)"
+    deps: [install-dev]
+    cmds:
+      # gen_doc_paths imports mas.runtime — needs the repo venv, not system python
+      - "{{.VENV}}/python scripts/gen_docs.py --check"
+
   verify:literals:
     desc: "Forbidden path/id literal gate (scripts/check_literals.py)"
     cmds:
@@ -124,6 +159,8 @@ tasks:
     desc: "CI parity — same gates as .github/workflows/test.yml (unit + functional + dry-run + chat smoke + HITL)"
     deps: [install-dev]
     cmds:
+      - task: verify-lock
+      - task: verify-docs
       - task: verify:literals
       - task: verify-unit
       - task: verify-controller
@@ -136,6 +173,7 @@ tasks:
     desc: "Fast CI — literals + unit gate only (skips slow functional/dry-run gates)."
     deps: [install-dev]
     cmds:
+      - task: verify-lock
       - task: verify:literals
       - task: verify-unit
 
@@ -149,7 +187,7 @@ tasks:
     desc: "Outshift-open reproduction gate — docs check, all lab dry-runs, HITL gate"
     deps: [install-dev]
     cmds:
-      - python3 scripts/gen_docs.py --check
+      - "{{.VENV}}/python scripts/gen_docs.py --check"
       - "{{.VENV}}/pytest tests/test_reproduction.py tests/test_hitl_tool_gate.py -q --tb=line"
 
   verify-ctl-env:
@@ -214,9 +252,10 @@ tasks:
       changing canonical path defaults.  The generated files are checked-in —
       commit them together with your manifest changes (required for every PR that
       touches packages, plugins, or path constants).
-      Use `python3 scripts/gen_docs.py --check` (or task verify-reproduce) in CI.
+      Use `task verify-docs` (or task verify-reproduce) in CI.
+    deps: [install-dev]
     cmds:
-      - python3 scripts/gen_docs.py --root . --output-dir docs
+      - "{{.VENV}}/python scripts/gen_docs.py --root . --output-dir docs"
       - echo "docs/packages-reference.md and docs/plugins-reference.md updated."
 
   docs-serve:

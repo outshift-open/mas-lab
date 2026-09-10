@@ -10,10 +10,10 @@ and Letta's API.
 
 Dependencies
 ------------
-Requires the ``letta`` package (see ``labs/extensions.lab/README.md``)::
+Requires the ``letta`` package (see ``labs/extensions.lab/README.md``).
+It is not a ``mas-lab`` extra — install it into the lab's own venv::
 
-    uv sync --group labs-full
-    # or: pip install 'mas-lab[extensions]'
+    task install-lab LAB=labs/extensions.lab
 """
 
 from __future__ import annotations
@@ -48,8 +48,7 @@ def _ensure_letta():
     except ImportError as exc:
         raise ImportError(
             "letta is required for LettaCoreMemoryWrapper. "
-            "Install with: uv sync --group labs-full  "
-            "or pip install 'mas-lab[extensions]'"
+            "Install with: task install-lab LAB=labs/extensions.lab"
         ) from exc
 
 

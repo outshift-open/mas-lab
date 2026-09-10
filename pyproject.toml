@@ -39,12 +39,6 @@ dev = [
     "pyarrow>=14.0",
     "hypothesis>=6.0",
 ]
-# Paper labs with optional backends (Letta memory scenarios):
-#   uv sync --group labs-full
-labs-full = [
-    { include-group = "dev" },
-    "letta>=0.11.0",
-]
 
 [tool.uv.workspace]
 members = [

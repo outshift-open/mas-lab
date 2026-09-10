@@ -22,19 +22,104 @@ plugins:
 Or by short name when using a flavour that already activates it.
 
 See [flavours documentation](../library-standard/docs/user-guide.md) and
-[Tutorial 2 — Creating a MAS](tutorials/02-creating-a-mas/) for
+[Tutorial 2 — Creating a MAS](../tutorials/02-creating-a-mas/) for
 practical examples.
 
 ---
 
 ## Plugins by Category
 
+### Context_Manager
+
+| Class                       | Full module path                                    | Package                |
+| --------------------------- | --------------------------------------------------- | ---------------------- |
+| `SlidingWindowConversation` | `mas.library.standard.plugins.context.conversation` | `mas-library-standard` |
+| `StackConversation`         | `mas.library.standard.plugins.context.conversation` | `mas-library-standard` |
+| `SummarizingConversation`   | `mas.library.standard.plugins.context.conversation` | `mas-library-standard` |
+
+### Context_Plugin
+
+| Class                    | Full module path                                 | Package                |
+| ------------------------ | ------------------------------------------------ | ---------------------- |
+| `ContextAssemblerPlugin` | `mas.library.standard.plugins.context.assembler` | `mas-library-standard` |
+
+### Design_Pattern
+
+| Class                            | Full module path                                                | Package                |
+| -------------------------------- | --------------------------------------------------------------- | ---------------------- |
+| `CotPlugin`                      | `mas.library.standard.plugins.design_patterns.cot`              | `mas-library-standard` |
+| `DeterministicLinearPlugin`      | `mas.library.standard.plugins.design_patterns.linear`           | `mas-library-standard` |
+| `DeterministicParallelPlugin`    | `mas.library.standard.plugins.design_patterns.parallel`         | `mas-library-standard` |
+| `DeterministicSingleAgentPlugin` | `mas.library.standard.plugins.design_patterns.single`           | `mas-library-standard` |
+| `IntrospectionPlugin`            | `mas.library.standard.plugins.design_patterns.introspection`    | `mas-library-standard` |
+| `PlanExecutePlugin`              | `mas.library.standard.plugins.design_patterns.plan_execute`     | `mas-library-standard` |
+| `ReactPlugin`                    | `mas.library.standard.plugins.design_patterns.react`            | `mas-library-standard` |
+| `SinglePassPlugin`               | `mas.library.standard.plugins.design_patterns.single_pass`      | `mas-library-standard` |
+| `TreeOfThoughtsPlugin`           | `mas.library.standard.plugins.design_patterns.tree_of_thoughts` | `mas-library-standard` |
+
+### Governance
+
+| Class                    | Full module path                                       | Package                |
+| ------------------------ | ------------------------------------------------------ | ---------------------- |
+| `SampleGovernancePlugin` | `mas.library.standard.mas.runtime.boundary.gov.sample` | `mas-library-standard` |
+
+### Memory
+
+| Class                  | Full module path                                      | Package                |
+| ---------------------- | ----------------------------------------------------- | ---------------------- |
+| `SemanticMemoryPlugin` | `mas.library.standard.plugins.memory.memory_semantic` | `mas-library-standard` |
+
+### Observability
+
+| Class                       | Full module path                                           | Package                |
+| --------------------------- | ---------------------------------------------------------- | ---------------------- |
+| `NativeObservabilityPlugin` | `mas.library.standard.plugins.observability.native_plugin` | `mas-library-standard` |
+| `OtelObservabilityPlugin`   | `mas.library.standard.plugins.observability.otel_plugin`   | `mas-library-standard` |
+
+### Skill_Catalog
+
+| Class                | Full module path                        | Package              |
+| -------------------- | --------------------------------------- | -------------------- |
+| `SkillCatalogPlugin` | `mas.library.skills.plugins.sk_catalog` | `mas-library-skills` |
+
+### Skill_Shell
+
+| Class                  | Full module path                      | Package              |
+| ---------------------- | ------------------------------------- | -------------------- |
+| `RunSkillScriptPlugin` | `mas.library.skills.plugins.sk_shell` | `mas-library-skills` |
+
+### Skill_Tools
+
+| Class              | Full module path                      | Package              |
+| ------------------ | ------------------------------------- | -------------------- |
+| `SkillToolsPlugin` | `mas.library.skills.plugins.sk_tools` | `mas-library-skills` |
+
 ---
 
 ## All Plugins — Alphabetical Index
 
-| Class | Category | Package |
-| ----- | -------- | ------- |
+| Class                            | Category        | Package                |
+| -------------------------------- | --------------- | ---------------------- |
+| `ContextAssemblerPlugin`         | context_plugin  | `mas-library-standard` |
+| `CotPlugin`                      | design_pattern  | `mas-library-standard` |
+| `DeterministicLinearPlugin`      | design_pattern  | `mas-library-standard` |
+| `DeterministicParallelPlugin`    | design_pattern  | `mas-library-standard` |
+| `DeterministicSingleAgentPlugin` | design_pattern  | `mas-library-standard` |
+| `IntrospectionPlugin`            | design_pattern  | `mas-library-standard` |
+| `NativeObservabilityPlugin`      | observability   | `mas-library-standard` |
+| `OtelObservabilityPlugin`        | observability   | `mas-library-standard` |
+| `PlanExecutePlugin`              | design_pattern  | `mas-library-standard` |
+| `ReactPlugin`                    | design_pattern  | `mas-library-standard` |
+| `RunSkillScriptPlugin`           | skill_shell     | `mas-library-skills`   |
+| `SampleGovernancePlugin`         | governance      | `mas-library-standard` |
+| `SemanticMemoryPlugin`           | memory          | `mas-library-standard` |
+| `SinglePassPlugin`               | design_pattern  | `mas-library-standard` |
+| `SkillCatalogPlugin`             | skill_catalog   | `mas-library-skills`   |
+| `SkillToolsPlugin`               | skill_tools     | `mas-library-skills`   |
+| `SlidingWindowConversation`      | context_manager | `mas-library-standard` |
+| `StackConversation`              | context_manager | `mas-library-standard` |
+| `SummarizingConversation`        | context_manager | `mas-library-standard` |
+| `TreeOfThoughtsPlugin`           | design_pattern  | `mas-library-standard` |
 
 ---
 
@@ -42,16 +127,10 @@ practical examples.
 
 Tools declared via `*.tool.yaml` manifests across all libraries.
 
-| Name                          | Description                                                                       | Class                           | Tags                                     | Package               |
-| ----------------------------- | --------------------------------------------------------------------------------- | ------------------------------- | ---------------------------------------- | --------------------- |
-| `calc`                        | Simple arithmetic calculator for cost aggregation.                                | `CalcTool`                      | `travel`, `math`, `cost`                 | `mas-library-samples` |
-| `get_attraction_fare`         | Look up admission details for an attraction in an Arborian Network city.          | `GetAttractionFareTool`         | `travel`, `attractions`, `fares`, `cost` | `mas-library-samples` |
-| `get_attractions`             | Get a detailed list of attractions and highlights in an Arborian Network city wi… | `GetAttractionsTool`            | `travel`, `attractions`, `destinations`  | `mas-library-samples` |
-| `get_attractions_description` | Get a detailed list of attractions and highlights in an Arborian Network city wi… | `GetAttractionsDescriptionTool` | `travel`, `attractions`, `destinations`  | `mas-library-samples` |
-| `get_fares`                   | Look up one-way fares for a route leg in the Arborian Network.                    | `GetFaresTool`                  | `travel`, `fares`, `cost`                | `mas-library-samples` |
-| `get_trip_fares`              | Look up one-way fares for a route leg in the Arborian Network.                    | `GetTripFaresTool`              | `travel`, `fares`, `cost`                | `mas-library-samples` |
-| `lookup_schedule`             | Look up departure schedules between two cities in the Arborian Network.           | `LookupScheduleTool`            | `travel`, `schedule`, `transport`        | `mas-library-samples` |
-| `query_graph_database`        | Query the Arborian Network graph to enumerate routes and connections.             | `QueryGraphDatabaseTool`        | `travel`, `graph`, `routing`             | `mas-library-samples` |
+| Name               | Description                                                             | Class                  | Tags                           | Package              |
+| ------------------ | ----------------------------------------------------------------------- | ---------------------- | ------------------------------ | -------------------- |
+| `run-skill-script` | Execute a bundled script from a skill's scripts/ directory.             | `RunSkillScriptPlugin` | `skills`, `shell`, `execution` | `mas-library-skills` |
+| `skill-access`     | Skill access tools — activate_skill, list_skill_files, read_skill_file. | `SkillToolsPlugin`     | `skills`, `context`            | `mas-library-skills` |
 
 ---
 
@@ -63,5 +142,5 @@ Flavour YAML files shipped inside library packages.
 | ----------------- | --------------------------------------------------------------------------------- | ---------------------- |
 | `local`           | Default local development flavour. Infra bundles are resolved via workspace refs… | `mas-library-standard` |
 | `local-benchmark` | Benchmark flavour for mas-lab batch runs. Uses file telemetry and native observa… | `mas-library-standard` |
-| `mock`            | Offline CI flavour — mock LLM, no network. Used by golden benchmark runs and CI.  | `mas-library-standard` |
+| `mock`            | Deployment posture for offline CI / golden benchmark runs — same protocol and ob… | `mas-library-standard` |
 

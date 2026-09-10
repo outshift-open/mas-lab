@@ -4,9 +4,9 @@ lab:
   name: extensions
   description: "Lab 3 — Context Source Extensions"
 
-  # Optional Python deps for Letta scenarios (with-letta-memory, with-letta-factrecall):
-  #   uv sync --group labs-full
-  #   pip install 'mas-lab[extensions]'
+  # Optional Python deps for Letta scenarios (with-letta-memory, with-letta-factrecall)
+  # live in requirements.txt and install into a dedicated venv:
+  #   task install-lab LAB=labs/extensions.lab
 
   libraries:
     - lib/

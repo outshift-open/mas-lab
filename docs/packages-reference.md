@@ -4,19 +4,22 @@
 > **Auto-generated** from `pyproject.toml` files and `library.yaml` manifests.  Run `task docs-gen` to refresh after adding or modifying packages.
 
 ## Summary
-| Package                | Layer         | Description                                                                               | CLI           |
-| ---------------------- | ------------- | ----------------------------------------------------------------------------------------- | ------------- |
-| `mas-runtime`          | Runtime core  | MAS Runtime V2 — Mealy kernel (embeddable library)                                        | `mas-runtime` |
-| `mas-ctl`              | Orchestration | MAS control plane V2 — compose, session, placement                                        | `mas-ctl`     |
-| `mas-lab`              | Lab framework | MAS Lab — Multi-Agent System experimentation, benchmarking, and analysis toolkit.         | `mas-lab`     |
-| `mas-lab-core`         | Lab framework | Core contracts, telemetry, schemas and utilities shared across MAS Lab components.        | —             |
-| `mas-lab-bench`        | Lab framework | Benchmark engine, pipeline execution, plots and validation for MAS Lab.                   | —             |
-| `mas-lab-controller`   | Lab framework | MAS Lab controller daemon — workers, IPC, HTTP API for CLI and UI.                        | —             |
-| `mas-lab-content`      | Lab framework | Shared content engine — markdown with widget directives, themes, and multi-mode rendering | —             |
-| `mas-library-standard` | Libraries     | Standard library for MAS — infra bundles, tools, and pattern aliases.                     | —             |
-| `mas-library-eval`     | Libraries     | Evaluation and quality metrics library for MAS Lab — MCE integration.                     | —             |
-| `mas-library-lab`      | Libraries     | MAS Lab provider library with public eval plugins.                                        | —             |
-| `mas-library-samples`  | Libraries     | Community-contributed MAS sample apps, datasets, and tools.                               | —             |
+| Package                | Layer         | Description                                                                                                   | CLI                  |
+| ---------------------- | ------------- | ------------------------------------------------------------------------------------------------------------- | -------------------- |
+| `mas-runtime`          | Runtime core  | MAS Runtime V2 — Mealy kernel (embeddable library)                                                            | `mas-runtime`        |
+| `mas-ctl`              | Orchestration | MAS control plane V2 — compose, session, placement                                                            | `mas-ctl`            |
+| `mas-lab`              | Lab framework | MAS Lab — Multi-Agent System experimentation, benchmarking, and analysis toolkit.                             | `mas-lab`, `mas-ctl` |
+| `mas-lab-core`         | Lab framework | Core contracts, telemetry, schemas and utilities shared across MAS Lab components.                            | —                    |
+| `mas-lab-bench`        | Lab framework | Benchmark engine, pipeline execution, plots and validation for MAS Lab.                                       | —                    |
+| `mas-lab-controller`   | Lab framework | MAS Lab controller daemon — workers, IPC, HTTP API for CLI and UI.                                            | —                    |
+| `mas-lab-content`      | Lab framework | Shared content engine — markdown with widget directives, themes, and multi-mode rendering                     | —                    |
+| `mas-library-standard` | Libraries     | Standard library for MAS — infra bundles, tools, and pattern aliases.                                         | —                    |
+| `mas-library-skills`   | Libraries     | Skills library for MAS — ContextContract catalog plugin + ToolContract skill-access tools.                    | —                    |
+| `agentskills`          | Libraries     | agentskills.io client library — skill discovery, parsing, and lifecycle management.                           | —                    |
+| `skill-sandbox`        | Libraries     | Portable subprocess sandbox for skill script execution — resource limits, environment filtering, path guards. | —                    |
+| `mas-library-eval`     | Libraries     | Evaluation and quality metrics library for MAS Lab — MCE integration.                                         | —                    |
+| `mas-library-lab`      | Libraries     | MAS Lab provider library with public eval plugins.                                                            | —                    |
+| `mas-library-samples`  | Libraries     | Community-contributed MAS sample apps, datasets, and tools.                                                   | —                    |
 ---
 
 ## Installation
@@ -54,6 +57,19 @@ uv pip install \
 See [Tutorial 0 — Environment Setup](tutorials/00-environment-setup/README.md)
 for the complete walkthrough including LLM endpoint wiring and verification.
 
+### Lab-specific backends
+
+Third-party backends used by a single lab (e.g. `letta` in
+`labs/extensions.lab`) are **not** extras of any package here — some of
+them conflict with core workspace dependencies.  They are declared in
+`<lab>/requirements.txt` and installed into a dedicated venv:
+
+```bash
+task install-lab LAB=labs/extensions.lab
+```
+
+Extended OTel/KG observability is **not** an OSS extra — see `mas-lab-internal`.
+
 ---
 
 ## Package Details
@@ -65,16 +81,15 @@ MAS Runtime V2 — Mealy kernel (embeddable library)
 
 ```bash
 uv pip install -e runtime  # core
-uv pip install -e "runtime[grpc,otel,dev]"  # with all extras
+uv pip install -e "runtime[grpc,dev]"  # with all extras
 ```
 
 **Optional extras:**
 
-| Extra  | Packages / features                                                                             |
-| ------ | ----------------------------------------------------------------------------------------------- |
-| `grpc` | `grpcio>=1.60.0`, `grpcio-tools>=1.60.0`                                                        |
-| `otel` | `opentelemetry-api>=1.42.0`, `opentelemetry-sdk>=1.42.0`, `opentelemetry-exporter-otlp>=1.42.0` |
-| `dev`  | `pytest>=8.0`, `pytest-asyncio>=0.24`                                                           |
+| Extra  | Packages / features                      |
+| ------ | ---------------------------------------- |
+| `grpc` | `grpcio>=1.60.0`, `grpcio-tools>=1.60.0` |
+| `dev`  | `pytest>=8.0`, `pytest-asyncio>=0.24`    |
 
 **CLI commands:**
 
@@ -94,7 +109,7 @@ uv pip install -e ctl  # core
 uv pip install -e "ctl[curses,dev]"  # with all extras
 ```
 
-**Depends on:** `mas-runtime`  
+**Depends on:** `mas-runtime`, `mas-library-standard`, `mas-library-skills`  
 
 **Optional extras:**
 
@@ -117,27 +132,17 @@ uv pip install -e "ctl[curses,dev]"  # with all extras
 MAS Lab — Multi-Agent System experimentation, benchmarking, and analysis toolkit.
 
 ```bash
-uv pip install -e lab  # core
-uv pip install -e "lab[extensions]"  # Letta memory scenarios (`extensions.lab`)
+uv pip install -e lab
 ```
 
 **Depends on:** `mas-runtime`, `mas-ctl`, `mas-lab-core`, `mas-lab-bench`, `mas-lab-controller`, `mas-library-eval`  
 
-**Optional extras:**
-
-| Extra        | Packages / features |
-| ------------ | ------------------- |
-| `extensions` | `letta` (Letta memory scenarios in `extensions.lab`) |
-| `all`        | same as `extensions` |
-
-For paper labs with Letta: `uv sync --group labs-full` or `pip install 'mas-lab[extensions]'`.
-Extended OTel/KG observability is **not** an OSS extra — see `mas-lab-internal`.
-
 **CLI commands:**
 
-| Command   | Entry point       |
-| --------- | ----------------- |
-| `mas-lab` | `mas.lab.cli:app` |
+| Command   | Entry point             |
+| --------- | ----------------------- |
+| `mas-lab` | `mas.lab.cli:app`       |
+| `mas-ctl` | `mas.ctl.cli.main:main` |
 
 ---
 
@@ -210,12 +215,65 @@ uv pip install -e lab/components/content
 Standard library for MAS — infra bundles, tools, and pattern aliases.
 
 ```bash
-uv pip install -e library-standard
+uv pip install -e library-standard  # core
+uv pip install -e "library-standard[otel]"  # with all extras
 ```
 
 **Depends on:** `mas-runtime`  
 
+**Optional extras:**
+
+| Extra  | Packages / features                                                           |
+| ------ | ----------------------------------------------------------------------------- |
+| `otel` | `opentelemetry-sdk>=1.27.0`, `opentelemetry-exporter-otlp-proto-http>=1.27.0` |
+
 **Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
+
+---
+
+### `mas-library-skills`
+**Install path:** `library-skills`  
+**Layer:** Libraries  
+Skills library for MAS — ContextContract catalog plugin + ToolContract skill-access tools.
+
+```bash
+uv pip install -e library-skills  # core
+uv pip install -e "library-skills[all]"  # with all extras
+```
+
+**Depends on:** `mas-runtime`  
+
+**Optional extras:**
+
+| Extra       | Packages / features                                    |
+| ----------- | ------------------------------------------------------ |
+| `adk`       | `google-adk>=1.0.0,<3.0.0`                             |
+| `langchain` | `deepagents>=0.7.0,<1.0.0`                             |
+| `all`       | `google-adk>=1.0.0,<3.0.0`, `deepagents>=0.7.0,<1.0.0` |
+
+**Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
+
+---
+
+### `agentskills`
+**Install path:** `library-skills/agentskills`  
+**Layer:** Libraries  
+agentskills.io client library — skill discovery, parsing, and lifecycle management.
+
+```bash
+uv pip install -e library-skills/agentskills
+```
+
+---
+
+### `skill-sandbox`
+**Install path:** `library-skills/skill-sandbox`  
+**Layer:** Libraries  
+Portable subprocess sandbox for skill script execution — resource limits, environment filtering, path guards.
+
+```bash
+uv pip install -e library-skills/skill-sandbox
+```
 
 ---
 
@@ -253,6 +311,8 @@ uv pip install -e library-lab
 **Depends on:** `mas-lab`  
 
 **Entry-point group `mas.lab.eval.plugins`:** registers 1 item(s) in `lab.eval.plugins`.
+
+**Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
 
 ---
 

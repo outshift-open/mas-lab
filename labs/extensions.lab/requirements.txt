@@ -1,0 +1,10 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+#
+# Optional backends for the Letta scenarios (with-letta-memory,
+# with-letta-factrecall). Not part of any mas-lab package: letta pins
+# opentelemetry-sdk==1.30.0, which is incompatible with google-adk
+# (mas-library-skills[all]). Install into a dedicated venv:
+#
+#   task install-lab LAB=labs/extensions.lab
+letta==0.16.8

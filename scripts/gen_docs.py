@@ -113,11 +113,23 @@ def _load_yaml_file(path: Path) -> dict[str, Any]:
 def _plugins_from_library_yaml(path: Path, library_name: str) -> list[Plugin]:
     data = _load_yaml_file(path)
     module_base = data.get("module_base", "")
+    raw = data.get("plugins", [])
+    # library.yaml accepts either a flat list (category carried by each entry's
+    # "type") or a category -> entries mapping.
+    if isinstance(raw, dict):
+        grouped = raw.items()
+    else:
+        grouped = [(entry.get("type", ""), [entry]) for entry in raw]
     plugins: list[Plugin] = []
-    for category, entries in data.get("plugins", {}).items():
+    for category, entries in grouped:
         for entry in entries:
             module = entry.get("module", "")
-            full_module = f"{module_base}.{module}" if module_base else module
+            # Entries may spell out the fully-qualified module or a path
+            # relative to module_base.
+            if module_base and not module.startswith(f"{module_base}."):
+                full_module = f"{module_base}.{module}"
+            else:
+                full_module = module
             # A single entry may declare one class or multiple via "classes"
             classes: list[str] = []
             if "class" in entry:
@@ -265,6 +277,19 @@ def generate_packages_reference(packages: list[Package]) -> str:
         See [Tutorial 0 — Environment Setup](tutorials/00-environment-setup/README.md)
         for the complete walkthrough including LLM endpoint wiring and verification.
 
+        ### Lab-specific backends
+
+        Third-party backends used by a single lab (e.g. `letta` in
+        `labs/extensions.lab`) are **not** extras of any package here — some of
+        them conflict with core workspace dependencies.  They are declared in
+        `<lab>/requirements.txt` and installed into a dedicated venv:
+
+        ```bash
+        task install-lab LAB=labs/extensions.lab
+        ```
+
+        Extended OTel/KG observability is **not** an OSS extra — see `mas-lab-internal`.
+
         ---
 
         ## Package Details
@@ -280,7 +305,7 @@ def generate_packages_reference(packages: list[Package]) -> str:
 
         # Install snippet
         if p.extras:
-            extras_str = ",".join(p.extras)
+            extras_str = "all" if "all" in p.extras else ",".join(p.extras)
             lines.append(f"```bash\nuv pip install -e {p.path}  # core\n")
             lines.append(f"uv pip install -e \"{p.path}[{extras_str}]\"  # with all extras\n```\n\n")
         else:
@@ -443,6 +468,9 @@ PACKAGE_REGISTRY: list[tuple[str, str, str]] = [
     ("lab/components/controller/pyproject.toml",   "lab/components/controller",      "Lab framework"),
     ("lab/components/content/pyproject.toml",      "lab/components/content",         "Lab framework"),
     ("library-standard/pyproject.toml",            "library-standard",               "Libraries"),
+    ("library-skills/pyproject.toml",              "library-skills",                 "Libraries"),
+    ("library-skills/agentskills/pyproject.toml",  "library-skills/agentskills",     "Libraries"),
+    ("library-skills/skill-sandbox/pyproject.toml", "library-skills/skill-sandbox",  "Libraries"),
     ("library-eval/pyproject.toml",                "library-eval",                   "Libraries"),
     ("library-lab/pyproject.toml",                 "library-lab",                    "Libraries"),
     ("library-samples/pyproject.toml",             "library-samples",                "Libraries"),
@@ -451,12 +479,14 @@ PACKAGE_REGISTRY: list[tuple[str, str, str]] = [
 # Library manifests: (library.yaml relative path, library package name)
 LIBRARY_MANIFESTS: list[tuple[str, str]] = [
     ("library-standard/library.yaml", "mas-library-standard"),
+    ("library-skills/library.yaml", "mas-library-skills"),
     ("library-samples/library.yaml", "mas-library-samples"),
 ]
 
 # Tool/flavour search roots: (relative path, library package name)
 ASSET_ROOTS: list[tuple[str, str]] = [
     ("library-standard/src", "mas-library-standard"),
+    ("library-skills/tools", "mas-library-skills"),
     ("library-samples/apps", "mas-library-samples"),
 ]
 

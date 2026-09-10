@@ -21,10 +21,12 @@ uv add mas-library-skills
 The base install gives you the native implementation only (`agentskills` +
 `skill-sandbox`, both plain local dependencies — no extra to opt into). The
 ADK and LangChain implementations wrap real, optional third-party
-frameworks; pull them in with:
+frameworks; pull in one or both:
 
 ```bash
-uv add "mas-library-skills[all]"
+uv add "mas-library-skills[adk]"        # google-adk
+uv add "mas-library-skills[langchain]"  # deepagents
+uv add "mas-library-skills[all]"        # both
 ```
 
 `task install-dev` / `task ci` / `task verify` in this repo already install

@@ -31,13 +31,11 @@ dependencies = [
     "jsonschema>=4.26.0",
 ]
 
-[project.optional-dependencies]
-all = [
-    "letta>=0.11.0",
-]
-extensions = [
-    "letta>=0.11.0",
-]
+# No optional extras: lab-specific backends (e.g. Letta in labs/extensions.lab)
+# are declared per-lab in <lab>/requirements.txt and installed into a dedicated
+# venv via `task install-lab`. They are deliberately kept out of this package
+# because some of them conflict with core workspace dependencies.
+
 [project.urls]
 Homepage = "https://github.com/outshift-open/mas-lab"
 Documentation = "https://github.com/outshift-open/mas-lab/tree/main/docs"

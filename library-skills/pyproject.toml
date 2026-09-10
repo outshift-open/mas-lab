@@ -18,13 +18,25 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Pulls in the two optional skill-implementation engines (see README.md
-# "Choosing an implementation"). Needed to run the functional tests in
-# tests/test_skill_plugins_functional.py against the real frameworks
-# rather than mocks.
+# The default "native" engine needs nothing beyond the base dependencies
+# (agentskills + skill-sandbox). The adk and langchain engines wrap third-party
+# frameworks and are opt-in.
+#
+# Upper bounds are deliberate: these frameworks float their own transitive pins
+# (google-adk 2.7 moved opentelemetry-sdk to >=1.39) and a new major silently
+# breaks workspace resolution. Bump a bound explicitly after verifying
+# `uv lock` and tests/test_skill_plugins_functional.py.
+adk = [
+    "google-adk>=1.0.0,<3.0.0",
+]
+langchain = [
+    "deepagents>=0.7.0,<1.0.0",
+]
+# Every engine — needed to run tests/test_skill_plugins_functional.py against
+# the real frameworks rather than mocks.
 all = [
-    "google-adk>=1.0.0",
-    "deepagents>=0.7.0",
+    "google-adk>=1.0.0,<3.0.0",
+    "deepagents>=0.7.0,<1.0.0",
 ]
 
 [project.entry-points."mas.runtime.manifest_libraries"]
