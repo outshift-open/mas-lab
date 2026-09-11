@@ -6,11 +6,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from mas.library.standard.plugins.context.provider_payload import sanitize_provider_messages
 from mas.runtime.boundary.context.trim import context_manager_spec
-from mas.runtime.boundary.context.working_memory import (
-    WorkingMemoryStore,
-    working_memory_source,
-)
+from mas.runtime.boundary.context.working_memory import WorkingMemoryStore
 from mas.runtime.contracts.cm_factory import CMFactory
 
 
@@ -35,18 +33,16 @@ def _token_budget_params(manifest: dict | None) -> tuple[int | None, int]:
         return None, 512
 
 
-def _apply_token_budget(
-    messages: list[dict[str, Any]],
-    manifest: dict | None,
-) -> list[dict[str, Any]]:
-    max_tokens, reserve = _token_budget_params(manifest)
-    if max_tokens is None:
-        return messages
-    from mas.library.standard.plugins.context.token_budget import trim_messages_to_budget
+def _pinned_working_memory(ctx: Any) -> list[dict[str, Any]]:
+    """In-turn working memory is structurally pinned from budget trimming.
 
-    return trim_messages_to_budget(
-        messages, max_tokens=max_tokens, reserve_tokens=reserve
-    )
+    Each session/ctx carries its own ``WorkingMemoryStore``; assembly never
+    reads global kernel state for message content.
+    """
+    store = getattr(ctx, "working_memory", None)
+    if isinstance(store, WorkingMemoryStore) and store.messages:
+        return list(store.messages)
+    return []
 
 
 def assemble_llm_messages(
@@ -55,10 +51,7 @@ def assemble_llm_messages(
     manifest: dict | None = None,
     correlation_id: int = 0,
 ) -> list[dict[str, Any]]:
-    """Build OpenAI-shaped messages: system → committed history → user → in-turn working memory."""
-    store = getattr(ctx, "working_memory", None) or WorkingMemoryStore()
-    wm = working_memory_source(store)
-
+    """Build OpenAI-shaped messages: system → committed history → user → pinned WM."""
     messages: list[dict[str, Any]] = []
     system_parts: list[str] = []
     for line in getattr(ctx, "injected_context", []) or []:
@@ -66,11 +59,6 @@ def assemble_llm_messages(
             system_parts.append(str(line).strip())
     for key, content in getattr(ctx, "memory_seeds", []) or []:
         system_parts.append(f"[memory:{key}] {content}")
-    # ctx_collect_execute — v0.1 wiring: call collect_context() on all registered
-    # ContextContract plugins via plugin_collection.collect_results().
-    # This uses the same interface that ContextAssemblerPlugin.on_pre_llm_call()
-    # expects as agent.registry — so when the full assembler is wired into the
-    # kernel this bridge can be removed without changing plugin behavior.
     _inject_context_plugins(ctx, system_parts)
     if system_parts:
         messages.append({"role": "system", "content": "\n\n".join(system_parts)})
@@ -79,22 +67,32 @@ def assemble_llm_messages(
     if committed:
         past = list(committed)
     else:
-        turn_history = list(getattr(ctx, "turn_history", []) or [])
-        past = _turn_history_to_past(turn_history)
-    cm = CMFactory.create(manifest=manifest)
-    max_tokens, _ = _token_budget_params(manifest)
-    managed = cm.manage_history(past, max_tokens or 0)
+        past = _turn_history_to_past(list(getattr(ctx, "turn_history", []) or []))
+    managed = CMFactory.create(manifest=manifest).manage_history(past, _token_budget_params(manifest)[0] or 0)
     messages.extend(managed)
 
     last_user_text = str(getattr(ctx, "last_user_text", "") or "")
     if last_user_text:
         messages.append({"role": "user", "content": last_user_text})
 
-    messages.extend(wm.collect_context(manifest=manifest))
+    wm_messages = _pinned_working_memory(ctx)
 
-    if not messages:
+    if not messages and not wm_messages:
         messages.append({"role": "user", "content": "Hello"})
-    messages = _apply_token_budget(messages, manifest)
+
+    messages = sanitize_provider_messages(messages)
+    max_tokens, reserve = _token_budget_params(manifest)
+    if max_tokens is not None:
+        from mas.library.standard.plugins.context.token_budget import trim_messages_to_budget
+
+        messages = trim_messages_to_budget(
+            messages,
+            max_tokens=max_tokens,
+            reserve_tokens=reserve,
+            pin_tail=wm_messages,
+        )
+    else:
+        messages = messages + wm_messages
 
     from mas.runtime.boundary.context.telemetry import record_context_assembly
 
@@ -110,38 +108,21 @@ def assemble_llm_messages(
     return messages
 
 
-def _has_tool_results(messages: list[dict[str, Any]]) -> bool:
-    return any(m.get("role") == "tool" for m in messages)
-
-
 def _inject_context_plugins(ctx: Any, system_parts: list[str]) -> None:
-    """Dispatch ctx_collect_execute to registered ContextContract plugins.
-
-    Calls ``plugin_collection.collect_results("collect_context")`` on the
-    context object's ``plugin_collection`` (a ``PluginCollection`` instance).
-    Gathered ``ContextPart`` objects are sorted by placement order + priority
-    before their content is appended to *system_parts*.
-
-    This is the v0.1 bridge for the ctx_collect_execute FSM symbol.  It uses
-    the same ``collect_results()`` interface that ``ContextAssemblerPlugin``
-    expects as ``agent.registry``, so the bridge can be removed once the full
-    assembler plugin is wired into the kernel without any change to plugins.
-    """
     collection = getattr(ctx, "plugin_collection", None)
     if not collection:
         return
 
     from mas.runtime.contracts.context_contract import (
+        _SYSTEM_PLACEMENTS_ORDER,
         ContextPart,
         ContextPlacement,
-        _SYSTEM_PLACEMENTS_ORDER,
     )
 
     raw_parts = collection.collect_results("collect_context")
     if not raw_parts:
         return
 
-    # Sort by placement band then priority, matching ContextAssemblerPlugin order.
     placement_order = {pl: i for i, pl in enumerate(_SYSTEM_PLACEMENTS_ORDER)}
 
     def _sort_key(part: Any) -> tuple[int, int]:
@@ -149,12 +130,10 @@ def _inject_context_plugins(ctx: Any, system_parts: list[str]) -> None:
         priority = getattr(part, "priority", 60)
         return (placement_order.get(placement, 99), priority)
 
-    sorted_parts = sorted(
+    for part in sorted(
         (p for p in raw_parts if isinstance(p, ContextPart)),
         key=_sort_key,
-    )
-
-    for part in sorted_parts:
+    ):
         if str(part.content).strip():
             system_parts.append(str(part.content).strip())
 
@@ -164,18 +143,8 @@ def llm_request_tools(
     *,
     tools: list[dict[str, Any]] | None,
 ) -> list[dict[str, Any]] | None:
-    """Tools for the API payload.
-
-    Tools stay available after tool results so ReAct loops can issue further
-    ``tool_calls`` (e.g. chained ``delegate_to_*``).
-
-    ``messages`` is retained for call-site compatibility and future guards
-    (e.g. post-tool synthesis); it is not read in the current ReAct-only path.
-    """
     _ = messages
-    if not tools:
-        return None
-    return tools
+    return tools or None
 
 
 def llm_tool_choice(
@@ -183,14 +152,12 @@ def llm_tool_choice(
     *,
     tools: list[dict[str, Any]] | None,
 ) -> str | None:
-    """OpenAI tool_choice when tools are included.
-
-    ``messages`` is retained for call-site compatibility; not read currently.
-    """
     _ = messages
-    if not tools:
-        return None
-    return "auto"
+    return "auto" if tools else None
+
+
+def has_tool_results(messages: list[dict[str, Any]]) -> bool:
+    return any(m.get("role") == "tool" for m in messages)
 
 
 __all__ = [
@@ -199,7 +166,3 @@ __all__ = [
     "llm_request_tools",
     "llm_tool_choice",
 ]
-
-
-def has_tool_results(messages: list[dict[str, Any]]) -> bool:
-    return _has_tool_results(messages)

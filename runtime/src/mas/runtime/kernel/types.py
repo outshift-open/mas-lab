@@ -4,8 +4,10 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import Enum
 from typing import Literal
+
 
 class LifecycleState(str, Enum):
     RUNNING = "RUNNING"
@@ -72,5 +74,14 @@ class GovState(str, Enum):
     BLOCKED = "BLOCKED"
 
 
-InflightKind = Literal["NONE", "MODEL", "TOOL"]
+InflightKind = Literal["NONE", "MODEL", "TOOL", "HITL"]
 ScheduledEgress = Literal["NONE", "LLM_CALL", "TOOL_CALL", "MEMORY_OP", "TRANSPORT_MSG"]
+
+
+@dataclass(frozen=True)
+class OutboundWait:
+    """One external call the runtime has dispatched but not yet resolved."""
+
+    correlation_id: int
+    kind: InflightKind
+    op: ScheduledEgress | str = "NONE"

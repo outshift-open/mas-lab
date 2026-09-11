@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from mas.runtime.kernel.outbound_waits import dismiss_outbound_wait, register_outbound_wait
 from mas.runtime.kernel.state import QProduct, ScheduledEgress
 from mas.runtime.kernel.types import GovState
 
@@ -23,9 +24,12 @@ def gov_enter_hitl_pending(
     q.hitl_request_id = request_id
     q.hitl_pending_schedule = pending_schedule
     q.hitl_question_type = question_type
+    register_outbound_wait(q, request_id, kind="HITL", op=pending_schedule)
 
 
 def gov_clear_hitl(q: QProduct) -> None:
+    if q.hitl_request_id > 0:
+        dismiss_outbound_wait(q, q.hitl_request_id)
     q.hitl_request_id = 0
     q.hitl_pending_schedule = "NONE"
     q.hitl_question_type = ""

@@ -11,20 +11,20 @@ import uuid
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Any, Literal
 
+from mas.runtime.boundary.coordination.chokepoint import ChokepointCoordinator
 from mas.runtime.boundary.hitl.responders import HitlResponder
 from mas.runtime.boundary.ingress_validate import validate_ingress
-from mas.runtime.kernel.inflight import pending_for_validate, register_inflight
-from mas.runtime.boundary.coordination.chokepoint import ChokepointCoordinator
-from mas.runtime.kernel.runtime_context import runtime_binding
-from mas.runtime.machines.gov import gov_is_hitl_pending
 from mas.runtime.boundary.obs.exchange_plugin import ExchangePlugin
 from mas.runtime.boundary.obs.operator import ObservabilityOperator
+from mas.runtime.driver.mocks import AutoCtxAssembler
 from mas.runtime.engine.simulated import SimulatedEngine
 from mas.runtime.engine.worker_pool import EngineWorkerPool
-from mas.runtime.kernel.orchestrator import RuntimeKernel, StepResult
-from mas.runtime.driver.mocks import AutoCtxAssembler
+from mas.runtime.kernel.inflight import pending_for_validate, register_inflight
+from mas.runtime.kernel.orchestrator import RuntimeKernel
+from mas.runtime.kernel.runtime_context import runtime_binding
+from mas.runtime.machines.gov import gov_is_hitl_pending
 from mas.runtime.schema.egress import (
     EgressKind,
     EgressSymbol,
@@ -156,9 +156,7 @@ class KernelDriver:
             ingress = queue.popleft()
             if not validate_ingress(
                 ingress,
-                last_correlation_id=(
-                    self.kernel.run.records[-1].correlation_id if self.kernel.run.records else 0
-                ),
+                last_correlation_id=(self.kernel.run.records[-1].correlation_id if self.kernel.run.records else 0),
                 pending_correlation_id=self.kernel.q.pending_engine_correlation_id,
                 inflight_correlation_ids=pending_for_validate(self.kernel.q),
             ):
@@ -182,9 +180,7 @@ class KernelDriver:
                     # Same values, same source, as what governance sees on
                     # this and every subsequent transition this turn (see
                     # _notify_governance) — so observability logs match.
-                    self.observability.set_context(
-                        session_id=self.session_id, task_id=self._current_task_id
-                    )
+                    self.observability.set_context(session_id=self.session_id, task_id=self._current_task_id)
                 if self.ctx is not None:
                     # Emit USER->AGENT exchange for trace visibility
                     ts_mono, ts_wall = _exchange_timestamp()
@@ -263,9 +259,7 @@ class KernelDriver:
             merged.awaiting_hitl = part.awaiting_hitl
         return merged
 
-    def _dispatch_egress(
-        self, sym: EgressSymbol, trace: DriverTrace
-    ) -> list[IngressSymbol]:
+    def _dispatch_egress(self, sym: EgressSymbol, trace: DriverTrace) -> list[IngressSymbol]:
         if sym.kind == EgressKind.INVOKE_ENGINE_IO:
             assert isinstance(sym, InvokeEngineIo)
             return self._dispatch_engine_batch([sym], trace)
@@ -323,9 +317,7 @@ class KernelDriver:
         for plugin in self.exchange_plugins:
             plugin.on_exchange(record)
 
-    def _notify_governance(
-        self, hook: Literal["ingress", "egress"], symbol: IngressSymbol | EgressSymbol
-    ) -> None:
+    def _notify_governance(self, hook: Literal["ingress", "egress"], symbol: IngressSymbol | EgressSymbol) -> None:
         """Give the governance plugin every ingress/egress symbol, read-only.
 
         Single hook (``on_transition(GovTransition)``), not one bespoke
@@ -383,9 +375,7 @@ class KernelDriver:
         except Exception:
             _logger.debug("governance plugin on_transition failed", exc_info=True)
 
-    def _dispatch_engine_batch(
-        self, ios: list[InvokeEngineIo], trace: DriverTrace
-    ) -> list[IngressSymbol]:
+    def _dispatch_engine_batch(self, ios: list[InvokeEngineIo], trace: DriverTrace) -> list[IngressSymbol]:
         q = self.kernel.q
         engine = self.engine
         pool = self.engine_pool
@@ -396,9 +386,7 @@ class KernelDriver:
         if len(ios) > 1 and all(sym.op == "TOOL_CALL" for sym in ios):
             self._record_parallel_tool_calls(ios, q)
             parallel_group_id = str(uuid.uuid4())
-            self._record_parallel_group_obs(
-                ios, q, boundary="start", group_id=parallel_group_id
-            )
+            self._record_parallel_group_obs(ios, q, boundary="start", group_id=parallel_group_id)
         for sym in ios:
             preview = ""
             tool_name_for_detail = ""  # Extract tool name for exchange detail
@@ -411,7 +399,7 @@ class KernelDriver:
                     tool_name_for_detail = by_cid[0]  # Extract tool name
                 elif sym.op == "TOOL_CALL" and q.pending_tool_name:
                     from mas.runtime.engine.exchange_preview import format_tool_invoke
-                    
+
                     preview = format_tool_invoke(q.pending_tool_name, q.pending_tool_args)
                     tool_name_for_detail = q.pending_tool_name
                 else:
@@ -460,7 +448,8 @@ class KernelDriver:
                     setter = getattr(engine, "set_scheduled_tool", None)
                     if callable(setter):
                         setter(q.pending_tool_name, q.pending_tool_args)
-            register_inflight(q, sym.correlation_id)
+            egress_kind = "MODEL" if sym.op == "LLM_CALL" else "TOOL"
+            register_inflight(q, sym.correlation_id, kind=egress_kind, op=sym.op)
             from mas.runtime.boundary.gov.telemetry import get_bound_observability
             from mas.runtime.kernel.envelope import (
                 EnvelopeContext,
@@ -523,9 +512,7 @@ class KernelDriver:
                 direct.append(ret)
         if pool is None:
             if parallel_group_id is not None:
-                self._record_parallel_group_obs(
-                    ios, q, boundary="end", group_id=parallel_group_id
-                )
+                self._record_parallel_group_obs(ios, q, boundary="end", group_id=parallel_group_id)
             return direct
         results = pool.drain()
         out: list[IngressSymbol] = []
@@ -534,9 +521,7 @@ class KernelDriver:
             self._record_wait_state_obs(sym, q, boundary="end")
             out.append(ret)
         if parallel_group_id is not None:
-            self._record_parallel_group_obs(
-                ios, q, boundary="end", group_id=parallel_group_id
-            )
+            self._record_parallel_group_obs(ios, q, boundary="end", group_id=parallel_group_id)
         return out
 
     def _record_engine_return(
@@ -545,8 +530,8 @@ class KernelDriver:
         io: InvokeEngineIo,
         ret: IngressSymbol,
     ) -> None:
-        from mas.runtime.schema.ingress import EngineIoReturn
         from mas.runtime.engine.exchange_preview import format_llm_response
+        from mas.runtime.schema.ingress import EngineIoReturn
 
         if not isinstance(ret, EngineIoReturn):
             return

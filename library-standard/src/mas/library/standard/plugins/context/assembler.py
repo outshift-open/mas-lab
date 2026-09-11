@@ -73,14 +73,14 @@ The conversation-history transformation always runs (not gated by the marker).
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from mas.runtime.contracts.base import BasePlugin
 from mas.runtime.contracts.cm_factory import CMFactory
 from mas.runtime.contracts.context_contract import (
+    _SYSTEM_PLACEMENTS_ORDER,
     ContextPart,
     ContextPlacement,
-    _SYSTEM_PLACEMENTS_ORDER,
 )
 from mas.runtime.contracts.context_manager_contract import ContextManagerContract
 
@@ -167,6 +167,7 @@ class _NoOpContextManager(ContextManagerContract):
 # ---------------------------------------------------------------------------
 # ContextAssemblerPlugin
 # ---------------------------------------------------------------------------
+
 
 class ContextAssemblerPlugin(BasePlugin):
     """Collects ContextParts from all registered ContextContract plugins and
@@ -293,22 +294,21 @@ class ContextAssemblerPlugin(BasePlugin):
                 hook_data["_evicted_parts"] = [
                     {
                         "section_id": p.section_id,
-                        "source":     p.source,
-                        "role":       p.role or p.source,
-                        "tokens":     p.token_estimate,
-                        "mechanism":  getattr(p.provenance, "mechanism", "collect_context"),
-                        "trigger":    getattr(p.provenance, "trigger", "runtime_default"),
+                        "source": p.source,
+                        "role": p.role or p.source,
+                        "tokens": p.token_estimate,
+                        "mechanism": getattr(p.provenance, "mechanism", "collect_context"),
+                        "trigger": getattr(p.provenance, "trigger", "runtime_default"),
                         "source_type": getattr(p.provenance, "source_type", "unknown"),
                         "sensitivity": getattr(p.provenance, "sensitivity", ""),
                     }
-                    for p in all_parts_raw if id(p) not in kept_ids
+                    for p in all_parts_raw
+                    if id(p) not in kept_ids
                 ]
 
         # Sort: placement order first, then priority within placement
         placement_order = {pl: i for i, pl in enumerate(_SYSTEM_PLACEMENTS_ORDER)}
-        system_parts = [
-            p for p in all_parts if p.placement in placement_order
-        ]
+        system_parts = [p for p in all_parts if p.placement in placement_order]
         system_parts.sort(key=lambda p: (placement_order.get(p.placement, 99), p.priority))
 
         user_prepend_parts = sorted(
@@ -352,9 +352,9 @@ class ContextAssemblerPlugin(BasePlugin):
         recorder = getattr(getattr(self, "agent", None), "recorder", None)
         if recorder is not None and self._emit_segments:
             import time as _time
+
             _ts = _time.time()
             _agent_id = getattr(self, "agent_id", "unknown")
-            evicted_ids = {p.get("section_id") for p in hook_data.get("_evicted_parts", [])}
             for part in ordered_all:
                 prov = part.provenance
                 _evt = {
@@ -436,8 +436,12 @@ class ContextAssemblerPlugin(BasePlugin):
             if isinstance(existing, list):
                 # Content is a multimodal array — prepend text block to the list
                 from mas.runtime.contracts.content_types import ContentPart
+
                 new_parts = [ContentPart.text_part(block)] + list(existing)
-                messages[sys_idx] = {"role": "system", "content": [p.to_dict() if isinstance(p, ContentPart) else p for p in new_parts]}
+                messages[sys_idx] = {
+                    "role": "system",
+                    "content": [p.to_dict() if isinstance(p, ContentPart) else p for p in new_parts],
+                }
             else:
                 messages[sys_idx] = {"role": "system", "content": existing.rstrip() + "\n\n" + block}
         else:
@@ -467,6 +471,7 @@ class ContextAssemblerPlugin(BasePlugin):
         # Handle multimodal content — use merge_content from content_types
         if isinstance(current, list):
             from mas.runtime.contracts.content_types import ContentPart as CP
+
             if prepend_parts:
                 prefix_text = "\n\n".join(p.content for p in prepend_parts)
                 new_parts = [CP.text_part(prefix_text)] + list(current)
@@ -509,8 +514,10 @@ class ContextAssemblerPlugin(BasePlugin):
         if isinstance(self._conv_strategy, _NoOpContextManager):
             return messages  # no-op, fast path
 
+        from mas.library.standard.plugins.context.provider_payload import sanitize_provider_messages
+
         system_msgs = [m for m in messages if m.get("role") == "system"]
-        turn_msgs = [m for m in messages if m.get("role") in ("user", "assistant")]
+        turn_msgs = [m for m in messages if m.get("role") in ("user", "assistant", "tool")]
 
         # Find the last user message — that's the current (live) turn
         last_user_idx: Optional[int] = None
@@ -526,17 +533,14 @@ class ContextAssemblerPlugin(BasePlugin):
         past = turn_msgs[:last_user_idx]
         current_and_after = turn_msgs[last_user_idx:]
 
-        managed_past = self._conv_strategy.manage_history(
-            past, self._token_budget or 0
-        )
+        managed_past = self._conv_strategy.manage_history(past, self._token_budget or 0)
         # Detect summarisation: if managed_past is shorter than past, turns
         # were either removed (SlidingWindowConversation) or compressed into a
         # summary block (SummarizingConversation).  Store on self so
         # on_pre_llm_call can pass _summarized_turns to ObservabilityPlugin.
         self._last_summarized_turns = max(0, len(past) - len(managed_past))
         # C5: expose compaction evidence metadata if the strategy tracks it
-        self._last_compaction_metadata = getattr(
-            self._conv_strategy, "last_compaction_metadata", None
-        )
+        self._last_compaction_metadata = getattr(self._conv_strategy, "last_compaction_metadata", None)
 
-        return system_msgs + managed_past + current_and_after
+        completed = sanitize_provider_messages(system_msgs + managed_past)
+        return completed + current_and_after

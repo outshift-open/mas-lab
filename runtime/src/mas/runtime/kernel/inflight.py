@@ -1,39 +1,41 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Inflight engine I/O correlation tracking — parallel tool calls + stale discard."""
+"""Inflight engine I/O correlation tracking — backed by ``outbound_waits``."""
 
 from __future__ import annotations
 
+from mas.runtime.kernel.outbound_waits import (
+    clear_outbound_waits,
+    dismiss_outbound_wait,
+    is_outbound_pending,
+    pending_correlation_ids,
+    register_outbound_wait,
+)
 from mas.runtime.kernel.state import QProduct
+from mas.runtime.kernel.types import InflightKind, ScheduledEgress
 
 
-def register_inflight(q: QProduct, correlation_id: int) -> None:
-    if correlation_id <= 0:
-        return
-    if correlation_id not in q.inflight_correlation_ids:
-        q.inflight_correlation_ids.append(correlation_id)
+def register_inflight(
+    q: QProduct,
+    correlation_id: int,
+    *,
+    kind: InflightKind = "TOOL",
+    op: ScheduledEgress | str = "NONE",
+) -> None:
+    register_outbound_wait(q, correlation_id, kind=kind, op=op)
 
 
 def clear_inflight(q: QProduct) -> None:
-    q.inflight_correlation_ids.clear()
-    q.pending_engine_correlation_id = 0
+    clear_outbound_waits(q)
 
 
 def dismiss_inflight(q: QProduct, correlation_id: int) -> None:
-    q.inflight_correlation_ids = [c for c in q.inflight_correlation_ids if c != correlation_id]
-    if q.pending_engine_correlation_id == correlation_id:
-        q.pending_engine_correlation_id = 0
+    dismiss_outbound_wait(q, correlation_id)
 
 
 def is_inflight(q: QProduct, correlation_id: int) -> bool:
-    if q.inflight_correlation_ids:
-        return correlation_id in q.inflight_correlation_ids
-    return q.pending_engine_correlation_id > 0 and correlation_id == q.pending_engine_correlation_id
+    return is_outbound_pending(q, correlation_id)
 
 
 def pending_for_validate(q: QProduct) -> list[int]:
-    if q.inflight_correlation_ids:
-        return list(q.inflight_correlation_ids)
-    if q.pending_engine_correlation_id > 0:
-        return [q.pending_engine_correlation_id]
-    return []
+    return pending_correlation_ids(q)

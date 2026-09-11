@@ -14,6 +14,7 @@ from mas.runtime.kernel.types import (
     LifecycleState,
     MemoryState,
     ModelState,
+    OutboundWait,
     ScheduledEgress,
     SessionState,
     ToolState,
@@ -30,6 +31,7 @@ __all__ = [
     "LifecycleState",
     "MemoryState",
     "ModelState",
+    "OutboundWait",
     "QProduct",
     "RunEvent",
     "RunLedger",
@@ -118,6 +120,7 @@ class QProduct:
     pending_ingress_return: dict = field(default_factory=dict)
     control_phase: str = "IDLE"
     pending_engine_correlation_id: int = 0
+    outbound_waits: list[OutboundWait] = field(default_factory=list)
     inflight_correlation_ids: list[int] = field(default_factory=list)
     pending_tool_name: str = ""
     pending_tool_args: dict = field(default_factory=dict)

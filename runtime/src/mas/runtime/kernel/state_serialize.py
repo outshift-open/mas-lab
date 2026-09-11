@@ -11,12 +11,13 @@ from mas.runtime.kernel.state import (
     MemoryState,
     ModelState,
     QProduct,
-    SessionState,
-    RunLedger,
     RunEvent,
+    RunLedger,
+    SessionState,
     ToolState,
     TransportState,
 )
+from mas.runtime.kernel.types import OutboundWait
 
 
 def q_product_to_dict(q: QProduct) -> dict:
@@ -45,6 +46,10 @@ def q_product_to_dict(q: QProduct) -> dict:
         "hitl_tools_approved_turn": q.hitl_tools_approved_turn,
         "control_phase": q.control_phase,
         "pending_engine_correlation_id": q.pending_engine_correlation_id,
+        "outbound_waits": [
+            {"correlation_id": w.correlation_id, "kind": w.kind, "op": w.op}
+            for w in q.outbound_waits
+        ],
         "inflight_correlation_ids": list(q.inflight_correlation_ids),
         "pending_tool_name": q.pending_tool_name,
         "pending_tool_args": dict(q.pending_tool_args),
@@ -91,6 +96,14 @@ def q_product_from_dict(data: dict) -> QProduct:
         hitl_tools_approved_turn=bool(data.get("hitl_tools_approved_turn", False)),
         control_phase=data.get("control_phase", "IDLE"),
         pending_engine_correlation_id=int(data.get("pending_engine_correlation_id", 0)),
+        outbound_waits=[
+            OutboundWait(
+                correlation_id=int(row["correlation_id"]),
+                kind=row.get("kind", "TOOL"),
+                op=row.get("op", "NONE"),
+            )
+            for row in (data.get("outbound_waits") or [])
+        ],
         inflight_correlation_ids=[
             int(x) for x in (data.get("inflight_correlation_ids") or [])
         ],

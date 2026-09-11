@@ -9,9 +9,9 @@ from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.kernel.coupling import apply_control_tool_request
 from mas.runtime.kernel.egress_gate import emit_scheduled_egress, schedule_tool_egress
 from mas.runtime.kernel.inflight import register_inflight
+from mas.runtime.kernel.state import DpState, QProduct, RunLedger
 from mas.runtime.schema.egress import EgressSymbol, EmitHitlRequest, InvokeEngineIo, RaiseBoundaryError
 from mas.runtime.schema.ingress import ToolCallSpec
-from mas.runtime.kernel.state import DpState, QProduct, RunLedger
 
 
 def schedule_parallel_tools_egress(
@@ -49,7 +49,7 @@ def schedule_parallel_tools_egress(
             return batch
         for sym in batch:
             if isinstance(sym, InvokeEngineIo) and sym.op == "TOOL_CALL":
-                register_inflight(q, sym.correlation_id)
+                register_inflight(q, sym.correlation_id, kind="TOOL", op="TOOL_CALL")
                 q.pending_tools_by_cid[sym.correlation_id] = (
                     spec.tool_name,
                     dict(spec.tool_arguments),

@@ -5,13 +5,14 @@
 from __future__ import annotations
 
 from mas.runtime.boundary.gov.policy import EgressIntentView, apply_egress_modify
-from mas.runtime.kernel.config import KernelConfig
-from mas.runtime.kernel.envelope import (
-    EnvelopeContext,
-    contract_kind_for_op,
-    run_egress_authorize_envelope,
-)
 from mas.runtime.boundary.gov.telemetry import get_bound_observability
+from mas.runtime.kernel.config import KernelConfig
+from mas.runtime.kernel.control_pipeline import control_on_idle
+from mas.runtime.kernel.coord_hook import (
+    coord_after_egress_allowed,
+    coord_before_egress,
+    coord_on_egress_blocked,
+)
 from mas.runtime.kernel.coupling import (
     GovDecision,
     apply_control_engine_allow,
@@ -20,14 +21,25 @@ from mas.runtime.kernel.coupling import (
     apply_gov_terminate,
     enter_egress_chokepoint,
 )
-from mas.runtime.kernel.inflight import register_inflight
-from mas.runtime.kernel.control_pipeline import control_on_idle
-from mas.runtime.kernel.coord_hook import (
-    coord_after_egress_allowed,
-    coord_before_egress,
-    coord_on_egress_blocked,
-    coord_on_egress_hitl,
+from mas.runtime.kernel.envelope import (
+    EnvelopeContext,
+    contract_kind_for_op,
+    run_egress_authorize_envelope,
 )
+from mas.runtime.kernel.hitl_gate import emit_egress_hitl_pause
+from mas.runtime.kernel.inflight import register_inflight
+from mas.runtime.kernel.state import (
+    DpState,
+    QProduct,
+    RunEvent,
+    RunLedger,
+    ScheduledEgress,
+)
+from mas.runtime.kernel.types import InflightKind
+from mas.runtime.machines.memory import memory_on_egress_start
+from mas.runtime.machines.model import model_on_abort, model_on_egress
+from mas.runtime.machines.tool import tool_on_abort, tool_on_egress
+from mas.runtime.machines.transport import transport_on_egress
 from mas.runtime.schema.egress import (
     EgressSymbol,
     InvokeEngineIo,
@@ -36,19 +48,6 @@ from mas.runtime.schema.egress import (
 )
 from mas.runtime.schema.governance import GovernanceAction
 from mas.runtime.schema.hitl import HitlQuestionType, HitlResolveChoice
-from mas.runtime.kernel.hitl_gate import emit_egress_hitl_pause
-from mas.runtime.machines.context import ctx_on_abort
-from mas.runtime.machines.memory import memory_on_egress_start
-from mas.runtime.machines.model import model_on_abort, model_on_egress
-from mas.runtime.machines.tool import tool_on_abort, tool_on_egress
-from mas.runtime.machines.transport import transport_on_egress
-from mas.runtime.kernel.state import (
-    DpState,
-    QProduct,
-    ScheduledEgress,
-    RunLedger,
-    RunEvent,
-)
 
 
 def _destructive_for_op(op: ScheduledEgress, config: KernelConfig) -> bool:
@@ -228,7 +227,8 @@ def emit_scheduled_egress(
     view = apply_egress_modify(view, GovernanceAction(decision.value))
     q.hitl_gov_override = False
     _apply_engine_allow(q, view)
-    register_inflight(q, cid)
+    egress_kind: InflightKind = "MODEL" if view.op == "LLM_CALL" else "TOOL"
+    register_inflight(q, cid, kind=egress_kind, op=view.op)
     q.pending_engine_correlation_id = cid
     coord_after_egress_allowed(q)
 
