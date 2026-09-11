@@ -21,12 +21,13 @@ from mas.runtime.boundary.gov.budget import BudgetTracker, budget_from_manifest
 from mas.runtime.engine.exchange_preview import format_llm_messages, format_tool_invoke
 from mas.runtime.engine.llm_cache import (
     assistant_message_from_cache_content,
+    llm_cache_key,
     load_cache,
     lookup_response,
-    llm_cache_key,
     persist_cache,
 )
 from mas.runtime.engine.llm_http import classify_llm_http_error, resolve_ssl_verify
+from mas.runtime.engine.textual_tool_calls import maybe_recover_textual_tool_calls, repair_merged_arg_keys
 from mas.runtime.engine.tool_dispatch import execute_engine_tool
 from mas.runtime.engine.tools import openai_tools
 from mas.runtime.schema.egress import InvokeEngineIo
@@ -64,9 +65,7 @@ class LiveLlmEngine:
     _cache: dict[str, Any] = field(default_factory=dict, init=False)
     _pending_tool: str = field(default="", init=False)
     _pending_tool_args: dict[str, Any] = field(default_factory=dict, init=False)
-    _pending_tools_by_cid: dict[int, tuple[str, dict[str, Any]]] = field(
-        default_factory=dict, init=False
-    )
+    _pending_tools_by_cid: dict[int, tuple[str, dict[str, Any]]] = field(default_factory=dict, init=False)
     _budget: BudgetTracker = field(default_factory=BudgetTracker, init=False)
     _model_access: Any | None = field(default=None, init=False)
 
@@ -75,9 +74,7 @@ class LiveLlmEngine:
         self._pending_tool = name
         self._pending_tool_args = dict(arguments or {})
 
-    def set_tool_for_correlation(
-        self, correlation_id: int, name: str, arguments: dict[str, Any] | None = None
-    ) -> None:
+    def set_tool_for_correlation(self, correlation_id: int, name: str, arguments: dict[str, Any] | None = None) -> None:
         self._pending_tools_by_cid[correlation_id] = (name, dict(arguments or {}))
 
     def __post_init__(self) -> None:
@@ -214,7 +211,6 @@ class LiveLlmEngine:
         tools = llm_request_tools(messages, tools=tool_defs or None)
         answering_from_tools = has_tool_results(messages)
 
-        cache_key = llm_cache_key(self.model, messages, tool_defs or None)
         if self._cache_reads_enabled():
             content, cached_usage, _source = lookup_response(
                 self._cache,
@@ -291,6 +287,7 @@ class LiveLlmEngine:
         usage: dict[str, Any],
         finish_reason: str,
     ) -> EngineIoReturn:
+        message = maybe_recover_textual_tool_calls(message, tool_defs)
         tool_calls = message.get("tool_calls") or []
         if self._cache_writes_enabled():
             self._cache_message(messages, tool_defs, message, usage)
@@ -304,6 +301,8 @@ class LiveLlmEngine:
                     args = json.loads(raw_args) if isinstance(raw_args, str) else dict(raw_args)
                 except json.JSONDecodeError:
                     args = {"raw": raw_args}
+                if isinstance(args, dict):
+                    args = repair_merged_arg_keys(args)
                 parsed.append((name, args))
             if len(parsed) > 1 and self.parallel_tool_calls:
                 from mas.runtime.schema.ingress import ToolCallSpec
@@ -312,9 +311,7 @@ class LiveLlmEngine:
                     correlation_id=io.correlation_id,
                     response_kind="MODEL_TEXT",
                     next_step="PARALLEL_TOOL_CALLS",
-                    parallel_tools=tuple(
-                        ToolCallSpec(tool_name=name, tool_arguments=args) for name, args in parsed
-                    ),
+                    parallel_tools=tuple(ToolCallSpec(tool_name=name, tool_arguments=args) for name, args in parsed),
                     text="",
                     usage=usage,
                     finish_reason=finish_reason,
