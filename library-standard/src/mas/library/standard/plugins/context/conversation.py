@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable
 
+from mas.library.standard.plugins.context.tool_pairing import group_exchanges, skip_tool_group
 from mas.runtime.contracts.context_manager_contract import ContextManagerContract
 
 _log = logging.getLogger(__name__)
@@ -29,13 +30,20 @@ class StackConversation(ContextManagerContract):
             return past
         if len(past) <= self.max_messages:
             return past
-        evicted = len(past) - self.max_messages
+
+        tail = list(past)
+        while len(tail) > self.max_messages:
+            n = skip_tool_group(tail, 0)
+            if n >= len(tail):
+                break
+            del tail[:n]
+
         _log.debug(
             "StackConversation: evicted %d message(s), keeping last %d",
-            evicted,
-            self.max_messages,
+            len(past) - len(tail),
+            len(tail),
         )
-        return past[-self.max_messages :]
+        return tail
 
 
 class SlidingWindowConversation(ContextManagerContract):
@@ -54,21 +62,7 @@ class SlidingWindowConversation(ContextManagerContract):
         if not past:
             return past
 
-        exchanges: list[list[dict[str, Any]]] = []
-        i = 0
-        while i < len(past):
-            msg = past[i]
-            if msg.get("role") == "user":
-                exchange: list[dict[str, Any]] = [msg]
-                if i + 1 < len(past) and past[i + 1].get("role") == "assistant":
-                    exchange.append(past[i + 1])
-                    i += 2
-                else:
-                    i += 1
-                exchanges.append(exchange)
-            else:
-                exchanges.append([msg])
-                i += 1
+        exchanges = group_exchanges(past)
 
         if len(exchanges) <= self.max_turns:
             return past
@@ -123,21 +117,7 @@ class SummarizingConversation(ContextManagerContract):
         if self._estimate_tokens(past) <= effective:
             return past
 
-        exchanges: list[list[dict[str, Any]]] = []
-        i = 0
-        while i < len(past):
-            msg = past[i]
-            if msg.get("role") == "user":
-                exchange: list[dict[str, Any]] = [msg]
-                if i + 1 < len(past) and past[i + 1].get("role") == "assistant":
-                    exchange.append(past[i + 1])
-                    i += 2
-                else:
-                    i += 1
-                exchanges.append(exchange)
-            else:
-                exchanges.append([msg])
-                i += 1
+        exchanges = group_exchanges(past)
 
         if len(exchanges) <= self.keep_turns:
             return past

@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from mas.library.standard.plugins.context.tool_pairing import skip_tool_group as _skip_tool_group
+
 
 def estimate_tokens(messages: list[dict[str, Any]]) -> int:
     total = 0
@@ -17,29 +19,6 @@ def estimate_tokens(messages: list[dict[str, Any]]) -> int:
             fn = call.get("function") or {}
             total += len(str(fn.get("name", ""))) + len(str(fn.get("arguments", "")))
     return total // 4 + len(messages) * 4
-
-
-def _skip_tool_group(tail: list[dict[str, Any]], start: int) -> int:
-    """Return how many messages to drop starting at *start* to keep tool pairs intact.
-
-    If ``tail[start]`` is an assistant message with ``tool_calls``, we must also
-    drop every subsequent ``tool`` response that references one of those calls.
-    If ``tail[start]`` is an orphaned ``tool`` message, drop it too.
-    """
-    msg = tail[start]
-    if msg.get("role") == "assistant" and msg.get("tool_calls"):
-        call_ids = {c.get("id") for c in msg["tool_calls"] if c.get("id")}
-        count = 1
-        while start + count < len(tail):
-            nxt = tail[start + count]
-            if nxt.get("role") == "tool" and nxt.get("tool_call_id") in call_ids:
-                count += 1
-            else:
-                break
-        return count
-    if msg.get("role") == "tool":
-        return 1
-    return 1
 
 
 def trim_messages_to_budget(
