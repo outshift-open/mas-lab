@@ -25,7 +25,7 @@ can include values via
 | `$XDG_CACHE_HOME` | `~/.cache` | Base for caches |
 | `--8<-- "includes/mas-paths.md:xdg-trace-cache"` | under `$XDG_CACHE_HOME` | Content-addressed trace cache |
 | `--8<-- "includes/mas-paths.md:xdg-artifacts-cache"` | under `$XDG_CACHE_HOME` | Pipeline step cache |
-| `--8<-- "includes/mas-paths.md:xdg-llm-cache"` | under `$XDG_CACHE_HOME` | LLM response cache — see [execution.md](manifests/execution.md#cache--the-llm-response-cache) for read/write controls |
+| `--8<-- "includes/mas-paths.md:xdg-llm-cache"` | under `$XDG_CACHE_HOME` | LLM cache — built-in: [execution.md](manifests/execution.md#cache--the-llm-response-cache); infra: [llm-cache.md](manifests/llm-cache.md) · [ref](references/llm-cache.md) |
 | `$XDG_STATE_HOME` | `~/.local/state` | Base for state files |
 | `--8<-- "includes/mas-paths.md:xdg-last-run"` | under `$XDG_STATE_HOME` | Last benchmark run pointer |
 | `MAS_LABS_ROOT` | — | Env override for labs root |
@@ -34,7 +34,7 @@ can include values via
 | `MAS_TRACE_CACHE` | — | Env override for trace cache |
 | `MAS_DATA_CACHE` | — | Env override for pipeline cache |
 | `MAS_LLM_CACHE` | — | Env override for the LLM response cache file path |
-| `MAS_LLM_CACHE_READ` / `MAS_LLM_CACHE_WRITE` | — | Env override to disable LLM cache reads/writes independently — see [execution.md](manifests/execution.md#cache--the-llm-response-cache) |
+| `MAS_LLM_CACHE_READ` / `MAS_LLM_CACHE_WRITE` | — | Built-in engine cache — [execution.md](manifests/execution.md#cache--the-llm-response-cache). Infra middleware: [references/llm-cache.md](references/llm-cache.md) |
 | `MAS_HOME` | `--8<-- "includes/mas-paths.md:mas-home"` | Env override for controller data root |
 | `MAS_CONTROLLER_SOCKET` | `--8<-- "includes/mas-paths.md:controller-socket"` | Env override for controller socket |
 
@@ -78,13 +78,14 @@ cp config/infra/openai.example.yaml "${XDG_CONFIG_HOME:-$HOME/.config}/mas/infra
 ```
 
 Workspace checkouts use the sample at
-[`examples/config.yaml`](../examples/config.yaml)
+[`library-samples/sample-workspace/config.yaml`](../library-samples/sample-workspace/config.yaml)
 (`MAS_WORKSPACE_ROOT` is set automatically in pytest; copy to your project root
 or export `MAS_WORKSPACE_ROOT` for local CLI runs).
 
-For first-time setup via `mas-lab init`, generated files come from public OSS templates:
-[`examples/config.yaml`](../examples/config.yaml)
-and [`examples/infra/llmprovider.yaml`](../examples/infra/llmprovider.yaml).
+For first-time setup via `mas-lab init`, generated files come from templates
+bundled in the `mas-lab` package:
+[`lab/src/mas/lab/templates/init/config.yaml`](../lab/src/mas/lab/templates/init/config.yaml)
+and [`lab/src/mas/lab/templates/infra/llmprovider.yaml`](../lab/src/mas/lab/templates/infra/llmprovider.yaml).
 
 ### 3. Set API key
 

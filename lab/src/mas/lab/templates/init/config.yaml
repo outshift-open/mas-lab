@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-# Canonical config sample leveraged by `mas-lab init`.
+# Canonical config template for `mas-lab init` (bundled in the mas-lab package).
 
 mas_lab:
   flavour: local

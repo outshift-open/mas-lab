@@ -83,7 +83,7 @@ def _capture_one(
     # standard:production — hitting a real LLM and causing a 401 or wrong event
     # count.  MAS_INFRA_REFS can still override this for real-LLM captures.
     if "MAS_WORKSPACE_ROOT" not in os.environ:
-        os.environ["MAS_WORKSPACE_ROOT"] = str(ROOT / "examples")
+        os.environ["MAS_WORKSPACE_ROOT"] = str(ROOT / "library-samples" / "sample-workspace")
     print(
         f"  workspace: MAS_WORKSPACE_ROOT={os.environ['MAS_WORKSPACE_ROOT']!r}",
         f"  infra:     MAS_INFRA_REFS={os.environ.get('MAS_INFRA_REFS', '<not set — workspace infra_refs used>')!r}",

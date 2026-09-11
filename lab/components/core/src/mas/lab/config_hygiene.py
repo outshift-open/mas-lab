@@ -54,8 +54,9 @@ _SKIP_DIRS = frozenset({
 })
 
 _SEARCH_ROOTS = [
-    "examples",
-    "apps",
+    "library-samples",
+    "docs/tutorials",
+    "labs",
 ]
 
 

@@ -17,7 +17,6 @@ _AGENT_ROOTS = (
     _ROOT / "docs" / "tutorials",
     _ROOT / "library-samples",
     _ROOT / "labs",
-    _ROOT / "examples",
 )
 
 

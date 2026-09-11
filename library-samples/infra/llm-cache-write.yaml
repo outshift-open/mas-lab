@@ -4,18 +4,17 @@ apiVersion: infra/v1
 kind: InfraMiddleware
 
 metadata:
-  name: llm-cache
+  name: llm-cache-write
   description: >
-    Disk cache for LLM chat completions. Insert in InfraBundle pipeline before
-    the real LLMProxy to avoid repeat LiteLLM calls during dev and tutorials.
+    Write-only LLM cache middleware. Records every LLM_CALL to cache_path while
+    still calling the provider on a miss. See docs/manifests/llm-cache.md.
 
 spec:
   middleware: llm_cache
   applies_to:
     - LLM_CALL
   params:
-    allow_read: true
+    allow_read: false
     allow_write: true
     raise_on_miss: false
-    # Resolved at merge time if omitted — see ctl infra resolve
-    cache_path: null
+    cache_path: library-samples/infra/cache/demo.llm-cache.json

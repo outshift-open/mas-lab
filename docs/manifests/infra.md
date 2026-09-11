@@ -24,6 +24,7 @@ application service URLs, OTel/collector endpoints.
 | `kind` | Purpose |
 |--------|---------|
 | `InfraBundle` | Compose other infra files (`spec.includes[]`); recursive merge |
+| `InfraMiddleware` | Pipeline middleware (`llm_cache`, `fault_inject`) wrapped around LLM calls |
 | `LLMProxy` | OpenAI-compatible proxy URL, model catalogue, defaults |
 | `LLMLocal` | Local inference (e.g. Ollama) |
 | `ToolRegistry` | Map logical tool-set ids → JSON tool index paths |
@@ -61,8 +62,26 @@ Referenced from MAS `spec.infra_refs`, workspace, or CLI `--infra-ref`.
 
 ---
 
+## LLM cache middleware
+
+Record and replay LLM responses via `kind: InfraMiddleware` with
+`middleware: llm_cache`. Attach with `--infra-ref` or `spec.infra_refs`.
+
+**Guide:** [llm-cache.md](llm-cache.md) — record/replay walkthrough, manifests,
+pipeline order. **Reference:** [llm-cache.md](../references/llm-cache.md).
+
+**Pipeline order:** only `InfraMiddleware` refs add pipeline steps; provider
+refs (`LLMProxy`, `standard:openai`, `standard:mock-llm`) do not. With one
+cache middleware, provider and cache `--infra-ref` order is equivalent. With
+multiple middleware refs, **first merged ref = outermost**. See
+[llm-cache.md — Pipeline order](llm-cache.md#pipeline-order).
+
+---
+
 ## See also
 
+- [LLM cache](llm-cache.md) — `llm_cache` middleware guide
+- [LLM cache reference](../references/llm-cache.md) — parameters, pipeline model, implementation
 - [Flavour manifest](flavour.md)
 - [user-config.md](../user-config.md) — workspace and `infra_refs`
 - Source: `runtime/src/mas/runtime/manifest/infra_manifest.py`

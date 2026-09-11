@@ -139,7 +139,6 @@ at the repository root — Tutorials 0–3 cover environment, agent, MAS, and ex
 
 | Path | Description |
 |------|-------------|
-| [examples/registry_manifest_demo.py](examples/registry_manifest_demo.py) | Plugin registry + manifest resolution |
 | [library-samples/apps/](../library-samples/apps/) | Trip planner, Q&A, and other sample apps |
 | [docs/tutorials/01-building-an-agent/](../docs/tutorials/01-building-an-agent/) | Step-by-step agent tutorial (MkDocs) |
 

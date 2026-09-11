@@ -82,6 +82,109 @@ def last_user_text(messages: list[dict[str, Any]]) -> str:
     return ""
 
 
+def middleware_cache_serialize(
+    ret: Any,
+    *,
+    include_preview: bool = False,
+    preview: str = "",
+) -> str | dict[str, Any]:
+    """Serialize ``EngineIoReturn`` for ``LlmCacheMiddleware`` disk storage.
+
+    Plain strings remain valid for simple STOP text (backward compatible).
+    Tool-call and parallel-tool responses are stored as structured dicts.
+    """
+    next_step = str(getattr(ret, "next_step", "STOP") or "STOP")
+    text = str(getattr(ret, "text", "") or "")
+    tool_name = str(getattr(ret, "tool_name", "") or "")
+    parallel_tools = tuple(getattr(ret, "parallel_tools", ()) or ())
+    usage = dict(getattr(ret, "usage", {}) or {})
+    finish_reason = str(getattr(ret, "finish_reason", "") or "")
+
+    if next_step == "STOP" and text and not tool_name and not parallel_tools and not include_preview:
+        return text
+
+    entry: dict[str, Any] = {
+        "next_step": next_step,
+        "text": text,
+        "usage": usage,
+        "finish_reason": finish_reason,
+    }
+    if tool_name:
+        entry["tool_name"] = tool_name
+        entry["tool_arguments"] = dict(getattr(ret, "tool_arguments", {}) or {})
+    if parallel_tools:
+        entry["parallel_tools"] = [
+            {
+                "tool_name": str(spec.tool_name),
+                "tool_arguments": dict(spec.tool_arguments or {}),
+            }
+            for spec in parallel_tools
+        ]
+    if include_preview and preview.strip():
+        entry["_preview"] = preview.strip()
+    return entry
+
+
+def middleware_cache_deserialize(entry: str | dict[str, Any], correlation_id: int) -> Any:
+    """Rebuild ``EngineIoReturn`` from middleware cache storage."""
+    from mas.runtime.schema.ingress import EngineIoReturn, ToolCallSpec
+
+    if isinstance(entry, str):
+        return EngineIoReturn(
+            correlation_id=correlation_id,
+            response_kind="MODEL_TEXT",
+            next_step="STOP",
+            text=entry,
+        )
+    if not isinstance(entry, dict):
+        raise ValueError(f"invalid llm_cache entry type: {type(entry).__name__}")
+
+    next_step = str(entry.get("next_step") or "STOP")
+    parallel_raw = entry.get("parallel_tools") or []
+    parallel_tools = tuple(
+        ToolCallSpec(
+            tool_name=str(row.get("tool_name") or ""),
+            tool_arguments=dict(row.get("tool_arguments") or {}),
+        )
+        for row in parallel_raw
+        if isinstance(row, dict) and str(row.get("tool_name") or "").strip()
+    )
+    text = str(entry.get("text") or entry.get("content") or "")
+    tool_name = str(entry.get("tool_name") or "")
+    if not tool_name and entry.get("tool_calls"):
+        tool_calls = entry.get("tool_calls") or []
+        if isinstance(tool_calls, list) and tool_calls:
+            fn = (tool_calls[0].get("function") or {}) if isinstance(tool_calls[0], dict) else {}
+            tool_name = str(fn.get("name") or "")
+            raw_args = fn.get("arguments") or "{}"
+            try:
+                tool_arguments = json.loads(raw_args) if isinstance(raw_args, str) else dict(raw_args)
+            except json.JSONDecodeError:
+                tool_arguments = {"raw": raw_args}
+            return EngineIoReturn(
+                correlation_id=correlation_id,
+                response_kind="MODEL_TEXT",
+                next_step="TOOL_CALL",
+                tool_name=tool_name,
+                tool_arguments=tool_arguments if isinstance(tool_arguments, dict) else {},
+                text="",
+                usage=dict(entry.get("usage") or {}),
+                finish_reason=str(entry.get("finish_reason") or "tool_calls"),
+            )
+
+    return EngineIoReturn(
+        correlation_id=correlation_id,
+        response_kind="MODEL_TEXT",
+        next_step=next_step,
+        text=text,
+        tool_name=tool_name,
+        tool_arguments=dict(entry.get("tool_arguments") or {}),
+        parallel_tools=parallel_tools,
+        usage=dict(entry.get("usage") or {}),
+        finish_reason=str(entry.get("finish_reason") or ""),
+    )
+
+
 def assistant_message_from_cache_content(content: str | None) -> dict[str, Any] | None:
     """Parse a cache entry into an OpenAI-shaped assistant message."""
     if not content or not str(content).strip():

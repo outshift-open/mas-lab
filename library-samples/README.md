@@ -17,6 +17,8 @@ Reusable **artefacts** for tutorials and labs — not runnable experiments.
 | **tools** | `tools/calc.py`, `tools/*.tool.yaml` |
 | **skills** | (under app trees or top-level when shared) |
 | **overlays** | `overlays/cot-moderator.yaml`, `overlays/hitl-on-tool.yaml`, … |
+| **infra** | `infra/tool-providers.yaml`, `infra/llm-cache-{write,replay}.yaml` |
+| **sample-workspace** | `sample-workspace/config.yaml` — OSS dev/CI workspace default |
 | **aliases** | runtime alias manifest |
 
 Generic pipelines, built-in steps, and shared artefacts belong in **`library-standard`** (or future lab-standard libraries), not here.

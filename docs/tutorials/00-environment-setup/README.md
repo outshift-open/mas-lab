@@ -206,13 +206,13 @@ MAS_WORKSPACE_MOUNT=/path/to/your/project
 MAS_DATA_MOUNT=/path/to/persistent-data
 ```
 
-The sample workspace file is at [`examples/config.yaml`](../../../examples/config.yaml).
-Copy it to your project root as `config.yaml`, or set
-`MAS_WORKSPACE_ROOT=examples` when working from this checkout.
+The sample workspace is at [`library-samples/sample-workspace/`](../../../library-samples/sample-workspace/).
+Copy `config.yaml` to your project root, or set
+`MAS_WORKSPACE_ROOT=library-samples/sample-workspace` when working from this checkout.
 
-`mas-lab init` uses OSS templates from:
-- [`examples/config.yaml`](../../../examples/config.yaml)
-- [`examples/infra/llmprovider.yaml`](../../../examples/infra/llmprovider.yaml)
+`mas-lab init` uses templates bundled in the `mas-lab` package (no `library-samples` install required):
+- [`lab/src/mas/lab/templates/init/config.yaml`](../../../lab/src/mas/lab/templates/init/config.yaml)
+- [`lab/src/mas/lab/templates/infra/llmprovider.yaml`](../../../lab/src/mas/lab/templates/infra/llmprovider.yaml)
 
 ### Configuration priority (inside Docker)
 

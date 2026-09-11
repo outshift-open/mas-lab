@@ -22,25 +22,17 @@ _DEFAULT_MODEL_ALIAS = "generic-model"
 _DEFAULT_TARGET_MODEL = "gpt-4o-mini"
 
 
-def _repo_checkout_examples_root() -> Path | None:
-    # lab/src/mas/lab/cli/commands/init.py -> repo root/examples
-    candidate = Path(__file__).resolve().parents[6] / "examples"
-    return candidate if candidate.is_dir() else None
-
-
-def _packaged_examples_root() -> Path:
-    # Falls back to the copy of examples/ packaged inside mas.lab (see
-    # [tool.hatch.build.targets.wheel.force-include] in lab/pyproject.toml).
-    return Path(str(resources.files("mas.lab") / "_examples"))
-
-
 def _templates_root() -> Path:
-    return _repo_checkout_examples_root() or _packaged_examples_root()
+    """Bundled under ``mas.lab/templates`` — no library-samples checkout required."""
+    return Path(str(resources.files("mas.lab") / "templates"))
 
 
-def _load_template(rel_path: str) -> str:
-    path = _templates_root() / rel_path
-    return path.read_text(encoding="utf-8")
+def _load_template(name: str) -> str:
+    return (_templates_root() / "init" / name).read_text(encoding="utf-8")
+
+
+def _load_infra_template(name: str) -> str:
+    return (_templates_root() / "infra" / name).read_text(encoding="utf-8")
 
 
 def _read_existing_config() -> dict[str, Any]:
@@ -124,7 +116,7 @@ def _render_infra_yaml(
     target_model: str,
 ) -> str:
     return (
-        _load_template("infra/llmprovider.yaml")
+        _load_infra_template("llmprovider.yaml")
         .replace("__INFRA_NAME__", name)
         .replace("__API_BASE_URL__", api_base)
         .replace("__API_KEY_ENV__", api_key_env)

@@ -44,7 +44,7 @@ contents; only `.gitkeep` is tracked).
 Inside the container, `MAS_WORKSPACE_ROOT=/workspace` is set. The runtime loads
 `config.yaml` from the mounted workspace when present; otherwise the
 entrypoint falls back to the baked copy from
-[`examples/config.yaml`](../examples/config.yaml)
+[`library-samples/sample-workspace/config.yaml`](../library-samples/sample-workspace/config.yaml)
 at `/opt/mas-lab/config.yaml`. Project config wins over `$XDG_CONFIG_HOME/mas/config.yaml` fallback.
 
 To also use a host user config, bind-mount the XDG config tree:
@@ -113,7 +113,7 @@ docker compose run --rm backend mas-lab config
 
 ### Configure from inside Docker
 
-1. Copy [`examples/config.yaml`](../examples/config.yaml)
+1. Copy [`library-samples/sample-workspace/config.yaml`](../library-samples/sample-workspace/config.yaml)
    to your project root, or edit an existing copy under `MAS_WORKSPACE_MOUNT`.
 2. Put secrets in `docker/.env` or `/workspace/.env`.
 3. Restart: `task restart` from the repo root (rebuild + recreate both services).

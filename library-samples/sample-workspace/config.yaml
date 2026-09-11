@@ -4,7 +4,7 @@
 #
 # Global fallback: $XDG_CONFIG_HOME/mas/config.yaml
 # Project override: <project-root>/config.yaml (highest precedence)
-# Checkout dev: export MAS_WORKSPACE_ROOT=examples/sample-workspace
+# Checkout dev: export MAS_WORKSPACE_ROOT=library-samples/sample-workspace
 #
 # For live OpenAI/production infra, see:
 #   docs/tutorials/00-environment-setup/config.openai.example.yaml

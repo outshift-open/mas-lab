@@ -35,6 +35,16 @@ This directory contains infrastructure manifest bundles referenced via the
   - No API key; cache-first echo responses
   - Tutorials, `task verify`, and benchmark smoke tests
 
+- **`standard:llm-cache`** — `llm_cache` middleware (read+write, XDG cache path)
+
+- **`standard:llm-proxy-cached`** — OpenAI provider with cache middleware in front
+
+Write-only and strict-replay manifests with an explicit `cache_path`:
+`library-samples/infra/llm-cache-{write,replay}.yaml`.
+
+See [docs/manifests/llm-cache.md](../../../../docs/manifests/llm-cache.md) (guide) and
+[docs/references/llm-cache.md](../../../../docs/references/llm-cache.md) (reference).
+
 ## Usage
 
 ### In User Config

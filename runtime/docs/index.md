@@ -64,7 +64,7 @@ See **[docs/tutorials/index.md](../../../docs/tutorials/index.md)** for the full
 | 03 | [Experiments & analysis](../../../docs/tutorials/03-experiments-and-analysis/) | `mas-lab` telemetry · plots · benchmarks |
 
 Also see **[Tutorial 01 — Building an agent](../../docs/tutorials/01-building-an-agent/README.md)** and
-**[registry_manifest_demo.py](../examples/registry_manifest_demo.py)** for programmatic registry resolution.
+**[library-samples/apps/](../../library-samples/apps/)** for runnable sample apps.
 
 ### Common how-tos
 

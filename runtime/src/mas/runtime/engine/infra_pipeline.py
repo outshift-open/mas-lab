@@ -5,12 +5,17 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
+from mas.runtime.engine.llm_cache import (
+    load_cache,
+    middleware_cache_deserialize,
+    middleware_cache_serialize,
+    persist_cache,
+)
 from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.ingress import EngineIoReturn
 
@@ -25,20 +30,29 @@ class InfraMiddleware(Protocol):
 
 @dataclass
 class LlmCacheMiddleware:
-    """Cache LLM_CALL results on disk — sits in front of live infra."""
+    """Cache LLM_CALL results on disk — sits in front of live infra.
+
+    allow_read / allow_write are independent (both default True, like a
+    normal read-through cache); a demo can compose write-only (build the
+    cache), read-only (replay it), or both (default) purely via infra
+    manifest params — no code branching per mode.
+    """
 
     inner: Any
     middleware_id: str = "llm_cache"
     cache_path: Path | None = None
-    enabled: bool = True
-    _cache: dict[str, str] = field(default_factory=dict, init=False)
+    allow_read: bool = True
+    allow_write: bool = True
+    # Replay-only mode: never falls through to `inner` on a cache miss, so a
+    # stacked infra manifest can guarantee zero calls reach the real provider
+    # (e.g. a fast demo replay with no live LLM/network configured at all).
+    raise_on_miss: bool = False
+    include_preview: bool = False
+    _cache: dict[str, Any] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
-        if self.cache_path and self.cache_path.is_file():
-            try:
-                self._cache = json.loads(self.cache_path.read_text(encoding="utf-8"))
-            except Exception:
-                self._cache = {}
+        if self.cache_path:
+            self._cache = load_cache(self.cache_path)
 
     def exchange_preview(self, op: str) -> str:
         preview = getattr(self.inner, "exchange_preview", None)
@@ -48,23 +62,38 @@ class LlmCacheMiddleware:
         return "[llm_cache middleware]"
 
     def invoke(self, io: InvokeEngineIo) -> EngineIoReturn:
-        if not self.enabled or io.op != "LLM_CALL":
+        if not (self.allow_read or self.allow_write) or io.op != "LLM_CALL":
             return self.inner.invoke(io)
-        if self._request_has_tool_results():
-            return self.inner.invoke(io)
-        key = self._cache_key(io)
-        if key in self._cache:
-            return EngineIoReturn(
-                correlation_id=io.correlation_id,
-                response_kind="MODEL_TEXT",
-                next_step="STOP",
-                text=self._cache[key],
-            )
+        # Exactly one exchange_preview() call per invoke(): LiveLlmEngine's
+        # preview resets ctx._assembly_correlation_id as a side effect, so
+        # calling it more than once here (as the old separate tool-results
+        # check + cache-key computation did) corrupted textual tool-call
+        # parsing correlation state on every cached turn.
+        # No tool-results skip: the cache key is the full preview text
+        # (conversation so far, including any prior tool result), so a
+        # different tool outcome naturally produces a different key and a
+        # fresh miss -- there is nothing to protect against by excluding
+        # these turns, and skipping them defeats caching a whole agentic
+        # turn, where the useful answer is almost always the post-tool-call
+        # completion.
+        preview = self._preview(io)
+        key = hashlib.sha256(preview.encode()).hexdigest()
+        if self.allow_read and key in self._cache:
+            return middleware_cache_deserialize(self._cache[key], io.correlation_id)
+        if self.allow_read and self.raise_on_miss:
+            raise RuntimeError(f"llm_cache miss (raise_on_miss=true) for key {key}")
         ret = self.inner.invoke(io)
-        if ret.response_kind == "MODEL_TEXT" and ret.text and ret.next_step == "STOP":
-            if not self._request_has_tool_results():
-                self._cache[key] = ret.text
-                self._persist()
+        if (
+            self.allow_write
+            and ret.response_kind == "MODEL_TEXT"
+            and ret.next_step in {"STOP", "TOOL_CALL", "PARALLEL_TOOL_CALLS"}
+        ):
+            self._cache[key] = middleware_cache_serialize(
+                ret,
+                include_preview=self.include_preview,
+                preview=preview,
+            )
+            self._persist()
         return ret
 
     def reset_turn_state(self) -> None:
@@ -72,23 +101,14 @@ class LlmCacheMiddleware:
         if callable(reset_fn):
             reset_fn()
 
-    def _request_has_tool_results(self) -> bool:
+    def _preview(self, io: InvokeEngineIo) -> str:
         preview = getattr(self.inner, "exchange_preview", None)
-        if callable(preview):
-            body = str(preview("LLM_CALL") or "")
-            return "[tool call_id=" in body
-        return False
-
-    def _cache_key(self, io: InvokeEngineIo) -> str:
-        preview = getattr(self.inner, "exchange_preview", None)
-        body = str(preview("LLM_CALL") if callable(preview) else io.correlation_id)
-        return hashlib.sha256(body.encode()).hexdigest()
+        return str(preview("LLM_CALL") if callable(preview) else io.correlation_id)
 
     def _persist(self) -> None:
         if not self.cache_path:
             return
-        self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-        self.cache_path.write_text(json.dumps(self._cache, indent=2), encoding="utf-8")
+        persist_cache(self.cache_path, self._cache)
 
 
 @dataclass
@@ -127,16 +147,24 @@ def apply_middleware(engine: Any, spec: dict[str, Any]) -> Any:
     if mid in {"llm_cache", "llm-cache"}:
         path_raw = params.get("cache_path") or params.get("path")
         path = Path(str(path_raw)) if path_raw else None
-        enabled = params.get("enabled", True) is not False
-        return LlmCacheMiddleware(inner=engine, cache_path=path, enabled=bool(enabled))
+        allow_read = params.get("allow_read", params.get("enabled", True)) is not False
+        allow_write = params.get("allow_write", params.get("enabled", True)) is not False
+        raise_on_miss = params.get("raise_on_miss", False) is True
+        include_preview = params.get("include_preview", False) is True
+        return LlmCacheMiddleware(
+            inner=engine,
+            cache_path=path,
+            allow_read=bool(allow_read),
+            allow_write=bool(allow_write),
+            raise_on_miss=raise_on_miss,
+            include_preview=bool(include_preview),
+        )
     if mid in {"fault_inject", "fault-inject", "chaos_lite", "chaos-lite"}:
         rate = float(params.get("rate") or params.get("failure_rate") or 0.0)
         codes_raw = params.get("status_codes") or params.get("errors") or [503]
         codes = [int(c) for c in codes_raw] if isinstance(codes_raw, list) else [503]
         msg = str(params.get("message") or "injected fault")
-        return FaultInjectMiddleware(
-            inner=engine, rate=max(0.0, min(1.0, rate)), status_codes=codes, message=msg
-        )
+        return FaultInjectMiddleware(inner=engine, rate=max(0.0, min(1.0, rate)), status_codes=codes, message=msg)
     return engine
 
 
