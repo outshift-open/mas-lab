@@ -20,7 +20,7 @@ from mas.runtime.boundary.obs.exchange_plugin import ExchangePlugin
 from mas.runtime.boundary.obs.operator import ObservabilityOperator
 from mas.runtime.driver.mocks import AutoCtxAssembler
 from mas.runtime.engine.simulated import SimulatedEngine
-from mas.runtime.engine.worker_pool import EngineWorkerPool
+from mas.runtime.engine.worker_pool import DEFAULT_ENGINE_QUEUE_DEPTH, EngineWorkerPool
 from mas.runtime.kernel.inflight import pending_for_validate, register_inflight
 from mas.runtime.kernel.orchestrator import RuntimeKernel
 from mas.runtime.kernel.runtime_context import runtime_binding
@@ -139,7 +139,12 @@ class KernelDriver:
 
     def __post_init__(self) -> None:
         if self.engine_pool is None and self.engine is not None:
-            self.engine_pool = EngineWorkerPool(worker=self.engine.invoke)
+            depth = (
+                self.kernel.config.engine_queue_depth
+                if self.kernel is not None
+                else DEFAULT_ENGINE_QUEUE_DEPTH
+            )
+            self.engine_pool = EngineWorkerPool(worker=self.engine.invoke, max_depth=depth)
         if self.ctx is not None and self.observability is not None:
             self.ctx.observability = self.observability
 

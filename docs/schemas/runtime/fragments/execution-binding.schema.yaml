@@ -31,6 +31,14 @@ properties:
         description: "Persist a response to the cache after calling the LLM. Default: true."
   parallel:
     type: boolean
+  engine_queue_depth:
+    type: integer
+    minimum: 1
+    default: 32
+    description: >
+      Maximum engine egress intents (LLM/tool calls) queued for one kernel
+      dispatch batch before drain. Raise when a single model turn schedules
+      many parallel tool calls. See docs/manifests/execution.md.
   live:
     type: boolean
   stream:

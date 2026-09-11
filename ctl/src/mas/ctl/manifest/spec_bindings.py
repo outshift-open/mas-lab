@@ -186,7 +186,9 @@ def parse_governance(raw: Any) -> GovernanceBinding:
 
 
 _LLM_KEYS = frozenset({"model", "provider", "temperature", "max_tokens"})
-_EXECUTION_KEYS = frozenset({"mocking", "cache", "parallel", "live", "timeout"})
+_EXECUTION_KEYS = frozenset(
+    {"mocking", "cache", "parallel", "engine_queue_depth", "live", "stream", "timeout"}
+)
 _CONTROL_KEYS = frozenset({"budget", "circuit_breaker", "rate_limiter"})
 
 
@@ -238,6 +240,9 @@ def parse_execution(raw: Any) -> None:
         _reject_unknown_keys(
             cache, allowed=frozenset({"enabled", "read", "write"}), field="spec.execution.cache"
         )
+    depth = raw.get("engine_queue_depth")
+    if depth is not None and (not isinstance(depth, int) or isinstance(depth, bool) or depth < 1):
+        raise SpecBindingError("spec.execution.engine_queue_depth must be an integer >= 1")
 
 
 def parse_control(raw: Any) -> None:

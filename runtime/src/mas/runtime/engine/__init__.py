@@ -3,6 +3,12 @@
 """Engine package — worker pool and simulated adapter."""
 
 from mas.runtime.engine.simulated import SimMode, SimulatedEngine, simulated_next_step
-from mas.runtime.engine.worker_pool import EngineWorkerPool
+from mas.runtime.engine.worker_pool import DEFAULT_ENGINE_QUEUE_DEPTH, EngineWorkerPool
 
-__all__ = ["EngineWorkerPool", "SimMode", "SimulatedEngine", "simulated_next_step"]
+__all__ = [
+    "DEFAULT_ENGINE_QUEUE_DEPTH",
+    "EngineWorkerPool",
+    "SimMode",
+    "SimulatedEngine",
+    "simulated_next_step",
+]

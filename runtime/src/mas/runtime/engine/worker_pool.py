@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Execution engine worker pool — mirrors TLA outbound_queue / inbound_queue."""
+"""In-process engine I/O queue for one kernel dispatch batch."""
 
 from __future__ import annotations
 
@@ -11,18 +11,19 @@ from dataclasses import dataclass, field
 from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.ingress import EngineIoReturn
 
+DEFAULT_ENGINE_QUEUE_DEPTH = 32
 
 WorkerFn = Callable[[InvokeEngineIo], EngineIoReturn]
 
 
 @dataclass
 class EngineWorkerPool:
-    """In-process engine queue: kernel submits InvokeEngineIo, workers produce EngineIoReturn."""
+    """Queue engine egress intents from one batch; drain runs invoke sequentially."""
 
     worker: WorkerFn
     outbound_queue: deque[InvokeEngineIo] = field(default_factory=deque)
     inbound_queue: deque[EngineIoReturn] = field(default_factory=deque)
-    max_depth: int = 8
+    max_depth: int = DEFAULT_ENGINE_QUEUE_DEPTH
 
     def submit(self, intent: InvokeEngineIo) -> None:
         if len(self.outbound_queue) >= self.max_depth:

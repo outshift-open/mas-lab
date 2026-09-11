@@ -62,13 +62,18 @@ def parse_agent_spec(
         gov_binding, pattern_plugin_id=pattern_plugin_id, agent_spec=spec
     )
 
-    # Apply spec.execution.parallel override
-    if "parallel" in execution:
-        from dataclasses import replace
+    from dataclasses import replace
 
+    # Apply spec.execution overrides (see docs/manifests/execution.md).
+    if "parallel" in execution:
         kernel_config = replace(
             kernel_config,
             parallel_tool_calls=bool(execution["parallel"]),
+        )
+    if "engine_queue_depth" in execution:
+        kernel_config = replace(
+            kernel_config,
+            engine_queue_depth=int(execution["engine_queue_depth"]),
         )
 
     obs_binding = parse_obs_spec(obs_raw)

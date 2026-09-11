@@ -6,11 +6,15 @@
 
 **Package:** `mas-runtime`, `mas-ctl` · **Schema:** `execution-binding.schema.yaml`
 
-`spec.execution` is an **Agent** manifest block that controls how a turn actually
-runs: whether it hits a real model or a mock one, whether the LLM response
-cache is consulted, and whether tool calls can run in parallel. It does not
-describe *what* the agent does (that's `spec.context`, `spec.tools`,
-`spec.skills`) — only how the engine executes it.
+`spec.execution` lives on **`kind: Agent`** manifests (`agent.yaml`) and on
+**overlays** that patch an agent (`spec.patch.execution`). It is execution
+configuration — how the runtime engine runs a turn — not agent logic
+(`spec.context`, `spec.tools`, `spec.design_pattern`, `spec.skills`).
+
+It controls whether a turn hits a real model or a mock one, whether the LLM
+response cache is consulted, whether tool calls may run in parallel, and how
+large a single parallel tool batch may be before the engine queue rejects
+overflow.
 
 **Terms:** [glossary.md](../glossary.md) · Hub: [README.md](README.md).
 
@@ -24,6 +28,7 @@ spec:
       read: true
       write: true
     parallel: true
+    engine_queue_depth: 32
 ```
 
 All fields are optional; every default below is what you get by omitting the
@@ -125,6 +130,32 @@ the model may request more than one tool call in a single turn, executed
 concurrently. Set `false` to force strictly sequential tool calls regardless
 of what the design pattern would otherwise allow.
 
+## `engine_queue_depth`
+
+```yaml
+execution:
+  engine_queue_depth: 32   # default: 32
+```
+
+Caps how many engine egress intents (`LLM_CALL` / `TOOL_CALL`) the kernel may
+queue for **one dispatch batch** before draining them. When the model returns
+more parallel tool calls than this limit, the runtime raises
+`engine outbound queue full` on the overflow.
+
+This is **not** thread-pool concurrency: `EngineWorkerPool` drains the queue
+sequentially via `engine.invoke()`. The limit bounds batch size and memory for
+a single model turn that schedules many tools at once (for example one script
+invocation per candidate in a multi-tool reply).
+
+| | |
+|---|---|
+| Manifest | `spec.execution.engine_queue_depth` (integer ≥ 1, default **32**) |
+| Runtime | `KernelConfig.engine_queue_depth` → `EngineWorkerPool.max_depth` |
+| Source | `runtime/src/mas/runtime/engine/worker_pool.py`, `runtime/src/mas/runtime/driver/driver.py` |
+
+Raise the value when a legitimate workload schedules more than 32 parallel tool
+calls in one turn. Lower it to fail fast on runaway tool batches.
+
 ## `live` and `timeout`
 
 Both are accepted by the schema (`live: boolean`, `timeout: number`) but are
@@ -138,4 +169,4 @@ explicit live-mode override. Setting them today has no effect.
 - [user-config.md](../user-config.md) — XDG path reference for all MAS caches (trace, artifacts, LLM response)
 - [Tutorial 3 — Experiments, Analysis & Evaluation](../tutorials/03-experiments-and-analysis/README.md) — running experiments, the trace cache
 - [agent.md](agent.md) — the manifest `spec.execution` lives in
-- Source: `runtime/src/mas/runtime/engine/llm_cache.py`, `runtime/src/mas/runtime/xdg.py`, `ctl/src/mas/ctl/session/engine_factory.py`
+- Source: `runtime/src/mas/runtime/engine/llm_cache.py`, `runtime/src/mas/runtime/engine/worker_pool.py`, `runtime/src/mas/runtime/xdg.py`, `ctl/src/mas/ctl/session/engine_factory.py`
