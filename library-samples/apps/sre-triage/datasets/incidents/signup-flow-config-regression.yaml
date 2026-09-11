@@ -1,0 +1,149 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+id: signup-flow-config-regression
+description: >
+  Signup flow configuration regression blocks account creation requests after a
+  partial rollout. Most existing platform services remain healthy.
+timestamp: "2025-05-19T15:21:00"
+provenance:
+  source_type: hybrid
+  source_name: GitHub status narrative + log anomaly templates
+  source_url:
+    - https://www.githubstatus.com/history
+    - https://github.com/logpai/loghub
+  license: mixed-public
+  accessed_at: "2026-07-15"
+  extraction_method: manual-plus-synthetic
+  transformations:
+    - converted incident summary into service-level fixture with explicit rollback target
+    - synthesized metric baselines and log signatures for signup path failure
+  synthetic_fraction: 0.65
+  reviewer: pending
+  review_date: null
+  confidence: medium
+correct_action:
+  service: signup-service
+  action: rollback
+  to_version: "1.32.3"
+  reasoning: >
+    A config gate in 1.32.4 incorrectly rejected valid signup requests.
+    Rolling back restores account creation while preserving unaffected services.
+services:
+  signup-service:
+    aliases: [signup_service, registration-service]
+    metrics:
+      latency_ms: { p50: 171.6, p95: 502.4, p99: 881.9 }
+      error_rate: 0.621
+      requests_per_second: 116.8
+      named:
+        signup_success_rate:
+          value: 0.38
+          unit: ratio
+          status: critical
+    health:
+      status: critical
+      uptime_percent: 99.94
+      error_rate_percent: 62.1
+      dependencies:
+        identity-service: healthy
+        signup-db: healthy
+    deployments:
+      - version: "1.32.4"
+        status: success
+        deployed_minutes_before_incident: 14
+        deployed_by: app-ci
+        commit_sha: c41a77d
+        commit_message: "feat(signup): tighten validation on registration flags"
+        duration_seconds: 72
+        overlap_with_incident: true
+      - version: "1.32.3"
+        status: success
+        deployed_days_before_incident: 1
+        deployed_by: app-ci
+        commit_sha: 7f29bd4
+        commit_message: "stable signup flow"
+        duration_seconds: 65
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[signup-service] validation gate rejected request: feature flag mismatch"
+      - level: ERROR
+        message: "[signup-service] POST /signup -> 400 invalid rollout context"
+      - level: WARN
+        message: "[signup-service] signup_success_rate dropped below 40%"
+      - level: INFO
+        message: "[signup-service] healthy dependencies; failures local to request validation"
+    rollback:
+      from_version: "1.32.4"
+      to_version: "1.32.3"
+      message: >
+        Rollback of signup-service initiated: 1.32.4 -> 1.32.3.
+        Expected signup success recovery in under 2 minutes.
+
+  identity-service:
+    aliases: [identity_service]
+    metrics:
+      latency_ms: { p50: 19.8, p95: 46.2, p99: 65.7 }
+      error_rate: 0.0014
+      requests_per_second: 842.5
+    health:
+      status: healthy
+      uptime_percent: 99.99
+      error_rate_percent: 0.14
+      dependencies:
+        identity-db: healthy
+    deployments: []
+    logs:
+      - level: INFO
+        message: "[identity-service] token issuance and verification nominal"
+
+  signup-db:
+    aliases: [signup_db]
+    metrics:
+      latency_ms: { p50: 5.1, p95: 12.6, p99: 18.3 }
+      error_rate: 0.0001
+      requests_per_second: 451.2
+      named:
+        lock_wait_count:
+          value: 0
+          unit: count/min
+          status: normal
+        deadlock_count:
+          value: 0
+          unit: count/15min
+          status: normal
+        active_connections:
+          value: 28
+          unit: connections
+          capacity: 90
+          status: normal
+    health:
+      status: healthy
+      uptime_percent: 100.0
+      error_rate_percent: 0.01
+      dependencies: {}
+    pg_stat_activity:
+      total_connections: 28
+      max_connections: 90
+      active_queries: 5
+      idle_connections: 23
+      waiting_queries: 0
+      blocking_queries: []
+      longest_running_query_seconds: 0.4
+      max_lock_wait_ms: 4.1
+    blocking:
+      blocking_pids: []
+      blocked_pids: []
+      deadlocks_last_hour: 0
+      lock_wait_count_last_hour: 0
+    connection_pool:
+      pool_size: 90
+      active: 28
+      idle: 62
+      waiting: 0
+      utilisation_pct: 31.1
+      status: healthy
+    deployments: []
+    logs:
+      - level: INFO
+        message: "[signup-db] no lock contention or deadlock signals"

@@ -1,0 +1,36 @@
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  x-node-id: db
+  name: db
+spec:
+  description: Database specialist. Call me for slow query analysis, lock/deadlock
+    detection, connection pool saturation on the DB layer, and index or vacuum
+    recommendations. Requires telemetry + backend findings as context.
+  context:
+    role:
+      ref: prompts/db/1.0.0.md
+  models:
+    - model: vertex_ai/gemini-2.5-flash
+      temperature: 0.1
+      max_tokens: 1000
+  design_pattern:
+    type: react
+    params:
+      max_steps: 10
+  tools:
+    - ref: ../tools/get_metrics.tool.yaml
+    - ref: ../tools/query_db.tool.yaml
+    - ref: ../tools/get_logs.tool.yaml
+    - ref: ../tools/run_action.tool.yaml
+  skills:
+    - lock-detection
+    - query-performance
+    - data-access-protocol
+    - uncertainty-protocol
+    - memory-protocol
+x-canvas-node-ids:
+  model: node_9ee794ce
+  design_pattern: node_d99fe160
+  tools: node_354a17a6
+  promptSkills: node_69b497ef

@@ -1,0 +1,93 @@
+id: webhook-worker-rollback
+description: >
+  Webhook-worker began crashlooping immediately after a queue consumer refactor
+  changed ack ordering and idempotency key handling.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: webhook-worker
+  action: rollback
+  to_version: "1.33.6"
+  reasoning: >
+    The 1.33.7 rollout is tightly correlated with the incident and introduced a
+    bad consumer state transition. Rolling webhook-worker back to 1.33.6 restores
+    the prior stable ack and idempotency behavior.
+source_evidence:
+  - source: idempotent_receiver
+    url: https://martinfowler.com/articles/patterns-of-distributed-systems/idempotent-receiver.html
+    facts:
+      - Consumers must preserve idempotent processing order to avoid duplicate side effects and inconsistent acknowledgements.
+  - source: aws_retry_limits
+    url: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_limit_retries.html
+    facts:
+      - Retried deliveries amplify failures when the consumer release is logically incorrect.
+observed_symptoms:
+  - Crashloops started within 3 minutes of deploying version 1.33.7.
+  - Duplicate delivery attempts and out-of-order acks increased immediately after rollout.
+  - One canary rollback restored stable consumption and reduced retries to baseline.
+services:
+  webhook-worker:
+    aliases: [webhook_worker, webhook-consumer]
+    metrics:
+      latency_ms: { p50: 810.0, p95: 2640.0, p99: 4180.0 }
+      error_rate: 0.227
+      requests_per_second: 192.0
+      named:
+        duplicate_delivery_rate:
+          value: 0.29
+          unit: ratio
+          status: critical
+        ack_order_violations:
+          value: 842
+          unit: violations_per_minute
+          status: critical
+        crashloop_restarts:
+          value: 17
+          unit: restarts_per_hour
+          status: critical
+    health:
+      status: critical
+      uptime_percent: 98.9
+      error_rate_percent: 22.7
+      dependencies:
+        event-broker: healthy
+        webhook-endpoint-cache: degraded
+    deployments:
+      - version: "1.33.7"
+        status: success
+        deployed_minutes_before_incident: 3
+        deployed_by: ci/cd-pipeline
+        commit_sha: 7de61af
+        commit_message: "feat(webhook): refactor consumer ack pipeline and idempotency bookkeeping"
+        duration_seconds: 99
+        overlap_with_incident: true
+      - version: "1.33.6"
+        status: success
+        deployed_days_before_incident: 4
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(webhook): stabilize queue ack ordering"
+        duration_seconds: 87
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[webhook-worker] Ack state machine violation: completed event acknowledged before payload persistence"
+      - level: ERROR
+        message: "[webhook-worker] Duplicate dispatch detected for idempotency_key=wh_49ac7e after consumer retry"
+      - level: INFO
+        message: "[webhook-worker] Canary rollback to 1.33.6 restored stable ack ordering"
+    rollback:
+      from_version: "1.33.7"
+      to_version: "1.33.6"
+      message: "Rollback restores last known-good consumer semantics for webhook-worker."
+
+  event-broker:
+    aliases: [event_broker, queue-broker]
+    metrics:
+      latency_ms: { p50: 12.0, p95: 31.0, p99: 58.0 }
+      error_rate: 0.001
+      requests_per_second: 880.0
+    health:
+      status: healthy
+      uptime_percent: 99.99
+      error_rate_percent: 0.1
+      dependencies: {}

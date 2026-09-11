@@ -1,5 +1,8 @@
-pipeline:
+api_version: pipeline/v1
+kind: Pipeline
+metadata:
   name: pipeline-test
+spec:
   output:
     base_dir: ~/.local/share/mas/labs/trip-planner-design-pattern-experiment
   steps:

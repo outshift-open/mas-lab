@@ -38,7 +38,9 @@ When you add or rename a doc page, update **`mkdocs.yml` nav** and cross-links i
 - [User configuration](user-config.md)
 - [Package map](libraries.md)
 - [Observability / run logs](cli/observability.md)
-- **[Web UI](ui/index.md)**
+- **[Web UI](ui/index.md)** — [Applications](ui/applications.md), [Playground](ui/playground.md),
+  [Experiments](ui/experiments.md), [Pipelines](ui/pipelines.md), [Datasets](ui/datasets.md),
+  [Overlays](ui/overlays.md), [Control Panel](ui/control-panel.md)
 - [Terminal UI (TUI)](ctl/tui.md)
 - [Glossary](glossary.md)
 
@@ -49,6 +51,7 @@ When you add or rename a doc page, update **`mkdocs.yml` nav** and cross-links i
 - [1 — Build an agent](tutorials/01-building-an-agent/README.md)
 - [2 — Orchestrate your MAS](tutorials/02-creating-a-mas/README.md)
 - [3 — Run an experiment](tutorials/03-experiments-and-analysis/README.md)
+- [4 — The Web UI, end to end](tutorials/04-ui-walkthrough/README.md)
 
 ### References
 

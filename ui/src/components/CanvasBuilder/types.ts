@@ -48,6 +48,7 @@ export type AgentNodeData = {
   role: AgentRole;
   instructions?: string;
   context?: Record<string, string>;
+  contextRefKeys?: string[];
   chatHistory?: ChatMessage[];
   connectedModel?: string;
   connectedDesignPattern?: string;

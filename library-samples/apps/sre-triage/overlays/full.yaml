@@ -1,0 +1,31 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Overlay
+
+metadata:
+  name: full
+  description: >
+    Full capabilities — all specialist skills enabled. Optimal reference overlay
+    (opposite of baseline).
+
+spec:
+  target:
+    kind: MAS
+  patch:
+    params:
+      incident_fixture: datasets/incidents/payment-async-timeout.yaml
+    skills:
+      - triage-protocol
+      - severity-classification
+      - memory-protocol
+      - data-access-protocol
+      - latency-analysis
+      - otel-correlation
+      - connection-pool-analysis
+      - deployment-investigation
+      - query-performance
+      - lock-detection
+      - incident-communication
+      - risk-assessment
+      - verification-checklist

@@ -1,0 +1,164 @@
+id: checkout-timeout-rollback
+description: >
+  Checkout service timeout cascade began immediately after async client rollout,
+  causing retry amplification and dependency saturation.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: checkout-service
+  action: rollback
+  to_version: "3.7.1"
+  reasoning: >
+    The incident onset is tightly correlated with version 3.7.2, which introduced
+    more aggressive async retries with an under-tuned timeout profile. This caused
+    retry amplification and elevated tail latency across downstream calls. Rollback
+    is the fastest way to remove the triggering behavior.
+source_evidence:
+  - source: google_sre_handling_overload
+    url: https://sre.google/sre-book/handling-overload/
+    facts:
+      - Overload should be modeled with resource utilization, not only request rate.
+      - Retry behavior can amplify failures when backends are overloaded.
+      - Systems should reject or shed load gracefully before cascading failure.
+  - source: aws_timeouts_retries_backoff_jitter
+    url: https://builder.aws.com/content/3EumjoZascWd1oZiEgL8ORlv3qE/timeouts-retries-and-backoff-with-jitter
+    facts:
+      - Timeouts that are too low can trigger unnecessary retries and increase load.
+      - Retries across multiple layers can amplify traffic dramatically.
+      - Exponential backoff with jitter is recommended to avoid synchronized retry bursts.
+observed_symptoms:
+  - Checkout timeout rate increased from 0.3% to 22% within 10 minutes of deploy.
+  - Dependency calls show rising p99 and connection pressure without a matching traffic spike.
+  - Retry attempts per checkout rose from 1.1 to 2.9 and remained elevated.
+services:
+  checkout-service:
+    aliases: [checkout_service, checkout]
+    metrics:
+      latency_ms: { p50: 930.0, p95: 3040.0, p99: 4880.0 }
+      error_rate: 0.224
+      requests_per_second: 221.0
+      named:
+        retry_attempts_per_request:
+          value: 2.9
+          unit: attempts
+          status: critical
+        client_timeout_ms:
+          value: 180
+          unit: ms
+          status: warning
+        downstream_timeout_rate:
+          value: 0.31
+          unit: ratio
+          status: critical
+        db_pool_utilization:
+          value: 0.96
+          unit: ratio
+          status: critical
+        deadlock_count:
+          value: 0
+          unit: count
+          status: normal
+        lock_wait_count:
+          value: 5
+          unit: count
+          status: warning
+        active_connections:
+          value: 96
+          unit: connections
+          status: critical
+    health:
+      status: critical
+      uptime_percent: 99.1
+      error_rate_percent: 22.4
+      dependencies:
+        payment-gateway: critical
+        cart-service: degraded
+        feature-config: healthy
+    deployments:
+      - version: "3.7.2"
+        status: success
+        deployed_minutes_before_incident: 14
+        deployed_by: ci/cd-pipeline
+        commit_sha: a17c90d
+        commit_message: "feat(checkout): async retry path and timeout tuning"
+        duration_seconds: 96
+        overlap_with_incident: true
+      - version: "3.7.1"
+        status: success
+        deployed_hours_before_incident: 18
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "deploy: previous stable"
+        duration_seconds: 89
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[checkout-service] Request timed out waiting for payment-gateway after 180ms"
+      - level: WARN
+        message: "[checkout-service] Retry budget consumed for checkout request id=7cf9a2"
+      - level: WARN
+        message: "[checkout-service] Concurrent downstream calls exceeded safe fanout threshold"
+    config_changes:
+      - key: checkout_retry_mode
+        old_value: linear
+        new_value: async_aggressive
+        changed_by: ci/cd-pipeline
+        changed_minutes_before_incident: 14
+        reason: "Increased parallel retry strategy to reduce single-request tail latency"
+      - key: downstream_timeout_ms
+        old_value: 350
+        new_value: 180
+        changed_by: ci/cd-pipeline
+        changed_minutes_before_incident: 14
+        reason: "Lowered timeout to surface slow dependency failures faster"
+    connection_pool:
+      pool_size: 100
+      active: 96
+      idle: 4
+      waiting: 27
+      utilisation_pct: 96
+      status: critical
+      note: "Pool nearly saturated after retry amplification from v3.7.2"
+    pg_stat_activity:
+      total_connections: 112
+      max_connections: 120
+      active_queries: 41
+      idle_connections: 71
+      waiting_queries: 19
+      blocking_queries: [21941, 21988]
+      longest_running_query_seconds: 11.4
+      max_lock_wait_ms: 1840
+      conclusion: "High wait pressure with elevated connection saturation during retry storms."
+    blocking:
+      blocking_pids: [21941, 21988]
+      blocked_pids: [22201, 22208, 22217]
+      deadlocks_last_hour: 0
+      lock_wait_count_last_hour: 5
+      conclusion: "No deadlock cycle; primary signal is overload-induced queueing and saturation."
+    rollback:
+      from_version: "3.7.2"
+      to_version: "3.7.1"
+      message: "Rollback plan prepared for checkout-service."
+
+  payment-gateway:
+    aliases: [payment_gateway]
+    metrics:
+      latency_ms: { p50: 71.0, p95: 210.0, p99: 680.0 }
+      error_rate: 0.041
+      requests_per_second: 390.0
+      named:
+        active_connections:
+          value: 1880
+          unit: connections
+          status: warning
+        connection_pool_wait_ms_p95:
+          value: 142
+          unit: ms
+          status: warning
+    health:
+      status: degraded
+      uptime_percent: 99.95
+      error_rate_percent: 4.1
+      dependencies: {}
+    logs:
+      - level: WARN
+        message: "[payment-gateway] Elevated concurrent calls from checkout-service after rollout"

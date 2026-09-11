@@ -1,0 +1,34 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Tool
+
+metadata:
+  name: list_services
+  description: "List all services in the active incident scope."
+  version: "1.0.0"
+  tags: [sre, discovery, inventory]
+
+spec:
+  description: >
+    Enumerate all microservices tracked in the current incident fixture.
+    Returns each service's canonical name, known aliases, health status,
+    and a one-line summary.
+    Use this as a first step before calling get_service_health, get_metrics,
+    or get_logs on individual services.
+
+  parameters:
+    - name: include_health
+      type: boolean
+      description: >
+        When true (default), each entry includes the health status
+        (healthy / degraded / critical) and a one-line summary.
+        Set to false to get a plain name-list with no extra calls.
+      required: false
+
+  impl:
+    kind: python
+    module_path: ./list_services.py
+    class_name: ListServicesTool
+    params:
+      fixture_path: null  # null = résolution via sidecar artifacts/scene.yaml

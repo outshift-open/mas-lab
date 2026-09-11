@@ -1,0 +1,102 @@
+id: routing-policy-rollback
+description: >
+  Edge gateway policy precedence regressed immediately after a config rollout,
+  causing the new catch-all rule set to override tenant-specific routes.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: edge-gateway
+  action: rollback
+  to_version: "2.18.2"
+  reasoning: >
+    The incident aligns directly with the 2.18.3 policy rollout. New precedence
+    ordering changed rule evaluation behavior globally, and rolling edge-gateway
+    back to 2.18.2 restores the prior stable policy contract fastest.
+source_evidence:
+  - source: envoy_circuit_breaking
+    url: https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/circuit_breaking
+    facts:
+      - Edge policy changes can fail closed when precedence unexpectedly shifts request routing.
+      - Safe recovery favors reverting known-bad control-plane changes before adding more load.
+  - source: kubernetes_observability
+    url: https://kubernetes.io/blog/2018/08/03/out-of-the-clouds-into-the-ground-how-to-make-your-kubernetes-cluster-observable/
+    facts:
+      - Correlating deploy time with request-path failures is critical for rollback decisions.
+      - Control-plane config drift should be distinguished from runtime saturation.
+observed_symptoms:
+  - Failures began within 4 minutes of policy bundle 2.18.3 reaching all edge-gateway pods.
+  - Requests for premium tenants are matching the default route instead of tenant override rules.
+  - Rolling one canary pod back to 2.18.2 restored expected rule order immediately.
+services:
+  edge-gateway:
+    aliases: [edge_gateway, routing-gateway]
+    metrics:
+      latency_ms: { p50: 740.0, p95: 2480.0, p99: 4010.0 }
+      error_rate: 0.191
+      requests_per_second: 224.0
+      named:
+        policy_mismatch_rate:
+          value: 0.27
+          unit: ratio
+          status: critical
+        default_route_hits:
+          value: 1884
+          unit: requests_per_minute
+          status: critical
+        config_snapshot_age_s:
+          value: 14
+          unit: seconds
+          status: normal
+    health:
+      status: critical
+      uptime_percent: 99.5
+      error_rate_percent: 19.1
+      dependencies:
+        routing-control-plane: healthy
+        policy-cache: degraded
+    deployments:
+      - version: "2.18.3"
+        status: success
+        deployed_minutes_before_incident: 4
+        deployed_by: ci/cd-pipeline
+        commit_sha: 6ab4c91
+        commit_message: "feat(edge): reorder route precedence evaluation for tenant policy bundles"
+        duration_seconds: 102
+        overlap_with_incident: true
+      - version: "2.18.2"
+        status: success
+        deployed_days_before_incident: 3
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(edge): stabilize route precedence across canary regions"
+        duration_seconds: 88
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[edge-gateway] Rule precedence mismatch: tenant_override evaluated after default_route for tenant=gold-us-east"
+      - level: WARN
+        message: "[edge-gateway] Config rollout 2.18.3 changed precedence graph depth from 5 to 3"
+      - level: INFO
+        message: "[edge-gateway] Canary rollback to 2.18.2 restored tenant route selection within 90s"
+    config_changes:
+      - key: route_precedence_mode
+        old_value: stable
+        new_value: compact
+        changed_by: ci/cd-pipeline
+        changed_minutes_before_incident: 4
+        reason: "Attempted to reduce lookup hops, but reordered rule priority"
+    rollback:
+      from_version: "2.18.3"
+      to_version: "2.18.2"
+      message: "Rollback restores prior route precedence semantics and is validated by canary."
+
+  routing-control-plane:
+    aliases: [routing_control_plane]
+    metrics:
+      latency_ms: { p50: 24.0, p95: 61.0, p99: 104.0 }
+      error_rate: 0.002
+      requests_per_second: 36.0
+    health:
+      status: healthy
+      uptime_percent: 99.99
+      error_rate_percent: 0.2
+      dependencies: {}

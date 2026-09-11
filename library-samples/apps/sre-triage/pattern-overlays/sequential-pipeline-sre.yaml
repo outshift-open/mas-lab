@@ -1,0 +1,56 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Overlay: sequential pipeline (deterministic linear) for SRE-Triage
+#
+# Implements the linear collaboration scheme for incident triage:
+#   telemetry → backend → db → comms → verifier
+#
+# Each specialist receives the original incident description prepended with
+# the full output of all previous specialists.  No LLM moderator at the
+# workflow level — orchestration is deterministic.  The verifier receives
+# the accumulated findings chain and returns APPROVED / FLAGGED / REJECTED.
+#
+# No sre role prompt changes are required (sre is bypassed in this mode).
+# Specialist prompts (react, task-focused) are unchanged and appropriate.
+#
+# Usage:
+#   mas-ctl run-mas thirdparty/mas-lab-internal/apps/sre-triage/mas.yaml \
+#     --overlay thirdparty/mas-lab-internal/apps/sre-triage/pattern-overlays/sequential-pipeline-sre.yaml \
+#     -q "Checkout latency spiked 10× since 14:00 UTC" --single-turn
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: sequential-pipeline-sre
+  # Deterministic: sre coordinator is bypassed entirely; specialist prompts
+  # are unchanged (react, task-focused). No version constraint needed.
+  x-compatible-prompt-versions: {}
+spec:
+  target:
+    kind: MAS
+  patch:
+    workflow:
+      nodes:
+        - id: telemetry
+          agent: telemetry
+          role: telemetry
+        - id: backend
+          agent: backend
+          role: backend
+        - id: db
+          agent: db
+          role: db
+        - id: comms
+          agent: comms
+          role: comms
+        - id: verifier
+          agent: verifier
+          role: verifier
+      edges:
+        - from: telemetry
+          to: backend
+        - from: backend
+          to: db
+        - from: db
+          to: comms
+        - from: comms
+          to: verifier

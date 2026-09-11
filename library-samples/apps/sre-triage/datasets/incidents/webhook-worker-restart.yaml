@@ -1,0 +1,92 @@
+id: webhook-worker-restart
+description: >
+  Webhook-worker processing stalled after a broker failover left channel leases and
+  prefetch state wedged inside long-lived consumers.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: webhook-worker
+  action: restart
+  reasoning: >
+    The consumer runtime is wedged after broker failover, but no release or config
+    change correlates with onset. Restarting webhook-worker clears bad channel
+    state and re-establishes clean consumer leases.
+source_evidence:
+  - source: idempotent_receiver
+    url: https://martinfowler.com/articles/patterns-of-distributed-systems/idempotent-receiver.html
+    facts:
+      - Message consumers can stall if lease or sequencing state survives transport failures incorrectly.
+  - source: aws_retry_limits
+    url: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_limit_retries.html
+    facts:
+      - Recovery from transient transport failure should avoid unnecessary rollback when runtime state is the fault.
+observed_symptoms:
+  - Incident began after broker leader failover, 10 hours after the last worker deployment.
+  - Stalled consumers hold leases and stop advancing offsets, but broker metrics return to healthy quickly.
+  - Restarting a single unhealthy worker restores throughput without code change.
+services:
+  webhook-worker:
+    aliases: [webhook_worker, webhook-consumer]
+    metrics:
+      latency_ms: { p50: 590.0, p95: 1880.0, p99: 3090.0 }
+      error_rate: 0.088
+      requests_per_second: 204.0
+      named:
+        stuck_consumer_leases:
+          value: 13
+          unit: leases
+          status: critical
+        offset_lag:
+          value: 24118
+          unit: messages
+          status: critical
+        channel_reopen_failures:
+          value: 184
+          unit: failures_per_5m
+          status: warning
+    health:
+      status: critical
+      uptime_percent: 99.4
+      error_rate_percent: 8.8
+      dependencies:
+        event-broker: degraded
+        webhook-endpoint-cache: healthy
+    deployments:
+      - version: "1.33.7"
+        status: success
+        deployed_hours_before_incident: 10
+        deployed_by: ci/cd-pipeline
+        commit_sha: 7de61af
+        commit_message: "feat(webhook): refactor consumer ack pipeline and idempotency bookkeeping"
+        duration_seconds: 99
+        overlap_with_incident: false
+      - version: "1.33.6"
+        status: success
+        deployed_days_before_incident: 4
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(webhook): stabilize queue ack ordering"
+        duration_seconds: 87
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[webhook-worker] Consumer lease heartbeat stalled for 244s after broker failover"
+      - level: WARN
+        message: "[webhook-worker] Channel reopen failed repeatedly; offset lag rising with no new deploy"
+      - level: INFO
+        message: "[webhook-worker] Restarted consumer recovered offset processing and lease heartbeats"
+    rollback:
+      from_version: "1.33.7"
+      to_version: "1.33.6"
+      message: "Rollback remains available, but wedged runtime state after failover is the primary fault."
+
+  event-broker:
+    aliases: [event_broker, queue-broker]
+    metrics:
+      latency_ms: { p50: 18.0, p95: 49.0, p99: 81.0 }
+      error_rate: 0.014
+      requests_per_second: 920.0
+    health:
+      status: degraded
+      uptime_percent: 99.93
+      error_rate_percent: 1.4
+      dependencies: {}

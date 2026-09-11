@@ -1,0 +1,152 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+id: routing-policy-regression
+description: >
+  Network policy term ordering regression withdraws critical internal routes,
+  causing cross-service communication failures and elevated 5xx at the edge API.
+timestamp: "2025-04-10T06:35:00"
+provenance:
+  source_type: hybrid
+  source_name: Cloudflare outage narrative + public log/trace pattern synthesis
+  source_url:
+    - https://blog.cloudflare.com/cloudflare-outage-on-june-21-2022/
+    - https://github.com/logpai/loghub
+  license: mixed-public
+  accessed_at: "2026-07-15"
+  extraction_method: manual-plus-synthetic
+  transformations:
+    - mapped routing-prefix withdrawal narrative into microservice fixture schema
+    - synthesized service metrics/logs from public failure-shape patterns
+  synthetic_fraction: 0.7
+  reviewer: pending
+  review_date: null
+  confidence: medium
+correct_action:
+  service: edge-gateway
+  action: rollback
+  to_version: "2.14.7"
+  reasoning: >
+    The 2.14.8 config rollout reordered policy terms so REJECT-THE-REST matched
+    before ADV-SITE-LOCALS. Rolling back restores route advertisements and recovers
+    service-to-service reachability.
+services:
+  edge-gateway:
+    aliases: [edge_gateway, api-edge]
+    metrics:
+      latency_ms: { p50: 612.4, p95: 1820.3, p99: 2951.8 }
+      error_rate: 0.184
+      requests_per_second: 981.2
+      named:
+        route_advertisements_missing:
+          value: 143
+          unit: prefixes
+          status: critical
+    health:
+      status: critical
+      uptime_percent: 99.72
+      error_rate_percent: 18.4
+      dependencies:
+        routing-control: critical
+        checkout-service: degraded
+        auth-service: degraded
+    deployments:
+      - version: "2.14.8"
+        status: success
+        deployed_minutes_before_incident: 8
+        deployed_by: netops-ci
+        commit_sha: ee4bc91
+        commit_message: "chore(net): standardize BGP policy communities"
+        duration_seconds: 66
+        overlap_with_incident: true
+      - version: "2.14.7"
+        status: success
+        deployed_days_before_incident: 2
+        deployed_by: netops-ci
+        commit_sha: 8a2ff77
+        commit_message: "stable policy baseline"
+        duration_seconds: 59
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[edge-gateway] upstream route lookup failed: site-local prefix withdrawn"
+      - level: WARN
+        message: "[edge-gateway] internal forwarding failures exceeded threshold"
+      - level: ERROR
+        message: "[edge-gateway] 503 from checkout-service: no route to host"
+      - level: WARN
+        message: "[edge-gateway] policy term order changed in AGGREGATES-OUT"
+    rollback:
+      from_version: "2.14.8"
+      to_version: "2.14.7"
+      message: >
+        Rollback of edge-gateway routing policy initiated: 2.14.8 -> 2.14.7.
+        Expected recovery: 60-120s as route advertisements converge.
+
+  checkout-service:
+    aliases: [checkout_service]
+    metrics:
+      latency_ms: { p50: 241.2, p95: 602.7, p99: 911.4 }
+      error_rate: 0.071
+      requests_per_second: 328.4
+    health:
+      status: degraded
+      uptime_percent: 99.93
+      error_rate_percent: 7.1
+      dependencies:
+        edge-gateway: critical
+        checkout-db: healthy
+    deployments: []
+    logs:
+      - level: WARN
+        message: "[checkout-service] upstream calls from edge intermittently unreachable"
+
+  checkout-db:
+    aliases: [checkout_db]
+    metrics:
+      latency_ms: { p50: 7.9, p95: 16.4, p99: 23.5 }
+      error_rate: 0.0003
+      requests_per_second: 1124.2
+      named:
+        lock_wait_count:
+          value: 1
+          unit: count/min
+          status: normal
+        deadlock_count:
+          value: 0
+          unit: count/15min
+          status: normal
+        active_connections:
+          value: 42
+          unit: connections
+          capacity: 120
+          status: normal
+    health:
+      status: healthy
+      uptime_percent: 100.0
+      error_rate_percent: 0.03
+      dependencies: {}
+    pg_stat_activity:
+      total_connections: 42
+      max_connections: 120
+      active_queries: 9
+      idle_connections: 33
+      waiting_queries: 0
+      blocking_queries: []
+      longest_running_query_seconds: 0.6
+      max_lock_wait_ms: 8.7
+    blocking:
+      blocking_pids: []
+      blocked_pids: []
+      deadlocks_last_hour: 0
+      lock_wait_count_last_hour: 1
+    connection_pool:
+      pool_size: 120
+      active: 42
+      idle: 78
+      waiting: 0
+      utilisation_pct: 35.0
+      status: healthy
+    deployments: []
+    logs:
+      - level: INFO
+        message: "[checkout-db] query latency within normal limits"

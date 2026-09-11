@@ -113,6 +113,10 @@ const Pipeline = () => {
     return () => clearTimeout(timer);
   }, [runError]);
 
+  useEffect(() => {
+    if (initialExperiment) setHasExperiment(true);
+  }, [initialExperiment]);
+
   const handleExperimentChange = useCallback((name: string) => {
     setHasExperiment(!!name);
   }, []);

@@ -1,0 +1,29 @@
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  x-node-id: comms
+  name: comms
+spec:
+  description: Incident communications specialist. Call me to draft a structured
+    stakeholder update with Status / Impact / Cause / Action / ETA sections.
+    Pass a full findings summary — I work from provided context only.
+  context:
+    role:
+      ref: prompts/comms/1.0.0.md
+  models:
+    - model: vertex_ai/gemini-2.5-flash
+      temperature: 0.3
+      max_tokens: 1024
+  design_pattern:
+    type: react
+    params:
+      max_steps: 10
+  skills:
+    - incident-communication
+    - slo-framing
+    - memory-protocol
+    - data-access-protocol
+x-canvas-node-ids:
+  model: node_ccbd52c1
+  design_pattern: node_3d93a0dd
+  promptSkills: node_91e08db1
