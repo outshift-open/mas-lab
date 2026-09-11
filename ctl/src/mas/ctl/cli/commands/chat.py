@@ -8,19 +8,20 @@ import sys
 from pathlib import Path
 
 import click
-
-from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
+from mas.ctl.cli.help_text import CHAT_EPILOG
 from mas.ctl.cli.obs_flags import observability_options, resolve_observability_config
 from mas.ctl.cli.trace_flags import trace_options
+from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
 from mas.ctl.session.controller import (
     ConversationConfig,
     SessionController,
     close_observability,
     run_session_loop,
 )
+from mas.ctl.session.display_user_io_contract import ConversationDisplayUserIOContract
 from mas.ctl.session.hitl_config import resolve_hitl_from_manifest
+from mas.ctl.session.interactive_hitl_contract import InteractiveHitlContract
 from mas.ctl.session.observability import setup_observability
-from mas.ctl.cli.help_text import CHAT_EPILOG
 from mas.ctl.session.protocol_hints import emit_session_protocol_hints
 from mas.ctl.ui.stdout import StdoutConversationDisplay
 
@@ -136,9 +137,9 @@ def chat_cmd(
     Use --help for session commands (/quit, /steer), HITL, and examples.
     """
     from mas.ctl.env import load_dotenv
+    from mas.ctl.runtime_cli import load_merged_agent_manifest
     from mas.ctl.session.infra_resolve import resolve_session_infra
     from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
-    from mas.ctl.runtime_cli import load_merged_agent_manifest
 
     verbose = int(ctx.obj.get("verbose", 0) if ctx.obj else 0)
 
@@ -190,12 +191,29 @@ def chat_cmd(
             session_interactive=interactive,
         )
 
+        # Built here (not later, where it used to live) so it can also back
+        # user_io_contract below -- same instance is reused for the
+        # SessionController further down.
+        display = StdoutConversationDisplay(
+            out=click.get_text_stream("stdout"),
+            verbose=verbose,
+            show_labels=not interactive,
+            user_prompt_echoed=interactive,
+        )
+
+        # Agent-initiated HITL (request_human_input)/inform_user() otherwise
+        # default to a registry-based contract nothing in an interactive CLI
+        # session ever resolves or reads. Give interactive sessions a real
+        # resolver/display instead; non-interactive runs keep the default
+        # (registry) contracts -- unset here means RegistryHitlContract/
+        # RegistryUserIOContract, matching batch/scripted behavior unchanged.
+        hitl_contract = InteractiveHitlContract() if interactive else None
+        user_io_contract = ConversationDisplayUserIOContract(display) if interactive else None
+
         def _opt_file(path: str | None) -> Path | None:
             if not path:
                 return None
-            return resolve_overlay_path(
-                path, orig_cwd=session.original_cwd, manifest_dir=session.manifest_dir
-            )
+            return resolve_overlay_path(path, orig_cwd=session.original_cwd, manifest_dir=session.manifest_dir)
 
         def _opt_dir(path: str | None) -> Path | None:
             if not path:
@@ -219,6 +237,8 @@ def chat_cmd(
                     cache_read_override=cache_read,
                     cache_write_override=cache_write,
                     stream_override=stream,
+                    hitl_contract=hitl_contract,
+                    user_io_contract=user_io_contract,
                     agent_manifest=agent_data,
                     manifest_dir=session.manifest_dir if manifest else None,
                     resolved_infra=resolve_session_infra(
@@ -263,29 +283,23 @@ def chat_cmd(
             manifest=agent_data,
         )
 
-        display = StdoutConversationDisplay(
-            out=click.get_text_stream("stdout"),
-            verbose=verbose,
-            show_labels=not interactive,
-            user_prompt_echoed=interactive,
-        )
-        
         # Extract agent name from manifest metadata; use "n/a" if not available
         import os
+
         agent_name = agent_data.get("metadata", {}).get("name", "n/a") if agent_data else "n/a"
         if agent_name == "agent" and not manifest:
             # CLI-only run without explicit manifest: show "n/a" instead of generic "agent"
             agent_name = "n/a"
-        
+
         # Get LLM model name (in order of precedence: CLI --model > env vars > default)
         llm_name = (
             model
-            or os.getenv("LLM_MODEL") 
-            or os.getenv("OPENAI_MODEL") 
+            or os.getenv("LLM_MODEL")
+            or os.getenv("OPENAI_MODEL")
             or os.getenv("MAS_LLM_MODEL")
             or "gpt-4o-mini"  # Fallback default
         )
-        
+
         controller = SessionController(
             instance=instance,
             display=display,

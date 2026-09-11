@@ -16,8 +16,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
 from mas.runtime.contracts.tool_contract import ToolContract
+from mas.runtime.contracts.user_communication_contract import HITLContract, UserIOContract
 from mas.runtime.manifest.schema import ToolDocument
 
 logger = logging.getLogger(__name__)
@@ -86,8 +86,7 @@ def _resolve_under_roots(
         except ValueError:
             continue
     raise ManifestToolLoadError(
-        f"path escapes allowed roots: {ref!r} from {ref_base} "
-        f"(roots: {', '.join(str(r) for r in containment_roots)})"
+        f"path escapes allowed roots: {ref!r} from {ref_base} (roots: {', '.join(str(r) for r in containment_roots)})"
     )
 
 
@@ -135,12 +134,8 @@ class ManifestToolProvider:
                         yaml_contract = self._tool_contracts.get(str(spec.get("name")))
                         if yaml_contract:
                             merged["name"] = yaml_contract.get("name", merged.get("name"))
-                            merged["description"] = yaml_contract.get(
-                                "description", merged.get("description", "")
-                            )
-                            merged["parameters"] = yaml_contract.get(
-                                "parameters", merged.get("parameters", {})
-                            )
+                            merged["description"] = yaml_contract.get("description", merged.get("description", ""))
+                            merged["parameters"] = yaml_contract.get("parameters", merged.get("parameters", {}))
                         result.append(merged)
                     continue
             except NotImplementedError:
@@ -158,9 +153,7 @@ class ManifestToolProvider:
                     legacy.update(yaml_contract)
                 result.append(legacy)
             except Exception as exc:
-                raise ManifestToolLoadError(
-                    f"Tool instance {instance!r} failed to describe itself: {exc}"
-                ) from exc
+                raise ManifestToolLoadError(f"Tool instance {instance!r} failed to describe itself: {exc}") from exc
         return result
 
     def list_openai_tools(self, *, ctx: Any = None) -> list[dict[str, Any]]:
@@ -175,8 +168,7 @@ class ManifestToolProvider:
                     "function": {
                         "name": name,
                         "description": str(spec.get("description") or f"Invoke tool {name}."),
-                        "parameters": spec.get("parameters")
-                        or {"type": "object", "properties": {}},
+                        "parameters": spec.get("parameters") or {"type": "object", "properties": {}},
                     },
                 }
             )
@@ -208,9 +200,7 @@ class ManifestToolProvider:
             if not owns and not legacy_match:
                 continue
             try:
-                result = instance.on_execute_tool(
-                    tool_name, arguments, ctx=ctx, user=user
-                )
+                result = instance.on_execute_tool(tool_name, arguments, ctx=ctx, user=user)
                 if result is not None:
                     return result
                 if owns:
@@ -239,9 +229,7 @@ class ManifestToolProvider:
         if manifest_contract is not None:
             name = str(manifest_contract["name"])
             if name in self._tool_contracts:
-                raise ManifestToolLoadError(
-                    f"duplicate manifest tool name {name!r}"
-                )
+                raise ManifestToolLoadError(f"duplicate manifest tool name {name!r}")
             self._tool_contracts[name] = manifest_contract
         self._tool_instances.append(instance)
 
@@ -252,8 +240,8 @@ def build_manifest_tool_provider(
     *,
     app_root: Path | None = None,
     include_system_tools: bool = True,
-    hitl_contract: Any | None = None,
-    user_io_contract: Any | None = None,
+    hitl_contract: HITLContract | None = None,
+    user_io_contract: UserIOContract | None = None,
     **containment_kw: Any,
 ) -> ManifestToolProvider:
     """Build a provider from ``spec.tools`` (refs or inline module_path entries)."""
@@ -292,14 +280,10 @@ def build_manifest_tool_provider(
                 raw.get("name"),
             )
             continue
-        tool_def, mdir, manifest_contract = _normalize_tool_entry(
-            raw, manifest_dir, index, containment_roots=roots
-        )
+        tool_def, mdir, manifest_contract = _normalize_tool_entry(raw, manifest_dir, index, containment_roots=roots)
         module_path = tool_def.get("module_path")
         if not module_path:
-            raise ManifestToolLoadError(
-                f"spec.tools[{index}]: missing module_path after resolving entry {raw!r}"
-            )
+            raise ManifestToolLoadError(f"spec.tools[{index}]: missing module_path after resolving entry {raw!r}")
         class_name = tool_def.get("class_name")
         params = dict(tool_def.get("params") or {})
         instance = _load_tool_instance(
@@ -319,11 +303,7 @@ def _hitl_system_tool_params(tools_spec: list[Any]) -> dict[str, Any]:
     the HITL wrapper's timeout/auto_resolve_decision (a call's own ``timeout``
     argument still wins over this)."""
     for raw in tools_spec or []:
-        if (
-            isinstance(raw, dict)
-            and raw.get("kind") == "system"
-            and raw.get("name") == "request_human_input"
-        ):
+        if isinstance(raw, dict) and raw.get("kind") == "system" and raw.get("name") == "request_human_input":
             return dict(raw.get("params") or {})
     return {}
 
@@ -331,8 +311,8 @@ def _hitl_system_tool_params(tools_spec: list[Any]) -> dict[str, Any]:
 def _inject_system_tools(
     provider: ManifestToolProvider,
     *,
-    hitl_contract: Any | None = None,
-    user_io_contract: Any | None = None,
+    hitl_contract: HITLContract | None = None,
+    user_io_contract: UserIOContract | None = None,
     hitl_default_timeout_seconds: float | None = None,
     hitl_auto_resolve_decision: str | None = None,
 ) -> None:
@@ -426,11 +406,12 @@ class _SystemToolHitlWrapper(_SystemToolWrapperBase):
     Catches RequestHitlSignal and resolves it, in priority order:
     1. Batch/CLI/bench mode (MAS_HITL_AUTO_RESOLVE set): auto-resolve immediately,
        no external resolver is listening.
-    2. HITLContract, if one was supplied (e.g. an admin-approval abstraction).
-    3. Fallback: register in the shared HitlResolverRegistry and BLOCK until an
-       external resolver (e.g. the Webex bot) provides the user's response.
+    2. hitl_contract.request_approval() -- defaults to RegistryHitlContract
+       (register in the shared HitlResolverRegistry and BLOCK until an external
+       resolver, e.g. an external integration or an interactive CLI prompt, provides the
+       user's response) unless a different HITLContract was supplied.
 
-    Timeout handling (fallback path only):
+    Timeout handling (RegistryHitlContract path):
     - The call's own `timeout` argument wins; otherwise `default_timeout_seconds`
       (the manifest-configured default, if any) applies; with neither set, the
       wait has no timeout at all.
@@ -441,20 +422,22 @@ class _SystemToolHitlWrapper(_SystemToolWrapperBase):
     def __init__(
         self,
         tool_instance: Any,
-        hitl_contract: Any | None = None,
+        hitl_contract: HITLContract | None = None,
         *,
         default_timeout_seconds: float | None = None,
         auto_resolve_decision: str | None = None,
     ) -> None:
         super().__init__(tool_instance)
-        self._hitl_contract = hitl_contract
+        if hitl_contract is None:
+            from mas.runtime.contracts.user_communication_contract import RegistryHitlContract
+
+            hitl_contract = RegistryHitlContract()
+        self._hitl_contract: HITLContract = hitl_contract
         self._default_timeout_seconds = default_timeout_seconds
         self._auto_resolve_decision = (
-            auto_resolve_decision
-            or os.environ.get("MAS_HITL_AUTO_RESOLVE_DECISION")
-            or "approve"
+            auto_resolve_decision or os.environ.get("MAS_HITL_AUTO_RESOLVE_DECISION") or "approve"
         )
-    
+
     def on_execute_tool(
         self,
         tool_name: str,
@@ -464,19 +447,19 @@ class _SystemToolHitlWrapper(_SystemToolWrapperBase):
         user: str = "",
     ) -> Any:
         """Execute tool and catch HITL signal.
-        
-        If the tool raises RequestHitlSignal, resolve it via auto-resolve,
-        HITLContract, or the registry-based blocking fallback (in that order).
+
+        If the tool raises RequestHitlSignal, resolve it via auto-resolve or
+        self._hitl_contract.request_approval() (in that order).
         """
         from mas.runtime.system_tools.signal import RequestHitlSignal
-        
+
         try:
             return self._execute_wrapped(tool_name, arguments, ctx=ctx, user=user)
         except RequestHitlSignal as signal:
             session_id, agent_id, correlation_id = self._extract_context(ctx)
 
             # Batch/CLI auto-hitl mode (e.g. `mas-ctl run-mas --auto-hitl`, the
-            # default): there is no external resolver (Webex bot, operator
+            # default): there is no external resolver (integration adapter, operator
             # console, etc.) listening on the registry, so blocking for the
             # full timeout would always fail. Resolve immediately with a
             # default choice instead, mirroring the existing AutoApproveResponder
@@ -491,117 +474,48 @@ class _SystemToolHitlWrapper(_SystemToolWrapperBase):
                 )
                 return {"choice": self._auto_resolve_decision, "steering": ""}
 
-            # Route through HITLContract if available (e.g. an admin-approval
-            # abstraction distinct from the raw Webex-bot registry channel).
-            if self._hitl_contract is not None:
-                try:
-                    result = self._hitl_contract.request_approval(
-                        question=signal.question,
-                        session_id=session_id,
-                        requesting_user_id=user,
-                        agent_id=agent_id,
-                        correlation_id=correlation_id,
-                        question_type=signal.question_type.value,
-                        choices=signal.choices,
-                        context_data=signal.context_data,
-                    )
-                    logger.info(
-                        "Agent %s HITL resolved via HITLContract: approver chose '%s'",
-                        agent_id,
-                        result.get("choice"),
-                    )
-                    return result
-                except Exception as exc:
-                    logger.warning(
-                        "HITLContract approval failed for agent=%s session=%s: %s. "
-                        "Falling back to registry.",
-                        agent_id,
-                        session_id,
-                        exc,
-                    )
-
-            # Fallback: registry-based blocking resolution (production path —
-            # e.g. the Webex bot resolves via resolve_agent_hitl()).
-            resolution_event = threading.Event()
-            resolution_result = {"choice": None, "steering": None}
-            
-            def callback(choice: str, steering: str) -> dict[str, str]:
-                """Callback invoked by external resolver (Webex bot)."""
-                resolution_result["choice"] = choice
-                resolution_result["steering"] = steering
-                resolution_event.set()  # Unblock waiting thread
-                return {"status": "resolved", "choice": choice}
-            
-            from mas.runtime.boundary.hitl.registry import get_hitl_resolver_registry
-            
-            registry = get_hitl_resolver_registry()
-            registry.register(
-                session_id=session_id,
-                agent_id=agent_id,
-                correlation_id=correlation_id,
-                question=signal.question,
-                question_type=signal.question_type,
-                choices=signal.choices,
-                context_data=signal.context_data,
-                resolver_callback=callback,  # ← This unblocks the agent
-            )
-            
-            timeout_seconds = (
-                signal.timeout if signal.timeout is not None else self._default_timeout_seconds
-            )
+            timeout_seconds = signal.timeout if signal.timeout is not None else self._default_timeout_seconds
             logger.info(
-                f"Agent {agent_id} blocked waiting for HITL resolution "
+                f"Agent {agent_id} awaiting HITL resolution "
                 f"(timeout={timeout_seconds if timeout_seconds is not None else 'none'}s): "
                 f"{signal.question}"
             )
-            did_resolve = resolution_event.wait(timeout=timeout_seconds)
-
-            if not did_resolve:
-                # Timeout - no response from user. Clean up registry entry.
-                try:
-                    registry.resolve(
-                        session_id, agent_id, correlation_id,
-                        choice="__timeout__", steering="timeout"
-                    )
-                except KeyError:
-                    pass  # Already resolved or cleaned up
-                
-                raise TimeoutError(
-                    f"HITL request timed out after {timeout_seconds}s "
-                    f"(session={session_id}, agent={agent_id}, "
-                    f"correlation_id={correlation_id}): {signal.question}"
-                )
-            
-            user_choice = resolution_result["choice"]
-            user_steering = resolution_result["steering"] or ""
-            
-            logger.info(
-                f"Agent {agent_id} HITL resolved: user chose '{user_choice}'"
+            result = self._hitl_contract.request_approval(
+                question=signal.question,
+                session_id=session_id,
+                requesting_user_id=user,
+                agent_id=agent_id,
+                correlation_id=correlation_id,
+                question_type=signal.question_type.value,
+                choices=signal.choices,
+                context_data=signal.context_data,
+                timeout=timeout_seconds,
             )
-            
-            return {
-                "choice": user_choice,
-                "steering": user_steering,
-                "question": signal.question,
-                "resolved": True,
-            }
+            logger.info("Agent %s HITL resolved: user chose '%s'", agent_id, result.get("choice"))
+            return result
 
 
 class _SystemToolUserUpdateWrapper(_SystemToolWrapperBase):
     """Wrapper for system tools that emit non-blocking user status updates.
 
-    Catches InformUserSignal and routes it, in priority order:
-    1. UserIOContract, if one was supplied.
-    2. Fallback: register in the shared HitlResolverRegistry's user-update
-       channel, polled by external systems (e.g. the Webex bot).
+    Catches InformUserSignal and routes it through
+    user_io_contract.send_progress_update() -- defaults to RegistryUserIOContract
+    (register in the shared HitlResolverRegistry's user-update channel, e.g.
+    polled by an external integration) unless a different UserIOContract was supplied.
 
     Unlike `_SystemToolHitlWrapper`, this never blocks: the tool call returns
-    immediately regardless of which channel consumes the update.
+    immediately regardless of which implementation consumes the update.
     """
 
-    def __init__(self, tool_instance: Any, user_io_contract: Any | None = None) -> None:
+    def __init__(self, tool_instance: Any, user_io_contract: UserIOContract | None = None) -> None:
         super().__init__(tool_instance)
-        self._user_io_contract = user_io_contract
+        if user_io_contract is None:
+            from mas.runtime.contracts.user_communication_contract import (
+                RegistryUserIOContract,
+            )
+
+            user_io_contract = RegistryUserIOContract()
+        self._user_io_contract: UserIOContract = user_io_contract
 
     def on_execute_tool(
         self,
@@ -619,57 +533,17 @@ class _SystemToolUserUpdateWrapper(_SystemToolWrapperBase):
         except InformUserSignal as signal:
             session_id, agent_id, correlation_id = self._extract_context(ctx)
 
-            # Route through UserIOContract if available.
-            if self._user_io_contract is not None:
-                try:
-                    receipt = self._user_io_contract.send_progress_update(
-                        message=signal.message,
-                        session_id=session_id,
-                        requesting_user_id=signal.user_name or user,
-                        agent_id=agent_id,
-                        involved_agents=signal.involved_agents,
-                        metadata=signal.metadata,
-                    )
-                    logger.info(
-                        "Agent %s sent progress update via UserIOContract for session=%s",
-                        agent_id,
-                        session_id,
-                    )
-                    return {
-                        "status": "sent",
-                        "message": signal.message,
-                        "user_name": signal.user_name or user,
-                        "involved_agents": list(signal.involved_agents),
-                        "metadata": dict(signal.metadata),
-                        "blocking": False,
-                        "receipt": receipt,
-                    }
-                except Exception as exc:
-                    logger.warning(
-                        "UserIOContract progress update failed for agent=%s session=%s: %s. "
-                        "Falling back to registry.",
-                        agent_id,
-                        session_id,
-                        exc,
-                    )
-
-            # Fallback: direct registry registration (e.g. the Webex bot polls
-            # get_pending_user_updates_for_session()).
-            from mas.runtime.boundary.hitl.registry import get_hitl_resolver_registry
-
-            registry = get_hitl_resolver_registry()
-            registry.register_user_update(
+            receipt = self._user_io_contract.send_progress_update(
+                message=signal.message,
                 session_id=session_id,
+                requesting_user_id=signal.user_name or user,
                 agent_id=agent_id,
                 correlation_id=correlation_id,
-                message=signal.message,
-                user_name=signal.user_name or user,
                 involved_agents=signal.involved_agents,
                 metadata=signal.metadata,
             )
-
             logger.info(
-                "Agent %s emitted non-blocking user update (registry fallback) for session=%s: %s",
+                "Agent %s sent progress update for session=%s: %s",
                 agent_id,
                 session_id,
                 signal.message,
@@ -681,6 +555,7 @@ class _SystemToolUserUpdateWrapper(_SystemToolWrapperBase):
                 "involved_agents": list(signal.involved_agents),
                 "metadata": dict(signal.metadata),
                 "blocking": False,
+                "receipt": receipt,
             }
 
 
@@ -722,9 +597,7 @@ def _normalize_tool_entry(
         if catalog_ref_path is not None:
             ref_path = catalog_ref_path
         else:
-            ref_path = _resolve_under_roots(
-                mdir, str(tool_def["ref"]), containment_roots=containment_roots
-            )
+            ref_path = _resolve_under_roots(mdir, str(tool_def["ref"]), containment_roots=containment_roots)
         if not ref_path.is_file():
             raise ManifestToolLoadError(f"spec.tools[{index}]: tool ref not found: {ref_path}")
         try:
@@ -739,9 +612,7 @@ def _normalize_tool_entry(
             raise ManifestToolLoadError(f"spec.tools[{index}]: {exc}") from exc
         impl = (doc.get("spec") or {}).get("impl") or {}
         if not impl.get("module_path"):
-            raise ManifestToolLoadError(
-                f"spec.tools[{index}]: tool {ref_path} missing spec.impl.module_path"
-            )
+            raise ManifestToolLoadError(f"spec.tools[{index}]: tool {ref_path} missing spec.impl.module_path")
         tool_name = tool_contract.name or ref_path.stem.replace(".tool", "")
         manifest_contract = tool_contract.to_contract_dict(tool_name)
         tool_def = {
@@ -757,9 +628,7 @@ def _normalize_tool_entry(
     elif tool_def.get("module_path"):
         pass
     else:
-        raise ManifestToolLoadError(
-            f"spec.tools[{index}]: entry must include ref or module_path: {raw!r}"
-        )
+        raise ManifestToolLoadError(f"spec.tools[{index}]: entry must include ref or module_path: {raw!r}")
 
     return tool_def, mdir, manifest_contract
 
@@ -779,9 +648,7 @@ def _load_tool_instance(
         or "\\" in module_path
     )
     if is_file:
-        resolved = _resolve_under_roots(
-            manifest_dir, module_path, containment_roots=containment_roots
-        )
+        resolved = _resolve_under_roots(manifest_dir, module_path, containment_roots=containment_roots)
         if not resolved.is_file():
             raise ManifestToolLoadError(f"Tool module file not found: {resolved}")
         with _TOOL_MODULE_LOAD_LOCK:
@@ -824,14 +691,11 @@ def _load_tool_instance(
         candidates = _tool_class_candidates(module)
         if not candidates:
             raise ManifestToolLoadError(
-                f"No tool class found in {module_path} "
-                "(class_name required, or define on_collect_tools)."
+                f"No tool class found in {module_path} (class_name required, or define on_collect_tools)."
             )
         if len(candidates) > 1:
             names = ", ".join(c.__name__ for c in candidates)
-            raise ManifestToolLoadError(
-                f"multiple tool classes in {module_path}: {names}; specify class_name"
-            )
+            raise ManifestToolLoadError(f"multiple tool classes in {module_path}: {names}; specify class_name")
         tool_class = candidates[0]
 
     return tool_class(**params)
@@ -896,9 +760,7 @@ def attach_manifest_tools(
     if not tools:
         return None
 
-    provider = build_manifest_tool_provider(
-        tools, manifest_dir, app_root=app_root or manifest_dir, **provider_kw
-    )
+    provider = build_manifest_tool_provider(tools, manifest_dir, app_root=app_root or manifest_dir, **provider_kw)
     leaf = leaf_engine(engine)
     leaf.tool_provider = provider
     if isinstance(leaf, LiveLlmEngine):
@@ -917,6 +779,4 @@ def attach_manifest_tools_to_instance(
     engine = getattr(getattr(instance, "driver", None), "engine", None)
     if engine is None:
         return None
-    return attach_manifest_tools(
-        engine, manifest, manifest_dir, app_root=app_root, **provider_kw
-    )
+    return attach_manifest_tools(engine, manifest, manifest_dir, app_root=app_root, **provider_kw)
