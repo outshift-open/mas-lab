@@ -8,7 +8,8 @@ from unittest.mock import MagicMock
 
 import pytest
 from mas.ctl.manifest.spec_bindings import SpecBindingError, parse_execution
-from mas.runtime.driver.driver import KernelDriver
+from mas.runtime.driver.driver import DEFAULT_MAX_AUTO_STEPS, KernelDriver
+from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.engine.worker_pool import DEFAULT_ENGINE_QUEUE_DEPTH, EngineWorkerPool
 from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.kernel.orchestrator import RuntimeKernel
@@ -49,3 +50,28 @@ def test_driver_engine_pool_uses_kernel_config_depth():
     driver = KernelDriver(kernel=kernel, engine=MagicMock())
     assert driver.engine_pool is not None
     assert driver.engine_pool.max_depth == 12
+
+
+def test_default_max_auto_steps_constant():
+    assert DEFAULT_MAX_AUTO_STEPS == 512
+
+
+def test_parse_agent_spec_reads_max_auto_steps():
+    config, _ = parse_agent_spec({"execution": {"max_auto_steps": 20}})
+    assert config.max_auto_steps == 20
+
+
+def test_parse_agent_spec_default_max_auto_steps():
+    config, _ = parse_agent_spec({})
+    assert config.max_auto_steps == DEFAULT_MAX_AUTO_STEPS
+
+
+def test_parse_execution_validates_max_auto_steps():
+    parse_execution({"max_auto_steps": 100})
+    with pytest.raises(SpecBindingError, match="max_auto_steps"):
+        parse_execution({"max_auto_steps": 0})
+
+
+def test_runtime_instance_threads_kernel_config_max_auto_steps_to_driver():
+    instance = RuntimeInstance.from_parts(config=KernelConfig(max_auto_steps=7))
+    assert instance.driver.max_auto_steps == 7

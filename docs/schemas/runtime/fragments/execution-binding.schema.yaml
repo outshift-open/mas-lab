@@ -39,6 +39,17 @@ properties:
       Maximum engine egress intents (LLM/tool calls) queued for one kernel
       dispatch batch before drain. Raise when a single model turn schedules
       many parallel tool calls. See docs/manifests/execution.md.
+  max_auto_steps:
+    type: integer
+    minimum: 1
+    default: 512
+    description: >
+      Maximum kernel dispatch-loop iterations (LLM/tool/HITL round-trips)
+      the driver auto-advances through for one ingress event before giving
+      up with items still queued. Raise for agents/scenarios whose normal
+      workflow (e.g. many delegated sub-agents, long tool-retry loops)
+      legitimately needs more turns than the default. See
+      docs/manifests/execution.md.
   live:
     type: boolean
   stream:

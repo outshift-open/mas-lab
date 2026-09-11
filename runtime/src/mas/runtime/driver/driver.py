@@ -21,6 +21,7 @@ from mas.runtime.boundary.obs.operator import ObservabilityOperator
 from mas.runtime.driver.mocks import AutoCtxAssembler
 from mas.runtime.engine.simulated import SimulatedEngine
 from mas.runtime.engine.worker_pool import DEFAULT_ENGINE_QUEUE_DEPTH, EngineWorkerPool
+from mas.runtime.spec.defaults import DEFAULT_MAX_AUTO_STEPS
 from mas.runtime.kernel.inflight import pending_for_validate, register_inflight
 from mas.runtime.kernel.orchestrator import RuntimeKernel
 from mas.runtime.kernel.runtime_context import runtime_binding
@@ -97,7 +98,7 @@ class KernelDriver:
     ctx: AutoCtxAssembler | None = field(default_factory=AutoCtxAssembler)
     observability: ObservabilityOperator | None = field(default_factory=ObservabilityOperator)
     coordination: ChokepointCoordinator | None = field(default_factory=ChokepointCoordinator)
-    max_auto_steps: int = 512
+    max_auto_steps: int = DEFAULT_MAX_AUTO_STEPS
     agent_id: str = "agent"
     # Read-only, additive subscribers for the driver's own display-oriented
     # exchange log (see ExchangeRecord/ExchangePlugin) — mirrors

@@ -5,11 +5,16 @@
 from __future__ import annotations
 
 from typing import Any
+from unittest.mock import patch
 
 from mas.library.standard.plugins.context.assembler import ContextAssemblerPlugin
 from mas.library.standard.plugins.context.conversation import StackConversation
 from mas.library.standard.plugins.context.provider_payload import assert_provider_payload
 from mas.runtime.boundary.context.assemble import assemble_llm_messages
+from mas.runtime.boundary.context.working_memory import (
+    bounded_working_memory_tail,
+    working_memory_slice_limit,
+)
 from mas.runtime.driver.mocks import AutoCtxAssembler
 from mas.runtime.kernel.inflight import register_inflight
 from mas.runtime.kernel.outbound_waits import pending_outbound_waits
@@ -157,6 +162,77 @@ def test_high_level_react_path_still_sees_tool_result() -> None:
     messages = assemble_llm_messages(ctx)
     assert messages[-1]["role"] == "tool"
     assert messages[-1]["content"] == "Donald Trump is president."
+
+
+def _record_malformed_get_metrics_retry(ctx: AutoCtxAssembler, n: int) -> None:
+    cid = f"call_{n}"
+    ctx.record_assistant_tool_call(
+        call_id=cid, tool_name="get_metrics", arguments={"payment_db": None, "window": "15m"}
+    )
+    ctx.record_tool_result(
+        call_id=cid,
+        content='{"error": "required parameter \'service\' is missing"}',
+    )
+
+
+def test_issue_65_stuck_retry_loop_ages_out_of_working_memory() -> None:
+    """Regression for #65: a stuck malformed-tool-call loop must not pin every
+    repeat into the prompt forever — old attempts should age out like any other
+    over-limit working memory, instead of only the newest ones ever being seen.
+    """
+    ctx = AutoCtxAssembler(last_user_text="triage payment-service incident")
+    for n in range(1, 16):  # 15 retries = 30 messages, well past the default cap of 20
+        _record_malformed_get_metrics_retry(ctx, n)
+    assert len(ctx.working_memory.messages) == 30
+
+    # Repro: pre-#65-fix behaviour had no cap at all — every retry pinned forever.
+    with patch("mas.runtime.boundary.context.assemble.working_memory_slice_limit", return_value=0):
+        unbounded = assemble_llm_messages(ctx)
+    unbounded_tool_msgs = [m for m in unbounded if m.get("role") == "tool"]
+    assert len(unbounded_tool_msgs) == 15, "sanity: with no cap, every retry is still present (the bug)"
+
+    # Fix: default behaviour is capped at 20 messages / 10 tool exchanges,
+    # tool-group-atomic, keeping only the most recent retries.
+    bounded = assemble_llm_messages(ctx)
+    bounded_tool_msgs = [m for m in bounded if m.get("role") == "tool"]
+    assert len(bounded_tool_msgs) == 10
+    assert bounded_tool_msgs[0]["tool_call_id"] == "call_6"  # oldest 5 retries aged out
+    assert bounded_tool_msgs[-1]["tool_call_id"] == "call_15"  # latest retry always visible
+    assert_provider_payload(bounded)
+
+
+def test_working_memory_messages_configurable_via_manifest() -> None:
+    """``working_memory_messages`` must be usable alongside any context_manager
+    type — it's a generic assembly knob, not a ConversationStrategy ctor kwarg.
+    """
+    ctx = AutoCtxAssembler(last_user_text="triage payment-service incident")
+    for n in range(1, 6):
+        _record_malformed_get_metrics_retry(ctx, n)
+    manifest = {
+        "spec": {"context_manager": {"type": "sliding_window", "params": {"working_memory_messages": 4}}}
+    }
+    messages = assemble_llm_messages(ctx, manifest=manifest)
+    tool_msgs = [m for m in messages if m.get("role") == "tool"]
+    assert len(tool_msgs) == 2  # 4-message cap = 2 tool-call groups
+    assert tool_msgs[-1]["tool_call_id"] == "call_5"
+    assert_provider_payload(messages)
+
+
+def test_working_memory_slice_limit_defaults_to_twenty() -> None:
+    assert working_memory_slice_limit(None) == 20
+    assert working_memory_slice_limit({"spec": {"context_manager": {"params": {"working_memory_messages": 3}}}}) == 3
+
+
+def test_bounded_working_memory_tail_never_splits_tool_group() -> None:
+    messages = []
+    for n in range(5):
+        messages.append(
+            {"role": "assistant", "content": "", "tool_calls": [{"id": f"c{n}", "function": {"name": "t"}}]}
+        )
+        messages.append({"role": "tool", "tool_call_id": f"c{n}", "content": "ok"})
+    out = bounded_working_memory_tail(messages, 3)
+    assert out[0]["role"] == "assistant"  # never starts mid tool-result
+    assert out[0]["tool_calls"][0]["id"] == "c3"
 
 
 def test_concurrent_sessions_have_isolated_kernel_and_assembly() -> None:

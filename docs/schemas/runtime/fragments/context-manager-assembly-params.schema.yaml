@@ -1,0 +1,43 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#context-manager-assembly-params"
+title: ContextManagerAssemblyParams
+description: >
+  Kernel assembly knobs under spec.context_manager.params. Read by
+  assemble_llm_messages / token budget / working-memory slicing — not forwarded
+  to ContextManagerContract constructors (stripped in CMFactory).
+type: object
+additionalProperties: false
+properties:
+  working_memory_messages:
+    type: integer
+    minimum: 1
+    default: 20
+    description: Max in-turn working-memory messages kept for LLM assembly (tool groups atomic).
+  max_in_turn_messages:
+    type: integer
+    minimum: 1
+    description: Alias for working_memory_messages.
+  token_budget:
+    type: integer
+    minimum: 1
+    description: Max estimated input tokens after assembly.
+  max_tokens:
+    type: integer
+    minimum: 1
+    description: Alias for token_budget.
+  reserve_tokens:
+    type: integer
+    minimum: 0
+    default: 512
+    description: Tokens reserved for model completion when token_budget is set.
+  working_memory_ref:
+    type: string
+    description: Registry ref for working_memory context source plugin.
+  trimmer_ref:
+    type: string
+    description: Registry ref for token-budget trimmer plugin.
+  token_budget_ref:
+    type: string
+    description: Alias for trimmer_ref.

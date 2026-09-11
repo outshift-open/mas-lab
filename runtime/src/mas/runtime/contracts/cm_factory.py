@@ -8,6 +8,10 @@ from typing import Any
 
 from mas.runtime.contracts.context_manager_contract import ContextManagerContract
 from mas.runtime.registry import get_registry
+from mas.runtime.spec.schema_bindings_generated import CONTEXT_MANAGER_ASSEMBLY_PARAM_KEYS
+
+# Assembly param keys come from context-manager-assembly-params.schema.yaml
+# (generated). Strategy keys stay in params for ContextManagerContract ctors.
 
 
 class CMFactory:
@@ -30,6 +34,15 @@ class CMFactory:
             binding = {**binding, "type": name}
         if params:
             binding = {**binding, "params": {**(binding.get("params") or {}), **params}}
+        if binding.get("params"):
+            binding = {
+                **binding,
+                "params": {
+                    k: v
+                    for k, v in binding["params"].items()
+                    if k not in CONTEXT_MANAGER_ASSEMBLY_PARAM_KEYS
+                },
+            }
         instance = get_registry().create("context_manager", binding, manifest=manifest)
         if not isinstance(instance, ContextManagerContract):
             raise TypeError(f"{type(instance).__name__} is not a ContextManagerContract")

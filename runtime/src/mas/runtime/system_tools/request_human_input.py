@@ -6,9 +6,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, create_model
 
 from mas.runtime.contracts.tool_contract import ToolContract
+
+#: Default cap on ``question`` length — see ``max_question_length`` on __init__.
+DEFAULT_MAX_QUESTION_LENGTH = 2000
 
 
 class RequestHumanInputTool(ToolContract):
@@ -49,7 +52,7 @@ class RequestHumanInputTool(ToolContract):
             ...,
             description="The question to ask the user",
             min_length=1,
-            max_length=2000,
+            max_length=DEFAULT_MAX_QUESTION_LENGTH,
         )
         question_type: str = Field(
             default="CONFIRM",
@@ -79,6 +82,33 @@ class RequestHumanInputTool(ToolContract):
             ),
             ge=0,
         )
+
+    def __init__(self, *, max_question_length: int = DEFAULT_MAX_QUESTION_LENGTH) -> None:
+        """``max_question_length``: configurable via a ``spec.tools`` entry —
+
+            - kind: system
+              name: request_human_input
+              params: {max_question_length: 8000}
+
+        Default matches the class-level ``Input.question`` schema (2000); a
+        non-default value rebuilds ``Input`` so the *advertised* tool schema
+        (what the model sees) always matches what's actually enforced.
+        """
+        self.max_question_length = max_question_length
+        if max_question_length != DEFAULT_MAX_QUESTION_LENGTH:
+            self.Input = create_model(
+                "Input",
+                __base__=RequestHumanInputTool.Input,
+                question=(
+                    str,
+                    Field(
+                        ...,
+                        description="The question to ask the user",
+                        min_length=1,
+                        max_length=max_question_length,
+                    ),
+                ),
+            )
 
     def get_name(self) -> str:
         return "request_human_input"

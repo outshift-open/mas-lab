@@ -10,8 +10,7 @@ from dataclasses import dataclass, field
 
 from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.ingress import EngineIoReturn
-
-DEFAULT_ENGINE_QUEUE_DEPTH = 32
+from mas.runtime.spec.defaults import DEFAULT_ENGINE_QUEUE_DEPTH
 
 WorkerFn = Callable[[InvokeEngineIo], EngineIoReturn]
 

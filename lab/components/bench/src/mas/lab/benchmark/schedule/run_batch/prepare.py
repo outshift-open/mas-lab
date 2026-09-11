@@ -14,6 +14,8 @@ from typing import Any, Optional
 from mas.lab.benchmark.run_manager import BenchmarkRunManager
 from mas.lab.benchmark.schedule.metadata import register_mas_run
 from mas.lab.benchmark.schedule.run_batch.load import LoadedExperiment
+from mas.runtime.package_refs import path_ref_for_anchor
+from mas.runtime.spec.infra_paths import experiment_infra_bundle_path
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,40 @@ def _execution_infra_refs(exp: Any) -> list[str]:
     if raw is None and isinstance(execution, dict):
         raw = execution.get("infra_refs")
     return list(raw or [])
+
+
+def _resolve_run_infra_refs(loaded: LoadedExperiment) -> list[str]:
+    """Merge experiment ``execution.infra_refs`` with the CLI ``--infra`` bundle.
+
+    ``--infra`` alone never reached the MAS application's infra overlay: it was
+    threaded to pipeline step configs (``_INFRA_STEP_TYPES``) only, so an agent
+    manifest kept whatever LLM binding it declared by default regardless of the
+    flag. ``--infra gls-vllm`` resolves to ``<experiment_dir>/infra/gls-vllm.yaml``
+    and is prepended so it overrides workspace/user defaults during MAS
+    execution. Refs are expressed relative to the MAS application anchor
+    (``mas.yaml``'s parent), matching ``resolve_infra_refs`` at run time.
+    """
+    refs = _execution_infra_refs(loaded.exp)
+    name = loaded.infra_name
+    if not name:
+        return refs
+    bundle = experiment_infra_bundle_path(loaded.experiment_yaml.parent, name)
+    if bundle is None:
+        logger.warning(
+            "infra bundle '%s' not found under %s/infra",
+            name,
+            loaded.experiment_yaml.parent,
+        )
+        return refs
+    mas_root = loaded.experiment_yaml.parent
+    mas = getattr(loaded.exp, "mas", None)
+    manifest = getattr(mas, "manifest", None) if mas is not None else None
+    if manifest is not None:
+        mas_root = Path(manifest).resolve().parent
+    ref = path_ref_for_anchor(bundle, mas_root)
+    if ref in refs:
+        return refs
+    return [ref, *refs]
 
 
 @dataclass
@@ -263,7 +299,7 @@ async def prepare_batch(
     scenario_flavours = resolve_scenario_flavours(loaded, loaded_ids, loaded.flavour_name)
     mas_app, mas_app_version, mas_ref = extract_mas_provenance(loaded)
     scenario_overlay_refs = build_scenario_overlay_refs(loaded, loaded_ids)
-    infra_refs = _execution_infra_refs(loaded.exp)
+    infra_refs = _resolve_run_infra_refs(loaded)
 
     dataset_items = list(loaded.dataset_items)
     _pre_dataset = await run_pipeline_phase(

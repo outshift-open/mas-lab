@@ -8,8 +8,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from mas.runtime.agent_defaults import default_pattern_plugin_id
-from mas.runtime.engine.worker_pool import DEFAULT_ENGINE_QUEUE_DEPTH
 from mas.runtime.schema.governance import GovIngressProfile, GovPolicyProfile
+from mas.runtime.spec.defaults import DEFAULT_ENGINE_QUEUE_DEPTH, DEFAULT_MAX_AUTO_STEPS
 
 if TYPE_CHECKING:
     from mas.runtime.boundary.gov.error_recovery import ErrorRecoveryPlugin
@@ -33,6 +33,7 @@ class KernelConfig:
     max_cot_pass: int = 1
     parallel_tool_calls: bool = True
     engine_queue_depth: int = DEFAULT_ENGINE_QUEUE_DEPTH
+    max_auto_steps: int = DEFAULT_MAX_AUTO_STEPS
     policy_engine: GovernancePolicyEngine | None = field(default=None, compare=False)
     error_recovery_plugin: ErrorRecoveryPlugin | None = field(default=None, compare=False)
     ingress_governance_plugins: tuple = field(default=(), compare=False)

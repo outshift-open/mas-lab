@@ -75,6 +75,11 @@ def parse_agent_spec(
             kernel_config,
             engine_queue_depth=int(execution["engine_queue_depth"]),
         )
+    if "max_auto_steps" in execution:
+        kernel_config = replace(
+            kernel_config,
+            max_auto_steps=int(execution["max_auto_steps"]),
+        )
 
     obs_binding = parse_obs_spec(obs_raw)
     obs_result: ObservabilityBinding | None = obs_binding if obs_binding.plugins else None

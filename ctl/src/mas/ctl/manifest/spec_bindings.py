@@ -2,6 +2,11 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Parse agent spec contract bindings — strict v2 shapes only.
 
+Allowed binding keys are generated from JSON Schema
+(``scripts/gen_schema_artifacts.py`` → ``mas.runtime.spec.schema_bindings_generated``).
+This module adds semantic checks that schema alone does not express (integer ranges,
+nested object key sets).
+
 Cardinality-one fields (scalar / single object): ``design_pattern``, ``llm``,
 ``memory``, ``execution``, ``mocking``.
 
@@ -26,6 +31,15 @@ from typing import Any
 # and re-export so all existing ctl importers continue to work unchanged.
 from mas.runtime.boundary.obs.binding import ObservabilityBinding
 from mas.runtime.spec.gov import GovernanceBinding
+from mas.runtime.spec.schema_bindings_generated import (
+    CONTEXT_MANAGER_BINDING_KEYS,
+    CONTROL_BINDING_KEYS,
+    DESIGN_PATTERN_BINDING_KEYS,
+    EXECUTION_BINDING_KEYS,
+    EXECUTION_CACHE_KEYS,
+    EXECUTION_MOCKING_KEYS,
+    LLM_BINDING_KEYS,
+)
 
 
 class SpecBindingError(ValueError):
@@ -185,21 +199,10 @@ def parse_governance(raw: Any) -> GovernanceBinding:
     )
 
 
-_LLM_KEYS = frozenset({"model", "provider", "temperature", "max_tokens"})
-_EXECUTION_KEYS = frozenset(
-    {"mocking", "cache", "parallel", "engine_queue_depth", "live", "stream", "timeout"}
-)
-_CONTROL_KEYS = frozenset({"budget", "circuit_breaker", "rate_limiter"})
-
-
 def _reject_unknown_keys(raw: dict[str, Any], *, allowed: frozenset[str], field: str) -> None:
     for key in raw:
         if key not in allowed:
             raise SpecBindingError(f"{field}: unknown field {key!r}")
-
-
-_DESIGN_PATTERN_KEYS = frozenset({"type", "ref", "params", "config"})
-_CONTEXT_MANAGER_KEYS = frozenset({"type", "ref", "params", "skills", "memory"})
 
 
 def parse_design_pattern(raw: Any) -> None:
@@ -207,7 +210,7 @@ def parse_design_pattern(raw: Any) -> None:
         return
     if not isinstance(raw, dict):
         raise SpecBindingError(f"spec.design_pattern must be an object, got {type(raw).__name__}")
-    _reject_unknown_keys(raw, allowed=_DESIGN_PATTERN_KEYS, field="spec.design_pattern")
+    _reject_unknown_keys(raw, allowed=DESIGN_PATTERN_BINDING_KEYS, field="spec.design_pattern")
 
 
 def parse_context_manager(raw: Any) -> None:
@@ -215,7 +218,7 @@ def parse_context_manager(raw: Any) -> None:
         return
     if not isinstance(raw, dict):
         raise SpecBindingError(f"spec.context_manager must be an object, got {type(raw).__name__}")
-    _reject_unknown_keys(raw, allowed=_CONTEXT_MANAGER_KEYS, field="spec.context_manager")
+    _reject_unknown_keys(raw, allowed=CONTEXT_MANAGER_BINDING_KEYS, field="spec.context_manager")
 
 
 def parse_llm(raw: Any) -> None:
@@ -223,7 +226,7 @@ def parse_llm(raw: Any) -> None:
         return
     if not isinstance(raw, dict):
         raise SpecBindingError(f"spec.llm must be an object, got {type(raw).__name__}")
-    _reject_unknown_keys(raw, allowed=_LLM_KEYS, field="spec.llm")
+    _reject_unknown_keys(raw, allowed=LLM_BINDING_KEYS, field="spec.llm")
 
 
 def parse_execution(raw: Any) -> None:
@@ -231,18 +234,19 @@ def parse_execution(raw: Any) -> None:
         return
     if not isinstance(raw, dict):
         raise SpecBindingError(f"spec.execution must be an object, got {type(raw).__name__}")
-    _reject_unknown_keys(raw, allowed=_EXECUTION_KEYS, field="spec.execution")
+    _reject_unknown_keys(raw, allowed=EXECUTION_BINDING_KEYS, field="spec.execution")
     mocking = raw.get("mocking")
     if isinstance(mocking, dict):
-        _reject_unknown_keys(mocking, allowed=frozenset({"enabled"}), field="spec.execution.mocking")
+        _reject_unknown_keys(mocking, allowed=EXECUTION_MOCKING_KEYS, field="spec.execution.mocking")
     cache = raw.get("cache")
     if isinstance(cache, dict):
-        _reject_unknown_keys(
-            cache, allowed=frozenset({"enabled", "read", "write"}), field="spec.execution.cache"
-        )
+        _reject_unknown_keys(cache, allowed=EXECUTION_CACHE_KEYS, field="spec.execution.cache")
     depth = raw.get("engine_queue_depth")
     if depth is not None and (not isinstance(depth, int) or isinstance(depth, bool) or depth < 1):
         raise SpecBindingError("spec.execution.engine_queue_depth must be an integer >= 1")
+    max_steps = raw.get("max_auto_steps")
+    if max_steps is not None and (not isinstance(max_steps, int) or isinstance(max_steps, bool) or max_steps < 1):
+        raise SpecBindingError("spec.execution.max_auto_steps must be an integer >= 1")
 
 
 def parse_control(raw: Any) -> None:
@@ -250,7 +254,7 @@ def parse_control(raw: Any) -> None:
         return
     if not isinstance(raw, dict):
         raise SpecBindingError(f"spec.control must be an object, got {type(raw).__name__}")
-    _reject_unknown_keys(raw, allowed=_CONTROL_KEYS, field="spec.control")
+    _reject_unknown_keys(raw, allowed=CONTROL_BINDING_KEYS, field="spec.control")
 
 
 def parse_infra_lists(raw_spec: dict[str, Any]) -> tuple[list[str], list[str]]:
