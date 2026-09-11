@@ -103,6 +103,29 @@ class LiveLlmEngine:
         self._pending_tool_args = {}
         self._pending_tools_by_cid.clear()
 
+    def summarize_messages(self, messages: list[dict[str, Any]]) -> str:
+        """CompactionSummarizeEngine — one-off summary via this engine's model."""
+        from mas.runtime.boundary.context.working_memory_compaction import SUMMARIZE_INSTRUCTIONS
+
+        if not self._budget.allow_llm():
+            raise RuntimeError(
+                "working_memory compaction summarize_fn: LLM call budget "
+                "exceeded (spec.budget.max_llm_calls)"
+            )
+        prompt = [
+            {"role": "system", "content": SUMMARIZE_INSTRUCTIONS},
+            {"role": "user", "content": json.dumps(messages, default=str)},
+        ]
+        self._budget.note_llm()
+        logger.debug("working_memory compaction: summarizing %d message(s) via LLM", len(messages))
+        if self._uses_model_access():
+            message = self._model_access_chat(prompt, tools=None, temperature=0.0)
+        else:
+            api_key = os.environ.get(self.api_key_env, "")
+            message = self._chat_completion(prompt, api_key=api_key, tools=None, temperature=0.0)
+        content = message.get("content") if isinstance(message, dict) else getattr(message, "content", "")
+        return str(content or "").strip()
+
     def exchange_preview(self, op: str) -> str:
         """Ctl --trace: describe outbound LLM payload or pending tool call."""
         if op == "LLM_CALL":

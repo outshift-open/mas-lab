@@ -8,22 +8,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from mas.runtime.boundary.context.trim import context_manager_spec
-
 SOURCE_TYPE = "working_memory"
-
-
-def _slice_limit(manifest: dict | None) -> int:
-    cm = context_manager_spec(manifest)
-    params = cm.get("params") or {}
-    for key in ("working_memory_messages", "max_in_turn_messages", "max_messages"):
-        raw = params.get(key)
-        if raw is not None:
-            try:
-                return max(0, int(raw))
-            except (TypeError, ValueError):
-                break
-    return 20
 
 
 @dataclass
@@ -98,24 +83,3 @@ class WorkingMemoryStore:
     def record_assistant_message(self, content: str) -> None:
         if content.strip():
             self.messages.append({"role": "assistant", "content": content})
-
-
-@dataclass(frozen=True)
-class WorkingMemoryContextSource:
-    """Queried by context manager — not generic L2 memory / RAG."""
-
-    store: WorkingMemoryStore
-    source_type: str = SOURCE_TYPE
-    mechanism: str = "inject"
-
-    def collect_context(self, *, manifest: dict | None = None, **_: Any) -> list[dict[str, Any]]:
-        limit = _slice_limit(manifest)
-        if limit <= 0 or not self.store.messages:
-            return []
-        msgs = self.store.messages
-        start = max(0, len(msgs) - limit)
-        return list(msgs[start:])
-
-
-def working_memory_source(store: WorkingMemoryStore) -> WorkingMemoryContextSource:
-    return WorkingMemoryContextSource(store=store)

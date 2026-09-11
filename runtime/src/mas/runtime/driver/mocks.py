@@ -7,9 +7,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from mas.runtime.boundary.context.chunk_compaction import maybe_compact_chunks_after_commit
+from mas.runtime.boundary.context.conversation_chunks import ConversationChunkStore
 from mas.runtime.boundary.context.dp_inject import inject_dp_protocol
 from mas.runtime.boundary.context.plugin_collection import PluginCollection
 from mas.runtime.boundary.context.working_memory import WorkingMemoryStore
+from mas.runtime.boundary.context.working_memory_compaction import WorkingMemoryCompactionRuntime
 from mas.runtime.schema.egress import RequestCtxAssembly
 from mas.runtime.schema.ingress import CtxAssemblyComplete
 
@@ -27,6 +30,10 @@ class AutoCtxAssembler:
     turn_index: int = 0
     turn_history: list[tuple[str, str]] = field(default_factory=list)
     committed_messages: list[dict[str, Any]] = field(default_factory=list)
+    conversation_chunks: ConversationChunkStore = field(default_factory=ConversationChunkStore)
+    # Commit-time WM compaction (chunk graph) — set at bootstrap from
+    # spec.working_memory.compaction; distinct from context_manager assembly plugin.
+    working_memory_compaction: WorkingMemoryCompactionRuntime | None = None
     working_memory: WorkingMemoryStore = field(default_factory=WorkingMemoryStore)
     pattern_plugin_id: str = "react@v1"
     runtime_params: dict[str, Any] = field(default_factory=dict)
@@ -60,6 +67,7 @@ class AutoCtxAssembler:
             self.injected_context = list(baseline)
         self.turn_history.clear()
         self.committed_messages.clear()
+        self.conversation_chunks = ConversationChunkStore()
         self.working_memory.clear()
         self.last_user_text = ""
         self.turn_index = 0
@@ -96,6 +104,7 @@ class AutoCtxAssembler:
     def note_agent_response(self, text: str) -> None:
         from mas.runtime.boundary.context.telemetry import record_context_mutation
 
+        committed_before = len(self.committed_messages)
         if self.last_user_text:
             self.committed_messages.append({"role": "user", "content": self.last_user_text})
             self.turn_history.append((self.last_user_text, text))
@@ -115,6 +124,13 @@ class AutoCtxAssembler:
                 and str(last.get("content") or "").strip() == text.strip()
             ):
                 self.committed_messages.append({"role": "assistant", "content": text})
+        turn_messages = list(self.committed_messages[committed_before:])
+        if turn_messages:
+            self.conversation_chunks.append_turn(turn_messages)
+            maybe_compact_chunks_after_commit(
+                self.conversation_chunks,
+                compaction=self.working_memory_compaction,
+            )
         record_context_mutation(
             self.observability,
             action="turn_commit",

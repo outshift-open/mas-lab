@@ -61,8 +61,8 @@ def test_no_working_memory_compaction_leaves_context_manager_absent(tmp_path: Pa
 
 def test_summarize_wires_a_real_summarize_fn_off_the_resolved_engine(tmp_path: Path, monkeypatch):
     """standard:mock-llm still resolves to a LiveLlmEngine (pointed at a fake
-    endpoint, not a SimulatedEngine) -- it has the completion primitives
-    build_llm_summarize_fn needs, so summarize wires a real callable rather
+    endpoint, not a SimulatedEngine) -- it implements CompactionSummarizeEngine,
+    so summarize wires a real callable rather
     than degrading. The degrade-to-keep_recent path (no completion
     primitives available at all) is covered at the facade level in
     test_working_memory_compaction.py."""

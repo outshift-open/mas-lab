@@ -12,11 +12,16 @@ See ``docs/design/working-memory-compaction.md``.
 
 from __future__ import annotations
 
-import json
 import logging
-import os
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
+
+from mas.runtime.boundary.context.trim import (
+    CONTEXT_MANAGER_TYPE_SUMMARISING,
+    is_summarising_context_manager,
+)
+from mas.runtime.engine.protocol import CompactionSummarizeEngine
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +31,7 @@ logger = logging.getLogger(__name__)
 _STRATEGY_TO_CM_TYPE: dict[str, str] = {
     "keep_recent": "stack",
     "sliding_window": "sliding_window",
-    "summarize": "summarising",
+    "summarize": CONTEXT_MANAGER_TYPE_SUMMARISING,
 }
 
 # Which compaction sub-keys become which context_manager param, per strategy.
@@ -41,6 +46,45 @@ SUMMARIZE_INSTRUCTIONS = (
     "facts, decisions, and any identifiers (names, IDs, numbers) a later "
     "turn might need to reference. Write plain prose, not a transcript."
 )
+
+
+@dataclass(frozen=True)
+class WorkingMemoryCompactionRuntime:
+    """Commit-time compaction of the cross-turn working-memory buffer.
+
+    Manifest authors set ``spec.working_memory.compaction`` (or an explicit
+    ``summarising`` ``context_manager``). ``summarize_fn`` is engine wiring —
+    not a manifest field — and belongs on working memory, not on the context
+    manager plugin surface (``ContextManagerContract`` shapes history at
+    assembly; it is not a context source).
+    """
+
+    summary_threshold: int
+    keep_turns: int
+    summarize_fn: Callable[[list[dict[str, Any]]], str]
+
+
+def working_memory_compaction_runtime(spec: dict[str, Any]) -> WorkingMemoryCompactionRuntime | None:
+    """Resolved commit-time compaction after ``apply_working_memory_compaction``."""
+    cm = spec.get("context_manager")
+    if not isinstance(cm, dict) or not is_summarising_context_manager(cm):
+        return None
+    params = cm.get("params") or {}
+    summarize_fn = params.get("summarize_fn")
+    if not callable(summarize_fn):
+        return None
+    try:
+        raw_threshold = params.get("summary_threshold")
+        raw_keep = params.get("keep_turns")
+        threshold = int(raw_threshold) if raw_threshold is not None else 4000
+        keep = int(raw_keep) if raw_keep is not None else 10
+    except (TypeError, ValueError):
+        return None
+    return WorkingMemoryCompactionRuntime(
+        summary_threshold=threshold,
+        keep_turns=keep,
+        summarize_fn=summarize_fn,
+    )
 
 
 def context_manager_binding_from_compaction(compaction: dict[str, Any]) -> dict[str, Any]:
@@ -77,66 +121,44 @@ def resolve_working_memory_context_manager(spec: dict[str, Any]) -> dict[str, An
     return context_manager_binding_from_compaction(compaction)
 
 
-def build_llm_summarize_fn(engine: Any) -> Callable[[list[dict[str, Any]]], str]:
-    """A ``SummarizingConversation``-compatible ``summarize_fn`` backed by
-    ``engine``'s own configured model -- no separate model-selection surface.
+def build_llm_summarize_fn(engine: CompactionSummarizeEngine) -> Callable[[list[dict[str, Any]]], str]:
+    """Return ``engine.summarize_messages`` for ``SummarizingConversation`` wiring."""
+    if not isinstance(engine, CompactionSummarizeEngine):
+        raise TypeError(f"{type(engine).__name__} does not implement CompactionSummarizeEngine")
+    return engine.summarize_messages
 
-    Reuses ``LiveLlmEngine``'s existing completion primitives
-    (``_model_access_chat``/``_chat_completion``) rather than the full
-    ``InvokeEngineIo``/kernel turn machinery, since this is a one-off,
-    out-of-band call made during context assembly, not a tracked turn. It
-    still goes through the engine's own ``BudgetTracker`` (``allow_llm``/
-    ``note_llm``) so a manifest's ``spec.budget.max_llm_calls`` ceiling can't
-    be silently exceeded by summarization calls the budget never sees.
-    """
 
-    def summarize_fn(messages: list[dict[str, Any]]) -> str:
-        budget = getattr(engine, "_budget", None)
-        if budget is not None and not budget.allow_llm():
-            raise RuntimeError(
-                "working_memory compaction summarize_fn: LLM call budget "
-                "exceeded (spec.budget.max_llm_calls)"
-            )
-        prompt = [
-            {"role": "system", "content": SUMMARIZE_INSTRUCTIONS},
-            {"role": "user", "content": json.dumps(messages, default=str)},
-        ]
-        if budget is not None:
-            budget.note_llm()
-        logger.debug("working_memory compaction: summarizing %d message(s) via LLM", len(messages))
-        if getattr(engine, "_uses_model_access", None) and engine._uses_model_access():
-            message = engine._model_access_chat(prompt, tools=None, temperature=0.0)
-        else:
-            api_key = os.environ.get(getattr(engine, "api_key_env", ""), "")
-            message = engine._chat_completion(prompt, api_key=api_key, tools=None, temperature=0.0)
-        content = message.get("content") if isinstance(message, dict) else getattr(message, "content", "")
-        return str(content or "").strip()
-
-    return summarize_fn
+def _wire_summarize_fn(binding: dict[str, Any], engine: Any) -> dict[str, Any]:
+    """Attach ``summarize_fn`` to a ``summarising`` context_manager binding."""
+    if not is_summarising_context_manager(binding):
+        return binding
+    params = dict(binding.get("params") or {})
+    if callable(params.get("summarize_fn")):
+        return {**binding, "params": params}
+    if isinstance(engine, CompactionSummarizeEngine):
+        params["summarize_fn"] = engine.summarize_messages
+        return {**binding, "params": params}
+    logger.warning(
+        "context_manager.type=summarising needs an engine implementing "
+        "CompactionSummarizeEngine; none available — falling back to keep_recent "
+        "(unbounded history, no compaction)."
+    )
+    return {"type": "stack", "params": {}}
 
 
 def apply_working_memory_compaction(spec: dict[str, Any], *, engine: Any = None) -> None:
-    """Mutate ``spec`` in place: synthesize ``spec.context_manager`` from
-    ``spec.working_memory.compaction`` when applicable (see
-    ``resolve_working_memory_context_manager``).
+    """Mutate ``spec`` in place: resolve ``context_manager`` from WM compaction
+    sugar when needed, then wire ``summarize_fn`` for ``SummarizingConversation``.
 
-    When the resolved strategy is ``summarize``, a real ``summarize_fn`` is
-    wired in only if ``engine`` looks like a live LLM engine (has the
-    completion primitives ``build_llm_summarize_fn`` needs) -- a mock/
-    simulated engine has no model to call, so compaction degrades to
-    ``keep_recent`` with a warning rather than crashing at first use.
+    Author-facing config lives under ``spec.working_memory.compaction``. The
+    translated ``context_manager`` binding is the assembly-time plugin hook
+    only; commit-time chunk compaction reads ``working_memory_compaction_runtime``
+    on ``AutoCtxAssembler`` instead.
     """
     binding = resolve_working_memory_context_manager(spec)
-    if binding is None:
+    if binding is not None:
+        spec["context_manager"] = _wire_summarize_fn(binding, engine)
         return
-    if binding["type"] == "summarising":
-        if engine is not None and hasattr(engine, "_chat_completion"):
-            binding["params"]["summarize_fn"] = build_llm_summarize_fn(engine)
-        else:
-            logger.warning(
-                "working_memory.compaction.strategy=summarize needs a live LLM "
-                "engine to build summaries; none available here — falling back "
-                "to keep_recent (unbounded history, no compaction)."
-            )
-            binding = {"type": "stack", "params": {}}
-    spec["context_manager"] = binding
+    cm = spec.get("context_manager")
+    if isinstance(cm, dict):
+        spec["context_manager"] = _wire_summarize_fn(cm, engine)

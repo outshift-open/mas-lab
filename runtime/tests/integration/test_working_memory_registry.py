@@ -4,6 +4,7 @@
 
 from types import SimpleNamespace
 
+from mas.runtime.boundary.context.conversation_chunks import ConversationChunkStore
 from mas.runtime.boundary.context.working_memory_registry import (
     WorkingMemoryConfig,
     WorkingMemoryRegistry,
@@ -17,12 +18,14 @@ from mas.runtime.boundary.context.working_memory_registry import (
     sync_working_memory_in,
     sync_working_memory_out,
 )
+from mas.runtime.driver.mocks import AutoCtxAssembler
 
 
 class _FakeCtx:
     def __init__(self, turn_history=None, committed_messages=None):
         self.turn_history = list(turn_history or [])
         self.committed_messages = list(committed_messages or [])
+        self.conversation_chunks = ConversationChunkStore()
 
 
 def _fake_instance(*, persistent: bool = True, ctx: "_FakeCtx | None" = None) -> SimpleNamespace:
@@ -184,3 +187,20 @@ def test_sync_working_memory_out_does_not_save_when_not_persistent():
     instance = _fake_instance(persistent=False, ctx=ctx)
     sync_working_memory_out(instance, memory_key="s", agent_id="a")
     assert get_working_memory_registry().get("s", "a") is None
+
+
+def test_sync_working_memory_round_trips_conversation_chunks():
+    reset_working_memory_registry()
+    ctx = AutoCtxAssembler()
+    ctx.note_user_input("hello")
+    ctx.note_agent_response("world")
+    instance = _fake_instance(ctx=ctx)
+    sync_working_memory_out(instance, memory_key="sess-1", agent_id="agent-a")
+
+    fresh = AutoCtxAssembler()
+    fresh.conversation_chunks = ConversationChunkStore()
+    instance.driver.ctx = fresh
+    sync_working_memory_in(instance, memory_key="sess-1", agent_id="agent-a")
+
+    assert fresh.conversation_chunks.project_messages()
+    assert any(m.get("content") == "hello" for m in fresh.conversation_chunks.project_messages())

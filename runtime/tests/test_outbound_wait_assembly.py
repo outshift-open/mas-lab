@@ -41,7 +41,6 @@ def test_working_memory_pinned_whole_in_turn() -> None:
     q = QProduct()
     register_inflight(q, 7, kind="TOOL", op="TOOL_CALL")
     ctx = AutoCtxAssembler(last_user_text="continue")
-    ctx.q_product = q
     ctx.record_assistant_tool_call(call_id="call_7", tool_name="search", arguments={})
     ctx.record_tool_result(call_id="call_7", content="partial")
     ctx.record_assistant_tool_call(call_id="call_8", tool_name="search", arguments={})
@@ -51,10 +50,7 @@ def test_working_memory_pinned_whole_in_turn() -> None:
 
 
 def test_assemble_pins_wm_under_budget() -> None:
-    q = QProduct()
-    register_inflight(q, 1, kind="TOOL", op="TOOL_CALL")
     ctx = AutoCtxAssembler(last_user_text="Who is POTUS?")
-    ctx.q_product = q
     ctx.record_assistant_tool_call(call_id="call_1", tool_name="web-search", arguments={"q": "POTUS"})
     ctx.record_tool_result(call_id="call_1", content="Donald Trump is president.")
     manifest = {
@@ -86,11 +82,7 @@ def test_assemble_committed_history_provider_safe_after_stack_trim() -> None:
 
 
 def test_inflight_partial_parallel_tools_preserved_in_payload() -> None:
-    q = QProduct()
-    register_inflight(q, 10, kind="TOOL", op="TOOL_CALL")
-    register_inflight(q, 11, kind="TOOL", op="TOOL_CALL")
     ctx = AutoCtxAssembler(last_user_text="continue")
-    ctx.q_product = q
     ctx.working_memory.record_assistant_tool_calls(
         [
             ("call_a", "search", {"q": "a"}),
@@ -160,9 +152,6 @@ def test_assembler_preserves_live_turn_inflight_tool_calls() -> None:
 
 def test_high_level_react_path_still_sees_tool_result() -> None:
     ctx = AutoCtxAssembler(last_user_text="Who is POTUS?")
-    q = QProduct()
-    register_inflight(q, 1, kind="TOOL", op="TOOL_CALL")
-    ctx.q_product = q
     ctx.record_assistant_tool_call(call_id="call_1", tool_name="web-search", arguments={"q": "POTUS"})
     ctx.record_tool_result(call_id="call_1", content="Donald Trump is president.")
     messages = assemble_llm_messages(ctx)
@@ -177,12 +166,10 @@ def test_concurrent_sessions_have_isolated_kernel_and_assembly() -> None:
     register_inflight(q_a, 1, kind="TOOL", op="TOOL_CALL")
 
     ctx_a = AutoCtxAssembler(session_id="sess-a", last_user_text="A")
-    ctx_a.q_product = q_a
     ctx_a.record_assistant_tool_call(call_id="call_a", tool_name="search", arguments={})
     ctx_a.record_tool_result(call_id="call_a", content="result-a")
 
     ctx_b = AutoCtxAssembler(session_id="sess-b", last_user_text="B")
-    ctx_b.q_product = q_b
 
     msgs_a = assemble_llm_messages(ctx_a)
     msgs_b = assemble_llm_messages(ctx_b)

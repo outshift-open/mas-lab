@@ -190,3 +190,11 @@ class BidirectionalPipelineEngine:
         reset_fn = getattr(self.inner, "reset_turn_state", None)
         if callable(reset_fn):
             reset_fn()
+
+    def summarize_messages(self, messages: list[dict[str, Any]]) -> str:
+        from mas.runtime.engine.protocol import CompactionSummarizeEngine
+
+        inner = self.inner
+        if not isinstance(inner, CompactionSummarizeEngine):
+            raise TypeError(f"{type(inner).__name__} does not implement CompactionSummarizeEngine")
+        return inner.summarize_messages(messages)

@@ -23,13 +23,19 @@ for it).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+from mas.runtime.boundary.context.conversation_chunks import ConversationChunkStore
+
+if TYPE_CHECKING:
+    from mas.runtime.driver.mocks import AutoCtxAssembler
 
 
 @dataclass
 class WorkingMemorySnapshot:
     turn_history: list[tuple[str, str]] = field(default_factory=list)
     committed_messages: list[dict[str, Any]] = field(default_factory=list)
+    conversation_chunks: dict[str, Any] | None = None
 
 
 @dataclass
@@ -73,24 +79,33 @@ class WorkingMemoryRegistry:
         self._store.clear()
 
 
-def snapshot_ctx(ctx: Any) -> WorkingMemorySnapshot:
+def snapshot_ctx(ctx: "AutoCtxAssembler") -> WorkingMemorySnapshot:
     """Capture the cross-turn conversation buffer off an ``AutoCtxAssembler``."""
+    chunk_store = ctx.conversation_chunks
+    chunks_dict = (
+        chunk_store.to_dict()
+        if chunk_store.order or chunk_store.summary_chunk_id
+        else None
+    )
     return WorkingMemorySnapshot(
-        turn_history=list(getattr(ctx, "turn_history", ())),
-        committed_messages=list(getattr(ctx, "committed_messages", ())),
+        turn_history=list(ctx.turn_history),
+        committed_messages=list(ctx.committed_messages),
+        conversation_chunks=chunks_dict,
     )
 
 
-def restore_ctx(ctx: Any, snapshot: WorkingMemorySnapshot) -> None:
+def restore_ctx(ctx: "AutoCtxAssembler", snapshot: WorkingMemorySnapshot) -> None:
     """Replace ``ctx``'s cross-turn conversation buffer with a saved snapshot."""
     ctx.turn_history = list(snapshot.turn_history)
     ctx.committed_messages = list(snapshot.committed_messages)
+    ctx.conversation_chunks = ConversationChunkStore.from_dict(snapshot.conversation_chunks)
 
 
-def clear_ctx_working_memory(ctx: Any) -> None:
+def clear_ctx_working_memory(ctx: "AutoCtxAssembler") -> None:
     """Start ``ctx`` fresh for a non-persistent agent (system prompt untouched)."""
     ctx.turn_history = []
     ctx.committed_messages = []
+    ctx.conversation_chunks = ConversationChunkStore()
 
 
 def is_persistent(instance: Any) -> bool:

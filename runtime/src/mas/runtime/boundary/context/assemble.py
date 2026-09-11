@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Any
 
 from mas.library.standard.plugins.context.provider_payload import sanitize_provider_messages
+from mas.runtime.boundary.context.conversation_chunks import ConversationChunkStore
 from mas.runtime.boundary.context.trim import context_manager_spec
 from mas.runtime.boundary.context.working_memory import WorkingMemoryStore
 from mas.runtime.contracts.cm_factory import CMFactory
@@ -63,8 +64,13 @@ def assemble_llm_messages(
     if system_parts:
         messages.append({"role": "system", "content": "\n\n".join(system_parts)})
 
+    chunk_store = getattr(ctx, "conversation_chunks", None)
     committed = list(getattr(ctx, "committed_messages", []) or [])
-    if committed:
+    if isinstance(chunk_store, ConversationChunkStore) and (
+        chunk_store.order or chunk_store.summary_chunk_id
+    ):
+        past = chunk_store.project_messages()
+    elif committed:
         past = list(committed)
     else:
         past = _turn_history_to_past(list(getattr(ctx, "turn_history", []) or []))

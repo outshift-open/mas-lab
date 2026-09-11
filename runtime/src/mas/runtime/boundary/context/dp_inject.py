@@ -4,8 +4,8 @@
 
 from __future__ import annotations
 
-from mas.runtime.registry import get_registry
 from mas.runtime.kernel.state import QProduct
+from mas.runtime.registry import get_registry
 
 
 def inject_dp_protocol(

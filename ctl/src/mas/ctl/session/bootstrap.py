@@ -4,14 +4,11 @@
 
 from __future__ import annotations
 
-import os
 import logging
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-
-from mas.runtime.driver.instance import RuntimeInstance
-from mas.runtime.driver.mocks import AutoCtxAssembler
 
 from mas.ctl.adapters.checkpoint import JsonCheckpointStore
 from mas.ctl.adapters.memory_seed import (
@@ -26,6 +23,8 @@ from mas.ctl.validate import validate_file, validation_enabled
 from mas.ctl.workspace.config import WorkspaceConfig
 from mas.runtime.agent_defaults import default_pattern_plugin_id
 from mas.runtime.boundary.context.manifest_context import context_chunks_from_spec
+from mas.runtime.driver.instance import RuntimeInstance
+from mas.runtime.driver.mocks import AutoCtxAssembler
 
 logger = logging.getLogger(__name__)
 
@@ -155,9 +154,11 @@ def instantiate_runtime(
 
     from mas.runtime.boundary.context.working_memory_compaction import (
         apply_working_memory_compaction,
+        working_memory_compaction_runtime,
     )
 
     apply_working_memory_compaction(spec, engine=selection.engine)
+    ctx.working_memory_compaction = working_memory_compaction_runtime(spec)
     if "context_manager" in spec and options.agent_manifest is not None:
         # LiveLlmEngine holds a live reference to options.agent_manifest (not
         # `spec` above, a separate shallow copy) and reads context_manager
