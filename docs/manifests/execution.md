@@ -156,6 +156,33 @@ invocation per candidate in a multi-tool reply).
 Raise the value when a legitimate workload schedules more than 32 parallel tool
 calls in one turn. Lower it to fail fast on runaway tool batches.
 
+## `max_auto_steps`
+
+```yaml
+execution:
+  max_auto_steps: 512   # default: 512
+```
+
+Caps how many kernel dispatch-loop iterations (`LLM_CALL` / `TOOL_CALL` /
+`HITL` round-trips) `KernelDriver` auto-advances through for **one** ingress
+event (e.g. one user turn) before stopping with items still queued and
+undispatched. This is a step count, not a wall-clock timeout.
+
+| | |
+|---|---|
+| Manifest | `spec.execution.max_auto_steps` (integer ≥ 1, default **512**) |
+| Runtime | `KernelConfig.max_auto_steps` → `KernelDriver.max_auto_steps` |
+| Source | `runtime/src/mas/runtime/kernel/config.py`, `runtime/src/mas/runtime/driver/driver.py` |
+
+Raise the value for agents whose normal workflow legitimately needs more
+turns than the default — for example a multi-agent incident-triage pattern
+that delegates to several specialist agents and each one may retry a failed
+tool call several times before moving on. Hitting the cap does not fail the
+turn outright; it stops auto-dispatch with `"max_auto_steps (N) exhausted
+with M item(s) still queued and undispatched"` logged, so a run that trips
+it is usually a sign the workload needs a higher budget rather than that
+something is broken.
+
 ## `live` and `timeout`
 
 Both are accepted by the schema (`live: boolean`, `timeout: number`) but are

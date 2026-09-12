@@ -249,17 +249,21 @@ def build_manifest_tool_provider(
 
     # Inject system tools first (always available, not in manifest). A
     # {kind: system, name: request_human_input, params: {...}} entry in
-    # tools_spec configures the HITL wrapper (timeout, auto_resolve_decision)
-    # even though it's otherwise a redundant/documentation-only declaration
-    # (skipped below) — read it before injecting.
+    # tools_spec configures the HITL wrapper (timeout, auto_resolve_decision,
+    # max_question_length); a {kind: system, name: inform_user, params: {...}}
+    # entry configures max_message_length. Both are otherwise a redundant/
+    # documentation-only declaration (skipped below) — read before injecting.
     if include_system_tools:
-        hitl_params = _hitl_system_tool_params(tools_spec)
+        hitl_params = _system_tool_params(tools_spec, "request_human_input")
+        inform_user_params = _system_tool_params(tools_spec, "inform_user")
         _inject_system_tools(
             provider,
             hitl_contract=hitl_contract,
             user_io_contract=user_io_contract,
             hitl_default_timeout_seconds=hitl_params.get("timeout"),
             hitl_auto_resolve_decision=hitl_params.get("auto_resolve_decision"),
+            max_question_length=hitl_params.get("max_question_length"),
+            max_message_length=inform_user_params.get("max_message_length"),
         )
 
     if not tools_spec:
@@ -297,13 +301,13 @@ def build_manifest_tool_provider(
     return provider
 
 
-def _hitl_system_tool_params(tools_spec: list[Any]) -> dict[str, Any]:
-    """Extract ``params`` from a ``{kind: system, name: request_human_input}``
-    entry in ``spec.tools``, if declared -- the manifest-level default for
-    the HITL wrapper's timeout/auto_resolve_decision (a call's own ``timeout``
-    argument still wins over this)."""
+def _system_tool_params(tools_spec: list[Any], name: str) -> dict[str, Any]:
+    """Extract ``params`` from a ``{kind: system, name: <name>}`` entry in
+    ``spec.tools``, if declared -- the manifest-level config for a system
+    tool (e.g. request_human_input's timeout/auto_resolve_decision/
+    max_question_length, or inform_user's max_message_length)."""
     for raw in tools_spec or []:
-        if isinstance(raw, dict) and raw.get("kind") == "system" and raw.get("name") == "request_human_input":
+        if isinstance(raw, dict) and raw.get("kind") == "system" and raw.get("name") == name:
             return dict(raw.get("params") or {})
     return {}
 
@@ -315,6 +319,8 @@ def _inject_system_tools(
     user_io_contract: UserIOContract | None = None,
     hitl_default_timeout_seconds: float | None = None,
     hitl_auto_resolve_decision: str | None = None,
+    max_question_length: int | None = None,
+    max_message_length: int | None = None,
 ) -> None:
     """Add built-in system tools to the provider.
 
@@ -324,9 +330,16 @@ def _inject_system_tools(
     """
     from mas.runtime.system_tools import InformUserTool, RequestHumanInputTool
 
+    request_human_input_kwargs: dict[str, Any] = {}
+    if max_question_length is not None:
+        request_human_input_kwargs["max_question_length"] = int(max_question_length)
+    inform_user_kwargs: dict[str, Any] = {}
+    if max_message_length is not None:
+        inform_user_kwargs["max_message_length"] = int(max_message_length)
+
     provider._add_instance(
         _SystemToolHitlWrapper(
-            RequestHumanInputTool(),
+            RequestHumanInputTool(**request_human_input_kwargs),
             hitl_contract=hitl_contract,
             default_timeout_seconds=hitl_default_timeout_seconds,
             auto_resolve_decision=hitl_auto_resolve_decision,
@@ -334,7 +347,7 @@ def _inject_system_tools(
         manifest_contract=None,
     )
     provider._add_instance(
-        _SystemToolUserUpdateWrapper(InformUserTool(), user_io_contract=user_io_contract),
+        _SystemToolUserUpdateWrapper(InformUserTool(**inform_user_kwargs), user_io_contract=user_io_contract),
         manifest_contract=None,
     )
 

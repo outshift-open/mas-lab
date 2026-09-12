@@ -79,6 +79,20 @@ def resolve_path_ref(ref: str, base_dir: Path) -> Path:
     return p if p.is_absolute() else (base_dir / ref).resolve()
 
 
+def path_ref_for_anchor(path: Path, anchor: Path) -> str:
+    """Express a resolved filesystem path as a manifest ref relative to *anchor*.
+
+    *anchor* is typically the MAS application root (parent of ``mas.yaml``).
+    When *path* is not under *anchor*, returns an absolute POSIX path string.
+    """
+    resolved = path.resolve()
+    root = anchor.resolve()
+    try:
+        return resolved.relative_to(root).as_posix()
+    except ValueError:
+        return resolved.as_posix()
+
+
 def _resolve_in_library(lib_root: Path, rel_path: str) -> Path:
     """Resolve a manifest-library-relative ref, URN-style.
 

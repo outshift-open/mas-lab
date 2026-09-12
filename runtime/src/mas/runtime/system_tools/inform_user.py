@@ -6,9 +6,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, create_model
 
 from mas.runtime.contracts.tool_contract import ToolContract
+
+#: Default cap on ``message`` length — see ``max_message_length`` on __init__.
+DEFAULT_MAX_MESSAGE_LENGTH = 2000
 
 
 class InformUserTool(ToolContract):
@@ -47,7 +50,7 @@ class InformUserTool(ToolContract):
             ...,
             description="The status/progress update to show the user",
             min_length=1,
-            max_length=2000,
+            max_length=DEFAULT_MAX_MESSAGE_LENGTH,
         )
         user_name: str = Field(
             default="",
@@ -61,6 +64,33 @@ class InformUserTool(ToolContract):
             default_factory=dict,
             description="Optional contextual data to attach to the update",
         )
+
+    def __init__(self, *, max_message_length: int = DEFAULT_MAX_MESSAGE_LENGTH) -> None:
+        """``max_message_length``: configurable via a ``spec.tools`` entry —
+
+            - kind: system
+              name: inform_user
+              params: {max_message_length: 8000}
+
+        Default matches the class-level ``Input.message`` schema (2000); a
+        non-default value rebuilds ``Input`` so the *advertised* tool schema
+        (what the model sees) always matches what's actually enforced.
+        """
+        self.max_message_length = max_message_length
+        if max_message_length != DEFAULT_MAX_MESSAGE_LENGTH:
+            self.Input = create_model(
+                "Input",
+                __base__=InformUserTool.Input,
+                message=(
+                    str,
+                    Field(
+                        ...,
+                        description="The status/progress update to show the user",
+                        min_length=1,
+                        max_length=max_message_length,
+                    ),
+                ),
+            )
 
     def get_name(self) -> str:
         return "inform_user"

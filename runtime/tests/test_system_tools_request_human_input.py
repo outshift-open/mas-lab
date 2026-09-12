@@ -189,6 +189,52 @@ def test_auto_resolve_decision_configurable_via_manifest_params(empty_tool_tree:
     assert result["choice"] == "reject"
 
 
+def test_default_max_question_length_matches_schema_constant():
+    from mas.runtime.system_tools.request_human_input import DEFAULT_MAX_QUESTION_LENGTH
+
+    tool = RequestHumanInputTool()
+    assert tool.max_question_length == DEFAULT_MAX_QUESTION_LENGTH
+    with pytest.raises(ValueError):
+        tool.execute(question="x" * (DEFAULT_MAX_QUESTION_LENGTH + 1))
+
+
+def test_manifest_params_configure_max_question_length(empty_tool_tree: Path):
+    provider = build_manifest_tool_provider(
+        [{"kind": "system", "name": "request_human_input", "params": {"max_question_length": 8000}}],
+        empty_tool_tree,
+    )
+    wrapper = next(
+        t for t in provider._tool_instances if getattr(t, "_tool", None).__class__.__name__ == "RequestHumanInputTool"
+    )
+    assert wrapper._tool.max_question_length == 8000
+    # A question that would fail the default 2000-char cap must pass under the
+    # manifest-configured 8000-char cap (issue #65 follow-up: a more verbose
+    # model's output shouldn't fail validation just because the default is small).
+    from mas.runtime.system_tools.signal import RequestHitlSignal
+
+    long_question = "x" * 3000
+    with pytest.raises(RequestHitlSignal):
+        wrapper._tool.execute(question=long_question, choices=["a", "b"])
+
+
+def test_configured_max_question_length_still_rejects_beyond_it(empty_tool_tree: Path):
+    provider = build_manifest_tool_provider(
+        [{"kind": "system", "name": "request_human_input", "params": {"max_question_length": 100}}],
+        empty_tool_tree,
+    )
+    wrapper = next(
+        t for t in provider._tool_instances if getattr(t, "_tool", None).__class__.__name__ == "RequestHumanInputTool"
+    )
+    with pytest.raises(ValueError):
+        wrapper._tool.execute(question="x" * 101)
+
+
+def test_advertised_schema_reflects_configured_max_question_length():
+    tool = RequestHumanInputTool(max_question_length=8000)
+    schema = tool.get_parameters_schema()
+    assert schema["properties"]["question"]["maxLength"] == 8000
+
+
 def test_manifest_auto_resolve_decision_wins_over_env_var(empty_tool_tree: Path, monkeypatch):
     monkeypatch.setenv("MAS_HITL_AUTO_RESOLVE", "1")
     monkeypatch.setenv("MAS_HITL_AUTO_RESOLVE_DECISION", "reject")

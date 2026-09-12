@@ -46,6 +46,7 @@ from urllib.request import urlopen
 from urllib.error import URLError
 
 from mas.lab.benchmark.pipeline import PipelineStep, StepOutput
+from mas.runtime.spec.infra_paths import experiment_infra_bundle_path, resolve_infra_bundle
 
 logger = logging.getLogger(__name__)
 
@@ -70,25 +71,15 @@ def _resolve_infra_yaml(
         )
         exp_dir = config_path.parent if config_path else Path(".")
 
-    filename = f"{infra_name}.yaml"
-
-    # 1. experiment-local infra/
-    local_path = exp_dir / "infra" / filename
-    if local_path.exists():
-        return local_path
-
-    # 2. workspace root infra/
-    # Walk up to find a directory that looks like the workspace root.
-    for parent in [exp_dir, *exp_dir.parents]:
-        ws_candidate = parent / "infra" / filename
-        if ws_candidate.exists():
-            return ws_candidate
-        # Stop at the workspace root (has pyproject.toml + flavours/ or infra/)
-        if (parent / "pyproject.toml").exists() and (parent / "infra").is_dir():
-            break
-
+    found = resolve_infra_bundle(exp_dir, infra_name, search_workspace=True)
+    if found is not None:
+        return found
     # Return the local path even if missing — ServiceManager will log a warning.
-    return local_path
+    local = experiment_infra_bundle_path(exp_dir, infra_name)
+    if local is not None:
+        return local
+    name = infra_name if infra_name.endswith(".yaml") else f"{infra_name}.yaml"
+    return exp_dir / "infra" / name
 
 
 def _wait_for_url(url: str, timeout: int) -> bool:

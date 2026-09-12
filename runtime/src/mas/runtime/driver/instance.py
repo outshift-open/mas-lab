@@ -58,7 +58,8 @@ class RuntimeInstance:
         obs_base_dir: Path | None = None,
         obs_agent_id: str | None = None,
     ) -> RuntimeInstance:
-        kernel = RuntimeKernel(config=config or KernelConfig())
+        resolved_config = config or KernelConfig()
+        kernel = RuntimeKernel(config=resolved_config)
         op = ObservabilityOperator() if enable_observability else None
         driver = KernelDriver(
             kernel=kernel,
@@ -67,6 +68,7 @@ class RuntimeInstance:
             ctx=ctx or AutoCtxAssembler(),
             observability=op,
             coordination=ChokepointCoordinator() if enable_coordination else None,
+            max_auto_steps=resolved_config.max_auto_steps,
         )
         instance = cls(kernel=kernel, driver=driver)
 
