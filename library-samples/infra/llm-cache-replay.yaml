@@ -1,0 +1,21 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: infra/v1
+kind: InfraMiddleware
+
+metadata:
+  name: llm-cache-replay
+  description: >
+    Strict replay from cache_path only (pair with llm-cache-write.yaml).
+    raise_on_miss errors on a miss instead of calling the provider.
+    See docs/manifests/llm-cache.md.
+
+spec:
+  middleware: llm_cache
+  applies_to:
+    - LLM_CALL
+  params:
+    allow_read: true
+    allow_write: false
+    raise_on_miss: true
+    cache_path: library-samples/infra/cache/demo.llm-cache.json

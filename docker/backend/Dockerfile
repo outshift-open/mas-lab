@@ -36,7 +36,7 @@ COPY library-eval/ library-eval/
 COPY lab/ lab/
 
 # Default workspace content (overridden when /workspace is mounted)
-COPY examples/sample-workspace/config.yaml ./config.yaml
+COPY library-samples/sample-workspace/config.yaml ./config.yaml
 COPY labs/ labs/
 COPY docs/tutorials/ docs/tutorials/
 

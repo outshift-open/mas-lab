@@ -102,7 +102,7 @@ execution:
 `SkillPluginRegistry(impl="native" | "adk" | "langchain")` selects the
 engine and dynamically imports the matching `plugin_skills_*.py` module —
 see `docs/developer-guide.md` for the full interface and
-`examples/skill_plugin_comparison.py` for a side-by-side comparison.
+`library-skills/tests/test_skill_plugins_functional.py` and `examples/quickstart/` for runnable comparisons.
 
 Per-deployment `impl` selection is wired end-to-end through bootstrap:
 overlay/manifest tool entries can set `impl` (`native` / `adk` /

@@ -36,12 +36,19 @@ field entirely.
 
 ---
 
-## `cache` — the LLM response cache
+## `cache` — the LLM response cache (built-in engine)
 
 Every `LiveLlmEngine` call can look up a previous response before calling the
-model, and store a fresh one after. This is the cache that makes offline
-tutorials, CI, and golden-run fixtures deterministic and free — it is
-**unrelated** to the benchmark **trace cache** described in
+model, and store a fresh one after. This is the **per-agent / CLI** cache path
+(`spec.execution.cache`, `MAS_LLM_CACHE_*`). For **shared infra-level** record
+and replay (`allow_read` / `allow_write` / `raise_on_miss` on the middleware
+stack), see **[llm-cache.md](llm-cache.md)** (guide) and
+**[llm-cache reference](../references/llm-cache.md)** instead.
+
+When an infra `pipeline` includes `llm_cache`, the built-in engine cache is
+disabled for that session — configure caching via middleware params.
+
+This cache is also **unrelated** to the benchmark **trace cache** described in
 [Tutorial 3](../tutorials/03-experiments-and-analysis/README.md#where-traces-are-stored),
 which caches whole *experiment runs*, not individual LLM calls. See
 [user-config.md](../user-config.md#path-variable-reference) for both caches
@@ -193,6 +200,8 @@ explicit live-mode override. Setting them today has no effect.
 
 ## See also
 
+- [llm-cache.md](llm-cache.md) — infra middleware guide
+- [llm-cache reference](../references/llm-cache.md) — infra middleware reference
 - [user-config.md](../user-config.md) — XDG path reference for all MAS caches (trace, artifacts, LLM response)
 - [Tutorial 3 — Experiments, Analysis & Evaluation](../tutorials/03-experiments-and-analysis/README.md) — running experiments, the trace cache
 - [agent.md](agent.md) — the manifest `spec.execution` lives in

@@ -9,7 +9,7 @@ Canonical `config.yaml` for OSS development and CI.
 **Use it**
 
 - Copy `config.yaml` to your project root, or
-- `export MAS_WORKSPACE_ROOT=/path/to/mas-lab/examples/sample-workspace`
+- `export MAS_WORKSPACE_ROOT=/path/to/mas-lab/library-samples/sample-workspace`
 
 **Defaults**
 

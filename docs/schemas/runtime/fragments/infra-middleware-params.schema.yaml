@@ -9,6 +9,14 @@ additionalProperties: false
 properties:
   enabled:
     type: boolean
+  allow_read:
+    type: boolean
+  allow_write:
+    type: boolean
+  raise_on_miss:
+    type: boolean
+  include_preview:
+    type: boolean
   cache_path:
     type: [string, "null"]
   path:

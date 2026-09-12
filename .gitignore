@@ -8,6 +8,7 @@ build/
 .env.local
 .env.*.local
 config.yaml
+!lab/src/mas/lab/templates/**/config.yaml
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/

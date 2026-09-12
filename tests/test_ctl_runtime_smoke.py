@@ -30,7 +30,7 @@ def test_workspace_infra_refs_from_sample_workspace():
     from mas.ctl.workspace.config import WorkspaceConfig
 
     repo = Path(__file__).resolve().parents[1]
-    sample = repo / "examples" / "sample-workspace"
+    sample = repo / "library-samples" / "sample-workspace"
     assert (sample / "config.yaml").is_file()
     ws = WorkspaceConfig.load(sample)
     assert ws.found

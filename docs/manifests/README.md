@@ -38,7 +38,7 @@ config.yaml       ← project defaults (flavour, infra_refs, .env path)
 | **Execution** | `spec.execution` (part of `Agent`) | [execution.md](execution.md) |
 | **MAS** | `MAS`, `Workflow` | [mas.md](mas.md), [workflow.md](workflow.md) |
 | **Override** | `Overlay` | [overlay.md](overlay.md) |
-| **Environment** | `Flavour`, `InfraBundle`, `LLMProxy` | [flavour.md](flavour.md), [infra.md](infra.md) |
+| **Environment** | `Flavour`, `InfraBundle`, `LLMProxy`, `InfraMiddleware` | [flavour.md](flavour.md), [infra.md](infra.md), [llm-cache.md](llm-cache.md) · [ref](../references/llm-cache.md) |
 | **Experiment** | `experiment:` | [experiment.md](experiment.md) |
 | **Inputs** | `Dataset` | [dataset.md](dataset.md) |
 | **Processing** | `pipeline:` / `kind: Pipeline` | [pipeline.md](pipeline.md) |
