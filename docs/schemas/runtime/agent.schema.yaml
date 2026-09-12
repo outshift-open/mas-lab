@@ -734,13 +734,6 @@ properties:
           strategy: mapping_merge_or_ops
         default: {}
 
-      execution:
-        $ref: "./fragments/execution-binding.schema.yaml"
-        description: "EngineContract execution mode (mock, cache, parallel)."
-        x-merge:
-          strategy: execution_merge
-        default: {}
-
       control:
         $ref: "./fragments/control-binding.schema.yaml"
         x-merge:
@@ -767,26 +760,3 @@ properties:
           identity: plugin_id
         default: null
 
-      infra_refs:
-        type: array
-        description: >
-          Infra manifest references (LLM proxy, tool registry). Merged additively
-          from overlays.
-        x-merge:
-          strategy: list_ops
-          identity: value
-        items:
-          type: string
-        default: []
-
-      infra_interceptors:
-        type: array
-        x-merge:
-          strategy: list_ops
-          identity: value
-        description: >
-          Cross-cutting infra middleware (cache, chaos, …) outer-first in front
-          of merged infra_refs providers.
-        items:
-          type: string
-        default: []

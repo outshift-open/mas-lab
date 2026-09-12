@@ -26,7 +26,7 @@ from mas.ctl.executor.mas_session import (
 from mas.ctl.infra.resolve import resolve_infra_refs
 from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
 from mas.ctl.session.controller import ConversationConfig, SessionController, close_observability
-from mas.ctl.workspace.config import UserConfig, WorkspaceConfig, collect_mas_infra_refs, merge_infra_refs
+from mas.ctl.workspace.config import UserConfig, WorkspaceConfig, merge_infra_refs
 from mas.lab.manifest.load import (
     agent_manifest_from_path,
     entry_agent_from_compose,
@@ -295,8 +295,6 @@ class MasBenchRunner:
         checkpoint_dir = output_dir / "checkpoints" if checkpoint_save else None
 
         _infra = list(infra_refs or [])
-        if not _infra:
-            _infra = list((config.get("spec") or {}).get("infra_refs") or [])
         _overlay_refs: list[OverlayRefEntry] = list(overlay_refs or [])
         _overlays_dir = overlays_dir
         _overlay_base = overlay_base_dir
@@ -531,7 +529,6 @@ class MasBenchRunner:
         workspace = WorkspaceConfig.load(entry_manifest_path.parent)
         user = UserConfig.load()
         merged = merge_infra_refs(
-            mas_refs=collect_mas_infra_refs(entry_manifest),
             workspace_refs=workspace.effective_infra_refs,
             user_refs=[user.default_infra] if user.default_infra else [],
             cli_refs=list(infra_refs or []),

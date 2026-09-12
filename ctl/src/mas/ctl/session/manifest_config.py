@@ -46,9 +46,6 @@ def kernel_config_from_manifest(
             kernel, ingress_governance_plugins=chain, error_recovery_plugin=None
         )
 
-    execution = spec.get("execution") or {}
-    if "parallel" in execution:
-        kernel = dataclasses.replace(kernel, parallel_tool_calls=bool(execution["parallel"]))
     return kernel
 
 

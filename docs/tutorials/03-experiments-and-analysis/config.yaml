@@ -1,0 +1,7 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Tutorial workspace — mock LLM for integration tests and local dry runs.
+# See docs/tutorials/00-environment-setup for production infra_refs patterns.
+
+infra_refs:
+  - standard:mock-llm

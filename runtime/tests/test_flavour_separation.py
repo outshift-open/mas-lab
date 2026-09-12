@@ -68,12 +68,12 @@ class TestFlavourLlmSkillsMockingRejected:
     def test_mocking_block_rejected(self):
         data = _flavour({"mocking": {"enabled": True}})
         violations = FlavourSeparationValidator.collect_violations(data)
-        assert any("spec.mocking belongs in the execution overlay binding" in v for v in violations)
+        assert any("standard:mock-llm" in v or "infra_refs" in v for v in violations)
 
     def test_prefer_local_true_rejected(self):
         data = _flavour({"prefer_local": True})
         violations = FlavourSeparationValidator.collect_violations(data)
-        assert any("spec.prefer_local belongs in the execution overlay binding" in v for v in violations)
+        assert any("standard:mock-llm" in v or "infra_refs" in v for v in violations)
 
     def test_prefer_local_false_passes(self):
         data = _flavour({"prefer_local": False})

@@ -35,7 +35,7 @@ config.yaml       ← project defaults (flavour, infra_refs, .env path)
 | Layer | Manifest kinds | Reference |
 |-------|----------------|-----------|
 | **Agent** | `Agent` | [agent.md](agent.md) |
-| **Execution** | `spec.execution` (part of `Agent`) | [execution.md](execution.md) |
+| **Runtime engine** | `RuntimeEngine` (`infra/v1`, via workspace / CLI) | [runtime-engine.md](runtime-engine.md) · [execution.md](execution.md) (migration) |
 | **MAS** | `MAS`, `Workflow` | [mas.md](mas.md), [workflow.md](workflow.md) |
 | **Override** | `Overlay` | [overlay.md](overlay.md) |
 | **Environment** | `Flavour`, `InfraBundle`, `LLMProxy`, `InfraMiddleware` | [flavour.md](flavour.md), [infra.md](infra.md), [llm-cache.md](llm-cache.md) · [ref](../references/llm-cache.md) |

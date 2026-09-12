@@ -44,6 +44,7 @@ class InfraManifest:
     models: ModelsSpec = field(default_factory=ModelsSpec)
     model_access: dict[str, Any] = field(default_factory=dict)
     pipeline: list[dict[str, Any]] = field(default_factory=list)
+    runtime_engine: dict[str, Any] = field(default_factory=dict)
     raw: dict[str, Any] = field(default_factory=dict)
 
     @classmethod

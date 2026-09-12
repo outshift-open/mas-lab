@@ -22,10 +22,7 @@ def test_infra_name_prepends_experiment_local_bundle(tmp_path: Path) -> None:
     mas_yaml = mas_dir / "mas.yaml"
     mas_yaml.write_text("apiVersion: mas/v1\n", encoding="utf-8")
     loaded = LoadedExperiment(
-        exp=SimpleNamespace(
-            execution=SimpleNamespace(infra_refs=["other.yaml"]),
-            mas=SimpleNamespace(manifest=mas_yaml),
-        ),
+        exp=SimpleNamespace(mas=SimpleNamespace(manifest=mas_yaml)),
         experiment_yaml=exp_yaml,
         configs_dir=None,
         scenario_ids=["s1"],
@@ -39,5 +36,5 @@ def test_infra_name_prepends_experiment_local_bundle(tmp_path: Path) -> None:
         trace_cache_dir=None,
     )
     refs = _resolve_run_infra_refs(loaded)
+    assert len(refs) == 1
     assert refs[0].endswith("infra/gls-vllm.yaml")
-    assert "other.yaml" in refs

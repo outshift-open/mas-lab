@@ -88,6 +88,7 @@ tasks:
           tests/test_tutorial_manifests_resolve_refs.py \
           tests/test_oss_agent_manifests_strict.py \
           tests/test_lab_manifests_strict.py \
+          tests/test_shipped_manifest_separation.py \
           tests/test_workspace_imports.py \
           runtime/tests/ \
           lab/components/core/tests/ \

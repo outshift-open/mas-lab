@@ -230,7 +230,11 @@ properties:
       execution:
         type: object
         additionalProperties: false
-        description: "Batch execution parameters (MASExperimentConfig only). All fields are optional — defaults apply when absent."
+        description: >
+          mas-lab batch orchestration only (parallel scenarios, timeouts, emulation).
+          Not agent spec.execution (removed) — per-turn engine tuning uses RuntimeEngine
+          via workspace runtime_refs; LLM endpoints use workspace infra_refs.
+          All fields optional — defaults apply when absent.
         properties:
           parallel_scenarios:
             type: integer

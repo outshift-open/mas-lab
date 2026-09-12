@@ -71,3 +71,8 @@ def mas_state_root() -> Path:
 
 def mas_infra_dir() -> Path:
     return mas_config_dir() / "infra"
+
+
+def mas_runtime_dir() -> Path:
+    """User-level RuntimeEngine manifests (parallel to ``mas_infra_dir()``)."""
+    return mas_config_dir() / "runtime"

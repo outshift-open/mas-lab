@@ -37,6 +37,8 @@ class ResolvedInfra:
     tool_registry: dict[str, Any] = field(default_factory=dict)
     tool_server_registry: dict[str, Any] = field(default_factory=dict)
     observability: dict[str, Any] = field(default_factory=dict)
+    runtime_engine: dict[str, Any] = field(default_factory=dict)
+    runtime_refs: list[str] = field(default_factory=list)
 
 
 @dataclass

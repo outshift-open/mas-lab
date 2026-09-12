@@ -41,13 +41,13 @@ class FlavourSeparationValidator(SeparationValidator):
     kind = "flavour"
 
     # FT4: a flavour is deployment posture only — these moved to kind: Agent
-    # (llm, skills) or the execution overlay binding (mocking, prefer_local).
+    # (llm, skills); mocking via workspace infra_refs (standard:mock-llm).
     # See docs/design/flavour-boundary.md.
     _FORBIDDEN_BLOCKS: ClassVar[dict[str, str]] = {
         "llm": "spec.llm belongs in kind: Agent (spec.models), not Flavour",
         "skills": "spec.skills belongs in kind: Agent, not Flavour",
-        "mocking": "spec.mocking belongs in the execution overlay binding (spec.patch.execution.mocking), not Flavour",
-        "prefer_local": "spec.prefer_local belongs in the execution overlay binding, not Flavour",
+        "mocking": "spec.mocking belongs in workspace infra_refs (e.g. standard:mock-llm), not Flavour",
+        "prefer_local": "spec.prefer_local belongs in workspace infra_refs / runtime tuning, not Flavour",
     }
 
     @classmethod
@@ -64,6 +64,33 @@ class FlavourSeparationValidator(SeparationValidator):
         return violations
 
 
+class AgentSeparationValidator(SeparationValidator):
+    kind = "agent"
+
+    @classmethod
+    def _collect_violations(cls, data: dict[str, Any]) -> list[str]:
+        spec = data.get("spec", {}) or {}
+        violations: list[str] = []
+        if spec.get("execution"):
+            violations.append(
+                "spec.execution is forbidden on Agent — use workspace runtime_refs, "
+                "$XDG_CONFIG_HOME/mas/runtime/, or --runtime-ref"
+            )
+        if spec.get("runtime_refs") or spec.get("runtime_ref"):
+            violations.append(
+                "spec.runtime_refs is forbidden on Agent — use workspace config or CLI"
+            )
+        if spec.get("infra_refs") or spec.get("infra_ref"):
+            violations.append(
+                "spec.infra_refs is forbidden on Agent — use workspace config.yaml or --infra-ref"
+            )
+        if spec.get("infra_interceptors") or spec.get("infra_interceptor"):
+            violations.append(
+                "spec.infra_interceptors is forbidden on Agent — use workspace config or CLI"
+            )
+        return violations
+
+
 class MASSeparationValidator(SeparationValidator):
     kind = "mas"
     _ACCESS_KEYS: ClassVar[frozenset[str]] = frozenset({"api_base", "api_key_env"})
@@ -71,6 +98,19 @@ class MASSeparationValidator(SeparationValidator):
     @classmethod
     def _collect_violations(cls, data: dict[str, Any]) -> list[str]:
         violations: list[str] = []
+        spec = data.get("spec", {}) or {}
+        if spec.get("runtime_refs") or spec.get("runtime_ref"):
+            violations.append(
+                "spec.runtime_refs is forbidden on MAS — use workspace config or CLI"
+            )
+        if spec.get("infra_refs") or spec.get("infra_ref"):
+            violations.append(
+                "spec.infra_refs is forbidden on MAS — use workspace config.yaml or --infra-ref"
+            )
+        if spec.get("infra_interceptors") or spec.get("infra_interceptor"):
+            violations.append(
+                "spec.infra_interceptors is forbidden on MAS — use workspace config or CLI"
+            )
         for path, val in _iter_paths(data):
             if path.startswith("spec.agency.agents["):
                 continue
@@ -84,6 +124,29 @@ class MASSeparationValidator(SeparationValidator):
 
 class OverlaySeparationValidator(MASSeparationValidator):
     kind = "overlay"
+
+    @classmethod
+    def _collect_violations(cls, data: dict[str, Any]) -> list[str]:
+        violations = list(super()._collect_violations(data))
+        patch = (data.get("spec") or {}).get("patch") or {}
+        if isinstance(patch, dict):
+            if patch.get("execution"):
+                violations.append(
+                    "spec.patch.execution is forbidden — use workspace runtime_refs or --runtime-ref"
+                )
+            if patch.get("runtime_refs") or patch.get("runtime_ref"):
+                violations.append(
+                    "spec.patch.runtime_refs is forbidden — use workspace config or CLI"
+                )
+            if patch.get("infra_refs") or patch.get("infra_ref"):
+                violations.append(
+                    "spec.patch.infra_refs is forbidden — use workspace config or CLI"
+                )
+            if patch.get("infra_interceptors") or patch.get("infra_interceptor"):
+                violations.append(
+                    "spec.patch.infra_interceptors is forbidden — use workspace config or CLI"
+                )
+        return violations
 
 
 class PlacementPlanSeparationValidator(SeparationValidator):
@@ -111,6 +174,7 @@ class PlacementPlanSeparationValidator(SeparationValidator):
 
 
 _SEPARATION: dict[str, type[SeparationValidator]] = {
+    "agent": AgentSeparationValidator,
     "flavour": FlavourSeparationValidator,
     "mas": MASSeparationValidator,
     "overlay": OverlaySeparationValidator,

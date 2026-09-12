@@ -41,7 +41,6 @@ class CalcTool:
     manifest = {
         "metadata": {"name": "agent"},
         "spec": {
-            "execution": {"mocking": {"enabled": True}},
             "tools": [{"ref": "./tools/calculator.tool.yaml"}],
         },
     }

@@ -39,6 +39,7 @@ def golden_env(tmp_path, monkeypatch):
     # Isolate from personal ~/.cache/mas/llm_cache.json so MockModelAccess uses
     # its deterministic fallback rather than stale real-LLM cache entries.
     monkeypatch.setenv("MAS_LLM_CACHE", str(tmp_path / "llm_cache.json"))
+    monkeypatch.setenv("MAS_INFRA_REFS", "standard:mock-llm")
     return out, trace_cache
 
 

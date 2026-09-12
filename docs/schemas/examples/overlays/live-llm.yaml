@@ -9,11 +9,6 @@ spec:
   target:
     kind: Agent
   patch:
-    execution:
-      mocking:
-        enabled: false
-      cache:
-        enabled: true
     llm:
       provider: openai
       temperature: 0.7

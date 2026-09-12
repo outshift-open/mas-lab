@@ -330,10 +330,6 @@ async def execute_batch(
                     )
                     _overlay_refs = list(prepared.scenario_overlay_stacks.get(scenario_id, []))
                     _infra_refs = list(prepared.infra_refs)
-                    if isinstance(_sc_flavour, dict):
-                        _flavour_infra = list(_sc_flavour.get("infra_refs") or [])
-                        if _flavour_infra:
-                            _infra_refs = _flavour_infra
                     ctx = RunContext(
                         prompt=prompt,
                         config=config,

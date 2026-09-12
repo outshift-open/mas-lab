@@ -22,6 +22,7 @@ def resolve_session_infra(
     infra_refs_cli: tuple[str, ...] | list[str],
     anchor: Path | str,
     with_interceptors: bool = False,
+    runtime_refs_cli: tuple[str, ...] | list[str] = (),
 ) -> Any:
     """Merge MAS/workspace/user/CLI infra refs and resolve them to bundles.
 
@@ -30,14 +31,11 @@ def resolve_session_infra(
     """
     from mas.ctl.infra.resolve import resolve_infra_refs
     from mas.ctl.workspace.config import (
-        collect_infra_interceptors,
-        collect_mas_infra_refs,
         merge_infra_interceptors,
         merge_infra_refs,
     )
 
     merged = merge_infra_refs(
-        mas_refs=collect_mas_infra_refs(agent_data or {}),
         workspace_refs=workspace.effective_infra_refs,
         user_refs=[user.default_infra] if user.default_infra else [],
         cli_refs=list(infra_refs_cli),
@@ -46,9 +44,8 @@ def resolve_session_infra(
     kwargs: dict[str, Any] = {"anchor": anchor, "workspace": workspace, "user": user}
     if with_interceptors:
         kwargs["interceptors"] = merge_infra_interceptors(
-            mas_interceptors=collect_infra_interceptors(agent_data or {}),
             workspace_interceptors=workspace.infra_interceptors,
             cli_interceptors=[],
         )
-        kwargs["mas_config"] = agent_data or {}
+    kwargs["runtime_refs"] = list(runtime_refs_cli)
     return resolve_infra_refs(merged, **kwargs)

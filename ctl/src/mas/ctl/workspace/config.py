@@ -12,8 +12,9 @@ from typing import Any
 import yaml
 
 from mas.runtime.workspace_config import find_workspace_file, _user_config_path, resolve_config_relative
-from mas.runtime.xdg import mas_cache_root, mas_infra_dir
+from mas.runtime.xdg import mas_cache_root, mas_infra_dir, mas_runtime_dir
 _ENV_INFRA_REFS = "MAS_INFRA_REFS"
+_ENV_RUNTIME_REFS = "MAS_RUNTIME_REFS"
 
 
 def infra_refs_from_env() -> list[str]:
@@ -32,54 +33,58 @@ def infra_refs_from_env() -> list[str]:
 
 def merge_infra_refs(
     *,
-    mas_refs: list[str],
     workspace_refs: list[str],
     user_refs: list[str] | None = None,
     cli_refs: list[str],
     workspace_found: bool = False,
 ) -> list[str]:
-    """Merge infra refs: MAS < workspace < CLI; user default only if no workspace infra."""
+    """Merge infra refs: workspace < user default < CLI (never agent/MAS manifests)."""
     seen: set[str] = set()
     ordered: list[str] = []
     user_part = [] if (workspace_found and workspace_refs) else list(user_refs or [])
-    for ref in mas_refs + workspace_refs + user_part + cli_refs:
+    for ref in workspace_refs + user_part + cli_refs:
         if ref and ref not in seen:
             seen.add(ref)
             ordered.append(ref)
     return ordered
 
 
-def collect_mas_infra_refs(config: dict[str, Any]) -> list[str]:
-    spec = config.get("spec", config)
-    raw = spec.get("infra_refs") or spec.get("infra_ref")
+def runtime_refs_from_env() -> list[str]:
+    """Parse ``MAS_RUNTIME_REFS`` (comma- or space-separated RuntimeEngine refs)."""
+    raw = os.environ.get(_ENV_RUNTIME_REFS, "").strip()
     if not raw:
         return []
-    if isinstance(raw, str):
-        return [raw]
-    return list(raw)
+    parts = [p.strip() for p in raw.replace(",", " ").split() if p.strip()]
+    return parts
 
 
-def collect_infra_interceptors(config: dict[str, Any]) -> list[str]:
-    """Read ``spec.infra_interceptors`` from an agent or MAS manifest."""
-    spec = config.get("spec", config)
-    raw = spec.get("infra_interceptors") or spec.get("infra_interceptor")
-    if not raw:
-        return []
-    if isinstance(raw, str):
-        return [raw]
-    return list(raw)
+def merge_runtime_refs(
+    *,
+    workspace_refs: list[str],
+    user_refs: list[str] | None = None,
+    cli_refs: list[str],
+    workspace_found: bool = False,
+) -> list[str]:
+    """Merge runtime refs: workspace < user default < CLI (additive, de-duplicated)."""
+    seen: set[str] = set()
+    ordered: list[str] = []
+    user_part = [] if (workspace_found and workspace_refs) else list(user_refs or [])
+    for ref in workspace_refs + user_part + cli_refs:
+        if ref and ref not in seen:
+            seen.add(ref)
+            ordered.append(ref)
+    return ordered
 
 
 def merge_infra_interceptors(
     *,
-    mas_interceptors: list[str],
     workspace_interceptors: list[str],
     cli_interceptors: list[str],
 ) -> list[str]:
-    """Merge interceptor refs: MAS < workspace < CLI (additive, de-duplicated)."""
+    """Merge interceptor refs: workspace < CLI (additive, de-duplicated)."""
     seen: set[str] = set()
     ordered: list[str] = []
-    for ref in mas_interceptors + workspace_interceptors + cli_interceptors:
+    for ref in workspace_interceptors + cli_interceptors:
         if ref and ref not in seen:
             seen.add(ref)
             ordered.append(ref)
@@ -127,6 +132,19 @@ class WorkspaceConfig:
         if env_refs:
             return env_refs
         return self.infra_refs
+
+    @property
+    def runtime_refs(self) -> list[str]:
+        raw = self._data.get("runtime_refs") or []
+        return [raw] if isinstance(raw, str) else list(raw)
+
+    @property
+    def effective_runtime_refs(self) -> list[str]:
+        """Workspace ``runtime_refs`` with ``MAS_RUNTIME_REFS`` env override."""
+        env_refs = runtime_refs_from_env()
+        if env_refs:
+            return env_refs
+        return self.runtime_refs
 
     @property
     def infra_interceptors(self) -> list[str]:
@@ -210,6 +228,7 @@ class WorkspaceConfig:
 @dataclass
 class UserConfig:
     default_infra: str | None = None
+    default_runtime: str | None = None
     cache_dir: Path = field(default_factory=mas_cache_root)
 
     @classmethod
@@ -230,6 +249,7 @@ class UserConfig:
             cache_dir = mas_cache_root()
         return cls(
             default_infra=data.get("default_infra"),
+            default_runtime=data.get("default_runtime"),
             cache_dir=cache_dir,
         )
 

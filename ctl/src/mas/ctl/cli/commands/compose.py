@@ -21,6 +21,7 @@ def _compose_run(
     deployment_path: str | None,
     overlay_paths: tuple[str, ...],
     infra_refs: tuple[str, ...],
+    runtime_refs: tuple[str, ...],
     kernel_backend: str,
     validate: bool,
 ) -> dict:
@@ -37,6 +38,7 @@ def _compose_run(
             deployment_path=dep,
             overlay_paths=list(session.overlays),
             infra_refs=list(infra_refs),
+            runtime_refs=list(runtime_refs),
             kernel_backend=kernel_backend,
             validate=validate,
         )
@@ -55,6 +57,7 @@ def _compose_run(
 @click.option("--deployment", "-d", "deployment_path", default=None, type=click.Path())
 @click.option("--overlay", "-o", "overlay_paths", multiple=True, type=click.Path())
 @click.option("--infra-ref", "infra_refs", multiple=True)
+@click.option("--runtime-ref", "runtime_refs", multiple=True)
 @click.option(
     "--kernel",
     "kernel_backend",
@@ -68,6 +71,7 @@ def compose_cmd(
     deployment_path: str | None,
     overlay_paths: tuple[str, ...],
     infra_refs: tuple[str, ...],
+    runtime_refs: tuple[str, ...],
     kernel_backend: str,
     output_path: str | None,
     no_validate: bool,
@@ -78,6 +82,7 @@ def compose_cmd(
         deployment_path=deployment_path,
         overlay_paths=overlay_paths,
         infra_refs=infra_refs,
+        runtime_refs=runtime_refs,
         kernel_backend=kernel_backend,
         validate=not no_validate,
     )

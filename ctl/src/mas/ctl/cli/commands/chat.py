@@ -53,7 +53,13 @@ from mas.ctl.ui.stdout import StdoutConversationDisplay
     "--infra-ref",
     "infra_refs_cli",
     multiple=True,
-    help="Infrastructure bundle ref (merged after workspace + MAS spec.infra_refs)",
+    help="Infrastructure bundle ref (merged after workspace infra_refs)",
+)
+@click.option(
+    "--runtime-ref",
+    "runtime_refs_cli",
+    multiple=True,
+    help="RuntimeEngine manifest ref (merged after workspace runtime_refs)",
 )
 @click.option("--memory-seed", "memory_seed_path", default=None, type=click.Path())
 @click.option("--checkpoint-dir", default=None, type=click.Path())
@@ -64,19 +70,19 @@ from mas.ctl.ui.stdout import StdoutConversationDisplay
     "--cache-read/--no-cache-read",
     default=None,
     help="Look up a cached response before calling the LLM "
-    "(default: spec.execution.cache.read / MAS_LLM_CACHE_READ / true)",
+    "(default: RuntimeEngine cache.read / MAS_LLM_CACHE_READ / true)",
 )
 @click.option(
     "--cache-write/--no-cache-write",
     default=None,
     help="Persist a response to the cache after calling the LLM "
-    "(default: spec.execution.cache.write / MAS_LLM_CACHE_WRITE / true)",
+    "(default: RuntimeEngine cache.write / MAS_LLM_CACHE_WRITE / true)",
 )
 @click.option(
     "--stream/--no-stream",
     default=None,
     help="Stream the LLM response over SSE instead of waiting for the full "
-    "completion (default: spec.execution.stream / MAS_LLM_STREAM / false)",
+    "completion (default: RuntimeEngine stream / MAS_LLM_STREAM / false)",
 )
 @click.option(
     "--without-obs",
@@ -111,6 +117,7 @@ def chat_cmd(
     pattern: str | None,
     flavour: str,
     infra_refs_cli: tuple[str, ...],
+    runtime_refs_cli: tuple[str, ...],
     memory_seed_path: str | None,
     checkpoint_dir: str | None,
     load_checkpoint: str | None,
@@ -246,9 +253,11 @@ def chat_cmd(
                         workspace,
                         user,
                         infra_refs_cli=infra_refs_cli,
+                        runtime_refs_cli=runtime_refs_cli,
                         anchor=session.manifest_dir or session.original_cwd,
                         with_interceptors=True,
                     ),
+                    runtime_refs_cli=runtime_refs_cli,
                     workspace=workspace,
                     enable_observability=not without_obs,
                     enable_governance=not without_gov,

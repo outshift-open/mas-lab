@@ -67,6 +67,7 @@ class InstantiationOptions:
     cache_read_override: bool | None = None
     cache_write_override: bool | None = None
     stream_override: bool | None = None
+    runtime_refs_cli: tuple[str, ...] = ()
 
 
 def instantiate_runtime(
@@ -137,7 +138,12 @@ def instantiate_runtime(
     # Pre-parse spec to derive kernel config once; pass to build_engine to avoid double-parsing.
     from mas.runtime.spec.parser import parse_agent_spec
 
-    _kernel_cfg, _obs_binding = parse_agent_spec(spec)
+    _runtime_engine = (
+        dict(options.resolved_infra.runtime_engine)
+        if options.resolved_infra and options.resolved_infra.runtime_engine
+        else None
+    )
+    _kernel_cfg, _obs_binding = parse_agent_spec(spec, runtime_engine=_runtime_engine)
     selection = build_engine(
         ctx,
         options.agent_manifest,
@@ -150,6 +156,7 @@ def instantiate_runtime(
         cache_read_override=options.cache_read_override,
         cache_write_override=options.cache_write_override,
         stream_override=options.stream_override,
+        runtime_refs_cli=list(options.runtime_refs_cli),
     )
     logger.info("Engine mode=%s (%s)", selection.mode, selection.reason)
 
@@ -178,6 +185,7 @@ def instantiate_runtime(
         enable_observability=options.enable_observability,
         enable_governance=options.enable_governance,
         enable_coordination=options.enable_coordination,
+        runtime_engine=_runtime_engine,
     )
     working_memory_spec = spec.get("working_memory")
     if isinstance(working_memory_spec, dict):

@@ -117,6 +117,7 @@ nav:
           - Overlay: manifests/overlay.md
           - Flavour: manifests/flavour.md
           - Infra: manifests/infra.md
+          - RuntimeEngine: manifests/runtime-engine.md
           - "LLM cache (guide)": manifests/llm-cache.md
           - Schemas: references/schemas.md
       - Runtime:

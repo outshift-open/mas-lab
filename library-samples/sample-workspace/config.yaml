@@ -23,3 +23,8 @@ mas_lab:
 # OSS dev / CI: mock LLM (no API key). For production bundles use standard:production or standard:openai.
 infra_refs:
   - standard:mock-llm
+
+# Optional shared runtime tuning (omit to use package defaults only):
+# runtime_refs:
+#   - standard:runtime-default
+#   - runtime/local.yaml

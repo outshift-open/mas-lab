@@ -6,7 +6,7 @@
 
 Record and replay LLM responses via the **`llm_cache` infra middleware** —
 attach a `kind: InfraMiddleware` manifest with `--infra-ref` or
-`spec.infra_refs`, write responses to a JSON file, then play them back without
+workspace `infra_refs` / `--infra-ref`, write responses to a JSON file, then play them back without
 calling the provider.
 
 **Reference (parameters, pipeline rules, implementation):**
@@ -30,8 +30,10 @@ Caching is configured in a **separate infra manifest**, not on the agent:
 2. **Cache middleware** (`middleware: llm_cache`) — read/write/replay policy and `cache_path`.
 3. **Pipeline** — middleware wraps the provider; see [Pipeline order](#pipeline-order).
 
-MAS also has a **built-in** per-agent cache (`spec.execution.cache`). When an
-infra pipeline includes `llm_cache`, the built-in cache is off for that session.
+MAS also has a **built-in engine disk cache** (policy from merged
+`RuntimeEngine` manifests — `runtime_refs` / `--runtime-ref`, or CLI
+`--cache-read` / `--cache-write` on `mas-ctl chat`). When an infra pipeline
+includes `llm_cache`, the built-in cache is off for that session.
 See [references/llm-cache.md](../references/llm-cache.md#two-cache-mechanisms).
 
 ### End-to-end workflow (record → fixture → replay)
@@ -127,7 +129,7 @@ Parameter reference: [references/llm-cache.md](../references/llm-cache.md#parame
 Only **`InfraMiddleware`** refs add pipeline steps. **Provider refs do not** —
 they only supply `api_base` / `model_access`.
 
-Refs merge: overlay `infra_refs` → workspace → user default → CLI `--infra-ref`
+Refs merge: workspace `infra_refs` → user default → CLI `--infra-ref` (not from agent/MAS YAML)
 (left to right). Pipeline steps append in that order; **first step = outermost**
 (cache runs before the provider).
 
@@ -144,7 +146,7 @@ Either CLI order works — only the middleware ref adds a pipeline step:
 ### Overlay supplies the provider
 
 Tutorial 1's `overlays/mock-llm.yaml` adds `standard:mock-llm` via
-`spec.infra_refs`. `--infra-ref library-samples/infra/llm-cache-write.yaml` merges
+`infra_refs` in `config.yaml`. `--infra-ref library-samples/infra/llm-cache-write.yaml` merges
 after the overlay → effective pipeline `[llm_cache]` wrapping the mock provider.
 
 ### Multiple middleware
@@ -302,6 +304,6 @@ See [Tutorial 3](../tutorials/03-experiments-and-analysis/README.md).
 
 - [references/llm-cache.md](../references/llm-cache.md) — exhaustive reference
 - [infra.md](infra.md) — infra kinds and bundles
-- [execution.md](execution.md) — built-in `spec.execution.cache`
+- [runtime-engine.md](runtime-engine.md) — built-in cache policy (`spec.cache` on RuntimeEngine)
 - [Tutorial 1](../tutorials/01-building-an-agent/README.md) — agent and overlays used above
 - [library-samples/README.md](../../library-samples/README.md) — sample infra manifests

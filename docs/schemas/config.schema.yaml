@@ -86,6 +86,18 @@ properties:
       runtime with env var MAS_INFRA_REFS (comma- or space-separated) without
       editing this file; CLI --infra-ref still wins.
 
+  runtime_refs:
+    oneOf:
+      - type: string
+      - type: array
+        items:
+          type: string
+    description: >-
+      RuntimeEngine manifest refs merged left-to-right (e.g.
+      standard:runtime-default or a workspace-relative path under runtime/).
+      Omit entirely to use package defaults only. Override with env var
+      MAS_RUNTIME_REFS (comma- or space-separated).
+
   infra_interceptors:
     oneOf:
       - type: string

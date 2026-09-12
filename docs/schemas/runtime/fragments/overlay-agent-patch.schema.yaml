@@ -44,17 +44,11 @@ properties:
     $ref: "../agent.schema.yaml#/properties/spec/properties/working_memory"
   llm:
     $ref: "../agent.schema.yaml#/properties/spec/properties/llm"
-  execution:
-    $ref: "../agent.schema.yaml#/properties/spec/properties/execution"
   memory_seed:
     $ref: "./overlay-collection-ops-memory-seed.schema.yaml"
   tools:
     $ref: "./overlay-collection-ops-tool.schema.yaml"
   skills:
-    $ref: "./overlay-collection-ops-string.schema.yaml"
-  infra_refs:
-    $ref: "./overlay-collection-ops-string.schema.yaml"
-  infra_interceptors:
     $ref: "./overlay-collection-ops-string.schema.yaml"
   design_pattern:
     # Not a plain $ref: params/config use the stricter design-pattern-config

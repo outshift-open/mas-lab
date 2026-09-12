@@ -49,7 +49,7 @@ spec:
     - tool-registry.yaml
 ```
 
-Referenced from MAS `spec.infra_refs`, workspace, or CLI `--infra-ref`.
+Referenced from workspace `config.yaml`, env `MAS_INFRA_REFS`, or CLI `--infra-ref` — not from Agent or MAS manifests.
 
 ---
 
@@ -64,7 +64,7 @@ relative to:
    `config.yaml` was found.
 
 The process **working directory is not used** to locate infra YAML files. That
-keeps `spec.infra_refs` tied to the application that declared them when
+keeps relative infra paths tied to the application anchor when
 `mas-ctl`, benchmarks, or tests run from another directory.
 
 Relative `cache_path` / `path` values on `InfraMiddleware` `spec.params` are
@@ -85,7 +85,7 @@ YAML file** (not CWD). See [LLM cache reference](../references/llm-cache.md).
 ## LLM cache middleware
 
 Record and replay LLM responses via `kind: InfraMiddleware` with
-`middleware: llm_cache`. Attach with `--infra-ref` or `spec.infra_refs`.
+`middleware: llm_cache`. Attach with `--infra-ref` or workspace `infra_refs`.
 
 **Guide:** [llm-cache.md](llm-cache.md) — record/replay walkthrough, manifests,
 pipeline order. **Reference:** [llm-cache.md](../references/llm-cache.md).

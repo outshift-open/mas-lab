@@ -39,6 +39,7 @@ def smoke_env(tmp_path, monkeypatch):
     monkeypatch.setenv("MAS_HOME", str(mas_home))
     monkeypatch.setenv("MAS_TRACE_CACHE", str(trace_cache))
     monkeypatch.setenv("MAS_MCE_OFFLINE", "1")
+    monkeypatch.setenv("MAS_INFRA_REFS", "standard:mock-llm")
     return out, trace_cache
 
 

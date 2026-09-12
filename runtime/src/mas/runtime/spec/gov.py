@@ -263,7 +263,7 @@ def build_kernel_config(
     if chain:
         kwargs["ingress_governance_plugins"] = chain
 
-    # parallel_tool_calls is not part of GovernanceBinding; caller may set via spec.execution
+    # parallel_tool_calls is not part of GovernanceBinding; caller sets via RuntimeEngine
     return KernelConfig(**kwargs)
 
 

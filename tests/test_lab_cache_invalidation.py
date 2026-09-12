@@ -32,6 +32,7 @@ def isolated_env(tmp_path, monkeypatch):
     mas_home.mkdir()
     monkeypatch.setenv("MAS_HOME", str(mas_home))
     monkeypatch.setenv("MAS_TRACE_CACHE", str(trace_cache))
+    monkeypatch.setenv("MAS_INFRA_REFS", "standard:mock-llm")
     return out, trace_cache
 
 

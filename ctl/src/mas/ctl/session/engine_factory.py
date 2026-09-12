@@ -15,7 +15,7 @@ from mas.ctl.infra.resolve import resolution_anchor, resolve_infra_refs
 from mas.ctl.infra.resolve import InfraResolveError
 from mas.ctl.infra.resolve import api_key_for_infra
 from mas.ctl.session.manifest_config import engine_use_tool_loop, kernel_config_from_manifest  # kernel_config_from_manifest: deprecated; prefer RuntimeInstance.from_spec()
-from mas.ctl.workspace.config import UserConfig, WorkspaceConfig, collect_mas_infra_refs, merge_infra_refs
+from mas.ctl.workspace.config import UserConfig, WorkspaceConfig, merge_infra_refs
 from mas.runtime.engine.llm_cache import resolve_cache_path
 from mas.runtime.engine.llm_live import LiveLlmEngine
 from mas.runtime.agent_defaults import default_pattern_plugin_id, resolve_default_model
@@ -49,10 +49,6 @@ class EngineSelection:
 
 def is_mock_mode(manifest: dict | None, infra: ResolvedInfra | None) -> bool:
     spec = (manifest or {}).get("spec") or {}
-    execution = spec.get("execution") or {}
-    mocking = execution.get("mocking") or {}
-    if mocking.get("enabled") is True:
-        return True
     llm = spec.get("llm") or {}
     if str(llm.get("provider", "")).lower() == "mock":
         return True
@@ -135,13 +131,13 @@ def _resolve_infra_for_engine(
     *,
     anchor: Path,
     workspace: WorkspaceConfig | None = None,
+    runtime_refs_cli: list[str] | None = None,
 ) -> ResolvedInfra:
     if infra is not None and infra.llm_proxy:
         return infra
     ws = workspace or WorkspaceConfig.load(anchor)
     user = UserConfig.load()
     merged_refs = merge_infra_refs(
-        mas_refs=collect_mas_infra_refs((manifest or {}).get("spec") or manifest or {}),
         workspace_refs=ws.effective_infra_refs,
         user_refs=[user.default_infra] if user.default_infra else [],
         cli_refs=[],
@@ -152,10 +148,22 @@ def _resolve_infra_for_engine(
     if not merged_refs:
         return infra or ResolvedInfra(refs=[], llm_proxy={})
     try:
-        return resolve_infra_refs(merged_refs, anchor=anchor, workspace=ws, user=user)
+        return resolve_infra_refs(
+            merged_refs,
+            anchor=anchor,
+            workspace=ws,
+            user=user,
+            runtime_refs=list(runtime_refs_cli or []),
+        )
     except InfraResolveError:
         if is_mock_mode(manifest, infra):
-            return resolve_infra_refs(["standard:mock-llm"], anchor=anchor, workspace=ws, user=user)
+            return resolve_infra_refs(
+                ["standard:mock-llm"],
+                anchor=anchor,
+                workspace=ws,
+                user=user,
+                runtime_refs=list(runtime_refs_cli or []),
+            )
         raise
 
 
@@ -172,16 +180,20 @@ def build_engine(
     cache_read_override: bool | None = None,
     cache_write_override: bool | None = None,
     stream_override: bool | None = None,
+    runtime_refs_cli: list[str] | None = None,
 ) -> EngineSelection:
     pid = pattern_plugin_id or default_pattern_plugin_id()
-    # Use pre-parsed kernel config if provided (spec-aware path); fall back to manifest parsing.
     kernel_cfg = kernel_config if kernel_config is not None else kernel_config_from_manifest(manifest, pattern_plugin_id=pid)
     tool_loop = engine_use_tool_loop(manifest, kernel_cfg)
     ws = workspace or WorkspaceConfig.load(anchor)
     ref_anchor = resolution_anchor(anchor, ws)
 
     resolved = _resolve_infra_for_engine(
-        manifest, infra, anchor=ref_anchor, workspace=ws
+        manifest,
+        infra,
+        anchor=ref_anchor,
+        workspace=ws,
+        runtime_refs_cli=runtime_refs_cli,
     )
     llm_proxy = dict(resolved.llm_proxy or {})
     mock = is_mock_mode(manifest, resolved) or bool(llm_proxy.get("mock"))
@@ -191,30 +203,31 @@ def build_engine(
 
     if mock:
         mode = "mock"
-        reason = "execution.mocking, mock infra ref, or model_access provider"
+        reason = "mock infra ref or model_access provider"
     else:
         api_key = api_key_for_infra(llm_proxy)
         if not api_base:
             raise RuntimeError(
                 "No LLM configured: resolve infra (workspace infra_refs or --infra-ref), "
-                "or enable spec.execution.mocking / a mock infra ref."
+                "or use a mock infra ref (e.g. standard:mock-llm in workspace infra_refs)."
             )
         if not api_key:
             env_name = llm_proxy.get("api_key_env") or "OPENAI_API_KEY"
             raise RuntimeError(
                 f"Live LLM configured ({api_base}) but {env_name} is unset. "
-                "Set the API key or enable spec.execution.mocking."
+                "Set the API key or point infra_refs at standard:mock-llm."
             )
         mode = "live"
         reason = f"resolved infra → {api_base}"
 
     model = resolve_model_name(manifest, resolved, workspace_default=workspace_default_model)
     cache_raw = llm_proxy.get("cache_path")
-    cache_read = _cache_read_enabled(manifest, override=cache_read_override)
-    cache_write = _cache_write_enabled(manifest, override=cache_write_override)
+    runtime_engine = dict(resolved.runtime_engine or {})
+    cache_read = _cache_read_enabled(runtime_engine, override=cache_read_override)
+    cache_write = _cache_write_enabled(runtime_engine, override=cache_write_override)
     cache_active = (cache_read or cache_write) and not mock and not (llm_proxy.get("pipeline"))
     cache_path = Path(str(cache_raw)) if cache_raw else resolve_cache_path() if cache_active else None
-    stream = _stream_enabled(manifest, override=stream_override)
+    stream = _stream_enabled(runtime_engine, override=stream_override)
 
     engine = _wrap_with_infra_pipeline(
         LiveLlmEngine(
@@ -251,7 +264,7 @@ def build_engine(
                 )
             raise RuntimeError(
                 "Mock mode requires model_access from standard:mock-llm infra "
-                "(enable spec.execution.mocking or pass a mock infra ref)."
+                "(workspace infra_refs or --infra-ref with standard:mock-llm)."
             )
     return EngineSelection(engine=engine, mode=mode, reason=reason)
 
@@ -263,22 +276,19 @@ def _bool_env(name: str) -> bool | None:
     return raw.strip().lower() in ("1", "true", "yes", "on")
 
 
-def _cache_settings(manifest: dict | None) -> dict[str, Any]:
-    spec = (manifest or {}).get("spec") or {}
-    execution = spec.get("execution") or {}
-    return execution.get("cache") or {}
+def _cache_settings(runtime_engine: dict[str, Any]) -> dict[str, Any]:
+    cache = (runtime_engine or {}).get("cache") or {}
+    return cache if isinstance(cache, dict) else {}
 
 
-def _cache_read_enabled(manifest: dict | None, *, override: bool | None = None) -> bool:
-    """Whether to look up a cached response before calling the LLM.
-
-    Precedence (highest first): explicit CLI override -> spec.execution.cache.
-    enabled: false (a hard kill-switch for both read and write) -> spec.
-    execution.cache.read -> MAS_LLM_CACHE_READ env var -> default true.
-    """
+def _cache_read_enabled(
+    runtime_engine: dict[str, Any],
+    *,
+    override: bool | None = None,
+) -> bool:
     if override is not None:
         return override
-    cache = _cache_settings(manifest)
+    cache = _cache_settings(runtime_engine)
     if cache.get("enabled") is False:
         return False
     if isinstance(cache.get("read"), bool):
@@ -289,15 +299,14 @@ def _cache_read_enabled(manifest: dict | None, *, override: bool | None = None) 
     return True
 
 
-def _cache_write_enabled(manifest: dict | None, *, override: bool | None = None) -> bool:
-    """Whether to persist a response to the cache after calling the LLM.
-
-    Same precedence as _cache_read_enabled, mirrored for spec.execution.
-    cache.write / MAS_LLM_CACHE_WRITE.
-    """
+def _cache_write_enabled(
+    runtime_engine: dict[str, Any],
+    *,
+    override: bool | None = None,
+) -> bool:
     if override is not None:
         return override
-    cache = _cache_settings(manifest)
+    cache = _cache_settings(runtime_engine)
     if cache.get("enabled") is False:
         return False
     if isinstance(cache.get("write"), bool):
@@ -308,18 +317,15 @@ def _cache_write_enabled(manifest: dict | None, *, override: bool | None = None)
     return True
 
 
-def _stream_enabled(manifest: dict | None, *, override: bool | None = None) -> bool:
-    """Whether to stream the LLM response over SSE instead of waiting for
-    the full completion. Precedence: explicit CLI override -> spec.execution.
-    stream -> MAS_LLM_STREAM env var -> default false (opt-in: streaming
-    changes what a caller can observe mid-call, e.g. via ctx.on_stream_chunk,
-    so it shouldn't turn on silently for an existing deployment)."""
+def _stream_enabled(
+    runtime_engine: dict[str, Any],
+    *,
+    override: bool | None = None,
+) -> bool:
     if override is not None:
         return override
-    spec = (manifest or {}).get("spec") or {}
-    execution = spec.get("execution") or {}
-    if isinstance(execution.get("stream"), bool):
-        return execution["stream"]
+    if isinstance((runtime_engine or {}).get("stream"), bool):
+        return bool(runtime_engine["stream"])
     env = _bool_env("MAS_LLM_STREAM")
     if env is not None:
         return env

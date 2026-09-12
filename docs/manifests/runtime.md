@@ -21,7 +21,8 @@ Validated by `mas-ctl validate` (agents, MAS, overlays) and `mas-lab validate`
 | Overlay | `overlay.schema.yaml` | [overlay.md](overlay.md) |
 | Workflow topology | `workflow.schema.yaml` | [workflow.md](workflow.md) |
 | Flavour | `flavour.schema.yaml` | [flavour.md](flavour.md) |
-| Infrastructure | Python models (`infra_manifest.py`) | [infra.md](infra.md) |
+| Infrastructure | `infra.schema.yaml` | [infra.md](infra.md) |
+| RuntimeEngine | `runtime-engine.schema.yaml` | [runtime-engine.md](runtime-engine.md) |
 | Tool | `tool.schema.yaml` | below |
 | ToolBundle | `tool_bundle.schema.yaml` | below |
 | PromptBundle | `prompt_bundle.schema.yaml` | below |

@@ -22,8 +22,6 @@ properties:
     $ref: "./overlay-agent-patch.schema.yaml#/properties/design_pattern"
   llm:
     $ref: "./overlay-agent-patch.schema.yaml#/properties/llm"
-  execution:
-    $ref: "./overlay-agent-patch.schema.yaml#/properties/execution"
   memory:
     $ref: "./overlay-agent-patch.schema.yaml#/properties/memory"
   tools:

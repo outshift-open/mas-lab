@@ -24,8 +24,6 @@ from mas.ctl.validate import validate_file, validation_enabled
 from mas.ctl.workspace.config import (
     UserConfig,
     WorkspaceConfig,
-    collect_infra_interceptors,
-    collect_mas_infra_refs,
     merge_infra_interceptors,
     merge_infra_refs,
 )
@@ -38,6 +36,7 @@ class ComposeRequest:
     overlay_ids: list[str] = field(default_factory=list)
     overlay_paths: list[Path] = field(default_factory=list)
     infra_refs: list[str] = field(default_factory=list)
+    runtime_refs: list[str] = field(default_factory=list)
     kernel_backend: str | None = None  # CLI override of deployment.spec.runtime_id
     validate: bool = True
 
@@ -106,7 +105,6 @@ def compose_run(req: ComposeRequest) -> ComposeResult:
     workspace = WorkspaceConfig.load(req.manifest.parent)
     user = UserConfig.load()
     merged_refs = merge_infra_refs(
-        mas_refs=collect_mas_infra_refs(mas),
         workspace_refs=workspace.effective_infra_refs,
         user_refs=[user.default_infra] if user.default_infra else [],
         cli_refs=list(req.infra_refs),
@@ -118,11 +116,10 @@ def compose_run(req: ComposeRequest) -> ComposeResult:
         workspace=workspace,
         user=user,
         interceptors=merge_infra_interceptors(
-            mas_interceptors=collect_infra_interceptors(mas),
             workspace_interceptors=workspace.infra_interceptors,
             cli_interceptors=[],
         ),
-        mas_config=mas,
+        runtime_refs=list(req.runtime_refs),
     )
 
     if req.deployment_path:

@@ -11,7 +11,7 @@ from mas.runtime.spec.schema_defaults_generated import (
     EXECUTION_MAX_AUTO_STEPS,
 )
 
-# Execution (spec.execution)
+# RuntimeEngine defaults (formerly agent spec.execution)
 DEFAULT_MAX_AUTO_STEPS = EXECUTION_MAX_AUTO_STEPS
 DEFAULT_ENGINE_QUEUE_DEPTH = EXECUTION_ENGINE_QUEUE_DEPTH
 

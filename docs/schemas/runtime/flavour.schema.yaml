@@ -14,9 +14,10 @@ description: >
     * kind: Agent  (spec.models, spec.skills)  — model choice, inference
                                                   params, RAG backend
     * kind: MAS    (spec.agency)                — topology / orchestration
-    * mas/v1 Overlay (spec.patch.execution)      — mocking, cache, parallel/
-                                                    live/timeout (see
-                                                    docs/design/flavour-boundary.md)
+    * infra/v1 RuntimeEngine (workspace runtime_refs, --runtime-ref) — cache
+                                                    policy, stream, queue depth
+    * infra/v1 LLMProxy / mock bundle (workspace infra_refs) — LLM endpoint,
+                                                    including standard:mock-llm
     * infra/v1     (LLMProxy, InfraBundle)       — api_base, api_key_env,
                                                     allowed models, embed
                                                     defaults
@@ -34,9 +35,9 @@ description: >
 
   FORBIDDEN (rejected by FlavourSeparationValidator at load time): spec.llm,
   spec.skills, spec.mocking, spec.prefer_local. These moved to kind: Agent /
-  the execution overlay binding — a flavour that still declares them is
-  carrying model-selection or execution-mode state that doesn't belong to a
-  deployment posture.
+  RuntimeEngine manifests — a flavour that still declares them is carrying
+  model-selection or execution-mode state that doesn't belong to a deployment
+  posture.
 
 type: object
 required:

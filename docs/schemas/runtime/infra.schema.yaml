@@ -37,6 +37,7 @@ properties:
       - Datastore
       - SecretsProvider
       - Infrastructure
+      - RuntimeEngine
 
   metadata:
     type: object

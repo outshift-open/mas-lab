@@ -10,9 +10,12 @@ import pytest
 
 from mas.ctl.compose.models import ResolvedInfra
 from mas.ctl.session.engine_factory import (
+    _cache_read_enabled,
     _resolve_model_option,
     _resolve_sampling_param,
+    _stream_enabled,
     build_engine,
+    is_mock_mode,
     resolve_model_name,
 )
 from mas.runtime.driver.mocks import AutoCtxAssembler
@@ -42,20 +45,20 @@ def test_build_engine_resolves_infra_anchor_from_workspace_when_omitted(monkeypa
     monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: ws)
     monkeypatch.setattr(UserConfig, "load", lambda *a, **k: UserConfig({}))
     ctx = AutoCtxAssembler()
-    manifest = {"spec": {"execution": {"mocking": {"enabled": True}}}}
+    manifest = {"spec": {"llm": {"provider": "mock"}}}
 
     sel = build_engine(ctx, manifest, None, workspace=ws)
     assert sel.mode == "mock"
 
 
-def test_build_engine_mock_mode_from_execution_flag(monkeypatch, tmp_path):
+def test_build_engine_mock_mode_from_mock_infra(monkeypatch, tmp_path):
     from mas.ctl.infra.resolve import resolve_infra_refs
     from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
 
     monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: WorkspaceConfig({}))
     monkeypatch.setattr(UserConfig, "load", lambda *a, **k: UserConfig({}))
     ctx = AutoCtxAssembler()
-    manifest = {"spec": {"execution": {"mocking": {"enabled": True}}}}
+    manifest = {"spec": {}}
     infra = resolve_infra_refs(["standard:mock-llm"], anchor=tmp_path)
 
     sel = build_engine(
@@ -106,3 +109,14 @@ def test_resolve_sampling_param_falls_back_to_deprecated_spec_llm(caplog):
 def test_resolve_model_option_from_spec_models():
     manifest = {"spec": {"models": [{"model": "gpt-4", "reasoning_effort": "low"}]}}
     assert _resolve_model_option(manifest, "reasoning_effort") == "low"
+
+
+def test_cache_and_stream_from_runtime_engine():
+    rt = {"cache": {"read": False}, "stream": True}
+    assert _cache_read_enabled(rt) is False
+    assert _stream_enabled(rt) is True
+
+
+def test_is_mock_mode_from_mock_infra_ref():
+    infra = ResolvedInfra(refs=["standard:mock-llm"], llm_proxy={})
+    assert is_mock_mode({"spec": {}}, infra) is True

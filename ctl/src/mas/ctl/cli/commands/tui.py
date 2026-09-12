@@ -35,6 +35,12 @@ from mas.ctl.ui.curses_app import build_curses_controller, run_curses_session
     multiple=True,
     help="Infrastructure bundle ref",
 )
+@click.option(
+    "--runtime-ref",
+    "runtime_refs_cli",
+    multiple=True,
+    help="RuntimeEngine manifest ref",
+)
 @click.option("--no-validate", is_flag=True)
 @click.option(
     "--model",
@@ -52,6 +58,7 @@ def tui_cmd(
     single_turn: bool,
     memory_seed: str | None,
     infra_refs_cli: tuple[str, ...],
+    runtime_refs_cli: tuple[str, ...],
     no_validate: bool,
     model: str | None,
     events: bool | None,
@@ -112,9 +119,11 @@ def tui_cmd(
                     workspace,
                     user,
                     infra_refs_cli=infra_refs_cli,
+                    runtime_refs_cli=runtime_refs_cli,
                     anchor=session.manifest_dir or session.original_cwd,
                 ),
                 workspace=workspace,
+                runtime_refs_cli=runtime_refs_cli,
             ),
             hitl=hitl_responder,
         )

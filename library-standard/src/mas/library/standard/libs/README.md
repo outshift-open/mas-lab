@@ -58,25 +58,14 @@ kind: UserConfig
 default_infra: standard:production
 ```
 
-### In Flavour Manifests
-
-Reference bundles via `infra_refs`:
+### In workspace `config.yaml`
 
 ```yaml
-apiVersion: flavour/v1
-kind: Flavour
-
-metadata:
-  name: my-flavour
-
-spec:
-  infra_refs:
-    - standard:production  # or standard:development
-
-  llm:
-    provider: openai
-    temperature: 0.7
+infra_refs:
+  - standard:production  # or standard:development
 ```
+
+Flavour manifests must not declare `infra_refs` (see `FlavourSeparationValidator`).
 
 ### Via CLI
 

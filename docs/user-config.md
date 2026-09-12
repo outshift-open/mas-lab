@@ -109,6 +109,12 @@ The runtime searches for infra manifests in this order:
 3. **Workspace**: `infra_refs` in `config.yaml`
 4. **User default**: `$XDG_CONFIG_HOME/mas/infra/default.yaml` (if no CLI flag)
 
+Runtime engine manifests (`kind: RuntimeEngine`) resolve via optional
+`runtime_refs` in `config.yaml`, `MAS_RUNTIME_REFS`, `--runtime-ref`, or user
+`default_runtime` in `$XDG_CONFIG_HOME/mas/config.yaml`. They are **not**
+declared on Agent or MAS manifests. Omit `runtime_refs` to use package defaults
+only. See [runtime-engine.md](manifests/runtime-engine.md).
+
 Model override for a single `mas-ctl chat` / `run-mas` (overrides manifest `spec.models`):
 
 - `MAS_CTL_MODEL` — e.g. `gpt-4o-mini` on direct OpenAI, or a provider-prefixed id (e.g. `azure/gpt-4o-mini`) when routing through an OpenAI-compatible proxy gateway
@@ -165,6 +171,21 @@ mas-ctl chat agent.yaml --infra-ref "$XDG_CONFIG_HOME/mas/infra/default.yaml" -q
 # Workspace-relative example file
 mas-ctl chat agent.yaml --infra-ref config/infra/openai.example.yaml -q "Hello"
 ```
+
+## Migrating older agent / MAS manifests
+
+`mas-ctl validate` rejects infrastructure and runtime wiring on Agent, MAS, and
+overlay patches, and rejects `spec.execution` on agents. Use this workspace file
+instead:
+
+| Removed from manifests | Use instead |
+| --- | --- |
+| `spec.infra_refs`, `spec.runtime_refs`, `infra_interceptors` | `infra_refs` / `runtime_refs` in `config.yaml`, `MAS_INFRA_REFS` / `MAS_RUNTIME_REFS`, `--infra-ref` / `--runtime-ref` |
+| `spec.execution` (cache, stream, queue depth, parallel tools, …) | `kind: RuntimeEngine` refs (see [runtime-engine.md](manifests/runtime-engine.md)) |
+| Mock overlay only (`llm.provider: mock`) | Same overlay **and** `infra_refs: [standard:mock-llm]` (or env/CLI) |
+
+`experiment.execution` in **mas-lab benchmark** YAML is unrelated — batch
+orchestration and trace emulation ([experiment.md](manifests/experiment.md#execution-batch-orchestration)).
 
 ## Example Configurations
 

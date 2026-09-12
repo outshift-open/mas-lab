@@ -129,8 +129,6 @@ def run_agent_turn(
     from mas.ctl.workspace.config import (
         UserConfig,
         WorkspaceConfig,
-        collect_infra_interceptors,
-        collect_mas_infra_refs,
         merge_infra_interceptors,
         merge_infra_refs,
     )
@@ -170,7 +168,6 @@ def run_agent_turn(
         user = UserConfig.load()
         pattern = pattern_from_manifest(current_manifest)
         merged_infra = merge_infra_refs(
-            mas_refs=collect_mas_infra_refs(current_manifest),
             workspace_refs=workspace.effective_infra_refs,
             user_refs=[user.default_infra] if user.default_infra else [],
             cli_refs=[],
@@ -182,11 +179,9 @@ def run_agent_turn(
             workspace=workspace,
             user=user,
             interceptors=merge_infra_interceptors(
-                mas_interceptors=collect_infra_interceptors(current_manifest),
                 workspace_interceptors=workspace.infra_interceptors,
                 cli_interceptors=[],
             ),
-            mas_config=current_manifest,
         )
         hitl_responder, hitl_terminal = resolve_hitl_from_manifest(
             current_manifest, session_interactive=False

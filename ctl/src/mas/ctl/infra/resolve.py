@@ -11,7 +11,7 @@ from typing import Any
 
 from mas.runtime.spec.schema_bindings_generated import INFRA_MIDDLEWARE_PATH_PARAM_KEYS
 from mas.runtime.spec.source import load_yaml_file, resolve_ref_with_search
-from mas.runtime.xdg import mas_infra_dir
+from mas.runtime.xdg import mas_infra_dir, mas_runtime_dir
 from mas.ctl.compose.models import ResolvedInfra
 from mas.ctl.infra.env_resolve import resolve_manifest_values
 from mas.ctl.infra.models import InfraManifest, ModelsSpec, ProxySpec
@@ -44,6 +44,7 @@ _LEAF_KINDS = {
     "ToolProvider",
     "SecretsProvider",
     "Datastore",
+    "RuntimeEngine",
 }
 _VALID_KINDS = _LEAF_KINDS | {"InfraBundle"}
 
@@ -55,13 +56,14 @@ def resolve_infra_refs(
     workspace: WorkspaceConfig | None = None,
     user: UserConfig | None = None,
     interceptors: list[str] | None = None,
-    mas_config: dict[str, Any] | None = None,
+    runtime_refs: list[str] | None = None,
 ) -> ResolvedInfra:
     """Load and merge infra manifests; populate ``ResolvedInfra.llm_proxy``."""
     from mas.ctl.workspace.config import (
-        collect_infra_interceptors,
         merge_infra_interceptors,
+        merge_runtime_refs,
     )
+    from mas.runtime.spec.runtime_engine import merge_runtime_engine_layers
 
     ws = workspace or WorkspaceConfig.load(anchor)
     usr = user or UserConfig.load()
@@ -85,9 +87,7 @@ def resolve_infra_refs(
         except Exception as exc:
             errors.append((ref, exc))
 
-    mas_interceptors = collect_infra_interceptors(mas_config or {})
     merged_interceptors = merge_infra_interceptors(
-        mas_interceptors=mas_interceptors,
         workspace_interceptors=list(ws.infra_interceptors),
         cli_interceptors=list(interceptors or []),
     )
@@ -95,6 +95,22 @@ def resolve_infra_refs(
         try:
             part = _load_ref(ref, anchor=root, workspace=ws)
             merged.pipeline = _merge_pipeline(merged.pipeline, part.pipeline)
+        except Exception as exc:
+            errors.append((ref, exc))
+
+    runtime_effective = merge_runtime_refs(
+        workspace_refs=ws.effective_runtime_refs,
+        user_refs=[usr.default_runtime] if usr.default_runtime else [],
+        cli_refs=list(runtime_refs or []),
+        workspace_found=ws.found,
+    )
+    runtime_engine: dict[str, Any] = {}
+    for ref in runtime_effective:
+        try:
+            part = _load_runtime_ref(ref, anchor=root, workspace=ws)
+            runtime_engine = merge_runtime_engine_layers(
+                runtime_engine, part.runtime_engine
+            )
         except Exception as exc:
             errors.append((ref, exc))
 
@@ -113,6 +129,8 @@ def resolve_infra_refs(
         refs=effective,
         llm_proxy=llm,
         observability={},
+        runtime_engine=dict(runtime_engine),
+        runtime_refs=list(runtime_effective),
     )
 
 
@@ -133,6 +151,14 @@ def bidirectional_pipeline_for_infra(
 ) -> BidirectionalInfraPipeline:
     """Convenience wrapper for :func:`bidirectional_pipeline_for`."""
     return bidirectional_pipeline_for(infra.llm_proxy, handlers=handlers)
+
+
+def _load_runtime_ref(ref: str, *, anchor: Path, workspace: WorkspaceConfig) -> InfraManifest:
+    path = _resolve_runtime_ref_path(ref, anchor=anchor, workspace=workspace)
+    manifest = _load_file(path, workspace=workspace, allow_runtime_engine=True)
+    if manifest.kind != "RuntimeEngine":
+        raise ValueError(f"{path}: expected kind RuntimeEngine, got {manifest.kind!r}")
+    return manifest
 
 
 def _load_ref(ref: str, *, anchor: Path, workspace: WorkspaceConfig) -> InfraManifest:
@@ -193,6 +219,46 @@ def _resolve_ref_path(ref: str, *, anchor: Path, workspace: WorkspaceConfig) -> 
     )
 
 
+def _resolve_runtime_ref_path(ref: str, *, anchor: Path, workspace: WorkspaceConfig) -> Path:
+    if ":" in ref and "://" not in ref:
+        lib_path = workspace.resolve_library_path(ref)
+        if lib_path is not None:
+            return lib_path
+        bundle_path = _entry_point_bundle_path(ref)
+        if bundle_path is not None:
+            return bundle_path
+
+    candidate = Path(ref).expanduser()
+    if candidate.is_absolute() and candidate.is_file():
+        return candidate.resolve()
+
+    anchored = anchor / candidate
+    if anchored.is_file():
+        return anchored.resolve()
+
+    return resolve_ref_with_search(
+        ref,
+        anchor,
+        search_dirs=_runtime_search_dirs(anchor, workspace),
+    )
+
+
+def _runtime_search_dirs(anchor: Path, workspace: WorkspaceConfig) -> list[Path]:
+    dirs: list[Path] = []
+    if workspace.root:
+        dirs.append(workspace.root)
+        dirs.append(workspace.root / "runtime")
+        dirs.append(workspace.root / "config" / "runtime")
+    dirs.extend(
+        [
+            anchor,
+            anchor.parent,
+            mas_runtime_dir(),
+        ]
+    )
+    return dirs
+
+
 def _infra_search_dirs(anchor: Path, workspace: WorkspaceConfig) -> list[Path]:
     dirs: list[Path] = []
     if workspace.root:
@@ -249,11 +315,39 @@ def _bundle_path_in_package(pkg: str, lib_name: str, bundle_name: str) -> Path |
     return None
 
 
+_RUNTIME_ENGINE_SPEC_KEYS = frozenset({"engine", "cache", "stream", "parallel"})
+_RUNTIME_ENGINE_CACHE_KEYS = frozenset({"enabled", "read", "write"})
+_RUNTIME_ENGINE_ENGINE_KEYS = frozenset({"queue_depth", "max_auto_steps", "timeout"})
+
+
+def _validate_runtime_engine_spec(spec: dict[str, Any]) -> None:
+    for key in spec:
+        if key not in _RUNTIME_ENGINE_SPEC_KEYS:
+            raise ValueError(f"RuntimeEngine spec: unknown field {key!r}")
+    engine = spec.get("engine")
+    if engine is not None:
+        if not isinstance(engine, dict):
+            raise ValueError("RuntimeEngine spec.engine must be an object")
+        for key in engine:
+            if key not in _RUNTIME_ENGINE_ENGINE_KEYS:
+                raise ValueError(f"RuntimeEngine spec.engine: unknown field {key!r}")
+    for block, allowed in (("cache", _RUNTIME_ENGINE_CACHE_KEYS),):
+        raw = spec.get(block)
+        if raw is None:
+            continue
+        if not isinstance(raw, dict):
+            raise ValueError(f"RuntimeEngine spec.{block} must be an object")
+        for key in raw:
+            if key not in allowed:
+                raise ValueError(f"RuntimeEngine spec.{block}: unknown field {key!r}")
+
+
 def _load_file(
     path: Path,
     *,
     workspace: WorkspaceConfig,
     _seen: frozenset[Path] | None = None,
+    allow_runtime_engine: bool = False,
 ) -> InfraManifest:
     path = path.resolve()
     seen = (_seen or frozenset()) | {path}
@@ -280,7 +374,11 @@ def _load_file(
                 child = _resolve_ref_path(str(ref), anchor=path.parent, workspace=workspace)
                 if child in seen:
                     raise ValueError(f"circular InfraBundle reference: {path} -> {child}")
-                parts.append(_load_file(child, workspace=workspace, _seen=seen))
+                parts.append(
+                    _load_file(
+                        child, workspace=workspace, _seen=seen, allow_runtime_engine=allow_runtime_engine
+                    )
+                )
                 for step in entry.get("pipeline") or []:
                     pipeline.append(
                         _resolve_pipeline_entry(step, anchor=path.parent, workspace=workspace)
@@ -292,13 +390,34 @@ def _load_file(
                 child = _resolve_ref_path(str(ref), anchor=path.parent, workspace=workspace)
                 if child in seen:
                     raise ValueError(f"circular InfraBundle reference: {path} -> {child}")
-                parts.append(_load_file(child, workspace=workspace, _seen=seen))
+                parts.append(
+                    _load_file(
+                        child, workspace=workspace, _seen=seen, allow_runtime_engine=allow_runtime_engine
+                    )
+                )
         merged = _merge_many(parts)
         merged.pipeline = _merge_pipeline(merged.pipeline, pipeline)
         meta = data.get("metadata") or {}
         merged.name = meta.get("name", path.stem)
         merged.kind = "InfraBundle"
         return merged
+
+    if kind == "RuntimeEngine":
+        if not allow_runtime_engine:
+            raise ValueError(
+                f"{path}: RuntimeEngine must be listed in workspace runtime_refs, "
+                "$XDG_CONFIG_HOME/mas/runtime/, or --runtime-ref — not infra_refs"
+            )
+        from mas.runtime.spec.runtime_engine import normalize_runtime_engine_spec
+
+        spec = data.get("spec") or {}
+        _validate_runtime_engine_spec(spec if isinstance(spec, dict) else {})
+        return InfraManifest(
+            name=str((data.get("metadata") or {}).get("name", path.stem)),
+            kind=kind,
+            runtime_engine=normalize_runtime_engine_spec(spec if isinstance(spec, dict) else {}),
+            raw=data,
+        )
 
     if kind in {"InfraMiddleware", "InfraInterceptor"}:
         spec = data.get("spec") or {}
@@ -366,9 +485,14 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
     default_embed: str | None = None
     model_access: dict[str, Any] = {}
     pipeline: list[dict[str, Any]] = []
+    runtime_engine: dict[str, Any] = {}
     name = parts[-1].name
 
+    from mas.runtime.spec.runtime_engine import merge_runtime_engine_layers
+
     for m in parts:
+        if m.runtime_engine:
+            runtime_engine = merge_runtime_engine_layers(runtime_engine, m.runtime_engine)
         if m.proxy.api_base:
             proxy = ProxySpec(api_base=m.proxy.api_base, api_key_env=m.proxy.api_key_env)
         pipeline = _merge_pipeline(pipeline, m.pipeline)
@@ -395,6 +519,7 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
         ),
         model_access=model_access,
         pipeline=pipeline,
+        runtime_engine=runtime_engine,
     )
 
 

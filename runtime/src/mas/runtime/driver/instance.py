@@ -103,6 +103,7 @@ class RuntimeInstance:
         enable_coordination: bool = True,
         enable_governance: bool = True,
         enable_observability: bool = True,
+        runtime_engine: dict[str, Any] | None = None,
     ) -> RuntimeInstance:
         """Build a RuntimeInstance from a raw agent spec dict.
 
@@ -117,7 +118,9 @@ class RuntimeInstance:
 
         from mas.runtime.spec.parser import parse_agent_spec
 
-        kernel_config, spec_obs_binding = parse_agent_spec(spec)
+        kernel_config, spec_obs_binding = parse_agent_spec(
+            spec, runtime_engine=runtime_engine
+        )
         obs_binding = obs_binding_override if obs_binding_override is not None else spec_obs_binding
         resolved_base_dir = (_Path(base_dir) if isinstance(base_dir, str) else base_dir) or _Path(".")
 

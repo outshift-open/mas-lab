@@ -3,7 +3,9 @@
 $schema: "https://json-schema.org/draft-07/schema#"
 $id: "mas/v1#execution-binding"
 title: ExecutionBinding
-description: EngineContract execution mode — mock/live/cache/parallel only.
+description: >
+  DEPRECATED — not allowed on Agent or overlay patches. Retained for codegen
+  keys only; use kind RuntimeEngine (runtime_refs) and workspace infra_refs.
 type: object
 additionalProperties: false
 properties:

@@ -20,12 +20,12 @@ MAS exposes two separate LLM response caches:
 
 | Mechanism | Configured via | When to use |
 | --- | --- | --- |
-| **Built-in engine cache** | `spec.execution.cache`, `MAS_LLM_CACHE_*`, `--cache-read` / `--cache-write` on `mas-ctl chat` | Per-agent toggles — [execution.md](../manifests/execution.md#cache--the-llm-response-cache) |
+| **Built-in engine cache** | `RuntimeEngine.spec.cache`, `MAS_LLM_CACHE_*`, `--cache-read` / `--cache-write` on `mas-ctl chat` | Deployment-wide policy via `runtime_refs` — [runtime-engine.md](../manifests/runtime-engine.md) |
 | **Infra middleware cache** (this reference) | `InfraMiddleware` with `middleware: llm_cache` | Shared deployment policy, write-only recording, strict replay (`raise_on_miss`), experiments |
 
 When `llm_proxy.pipeline` is non-empty, `build_engine` disables the built-in
 `LiveLlmEngine` disk cache (`cache_active = not pipeline`). Middleware `params`
-own read/write for that session — not `spec.execution.cache`.
+own read/write for that session — not the built-in `RuntimeEngine` disk cache.
 
 Source: `ctl/src/mas/ctl/session/engine_factory.py`.
 
@@ -98,8 +98,7 @@ Requirements for strict offline replay (`raise_on_miss: true`):
 Infra refs merge in this order (`merge_infra_refs`):
 
 ```text
-agent / overlay spec.infra_refs
-  → workspace infra_refs
+workspace infra_refs
   → user default_infra (if no workspace infra)
   → CLI --infra-ref flags (left to right)
 ```
@@ -278,7 +277,7 @@ Delete the JSON file to invalidate all entries. Format: `{ "<sha256-hex>": "<tex
 | Stop caching mid-run / mid-experiment | Not implemented | Use write manifest only on record runs; replay manifest on CI runs |
 | Prune or invalidate single entries | Not implemented | Delete `cache_path` or edit the JSON manually; use `include_preview: true` to find keys |
 | Human-readable query in cache file | Opt-in | `include_preview: true` stores `_preview` (includes user message) per entry |
-| Built-in cache vs middleware keying | Different schemes | Do not mix built-in `spec.execution.cache` files with middleware `cache_path` |
+| Built-in cache vs middleware keying | Different schemes | Do not mix built-in RuntimeEngine cache files with middleware `cache_path` |
 | Mock non-deterministic tool-call IDs | Runtime behaviour | Record with live provider or deterministic mocks for strict replay |
 
 `raise_on_miss: true` is the safeguard for **fully offline** replay: any cache
@@ -286,18 +285,15 @@ miss is a hard error, so CI never silently calls a live provider.
 
 ---
 
-## Relation to `spec.execution.cache`
+## Relation to built-in RuntimeEngine cache
 
-| | Built-in (`execution.md`) | Infra middleware |
+| | Built-in (`runtime-engine.md`) | Infra middleware |
 | --- | --- | --- |
-| Config surface | Agent / overlay `spec.execution.cache` | `InfraMiddleware` + `--infra-ref` |
-| Shared across agents | No | Yes |
+| Config surface | `RuntimeEngine.spec.cache` + workspace `runtime_refs` | `InfraMiddleware` + `--infra-ref` |
+| Shared across agents | Yes (merged runtime manifests) | Yes |
 | `raise_on_miss` | No | Yes |
 | Independent read/write | Yes | Yes (`allow_read` / `allow_write`) |
 | Active when pipeline set | Disabled | **Active** |
-
-Long term: shared runtime cache policy may move to infra/runtime manifests
-([execution.md](../manifests/execution.md)).
 
 ---
 

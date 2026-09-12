@@ -1,0 +1,16 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: infra/v1
+kind: RuntimeEngine
+
+metadata:
+  name: runtime-default
+  description: >
+    Default kernel tuning (queue depth, dispatch step budget). Include in
+    workspace runtime_refs or --runtime-ref (not infra_refs or agent manifests).
+
+spec:
+  engine:
+    queue_depth: 32
+    max_auto_steps: 512
+  stream: false

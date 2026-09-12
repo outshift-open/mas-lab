@@ -62,7 +62,6 @@ def test_overlay_schema_accepts_explicit_collection_ops_for_agent_target() -> No
             "patch": {
                 "tools": {"$op": {"add": ["calc"], "remove": ["web-search"]}},
                 "skills": {"$op": {"replace": ["route-planning"]}},
-                "infra_refs": {"$op": {"clear": True, "add": ["standard:mock-llm"]}},
             },
         },
     }

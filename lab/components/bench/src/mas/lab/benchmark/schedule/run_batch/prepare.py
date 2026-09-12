@@ -20,28 +20,17 @@ from mas.runtime.spec.infra_paths import experiment_infra_bundle_path
 logger = logging.getLogger(__name__)
 
 
-def _execution_infra_refs(exp: Any) -> list[str]:
-    execution = getattr(exp, "execution", None)
-    if execution is None:
-        return []
-    raw = getattr(execution, "infra_refs", None)
-    if raw is None and isinstance(execution, dict):
-        raw = execution.get("infra_refs")
-    return list(raw or [])
-
-
 def _resolve_run_infra_refs(loaded: LoadedExperiment) -> list[str]:
-    """Merge experiment ``execution.infra_refs`` with the CLI ``--infra`` bundle.
+    """Resolve CLI ``--infra`` bundle refs for benchmark MAS runs.
 
-    ``--infra`` alone never reached the MAS application's infra overlay: it was
-    threaded to pipeline step configs (``_INFRA_STEP_TYPES``) only, so an agent
-    manifest kept whatever LLM binding it declared by default regardless of the
-    flag. ``--infra gls-vllm`` resolves to ``<experiment_dir>/infra/gls-vllm.yaml``
-    and is prepended so it overrides workspace/user defaults during MAS
-    execution. Refs are expressed relative to the MAS application anchor
-    (``mas.yaml``'s parent), matching ``resolve_infra_refs`` at run time.
+    Infra refs are never read from agent/MAS/overlays or from experiment YAML;
+    they merge at run time like ``mas-ctl``: workspace ``config.yaml``,
+    ``MAS_INFRA_REFS``, user default, then CLI. This helper only prepends the
+    experiment-local bundle named by ``--infra`` (e.g. ``gls-vllm`` →
+    ``<experiment_dir>/infra/gls-vllm.yaml``) so it participates in that merge
+    via ``RunContext.infra_refs``.
     """
-    refs = _execution_infra_refs(loaded.exp)
+    refs: list[str] = []
     name = loaded.infra_name
     if not name:
         return refs
@@ -59,9 +48,7 @@ def _resolve_run_infra_refs(loaded: LoadedExperiment) -> list[str]:
     if manifest is not None:
         mas_root = Path(manifest).resolve().parent
     ref = path_ref_for_anchor(bundle, mas_root)
-    if ref in refs:
-        return refs
-    return [ref, *refs]
+    return [ref]
 
 
 @dataclass
@@ -118,7 +105,11 @@ def setup_output_dir(
     return output_dir, csv_path, _mas_meta
 
 
-def preload_scenario_configs(loaded: LoadedExperiment) -> tuple[dict, dict, list[str]]:
+def preload_scenario_configs(
+    loaded: LoadedExperiment,
+    *,
+    infra_refs: list[str] | None = None,
+) -> tuple[dict, dict, list[str]]:
     """Load scenario configs once per scenario."""
     from mas.lab.lab.config import load_stacked_config, load_scenario_config
 
@@ -126,7 +117,7 @@ def preload_scenario_configs(loaded: LoadedExperiment) -> tuple[dict, dict, list
     configs_dir = loaded.configs_dir
     experiment_yaml = loaded.experiment_yaml
     scenario_ids = loaded.scenario_ids
-    infra_refs = _execution_infra_refs(exp)
+    infra_refs = list(infra_refs or [])
 
     _scenario_configs: dict = {}
     _scenario_overlay_stacks: dict = {}
@@ -295,11 +286,13 @@ async def prepare_batch(
             clean_stale=clean_stale,
             trace_cache_dir=loaded.trace_cache_dir,
         )
-    scenario_configs, scenario_overlay_stacks, loaded_ids = preload_scenario_configs(loaded)
+    infra_refs = _resolve_run_infra_refs(loaded)
+    scenario_configs, scenario_overlay_stacks, loaded_ids = preload_scenario_configs(
+        loaded, infra_refs=infra_refs
+    )
     scenario_flavours = resolve_scenario_flavours(loaded, loaded_ids, loaded.flavour_name)
     mas_app, mas_app_version, mas_ref = extract_mas_provenance(loaded)
     scenario_overlay_refs = build_scenario_overlay_refs(loaded, loaded_ids)
-    infra_refs = _resolve_run_infra_refs(loaded)
 
     dataset_items = list(loaded.dataset_items)
     _pre_dataset = await run_pipeline_phase(

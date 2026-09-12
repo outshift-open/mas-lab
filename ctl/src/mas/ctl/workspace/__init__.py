@@ -5,7 +5,6 @@
 from mas.ctl.workspace.config import (
     UserConfig,
     WorkspaceConfig,
-    collect_infra_interceptors,
     infra_refs_from_env,
     merge_infra_interceptors,
     merge_infra_refs,
@@ -14,7 +13,6 @@ from mas.ctl.workspace.config import (
 __all__ = [
     "UserConfig",
     "WorkspaceConfig",
-    "collect_infra_interceptors",
     "infra_refs_from_env",
     "merge_infra_interceptors",
     "merge_infra_refs",

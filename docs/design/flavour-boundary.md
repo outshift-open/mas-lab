@@ -32,11 +32,10 @@ This is not a green-field decision — the overlay schema already drew most of
 this boundary correctly, independently of the Flavour schema, and the two
 disagree. Concretely:
 
-- `docs/schemas/runtime/fragments/execution-binding.schema.yaml` — `spec.patch.execution`
-  is explicitly scoped to `mocking.enabled`, `cache.enabled`, `parallel`,
-  `live`, `timeout` ("EngineContract execution mode — mock/live/cache/parallel
-  only"). `ctl/src/mas/ctl/manifest/spec_bindings.py:246` (`parse_execution`)
-  enforces exactly those keys, nothing else.
+- `kind: RuntimeEngine` (`infra/v1`) — shared engine queue, LLM disk cache policy,
+  stream, parallel tool dispatch. Resolved via workspace `runtime_refs` / CLI;
+  **not** on Agent, MAS, or overlays. Agent `spec.execution` and
+  `execution-binding.schema.yaml` overlay patches are removed.
 - `docs/schemas/runtime/infra.schema.yaml` — infra manifests (`InfraBundle`,
   `LLMProxy`, `ToolProvider`, `ToolRegistry`, …) own endpoints, api keys,
   model wire-names, and tool name→impl mapping. Flavours are explicitly
@@ -132,10 +131,12 @@ by construction rather than needing a bespoke merge path.
 
 | Concern | Owner | Mechanism |
 |---|---|---|
-| Endpoints, api keys, model wire-names, tool name→impl mapping | **Infra** (`infra/v1`: `InfraBundle`, `LLMProxy`, `ToolProvider`, …) | `--infra-ref` / workspace `infra_refs`, never overlay-patched |
+| Endpoints, api keys, model wire-names, tool name→impl mapping | **Infra** (`infra/v1`: `InfraBundle`, `LLMProxy`, `ToolProvider`, …) | `--infra-ref` / workspace `infra_refs` only — never Agent, MAS, or overlay YAML |
 | Protocol, observability/control plugin *selection* | **Flavour** | `--flavour NAME` (+ future flavour overlay, this doc §3) |
 | LLM inference params, tools, skills, memory | **Agent spec / overlay** | `merge_agent_overlay`, `build_cli_overlay` |
-| Mocking, cache, parallel/live/timeout | **Execution** (a binding within agent-spec/overlay, not its own manifest kind) | `spec.execution`, `ExecutionBinding` |
+| Mock LLM / endpoints | **Infra** (`LLMProxy`, bundles) | workspace `infra_refs`, `--infra-ref` |
+| Engine queue, LLM disk cache policy, stream, parallel tool calls | **RuntimeEngine** (`infra/v1`) | workspace `runtime_refs`, `--runtime-ref` (not Agent/MAS/overlays) |
+| Lab trace replay / batch concurrency | **Experiment** `execution:` (mas-lab only) | [experiment.md](../manifests/experiment.md#execution-batch-orchestration) |
 
 ## What this unblocks
 

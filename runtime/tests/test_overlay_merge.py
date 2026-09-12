@@ -271,12 +271,6 @@ def test_merge_llm_block():
     assert merged["spec"]["llm"]["max_tokens"] == 100
 
 
-def test_merge_execution_block():
-    base = {"spec": {"execution": {"timeout_s": 30}}}
-    merged = merge_overlay(base, _overlay({"execution": {"timeout_s": 60}}))
-    assert merged["spec"]["execution"]["timeout_s"] == 60
-
-
 def test_merge_context_manager_list():
     base = {"spec": {"context_manager": {"include": ["a"]}}}
     merged = merge_overlay(base, _overlay({"context_manager": {"include": ["b"]}}))
@@ -461,7 +455,6 @@ def test_runtime_semantics_registry_covers_non_trivial_agent_fields() -> None:
         "tools",
         "skills",
         "memory_seed",
-        "infra_refs",
         "observability",
         "governance",
         "control",

@@ -40,6 +40,8 @@ def _resolve_pattern_plugin_id(spec: dict[str, Any]) -> str:
 
 def parse_agent_spec(
     spec: dict[str, Any],
+    *,
+    runtime_engine: dict[str, Any] | None = None,
 ) -> tuple[KernelConfig, ObservabilityBinding | None]:
     """Parse a raw agent spec dict into (KernelConfig, ObservabilityBinding | None).
 
@@ -53,8 +55,6 @@ def parse_agent_spec(
     """
     gov_raw = spec.get("governance")
     obs_raw = spec.get("observability")
-    execution = spec.get("execution") or {}
-
     gov_binding: GovernanceBinding = parse_gov_spec(gov_raw)
     pattern_plugin_id = _resolve_pattern_plugin_id(spec)
 
@@ -62,24 +62,9 @@ def parse_agent_spec(
         gov_binding, pattern_plugin_id=pattern_plugin_id, agent_spec=spec
     )
 
-    from dataclasses import replace
+    from mas.runtime.spec.runtime_engine import apply_runtime_engine_to_kernel
 
-    # Apply spec.execution overrides (see docs/manifests/execution.md).
-    if "parallel" in execution:
-        kernel_config = replace(
-            kernel_config,
-            parallel_tool_calls=bool(execution["parallel"]),
-        )
-    if "engine_queue_depth" in execution:
-        kernel_config = replace(
-            kernel_config,
-            engine_queue_depth=int(execution["engine_queue_depth"]),
-        )
-    if "max_auto_steps" in execution:
-        kernel_config = replace(
-            kernel_config,
-            max_auto_steps=int(execution["max_auto_steps"]),
-        )
+    kernel_config = apply_runtime_engine_to_kernel(kernel_config, runtime_engine)
 
     obs_binding = parse_obs_spec(obs_raw)
     obs_result: ObservabilityBinding | None = obs_binding if obs_binding.plugins else None

@@ -171,7 +171,8 @@ curl http://localhost:8090/api/schemas/agent
 
 ## See also
 
-- [Execution parameters](execution.md) — `spec.execution`: mocking, LLM cache, parallel tool calls
+- [Runtime engine](runtime-engine.md) — queue depth, cache/stream policy, parallel tool dispatch (workspace `runtime_refs`, not on agents)
+- [execution.md](execution.md) — removed `spec.execution` on agents (migration pointer)
 - [MAS manifest](mas.md) — topology and transport
 - [Overlay manifest](overlay.md) — overrides
 - [Tutorial: building an agent](../tutorials/01-building-an-agent/README.md)

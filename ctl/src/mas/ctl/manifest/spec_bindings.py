@@ -294,14 +294,28 @@ def validate_agent_spec_bindings(spec: Any) -> None:
     if "llm" in spec:
         parse_llm(spec["llm"])
     if "execution" in spec:
-        parse_execution(spec["execution"])
+        raise SpecBindingError(
+            "spec.execution is not allowed on Agent manifests — configure RuntimeEngine "
+            "via workspace runtime_refs or --runtime-ref"
+        )
+    if "runtime_refs" in spec or "runtime_ref" in spec:
+        raise SpecBindingError(
+            "spec.runtime_refs is not allowed on Agent manifests — use workspace config or CLI"
+        )
+    if "infra_refs" in spec or "infra_ref" in spec:
+        raise SpecBindingError(
+            "spec.infra_refs is not allowed on Agent manifests — use workspace config or CLI"
+        )
+    if "infra_interceptors" in spec or "infra_interceptor" in spec:
+        raise SpecBindingError(
+            "spec.infra_interceptors is not allowed on Agent manifests — use workspace config"
+        )
     if "control" in spec:
         parse_control(spec["control"])
     if "design_pattern" in spec:
         parse_design_pattern(spec["design_pattern"])
     if "context_manager" in spec:
         parse_context_manager(spec["context_manager"])
-    parse_infra_lists(spec)
 
 
 def parse_sink_from_deployment(deployment: dict | None) -> str | None:

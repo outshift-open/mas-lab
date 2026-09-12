@@ -29,7 +29,6 @@ def test_keep_recent_compaction_is_wired_into_the_manifests_context_manager(tmp_
     manifest = {
         "metadata": {"name": "agent"},
         "spec": {
-            "execution": {"mocking": {"enabled": True}},
             "working_memory": {"compaction": {"strategy": "keep_recent", "max_messages": 3}},
         },
     }
@@ -41,7 +40,6 @@ def test_explicit_context_manager_is_left_untouched(tmp_path: Path, monkeypatch)
     manifest = {
         "metadata": {"name": "agent"},
         "spec": {
-            "execution": {"mocking": {"enabled": True}},
             "context_manager": {"type": "sliding_window", "params": {"window_size": 9}},
             "working_memory": {"compaction": {"strategy": "keep_recent", "max_messages": 3}},
         },
@@ -53,7 +51,7 @@ def test_explicit_context_manager_is_left_untouched(tmp_path: Path, monkeypatch)
 def test_no_working_memory_compaction_leaves_context_manager_absent(tmp_path: Path, monkeypatch):
     manifest = {
         "metadata": {"name": "agent"},
-        "spec": {"execution": {"mocking": {"enabled": True}}},
+        "spec": {},
     }
     _instantiate(manifest, tmp_path, monkeypatch)
     assert "context_manager" not in manifest["spec"]
@@ -69,7 +67,6 @@ def test_summarize_wires_a_real_summarize_fn_off_the_resolved_engine(tmp_path: P
     manifest = {
         "metadata": {"name": "agent"},
         "spec": {
-            "execution": {"mocking": {"enabled": True}},
             "working_memory": {"compaction": {"strategy": "summarize", "keep_turns": 4}},
         },
     }

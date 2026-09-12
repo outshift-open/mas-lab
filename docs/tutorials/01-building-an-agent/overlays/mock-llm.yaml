@@ -1,6 +1,5 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-# Overlay — offline mock LLM (tutorials, CI, HITL demo without TLS)
 apiVersion: mas/v1
 kind: Overlay
 metadata:
@@ -9,12 +8,5 @@ spec:
   target:
     kind: Agent
   patch:
-    execution:
-      mocking:
-        enabled: true
     llm:
       provider: mock
-    infra_refs:
-      $op:
-        add:
-          - standard:mock-llm

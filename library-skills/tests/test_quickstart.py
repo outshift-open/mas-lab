@@ -55,7 +55,6 @@ def _manifest_base() -> dict:
     call, matching this module's "no API key needed" contract.
     """
     manifest = _load_yaml(AGENT_YAML)
-    manifest.setdefault("spec", {}).setdefault("execution", {})["mocking"] = {"enabled": True}
     return manifest
 
 
@@ -79,7 +78,6 @@ def _manifest_with_skills() -> dict:
             "skills": ["answer-expert"],
             # Tools deliberately omitted here — skill-access tools are tested
             # directly via SkillToolsPlugin, not via ManifestToolProvider.
-            "execution": {"mocking": {"enabled": True}},
         },
     }
 

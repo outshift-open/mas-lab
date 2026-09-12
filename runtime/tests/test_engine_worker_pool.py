@@ -7,7 +7,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-from mas.ctl.manifest.spec_bindings import SpecBindingError, parse_execution
 from mas.runtime.driver.driver import DEFAULT_MAX_AUTO_STEPS, KernelDriver
 from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.engine.worker_pool import DEFAULT_ENGINE_QUEUE_DEPTH, EngineWorkerPool
@@ -30,19 +29,13 @@ def test_submit_rejects_when_queue_full():
 
 
 def test_parse_agent_spec_reads_engine_queue_depth():
-    config, _ = parse_agent_spec({"execution": {"engine_queue_depth": 64}})
+    config, _ = parse_agent_spec({}, runtime_engine={"engine_queue_depth": 64})
     assert config.engine_queue_depth == 64
 
 
 def test_parse_agent_spec_default_engine_queue_depth():
     config, _ = parse_agent_spec({})
     assert config.engine_queue_depth == DEFAULT_ENGINE_QUEUE_DEPTH
-
-
-def test_parse_execution_validates_engine_queue_depth():
-    parse_execution({"engine_queue_depth": 16})
-    with pytest.raises(SpecBindingError, match="engine_queue_depth"):
-        parse_execution({"engine_queue_depth": 0})
 
 
 def test_driver_engine_pool_uses_kernel_config_depth():
@@ -57,19 +50,13 @@ def test_default_max_auto_steps_constant():
 
 
 def test_parse_agent_spec_reads_max_auto_steps():
-    config, _ = parse_agent_spec({"execution": {"max_auto_steps": 20}})
+    config, _ = parse_agent_spec({}, runtime_engine={"max_auto_steps": 20})
     assert config.max_auto_steps == 20
 
 
 def test_parse_agent_spec_default_max_auto_steps():
     config, _ = parse_agent_spec({})
     assert config.max_auto_steps == DEFAULT_MAX_AUTO_STEPS
-
-
-def test_parse_execution_validates_max_auto_steps():
-    parse_execution({"max_auto_steps": 100})
-    with pytest.raises(SpecBindingError, match="max_auto_steps"):
-        parse_execution({"max_auto_steps": 0})
 
 
 def test_runtime_instance_threads_kernel_config_max_auto_steps_to_driver():

@@ -24,7 +24,7 @@ Declares multi-agent composition: participants, control flow, and system-level h
 | Topology | `workflow` | `entry`, `nodes`, `delegates_to`, `edges` — see [topology-and-workflow.md](topology-and-workflow.md) |
 | Transport | `transport` | High-level comm mode (`local`, `agent-remote`, emulation flags) |
 | Shared tools | `tools_ref` | Default logical tool-set (resolved via infra ToolRegistry) |
-| Infra wiring | `infra_refs[]` | Paths to `infra/v1` manifests / bundles |
+| Infra wiring | *(not on MAS)* | Workspace `config.yaml` `infra_refs`, env `MAS_INFRA_REFS`, or `--infra-ref` |
 | Memory artifacts | `memory_stores` | Episodic / semantic / procedural store paths |
 | Telemetry | `telemetry.path` | Default events.jsonl location |
 | System intent | `intent` (top-level) | Summary for emulation / agent cards |

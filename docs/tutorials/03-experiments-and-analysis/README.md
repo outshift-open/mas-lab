@@ -120,9 +120,12 @@ delete the `.run_ref` file (breaks the link) and re-execute.
 
 > **Not to be confused with the LLM response cache.** This trace cache
 > deduplicates whole *experiment runs*. Each individual LLM call within a run
-> has its own separate cache (`spec.execution.cache` — enabled by default via
-> `overlays/mock-llm.yaml`), with independent read/write controls. See
-> [execution.md](../../manifests/execution.md#cache--the-llm-response-cache).
+> has its own separate **LLM response cache** (policy from workspace
+> `runtime_refs` / `standard:runtime-default`, or `--cache-read` /
+> `--cache-write` on `mas-ctl chat`). Mock LLM comes from workspace
+> `infra_refs: [standard:mock-llm]` (see `config.yaml` in this tutorial).
+> See [runtime-engine.md](../../manifests/runtime-engine.md) and
+> [llm-cache.md](../../manifests/llm-cache.md).
 
 ### A.1 — The raw event stream
 

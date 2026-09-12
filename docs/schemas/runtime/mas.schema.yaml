@@ -224,16 +224,6 @@ properties:
         pattern: "^[a-z0-9][a-z0-9_-]*$"
         default: null
 
-      infra_refs:
-        type: array
-        description: "Infra manifest paths relative to the MAS manifest directory."
-        x-merge:
-          strategy: list_ops
-          identity: value
-        default: []
-        items:
-          type: string
-
       middleware:
         description: "Middleware config (reserved for future use)."
         default: null
