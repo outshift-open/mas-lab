@@ -62,6 +62,14 @@ def _property_keys(schema: dict[str, Any], base: Path) -> frozenset[str]:
     return frozenset(_merged_properties(schema, base).keys())
 
 
+def _filesystem_path_param_keys(schema: dict[str, Any], base: Path) -> frozenset[str]:
+    keys: list[str] = []
+    for key, prop in _merged_properties(schema, base).items():
+        if isinstance(prop, dict) and prop.get("x-filesystem-path"):
+            keys.append(key)
+    return frozenset(keys)
+
+
 def _property_defaults(schema: dict[str, Any], base: Path) -> dict[str, Any]:
     defaults: dict[str, Any] = {}
     for key, prop in _merged_properties(schema, base).items():
@@ -101,6 +109,7 @@ def _render_bindings(agent: dict[str, Any]) -> str:
     control = _load(_FRAGMENTS / "control-binding.schema.yaml")
     assembly = _load(_FRAGMENTS / "context-manager-assembly-params.schema.yaml")
     strategy = _load(_FRAGMENTS / "context-manager-strategy-params.schema.yaml")
+    infra_mw = _load(_FRAGMENTS / "infra-middleware-params.schema.yaml")
 
     lines = [
         "#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates",
@@ -125,6 +134,10 @@ def _render_bindings(agent: dict[str, Any]) -> str:
         (
             "CONTEXT_MANAGER_STRATEGY_PARAM_KEYS",
             _property_keys(strategy, _FRAGMENTS),
+        ),
+        (
+            "INFRA_MIDDLEWARE_PATH_PARAM_KEYS",
+            _filesystem_path_param_keys(infra_mw, _FRAGMENTS),
         ),
     ]
     for name, keys in chunks:

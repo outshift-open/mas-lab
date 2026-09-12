@@ -22,6 +22,12 @@ def test_schema_artifacts_up_to_date():
     assert result.returncode == 0, result.stderr or result.stdout
 
 
+def test_infra_middleware_path_param_keys_match_schema():
+    from mas.runtime.spec.schema_bindings_generated import INFRA_MIDDLEWARE_PATH_PARAM_KEYS
+
+    assert INFRA_MIDDLEWARE_PATH_PARAM_KEYS == frozenset({"cache_path", "path"})
+
+
 def test_cm_factory_strips_only_assembly_param_keys():
     from mas.runtime.contracts.cm_factory import CMFactory
     from mas.runtime.spec.schema_bindings_generated import (

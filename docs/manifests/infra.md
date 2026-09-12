@@ -53,6 +53,26 @@ Referenced from MAS `spec.infra_refs`, workspace, or CLI `--infra-ref`.
 
 ---
 
+## Relative refs and anchor
+
+Filesystem infra refs (for example `infra/llm-cache-write.yaml`) resolve **only**
+relative to:
+
+1. The explicit **`anchor=`** passed to `resolve_infra_refs` (typically the MAS
+   or agent app root — parent of `mas.yaml` / `agent.yaml`), or
+2. The discovered **workspace root** when `anchor` is omitted and
+   `config.yaml` was found.
+
+The process **working directory is not used** to locate infra YAML files. That
+keeps `spec.infra_refs` tied to the application that declared them when
+`mas-ctl`, benchmarks, or tests run from another directory.
+
+Relative `cache_path` / `path` values on `InfraMiddleware` `spec.params` are
+made absolute at load time relative to the **directory containing that infra
+YAML file** (not CWD). See [LLM cache reference](../references/llm-cache.md).
+
+---
+
 ## Separation from Flavour
 
 | Infra | Flavour |

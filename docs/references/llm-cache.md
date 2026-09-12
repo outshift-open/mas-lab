@@ -145,6 +145,11 @@ $XDG_CACHE_HOME/mas/llm_cache.json
 (`UserConfig.cache_dir / "llm_cache.json"`). Explicit `cache_path` in the
 manifest is never overwritten.
 
+Relative `cache_path` / `path` strings are resolved to absolute paths at infra
+load time against the directory that contains the middleware YAML file. Infra
+file refs themselves resolve from the MAS/agent **anchor** or workspace root,
+not from the process working directory (see [infra.md](../manifests/infra.md)).
+
 `MAS_LLM_CACHE` env var applies to the **built-in** engine cache only — not
 middleware `params.cache_path`.
 
@@ -246,8 +251,8 @@ It is ignored on read; use it to identify entries when pruning manually.
 
 | Approach | Example | Notes |
 | --- | --- | --- |
-| Next to agent | `.cache/tutorial.llm-cache.json` | Relative to process CWD when file is opened |
-| Repo example | `library-samples/infra/cache/demo.llm-cache.json` | Run from repository root |
+| Next to infra YAML | `.cache/tutorial.llm-cache.json` | Resolved relative to the middleware manifest directory |
+| Repo example | `cache/demo.llm-cache.json` in infra YAML | Resolves to `library-samples/infra/cache/demo.llm-cache.json` |
 | XDG default | `null` or omit | `standard:llm-cache-*` refs |
 | Env `MAS_LLM_CACHE` | — | Built-in engine cache only |
 
@@ -261,7 +266,7 @@ Delete the JSON file to invalidate all entries. Format: `{ "<sha256-hex>": "<tex
 | --- | --- | --- | --- | --- |
 | `standard:llm-cache` | `true` | `true` | `false` | XDG |
 | `standard:llm-proxy-cached` | (bundle) | — | — | cache + `standard:openai` |
-| `library-samples/infra/llm-cache-write.yaml` | `false` | `true` | `false` | `library-samples/infra/cache/demo.llm-cache.json` |
+| `library-samples/infra/llm-cache-write.yaml` | `false` | `true` | `false` | `cache/demo.llm-cache.json` (under infra dir) |
 | `library-samples/infra/llm-cache-replay.yaml` | `true` | `false` | `true` | same |
 
 ---

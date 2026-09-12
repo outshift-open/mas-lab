@@ -55,7 +55,7 @@ and pruning — see [Known limitations](../references/llm-cache.md#known-limitat
 
 | Manifest | Ref / path | Purpose |
 | --- | --- | --- |
-| Write | `library-samples/infra/llm-cache-write.yaml` | `library-samples/infra/cache/demo.llm-cache.json` |
+| Write | `library-samples/infra/llm-cache-write.yaml` | `cache/demo.llm-cache.json` (resolved under that infra dir) |
 | Replay | `library-samples/infra/llm-cache-replay.yaml` | Strict replay; same `cache_path` |
 | Read+write | `standard:llm-cache` | XDG default; both read and write |
 | Provider + cache | `standard:llm-proxy-cached` | `InfraBundle` (cache + OpenAI) |
@@ -85,7 +85,7 @@ spec:
     allow_read: false
     allow_write: true
     raise_on_miss: false
-    cache_path: library-samples/infra/cache/demo.llm-cache.json
+    cache_path: cache/demo.llm-cache.json
 ```
 
 `allow_read: false` — always call the provider on a miss; still write responses.
@@ -112,7 +112,7 @@ spec:
     allow_read: true
     allow_write: false
     raise_on_miss: true
-    cache_path: library-samples/infra/cache/demo.llm-cache.json
+    cache_path: cache/demo.llm-cache.json
 ```
 
 On a hit the provider is not called. On a miss, `raise_on_miss: true` errors

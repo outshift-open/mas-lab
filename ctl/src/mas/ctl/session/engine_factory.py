@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from mas.ctl.compose.models import ResolvedInfra
-from mas.ctl.infra.resolve import resolve_infra_refs
+from mas.ctl.infra.resolve import resolution_anchor, resolve_infra_refs
 from mas.ctl.infra.resolve import InfraResolveError
 from mas.ctl.infra.resolve import api_key_for_infra
 from mas.ctl.session.manifest_config import engine_use_tool_loop, kernel_config_from_manifest  # kernel_config_from_manifest: deprecated; prefer RuntimeInstance.from_spec()
@@ -177,10 +177,11 @@ def build_engine(
     # Use pre-parsed kernel config if provided (spec-aware path); fall back to manifest parsing.
     kernel_cfg = kernel_config if kernel_config is not None else kernel_config_from_manifest(manifest, pattern_plugin_id=pid)
     tool_loop = engine_use_tool_loop(manifest, kernel_cfg)
-    ref_anchor = anchor or Path.cwd()
+    ws = workspace or WorkspaceConfig.load(anchor)
+    ref_anchor = resolution_anchor(anchor, ws)
 
     resolved = _resolve_infra_for_engine(
-        manifest, infra, anchor=ref_anchor, workspace=workspace
+        manifest, infra, anchor=ref_anchor, workspace=ws
     )
     llm_proxy = dict(resolved.llm_proxy or {})
     mock = is_mock_mode(manifest, resolved) or bool(llm_proxy.get("mock"))

@@ -35,6 +35,19 @@ def test_build_engine_errors_without_infra_or_mock(monkeypatch, tmp_path):
         )
 
 
+def test_build_engine_resolves_infra_anchor_from_workspace_when_omitted(monkeypatch, tmp_path):
+    from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
+
+    ws = WorkspaceConfig({}, tmp_path)
+    monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: ws)
+    monkeypatch.setattr(UserConfig, "load", lambda *a, **k: UserConfig({}))
+    ctx = AutoCtxAssembler()
+    manifest = {"spec": {"execution": {"mocking": {"enabled": True}}}}
+
+    sel = build_engine(ctx, manifest, None, workspace=ws)
+    assert sel.mode == "mock"
+
+
 def test_build_engine_mock_mode_from_execution_flag(monkeypatch, tmp_path):
     from mas.ctl.infra.resolve import resolve_infra_refs
     from mas.ctl.workspace.config import UserConfig, WorkspaceConfig

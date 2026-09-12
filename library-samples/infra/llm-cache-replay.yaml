@@ -18,4 +18,4 @@ spec:
     allow_read: true
     allow_write: false
     raise_on_miss: true
-    cache_path: library-samples/infra/cache/demo.llm-cache.json
+    cache_path: cache/demo.llm-cache.json

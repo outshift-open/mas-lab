@@ -19,8 +19,10 @@ properties:
     type: boolean
   cache_path:
     type: [string, "null"]
+    x-filesystem-path: true
   path:
     type: string
+    x-filesystem-path: true
   rate:
     type: number
     minimum: 0

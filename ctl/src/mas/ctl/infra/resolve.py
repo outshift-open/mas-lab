@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from mas.runtime.spec.schema_bindings_generated import INFRA_MIDDLEWARE_PATH_PARAM_KEYS
 from mas.runtime.spec.source import load_yaml_file, resolve_ref_with_search
 from mas.runtime.xdg import mas_infra_dir
 from mas.ctl.compose.models import ResolvedInfra
@@ -73,11 +74,13 @@ def resolve_infra_refs(
         else:
             effective = ["standard:production"]
 
+    root = resolution_anchor(anchor, ws)
+
     merged = InfraManifest(name="merged")
     errors: list[tuple[str, Exception]] = []
     for ref in effective:
         try:
-            part = _load_ref(ref, anchor=anchor or Path.cwd(), workspace=ws)
+            part = _load_ref(ref, anchor=root, workspace=ws)
             merged = _merge(merged, part)
         except Exception as exc:
             errors.append((ref, exc))
@@ -90,7 +93,7 @@ def resolve_infra_refs(
     )
     for ref in merged_interceptors:
         try:
-            part = _load_ref(ref, anchor=anchor or Path.cwd(), workspace=ws)
+            part = _load_ref(ref, anchor=root, workspace=ws)
             merged.pipeline = _merge_pipeline(merged.pipeline, part.pipeline)
         except Exception as exc:
             errors.append((ref, exc))
@@ -145,6 +148,26 @@ def _load_ref(ref: str, *, anchor: Path, workspace: WorkspaceConfig) -> InfraMan
     return _load_file(path, workspace=workspace)
 
 
+def resolution_anchor(anchor: Path | None, workspace: WorkspaceConfig) -> Path:
+    """Directory used to resolve relative infra refs (never the process CWD alone)."""
+    if anchor is not None:
+        return Path(anchor).expanduser().resolve()
+    if workspace.root:
+        return workspace.root.resolve()
+    raise InfraResolveError(
+        [
+            (
+                "<anchor>",
+                ValueError(
+                    "infra resolution requires anchor= (MAS or agent app root) or a "
+                    "workspace with a discovered root (config.yaml); relative refs are "
+                    "not resolved from the process working directory"
+                ),
+            )
+        ]
+    )
+
+
 def _resolve_ref_path(ref: str, *, anchor: Path, workspace: WorkspaceConfig) -> Path:
     if ":" in ref and "://" not in ref:
         lib_path = workspace.resolve_library_path(ref)
@@ -155,8 +178,13 @@ def _resolve_ref_path(ref: str, *, anchor: Path, workspace: WorkspaceConfig) -> 
             return bundle_path
 
     candidate = Path(ref).expanduser()
-    if candidate.is_file():
+    if candidate.is_absolute() and candidate.is_file():
         return candidate.resolve()
+
+    # Relative refs are resolved from the manifest/workspace anchor only.
+    anchored = anchor / candidate
+    if anchored.is_file():
+        return anchored.resolve()
 
     return resolve_ref_with_search(
         ref,
@@ -277,13 +305,14 @@ def _load_file(
         applies = spec.get("applies_to") or ["LLM_CALL"]
         if isinstance(applies, str):
             applies = [applies]
+        params = _resolve_pipeline_param_paths(dict(spec.get("params") or {}), anchor=path.parent)
         return InfraManifest(
             name=str((data.get("metadata") or {}).get("name", path.stem)),
             kind=kind,
             pipeline=[
                 {
                     "middleware": spec.get("middleware") or path.stem.replace("-", "_"),
-                    "params": dict(spec.get("params") or {}),
+                    "params": params,
                     "applies_to": list(applies),
                 }
             ],
@@ -369,6 +398,19 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
     )
 
 
+def _resolve_pipeline_param_paths(params: dict[str, Any], *, anchor: Path) -> dict[str, Any]:
+    out = dict(params)
+    for key in INFRA_MIDDLEWARE_PATH_PARAM_KEYS:
+        value = out.get(key)
+        if not isinstance(value, str):
+            continue
+        candidate = Path(value).expanduser()
+        if not candidate.is_absolute():
+            candidate = (anchor / candidate).resolve()
+        out[key] = str(candidate)
+    return out
+
+
 def _resolve_pipeline_entry(
     entry: Any,
     *,
@@ -379,13 +421,19 @@ def _resolve_pipeline_entry(
         child_path = _resolve_ref_path(entry, anchor=anchor, workspace=workspace)
         loaded = _load_file(child_path, workspace=workspace)
         if loaded.pipeline:
-            return dict(loaded.pipeline[0])
+            step = dict(loaded.pipeline[0])
+            step["params"] = _resolve_pipeline_param_paths(
+                dict(step.get("params") or {}),
+                anchor=child_path.parent,
+            )
+            return step
         return {"middleware": entry.split(":")[-1].replace("-", "_"), "params": {}}
     if isinstance(entry, dict):
         if "ref" in entry:
             return _resolve_pipeline_entry(str(entry["ref"]), anchor=anchor, workspace=workspace)
         mid = entry.get("middleware") or entry.get("id")
-        return {"middleware": mid, "params": dict(entry.get("params") or {})}
+        params = _resolve_pipeline_param_paths(dict(entry.get("params") or {}), anchor=anchor)
+        return {"middleware": mid, "params": params}
     raise ValueError(f"invalid pipeline entry: {entry!r}")
 
 
