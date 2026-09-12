@@ -18,6 +18,7 @@ from mas.ctl.adapters.memory_seed import (
     seeds_from_manifest,
 )
 from mas.ctl.compose.models import ResolvedInfra
+from mas.ctl.infra.resolve import resolution_anchor
 from mas.ctl.session.engine_factory import build_engine
 from mas.ctl.validate import validate_file, validation_enabled
 from mas.ctl.workspace.config import WorkspaceConfig
@@ -132,7 +133,7 @@ def instantiate_runtime(
             agency = mas_spec.get("agency") if isinstance(mas_spec, dict) else None
             if isinstance(agency, dict) and agency.get("agents"):
                 spec["agency"] = {"agents": list(agency.get("agents") or [])}
-    ws = options.workspace or WorkspaceConfig.load(options.manifest_dir or Path.cwd())
+    ws = options.workspace or WorkspaceConfig.load(options.manifest_dir)
     # Pre-parse spec to derive kernel config once; pass to build_engine to avoid double-parsing.
     from mas.runtime.spec.parser import parse_agent_spec
 
@@ -143,7 +144,7 @@ def instantiate_runtime(
         options.resolved_infra,
         pattern_plugin_id=options.pattern_plugin_id,
         workspace_default_model=ws.default_model,
-        anchor=options.manifest_dir or Path.cwd(),
+        anchor=resolution_anchor(options.manifest_dir, ws),
         workspace=ws,
         kernel_config=_kernel_cfg,
         cache_read_override=options.cache_read_override,

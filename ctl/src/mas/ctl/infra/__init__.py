@@ -2,6 +2,6 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Infra manifest resolution — workspace bundles, user config, library entry points."""
 
-from mas.ctl.infra.resolve import InfraResolveError, resolve_infra_refs
+from mas.ctl.infra.resolve import InfraResolveError, resolution_anchor, resolve_infra_refs
 
-__all__ = ["InfraResolveError", "resolve_infra_refs"]
+__all__ = ["InfraResolveError", "resolution_anchor", "resolve_infra_refs"]
