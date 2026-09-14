@@ -150,6 +150,9 @@ def _render_defaults() -> str:
     assembly = _load(_FRAGMENTS / "context-manager-assembly-params.schema.yaml")
     exec_defaults = _property_defaults(execution, _FRAGMENTS)
     asm_defaults = _property_defaults(assembly, _FRAGMENTS)
+    asm_props = _merged_properties(assembly, _FRAGMENTS)
+    trimmer_props = (asm_props.get("trimmer") or {}).get("properties") or {}
+    reserve_default = (trimmer_props.get("reserve_tokens") or {}).get("default", 512)
 
     lines = [
         "#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates",
@@ -161,7 +164,7 @@ def _render_defaults() -> str:
         f"EXECUTION_MAX_AUTO_STEPS = {exec_defaults['max_auto_steps']!r}",
         f"EXECUTION_ENGINE_QUEUE_DEPTH = {exec_defaults['engine_queue_depth']!r}",
         f"CONTEXT_MANAGER_WORKING_MEMORY_MESSAGES = {asm_defaults['working_memory_messages']!r}",
-        f"CONTEXT_MANAGER_RESERVE_TOKENS = {asm_defaults['reserve_tokens']!r}",
+        f"CONTEXT_MANAGER_RESERVE_TOKENS = {reserve_default!r}",
         "",
     ]
     return "\n".join(lines)

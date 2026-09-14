@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from mas.library.standard.plugins.context.provider_payload import assert_provider_payload
+from mas.runtime.boundary.context.provider_invariant import assert_provider_payload
 from mas.runtime.boundary.context.assemble import assemble_llm_messages
 from mas.runtime.boundary.context.chunk_compaction import maybe_compact_chunks_after_commit
 from mas.runtime.boundary.context.conversation_chunks import (

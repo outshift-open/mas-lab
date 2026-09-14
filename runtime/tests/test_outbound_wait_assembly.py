@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from mas.library.standard.plugins.context.assembler import ContextAssemblerPlugin
 from mas.library.standard.plugins.context.conversation import StackConversation
-from mas.library.standard.plugins.context.provider_payload import assert_provider_payload
+from mas.runtime.boundary.context.provider_invariant import assert_provider_payload
 from mas.runtime.boundary.context.assemble import assemble_llm_messages
 from mas.runtime.boundary.context.working_memory import (
     bounded_working_memory_tail,
@@ -60,9 +60,10 @@ def test_assemble_pins_wm_under_budget() -> None:
     ctx.record_tool_result(call_id="call_1", content="Donald Trump is president.")
     manifest = {
         "spec": {
-            "context_manager": {"type": "stack"},
-            "token_budget": 50,
-            "reserve_tokens": 0,
+            "context_manager": {
+                "type": "stack",
+                "params": {"trimmer": {"max_tokens": 50, "reserve_tokens": 0}},
+            },
         }
     }
     messages = assemble_llm_messages(ctx, manifest=manifest)
@@ -77,8 +78,10 @@ def test_assemble_committed_history_provider_safe_after_stack_trim() -> None:
     ctx = AutoCtxAssembler(last_user_text="What next?", committed_messages=committed)
     manifest = {
         "spec": {
-            "context_manager": {"type": "stack", "params": {"max_messages": 6}},
-            "token_budget": 500_000,
+            "context_manager": {
+                "type": "stack",
+                "params": {"max_messages": 6, "trimmer": {"max_tokens": 500_000}},
+            },
         }
     }
     messages = assemble_llm_messages(ctx, manifest=manifest)

@@ -139,14 +139,10 @@ def test_trim_with_structural_pin_tail() -> None:
 
 
 def test_pr55_stack_slice_orphan_tool_at_front() -> None:
-    """Stack trim can leave a lone tool message — sanitize must drop it."""
+    """Stack trim used to slice mid-group; manage_history must return a valid payload."""
     past = _tool_turn("call_0") + _tool_turn("call_1")
     trimmed = StackConversation(max_messages=2).manage_history(past, budget_tokens=0)
-    assert trimmed[0]["role"] == "tool"
-    assert not any(m.get("tool_calls") for m in trimmed)
-    out = sanitize_provider_messages(trimmed)
-    assert not any(m.get("role") == "tool" for m in out)
-    assert_provider_payload(out)
+    assert_provider_payload(trimmed)
 
 
 def test_pr55_stack_various_max_messages_never_violate_invariant() -> None:
@@ -155,10 +151,9 @@ def test_pr55_stack_various_max_messages_never_violate_invariant() -> None:
         past.extend(_tool_turn(f"call_{i}"))
     for max_msgs in range(1, 20):
         trimmed = StackConversation(max_messages=max_msgs).manage_history(past, budget_tokens=0)
-        out = sanitize_provider_messages(trimmed)
-        declared, returned = tool_call_pairs(out)
+        declared, returned = tool_call_pairs(trimmed)
         assert returned <= declared
-        assert_provider_payload(out)
+        assert_provider_payload(trimmed)
 
 
 def test_pr55_sliding_window_split_exchange() -> None:

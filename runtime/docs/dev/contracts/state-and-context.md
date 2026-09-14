@@ -69,11 +69,15 @@ memory bridges, skills, and DP instructions.
 | `collect_context(request)` | Return `ContextPart` list with provenance |
 
 **Kernel path:** context assembly runs before each scheduled `LLM_CALL`; parts
-are merged, history-filtered, and budget-trimmed. See
-[context-segmentation.md](../../context-segmentation.md).
+are merged, history-filtered, and optionally token-trimmed when
+`spec.context_manager.params.trimmer` is set. See
+[context-segmentation.md](../../context-segmentation.md) and
+[context-assembly.md](../../../../docs/manifests/context-assembly.md).
 
-Implementations live in `library-standard` (`plugins/context/*`) and custom
-lab plugins.
+`context_manager` plugins live in `library-standard` (`plugins/context/conversation.py`)
+and must return provider-safe history from `manage_history`. Token trim uses a
+shared helper in `library-standard` (`trim_messages_to_budget`), not a registry
+plugin type.
 
 ---
 

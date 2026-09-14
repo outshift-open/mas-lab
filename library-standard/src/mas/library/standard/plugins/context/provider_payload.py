@@ -1,39 +1,27 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Provider-safe OpenAI-shaped message lists after trimming or compaction."""
+"""Provider-safe history helpers for context_manager plugins (not a registry plugin)."""
 
 from __future__ import annotations
 
 from typing import Any
 
+from mas.runtime.boundary.context.provider_invariant import assert_provider_payload, tool_call_pairs
 
-def tool_call_pairs(messages: list[dict[str, Any]]) -> tuple[set[str], set[str]]:
-    """Return (declared tool_call ids, tool-result ids) for invariant checks."""
-    declared = {str(c["id"]) for m in messages if m.get("tool_calls") for c in m["tool_calls"] if c.get("id")}
-    returned = {str(m["tool_call_id"]) for m in messages if m.get("role") == "tool" and m.get("tool_call_id")}
-    return declared, returned
-
-
-def assert_provider_payload(messages: list[dict[str, Any]]) -> None:
-    """Bedrock-style invariant: every tool result references a declared tool_call id."""
-    declared, returned = tool_call_pairs(messages)
-    orphan = returned - declared
-    assert not orphan, f"orphan tool results: {orphan}"
+__all__ = [
+    "assert_provider_payload",
+    "sanitize_provider_messages",
+    "tool_call_pairs",
+]
 
 
 def sanitize_provider_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Remove invalid tool fragments from *completed* history.
-
-    Only pass committed/trimmed history — never the live in-turn tail (working
-    memory or the current user turn), which may contain in-flight tool_calls.
-    """
     if not messages:
         return []
     return _sanitize_completed(messages)
 
 
 def _repair_tool_call_bindings(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Rebind mismatched tool_call_id values (e.g. HITL steering) before orphan drop."""
     repaired: list[dict[str, Any]] = []
     unresolved: set[str] = set()
 

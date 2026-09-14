@@ -5,8 +5,8 @@ $id: "mas/v1#context-manager-assembly-params"
 title: ContextManagerAssemblyParams
 description: >
   Kernel assembly knobs under spec.context_manager.params. Read by
-  assemble_llm_messages / token budget / working-memory slicing — not forwarded
-  to ContextManagerContract constructors (stripped in CMFactory).
+  assemble_llm_messages / working-memory slicing — not forwarded to
+  ContextManagerContract constructors (stripped in CMFactory).
 type: object
 additionalProperties: false
 properties:
@@ -19,25 +19,26 @@ properties:
     type: integer
     minimum: 1
     description: Alias for working_memory_messages.
-  token_budget:
-    type: integer
-    minimum: 1
-    description: Max estimated input tokens after assembly.
-  max_tokens:
-    type: integer
-    minimum: 1
-    description: Alias for token_budget.
-  reserve_tokens:
-    type: integer
-    minimum: 0
-    default: 512
-    description: Tokens reserved for model completion when token_budget is set.
+  trimmer:
+    type: object
+    description: >
+      When present with max_tokens, enables assembly-time token trimming
+      (tool-group-aware). Not a registry plugin — tunable assembly params only.
+    additionalProperties: false
+    properties:
+      max_tokens:
+        type: integer
+        minimum: 1
+        description: Max estimated input tokens after assembly.
+      token_budget:
+        type: integer
+        minimum: 1
+        description: Alias for max_tokens.
+      reserve_tokens:
+        type: integer
+        minimum: 0
+        default: 512
+        description: Tokens reserved for model completion.
   working_memory_ref:
     type: string
     description: Registry ref for working_memory context source plugin.
-  trimmer_ref:
-    type: string
-    description: Registry ref for token-budget trimmer plugin.
-  token_budget_ref:
-    type: string
-    description: Alias for trimmer_ref.

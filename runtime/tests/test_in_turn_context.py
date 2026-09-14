@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from mas.library.standard.plugins.context.token_budget import trim_messages_to_budget
 from mas.runtime.boundary.context.assemble import assemble_llm_messages
+from mas.library.standard.plugins.context.token_budget import trim_messages_to_budget
 from mas.runtime.boundary.context.working_memory import SOURCE_TYPE, WorkingMemoryStore
 from mas.runtime.contracts.cm_factory import CMFactory
 from mas.runtime.engine.llm_live import LiveLlmEngine

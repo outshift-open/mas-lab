@@ -23,7 +23,7 @@ sees, and which plugins hook its execution.
 |------|---------------|-------------------|
 | Reasoning loop | `design_pattern` | Selects DesignPatternContract (ReAct, CoT, …) — intra-agent δ transitions |
 | Peer delegation | MAS `workflow` (when embedded in a MAS) | `delegates_to` graph + `workflow.type`; executed by the entry agent's own `design_pattern` (ReAct tool loop) — see [mas.md](mas.md) |
-| Context window | `context_manager` | Stack / sliding-window / summarising |
+| Context window | `context_manager` | Stack / sliding-window / summarising; optional `params.trimmer` for assembly token cap — [context-assembly.md](context-assembly.md) |
 | Prompt / role | `description`, `context` | `description` → delegation tools; `context.*` → system prompt |
 | Models | `models[]` | LLM routing (ids, temperature, max_tokens) |
 | Tools | `tools`, `tools_ref` | ToolContract surface |

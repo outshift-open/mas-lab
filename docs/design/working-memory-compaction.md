@@ -70,11 +70,12 @@ claim to control how much history is kept:
    - `SummarizingConversation` — compress older turns into a summary system
      block, keep the last N verbatim.
 
-   `assemble_llm_messages()` calls `cm.manage_history(past, max_tokens)`
-   (`assemble.py:78-80`) on **every single turn**, where `past` is exactly
-   `ctx.committed_messages` — so compaction already applies for free to
-   persisted/registry-restored working memory, with zero extra code, the
-   moment a manifest sets `context_manager: {type: <one of the above>}`.
+   `assemble_llm_messages()` calls `cm.manage_history(past, budget_hint)` on
+   **every single turn**, where `past` is committed history and `budget_hint`
+   is the `max_tokens` from `spec.context_manager.params.trimmer` when that
+   block is set (else `0`). See [context-assembly.md](../manifests/context-assembly.md)
+   for optional assembly-time token trim (tool-group-aware, separate from CM
+   strategy params).
 
 2. **`spec.memory.compaction`** (was `agent.schema.yaml` lines ~261-305) — a
    richer, schema-only surface: `strategy: keep_recent|summarize|

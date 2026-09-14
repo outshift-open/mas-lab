@@ -8,3 +8,4 @@ spec:
   model: gpt-4o-mini
   design_pattern: react@v1
   context_manager: sliding-window
+  context_plugin: context-assembler

@@ -34,7 +34,7 @@ config.yaml       ← project defaults (flavour, infra_refs, .env path)
 
 | Layer | Manifest kinds | Reference |
 |-------|----------------|-----------|
-| **Agent** | `Agent` | [agent.md](agent.md) |
+| **Agent** | `Agent` | [agent.md](agent.md) · [context-assembly.md](context-assembly.md) |
 | **Runtime engine** | `RuntimeEngine` (`infra/v1`, via workspace / CLI) | [runtime-engine.md](runtime-engine.md) · [execution.md](execution.md) (migration) |
 | **MAS** | `MAS`, `Workflow` | [mas.md](mas.md), [workflow.md](workflow.md) |
 | **Override** | `Overlay` | [overlay.md](overlay.md) |

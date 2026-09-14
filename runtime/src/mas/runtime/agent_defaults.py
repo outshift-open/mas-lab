@@ -29,6 +29,13 @@ def default_context_manager_id() -> str:
     return get_registry().default_for("context_manager")
 
 
+def default_context_plugin_id() -> str:
+    """Registry id for ``spec.context_plugin`` when manifest omits type/ref."""
+    from mas.runtime.registry import get_registry
+
+    return get_registry().default_for("context_plugin")
+
+
 def default_model() -> str:
     """Package/workspace default LLM model id (``defaults.yaml`` + ``config.yaml``)."""
     from mas.runtime.registry.defaults import load_defaults

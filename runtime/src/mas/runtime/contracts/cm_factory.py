@@ -15,7 +15,11 @@ from mas.runtime.spec.schema_bindings_generated import CONTEXT_MANAGER_ASSEMBLY_
 
 
 class CMFactory:
-    """Instantiate ``spec.context_manager`` via the runtime registry."""
+    """Instantiate ``spec.context_manager`` via the runtime registry.
+
+    When the manifest omits ``spec.context_manager``, the registry default
+    from ``defaults.yaml`` (overridable via workspace ``config.yaml``) is used.
+    """
 
     @classmethod
     def create(

@@ -7,9 +7,15 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable
 
+from mas.library.standard.plugins.context.provider_payload import sanitize_provider_messages
 from mas.runtime.contracts.context_manager_contract import ContextManagerContract
 
 _log = logging.getLogger(__name__)
+
+
+def _finalize_history(past: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Provider-safe history; every context_manager plugin must return this shape."""
+    return sanitize_provider_messages(past)
 
 
 class StackConversation(ContextManagerContract):
@@ -26,16 +32,16 @@ class StackConversation(ContextManagerContract):
         budget_tokens: int,
     ) -> list[dict[str, Any]]:
         if not past or self.max_messages is None:
-            return past
+            return _finalize_history(past)
         if len(past) <= self.max_messages:
-            return past
+            return _finalize_history(past)
         evicted = len(past) - self.max_messages
         _log.debug(
             "StackConversation: evicted %d message(s), keeping last %d",
             evicted,
             self.max_messages,
         )
-        return past[-self.max_messages :]
+        return _finalize_history(past[-self.max_messages :])
 
 
 class SlidingWindowConversation(ContextManagerContract):
@@ -52,7 +58,7 @@ class SlidingWindowConversation(ContextManagerContract):
         budget_tokens: int,
     ) -> list[dict[str, Any]]:
         if not past:
-            return past
+            return _finalize_history(past)
 
         exchanges: list[list[dict[str, Any]]] = []
         i = 0
@@ -71,7 +77,7 @@ class SlidingWindowConversation(ContextManagerContract):
                 i += 1
 
         if len(exchanges) <= self.max_turns:
-            return past
+            return _finalize_history(past)
 
         kept = exchanges[-self.max_turns :]
         evicted = len(exchanges) - self.max_turns
@@ -80,7 +86,7 @@ class SlidingWindowConversation(ContextManagerContract):
             evicted,
             self.max_turns,
         )
-        return [msg for exchange in kept for msg in exchange]
+        return _finalize_history([msg for exchange in kept for msg in exchange])
 
 
 class SummarizingConversation(ContextManagerContract):
@@ -117,11 +123,11 @@ class SummarizingConversation(ContextManagerContract):
         budget_tokens: int,
     ) -> list[dict[str, Any]]:
         if not past:
-            return past
+            return _finalize_history(past)
 
         effective = budget_tokens if budget_tokens else self.summary_threshold
         if self._estimate_tokens(past) <= effective:
-            return past
+            return _finalize_history(past)
 
         exchanges: list[list[dict[str, Any]]] = []
         i = 0
@@ -140,7 +146,7 @@ class SummarizingConversation(ContextManagerContract):
                 i += 1
 
         if len(exchanges) <= self.keep_turns:
-            return past
+            return _finalize_history(past)
 
         to_compress = exchanges[: -self.keep_turns]
         verbatim = exchanges[-self.keep_turns :]
@@ -166,4 +172,4 @@ class SummarizingConversation(ContextManagerContract):
                 f"{summary_text}"
             ),
         }
-        return [summary_block] + [msg for ex in verbatim for msg in ex]
+        return _finalize_history([summary_block] + [msg for ex in verbatim for msg in ex])

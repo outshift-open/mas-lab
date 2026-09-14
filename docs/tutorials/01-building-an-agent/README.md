@@ -95,7 +95,7 @@ That's it. Everything else has sensible defaults:
 |-------|---------|---------|
 | `spec.models[0].model` | `gpt-4` (overridden by flavour) | Main LLM — works without flavour; flavour overrides |
 | `spec.design_pattern.type` | `react` | ReAct loop — up to **25 steps** per turn |
-| `spec.context_manager.type` | `sliding-window` | Keep last **20 turns** in context |
+| `spec.context_manager.type` | `sliding-window` | Keep last **20 turns** in context (optional `params.trimmer` caps assembled tokens — [context-assembly.md](../../manifests/context-assembly.md)) |
 
 > **Key insight:** The manifest is a *specification*, not a configuration file.
 > It declares the agent's capabilities and intent. The runtime resolves how

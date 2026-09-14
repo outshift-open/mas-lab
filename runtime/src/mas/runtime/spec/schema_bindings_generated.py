@@ -69,11 +69,7 @@ CONTEXT_MANAGER_BINDING_KEYS = frozenset(
 CONTEXT_MANAGER_ASSEMBLY_PARAM_KEYS = frozenset(
     {
     'max_in_turn_messages',
-    'max_tokens',
-    'reserve_tokens',
-    'token_budget',
-    'token_budget_ref',
-    'trimmer_ref',
+    'trimmer',
     'working_memory_messages',
     'working_memory_ref',
     }
