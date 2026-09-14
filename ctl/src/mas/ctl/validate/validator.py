@@ -47,6 +47,194 @@ def strict_mode() -> bool:
     return os.environ.get("MAS_MANIFEST_STRICT", "1") not in ("0", "false", "False")
 
 
+def _looks_like_path_ref(value: str) -> bool:
+    return (
+        "/" in value
+        or "\\" in value
+        or value.endswith((".yaml", ".yml", ".json", ".py"))
+    )
+
+
+def _validate_tool_manifest_semantics(data: dict[str, Any]) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+    spec = data.get("spec")
+    if not isinstance(spec, dict):
+        return issues
+
+    if "implementation" in spec:
+        issues.append(
+            ValidationIssue(
+                "error",
+                "spec.implementation is not supported; use spec.impl",
+                path="spec.implementation",
+            )
+        )
+
+    impl = spec.get("impl")
+    if not isinstance(impl, dict):
+        issues.append(
+            ValidationIssue(
+                "error",
+                "spec.impl is required and must be an object",
+                path="spec.impl",
+            )
+        )
+        return issues
+
+    module_path = impl.get("module_path")
+    if not isinstance(module_path, str) or not module_path.strip():
+        issues.append(
+            ValidationIssue(
+                "error",
+                "spec.impl.module_path is required and must be a non-empty string",
+                path="spec.impl.module_path",
+            )
+        )
+
+    class_name = impl.get("class_name")
+    if class_name is not None and not isinstance(class_name, str):
+        issues.append(
+            ValidationIssue(
+                "error",
+                "spec.impl.class_name must be a string or null",
+                path="spec.impl.class_name",
+            )
+        )
+
+    impl_kind = impl.get("kind")
+    allowed_kinds = {"python", "remote_tool", "openapi"}
+    if impl_kind is not None and impl_kind not in allowed_kinds:
+        issues.append(
+            ValidationIssue(
+                "error",
+                "spec.impl.kind must be one of: python, remote_tool, openapi",
+                path="spec.impl.kind",
+            )
+        )
+
+    if "type" in impl:
+        issues.append(
+            ValidationIssue(
+                "error",
+                "spec.impl.type is not supported; use spec.impl.kind",
+                path="spec.impl.type",
+            )
+        )
+
+    return issues
+
+
+def _validate_agent_tool_refs_semantics(
+    spec: dict[str, Any],
+    *,
+    agent_manifest_dir: Path | None,
+) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+    tools = spec.get("tools")
+    if not isinstance(tools, list):
+        return issues
+
+    allowed_prefixes = ("./", "../", "pkg://", "samples:", "standard:", "bundle://")
+
+    for idx, entry in enumerate(tools):
+        if isinstance(entry, str):
+            if _looks_like_path_ref(entry) and not entry.startswith(allowed_prefixes):
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        (
+                            f"spec.tools[{idx}] looks like a file path but is not explicit; "
+                            f"use './...' (got {entry!r})"
+                        ),
+                        path=f"spec.tools.{idx}",
+                    )
+                )
+            continue
+
+        if not isinstance(entry, dict):
+            continue
+
+        ref = entry.get("ref")
+        if isinstance(ref, str):
+            if _looks_like_path_ref(ref) and not ref.startswith(allowed_prefixes):
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        (
+                            f"spec.tools[{idx}].ref looks like a file path but is not explicit; "
+                            f"use './...' (got {ref!r})"
+                        ),
+                        path=f"spec.tools.{idx}.ref",
+                    )
+                )
+            if agent_manifest_dir and ref.startswith(("./", "../")):
+                target = (agent_manifest_dir / ref).resolve()
+                if not target.exists():
+                    issues.append(
+                        ValidationIssue(
+                            "error",
+                            f"referenced tool file does not exist: {target}",
+                            path=f"spec.tools.{idx}.ref",
+                        )
+                    )
+
+        module_path = entry.get("module_path")
+        if module_path is not None and not isinstance(module_path, str):
+            issues.append(
+                ValidationIssue(
+                    "error",
+                    "spec.tools[].module_path must be a string",
+                    path=f"spec.tools.{idx}.module_path",
+                )
+            )
+
+    return issues
+
+
+def _validate_overlay_semantics(
+    data: dict[str, Any],
+    *,
+    source: Path | None,
+) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+
+    if source and source.exists():
+        text = source.read_text(encoding="utf-8")
+        if "!append" in text:
+            issues.append(
+                ValidationIssue(
+                    "error",
+                    "unsupported YAML tag '!append'; use $op.add instead",
+                    path="spec.patch",
+                )
+            )
+
+    patch = (data.get("spec") or {}).get("patch")
+    if not isinstance(patch, dict):
+        return issues
+
+    agents = patch.get("agents")
+    if not isinstance(agents, dict):
+        return issues
+
+    for agent_id, agent_patch in agents.items():
+        if not isinstance(agent_patch, dict):
+            continue
+        context = agent_patch.get("context")
+        if not isinstance(context, dict):
+            continue
+        role = context.get("role")
+        if role is not None and not isinstance(role, (str, list, dict)):
+            issues.append(
+                ValidationIssue(
+                    "error",
+                    "context.role must be string, list, or $op object",
+                    path=f"spec.patch.agents.{agent_id}.context.role",
+                )
+            )
+    return issues
+
+
 def validate_data(
     data: dict[str, Any],
     *,
@@ -102,6 +290,23 @@ def validate_data(
                 ValidationIssue("error", str(exc), path="spec")
             )
             result.ok = False
+        result.issues.extend(
+            _validate_agent_tool_refs_semantics(
+                data.get("spec", {}) if isinstance(data.get("spec"), dict) else {},
+                agent_manifest_dir=base_dir,
+            )
+        )
+    
+    if resolved_kind == "tool":
+        result.issues.extend(_validate_tool_manifest_semantics(data))
+    
+    if resolved_kind == "overlay":
+        result.issues.extend(
+            _validate_overlay_semantics(
+                data,
+                source=Path(source) if source else None,
+            )
+        )
 
     if resolved_kind == "deployment":
         spec = data.get("spec") or {}
@@ -142,7 +347,18 @@ def validate_file(
     strict: bool | None = None,
     resolve_refs: bool | None = None,
 ) -> ValidationResult:
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        msg = str(exc)
+        if "!append" in msg:
+            msg = "unsupported YAML tag '!append'; use $op.add in overlays"
+        return ValidationResult(
+            ok=False,
+            kind=kind,
+            source=str(path),
+            issues=[ValidationIssue("error", msg)],
+        )
     if not isinstance(raw, dict):
         # Not a mapping — not a MAS manifest; skip gracefully.
         return ValidationResult(ok=True, kind=None, source=str(path), issues=[])
