@@ -20,10 +20,6 @@ Endpoints are scoped under /api/libraries/{library_name}/:
     /api/libraries/{name}/pipeline/run  — run an analysis pipeline
     /api/libraries/{name}/eval-output   — run LLM-as-judge evaluation
 
-IoC catalog (requires IOC_REPO env var):
-    /api/ioc/catalog            — full challenge catalog (apps/challenges/overlays/metrics)
-    /api/ioc/overlays/{id}      — overlay YAML content by catalog id
-
 Job tracking:
     POST endpoints return a job_id. Use GET /api/jobs to list all jobs,
     GET /api/jobs/{job_id} to poll status, or DELETE /api/jobs/{job_id} to cancel.
