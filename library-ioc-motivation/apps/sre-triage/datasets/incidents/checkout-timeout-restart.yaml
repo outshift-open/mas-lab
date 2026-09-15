@@ -1,0 +1,146 @@
+id: checkout-timeout-restart
+description: >
+  Checkout timeout behavior is driven by a stuck worker pool and connection state
+  leak after transient network flap, not by a bad deployment artifact.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: checkout-service
+  action: restart
+  reasoning: >
+    Evidence indicates worker event loops are wedged and connection objects are
+    not being reclaimed after timeout spikes. Restarting checkout-service clears
+    in-memory stuck state and restores healthy worker scheduling faster than a rollback.
+source_evidence:
+  - source: google_sre_handling_overload
+    url: https://sre.google/sre-book/handling-overload/
+    facts:
+      - Local task utilization and active-thread pressure are key overload signals.
+      - Protecting task health prevents cascading failures.
+  - source: aws_timeouts_retries_backoff_jitter
+    url: https://builder.aws.com/content/3EumjoZascWd1oZiEgL8ORlv3qE/timeouts-retries-and-backoff-with-jitter
+    facts:
+      - Timeouts hold threads, memory, and connections and can exhaust local resources.
+      - Not all timeout incidents imply faulty code; transient failures can be mitigated with fast recovery.
+observed_symptoms:
+  - Deployment chronology does not align with incident onset.
+  - Worker heartbeat gaps and rising open connection count indicate runtime wedging.
+  - Restart historically clears this failure mode in under 2 minutes.
+services:
+  checkout-service:
+    aliases: [checkout_service, checkout]
+    metrics:
+      latency_ms: { p50: 620.0, p95: 2060.0, p99: 3510.0 }
+      error_rate: 0.097
+      requests_per_second: 203.0
+      named:
+        active_workers:
+          value: 120
+          unit: workers
+          status: warning
+        worker_heartbeat_gap_s:
+          value: 214
+          unit: seconds
+          status: critical
+        leaked_connections:
+          value: 947
+          unit: connections
+          status: critical
+        db_pool_utilization:
+          value: 0.91
+          unit: ratio
+          status: critical
+        deadlock_count:
+          value: 1
+          unit: count
+          status: warning
+        lock_wait_count:
+          value: 8
+          unit: count
+          status: warning
+        active_connections:
+          value: 91
+          unit: connections
+          status: critical
+    health:
+      status: critical
+      uptime_percent: 99.4
+      error_rate_percent: 9.7
+      dependencies:
+        payment-gateway: degraded
+        cart-service: healthy
+        feature-config: healthy
+    deployments:
+      - version: "3.7.2"
+        status: success
+        deployed_hours_before_incident: 9
+        deployed_by: ci/cd-pipeline
+        commit_sha: a17c90d
+        commit_message: "feat(checkout): async retry path and timeout tuning"
+        duration_seconds: 96
+        overlap_with_incident: false
+      - version: "3.7.1"
+        status: success
+        deployed_days_before_incident: 2
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "deploy: previous stable"
+        duration_seconds: 89
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[checkout-service] Worker loop stalled: no progress for 180s"
+      - level: WARN
+        message: "[checkout-service] Connection pool cleanup backlog exceeded threshold"
+      - level: INFO
+        message: "[checkout-service] Last deploy older than 8h; incident started after network flap event"
+    config_changes:
+      - key: worker_pool_size
+        old_value: 120
+        new_value: 120
+        changed_by: no-change
+        changed_hours_before_incident: null
+      - key: timeout_reclaimer_enabled
+        old_value: true
+        new_value: true
+        changed_by: no-change
+        changed_hours_before_incident: null
+    connection_pool:
+      pool_size: 100
+      active: 91
+      idle: 9
+      waiting: 16
+      utilisation_pct: 91
+      status: warning
+      note: "Pool pressure tracks worker stalls; restart historically clears leaked connection handles."
+    pg_stat_activity:
+      total_connections: 107
+      max_connections: 120
+      active_queries: 28
+      idle_connections: 79
+      waiting_queries: 7
+      blocking_queries: [24510]
+      longest_running_query_seconds: 6.2
+      max_lock_wait_ms: 540
+      conclusion: "Mild DB contention; does not explain heartbeat stalls and leaked sockets."
+    blocking:
+      blocking_pids: [24510]
+      blocked_pids: [24526]
+      deadlocks_last_hour: 1
+      lock_wait_count_last_hour: 8
+      conclusion: "Limited lock pressure present, but dominant fault is in checkout runtime state."
+    rollback:
+      from_version: "3.7.2"
+      to_version: "3.7.1"
+      message: "Rollback available, but current evidence points to runtime state corruption."
+
+  payment-gateway:
+    aliases: [payment_gateway]
+    metrics:
+      latency_ms: { p50: 65.0, p95: 188.0, p99: 301.0 }
+      error_rate: 0.011
+      requests_per_second: 244.0
+    health:
+      status: degraded
+      uptime_percent: 99.96
+      error_rate_percent: 1.1
+      dependencies: {}

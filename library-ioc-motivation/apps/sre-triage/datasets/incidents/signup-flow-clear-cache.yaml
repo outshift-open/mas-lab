@@ -1,0 +1,92 @@
+id: signup-flow-clear-cache
+description: >
+  Signup-service is rejecting a subset of onboarding tokens because stale JWKS
+  and invite-policy cache entries survived a healthy auth configuration update.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: signup-service
+  action: clear_cache
+  reasoning: >
+    Origin validation against the identity provider succeeds, but cached signing
+    keys and invite-policy lookups are stale inside signup-service. Clearing cache
+    repopulates correct validation state without reverting healthy code.
+source_evidence:
+  - source: auth0_refresh_tokens
+    url: https://auth0.com/blog/refresh-tokens-what-are-they-and-when-to-use-them/
+    facts:
+      - Rotated token metadata can remain inconsistent if applications cache outdated validation state.
+  - source: owasp_authentication_cheatsheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html
+    facts:
+      - Validation caches must be refreshed when trust material changes, or healthy credentials appear invalid.
+observed_symptoms:
+  - Direct validation against the identity provider succeeds for tokens rejected on cached paths.
+  - Failures are concentrated on older invite tokens minted before the latest policy refresh.
+  - No deployment overlap exists, and current config checksums match expected values.
+services:
+  signup-service:
+    aliases: [signup_service, auth-signup]
+    metrics:
+      latency_ms: { p50: 420.0, p95: 1380.0, p99: 2260.0 }
+      error_rate: 0.102
+      requests_per_second: 234.0
+      named:
+        stale_jwks_cache_entries:
+          value: 284
+          unit: keys
+          status: critical
+        invite_policy_cache_mismatch:
+          value: 0.21
+          unit: ratio
+          status: critical
+        origin_validation_success_rate:
+          value: 0.996
+          unit: ratio
+          status: normal
+    health:
+      status: critical
+      uptime_percent: 99.8
+      error_rate_percent: 10.2
+      dependencies:
+        identity-provider: healthy
+        jwks-cache: critical
+    deployments:
+      - version: "4.9.1"
+        status: success
+        deployed_days_before_incident: 2
+        deployed_by: ci/cd-pipeline
+        commit_sha: 54cd821
+        commit_message: "feat(signup): tighten issuer and audience validation for onboarding tokens"
+        duration_seconds: 93
+        overlap_with_incident: false
+      - version: "4.9.0"
+        status: success
+        deployed_days_before_incident: 5
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(signup): stabilize onboarding token refresh flow"
+        duration_seconds: 88
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[signup-service] Cached JWKS kid=invite-2026-07-18 not found in current issuer set"
+      - level: WARN
+        message: "[signup-service] Cache bypass validation succeeded for token previously rejected from local cache"
+      - level: INFO
+        message: "[signup-service] Config checksum and deployment version unchanged during incident window"
+    rollback:
+      from_version: "4.9.1"
+      to_version: "4.9.0"
+      message: "Rollback exists, but healthy config plus stale validation caches indicate cache purge is the correct fix."
+
+  identity-provider:
+    aliases: [identity_provider, auth-service]
+    metrics:
+      latency_ms: { p50: 68.0, p95: 171.0, p99: 284.0 }
+      error_rate: 0.002
+      requests_per_second: 301.0
+    health:
+      status: healthy
+      uptime_percent: 99.99
+      error_rate_percent: 0.2
+      dependencies: {}

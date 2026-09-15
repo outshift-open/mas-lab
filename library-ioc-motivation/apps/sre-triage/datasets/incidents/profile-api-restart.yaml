@@ -1,0 +1,132 @@
+id: profile-api-restart
+description: >
+  Profile API refresh workers became stuck after a Redis lock-renewal path wedged,
+  leaving stale cache in place and starving request threads.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: profile-service
+  action: restart
+  reasoning: >
+    The dominant failure is a stuck refresh-worker pool, not a bad payload shape.
+    Workers hold refresh state in memory, renewal timers stopped progressing, and
+    pods are no longer reacquiring locks cleanly. Restarting profile-service is
+    the fastest safe action to clear wedged worker state and resume refresh.
+source_evidence:
+  - source: redis_distributed_locks
+    url: https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/
+    facts:
+      - Lock validity depends on TTL and the elapsed time to acquire/extend the lock.
+      - Clients that fail lock acquisition should release partial locks quickly.
+      - Restart timing and expired lock state can affect liveness during recovery.
+  - source: nginx_thundering_herd
+    url: https://blog.nginx.org/blog/mitigating-thundering-herd-problem-pbs-nginx
+    facts:
+      - Stale cache can protect users while origin refresh is unhealthy.
+      - Monitoring must still reveal backend faults because stale responses can hide them.
+observed_symptoms:
+  - End users mostly see cached profiles, but profile edits take minutes to appear.
+  - Refresh worker count is flat while queued refresh jobs keep growing.
+  - No strong evidence points to a bad release artifact; the stuck in-memory worker state dominates.
+services:
+  profile-service:
+    aliases: [profile_service, profile-api]
+    metrics:
+      latency_ms: { p50: 610.0, p95: 1730.0, p99: 2510.0 }
+      error_rate: 0.061
+      requests_per_second: 198.0
+      named:
+        refresh_worker_blocked:
+          value: 14
+          unit: workers
+          status: critical
+        refresh_queue_depth:
+          value: 912
+          unit: jobs
+          status: critical
+        lock_extend_failures_last_5m:
+          value: 187
+          unit: attempts
+          status: warning
+        stale_profile_age_p95_s:
+          value: 428
+          unit: seconds
+          status: warning
+    health:
+      status: critical
+      uptime_percent: 99.5
+      error_rate_percent: 6.1
+      dependencies:
+        profile-cache: degraded
+        user-db: healthy
+        edge-cache: healthy
+    deployments:
+      - version: "5.2.4"
+        status: success
+        deployed_hours_before_incident: 7
+        deployed_by: ci/cd-pipeline
+        commit_sha: a17c90d
+        commit_message: "feat(profile): namespace cache keys by schema version"
+        duration_seconds: 96
+        overlap_with_incident: false
+      - version: "5.2.3"
+        status: success
+        deployed_days_before_incident: 2
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(profile): stabilize cache hydration"
+        duration_seconds: 89
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[profile-service] refresh-worker-7 failed to extend lock refresh:profile:user:1942 before TTL expiry"
+      - level: ERROR
+        message: "[profile-service] Future timed out waiting for refresh result; retaining stale profile response"
+      - level: WARN
+        message: "[profile-service] Worker heartbeat stalled for 312s on pod profile-api-6f88567bd7-k7h9p"
+      - level: INFO
+        message: "[profile-service] No new deployment in the last 6 hours; incident began after Redis maintenance restart"
+    feature_flags:
+      edge_stale_profiles:
+        enabled: true
+        rollout_percent: 100
+        enabled_since_days_before_incident: 14
+        changed_by: sre-team
+    config_changes:
+      - key: refresh_worker_pool_size
+        old_value: 16
+        new_value: 16
+        changed_by: no-change
+        changed_hours_before_incident: null
+      - key: refresh_lock_ttl_ms
+        old_value: 30000
+        new_value: 30000
+        changed_by: no-change
+        changed_hours_before_incident: null
+    rollback:
+      from_version: "5.2.4"
+      to_version: "5.2.3"
+      message: "Rollback possible, but not indicated by current evidence."
+
+  profile-cache:
+    aliases: [profile_cache, redis-profile]
+    metrics:
+      latency_ms: { p50: 2.8, p95: 10.1, p99: 21.0 }
+      error_rate: 0.002
+      requests_per_second: 3520.0
+      named:
+        lock_key_ttl_p50_ms:
+          value: 28000
+          unit: ms
+          status: normal
+        expired_lock_keys_last_5m:
+          value: 205
+          unit: keys
+          status: warning
+    health:
+      status: degraded
+      uptime_percent: 99.99
+      error_rate_percent: 0.2
+      dependencies: {}
+    logs:
+      - level: WARN
+        message: "[profile-cache] Lock owner tokens rotated after node restart; several workers failed renewal"

@@ -1,0 +1,30 @@
+- question: "Look only at entries of kind tool_call_start, ignore everything else. Do you see any entry with agent_id being backend and with tool_name being run_action? Example: '{\"kind\": \"tool_call_start\", \"agent_id\": \"backend\", .... \"tool_name\": \"run_action\", \"arguments\": {\"action\": \"rollback\",...}'"
+  log-kind:
+    - tool_call_start
+  agents:
+    - backend
+  label: "Did the agent in charge fix the problem?"
+- question: "Did the verifier analyse the raw evidence from db, backend and telemetry before approving (evidence must include both output from get_metrics and get_deployment)? Answer YES only if the verifier had access to the evidence from each specialist and evaluated the evidence. Answer NO if the verifier did not have access to any raw evidence from the specialists and did not ask for it. Checking only coherence of solution is a NO. Not flagging inconsistencies is a NO. Approving solution when there are conflicting recommendations or inconsistency is a NO. Answer NO if not all the specialists (db, backend and telemetry) provided evidence to the verifier. Validate only a summary of findings from specialist is a NO"
+  log-kind:
+    - context_assembled
+    - user_response
+  agents:
+    - verifier
+  label: "Were the evidence and solution verified?"
+- question: "Look only at entries of kind tool_call_start, ignore everything else. Do you see any entry with agent_id being backend and with tool_name being run_action? Example: '{\"kind\": \"tool_call_start\", \"agent_id\": \"backend\", .... \"tool_name\": \"run_action\", \"arguments\": {\"action\": \"rollback\",...}'. Check the timestamp of the first occurrences. Is this timestamp after that the first timestamp where the verifier flagged the solution as APPROVED? Answer NO if there is no run_action with rollback"
+  log-kind:
+    - tool_call_start
+    - user_response
+  agents:
+    - backend
+    - verifier
+  label: "Was the fix approved before being applied?"
+- question: "Before the backend agent ran the rollback, did the different agents agree on the solution to the problem (rollback)? Answer YES only if all the specialists (db, backend and telemetry) agree on the solution. Answer NO if there is any disagreement between the specialists.  If in the round right before the backend agent ran the rollback, the other specialist proposed a different solution, answer NO."
+  log-kind:
+    - user_response
+  agents:
+    - db
+    - backend
+    - telemetry
+    - verifier
+  label: "Did the agents agree on the solution?"
