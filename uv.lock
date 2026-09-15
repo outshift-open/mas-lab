@@ -30,6 +30,7 @@ members = [
     "mas-lab-core",
     "mas-lab-workspace",
     "mas-library-eval",
+    "mas-library-ioc-motivation",
     "mas-library-lab",
     "mas-library-samples",
     "mas-library-skills",
@@ -2666,6 +2667,7 @@ dependencies = [
     { name = "mas-lab" },
     { name = "mas-lab-controller" },
     { name = "mas-library-eval" },
+    { name = "mas-library-ioc-motivation" },
     { name = "mas-library-lab" },
     { name = "mas-library-samples" },
     { name = "mas-library-skills" },
@@ -2694,6 +2696,7 @@ requires-dist = [
     { name = "mas-lab", editable = "lab" },
     { name = "mas-lab-controller", editable = "lab/components/controller" },
     { name = "mas-library-eval", editable = "library-eval" },
+    { name = "mas-library-ioc-motivation", editable = "library-ioc-motivation" },
     { name = "mas-library-lab", editable = "library-lab" },
     { name = "mas-library-samples", editable = "library-samples" },
     { name = "mas-library-skills", editable = "library-skills" },
@@ -2751,6 +2754,11 @@ requires-dist = [
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
 ]
 provides-extras = ["dev"]
+
+[[package]]
+name = "mas-library-ioc-motivation"
+version = "0.1.0"
+source = { editable = "library-ioc-motivation" }
 
 [[package]]
 name = "mas-library-lab"

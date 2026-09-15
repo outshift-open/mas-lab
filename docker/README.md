@@ -39,6 +39,32 @@ OPENAI_API_KEY=sk-...
 `docker/data/` is created automatically as the default data directory (gitignored
 contents; only `.gitkeep` is tracked).
 
+### Viewing precalculated experiment output
+
+You can browse experiment output someone computed elsewhere in the UI **without
+re-running anything** — no eval pipeline, no `uv install`. The Experiment page is served
+generically: `GET /api/experiments` iterates `MAS_LAB_ROOT/labs` and the file endpoint is
+a plain `FileResponse`, so it only needs the files on disk.
+
+1. Put the output on the host at `<host-folder>/labs/<experiment-name>/` — the same layout
+   the benchmark writes (`<experiment>/<scenario>/…/traces/events.jsonl`, plus
+   `metadata.yaml` / `results.csv`). Native runs already live at
+   `~/.local/share/mas/labs/<experiment>/`.
+2. Point the data mount at that host folder and pin the lab root at the mounted `/data`:
+
+   ```bash
+   # docker/.env
+   MAS_DATA_MOUNT=~/test-mas-lab      # host folder that has labs/<experiment>/ under it
+   MAS_LAB_ROOT=/data                 # controller reads experiments from /data/labs
+   ```
+
+3. `docker compose up` (recreate if already running — `.env` changes need a fresh
+   container). The experiments appear on the Experiment page, read-only, straight from the
+   mounted files.
+
+You can drop several experiments' `labs/<name>/` folders side by side under the same
+`MAS_DATA_MOUNT` and they all show up.
+
 ### Workspace config priority
 
 Inside the container, `MAS_WORKSPACE_ROOT=/workspace` is set. The runtime loads
