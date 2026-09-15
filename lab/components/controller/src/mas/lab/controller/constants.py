@@ -16,13 +16,15 @@ LIBRARIES_DIR = Path(
     )
 )
 
-MAX_TIMEOUT = 1800
+MAX_TIMEOUT = 43200  # 12h — caps (and defaults) benchmark/pipeline run timeouts
 
 MAS_LAB_ROOT = Path(os.environ.get("MAS_LAB_ROOT", mas_data_root()))
 
 WEB_SEARCH_CACHE_DIR = mas_cache_root() / "web_search"
 
 HIDDEN_FILES = {".DS_Store", ".run_ref", ".gitkeep"}
+
+MAS_CTL_MODEL = os.environ.get("MAS_CTL_MODEL") or None
 
 SCHEMAS_DIR = Path(__file__).parent / "schemas"
 PIPELINE_STEP_TYPES_PRE_PATH = SCHEMAS_DIR / "pipeline-step-types-pre.json"

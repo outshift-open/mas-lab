@@ -1,0 +1,96 @@
+id: signup-flow-scale-up
+description: >
+  Signup-service is overloaded during a product launch burst; auth validation is
+  correct, but current worker capacity is insufficient for peak onboarding traffic.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: signup-service
+  action: scale_up
+  reasoning: >
+    CPU, queue depth, and active validator thread pressure indicate a clean capacity
+    event. There is no correlated rollout or stale key issue, so scaling up
+    signup-service is the appropriate immediate mitigation.
+source_evidence:
+  - source: auth0_refresh_tokens
+    url: https://auth0.com/blog/refresh-tokens-what-are-they-and-when-to-use-them/
+    facts:
+      - Healthy token systems can still saturate when large bursts trigger verification fanout.
+  - source: owasp_authentication_cheatsheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html
+    facts:
+      - Capacity and rate-limiting failures should be distinguished from invalid credential logic.
+observed_symptoms:
+  - Marketing campaign increased signup starts 7x in 10 minutes.
+  - Successful requests validate tokens correctly, but p95 latency climbs as validator queues saturate.
+  - No recent config or deployment change is near the incident onset.
+services:
+  signup-service:
+    aliases: [signup_service, auth-signup]
+    metrics:
+      latency_ms: { p50: 510.0, p95: 1770.0, p99: 2860.0 }
+      error_rate: 0.048
+      requests_per_second: 1380.0
+      named:
+        cpu_utilization:
+          value: 0.95
+          unit: ratio
+          status: critical
+        validator_threads_active:
+          value: 142
+          unit: threads
+          status: critical
+        signup_queue_depth:
+          value: 691
+          unit: requests
+          status: critical
+        identity_provider_success_rate:
+          value: 0.997
+          unit: ratio
+          status: normal
+    health:
+      status: critical
+      uptime_percent: 99.8
+      error_rate_percent: 4.8
+      dependencies:
+        identity-provider: healthy
+        jwks-cache: healthy
+    deployments:
+      - version: "4.9.1"
+        status: success
+        deployed_days_before_incident: 4
+        deployed_by: ci/cd-pipeline
+        commit_sha: 54cd821
+        commit_message: "feat(signup): tighten issuer and audience validation for onboarding tokens"
+        duration_seconds: 93
+        overlap_with_incident: false
+      - version: "4.9.0"
+        status: success
+        deployed_days_before_incident: 7
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(signup): stabilize onboarding token refresh flow"
+        duration_seconds: 88
+        overlap_with_incident: false
+    logs:
+      - level: WARN
+        message: "[signup-service] Validator thread pool saturated at 142/144 workers during launch burst"
+      - level: WARN
+        message: "[signup-service] Signup queue depth exceeded 650 for 9m"
+      - level: INFO
+        message: "[signup-service] Token validation correctness normal; throughput bottleneck dominates"
+    rollback:
+      from_version: "4.9.1"
+      to_version: "4.9.0"
+      message: "Rollback available, but traffic-driven saturation is the primary issue."
+
+  identity-provider:
+    aliases: [identity_provider, auth-service]
+    metrics:
+      latency_ms: { p50: 74.0, p95: 181.0, p99: 302.0 }
+      error_rate: 0.003
+      requests_per_second: 1560.0
+    health:
+      status: healthy
+      uptime_percent: 99.99
+      error_rate_percent: 0.3
+      dependencies: {}

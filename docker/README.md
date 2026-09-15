@@ -39,6 +39,32 @@ OPENAI_API_KEY=sk-...
 `docker/data/` is created automatically as the default data directory (gitignored
 contents; only `.gitkeep` is tracked).
 
+### Viewing precalculated experiment output
+
+You can browse experiment output someone computed elsewhere in the UI **without
+re-running anything** — no eval pipeline, no `uv install`. The Experiment page is served
+generically: `GET /api/experiments` iterates `MAS_LAB_ROOT/labs` and the file endpoint is
+a plain `FileResponse`, so it only needs the files on disk.
+
+1. Put the output on the host at `<host-folder>/labs/<experiment-name>/` — the same layout
+   the benchmark writes (`<experiment>/<scenario>/…/traces/events.jsonl`, plus
+   `metadata.yaml` / `results.csv`). Native runs already live at
+   `~/.local/share/mas/labs/<experiment>/`.
+2. Point the data mount at that host folder and pin the lab root at the mounted `/data`:
+
+   ```bash
+   # docker/.env
+   MAS_DATA_MOUNT=~/test-mas-lab      # host folder that has labs/<experiment>/ under it
+   MAS_LAB_ROOT=/data                 # controller reads experiments from /data/labs
+   ```
+
+3. `docker compose up` (recreate if already running — `.env` changes need a fresh
+   container). The experiments appear on the Experiment page, read-only, straight from the
+   mounted files.
+
+You can drop several experiments' `labs/<name>/` folders side by side under the same
+`MAS_DATA_MOUNT` and they all show up.
+
 ### Workspace config priority
 
 Inside the container, `MAS_WORKSPACE_ROOT=/workspace` is set. The runtime loads
@@ -132,6 +158,57 @@ docker compose -f compose.yaml -f compose.dev.yaml up --build
 
 `compose.dev.yaml` bind-mounts Python package sources into `/opt/mas-lab` so code
 edits apply without rebuilding. Workspace and data mounts are unchanged.
+
+## Adding or removing a bundled library
+
+The backend image **bakes in libraries as uv workspace members** — it `COPY`s each
+`library-*/` source tree and runs `uv sync` at build time. You only need this wiring for a
+library that ships **installable Python** (custom step/plugin code under its `src/`, e.g. a
+pipeline step registered in `library.yaml`). A library that is **pure YAML** (apps, agents,
+overlays, datasets, experiments, pipelines) needs *no* image wiring — it's read from the
+mounted `/workspace` at runtime; just make sure it lives under `MAS_WORKSPACE_MOUNT`.
+
+### Add a library `library-<name>` to the image
+
+Edit **3 files**, then rebuild:
+
+1. **`pyproject.toml`** (repo root) — 3 entries:
+   - `[project].dependencies`: `"mas-library-<name>",`
+   - `[tool.uv.workspace].members`: `"library-<name>",`
+   - `[tool.uv.sources]`: `mas-library-<name> = { workspace = true }`
+   (`mas-library-<name>` is the package name from the library's own `pyproject.toml`.)
+2. **`docker/backend/Dockerfile`** — 2 `COPY` lines, next to the other libraries:
+   ```dockerfile
+   # with the per-package pyproject copies (layer-cache stage):
+   COPY library-<name>/pyproject.toml library-<name>/
+   # with the source-tree copies:
+   COPY library-<name>/ library-<name>/
+   ```
+3. **`uv.lock`** — regenerate, never hand-edit:
+   ```bash
+   uv lock
+   ```
+
+Then `docker compose up --build` (or `docker compose build --no-cache` for a clean image).
+
+### Remove a library
+
+The exact inverse: delete those 3 `pyproject.toml` entries and the 2 `Dockerfile` `COPY`
+lines, then `uv lock`. If you skip any of them the build fails — a leftover `COPY`
+errors with `"/library-<name>": not found`, and a leftover `pyproject.toml`/`uv.lock`
+entry makes `uv sync` fail on the missing workspace member.
+
+### Local (non-Docker) alternative
+
+To use a library's step plugins with a **local** `uv`/`task install` setup without making it
+a permanent workspace member, editable-install just that package:
+
+```bash
+uv pip install -e library-<name>
+```
+
+No `pyproject.toml` / `Dockerfile` edits needed — but this is not baked into the image, so
+for Docker use the 3-file wiring above.
 
 ## Layout
 

@@ -10,6 +10,7 @@ from mas.lab.controller.routes import (
     apps,
     benchmark,
     datasets,
+    design_patterns,
     eval_output,
     experiments,
     health,
@@ -35,6 +36,7 @@ def register_routes(app: FastAPI) -> None:
     app.include_router(benchmark.router)
     app.include_router(experiments.router)
     app.include_router(pipelines.router)
+    app.include_router(design_patterns.router)
     app.include_router(eval_output.router)
     app.include_router(apps.router)
     app.include_router(health.router)
