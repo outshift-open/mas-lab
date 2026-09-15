@@ -40,11 +40,6 @@ import type {
   OverlayDetail,
   ConfigFiles,
   RuntimeRunner,
-  IocCatalog,
-  IocRunRequest,
-  IocRunResponse,
-  IocRunResults,
-  IocEvidenceResponse,
 } from "@/types/api.types";
 
 export type {
@@ -88,20 +83,6 @@ export type {
   OverlayDetail,
   ConfigFiles,
   RuntimeRunner,
-  IocOverlayEntry,
-  IocChallenge,
-  IocApp,
-  IocCatalog,
-  IocRunRequest,
-  IocRunResponse,
-  IocBaselineMetric,
-  IocChallengeIntended,
-  IocChallengePerMetric,
-  IocChallengeResult,
-  IocRunMeta,
-  IocRunResults,
-  IocEvidenceRep,
-  IocEvidenceResponse,
 } from "@/types/api.types";
 
 declare global {
@@ -1435,110 +1416,4 @@ export async function uploadImportBenchmark(
     );
   }
   return response.json();
-}
-
-// --- IoC Catalog ---
-
-async function fetchIocCatalog(): Promise<IocCatalog> {
-  const response = await fetch(`${API_BASE_URL}/api/ioc/catalog`);
-  if (!response.ok) {
-    const error = await response.json().catch(() => null);
-    throw new Error(
-      error?.detail ?? `Failed to fetch IoC catalog: ${response.status}`,
-    );
-  }
-  return response.json();
-}
-
-export function useIocCatalog() {
-  return useQuery({
-    queryKey: ["ioc-catalog"],
-    queryFn: fetchIocCatalog,
-  });
-}
-
-export async function submitIocRun(
-  req: IocRunRequest,
-): Promise<IocRunResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/ioc/runs`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req),
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => null);
-    throw new Error(
-      error?.detail ?? `Failed to submit IoC run: ${response.status}`,
-    );
-  }
-  return response.json();
-}
-
-// --- IoC Run Results ---
-
-export async function fetchIocRunResults(
-  jobId: string,
-): Promise<IocRunResults> {
-  const response = await fetch(`${API_BASE_URL}/api/ioc/runs/${jobId}/results`);
-  if (response.status === 202) {
-    const body = await response.json();
-    throw new ApiError("Run is still in progress", 202, body);
-  }
-  if (response.status === 422) {
-    const body = await response.json();
-    throw new ApiError(body.detail ?? "Run failed or incomplete", 422, body);
-  }
-  if (!response.ok) {
-    const error = await response.json().catch(() => null);
-    throw new Error(
-      error?.detail ?? `Failed to fetch results: ${response.status}`,
-    );
-  }
-  return response.json();
-}
-
-export function useIocRunResults(jobId: string) {
-  return useQuery({
-    queryKey: ["ioc-run-results", jobId],
-    queryFn: () => fetchIocRunResults(jobId),
-    enabled: !!jobId,
-    retry: (failureCount, error) => {
-      if (
-        error instanceof ApiError &&
-        (error.status === 202 || error.status === 422)
-      )
-        return false;
-      return failureCount < 2;
-    },
-  });
-}
-
-export async function fetchIocRunEvidence(
-  jobId: string,
-  scenario: string,
-  metric: string,
-): Promise<IocEvidenceResponse> {
-  const url = new URL(`${API_BASE_URL}/api/ioc/runs/${jobId}/evidence`);
-  url.searchParams.set("scenario", scenario);
-  url.searchParams.set("metric", metric);
-  const response = await fetch(url.toString());
-  if (!response.ok) {
-    const error = await response.json().catch(() => null);
-    throw new Error(
-      error?.detail ?? `Failed to fetch evidence: ${response.status}`,
-    );
-  }
-  return response.json();
-}
-
-export function useIocRunEvidence(
-  jobId: string,
-  scenario: string | null,
-  metric: string | null,
-) {
-  return useQuery({
-    queryKey: ["ioc-run-evidence", jobId, scenario, metric],
-    queryFn: () => fetchIocRunEvidence(jobId, scenario!, metric!),
-    enabled: !!jobId && !!scenario && !!metric,
-  });
 }
