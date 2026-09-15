@@ -1,0 +1,36 @@
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  x-node-id: telemetry
+  name: telemetry
+spec:
+  description: "Telemetry analyst. Call me first to establish numeric baselines:
+    latency profiles (P50/P95/P99), error rates, trace correlation, resource
+    utilisation. Always use me before delegating to backend or db."
+  context:
+    role:
+      ref: prompts/telemetry/1.0.0.md
+  models:
+    - model: vertex_ai/gemini-2.5-flash
+      temperature: 0.1
+      max_tokens: 1000
+  design_pattern:
+    type: react
+    params:
+      max_steps: 10
+  tools:
+    - ref: ../tools/get_metrics.tool.yaml
+    - ref: ../tools/list_services.tool.yaml
+    - ref: ../tools/get_service_health.tool.yaml
+    - ref: ../tools/get_logs.tool.yaml
+  skills:
+    - latency-analysis
+    - otel-correlation
+    - data-access-protocol
+    - uncertainty-protocol
+    - memory-protocol
+x-canvas-node-ids:
+  model: node_bb36e003
+  design_pattern: node_40c18cac
+  tools: node_a70d031e
+  promptSkills: node_9b2a5b6e

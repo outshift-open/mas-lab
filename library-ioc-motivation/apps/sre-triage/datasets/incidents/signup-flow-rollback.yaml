@@ -1,0 +1,94 @@
+id: signup-flow-rollback
+description: >
+  Signup-service began rejecting valid verification tokens immediately after an
+  auth config rollout changed issuer and audience validation rules.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: signup-service
+  action: rollback
+  to_version: "4.9.0"
+  reasoning: >
+    The 4.9.1 rollout introduced a bad token-validation config path that directly
+    correlates with incident onset. Rolling signup-service back to 4.9.0 restores
+    the prior stable issuer/audience contract fastest.
+source_evidence:
+  - source: auth0_refresh_tokens
+    url: https://auth0.com/blog/refresh-tokens-what-are-they-and-when-to-use-them/
+    facts:
+      - Token validation flows are sensitive to issuer and audience contract changes.
+      - Bad auth rollout assumptions can invalidate otherwise healthy sessions immediately.
+  - source: owasp_authentication_cheatsheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html
+    facts:
+      - Authentication failures that correlate tightly with config deployment favor rollback over runtime mitigation.
+observed_symptoms:
+  - Valid signup links minted before the rollout now fail issuer validation on signup-service.
+  - A canary rollback restored successful token verification within 2 minutes.
+  - No upstream identity provider outage or cache anomaly explains the timing.
+services:
+  signup-service:
+    aliases: [signup_service, auth-signup]
+    metrics:
+      latency_ms: { p50: 790.0, p95: 2430.0, p99: 3910.0 }
+      error_rate: 0.214
+      requests_per_second: 214.0
+      named:
+        issuer_mismatch_rate:
+          value: 0.32
+          unit: ratio
+          status: critical
+        token_audience_failures:
+          value: 1842
+          unit: failures_per_minute
+          status: critical
+        queue_depth:
+          value: 206
+          unit: requests
+          status: warning
+    health:
+      status: critical
+      uptime_percent: 99.4
+      error_rate_percent: 21.4
+      dependencies:
+        identity-provider: healthy
+        jwks-cache: healthy
+    deployments:
+      - version: "4.9.1"
+        status: success
+        deployed_minutes_before_incident: 6
+        deployed_by: ci/cd-pipeline
+        commit_sha: 54cd821
+        commit_message: "feat(signup): tighten issuer and audience validation for onboarding tokens"
+        duration_seconds: 93
+        overlap_with_incident: true
+      - version: "4.9.0"
+        status: success
+        deployed_days_before_incident: 2
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(signup): stabilize onboarding token refresh flow"
+        duration_seconds: 88
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[signup-service] Token rejected: issuer https://auth.example.com expected https://login.example.com"
+      - level: ERROR
+        message: "[signup-service] Audience mismatch for invite token onboarding-web expected onboarding-api"
+      - level: INFO
+        message: "[signup-service] Canary rollback to 4.9.0 restored token acceptance rate to 99%"
+    rollback:
+      from_version: "4.9.1"
+      to_version: "4.9.0"
+      message: "Rollback restores last known-good auth validation contract for signup-service."
+
+  identity-provider:
+    aliases: [identity_provider, auth-service]
+    metrics:
+      latency_ms: { p50: 81.0, p95: 202.0, p99: 331.0 }
+      error_rate: 0.004
+      requests_per_second: 268.0
+    health:
+      status: healthy
+      uptime_percent: 99.98
+      error_rate_percent: 0.4
+      dependencies: {}

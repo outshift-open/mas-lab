@@ -1,0 +1,30 @@
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  x-node-id: verifier
+  name: verifier
+spec:
+  description: Verification agent. Call me last to review proposed remediation
+    actions, check logical consistency, assess risk, and return APPROVED /
+    FLAGGED / REJECTED with rationale. Never skip verification before a
+    production action.
+  context:
+    role:
+      ref: prompts/verifier/1.0.0.md
+  models:
+    - model: vertex_ai/gemini-2.5-flash
+      temperature: 0.1
+      max_tokens: 2048
+  design_pattern:
+    type: react
+    params:
+      max_steps: 10
+  skills:
+    - risk-assessment
+    - verification-checklist
+    - memory-protocol
+    - data-access-protocol
+x-canvas-node-ids:
+  model: node_cc048ba4
+  design_pattern: node_6319e78f
+  promptSkills: node_b9ac7dc9

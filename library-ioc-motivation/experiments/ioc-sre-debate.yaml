@@ -1,0 +1,70 @@
+experiment:
+  name: ioc-sre-debate
+  description: Decentralized (deterministic_staged_debate) counterpart of ioc-sre-reproduction. baseline-debate +
+    CC-1/DC-3/CR-1/DR-1/CE-1/DC-4/DC-2 debate overlays on sre-triage over the incident seed query, N reps.
+  applications:
+    - manifest: apps/sre-triage/mas.yaml
+  scenarios:
+    - id: baseline-debate
+      overlays:
+        logic:
+          - ref: apps/sre-triage/overlays/baseline-debate.yaml
+        control: []
+        infra: []
+    - id: CC-1-assignment-debate
+      overlays:
+        logic:
+          - ref: apps/sre-triage/overlays/CC-1-assignment-debate.yaml
+        control: []
+        infra: []
+    - id: DC-3-consensus-debate
+      overlays:
+        logic:
+          - ref: apps/sre-triage/overlays/DC-3-consensus-debate.yaml
+        control: []
+        infra: []
+    - id: CR-1-divergent-goal-debate
+      overlays:
+        logic:
+          - ref: apps/sre-triage/overlays/CR-1-divergent-goal-debate.yaml
+        control: []
+        infra: []
+    - id: DR-1-semantic-mismatch-debate
+      overlays:
+        logic:
+          - ref: apps/sre-triage/overlays/DR-1-semantic-mismatch-debate.yaml
+        control: []
+        infra: []
+    - id: CE-1-missing-evidence-debate
+      overlays:
+        logic:
+          - ref: apps/sre-triage/overlays/CE-1-missing-evidence-debate.yaml
+        control: []
+        infra: []
+    - id: DC-4-co-withholding-debate
+      overlays:
+        logic:
+          - ref: apps/sre-triage/overlays/DC-4-co-withholding-debate.yaml
+        control: []
+        infra: []
+    - id: DC-2-UR-under-reading-debate
+      overlays:
+        logic:
+          - ref: apps/sre-triage/overlays/DC-2-UR-under-reading-debate.yaml
+        control: []
+        infra: []
+  dataset:
+    path: datasets/sre-queries.yaml
+  run:
+    n_runs: 10
+  execution:
+    parallel_scenarios: 2
+    timeout: 1800
+    pause_between_runs: 1
+    strategy: coverage
+    emulation:
+      infra:
+        llm: live
+        tools: live
+      runtime:
+        cache: content-addressed

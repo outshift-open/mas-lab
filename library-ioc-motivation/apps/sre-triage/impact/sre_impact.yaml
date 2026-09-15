@@ -1,0 +1,13 @@
+- question: "Look only at entries of kind tool_call_start, ignore everything else. Do you see any entry with agent_id being sre and with tool_name being run_action? Example: '{\"kind\": \"tool_call_start\", \"agent_id\": \"sre\", .... \"tool_name\": \"run_action\", \"arguments\": {\"action\": \"rollback\",...}'"
+  log-kind:
+    - tool_call_start
+  agents:
+    - sre
+  label: "Did the agent in charge fix the problem?"
+- question: "Did the verifier analyse the evidence before approving? Answer YES only if the verifier had access to the evidence from each specialist and evaluated the evidence. Answer NO if the verifier did not have access to any evidence from the specialists and did not ask for it. Checking only coherence of solution is a NO. Not flagging inconsistencies is a NO. Approvinga solution when there are conflicting recommendations or inconsistency is a NO."
+  log-kind:
+    - context_assembled
+    - user_response
+  agents:
+    - verifier
+  label: "Were the evidence and solution verified?"

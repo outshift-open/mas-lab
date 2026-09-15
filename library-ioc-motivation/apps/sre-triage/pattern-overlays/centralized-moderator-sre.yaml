@@ -1,0 +1,37 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Overlay: centralized moderator (no peer context) for SRE-Triage
+#
+# Replaces the SRE lead agent's default react DP with
+# CentralizedModeratorPlugin in centralized mode (enable_peer_context: false).
+#
+# The sre LLM drives all orchestration; the plugin adds a hard cap of
+# max_rounds=5 to guarantee termination.  No specialist outputs are
+# re-injected between rounds — the moderator relies solely on conversation
+# history to decide next steps.
+#
+# The existing sre/1.1.0.md prompt is still respected; consider pairing with
+# sre/1.2.0.md (see pattern-overlays/README) to relax the one-tool-per-turn
+# constraint and let the round budget be used more efficiently.
+#
+# Usage:
+#   mas-ctl run-mas thirdparty/mas-lab-internal/apps/sre-triage/mas.yaml \
+#     --overlay thirdparty/mas-lab-internal/apps/sre-triage/pattern-overlays/centralized-moderator-sre.yaml \
+#     -q "Checkout latency spiked 10× since 14:00 UTC" --single-turn
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: centralized-moderator-sre
+  x-compatible-prompt-versions:
+    sre: ["1.2.0"]
+spec:
+  target:
+    kind: MAS
+  patch:
+    agents:
+      sre:
+        design_pattern:
+          type: centralized_moderator
+          params:
+            max_rounds: 5
+            enable_peer_context: false
