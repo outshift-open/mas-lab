@@ -56,7 +56,7 @@ experiment:
   dataset:
     path: datasets/sre-queries.yaml
   run:
-    n_runs: 10
+    n_runs: 25
   execution:
     parallel_scenarios: 2
     timeout: 1800
