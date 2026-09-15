@@ -62,10 +62,17 @@ def _is_yaml_file(path: Path) -> bool:
 
 
 def _iter_library_yaml(lib_dir: Path):
-    """All YAML files under a library root (discovery walks content, not names)."""
+    """All YAML files under a library root (discovery walks content, not names).
+
+    Hidden files (dot-prefixed) are skipped: they are transient run artifacts
+    (e.g. the ``.mas-run-*.yaml`` copies the controller writes while a benchmark
+    job is executing), never user-authored manifests.
+    """
     if not lib_dir.is_dir():
         return
     for path in sorted(lib_dir.rglob("*")):
+        if path.name.startswith("."):
+            continue
         if _is_yaml_file(path):
             yield path
 
@@ -302,7 +309,11 @@ class LabRegistry:
                 data = load_yaml_file(path)
                 meta = data.get("metadata", {})
                 entry["description"] = str(meta.get("description", "") or "")
-                entry["namespace"] = str((data.get("metadata") or {}).get("namespace", "global") or "global")
+                entry["namespace"] = str(
+                    data.get("x-namespace")
+                    or (data.get("metadata") or {}).get("namespace")
+                    or "global"
+                )
             except Exception:
                 entry["description"] = ""
                 entry["namespace"] = "global"

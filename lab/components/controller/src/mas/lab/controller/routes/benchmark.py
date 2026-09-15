@@ -32,8 +32,11 @@ async def benchmark_run(library_name: str, req: BenchmarkRunRequest):
 
     # If the value looks like YAML content (has newlines), write to a temp file
     if "\n" in req.experiment_yaml:
+        # Hidden (dot-prefixed) so library discovery skips this transient copy
+        # while the job runs — otherwise it surfaces as a duplicate experiment.
+        # Kept in lib_dir so relative dataset/output paths resolve identically.
         tmp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", prefix="experiment-", delete=False, dir=str(lib_dir)
+            mode="w", suffix=".yaml", prefix=".mas-run-experiment-", delete=False, dir=str(lib_dir)
         )
         tmp.write(req.experiment_yaml)
         tmp.close()
