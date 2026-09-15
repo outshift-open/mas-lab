@@ -13,12 +13,13 @@ import sys
 import threading
 import types
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import yaml
 from mas.runtime.contracts.tool_contract import ToolContract
 from mas.runtime.contracts.user_communication_contract import HITLContract, UserIOContract
 from mas.runtime.manifest.schema import ToolDocument
+from mas.runtime.registry.provider_protocol import ToolProvider
 
 logger = logging.getLogger(__name__)
 
@@ -107,12 +108,13 @@ def _tool_class_candidates(module: Any) -> list[type]:
 class ManifestToolProvider:
     """Dispatch tool calls to ToolContract instances loaded from manifest refs."""
 
-    def __init__(self) -> None:
+    def __init__(self, overlay_providers: Optional[list[ToolProvider]] = None) -> None:
         self._tool_instances: list[Any] = []
         self._tool_contracts: dict[str, dict[str, Any]] = {}
+        self._overlay_providers = overlay_providers or []
 
     def has_tools(self) -> bool:
-        return bool(self._tool_instances)
+        return bool(self._tool_instances) or any(p.has_tools() for p in self._overlay_providers)
 
     def list_tools(self, *, ctx: Any = None) -> list[dict[str, Any]]:
         """Aggregate OpenAI-style tool specs from loaded instances.
@@ -154,6 +156,13 @@ class ManifestToolProvider:
                 result.append(legacy)
             except Exception as exc:
                 raise ManifestToolLoadError(f"Tool instance {instance!r} failed to describe itself: {exc}") from exc
+        for provider in self._overlay_providers:
+            try:
+                overlay_tools = provider.list_tools(ctx=ctx)
+                if overlay_tools:
+                    result.extend(overlay_tools)
+            except Exception as exc:
+                logger.error("Error listing tools from overlay provider %s: %s", provider, exc, exc_info=True)
         return result
 
     def list_openai_tools(self, *, ctx: Any = None) -> list[dict[str, Any]]:
@@ -219,7 +228,17 @@ class ManifestToolProvider:
                     return instance.execute(**arguments)
                 except NotImplementedError:
                     continue
-        raise ManifestToolLoadError(f"Tool {tool_name!r} not found in manifest provider")
+        for provider in self._overlay_providers:
+            try:
+                result = provider.call_tool(tool_name, arguments, ctx=ctx, user=user)
+                if result is not None:
+                    return result
+            except Exception as exc:
+                logger.warning(
+                    "Overlay provider %s failed to handle tool %s: %s", provider, tool_name, exc
+                )
+                continue
+        raise ManifestToolLoadError(f"Tool {tool_name!r} not found in manifest or overlays")
 
     def _add_instance(
         self,
@@ -242,10 +261,11 @@ def build_manifest_tool_provider(
     include_system_tools: bool = True,
     hitl_contract: HITLContract | None = None,
     user_io_contract: UserIOContract | None = None,
+    overlay_providers: Optional[list[ToolProvider]] = None,
     **containment_kw: Any,
 ) -> ManifestToolProvider:
     """Build a provider from ``spec.tools`` (refs or inline module_path entries)."""
-    provider = ManifestToolProvider()
+    provider = ManifestToolProvider(overlay_providers=overlay_providers)
 
     # Inject system tools first (always available, not in manifest). A
     # {kind: system, name: request_human_input, params: {...}} entry in
@@ -773,7 +793,14 @@ def attach_manifest_tools(
     if not tools:
         return None
 
-    provider = build_manifest_tool_provider(tools, manifest_dir, app_root=app_root or manifest_dir, **provider_kw)
+    overlay_providers = provider_kw.pop("overlay_providers", [])
+    provider = build_manifest_tool_provider(
+        tools,
+        manifest_dir,
+        app_root=app_root or manifest_dir,
+        overlay_providers=overlay_providers,
+        **provider_kw,
+    )
     leaf = leaf_engine(engine)
     leaf.tool_provider = provider
     if isinstance(leaf, LiveLlmEngine):

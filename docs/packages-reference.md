@@ -20,6 +20,7 @@
 | `mas-library-eval`     | Libraries     | Evaluation and quality metrics library for MAS Lab — MCE integration.                                         | —                    |
 | `mas-library-lab`      | Libraries     | MAS Lab provider library with public eval plugins.                                                            | —                    |
 | `mas-library-samples`  | Libraries     | Community-contributed MAS sample apps, datasets, and tools.                                                   | —                    |
+| `library-ioa`          | Libraries     | MCP client/server bridge for MAS Lab                                                                          | `mas-mcp`            |
 ---
 
 ## Installation
@@ -326,6 +327,23 @@ uv pip install -e library-samples
 ```
 
 **Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
+
+---
+
+### `library-ioa`
+**Install path:** `library-ioa`  
+**Layer:** Libraries  
+MCP client/server bridge for MAS Lab
+
+```bash
+uv pip install -e library-ioa
+```
+
+**CLI commands:**
+
+| Command   | Entry point                           |
+| --------- | ------------------------------------- |
+| `mas-mcp` | `library_ioa.plugins.mcp.server:main` |
 
 ---
 

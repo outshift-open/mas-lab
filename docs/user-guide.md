@@ -213,6 +213,40 @@ mas-ctl chat agent.yaml -o overlays/tools.yaml \
 
 See [cli/observability.md](cli/observability.md) for `events.jsonl` and trace flags.
 
+## Running tools through MCP
+
+MAS Lab supports two tool deployment patterns without changing the agent-facing contract:
+
+- **local provider** — the tool runs in-process
+- **MCP provider** — the tool is exposed by a separate MCP server process
+
+The runtime resolves both through the provider registry, so the agent still calls by tool name and arguments.
+
+```yaml
+providers:
+  - name: math-tools
+    kind: mcp
+    transport: stdio
+    command: python
+    args:
+      - -c
+      - |
+        from mcp.server import MCPServer
+        mcp = MCPServer("math-tools")
+
+        @mcp.tool()
+        def add(a: int, b: int) -> int:
+            return a + b
+
+        mcp.run("stdio")
+```
+
+This starts the tool in a dedicated process and exposes it to the MAS runtime via MCP, which is the preferred option when you want infra-owned tooling or a clean separation between the agent process and the tool implementation.
+
+A local tool provider is still the easiest debug path when the tool is part of the same process. The same logical agent interface works in both modes.
+
+See the MCP library docs in [../library-ioa/README.md](../library-ioa/README.md) and [../library-ioa/plugins/mcp/docs/quickstart/README.md](../library-ioa/plugins/mcp/docs/quickstart/README.md).
+
 ---
 
 ## Configuration

@@ -109,10 +109,13 @@ class ToolResultEnvelope:
     session_id: Optional[str] = None
     session_status: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+    is_error: bool = False
 
     @classmethod
-    def inline(cls, result: Any, *, execution_mode: str = "sync") -> "ToolResultEnvelope":
-        return cls(result_mode="inline", execution_mode=execution_mode, result=result)
+    def inline(
+        cls, result: Any, *, execution_mode: str = "sync", is_error: bool = False
+    ) -> "ToolResultEnvelope":
+        return cls(result_mode="inline", execution_mode=execution_mode, result=result, is_error=is_error)
 
     @classmethod
     def stream(
@@ -121,12 +124,14 @@ class ToolResultEnvelope:
         *,
         result: Any = None,
         execution_mode: str = "async",
+        is_error: bool = False,
     ) -> "ToolResultEnvelope":
         return cls(
             result_mode="stream",
             execution_mode=execution_mode,
             result=result,
             events=list(events),
+            is_error=is_error,
         )
 
     @classmethod
@@ -138,6 +143,7 @@ class ToolResultEnvelope:
         result: Any = None,
         execution_mode: str = "realtime",
         session_status: str = "open",
+        is_error: bool = False,
     ) -> "ToolResultEnvelope":
         return cls(
             result_mode="session",
@@ -146,6 +152,7 @@ class ToolResultEnvelope:
             events=list(events or []),
             session_id=session_id,
             session_status=session_status,
+            is_error=is_error,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -153,6 +160,7 @@ class ToolResultEnvelope:
             "status": self.status,
             "result_mode": self.result_mode,
             "execution_mode": self.execution_mode,
+            "is_error": self.is_error,
         }
         if self.result is not None:
             data["result"] = self.result
@@ -462,10 +470,11 @@ class ToolContract(CapabilityContract):
             )
 
         if is_supported:
-            # We handle this tool. Let execution exceptions propagate.
-            # This ensures execute_first_result stops here (if we fix execute_first_result).
-            return self.call_tool(tool_name, arguments)
-            
+            try:
+                return self.call_tool(tool_name, arguments)
+            except Exception as exc:
+                return ToolResultEnvelope.inline(result={"error": str(exc)}, is_error=True)
+
         return None
 
 
