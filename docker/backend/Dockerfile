@@ -17,9 +17,13 @@ COPY pyproject.toml ./
 COPY runtime/pyproject.toml runtime/
 COPY ctl/pyproject.toml ctl/
 COPY library-standard/pyproject.toml library-standard/
+COPY library-skills/pyproject.toml library-skills/
+COPY library-skills/agentskills/pyproject.toml library-skills/agentskills/
+COPY library-skills/skill-sandbox/pyproject.toml library-skills/skill-sandbox/
 COPY library-samples/pyproject.toml library-samples/
 COPY library-lab/pyproject.toml library-lab/
 COPY library-eval/pyproject.toml library-eval/
+COPY library-ioc-motivation/pyproject.toml library-ioc-motivation/
 COPY lab/pyproject.toml lab/
 COPY lab/components/core/pyproject.toml lab/components/core/
 COPY lab/components/bench/pyproject.toml lab/components/bench/
@@ -30,16 +34,17 @@ COPY lab/components/content/pyproject.toml lab/components/content/
 COPY runtime/ runtime/
 COPY ctl/ ctl/
 COPY library-standard/ library-standard/
+COPY library-skills/ library-skills/
 COPY library-samples/ library-samples/
 COPY library-lab/ library-lab/
 COPY library-eval/ library-eval/
+COPY library-ioc-motivation/ library-ioc-motivation/
 COPY lab/ lab/
 
 # Build-time force-include sources: ctl + lab/components/core force-include
-# ../docs/schemas(/lab); lab force-includes ../examples. `uv sync` builds those
-# packages editable, so these must be present or the build fails.
+# ../docs/schemas(/lab). `uv sync` builds those packages editable, so these
+# must be present or the build fails.
 COPY docs/schemas/ docs/schemas/
-COPY examples/ examples/
 
 # Default workspace content (overridden when /workspace is mounted)
 COPY library-samples/sample-workspace/config.yaml ./config.yaml
