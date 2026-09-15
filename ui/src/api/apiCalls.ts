@@ -1,10 +1,124 @@
 //  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 //  SPDX-License-Identifier: Apache-2.0
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { parse } from "yaml";
+
+import type {
+  Library,
+  ValidateRequest,
+  ToolOption,
+  SkillOption,
+  RunAgentRequest,
+  JobSubmitResponse,
+  JobResponse,
+  JobSummary,
+  JobDetail,
+  RunMasRequest,
+  BenchmarkRunRequest,
+  BenchmarkExportRequest,
+  BenchmarkImportRequest,
+  MasResourceEntry,
+  MasResourceCreateRequest,
+  MasResourceUpdateRequest,
+  MasResourceCreateResponse,
+  MasResourceDetail,
+  ScenarioEntry,
+  DatasetEntry,
+  DatasetSummary,
+  DatasetDetail,
+  UpdateDatasetPayload,
+  ExperimentSummary,
+  ExperimentContentResponse,
+  ExperimentDetail,
+  ExperimentFileResponse,
+  PipelineStepTypesResponse,
+  DesignPatternsResponse,
+  PipelineSummary,
+  PipelineDetail,
+  OverlayEntry,
+  OverlayDetail,
+  ConfigFiles,
+  RuntimeRunner,
+  IocCatalog,
+  IocRunRequest,
+  IocRunResponse,
+  IocRunResults,
+  IocEvidenceResponse,
+} from "@/types/api.types";
+
+export type {
+  Library,
+  ValidateRequest,
+  ToolOption,
+  SkillOption,
+  RunAgentRequest,
+  JobSubmitResponse,
+  JobResponse,
+  JobSummary,
+  JobDetail,
+  RunMasRequest,
+  BenchmarkRunRequest,
+  BenchmarkExportRequest,
+  BenchmarkImportRequest,
+  MasResourceEntry,
+  MasResourceCreateRequest,
+  MasResourceUpdateRequest,
+  MasResourceCreateResponse,
+  MasResourceDetail,
+  ScenarioEntry,
+  DatasetEntry,
+  DatasetSummary,
+  DatasetDetail,
+  UpdateDatasetPayload,
+  ExperimentSummary,
+  ExperimentContentResponse,
+  FileTreeEntry,
+  ExperimentDetail,
+  ExperimentFileResponse,
+  PipelineStepTypeConfigField,
+  PipelineStepTypeEntry,
+  PipelineStepTypesResponse,
+  DesignPatternEntry,
+  DesignPatternsResponse,
+  PipelineStepSummary,
+  PipelineSummary,
+  PipelineDetail,
+  OverlayEntry,
+  OverlayDetail,
+  ConfigFiles,
+  RuntimeRunner,
+  IocOverlayEntry,
+  IocChallenge,
+  IocApp,
+  IocCatalog,
+  IocRunRequest,
+  IocRunResponse,
+  IocBaselineMetric,
+  IocChallengeIntended,
+  IocChallengePerMetric,
+  IocChallengeResult,
+  IocRunMeta,
+  IocRunResults,
+  IocEvidenceRep,
+  IocEvidenceResponse,
+} from "@/types/api.types";
 
 declare global {
   interface Window {
     __MAS_LAB_API_BASE_URL__?: string;
+  }
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly body: unknown;
+
+  constructor(message: string, status: number, body?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
   }
 }
 
@@ -16,12 +130,6 @@ export const API_BASE_URL =
   "http://localhost:8090";
 
 // --- Libraries ---
-
-export interface Library {
-  dir: string;
-  name: string;
-  description: string;
-}
 
 async function fetchLibraries(): Promise<Library[]> {
   const response = await fetch(`${API_BASE_URL}/api/libraries`);
@@ -37,11 +145,6 @@ export function useLibraries() {
     queryKey: ["libraries"],
     queryFn: fetchLibraries,
   });
-}
-
-export interface ValidateRequest {
-  library: string;
-  manifest_yaml: string;
 }
 
 interface ValidateResponse {
@@ -87,11 +190,6 @@ export function useValidateMas() {
 
 // --- Tools ---
 
-export interface ToolOption {
-  name: string;
-  description: string;
-}
-
 async function fetchTools(
   library: string,
   namespaces: string[] = ["global"],
@@ -119,11 +217,6 @@ export function useTools(library: string, namespaces: string[] = ["global"]) {
 
 // --- Skills ---
 
-export interface SkillOption {
-  name: string;
-  description: string;
-}
-
 async function fetchSkills(
   library: string,
   namespaces: string[] = ["global"],
@@ -149,51 +242,10 @@ export function useSkills(library: string, namespaces: string[] = ["global"]) {
 
 // --- Run Agent ---
 
-export interface RunAgentRequest {
-  library: string;
-  manifest_yaml: string;
-  query: string;
-  flavour?: string;
-  session_id?: string;
-  verbose?: boolean;
-  timeout?: number;
-}
-
 interface RunAgentSubmitResponse {
   job_id: string;
   status: string;
   command: string;
-  session_id?: string;
-}
-
-export interface JobSubmitResponse {
-  job_id: string;
-  status: string;
-  command: string;
-}
-
-export interface JobResponse {
-  id: string;
-  endpoint: string;
-  command: string;
-  status:
-    | "pending"
-    | "running"
-    | "completed"
-    | "failed"
-    | "cancelled"
-    | "timeout";
-  created_at: string;
-  started_at: string | null;
-  finished_at: string | null;
-  pid: number | null;
-  exit_code: number | null;
-  stdout: string;
-  stderr: string;
-  error: string | null;
-  response?: string;
-  error_message?: string;
-  error_detail?: string;
   session_id?: string;
 }
 
@@ -224,31 +276,6 @@ export async function runAgent(
   }
 
   return response.json();
-}
-
-export interface JobSummary {
-  id: string;
-  endpoint: string;
-  command: string;
-  status:
-    | "pending"
-    | "running"
-    | "completed"
-    | "failed"
-    | "cancelled"
-    | "timeout";
-  created_at: string;
-  started_at: string | null;
-  finished_at: string | null;
-  pid: number | null;
-  exit_code: number | null;
-}
-
-export interface JobDetail extends JobSummary {
-  stdout: string;
-  stderr: string;
-  error: string | null;
-  request_body?: Record<string, unknown>;
 }
 
 export async function fetchJobs(status?: string): Promise<JobSummary[]> {
@@ -282,17 +309,17 @@ export async function pollJob(jobId: string): Promise<JobResponse> {
   return response.json();
 }
 
-// --- Run MAS ---
-
-export interface RunMasRequest {
-  library: string;
-  manifest_yaml: string;
-  query: string;
-  overlays?: string[];
-  flavour?: string;
-  verbose?: boolean;
-  timeout?: number;
+export async function cancelJob(jobId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/jobs/${jobId}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.detail ?? `Failed to cancel job ${jobId}`);
+  }
 }
+
+// --- Run MAS ---
 
 export async function runMas(
   request: RunMasRequest,
@@ -325,14 +352,6 @@ export async function runMas(
 
 // --- Benchmark ---
 
-export interface BenchmarkRunRequest {
-  library: string;
-  experiment_yaml: string;
-  progress?: boolean;
-  n_runs?: number;
-  timeout?: number;
-}
-
 interface BenchmarkRunSubmitResponse {
   job_id: string;
   status: string;
@@ -341,44 +360,10 @@ interface BenchmarkRunSubmitResponse {
 
 // --- MAS Resources ---
 
-export interface MasResourceEntry {
-  mas_yaml: string;
-  agents: Record<string, string>;
-}
-
-export interface MasResourceCreateRequest {
-  library: string;
-  mas_name: string;
-  mas_yaml: string;
-  agents: Record<string, string>;
-}
-
-export interface MasResourceUpdateRequest {
-  library: string;
-  old_mas_name: string;
-  mas_name: string;
-  mas_yaml: string;
-  agents: Record<string, string>;
-}
-
-export interface MasResourceCreateResponse {
-  mas_name: string;
-  path: string;
-  files: string[];
-}
-
-export interface MasResourceDetail {
-  mas_name: string;
-  mas_yaml: string;
-  agents: Record<string, string>;
-}
-
 export async function fetchMasResources(
   library: string,
 ): Promise<Record<string, MasResourceEntry>> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/libraries/${library}/apps`,
-  );
+  const response = await fetch(`${API_BASE_URL}/api/libraries/${library}/apps`);
   if (!response.ok) {
     throw new Error(`Failed to fetch MAS resources: ${response.status}`);
   }
@@ -506,7 +491,7 @@ export async function runBenchmark(
         experiment_yaml: request.experiment_yaml,
         progress: request.progress ?? true,
         ...(request.n_runs != null && { max_runs: request.n_runs }),
-        timeout: request.timeout ?? 1800,
+        timeout: request.timeout ?? 43200,
       }),
     },
   );
@@ -522,11 +507,6 @@ export async function runBenchmark(
 }
 
 // --- Scenarios ---
-
-export interface ScenarioEntry {
-  name: string;
-  path: string;
-}
 
 async function fetchScenarios(library: string): Promise<ScenarioEntry[]> {
   const response = await fetch(
@@ -549,11 +529,6 @@ export function useScenarios(library: string) {
 
 // --- Datasets ---
 
-export interface DatasetEntry {
-  name: string;
-  path: string;
-}
-
 async function fetchDatasets(library: string): Promise<DatasetEntry[]> {
   const response = await fetch(
     `${API_BASE_URL}/api/libraries/${library}/datasets`,
@@ -574,16 +549,6 @@ export function useDatasets(library: string) {
 }
 
 // --- Experiments CRUD ---
-
-export interface ExperimentSummary {
-  name: string;
-  description: string;
-  version: string;
-  scenarios: string[];
-  dataset: string;
-  library?: string;
-  path?: string;
-}
 
 async function fetchAllExperiments(): Promise<ExperimentSummary[]> {
   const response = await fetch(`${API_BASE_URL}/api/experiments/definitions`);
@@ -615,11 +580,6 @@ export function useExperiments(library: string) {
     queryFn: () => fetchExperiments(library),
     enabled: !!library,
   });
-}
-
-export interface ExperimentContentResponse {
-  name: string;
-  content: string;
 }
 
 export async function fetchExperimentContent(
@@ -726,18 +686,6 @@ export async function deleteExperimentCache(
 
 // --- Experiment Detail ---
 
-export interface FileTreeEntry {
-  name: string;
-  type: "file" | "directory";
-  children?: FileTreeEntry[];
-}
-
-export interface ExperimentDetail {
-  name: string;
-  metadata: Record<string, unknown>;
-  tree: FileTreeEntry[];
-}
-
 async function fetchExperimentDetail(
   experimentName: string,
 ): Promise<ExperimentDetail> {
@@ -754,16 +702,94 @@ async function fetchExperimentDetail(
 }
 
 export function useExperimentDetail(experimentName: string) {
-  return useQuery({
+  const queryClient = useQueryClient();
+  const trackedJobId = useRef<string | null>(null);
+
+  // Track the active benchmark run job for this experiment. This — not the
+  // on-disk status — is the authoritative "is a run in progress" signal: on a
+  // rerun of a completed experiment the metadata still reads "completed" until
+  // the new run overwrites it, so status alone would miss the rerun.
+  const { data: activeRunJobId } = useQuery({
+    queryKey: ["experiment-run-job", experimentName],
+    queryFn: () => findActiveExperimentRunJob(experimentName),
+    enabled: !!experimentName,
+    refetchInterval: 3000,
+    select: (job) => job?.id ?? null,
+  });
+
+  // Invalidate the detail on every start/finish transition so the results view
+  // resets when a rerun begins and refreshes the instant it finishes.
+  useEffect(() => {
+    const prev = trackedJobId.current;
+    const next = activeRunJobId ?? null;
+    if (prev !== next) {
+      queryClient.invalidateQueries({
+        queryKey: ["experiment", experimentName],
+      });
+    }
+    trackedJobId.current = next;
+  }, [activeRunJobId, experimentName, queryClient]);
+
+  const isRunning = !!activeRunJobId;
+
+  const query = useQuery({
     queryKey: ["experiment", experimentName],
     queryFn: () => fetchExperimentDetail(experimentName),
     enabled: !!experimentName,
+    // Live-refresh the results view while a run is in flight. An active run job
+    // forces polling even if the metadata status is stale; otherwise fall back
+    // to the on-disk status. Polling stops once neither signal is active.
+    refetchInterval: (query) => {
+      if (isRunning) return 3000;
+      const status = query.state.data?.metadata?.status;
+      const s = typeof status === "string" ? status.toLowerCase() : undefined;
+      return s === "running" || s === "in_progress" ? 3000 : false;
+    },
   });
+
+  // Expose the live run signal so the UI can show "Running" even while the
+  // on-disk metadata status is still stale from the previous run.
+  return { ...query, isRunning };
 }
 
-export interface ExperimentFileResponse {
-  path: string;
-  content: string;
+/**
+ * Find the active (pending/running) benchmark run job whose experiment YAML
+ * declares *experimentName*, or null if no such run is in flight.
+ */
+async function findActiveExperimentRunJob(
+  experimentName: string,
+): Promise<JobSummary | null> {
+  const active = [
+    ...(await fetchJobs("running")),
+    ...(await fetchJobs("pending")),
+  ]
+    .filter((j) => j.endpoint?.includes("/benchmark/run"))
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+
+  for (const job of active) {
+    let detail: JobDetail;
+    try {
+      detail = await fetchJobDetail(job.id);
+    } catch {
+      continue;
+    }
+    const yaml = (detail.request_body as Record<string, unknown> | undefined)
+      ?.experiment_yaml as string | undefined;
+    if (!yaml) continue;
+    try {
+      const parsed = parse(yaml) as Record<string, unknown>;
+      const inner = (parsed?.experiment ?? parsed) as
+        | Record<string, unknown>
+        | undefined;
+      if ((inner?.name as string | undefined) === experimentName) return job;
+    } catch {
+      /* ignore parse errors — treat as non-match */
+    }
+  }
+  return null;
 }
 
 export async function fetchExperimentFile(
@@ -784,29 +810,6 @@ export async function fetchExperimentFile(
 
 // --- Pipeline Step Types ---
 
-export interface PipelineStepTypeConfigField {
-  type: string;
-  required?: boolean;
-  default?: unknown;
-  description?: string;
-  enum?: string[];
-}
-
-export interface PipelineStepTypeEntry {
-  type: string;
-  label: string;
-  description: string;
-  phase: string;
-  category: string;
-  requires?: string;
-  config: Record<string, PipelineStepTypeConfigField>;
-}
-
-export interface PipelineStepTypesResponse {
-  step_types: PipelineStepTypeEntry[];
-  categories: { id: string; label: string; color: string }[];
-}
-
 async function fetchPipelineStepTypes(): Promise<PipelineStepTypesResponse> {
   const response = await fetch(`${API_BASE_URL}/api/pipeline-step-types`);
   if (!response.ok) throw new Error("Failed to fetch pipeline step types");
@@ -821,21 +824,23 @@ export function usePipelineStepTypes() {
   });
 }
 
+// --- Design Patterns ---
+
+async function fetchDesignPatterns(): Promise<DesignPatternsResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/design-patterns`);
+  if (!response.ok) throw new Error("Failed to fetch design patterns");
+  return response.json();
+}
+
+export function useDesignPatterns() {
+  return useQuery({
+    queryKey: ["design-patterns"],
+    queryFn: fetchDesignPatterns,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 // --- Pipelines ---
-
-export interface PipelineStepSummary {
-  name: string;
-  type: string;
-  depends_on: string[];
-}
-
-export interface PipelineSummary {
-  filename: string;
-  name: string;
-  description: string;
-  steps: PipelineStepSummary[];
-  experiment: string;
-}
 
 async function fetchPipelines(library: string): Promise<PipelineSummary[]> {
   const response = await fetch(
@@ -852,11 +857,6 @@ export function usePipelines(library: string) {
     queryFn: () => fetchPipelines(library),
     enabled: !!library,
   });
-}
-
-export interface PipelineDetail {
-  name: string;
-  content: string;
 }
 
 export async function fetchPipelineDetail(
@@ -982,16 +982,7 @@ export function useValidateOverlay() {
 
 // --- Overlay CRUD ---
 
-export interface OverlayEntry {
-  name: string;
-  description?: string;
-  namespace?: string;
-  path?: string;
-}
-
-export async function fetchOverlays(
-  library: string,
-): Promise<OverlayEntry[]> {
+export async function fetchOverlays(library: string): Promise<OverlayEntry[]> {
   const response = await fetch(
     `${API_BASE_URL}/api/libraries/${encodeURIComponent(library)}/overlays`,
   );
@@ -1008,11 +999,6 @@ export function useOverlays(library: string) {
     queryFn: () => fetchOverlays(library),
     enabled: !!library,
   });
-}
-
-export interface OverlayDetail {
-  name: string;
-  content: string;
 }
 
 export async function fetchOverlay(
@@ -1176,17 +1162,6 @@ export function useMceMetrics() {
 
 // --- Datasets CRUD ---
 
-export interface DatasetSummary {
-  name: string;
-  path: string;
-  description: string;
-}
-
-export interface DatasetDetail {
-  name: string;
-  content: string;
-}
-
 export async function fetchDatasetsList(
   library: string,
 ): Promise<DatasetSummary[]> {
@@ -1245,11 +1220,6 @@ export async function deleteDataset(
       error?.detail ?? `Failed to delete dataset: ${response.status}`,
     );
   }
-}
-
-export interface UpdateDatasetPayload {
-  name: string;
-  content: string;
 }
 
 export async function updateDataset(
@@ -1319,8 +1289,6 @@ export function useDeleteDataset(library: string, name: string) {
 
 // --- Config Files ---
 
-export type ConfigFiles = Record<string, Record<string, string>>;
-
 async function fetchConfigFiles(library: string): Promise<ConfigFiles> {
   const response = await fetch(
     `${API_BASE_URL}/api/libraries/${encodeURIComponent(library)}/config-files`,
@@ -1340,11 +1308,6 @@ export function useConfigFiles(library: string) {
 }
 
 // --- Runtime runners ---
-
-export interface RuntimeRunner {
-  id: string;
-  label: string;
-}
 
 async function fetchRuntimeRunners(): Promise<RuntimeRunner[]> {
   const response = await fetch(`${API_BASE_URL}/api/runtime-runners`);
@@ -1378,18 +1341,11 @@ export async function analyzeBenchmark(
   if (!response.ok) {
     const error = await response.json().catch(() => null);
     throw new Error(
-      error?.detail ?? `Benchmark analyze failed with status ${response.status}`,
+      error?.detail ??
+        `Benchmark analyze failed with status ${response.status}`,
     );
   }
   return response.json();
-}
-
-export interface BenchmarkExportRequest {
-  benchmark_id: string;
-  output?: string;
-  include_trace_cache?: boolean;
-  dry_run?: boolean;
-  timeout?: number;
 }
 
 export async function exportBenchmark(
@@ -1422,7 +1378,8 @@ export async function downloadBenchmarkExport(
   if (!response.ok) {
     const error = await response.json().catch(() => null);
     throw new Error(
-      error?.detail ?? `Benchmark download failed with status ${response.status}`,
+      error?.detail ??
+        `Benchmark download failed with status ${response.status}`,
     );
   }
   const blob = await response.blob();
@@ -1434,14 +1391,6 @@ export async function downloadBenchmarkExport(
   a.download = filename;
   a.click();
   URL.revokeObjectURL(a.href);
-}
-
-export interface BenchmarkImportRequest {
-  tarball: string;
-  output_dir?: string;
-  trace_cache_dir?: string;
-  dry_run?: boolean;
-  timeout?: number;
 }
 
 export async function importBenchmark(
@@ -1481,8 +1430,115 @@ export async function uploadImportBenchmark(
   if (!response.ok) {
     const error = await response.json().catch(() => null);
     throw new Error(
-      error?.detail ?? `Benchmark upload-import failed with status ${response.status}`,
+      error?.detail ??
+        `Benchmark upload-import failed with status ${response.status}`,
     );
   }
   return response.json();
+}
+
+// --- IoC Catalog ---
+
+async function fetchIocCatalog(): Promise<IocCatalog> {
+  const response = await fetch(`${API_BASE_URL}/api/ioc/catalog`);
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(
+      error?.detail ?? `Failed to fetch IoC catalog: ${response.status}`,
+    );
+  }
+  return response.json();
+}
+
+export function useIocCatalog() {
+  return useQuery({
+    queryKey: ["ioc-catalog"],
+    queryFn: fetchIocCatalog,
+  });
+}
+
+export async function submitIocRun(
+  req: IocRunRequest,
+): Promise<IocRunResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/ioc/runs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(
+      error?.detail ?? `Failed to submit IoC run: ${response.status}`,
+    );
+  }
+  return response.json();
+}
+
+// --- IoC Run Results ---
+
+export async function fetchIocRunResults(
+  jobId: string,
+): Promise<IocRunResults> {
+  const response = await fetch(`${API_BASE_URL}/api/ioc/runs/${jobId}/results`);
+  if (response.status === 202) {
+    const body = await response.json();
+    throw new ApiError("Run is still in progress", 202, body);
+  }
+  if (response.status === 422) {
+    const body = await response.json();
+    throw new ApiError(body.detail ?? "Run failed or incomplete", 422, body);
+  }
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(
+      error?.detail ?? `Failed to fetch results: ${response.status}`,
+    );
+  }
+  return response.json();
+}
+
+export function useIocRunResults(jobId: string) {
+  return useQuery({
+    queryKey: ["ioc-run-results", jobId],
+    queryFn: () => fetchIocRunResults(jobId),
+    enabled: !!jobId,
+    retry: (failureCount, error) => {
+      if (
+        error instanceof ApiError &&
+        (error.status === 202 || error.status === 422)
+      )
+        return false;
+      return failureCount < 2;
+    },
+  });
+}
+
+export async function fetchIocRunEvidence(
+  jobId: string,
+  scenario: string,
+  metric: string,
+): Promise<IocEvidenceResponse> {
+  const url = new URL(`${API_BASE_URL}/api/ioc/runs/${jobId}/evidence`);
+  url.searchParams.set("scenario", scenario);
+  url.searchParams.set("metric", metric);
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(
+      error?.detail ?? `Failed to fetch evidence: ${response.status}`,
+    );
+  }
+  return response.json();
+}
+
+export function useIocRunEvidence(
+  jobId: string,
+  scenario: string | null,
+  metric: string | null,
+) {
+  return useQuery({
+    queryKey: ["ioc-run-evidence", jobId, scenario, metric],
+    queryFn: () => fetchIocRunEvidence(jobId, scenario!, metric!),
+    enabled: !!jobId && !!scenario && !!metric,
+  });
 }

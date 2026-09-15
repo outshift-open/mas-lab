@@ -13,9 +13,16 @@ import Application from "@/pages/Application";
 import type { AppRoute } from "@/routes/types.ts";
 import Playground from "@/pages/Playground";
 import { Transport as PlaygroundIcon } from "@/assets/icons";
-import { Flaky as ExperimentsIcon, AccountTree as PipelinesIcon, Storage as DatasetsIcon, Settings as ControlPanelIcon, Layers as OverlaysIcon } from "@mui/icons-material";
+import {
+  Flaky as ExperimentsIcon,
+  AccountTree as PipelinesIcon,
+  Storage as DatasetsIcon,
+  Settings as ControlPanelIcon,
+  Layers as OverlaysIcon,
+} from "@mui/icons-material";
 import Experiments from "@/pages/Experiments";
 import Experiment from "@/pages/Experiment";
+import CreateExperiment from "@/pages/CreateExperiment";
 import Pipelines from "@/pages/Pipelines";
 import CreatePipeline from "@/pages/CreatePipeline";
 import PipelineDetail from "@/pages/Pipeline";
@@ -33,6 +40,10 @@ export const PATHS = {
   playground: "/:library/playground",
   playgroundTab: "/:library/playground/:playgroundTab",
   experiments: "/:library/experiments",
+  createExperiment: "/:library/experiments/new",
+  createExperimentTab: "/:library/experiments/new/:experimentTab",
+  editExperiment: "/:library/experiments/:id/edit",
+  editExperimentTab: "/:library/experiments/:id/edit/:experimentTab",
   experiment: "/:library/experiments/:id",
   pipelines: "/:library/pipelines",
   createPipeline: "/:library/pipelines/new",
@@ -43,6 +54,9 @@ export const PATHS = {
   createDataset: "/:library/datasets/_create",
   dataset: "/:library/datasets/*",
   controlPanel: "/:library/control-panel",
+  iocMotivation: "/:library/ioc-motivation",
+  newIocRun: "/:library/ioc-motivation/new",
+  iocResults: "/:library/ioc-motivation/:jobId",
   overlays: "/:library/overlays",
   createOverlay: "/:library/overlays/new",
   createOverlayTab: "/:library/overlays/new/:overlayTab",
@@ -97,6 +111,26 @@ export const routes: {
         title: "Experiments",
         icon: ExperimentsIcon,
       },
+    },
+    {
+      name: "CreateExperiment",
+      path: PATHS.createExperiment,
+      element: <CreateExperiment />,
+    },
+    {
+      name: "CreateExperimentTab",
+      path: PATHS.createExperimentTab,
+      element: <CreateExperiment />,
+    },
+    {
+      name: "EditExperiment",
+      path: PATHS.editExperiment,
+      element: <CreateExperiment />,
+    },
+    {
+      name: "EditExperimentTab",
+      path: PATHS.editExperimentTab,
+      element: <CreateExperiment />,
     },
     {
       name: "Experiment",

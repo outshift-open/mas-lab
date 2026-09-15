@@ -35,6 +35,12 @@ COPY library-lab/ library-lab/
 COPY library-eval/ library-eval/
 COPY lab/ lab/
 
+# Build-time force-include sources: ctl + lab/components/core force-include
+# ../docs/schemas(/lab); lab force-includes ../examples. `uv sync` builds those
+# packages editable, so these must be present or the build fails.
+COPY docs/schemas/ docs/schemas/
+COPY examples/ examples/
+
 # Default workspace content (overridden when /workspace is mounted)
 COPY library-samples/sample-workspace/config.yaml ./config.yaml
 COPY labs/ labs/

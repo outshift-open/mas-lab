@@ -160,3 +160,22 @@ class SaveMASResourceRequest(BaseModel):
         default_factory=dict,
         description="Map of agent name → agent YAML content (stored in apps/<mas_name>/agents/)",
     )
+
+
+class IocRunRequest(BaseModel):
+    app: str = Field(..., description="Catalog app key (e.g. 'sre-triage')")
+    overlays: list[str] = Field(
+        ...,
+        min_length=1,
+        description="Catalog overlay ids (e.g. ['sre/dr1-semantic-mismatch'])",
+    )
+    query: Optional[str] = Field(
+        default=None,
+        description="User query; omit to use the app's default_query from the catalog",
+    )
+    reps: int = Field(
+        default=5,
+        ge=1,
+        le=10,
+        description="Number of repetitions (1–10)",
+    )

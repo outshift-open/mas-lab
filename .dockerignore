@@ -1,0 +1,19 @@
+# Build-context excludes (applies to the main context for all mas-lab docker builds).
+# VCS + Python/Node envs + caches (reinstalled in-image; never needed in the context).
+.git
+**/.git
+.venv
+**/.venv
+**/__pycache__
+**/*.pyc
+**/node_modules
+ui/dist
+
+# Local data / outputs
+/data
+docker/**/data
+
+# Secrets — must never enter the build context.
+**/.env
+**/.env.ioc
+**/.env.evaluator
