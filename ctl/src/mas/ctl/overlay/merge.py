@@ -4,13 +4,12 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
 import logging
 from copy import deepcopy
+from functools import lru_cache
 from typing import Any
 
 import yaml
-
 from mas.ctl.validate.schemas import schema_root
 
 logger = logging.getLogger(__name__)
@@ -72,7 +71,7 @@ def _collect_merge_meta(
     schema: dict[str, Any],
     *,
     prefix: str = "",
- ) -> dict[str, dict[str, Any]]:
+) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
     props = schema.get("properties")
     if not isinstance(props, dict):
@@ -86,6 +85,7 @@ def _collect_merge_meta(
             out[path] = dict(merge_meta)
         out.update(_collect_merge_meta(raw_prop, prefix=f"{path}."))
     return out
+
 
 def _schema_property_keys(kind: str) -> frozenset[str]:
     schema = _overlay_patch_root_schema(kind)
@@ -104,10 +104,7 @@ def overlay_runtime_semantics() -> dict[str, dict[str, str]]:
     """Return non-trivial overlay merge semantics derived from schema x-merge metadata."""
     out: dict[str, dict[str, str]] = {}
     for kind in ("Agent", "MAS", "Flavour", "Infra"):
-        out[kind] = {
-            field: _format_semantic(meta)
-            for field, meta in _overlay_merge_meta(kind).items()
-        }
+        out[kind] = {field: _format_semantic(meta) for field, meta in _overlay_merge_meta(kind).items()}
     return out
 
 
@@ -163,8 +160,7 @@ def _merge_list_ops(
         if isinstance(incoming, list):
             return list(incoming)
         raise OverlayTargetError(
-            "collection patch must be a raw list (implicit replace) or use '$op' "
-            "(replace/add/remove/clear)"
+            "collection patch must be a raw list (implicit replace) or use '$op' (replace/add/remove/clear)"
         )
 
     if ops.get("clear") is True:
@@ -239,8 +235,7 @@ def _merge_mapping_ops(existing: dict[str, Any], incoming: Any) -> dict[str, Any
             # Implicit replace ergonomics for mapping fields.
             return deepcopy(incoming)
         raise OverlayTargetError(
-            "mapping patch must be a raw object (implicit replace) or use '$op' "
-            "(replace/merge/clear)"
+            "mapping patch must be a raw object (implicit replace) or use '$op' (replace/merge/clear)"
         )
     if ops.get("clear") is True:
         result: dict[str, Any] = {}
@@ -273,8 +268,7 @@ def _merge_plugin_list_ops(existing: list[Any], incoming: Any) -> list[Any]:
         if isinstance(incoming, list):
             return list(incoming)
         raise OverlayTargetError(
-            "plugin-list patch must be a raw list (implicit replace) or use '$op' "
-            "(replace/add/remove/clear)"
+            "plugin-list patch must be a raw list (implicit replace) or use '$op' (replace/add/remove/clear)"
         )
 
     if ops.get("clear") is True:
@@ -312,6 +306,37 @@ def _merge_value_by_meta(existing: Any, incoming: Any, meta: dict[str, Any]) -> 
             return _merge_list_ops(existing_list, incoming, dedupe_key=None)
         except ValueError as exc:
             raise OverlayTargetError(str(exc)) from exc
+
+    if strategy == "named_list_union":
+        identity = str(meta.get("identity") or "name")
+        existing_list = list(existing or []) if isinstance(existing, list) else []
+
+        def _item_key(item: Any) -> str:
+            if isinstance(item, dict):
+                return str(item.get(identity) or "")
+            return str(item)
+
+        if _ops_dict(incoming) is not None:
+            try:
+                return _merge_list_ops(existing_list, incoming, dedupe_key=_item_key)
+            except ValueError as exc:
+                raise OverlayTargetError(str(exc)) from exc
+        if not isinstance(incoming, list):
+            raise OverlayTargetError(
+                "named_list_union patch must be a raw list or use '$op' (replace/add/remove/clear)"
+            )
+        result = [deepcopy(item) for item in existing_list]
+        index_by_key = {_item_key(item): i for i, item in enumerate(result) if _item_key(item)}
+        for item in incoming:
+            copied = deepcopy(item)
+            key = _item_key(copied)
+            if key and key in index_by_key:
+                result[index_by_key[key]] = copied
+            else:
+                result.append(copied)
+                if key:
+                    index_by_key[key] = len(result) - 1
+        return result
 
     if strategy == "plugin_list_ops":
         existing_list = list(existing or []) if isinstance(existing, list) else []
@@ -500,9 +525,7 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
             existing_agents = list(deepcopy(ops.get("replace") or []))
         if "remove" in ops:
             rm = {str(x) for x in list(ops.get("remove") or [])}
-            existing_agents = [
-                a for a in existing_agents if not (isinstance(a, dict) and _agency_entry_key(a) in rm)
-            ]
+            existing_agents = [a for a in existing_agents if not (isinstance(a, dict) and _agency_entry_key(a) in rm)]
         if "add" in ops:
             existing_keys = {
                 _agency_entry_key(a)
@@ -549,9 +572,7 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
         rm = {str(x) for x in rm_values}
         agency = base_spec.get("agency") or {}
         agents_list = agency.get("agents") or []
-        agency["agents"] = [
-            a for a in agents_list if not (isinstance(a, dict) and _agency_entry_key(a) in rm)
-        ]
+        agency["agents"] = [a for a in agents_list if not (isinstance(a, dict) and _agency_entry_key(a) in rm)]
         base_spec["agency"] = agency
 
     if patch.get("agents_add"):
@@ -622,6 +643,4 @@ def merge_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, An
         return merged
     if target_kind == "agent":
         return merge_agent_overlay(base, overlay)
-    raise OverlayTargetError(
-        "overlay spec.target.kind must be one of Agent, MAS, Flavour, Infra"
-    )
+    raise OverlayTargetError("overlay spec.target.kind must be one of Agent, MAS, Flavour, Infra")

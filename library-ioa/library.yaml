@@ -1,0 +1,27 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# IOA library — MCP tool-provider plugin for MAS Lab.
+apiVersion: mas/v1
+kind: Library
+
+name: library-ioa
+description: >
+  MCP client/server bridge. Registers kind: mcp as a tool-provider plugin.
+version: "0.1.0"
+dependencies:
+  - mas-runtime
+  - mcp>=2.2
+
+module_base: library_ioa
+
+types:
+  - tool_provider
+
+plugins:
+  - type: tool_provider
+    name: mcp
+    urn: mas.tool_provider.mcp
+    module: library_ioa.plugins.mcp.provider
+    class: MCPToolProvider
+    shortcuts:
+      - mcp

@@ -19,7 +19,7 @@ These boundaries are wired in the kernel and exercised by tutorials and paper la
 
 | Contract / plugin | Role |
 | --- | --- |
-| `ToolContract` | Tool listing and invocation |
+| `ToolContract` | Tool listing and invocation — [reference](tool-contract.md) |
 | `MemoryContract` | Memory read/write at engine boundary |
 | `ContextContract` / `ContextManagerContract` | Prompt and conversation context |
 | `DesignPatternPlugin` | ReAct, chain-of-thought, single-pass lifecycles |
@@ -136,11 +136,14 @@ ingress/egress events, and bundled implementations.
 
 ```text
 Runtime or planner
-  -> ToolContract.list_tools()
+  -> ToolContract.list_tools()     # required: name, description, parameters
   -> BudgetContract.on_pre_tool_call()
-  -> ToolContract.call_tool()
+  -> ToolContract.call_tool(name, arguments)   # required two-arg invocation
   -> RecorderContract.emit()
 ```
+
+Optional advertise keys and `call_tool` kwargs are documented in
+[tool-contract.md](tool-contract.md). Daily ops use the required two-arg call.
 
 ### Model execution
 
@@ -169,6 +172,8 @@ SensorContract.pull() or emit_event()
 
 - [Runtime manifest fields](../manifests/runtime.md) — YAML authors
 - [Schema index](schemas.md) — validation schemas
+- [ToolContract](tool-contract.md) — `call_tool(name, arguments)`
+- [ToolServerRegistry](tool-server-registry.md) — infra connection policy
 - [Mealy machines guide](https://github.com/outshift-open/mas-lab/blob/main/runtime/docs/mealy-machines-guide.md)
 - [Glossary](../glossary.md) — vocabulary
 - [ADR 0002](adr-0002-observability-event-model.md) — why the `ObservabilitySink` /

@@ -53,10 +53,10 @@ properties:
   spec:
     type: object
     description: >
-      Kind-specific infrastructure specification. String values may use
-      ``env:VAR_NAME`` or ``env:VAR_NAME|default`` to read deploy-time
-      configuration from the process environment (Kubernetes valueFrom,
-      Vault agent, local .env). Fields ending in ``_env`` (e.g.
+      Kind-specific infrastructure specification. Connection values belong
+      in this document. ``env:VAR_NAME|default`` is an optional override of
+      a manifest default (URLs, API bases). ``env:VAR_NAME`` is for secrets
+      (empty when unset). Fields ending in ``_env`` (e.g.
       ``api_key_env``, ``password_env``) are secretKeyRef names and must
       be literal env var names, not ``env:`` lookups.
     additionalProperties: true
@@ -178,21 +178,7 @@ properties:
       tool_servers:
         type: array
         items:
-          type: object
-          required: [id]
-          additionalProperties: true
-          properties:
-            id:
-              type: string
-            url:
-              type: string
-            name:
-              type: string
-            transport:
-              type: string
-              default: "http"
-            description:
-              type: string
+          $ref: "./fragments/infra-tool-server.schema.yaml"
 
       # ── ToolRegistry ────────────────────────────────────────────────────
       tools:

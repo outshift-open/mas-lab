@@ -16,13 +16,13 @@ tasks:
     desc: "Install core MAS packages into this repo's .venv (editable mode). Run from repo root."
     run: once
     summary: |
-      Installs runtime, ctl, library-standard, library-lab, and mas-lab
+      Installs runtime, ctl, library-standard, library-ioa, library-lab, and mas-lab
       (pulls mas-lab-controller, mas-lab-bench, mas-lab-core as transitive editable deps).
       Uses .envrc UV_PROJECT_ENVIRONMENT (this repo's .venv). Re-run after pulling
       new dependencies. For all libraries + extras use: task install-all
     cmds:
       - test -d .venv || uv venv .venv
-      - uv pip install -e runtime -e ctl -e library-standard -e library-skills -e library-eval -e library-lab -e lab/components/core -e lab/components/bench -e lab/components/controller -e lab
+      - uv pip install -e runtime -e ctl -e library-standard -e library-ioa -e library-skills -e library-eval -e library-lab -e lab/components/core -e lab/components/bench -e lab/components/controller -e lab
       - .venv/bin/python -c "import mas.lab.controller; print('mas-lab-controller OK')"
 
   install-dev:
@@ -95,6 +95,7 @@ tasks:
           lab/components/bench/tests/ \
           ctl/tests/ \
           library-standard/tests/ \
+          library-ioa/tests/ \
           -q --tb=line
       - |
         # Separate invocation: library-skills/tests/ is its own `tests` package
@@ -237,11 +238,11 @@ tasks:
   install-all:
     desc: "Install ALL MAS packages including optional extras (non-minimal). Run from repo root."
     summary: |
-      Full install: runtime, ctl, library-standard, lab,
+      Full install: runtime, ctl, library-standard, library-ioa, lab,
       library-eval, library-lab, library-samples.
       This is not a minimal setup — see docs/packages-reference.md for details.
     cmds:
-      - uv pip install -e runtime -e ctl -e library-standard -e lab -e library-eval -e library-lab -e library-samples
+      - uv pip install -e runtime -e ctl -e library-standard -e library-ioa -e lab -e library-eval -e library-lab -e library-samples
 
   docs-gen:
     desc: "Regenerate docs/packages-reference.md, docs/plugins-reference.md, and path snippets."

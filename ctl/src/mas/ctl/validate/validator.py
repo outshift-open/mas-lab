@@ -10,12 +10,12 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
+from mas.ctl.overlay.normalize import normalize_overlay
+from mas.ctl.validate.providers import check_provider_tool_claims
+from mas.ctl.validate.refs import check_refs, resolve_refs_enabled
 from mas.ctl.validate.schema_errors import humanize_schema_error
 from mas.ctl.validate.schemas import declared_kind, load_schema, schema_path_for_kind
-from mas.ctl.validate.refs import check_refs, resolve_refs_enabled
 from mas.ctl.validate.separation import check_separation
-from mas.ctl.overlay.normalize import normalize_overlay
 
 
 @dataclass
@@ -70,9 +70,7 @@ def validate_data(
         return result
 
     if schema_path_for_kind(resolved_kind) is None:
-        result.issues.append(
-            ValidationIssue("warning", f"no schema file for kind {resolved_kind!r}")
-        )
+        result.issues.append(ValidationIssue("warning", f"no schema file for kind {resolved_kind!r}"))
         return result
 
     try:
@@ -98,9 +96,7 @@ def validate_data(
 
             validate_agent_spec_bindings(data.get("spec"))
         except Exception as exc:
-            result.issues.append(
-                ValidationIssue("error", str(exc), path="spec")
-            )
+            result.issues.append(ValidationIssue("error", str(exc), path="spec"))
             result.ok = False
 
     if resolved_kind == "deployment":
@@ -112,9 +108,7 @@ def validate_data(
 
                 validate_runtime_id(str(runtime_id))
             except KeyError as exc:
-                result.issues.append(
-                    ValidationIssue("error", str(exc), path="spec.runtime_id")
-                )
+                result.issues.append(ValidationIssue("error", str(exc), path="spec.runtime_id"))
                 result.ok = False
 
     for msg in check_separation(data, resolved_kind):
@@ -129,6 +123,12 @@ def validate_data(
             ref_base = Path(source).parent
         for msg in check_refs(data, resolved_kind, ref_base):
             result.issues.append(ValidationIssue("error" if strict else "warning", msg))
+
+    claim_base = ref_base if do_refs else base_dir
+    if claim_base is None and source:
+        claim_base = Path(source).parent
+    for msg in check_provider_tool_claims(data, resolved_kind, claim_base):
+        result.issues.append(ValidationIssue("error" if strict else "warning", msg))
 
     if any(i.level == "error" for i in result.issues):
         result.ok = False

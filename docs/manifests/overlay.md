@@ -86,9 +86,16 @@ scenarios:
     overlays: [cot, no-tools] # stack order matters
 ```
 
+`patch.providers` claims remote or local tool plugins (`kind` + `tools`).
+Connection URL, headers, timeout, pagination, and list-cache policy belong on
+infra [`ToolServerRegistry`](../references/tool-server-registry.md) when shared;
+an overlay may set `url` on `providers[]`. When both overlay and infra set a
+key, the overlay value is used. See [tool.md](tool.md).
+
 ---
 
 ## See also
 
 - [experiment.md](experiment.md) — scenario overlay stacks
-- [experiment.md](experiment.md)
+- [ToolContract](../references/tool-contract.md)
+- [ToolServerRegistry](../references/tool-server-registry.md)

@@ -4,7 +4,7 @@
 -->
 # Infrastructure manifests (`apiVersion: infra/v1`)
 
-**Package:** `mas-runtime` · **Models:** `mas.runtime.manifest.infra_manifest`
+**Package:** `mas-runtime` · **Models:** `mas.ctl.infra.models.InfraManifest`
 
 **Infra** manifests declare resources the runtime resolves at execution time: LLM proxy
 URLs, tool registries, secrets env mapping, OTel endpoints. Referenced from **MAS**
@@ -15,7 +15,8 @@ URLs, tool registries, secrets env mapping, OTel endpoints. Referenced from **MA
 Provides resources: LLM endpoints, tool registries, tool servers, secrets mapping, optional
 application service URLs, OTel/collector endpoints.
 
-**Schema:** `infra.schema.yaml` (also validated via Python models in `infra_manifest.py`).
+**Schema:** `infra.schema.yaml`. Field reference for remote tools:
+[ToolServerRegistry](../references/tool-server-registry.md).
 
 ---
 
@@ -28,7 +29,8 @@ application service URLs, OTel/collector endpoints.
 | `LLMProxy` | OpenAI-compatible proxy URL, model catalogue, defaults |
 | `LLMLocal` | Local inference (e.g. Ollama) |
 | `ToolRegistry` | Map logical tool-set ids → JSON tool index paths |
-| `ToolServerRegistry` | tool server ids and transport |
+| `ToolServerRegistry` | Remote tool-server endpoints (URL, transport, headers, timeouts) |
+| `ToolProvider` | Semantic name → in-process implementation binding |
 | `PersonalSecrets` | Logical token id → env var (gitignored) |
 | `Application` | Named service endpoints |
 | `Infrastructure` | Legacy alias |
@@ -98,10 +100,61 @@ multiple middleware refs, **first merged ref = outermost**. See
 
 ---
 
+## ToolServerRegistry
+
+**Where** a remote tool process lives. Not the tool's advertise contract
+([tool.md](tool.md)) and not which names an agent claims (`spec.providers[]`).
+
+**Full field reference:** [tool-server-registry.md](../references/tool-server-registry.md).
+Schema fragment: [`infra-tool-server.schema.yaml`](../schemas/runtime/fragments/infra-tool-server.schema.yaml).
+
+```yaml
+apiVersion: infra/v1
+kind: ToolServerRegistry
+metadata:
+  name: mcp-localhost
+spec:
+  tool_servers:
+    - id: localhost-mcp-tools
+      transport: streamable-http
+      url: http://127.0.0.1:9001/mcp
+      timeout: 30
+      follow_pagination: true
+      cache_scope: private
+      # headers:
+      #   Authorization: "env:MCP_AUTH_HEADER"
+```
+
+Canonical sample: [`library-samples/infra/mcp-localhost.yaml`](../../library-samples/infra/mcp-localhost.yaml)
+(defaults listed explicitly so the file is a reference, not a stub).
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `id` | required | Match overlay `providers[].name` |
+| `transport` | `streamable-http` | `stdio` \| `streamable-http` \| `sse` \| `http` |
+| `url` / `endpoint` | — | HTTP/SSE URL (manifest). Optional override `env:VAR\|default` |
+| `command` / `args` / `env` / `cwd` | — | stdio process |
+| `headers` | `{}` | Omit unless auth is needed. Secrets: `env:VAR` (unset omits the header) |
+| `timeout` | `30` | Per-call timeout (seconds) |
+| `follow_pagination` | `true` | Walk MCP `nextCursor` and flatten |
+| `cache_ttl_ms` | omit | Client list-cache TTL in ms (`0` disables; omit caches until invalidate) |
+| `cache_scope` | omit | `public` \| `private` (private keys the list cache by user) |
+
+`--infra-ref` loads this document into `ResolvedInfra.tool_server_registry`.
+Unset connection keys on `providers[]` are filled from the matching `id`.
+Overlay `providers[]` may set `url`; when both overlay and infra set a key,
+the overlay value is used. Prefer infra for shared endpoints.
+
+Pair with [`library-samples/overlays/mcp-localhost.yaml`](../../library-samples/overlays/mcp-localhost.yaml)
+(`kind: mcp`, `tools: "*"`).
+
+---
+
 ## See also
 
 - [LLM cache](llm-cache.md) — `llm_cache` middleware guide
 - [LLM cache reference](../references/llm-cache.md) — parameters, pipeline model, implementation
+- [ToolServerRegistry reference](../references/tool-server-registry.md)
 - [Flavour manifest](flavour.md)
 - [user-config.md](../user-config.md) — workspace and `infra_refs`
-- Source: `runtime/src/mas/runtime/manifest/infra_manifest.py`
+- Source: `ctl/src/mas/ctl/infra/models.py`

@@ -126,7 +126,7 @@ class _RecordingUserIOContract:
 
 
 def test_custom_hitl_contract_is_used_instead_of_registry(empty_tool_tree: Path):
-    from mas.runtime.engine.manifest_tool_provider import _SystemToolHitlWrapper
+    from mas.library.standard.plugins.tools.local import _SystemToolHitlWrapper
     from mas.runtime.system_tools.request_human_input import RequestHumanInputTool
 
     contract = _RecordingHitlContract()
@@ -148,7 +148,7 @@ def test_custom_hitl_contract_is_used_instead_of_registry(empty_tool_tree: Path)
 
 
 def test_custom_user_io_contract_is_used_instead_of_registry(empty_tool_tree: Path):
-    from mas.runtime.engine.manifest_tool_provider import _SystemToolUserUpdateWrapper
+    from mas.library.standard.plugins.tools.local import _SystemToolUserUpdateWrapper
     from mas.runtime.system_tools.inform_user import InformUserTool
 
     contract = _RecordingUserIOContract()
@@ -169,7 +169,10 @@ def test_custom_user_io_contract_is_used_instead_of_registry(empty_tool_tree: Pa
 
 
 def test_default_contract_is_registry_backed(empty_tool_tree: Path):
-    from mas.runtime.engine.manifest_tool_provider import _SystemToolHitlWrapper, _SystemToolUserUpdateWrapper
+    from mas.library.standard.plugins.tools.local import (
+        _SystemToolHitlWrapper,
+        _SystemToolUserUpdateWrapper,
+    )
     from mas.runtime.system_tools.inform_user import InformUserTool
     from mas.runtime.system_tools.request_human_input import RequestHumanInputTool
 

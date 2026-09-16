@@ -1,0 +1,30 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Sample overlay: MCP provider on localhost.
+# tools: "*" registers this provider, then discovers advertised names at runtime init.
+# Verification always passes for "*". Pin a subset with tools: [web-search].
+# url may be set here; overlay keys win over infra/mcp-localhost.yaml.
+# Canonical WHERE (timeout, pagination, headers) lives in infra/mcp-localhost.yaml;
+# match providers[].name to tool_servers[].id.
+# Stacked provider overlays union by name (later overlay with the same name
+# updates). Keep leftover tools in-process with local-in-process.yaml.
+# Start: mas-mcp serve --tool-manifest library-samples/tools/web-search.tool.yaml
+#   --tool web-search --host 127.0.0.1 --port 9001 --transport streamable-http
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: mcp-localhost
+  description: >
+    Connect an agent to a mas-mcp server on 127.0.0.1:9001. Discovery (`*`)
+    is a runtime-init query, not a validate-time check. Remaining spec.tools
+    need an explicit local overlay.
+spec:
+  target:
+    kind: Agent
+  patch:
+    providers:
+      - name: localhost-mcp-tools
+        kind: mcp
+        transport: streamable-http
+        url: http://127.0.0.1:9001/mcp
+        tools: "*"

@@ -9,15 +9,15 @@ import os
 from pathlib import Path
 from typing import Any
 
-from mas.runtime.spec.schema_bindings_generated import INFRA_MIDDLEWARE_PATH_PARAM_KEYS
-from mas.runtime.spec.source import load_yaml_file, resolve_ref_with_search
-from mas.runtime.xdg import mas_infra_dir, mas_runtime_dir
 from mas.ctl.compose.models import ResolvedInfra
 from mas.ctl.infra.env_resolve import resolve_manifest_values
 from mas.ctl.infra.models import InfraManifest, ModelsSpec, ProxySpec
 from mas.ctl.infra.pipeline_chain import BidirectionalInfraPipeline
 from mas.ctl.libraries.bundles import list_manifest_libraries
 from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
+from mas.runtime.spec.schema_bindings_generated import INFRA_MIDDLEWARE_PATH_PARAM_KEYS
+from mas.runtime.spec.source import load_yaml_file, resolve_ref_with_search
+from mas.runtime.xdg import mas_infra_dir, mas_runtime_dir
 
 logger = logging.getLogger(__name__)
 
@@ -108,9 +108,7 @@ def resolve_infra_refs(
     for ref in runtime_effective:
         try:
             part = _load_runtime_ref(ref, anchor=root, workspace=ws)
-            runtime_engine = merge_runtime_engine_layers(
-                runtime_engine, part.runtime_engine
-            )
+            runtime_engine = merge_runtime_engine_layers(runtime_engine, part.runtime_engine)
         except Exception as exc:
             errors.append((ref, exc))
 
@@ -125,9 +123,14 @@ def resolve_infra_refs(
     llm["pipeline"] = _filter_pipeline_for_target(llm.get("pipeline") or [], "LLM_CALL")
     _hydrate_pipeline_cache_paths(llm.get("pipeline") or [], cache_path=cache_path)
 
+    tool_server_registry = {
+        str(item["id"]): dict(item) for item in merged.tool_servers if isinstance(item, dict) and item.get("id")
+    }
+
     return ResolvedInfra(
         refs=effective,
         llm_proxy=llm,
+        tool_server_registry=tool_server_registry,
         observability={},
         runtime_engine=dict(runtime_engine),
         runtime_refs=list(runtime_effective),
@@ -375,14 +378,10 @@ def _load_file(
                 if child in seen:
                     raise ValueError(f"circular InfraBundle reference: {path} -> {child}")
                 parts.append(
-                    _load_file(
-                        child, workspace=workspace, _seen=seen, allow_runtime_engine=allow_runtime_engine
-                    )
+                    _load_file(child, workspace=workspace, _seen=seen, allow_runtime_engine=allow_runtime_engine)
                 )
                 for step in entry.get("pipeline") or []:
-                    pipeline.append(
-                        _resolve_pipeline_entry(step, anchor=path.parent, workspace=workspace)
-                    )
+                    pipeline.append(_resolve_pipeline_entry(step, anchor=path.parent, workspace=workspace))
         else:
             for entry in spec.get("interceptors") or spec.get("pipeline") or []:
                 pipeline.append(_resolve_pipeline_entry(entry, anchor=path.parent, workspace=workspace))
@@ -391,9 +390,7 @@ def _load_file(
                 if child in seen:
                     raise ValueError(f"circular InfraBundle reference: {path} -> {child}")
                 parts.append(
-                    _load_file(
-                        child, workspace=workspace, _seen=seen, allow_runtime_engine=allow_runtime_engine
-                    )
+                    _load_file(child, workspace=workspace, _seen=seen, allow_runtime_engine=allow_runtime_engine)
                 )
         merged = _merge_many(parts)
         merged.pipeline = _merge_pipeline(merged.pipeline, pipeline)
@@ -466,6 +463,7 @@ def _from_dict(data: dict[str, Any]) -> InfraManifest:
             mappings=dict(models_raw.get("mappings") or {}),
         ),
         model_access=dict(spec.get("model_access") or {}),
+        tool_servers=[dict(item) for item in (spec.get("tool_servers") or []) if isinstance(item, dict)],
         raw=data,
     )
 
@@ -486,6 +484,8 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
     model_access: dict[str, Any] = {}
     pipeline: list[dict[str, Any]] = []
     runtime_engine: dict[str, Any] = {}
+    tool_servers_by_id: dict[str, dict[str, Any]] = {}
+    tool_server_order: list[str] = []
     name = parts[-1].name
 
     from mas.runtime.spec.runtime_engine import merge_runtime_engine_layers
@@ -506,6 +506,14 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
         if m.models.default_embed:
             default_embed = m.models.default_embed
         model_access.update(m.model_access)
+        for server in m.tool_servers:
+            sid = str(server.get("id") or "").strip()
+            if not sid:
+                continue
+            if sid not in tool_servers_by_id:
+                tool_server_order.append(sid)
+            previous = tool_servers_by_id.get(sid) or {}
+            tool_servers_by_id[sid] = {**previous, **server}
 
     return InfraManifest(
         name=name,
@@ -520,6 +528,7 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
         model_access=model_access,
         pipeline=pipeline,
         runtime_engine=runtime_engine,
+        tool_servers=[tool_servers_by_id[sid] for sid in tool_server_order],
     )
 
 
@@ -566,9 +575,7 @@ def _merge_pipeline(a: list[dict[str, Any]], b: list[dict[str, Any]]) -> list[di
     return list(a) + list(b)
 
 
-def _filter_pipeline_for_target(
-    pipeline: list[dict[str, Any]], target: str
-) -> list[dict[str, Any]]:
+def _filter_pipeline_for_target(pipeline: list[dict[str, Any]], target: str) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for entry in pipeline:
         applies = entry.get("applies_to") or ["LLM_CALL"]
@@ -579,9 +586,7 @@ def _filter_pipeline_for_target(
     return out
 
 
-def _hydrate_pipeline_cache_paths(
-    pipeline: list[dict[str, Any]], *, cache_path: Path
-) -> None:
+def _hydrate_pipeline_cache_paths(pipeline: list[dict[str, Any]], *, cache_path: Path) -> None:
     for entry in pipeline:
         mid = str(entry.get("middleware") or "")
         if mid not in {"llm_cache", "llm-cache"}:

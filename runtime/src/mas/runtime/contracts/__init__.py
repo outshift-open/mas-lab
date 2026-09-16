@@ -20,7 +20,6 @@ from mas.runtime.contracts.context_contract import (
     ContextResolver,
 )
 from mas.runtime.contracts.context_manager_contract import ContextManagerContract
-from mas.runtime.contracts.recorder_contract import RecorderContract
 from mas.runtime.contracts.protocols import (
     CtxAssembler,
     CtxAssemblerContract,
@@ -31,7 +30,13 @@ from mas.runtime.contracts.protocols import (
     MealyPlugin,
     ObservabilitySink,
 )
-from mas.runtime.contracts.tool_contract import ToolContract
+from mas.runtime.contracts.recorder_contract import RecorderContract
+from mas.runtime.contracts.tool_contract import (
+    ToolContract,
+    ToolResultEnvelope,
+    invoke_call_tool,
+    overlay_tool_advertise,
+)
 
 __all__ = [
     "BasePlugin",
@@ -58,4 +63,7 @@ __all__ = [
     "PolicyViolation",
     "RecorderContract",
     "ToolContract",
+    "ToolResultEnvelope",
+    "invoke_call_tool",
+    "overlay_tool_advertise",
 ]

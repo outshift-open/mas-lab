@@ -678,6 +678,97 @@ properties:
                   additionalProperties: true
                   default: {}
 
+      providers:
+        type: array
+        x-merge:
+          strategy: named_list_union
+          identity: name
+        description: >
+          Tool-provider plugins. Runtime calling is a name → provider registry.
+          With no providers, the default local plugin owns ``spec.tools``. As
+          soon as any external plugin (for example ``kind: mcp``) is present,
+          that implicit overlay is off: every name must be claimed
+          (``tools: "*"`` after a runtime-init discovery query, or an explicit
+          list) or reintroduced with ``kind: local``. Unclaimed names are an
+          error. Explicit claims beat discovery. Two providers cannot own the
+          same name. ``tools: "*"`` is not checked at verification — presence
+          is filled at runtime initialization. Explicit lists can be checked
+          at verification (local names against ``spec.tools``).
+        default: []
+        items:
+          type: object
+          additionalProperties: true
+          properties:
+            name:
+              type: string
+            kind:
+              type: string
+              description: >
+                Tool-provider plugin kind. Resolved from the plugin URN registry
+                (libraries register shortcuts; runtime does not hardcode kinds).
+            transport:
+              type: string
+              description: "stdio | streamable-http | sse | http"
+            url:
+              type: string
+            endpoint:
+              type: string
+            command:
+              type: string
+            args:
+              type: array
+              items:
+                type: string
+            env:
+              type: object
+              additionalProperties:
+                type: string
+            cwd:
+              type: string
+            headers:
+              type: object
+              additionalProperties:
+                type: string
+              description: >
+                HTTP headers forwarded to the provider plugin (for example MCP
+                streamable-http / SSE). Not a ToolContract field.
+            timeout:
+              type: number
+              description: >
+                Per-call timeout in seconds forwarded to the provider plugin.
+            follow_pagination:
+              type: boolean
+              default: true
+              description: >
+                Walk tools/list nextCursor pages (MCP). Default true.
+                Connection-level; prefer infra ToolServerRegistry when shared.
+            cache_ttl_ms:
+              type: integer
+              minimum: 0
+              description: >
+                Client tools/list cache TTL in milliseconds. Omit to cache
+                until invalidate. 0 disables the cache.
+            cache_scope:
+              type: string
+              enum: [public, private]
+              description: public shares one list cache; private keys the cache by user.
+            tools:
+              description: >
+                Claim. "*" registers the provider, then at runtime init queries
+                it for advertised names and updates the registry. Verification
+                always passes for "*". A list claims those names; verification
+                can check they are available (local names in spec.tools).
+                Explicit lists skip the discovery query. For kind: local, "*"
+                is remaining spec.tools names externals did not claim.
+              oneOf:
+                - type: string
+                - type: array
+                  items:
+                    type: string
+            params:
+              type: object
+              additionalProperties: true
+
       behavior:
         type: object
         description: >

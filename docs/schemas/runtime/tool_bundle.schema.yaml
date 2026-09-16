@@ -137,3 +137,23 @@ properties:
               maximum: 3600
               description: "Max wall-clock execution time. Enforced by pre_tool_call hook."
               default: 30
+
+            title:
+              type: string
+            read_only:
+              type: boolean
+            destructive:
+              type: boolean
+            open_world:
+              type: boolean
+            icons:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            task_support:
+              type: string
+              enum: [forbidden, optional, required]
+            meta:
+              type: object
+              additionalProperties: true

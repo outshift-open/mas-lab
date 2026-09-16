@@ -145,6 +145,84 @@ properties:
         default: 30
         description: "Max wall-clock execution time enforced by the pre_tool_call hook."
 
+      title:
+        type: string
+        description: >
+          Optional display name distinct from metadata.name (tool-server title).
+
+      read_only:
+        type: boolean
+        description: >
+          Optional hint: the tool does not modify its environment.
+          Omit to leave unspecified (do not treat omission as false).
+
+      destructive:
+        type: boolean
+        description: >
+          Optional hint: the tool may delete or overwrite data.
+
+      open_world:
+        type: boolean
+        description: >
+          Optional hint: the tool may contact the open world (network, search).
+
+      icons:
+        type: array
+        description: "Optional icons advertised to clients."
+        items:
+          type: object
+          required: [src]
+          additionalProperties: false
+          properties:
+            src:
+              type: string
+            mime_type:
+              type: string
+            sizes:
+              type: array
+              items:
+                type: string
+            theme:
+              type: string
+              enum: [light, dark]
+
+      task_support:
+        type: string
+        enum: [forbidden, optional, required]
+        description: >
+          Optional: whether the tool may run as a background task.
+
+      output_schema:
+        type: object
+        additionalProperties: true
+        description: >
+          Optional JSON Schema for the tool result (MCP outputSchema).
+          Richer than spec.returns; omit for daily-ops tools.
+
+      meta:
+        type: object
+        additionalProperties: true
+        description: "Optional advertise metadata forwarded to protocol adapters."
+
+      execution_mode:
+        type: string
+        enum: [sync, async, realtime]
+        default: sync
+
+      result_mode:
+        type: string
+        enum: [inline, stream, session]
+        default: inline
+
+      tool_category:
+        type: string
+
+      events:
+        type: array
+        items:
+          type: object
+          additionalProperties: true
+
       impl:
         type: object
         description: >

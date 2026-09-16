@@ -53,9 +53,7 @@ def test_merge_context_dict():
 
 def test_merge_context_op_add_appends_without_duplicating_base_text():
     base = {"spec": {"context": {"role": "You are a triage agent."}}}
-    merged = merge_overlay(
-        base, _overlay({"context": {"role": {"$op": {"add": ["Escalate P1s immediately."]}}}})
-    )
+    merged = merge_overlay(base, _overlay({"context": {"role": {"$op": {"add": ["Escalate P1s immediately."]}}}}))
     assert merged["spec"]["context"]["role"] == [
         "You are a triage agent.",
         "Escalate P1s immediately.",
@@ -285,7 +283,6 @@ def test_merge_no_spec_in_overlay():
 
 def test_normalize_rejects_shorthand_overlay():
     import pytest
-
     from mas.ctl.overlay.normalize import normalize_overlay
 
     with pytest.raises(ValueError, match="mas/v1"):
@@ -295,11 +292,7 @@ def test_normalize_rejects_shorthand_overlay():
 def test_merge_mas_overlay_patches_agency_agent_context():
     base = {
         "kind": "MAS",
-        "spec": {
-            "agency": {
-                "agents": [{"id": "moderator", "ref": "agents/moderator/agent.yaml"}]
-            }
-        },
+        "spec": {"agency": {"agents": [{"id": "moderator", "ref": "agents/moderator/agent.yaml"}]}},
     }
     overlay = _overlay(
         {
@@ -437,8 +430,12 @@ def test_composition_tools_clear_then_add_is_deterministic() -> None:
 
 def test_composition_control_merge_then_replace_is_deterministic() -> None:
     base = {"spec": {"control": {"budget": {"max_tokens": 10}}}}
-    merged_once = merge_overlay(base, _overlay({"control": {"$op": {"merge": {"rate_limiter": {"requests_per_minute": 5}}}}}))
-    merged_twice = merge_overlay(merged_once, _overlay({"control": {"$op": {"replace": {"budget": {"max_tokens": 99}}}}}))
+    merged_once = merge_overlay(
+        base, _overlay({"control": {"$op": {"merge": {"rate_limiter": {"requests_per_minute": 5}}}}})
+    )
+    merged_twice = merge_overlay(
+        merged_once, _overlay({"control": {"$op": {"replace": {"budget": {"max_tokens": 99}}}}})
+    )
     assert merged_twice["spec"]["control"] == {"budget": {"max_tokens": 99}}
 
 
@@ -446,6 +443,38 @@ def test_list_field_accepts_implicit_array_replace() -> None:
     base = {"spec": {"skills": ["s1"]}}
     merged = merge_overlay(base, _overlay({"skills": ["s2"]}))
     assert merged["spec"]["skills"] == ["s2"]
+
+
+def test_merge_provider_overlays_union_by_name() -> None:
+    """MCP + local overlays stack; a later overlay with the same name updates."""
+    base = {"spec": {}}
+    merged = merge_overlay(
+        base,
+        _overlay(
+            {
+                "providers": [
+                    {
+                        "name": "localhost-mcp-tools",
+                        "kind": "mcp",
+                        "url": "http://127.0.0.1:9001/mcp",
+                    }
+                ]
+            }
+        ),
+    )
+    merged = merge_overlay(
+        merged,
+        _overlay({"providers": [{"name": "in-process", "kind": "local", "tools": "*"}]}),
+    )
+    names = [p["name"] for p in merged["spec"]["providers"]]
+    assert names == ["localhost-mcp-tools", "in-process"]
+    merged = merge_overlay(
+        merged,
+        _overlay({"providers": [{"name": "in-process", "kind": "local", "tools": ["calc"]}]}),
+    )
+    by_name = {p["name"]: p for p in merged["spec"]["providers"]}
+    assert by_name["localhost-mcp-tools"]["kind"] == "mcp"
+    assert by_name["in-process"]["tools"] == ["calc"]
 
 
 def test_runtime_semantics_registry_covers_non_trivial_agent_fields() -> None:
@@ -458,8 +487,10 @@ def test_runtime_semantics_registry_covers_non_trivial_agent_fields() -> None:
         "observability",
         "governance",
         "control",
+        "providers",
     ):
         assert field in agent
+    assert agent["providers"] == "named_list_union(identity=name)"
     assert "Infra" in semantics
 
 

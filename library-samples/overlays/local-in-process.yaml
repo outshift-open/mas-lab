@@ -1,0 +1,22 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Reintroduce in-process spec.tools next to an external provider plugin.
+# Required as soon as any non-local provider is present: the implicit local
+# overlay is off. tools: "*" claims remaining names externals did not take.
+# Stacks with mcp-localhost.yaml (union by provider name).
+# Pin tools: [calc] to keep only those names local.
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: local-in-process
+  description: >
+    Explicit local claims. Use with an MCP overlay when some spec.tools
+    (for example calc) should stay in-process.
+spec:
+  target:
+    kind: Agent
+  patch:
+    providers:
+      - name: in-process
+        kind: local
+        tools: "*"

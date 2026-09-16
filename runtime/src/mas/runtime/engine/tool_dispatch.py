@@ -8,6 +8,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 from mas.runtime.engine.manifest_tool_provider import ManifestToolLoadError
+from mas.runtime.engine.tool_routing import ExplicitToolUnavailableError, UnclaimedToolError
 
 if TYPE_CHECKING:
     from mas.runtime.boundary.delegation.protocol import DelegationContract
@@ -20,7 +21,7 @@ class ToolExecutionError(RuntimeError):
 
 def format_tool_result(result: Any) -> str:
     """Format tool result as string for LLM consumption.
-    
+
     Agent-initiated HITL (via request_human_input) is now fully synchronous:
     the wrapper blocks until resolution, so the result is always the user's
     choice, not a marker. No special HITL detection needed here.
@@ -48,9 +49,7 @@ def execute_engine_tool(
             tool, arguments, correlation_id=correlation_id, caller_call_id=caller_call_id
         )
     if tool_provider is None:
-        raise ToolExecutionError(
-            f"No manifest tool provider configured; cannot execute {tool!r}"
-        )
+        raise ToolExecutionError(f"No manifest tool provider configured; cannot execute {tool!r}")
     try:
         result = tool_provider.call_tool(
             tool,
@@ -58,6 +57,6 @@ def execute_engine_tool(
             ctx=ctx,
             user=user,
         )
-    except ManifestToolLoadError as exc:
+    except (ManifestToolLoadError, UnclaimedToolError, ExplicitToolUnavailableError) as exc:
         raise ToolExecutionError(str(exc)) from exc
     return format_tool_result(result)

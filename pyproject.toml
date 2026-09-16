@@ -16,6 +16,7 @@ dependencies = [
     "mas-library-samples",
     "mas-library-lab",
     "mas-library-eval",
+    "library-ioa[cli]",
     "pika>=1.4.1",
 ]
 
@@ -51,6 +52,7 @@ members = [
     "library-samples",
     "library-lab",
     "library-eval",
+    "library-ioa",
     "lab",
     "lab/components/core",
     "lab/components/bench",
@@ -66,6 +68,7 @@ mas-library-skills   = { workspace = true }
 mas-library-samples  = { workspace = true }
 mas-library-lab      = { workspace = true }
 mas-library-eval     = { workspace = true }
+library-ioa = { workspace = true }
 mas-lab         = { workspace = true }
 mas-lab-core    = { workspace = true }
 mas-lab-bench   = { workspace = true }
@@ -82,7 +85,7 @@ select = ["E", "F", "B", "I"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests", "ctl/tests", "runtime/tests", "lab/components/controller/tests", "lab/components/content/tests"]
+testpaths = ["tests", "ctl/tests", "runtime/tests", "library-ioa/tests", "lab/components/controller/tests", "lab/components/content/tests"]
 markers = [
     "timeout: per-test timeout (pytest-timeout)",
 ]

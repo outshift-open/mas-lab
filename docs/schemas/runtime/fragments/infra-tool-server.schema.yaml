@@ -1,0 +1,75 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "infra/v1#tool-server"
+title: InfraToolServer
+description: >
+  One remote tool-server endpoint (MCP or other tool-server transport).
+  This is the WHERE of tool serving: URL, transport, headers, timeouts,
+  stdio process, list pagination. Tool advertise fields (name, parameters,
+  title, hints) live on kind: Tool. Which names an agent claims live on
+  spec.providers[].tools.
+type: object
+required: [id]
+additionalProperties: true
+properties:
+  id:
+    type: string
+    description: Stable id. Overlay providers[].name should match this id.
+  name:
+    type: string
+    description: Display name. Defaults to id.
+  description:
+    type: string
+  transport:
+    type: string
+    description: "stdio | streamable-http | sse | http"
+    default: streamable-http
+  url:
+    type: string
+    description: HTTP/SSE endpoint (e.g. http://127.0.0.1:9001/mcp).
+  endpoint:
+    type: string
+    description: Alias for url.
+  command:
+    type: string
+    description: stdio server executable.
+  args:
+    type: array
+    items:
+      type: string
+  env:
+    type: object
+    additionalProperties:
+      type: string
+  cwd:
+    type: string
+  headers:
+    type: object
+    additionalProperties:
+      type: string
+    description: >
+      HTTP headers for streamable-http / SSE. Omit when unused. Secret
+      values use env:VAR_NAME (unset omits the header). Do not hardcode
+      credentials.
+  timeout:
+    type: number
+    description: Per-call timeout in seconds (MCP read_timeout_seconds).
+    default: 30
+  follow_pagination:
+    type: boolean
+    default: true
+    description: >
+      Client walks tools/list nextCursor pages and flattens them.
+      false = first page only.
+  cache_ttl_ms:
+    type: integer
+    minimum: 0
+    description: >
+      Client tools/list cache TTL in milliseconds. Omit to cache until
+      invalidate. 0 disables the cache. Not a tools/list request field.
+  cache_scope:
+    type: string
+    enum: [public, private]
+    description: >
+      public shares one list cache; private keys the cache by user.

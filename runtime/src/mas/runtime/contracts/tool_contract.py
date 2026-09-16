@@ -62,16 +62,14 @@ Example::
 Legacy API (JSON Schema in get_parameters_schema) continues to work unchanged.
 """
 
-import asyncio
 import inspect
 import json
 import logging
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Dict, List, Optional
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, create_model
-
 from mas.runtime.contracts.base import CapabilityContract  # L3->L3
+from pydantic import BaseModel, BeforeValidator, ConfigDict, create_model
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +97,12 @@ class ToolEvent:
 
 @dataclass
 class ToolResultEnvelope:
-    """Normalized tool result envelope across inline, stream, and session modes."""
+    """Normalized tool result envelope across inline, stream, and session modes.
+
+    Daily-ops fields: ``status``, ``result``, ``is_error``. Everything else is
+    optional and omitted from :meth:`to_dict` when unset so existing callers
+    keep seeing the same payload.
+    """
 
     result_mode: str = "inline"
     execution_mode: str = "sync"
@@ -109,10 +112,15 @@ class ToolResultEnvelope:
     session_id: Optional[str] = None
     session_status: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+    is_error: bool = False
+    content: List[Dict[str, Any]] = field(default_factory=list)
+    structured_content: Any = None
+    result_type: str = "complete"
+    meta: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def inline(cls, result: Any, *, execution_mode: str = "sync") -> "ToolResultEnvelope":
-        return cls(result_mode="inline", execution_mode=execution_mode, result=result)
+    def inline(cls, result: Any, *, execution_mode: str = "sync", is_error: bool = False) -> "ToolResultEnvelope":
+        return cls(result_mode="inline", execution_mode=execution_mode, result=result, is_error=is_error)
 
     @classmethod
     def stream(
@@ -121,12 +129,14 @@ class ToolResultEnvelope:
         *,
         result: Any = None,
         execution_mode: str = "async",
+        is_error: bool = False,
     ) -> "ToolResultEnvelope":
         return cls(
             result_mode="stream",
             execution_mode=execution_mode,
             result=result,
             events=list(events),
+            is_error=is_error,
         )
 
     @classmethod
@@ -138,6 +148,7 @@ class ToolResultEnvelope:
         result: Any = None,
         execution_mode: str = "realtime",
         session_status: str = "open",
+        is_error: bool = False,
     ) -> "ToolResultEnvelope":
         return cls(
             result_mode="session",
@@ -146,6 +157,7 @@ class ToolResultEnvelope:
             events=list(events or []),
             session_id=session_id,
             session_status=session_status,
+            is_error=is_error,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -153,6 +165,7 @@ class ToolResultEnvelope:
             "status": self.status,
             "result_mode": self.result_mode,
             "execution_mode": self.execution_mode,
+            "is_error": self.is_error,
         }
         if self.result is not None:
             data["result"] = self.result
@@ -164,7 +177,62 @@ class ToolResultEnvelope:
             data["session_status"] = self.session_status
         if self.metadata:
             data["metadata"] = self.metadata
+        if self.content:
+            data["content"] = list(self.content)
+        if self.structured_content is not None:
+            data["structured_content"] = self.structured_content
+        if self.result_type and self.result_type != "complete":
+            data["result_type"] = self.result_type
+        if self.meta:
+            data["meta"] = dict(self.meta)
         return data
+
+
+def invoke_call_tool(
+    fn: Any,
+    tool_name: str,
+    arguments: Dict[str, Any],
+    **options: Any,
+) -> Any:
+    """Call ``fn(tool_name, arguments, ...)`` dropping options the callee rejects.
+
+    Optional protocol options (timeout, progress, elicitation, ``ctx``,
+    ``user``, …) are passed only when the callable declares them or takes
+    ``**kwargs``.
+    """
+    if not options:
+        return fn(tool_name, arguments)
+    try:
+        signature = inspect.signature(fn)
+    except (TypeError, ValueError):
+        return fn(tool_name, arguments)
+    if any(parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in signature.parameters.values()):
+        return fn(tool_name, arguments, **options)
+    accepted = {name: value for name, value in options.items() if name in signature.parameters}
+    return fn(tool_name, arguments, **accepted)
+
+
+def overlay_tool_advertise(runtime_spec: Dict[str, Any], yaml_contract: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Merge a ``kind: Tool`` contract dict onto a runtime ``list_tools`` entry.
+
+    ``name`` / ``description`` / ``parameters`` keep the historical YAML-wins
+    rule. Additional optional attributes are copied only when set.
+    """
+    merged = dict(runtime_spec)
+    if not yaml_contract:
+        return merged
+    if "name" in yaml_contract:
+        merged["name"] = yaml_contract.get("name", merged.get("name"))
+    if "description" in yaml_contract:
+        merged["description"] = yaml_contract.get("description", merged.get("description", ""))
+    if "parameters" in yaml_contract:
+        merged["parameters"] = yaml_contract.get("parameters", merged.get("parameters", {}))
+    skip = {"name", "description", "parameters"}
+    for key, value in yaml_contract.items():
+        if key in skip or value is None or value == "" or value == [] or value == {}:
+            continue
+        merged[key] = value
+    return merged
 
 
 def is_tool_event_stream(value: Any) -> bool:
@@ -197,6 +265,7 @@ def coerce_tool_event(value: Any, sequence: Optional[int] = None) -> ToolEvent:
 # Argument coercion helpers (used by ToolContract.call_tool)
 # ---------------------------------------------------------------------------
 
+
 def _to_json_str(v: Any) -> str:
     """Coerce any value to a string; dicts/lists become JSON, others use str()."""
     if isinstance(v, str):
@@ -209,12 +278,12 @@ def _to_json_str(v: Any) -> str:
 _JSON_STR = Annotated[str, BeforeValidator(_to_json_str)]
 
 _JSONSCHEMA_TO_PY: Dict[str, Any] = {
-    "string":  _JSON_STR,
+    "string": _JSON_STR,
     "integer": int,
-    "number":  float,
+    "number": float,
     "boolean": bool,
-    "array":   list,
-    "object":  dict,
+    "array": list,
+    "object": dict,
 }
 
 
@@ -241,7 +310,6 @@ def _build_args_model(schema: Dict[str, Any]) -> "type[BaseModel] | None":
 
 
 class ToolContract(CapabilityContract):
-
     contract_id = "tool"
     """Base interface for tool execution using hooks.
 
@@ -272,13 +340,21 @@ class ToolContract(CapabilityContract):
 
     For composite providers (multi-tool), override ``list_tools()`` and
     ``call_tool()`` directly.
+
+    ``call_tool(tool_name, arguments)`` is the required invocation. Optional
+    protocol options are keyword-only / ``**kwargs`` (timeout, progress,
+    elicitation, request meta). Advertise extras (title, output schema,
+    annotations, icons, …) are optional on ``list_tools()`` entries and on
+    ``kind: Tool`` YAML. When unset, ``list_tools`` emits
+    ``{name, description, parameters}`` and ``call_tool`` runs
+    ``execute(**arguments)``.
     """
 
     # ------------------------------------------------------------------
     # Single-tool helper API (subclasses implementing one tool)
     # ------------------------------------------------------------------
 
-    def get_name(self) -> str:                     # noqa: D401
+    def get_name(self) -> str:  # noqa: D401
         raise NotImplementedError(f"{self.__class__.__name__} must implement get_name()")
 
     def get_description(self) -> str:
@@ -301,60 +377,108 @@ class ToolContract(CapabilityContract):
             return schema
         return {}
 
+    def get_title(self) -> Optional[str]:
+        """Optional display name distinct from the call name."""
+        return None
+
+    def get_output_schema(self) -> Dict[str, Any]:
+        """Optional JSON Schema for the tool result. Empty = unspecified."""
+        return {}
+
+    def get_icons(self) -> List[Dict[str, Any]]:
+        """Optional icon descriptors ``{src, mime_type, sizes, theme}``."""
+        return []
+
+    def get_task_support(self) -> Optional[str]:
+        """Optional task support: ``forbidden`` | ``optional`` | ``required``."""
+        return None
+
+    def get_meta(self) -> Dict[str, Any]:
+        """Optional advertise ``_meta``. Empty = unspecified."""
+        return {}
+
+    def is_idempotent(self) -> bool:
+        return False
+
+    def is_read_only(self) -> Optional[bool]:
+        """Optional hint. ``None`` means unspecified (not ``False``)."""
+        return None
+
+    def is_destructive(self) -> Optional[bool]:
+        """Optional hint. ``None`` means unspecified (not ``False``)."""
+        return None
+
+    def is_open_world(self) -> Optional[bool]:
+        """Optional hint. ``None`` means unspecified (not ``False``)."""
+        return None
+
+    def get_timeout_seconds(self) -> Optional[float]:
+        """Optional per-tool default timeout. ``None`` = caller/provider default."""
+        return None
+
     def execute(self, **kwargs: Any) -> Dict[str, Any]:
         raise NotImplementedError(f"{self.__class__.__name__} must implement execute()")
 
-    def on_collect_tools(self, **_: Any) -> List[Dict[str, Any]]:
-        """Hook handler: list tools when requested.
+    def _advertise_entry(self, name: str, description: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Build a ``list_tools`` entry, emitting optional attributes only when set."""
+        entry: Dict[str, Any] = {"name": name, "description": description, "parameters": parameters}
+        title = self.get_title()
+        if title:
+            entry["title"] = title
+        output = self.get_output_schema()
+        if output:
+            entry["output_schema"] = output
+        icons = self.get_icons()
+        if icons:
+            entry["icons"] = icons
+        task_support = self.get_task_support()
+        if task_support:
+            entry["task_support"] = task_support
+        meta = self.get_meta()
+        if meta:
+            entry["meta"] = meta
+        if self.is_idempotent():
+            entry["idempotent"] = True
+        read_only = self.is_read_only()
+        if read_only is not None:
+            entry["read_only"] = read_only
+        destructive = self.is_destructive()
+        if destructive is not None:
+            entry["destructive"] = destructive
+        open_world = self.is_open_world()
+        if open_world is not None:
+            entry["open_world"] = open_world
+        timeout = self.get_timeout_seconds()
+        if timeout is not None:
+            entry["timeout_seconds"] = timeout
+        annotations: Dict[str, Any] = {}
+        if entry.get("idempotent"):
+            annotations["idempotentHint"] = True
+        if read_only is True:
+            annotations["readOnlyHint"] = True
+        elif read_only is False:
+            annotations["readOnlyHint"] = False
+        if destructive is True:
+            annotations["destructiveHint"] = True
+        elif destructive is False:
+            annotations["destructiveHint"] = False
+        if open_world is True:
+            annotations["openWorldHint"] = True
+        elif open_world is False:
+            annotations["openWorldHint"] = False
+        if annotations:
+            entry["annotations"] = annotations
+        return entry
 
-        Accepts and ignores arbitrary kwargs (e.g. ``ctx``) for forward
-        compatibility with callers that pass extra context to subclasses
-        that want it (see SkillToolsPlugin, which uses ``ctx`` to build a
-        live ``enum`` constraint) -- most tools don't need it.
-        """
-        return self.list_tools()
+    def call_tool(self, tool_name: str, arguments: Dict[str, Any], **kwargs: Any) -> Dict[str, Any]:
+        """Execute a tool by name with ``arguments``.
 
-    def on_execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
-        """Hook handler: execute tool if we own it.
-        
-        This hook is executed by the runtime when a tool needs to be called.
-        It checks if this provider owns the tool, and if so, executes it.
-        """
-        # Simple check: do we have this tool?
-        tools = self.list_tools()
-        if any(t["name"] == tool_name for t in tools):
-            try:
-                # We own this tool, execute it.
-                # If call_tool is async, we ideally should await it, but we are in a sync hook.
-                # If the runtime supports async hooks, this should be async.
-                # Given current runtime is sync, we assume sync execution or compatible return.
-                if asyncio.iscoroutinefunction(self.call_tool):
-                    # Blocking call for sync runtime compatibility
-                    # Warning: This is not ideal for high-performance async runtimes.
-                    try:
-                        loop = asyncio.get_running_loop()
-                        # If we are already in a loop, we return the coroutine and hope the caller handles it?
-                        # Or we use a thread?
-                        # For now, return coroutine if in loop. 
-                        return self.call_tool(tool_name, arguments)
-                    except RuntimeError:
-                        return asyncio.run(self.call_tool(tool_name, arguments))
-                
-                return self.call_tool(tool_name, arguments)
-            except Exception as e:
-                return {
-                    "status": "error",
-                    "error": str(e),
-                    "tool": tool_name
-                }
-        return None
-
-    def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a tool with given arguments.
-        
-        Default implementation: delegates to execute(**arguments) when
-        the tool name matches get_name(). Subclasses may override for
-        composite providers or custom dispatch.
+        This is the basic invocation. Daily callers pass only
+        ``(tool_name, arguments)``. Optional protocol options (timeout,
+        progress_callback, cancel_event, meta, input_responses, request_state,
+        allow_input_required, allow_claimed, ctx, user) are ignored by this
+        default implementation; plugins that speak a richer wire protocol
+        override and consume them.
         """
         try:
             own = self.get_name()
@@ -362,8 +486,6 @@ class ToolContract(CapabilityContract):
             own = None
 
         if own and tool_name == own:
-            # Coerce arguments against the declared JSON Schema so that the LLM
-            # sending e.g. a dict for a `string` field is handled gracefully.
             try:
                 _schema = self.get_parameters_schema()
             except (NotImplementedError, AttributeError):
@@ -378,20 +500,19 @@ class ToolContract(CapabilityContract):
             f"{self.__class__.__name__} must implement call_tool(). "
             "This method is invoked within the hook pipeline after pre_tool_call passes."
         )
-    
-    def list_tools(self) -> List[Dict[str, Any]]:
+
+    def list_tools(self, **kwargs: Any) -> List[Dict[str, Any]]:
         """List available tools with metadata.
 
-        Default implementation: builds a single-entry list from get_name(),
-        get_description(), and get_parameters_schema() when defined.
-        Subclasses may override for composite providers.
+        Required keys: ``name``, ``description``, ``parameters``. Optional keys
+        (title, output_schema, annotations/hints, icons, task_support, meta,
+        timeout_seconds) are omitted when unspecified. ``kwargs`` such as
+        ``cursor`` / ``ctx`` are ignored here; composite providers may use them.
         """
         try:
             name = self.get_name()
         except NotImplementedError:
-            raise NotImplementedError(
-                f"{self.__class__.__name__} must implement list_tools()"
-            )
+            raise NotImplementedError(f"{self.__class__.__name__} must implement list_tools()") from None
         try:
             desc = self.get_description()
         except (NotImplementedError, AttributeError):
@@ -400,24 +521,40 @@ class ToolContract(CapabilityContract):
             params = self.get_parameters_schema()
         except (NotImplementedError, AttributeError):
             params = {}
-        return [{"name": name, "description": desc, "parameters": params}]
+        return [self._advertise_entry(name, desc, params)]
 
     def to_tool_spec(self) -> Dict[str, Any]:
         """Return the tool-server-compatible tool spec dict.
 
-        Convenience wrapper around ``list_tools()[0]``, structured as the
-        tool-server ``/tools/list`` entry:
-        ``{"name": ..., "description": ..., "inputSchema": ...}``.
+        Convenience wrapper around ``list_tools()[0]``. Required keys are
+        ``name``, ``description``, ``inputSchema``. Optional advertise fields
+        are copied when present.
         """
         tools = self.list_tools()
         if not tools:
             raise ValueError(f"{self.__class__.__name__}.list_tools() returned empty list")
         t = tools[0]
-        return {
+        spec: Dict[str, Any] = {
             "name": t.get("name", ""),
             "description": t.get("description", ""),
             "inputSchema": t.get("parameters", {}),
         }
+        for src, dest in (
+            ("title", "title"),
+            ("output_schema", "outputSchema"),
+            ("annotations", "annotations"),
+            ("icons", "icons"),
+            ("task_support", "task_support"),
+            ("meta", "_meta"),
+            ("idempotent", "idempotent"),
+            ("read_only", "read_only"),
+            ("destructive", "destructive"),
+            ("open_world", "open_world"),
+            ("timeout_seconds", "timeout_seconds"),
+        ):
+            if src in t:
+                spec[dest] = t[src]
+        return spec
 
     def get_execution_mode(self, tool_name: Optional[str] = None) -> str:
         """Return the declared execution mode for a tool when available."""
@@ -436,16 +573,18 @@ class ToolContract(CapabilityContract):
                 if spec.get("name") == tool_name:
                     return str(spec.get("result_mode") or "inline")
         return "inline"
-    
+
     # Hook Implementations for Runtime Integration
-    
+
     def on_collect_tools(self, **kwargs) -> List[Dict[str, Any]]:
         """Hook: Collect tools from this plugin."""
-        return self.list_tools()
+        try:
+            return self.list_tools(**kwargs)
+        except TypeError:
+            return self.list_tools()
 
     def on_execute_tool(self, tool_name: str, arguments: Dict[str, Any], **kwargs) -> Dict[str, Any] | None:
         """Hook: Execute tool if this plugin owns it."""
-        # Check if we own this tool
         is_supported = False
         try:
             tools = self.list_tools()
@@ -454,7 +593,6 @@ class ToolContract(CapabilityContract):
                     is_supported = True
                     break
         except Exception:
-            # If we can't list tools, we probably can't execute either.
             logger.warning(
                 "Tool support check failed for %r; treating as unsupported.",
                 tool_name,
@@ -462,25 +600,24 @@ class ToolContract(CapabilityContract):
             )
 
         if is_supported:
-            # We handle this tool. Let execution exceptions propagate.
-            # This ensures execute_first_result stops here (if we fix execute_first_result).
-            return self.call_tool(tool_name, arguments)
-            
+            try:
+                return invoke_call_tool(self.call_tool, tool_name, arguments, **kwargs)
+            except Exception as exc:
+                return ToolResultEnvelope.inline(result={"error": str(exc)}, is_error=True)
+
         return None
 
-
     # Hook methods (optional overrides for governance)
-    
-    def pre_tool_call(self, context: Dict[str, Any]) -> Dict[str, Any]:
 
+    def pre_tool_call(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Hook called BEFORE tool execution.
-        
+
         Override this to implement:
         - Authorization checks (is tool allowed?)
         - Rate limiting (quota exceeded?)
         - Cost tracking (log estimated cost)
         - Input validation (sanitize arguments)
-        
+
         Args:
             context: {
                 "tool_name": str,
@@ -488,21 +625,21 @@ class ToolContract(CapabilityContract):
                 "agent_id": str,
                 "session_id": str,
             }
-        
+
         Returns:
             Modified context (or raise exception to block)
         """
         return context
-    
+
     def post_tool_call(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Hook called AFTER tool execution.
-        
+
         Override this to implement:
         - Result filtering (redact sensitive data)
         - Quality scoring (evaluate tool output)
         - Retry logic (on transient failures)
         - Audit logging (record execution details)
-        
+
         Args:
             context: {
                 "tool_name": str,
@@ -511,7 +648,7 @@ class ToolContract(CapabilityContract):
                 "execution_time_ms": float,
                 "agent_id": str,
             }
-        
+
         Returns:
             Modified context with potentially modified result
         """

@@ -34,11 +34,11 @@ config.yaml       ← project defaults (flavour, infra_refs, .env path)
 
 | Layer | Manifest kinds | Reference |
 |-------|----------------|-----------|
-| **Agent** | `Agent` | [agent.md](agent.md) · [context-assembly.md](context-assembly.md) |
+| **Agent** | `Agent`, `Tool` | [agent.md](agent.md) · [context-assembly.md](context-assembly.md) · [tool.md](tool.md) |
 | **Runtime engine** | `RuntimeEngine` (`infra/v1`, via workspace / CLI) | [runtime-engine.md](runtime-engine.md) · [execution.md](execution.md) (migration) |
 | **MAS** | `MAS`, `Workflow` | [mas.md](mas.md), [workflow.md](workflow.md) |
 | **Override** | `Overlay` | [overlay.md](overlay.md) |
-| **Environment** | `Flavour`, `InfraBundle`, `LLMProxy`, `InfraMiddleware` | [flavour.md](flavour.md), [infra.md](infra.md), [llm-cache.md](llm-cache.md) · [ref](../references/llm-cache.md) |
+| **Environment** | `Flavour`, `InfraBundle`, `LLMProxy`, `InfraMiddleware`, `ToolServerRegistry` | [flavour.md](flavour.md), [infra.md](infra.md), [llm-cache.md](llm-cache.md) · [ref](../references/llm-cache.md), [ToolServerRegistry](../references/tool-server-registry.md) |
 | **Experiment** | `experiment:` | [experiment.md](experiment.md) |
 | **Inputs** | `Dataset` | [dataset.md](dataset.md) |
 | **Processing** | `pipeline:` / `kind: Pipeline` | [pipeline.md](pipeline.md) |

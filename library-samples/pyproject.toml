@@ -26,6 +26,8 @@ include = [
   "apps",
   "datasets",
   "tools",
+  "overlays",
+  "infra",
   "library.yaml",
   "src/mas",
   "README.md",
@@ -38,4 +40,6 @@ packages = ["src/mas"]
 "apps" = "src/mas/library/samples/apps"
 "datasets" = "src/mas/library/samples/datasets"
 "tools" = "src/mas/library/samples/tools"
+"overlays" = "src/mas/library/samples/overlays"
+"infra" = "src/mas/library/samples/infra"
 "library.yaml" = "src/mas/library/samples/library.yaml"

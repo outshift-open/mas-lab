@@ -1,0 +1,28 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Infra: MCP tool server on localhost (pair with overlays/mcp-localhost.yaml).
+# Connection defaults are listed explicitly so the file is a reference, not a stub.
+# No env vars are required. Put URL and timeouts here. env:VAR is for secrets
+# (unset omits the header). env:VAR|default overrides a manifest URL/API value.
+apiVersion: infra/v1
+kind: ToolServerRegistry
+
+metadata:
+  name: mcp-localhost
+  description: >
+    Local mas-mcp HTTP endpoint. Does not start the process; run mas-mcp serve
+    separately, then point the agent overlay at this URL.
+
+spec:
+  tool_servers:
+    - id: localhost-mcp-tools
+      name: localhost-mcp-tools
+      transport: streamable-http
+      url: http://127.0.0.1:9001/mcp
+      timeout: 30
+      follow_pagination: true
+      cache_scope: private
+      description: MCP server exposing library-samples web-search.
+      # cache_ttl_ms omitted: cache tools/list until invalidate. 0 disables.
+      # headers:                          # optional secret; unset omits the header
+      #   Authorization: "env:MCP_AUTH_HEADER"

@@ -14,6 +14,7 @@ Or via Taskfile:
 The two output files are checked-in.  Commit them together with any
 changes to pyproject.toml files or library.yaml manifests.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -33,12 +34,13 @@ except ImportError:
 
 # ── Data classes ─────────────────────────────────────────────────────────────
 
+
 @dataclass
 class Package:
     name: str
     description: str
     version: str
-    path: str           # relative install path (e.g. "runtime")
+    path: str  # relative install path (e.g. "runtime")
     layer: str
     deps: list[str] = field(default_factory=list)
     extras: dict[str, list[str]] = field(default_factory=dict)
@@ -50,10 +52,10 @@ class Package:
 @dataclass
 class Plugin:
     class_name: str
-    module: str          # short module name (relative to module_base)
-    full_module: str     # absolute Python module path
+    module: str  # short module name (relative to module_base)
+    full_module: str  # absolute Python module path
     category: str
-    library: str         # library package name
+    library: str  # library package name
 
 
 @dataclass
@@ -74,6 +76,7 @@ class FlavourManifest:
 
 
 # ── TOML parsing ─────────────────────────────────────────────────────────────
+
 
 def _load_toml(path: Path) -> dict[str, Any]:
     with open(path, "rb") as f:
@@ -104,6 +107,7 @@ def _pkg_from_toml(path: Path, install_path: str, layer: str) -> Package:
 
 
 # ── YAML parsing ──────────────────────────────────────────────────────────────
+
 
 def _load_yaml_file(path: Path) -> dict[str, Any]:
     with open(path) as f:
@@ -136,13 +140,15 @@ def _plugins_from_library_yaml(path: Path, library_name: str) -> list[Plugin]:
                 classes.append(entry["class"])
             classes.extend(entry.get("classes", []))
             for cls in classes:
-                plugins.append(Plugin(
-                    class_name=cls,
-                    module=module,
-                    full_module=full_module,
-                    category=category,
-                    library=library_name,
-                ))
+                plugins.append(
+                    Plugin(
+                        class_name=cls,
+                        module=module,
+                        full_module=full_module,
+                        category=category,
+                        library=library_name,
+                    )
+                )
     return plugins
 
 
@@ -158,14 +164,16 @@ def _tools_from_yaml_files(root: Path, library_name: str) -> list[ToolManifest]:
         desc = meta.get("description") or spec.get("description", "")
         if isinstance(desc, str):
             desc = desc.strip()
-        tools.append(ToolManifest(
-            name=meta.get("name", path.stem),
-            description=desc,
-            tags=meta.get("tags", []),
-            module_path=impl.get("module_path", ""),
-            class_name=impl.get("class_name", ""),
-            library=library_name,
-        ))
+        tools.append(
+            ToolManifest(
+                name=meta.get("name", path.stem),
+                description=desc,
+                tags=meta.get("tags", []),
+                module_path=impl.get("module_path", ""),
+                class_name=impl.get("class_name", ""),
+                library=library_name,
+            )
+        )
     return tools
 
 
@@ -179,11 +187,13 @@ def _flavours_from_yaml_files(root: Path, library_name: str) -> list[FlavourMani
         desc = meta.get("description", "")
         if isinstance(desc, str):
             desc = desc.strip()
-        flavours.append(FlavourManifest(
-            name=meta.get("name", path.stem),
-            description=desc,
-            library=library_name,
-        ))
+        flavours.append(
+            FlavourManifest(
+                name=meta.get("name", path.stem),
+                description=desc,
+                library=library_name,
+            )
+        )
     return flavours
 
 
@@ -202,14 +212,10 @@ Run `task docs-gen` to refresh after adding or modifying packages.
 
 
 def _md_table(headers: list[str], rows: list[list[str]]) -> str:
-    col_w = [max(len(h), max((len(r[i]) for r in rows), default=0))
-             for i, h in enumerate(headers)]
+    col_w = [max(len(h), max((len(r[i]) for r in rows), default=0)) for i, h in enumerate(headers)]
     sep = "| " + " | ".join("-" * w for w in col_w) + " |"
-    header_row = "| " + " | ".join(h.ljust(w) for h, w in zip(headers, col_w)) + " |"
-    data_rows = [
-        "| " + " | ".join(str(c).ljust(w) for c, w in zip(row, col_w)) + " |"
-        for row in rows
-    ]
+    header_row = "| " + " | ".join(h.ljust(w) for h, w in zip(headers, col_w, strict=True)) + " |"
+    data_rows = ["| " + " | ".join(str(c).ljust(w) for c, w in zip(row, col_w, strict=True)) + " |" for row in rows]
     return "\n".join([header_row, sep] + data_rows)
 
 
@@ -232,14 +238,17 @@ def generate_packages_reference(packages: list[Package]) -> str:
     for p in packages:
         cli = ", ".join(f"`{c}`" for c in p.scripts) or "—"
         rows.append([f"`{p.name}`", p.layer, p.description, cli])
-    lines.append(_md_table(
-        ["Package", "Layer", "Description", "CLI"],
-        rows,
-    ))
+    lines.append(
+        _md_table(
+            ["Package", "Layer", "Description", "CLI"],
+            rows,
+        )
+    )
     lines.append("\n")
 
     # ── Installation ─────────────────────────────────────────────────────────
-    lines.append(dedent("""\
+    lines.append(
+        dedent("""\
         ---
 
         ## Installation
@@ -294,7 +303,8 @@ def generate_packages_reference(packages: list[Package]) -> str:
 
         ## Package Details
 
-    """))
+    """)
+    )
 
     # ── Per-package sections ─────────────────────────────────────────────────
     for p in packages:
@@ -307,7 +317,7 @@ def generate_packages_reference(packages: list[Package]) -> str:
         if p.extras:
             extras_str = "all" if "all" in p.extras else ",".join(p.extras)
             lines.append(f"```bash\nuv pip install -e {p.path}  # core\n")
-            lines.append(f"uv pip install -e \"{p.path}[{extras_str}]\"  # with all extras\n```\n\n")
+            lines.append(f'uv pip install -e "{p.path}[{extras_str}]"  # with all extras\n```\n\n')
         else:
             lines.append(f"```bash\nuv pip install -e {p.path}\n```\n\n")
 
@@ -319,8 +329,7 @@ def generate_packages_reference(packages: list[Package]) -> str:
         # Optional extras
         if p.extras:
             lines.append("**Optional extras:**\n\n")
-            rows_ext = [[f"`{k}`", ", ".join(f"`{v}`" for v in vs)]
-                        for k, vs in p.extras.items()]
+            rows_ext = [[f"`{k}`", ", ".join(f"`{v}`" for v in vs)] for k, vs in p.extras.items()]
             lines.append(_md_table(["Extra", "Packages / features"], rows_ext))
             lines.append("\n\n")
 
@@ -335,8 +344,7 @@ def generate_packages_reference(packages: list[Package]) -> str:
         for group, eps in p.entry_points.items():
             if group.startswith("mas."):
                 short = group.replace("mas.", "")
-                lines.append(f"**Entry-point group `{group}`:** "
-                             f"registers {len(eps)} item(s) in `{short}`.\n\n")
+                lines.append(f"**Entry-point group `{group}`:** registers {len(eps)} item(s) in `{short}`.\n\n")
 
         lines.append("---\n\n")
 
@@ -350,7 +358,8 @@ def generate_plugins_reference(
 ) -> str:
     lines: list[str] = [_HEADER, "# MAS Lab — Plugin Reference\n", _AUTOREF_NOTE]
 
-    lines.append(dedent("""\
+    lines.append(
+        dedent("""\
         This document is the canonical index of all plugins, tools, and flavours
         distributed in `outshift-open/mas-lab`.  Each entry links back to the
         package that provides it.
@@ -377,10 +386,12 @@ def generate_plugins_reference(
 
         ## Plugins by Category
 
-    """))
+    """)
+    )
 
     # Group plugins by category, then sort alphabetically within each
     from collections import defaultdict
+
     by_cat: dict[str, list[Plugin]] = defaultdict(list)
     for p in plugins:
         by_cat[p.category].append(p)
@@ -390,11 +401,13 @@ def generate_plugins_reference(
         lines.append(f"### {title}\n\n")
         rows = []
         for p in sorted(by_cat[category], key=lambda x: x.class_name):
-            rows.append([
-                f"`{p.class_name}`",
-                f"`{p.full_module}`",
-                f"`{p.library}`",
-            ])
+            rows.append(
+                [
+                    f"`{p.class_name}`",
+                    f"`{p.full_module}`",
+                    f"`{p.library}`",
+                ]
+            )
         lines.append(_md_table(["Class", "Full module path", "Package"], rows))
         lines.append("\n\n")
 
@@ -404,11 +417,13 @@ def generate_plugins_reference(
     lines.append("## All Plugins — Alphabetical Index\n\n")
     rows_all = []
     for p in sorted(plugins, key=lambda x: x.class_name.lower()):
-        rows_all.append([
-            f"`{p.class_name}`",
-            p.category,
-            f"`{p.library}`",
-        ])
+        rows_all.append(
+            [
+                f"`{p.class_name}`",
+                p.category,
+                f"`{p.library}`",
+            ]
+        )
     lines.append(_md_table(["Class", "Category", "Package"], rows_all))
     lines.append("\n\n---\n\n")
 
@@ -419,17 +434,21 @@ def generate_plugins_reference(
         rows_t = []
         for t in sorted(tools, key=lambda x: x.name):
             tags = ", ".join(f"`{tg}`" for tg in t.tags) if t.tags else "—"
-            rows_t.append([
-                f"`{t.name}`",
-                t.description[:80] + ("…" if len(t.description) > 80 else ""),
-                f"`{t.class_name}`" if t.class_name else "—",
-                tags,
-                f"`{t.library}`",
-            ])
-        lines.append(_md_table(
-            ["Name", "Description", "Class", "Tags", "Package"],
-            rows_t,
-        ))
+            rows_t.append(
+                [
+                    f"`{t.name}`",
+                    t.description[:80] + ("…" if len(t.description) > 80 else ""),
+                    f"`{t.class_name}`" if t.class_name else "—",
+                    tags,
+                    f"`{t.library}`",
+                ]
+            )
+        lines.append(
+            _md_table(
+                ["Name", "Description", "Class", "Tags", "Package"],
+                rows_t,
+            )
+        )
         lines.append("\n\n")
     else:
         lines.append("_No tool manifests found._\n\n")
@@ -442,11 +461,13 @@ def generate_plugins_reference(
     if flavours:
         rows_f = []
         for f in sorted(flavours, key=lambda x: x.name):
-            rows_f.append([
-                f"`{f.name}`",
-                f.description[:80] + ("…" if len(f.description) > 80 else ""),
-                f"`{f.library}`",
-            ])
+            rows_f.append(
+                [
+                    f"`{f.name}`",
+                    f.description[:80] + ("…" if len(f.description) > 80 else ""),
+                    f"`{f.library}`",
+                ]
+            )
         lines.append(_md_table(["Name", "Description", "Package"], rows_f))
         lines.append("\n\n")
     else:
@@ -460,20 +481,21 @@ def generate_plugins_reference(
 # Package registry: (pyproject path, install path, layer)
 PACKAGE_REGISTRY: list[tuple[str, str, str]] = [
     # (pyproject.toml relative path, install path, layer label)
-    ("runtime/pyproject.toml",                    "runtime",                        "Runtime core"),
-    ("ctl/pyproject.toml",                         "ctl",                            "Orchestration"),
-    ("lab/pyproject.toml",                         "lab",                            "Lab framework"),
-    ("lab/components/core/pyproject.toml",         "lab/components/core",            "Lab framework"),
-    ("lab/components/bench/pyproject.toml",        "lab/components/bench",           "Lab framework"),
-    ("lab/components/controller/pyproject.toml",   "lab/components/controller",      "Lab framework"),
-    ("lab/components/content/pyproject.toml",      "lab/components/content",         "Lab framework"),
-    ("library-standard/pyproject.toml",            "library-standard",               "Libraries"),
-    ("library-skills/pyproject.toml",              "library-skills",                 "Libraries"),
-    ("library-skills/agentskills/pyproject.toml",  "library-skills/agentskills",     "Libraries"),
-    ("library-skills/skill-sandbox/pyproject.toml", "library-skills/skill-sandbox",  "Libraries"),
-    ("library-eval/pyproject.toml",                "library-eval",                   "Libraries"),
-    ("library-lab/pyproject.toml",                 "library-lab",                    "Libraries"),
-    ("library-samples/pyproject.toml",             "library-samples",                "Libraries"),
+    ("runtime/pyproject.toml", "runtime", "Runtime core"),
+    ("ctl/pyproject.toml", "ctl", "Orchestration"),
+    ("lab/pyproject.toml", "lab", "Lab framework"),
+    ("lab/components/core/pyproject.toml", "lab/components/core", "Lab framework"),
+    ("lab/components/bench/pyproject.toml", "lab/components/bench", "Lab framework"),
+    ("lab/components/controller/pyproject.toml", "lab/components/controller", "Lab framework"),
+    ("lab/components/content/pyproject.toml", "lab/components/content", "Lab framework"),
+    ("library-standard/pyproject.toml", "library-standard", "Libraries"),
+    ("library-skills/pyproject.toml", "library-skills", "Libraries"),
+    ("library-skills/agentskills/pyproject.toml", "library-skills/agentskills", "Libraries"),
+    ("library-skills/skill-sandbox/pyproject.toml", "library-skills/skill-sandbox", "Libraries"),
+    ("library-eval/pyproject.toml", "library-eval", "Libraries"),
+    ("library-lab/pyproject.toml", "library-lab", "Libraries"),
+    ("library-samples/pyproject.toml", "library-samples", "Libraries"),
+    ("library-ioa/pyproject.toml", "library-ioa", "Libraries"),
 ]
 
 # Library manifests: (library.yaml relative path, library package name)

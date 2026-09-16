@@ -1,0 +1,62 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Annotated kind: Tool — every optional advertise field shown.
+# Daily-ops tools omit everything after timeout_seconds.
+# Schema: docs/schemas/runtime/tool.schema.yaml
+# Reference: docs/manifests/tool.md
+apiVersion: mas/v1
+kind: Tool
+
+metadata:
+  name: web-search
+  description: "Catalogue one-liner for dashboards."
+  version: "0.1.0"
+  tags: [search, web]
+
+spec:
+  description: >
+    Search the web for current information. Call this tool when the user asks
+    about recent events or facts that need up-to-date sources.
+  title: Web Search
+
+  parameters:
+    - name: query
+      type: string
+      required: true
+      description: Concise search-engine query.
+      examples:
+        - "latest AI research 2025"
+
+  returns:
+    type: object
+    description: Dict with query, results, cached.
+
+  output_schema:
+    type: object
+    properties:
+      query:
+        type: string
+      results:
+        type: array
+      cached:
+        type: boolean
+
+  idempotent: false
+  timeout_seconds: 30
+  read_only: true
+  destructive: false
+  open_world: true
+  task_support: optional
+  icons:
+    - src: https://example.invalid/search.png
+      mime_type: image/png
+      theme: light
+  meta:
+    vendor: samples
+  execution_mode: sync
+  result_mode: inline
+
+  impl:
+    kind: python
+    module_path: ./web_search_tool.py
+    class_name: WebSearchTool

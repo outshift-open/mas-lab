@@ -61,7 +61,7 @@ class ToolParameter:
     description:
         Human-readable explanation injected verbatim into the LLM tool
         spec (OpenAI ``function.parameters.properties.<name>.description``)
-        and the MCP ``inputSchema``.  Write from the caller's perspective:
+        and the tool-server ``inputSchema``.  Write from the caller's perspective:
         "The name or URL of the service to check."
 
     required:
@@ -132,10 +132,11 @@ class ToolImpl:
     kind:
         ``python``   — a :class:`~mas.runtime.contracts.ToolContract` subclass
         loaded via ``module_path``.
-        ``mcp``      — remote MCP tool; ``module_path`` points to the
-        ``MCPClient`` adapter.
         ``openapi``  — OpenAPI endpoint; ``module_path`` points to the
         ``OpenAPITool`` adapter.
+
+        Remote protocol tools are not an ``impl.kind``. They bind from
+        ``spec.providers[]`` through a library ``tool_provider`` plugin.
 
     module_path:
         Dotted Python module path or relative path, e.g.
@@ -205,7 +206,7 @@ class ToolSpec:
     """``spec:`` block for ``kind: Tool``."""
 
     description: str = ""
-    """Full description for LLM tool-use and MCP ``tool.description``."""
+    """Full description for LLM tool-use and tool-server ``tool.description``."""
 
     parameters: List[ToolParameter] = field(default_factory=list)
     """Ordered list of input parameters — the semantic interface."""
@@ -231,6 +232,30 @@ class ToolSpec:
     events: List[ToolEvent] = field(default_factory=list)
     """Event stream for ``stream`` or ``session`` result modes."""
 
+    title: Optional[str] = None
+    """Optional display name distinct from ``metadata.name``."""
+
+    read_only: Optional[bool] = None
+    """Optional hint: tool does not modify its environment. ``None`` = unspecified."""
+
+    destructive: Optional[bool] = None
+    """Optional hint: tool may delete or overwrite. ``None`` = unspecified."""
+
+    open_world: Optional[bool] = None
+    """Optional hint: tool may call the open world (network). ``None`` = unspecified."""
+
+    icons: List[Dict[str, Any]] = field(default_factory=list)
+    """Optional icons: ``{src, mime_type, sizes, theme}``."""
+
+    task_support: Optional[str] = None
+    """Optional task support: ``forbidden`` | ``optional`` | ``required``."""
+
+    output_schema: Dict[str, Any] = field(default_factory=dict)
+    """Optional JSON Schema for the result (richer than ``returns``)."""
+
+    meta: Dict[str, Any] = field(default_factory=dict)
+    """Optional advertise metadata forwarded to protocol adapters."""
+
     impl: Optional[ToolImpl] = None
     """Implementation reference — hidden from callers."""
 
@@ -243,6 +268,7 @@ class ToolSpec:
         raw_params = data.get("parameters") or []
         impl_data = data.get("impl")
         raw_events = data.get("events") or data.get("emits") or []
+        raw_icons = data.get("icons") or []
         return cls(
             description=data.get("description", ""),
             parameters=[ToolParameter.from_dict(p) for p in raw_params if isinstance(p, dict)],
@@ -253,6 +279,14 @@ class ToolSpec:
             result_mode=data.get("result_mode", "inline"),
             tool_category=data.get("tool_category"),
             events=[ToolEvent.from_dict(item) for item in raw_events if isinstance(item, dict)],
+            title=data.get("title"),
+            read_only=data.get("read_only") if "read_only" in data else None,
+            destructive=data.get("destructive") if "destructive" in data else None,
+            open_world=data.get("open_world") if "open_world" in data else None,
+            icons=[dict(item) for item in raw_icons if isinstance(item, dict)],
+            task_support=data.get("task_support"),
+            output_schema=dict(data.get("output_schema") or {}),
+            meta=dict(data.get("meta") or data.get("_meta") or {}),
             impl=ToolImpl.from_dict(impl_data) if impl_data else None,
         )
 
@@ -265,7 +299,7 @@ class ToolSpec:
 
         This is the format expected by:
         - OpenAI function calling (``function.parameters``)
-        - MCP ``inputSchema``
+        - tool-server ``inputSchema``
         - Pydantic's ``model_json_schema()`` output
         """
         properties: Dict[str, Any] = {}
@@ -295,13 +329,36 @@ class ToolSpec:
             },
         }
 
-    def to_mcp_spec(self, name: str) -> Dict[str, Any]:
-        """Build the MCP ``tool`` spec dict for ``/tools/list``."""
-        return {
+    def to_tool_server_spec(self, name: str) -> Dict[str, Any]:
+        """Build a generic tool-server advertise dict."""
+        spec: Dict[str, Any] = {
             "name": name,
             "description": self.description,
             "inputSchema": self.to_json_schema(),
         }
+        if self.title:
+            spec["title"] = self.title
+        output = self.output_schema or self.returns
+        if output:
+            spec["outputSchema"] = output
+        annotations: Dict[str, Any] = {}
+        if self.idempotent:
+            annotations["idempotentHint"] = True
+        if self.read_only is not None:
+            annotations["readOnlyHint"] = self.read_only
+        if self.destructive is not None:
+            annotations["destructiveHint"] = self.destructive
+        if self.open_world is not None:
+            annotations["openWorldHint"] = self.open_world
+        if annotations:
+            spec["annotations"] = annotations
+        if self.icons:
+            spec["icons"] = list(self.icons)
+        if self.task_support:
+            spec["execution"] = {"taskSupport": self.task_support}
+        if self.meta:
+            spec["_meta"] = dict(self.meta)
+        return spec
 
     def to_contract_dict(self, name: str) -> Dict[str, Any]:
         """Build a machine-readable public contract descriptor for the tool."""
@@ -319,6 +376,22 @@ class ToolSpec:
             data["tool_category"] = self.tool_category
         if self.events:
             data["events"] = [event.to_dict() for event in self.events]
+        if self.title:
+            data["title"] = self.title
+        if self.read_only is not None:
+            data["read_only"] = self.read_only
+        if self.destructive is not None:
+            data["destructive"] = self.destructive
+        if self.open_world is not None:
+            data["open_world"] = self.open_world
+        if self.icons:
+            data["icons"] = list(self.icons)
+        if self.task_support:
+            data["task_support"] = self.task_support
+        if self.output_schema:
+            data["output_schema"] = dict(self.output_schema)
+        if self.meta:
+            data["meta"] = dict(self.meta)
         return data
 
 
@@ -385,9 +458,7 @@ class ToolDocument:
     def from_dict(cls, data: Dict[str, Any]) -> "ToolDocument":
         kind = str(data.get("kind") or "").strip()
         if kind and kind.lower() != "tool":
-            raise ValueError(
-                f"expected kind: Tool document, got kind: {kind!r}"
-            )
+            raise ValueError(f"expected kind: Tool document, got kind: {kind!r}")
         if not kind:
             raise ValueError("tool manifest missing kind: Tool")
         return cls(

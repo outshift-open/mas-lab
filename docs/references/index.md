@@ -18,6 +18,8 @@ Declarative YAML kinds and how they compose.
 |-------|-----------|
 | Overview & composition | [Manifest overview](../manifests/README.md) |
 | Agent | [agent.md](../manifests/agent.md) |
+| Tool (`kind: Tool`) | [tool.md](../manifests/tool.md) · [ToolContract](tool-contract.md) |
+| ToolServerRegistry | [infra.md](../manifests/infra.md#toolserverregistry) · [reference](tool-server-registry.md) |
 | MAS & workflow | [mas.md](../manifests/mas.md), [workflow.md](../manifests/workflow.md) |
 | Overlay | [overlay.md](../manifests/overlay.md) |
 | Flavour & environment | [flavour.md](../manifests/flavour.md), [infra.md](../manifests/infra.md) |

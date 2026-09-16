@@ -94,6 +94,12 @@ practical examples.
 | ------------------ | ------------------------------------- | -------------------- |
 | `SkillToolsPlugin` | `mas.library.skills.plugins.sk_tools` | `mas-library-skills` |
 
+### Tool_Provider
+
+| Class               | Full module path                           | Package                |
+| ------------------- | ------------------------------------------ | ---------------------- |
+| `LocalToolProvider` | `mas.library.standard.plugins.tools.local` | `mas-library-standard` |
+
 ---
 
 ## All Plugins — Alphabetical Index
@@ -106,6 +112,7 @@ practical examples.
 | `DeterministicParallelPlugin`    | design_pattern  | `mas-library-standard` |
 | `DeterministicSingleAgentPlugin` | design_pattern  | `mas-library-standard` |
 | `IntrospectionPlugin`            | design_pattern  | `mas-library-standard` |
+| `LocalToolProvider`              | tool_provider   | `mas-library-standard` |
 | `NativeObservabilityPlugin`      | observability   | `mas-library-standard` |
 | `OtelObservabilityPlugin`        | observability   | `mas-library-standard` |
 | `PlanExecutePlugin`              | design_pattern  | `mas-library-standard` |

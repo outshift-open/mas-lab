@@ -1,0 +1,39 @@
+# Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "library-ioa"
+version = "0.1.0"
+description = "MCP client/server bridge for MAS Lab"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "mcp>=2.2",
+    "mas-runtime",
+]
+
+[project.optional-dependencies]
+# Official SDK CLI (`mcp version`, `mcp dev`, `mcp run`). Not a git clone.
+cli = ["mcp[cli]"]
+# Same as cli. Protocol conformance is Node `@modelcontextprotocol/conformance`
+# (npx) — do not vendor mcp-python-sdk or mcp-conformance checkouts.
+all = ["mcp[cli]"]
+
+[project.scripts]
+mas-mcp = "library_ioa.plugins.mcp.server:main"
+
+[project.entry-points."mas.runtime.manifest_libraries"]
+ioa = "library_ioa"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/library_ioa"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"library.yaml" = "src/library_ioa/library.yaml"
+
+[tool.uv.sources]
+mas-runtime = { workspace = true }

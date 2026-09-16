@@ -36,8 +36,9 @@ Top-level kinds (see [manifest reference](../manifests/README.md)):
 | [`runtime/workflow.schema.yaml`](../schemas/runtime/workflow.schema.yaml) | `Workflow` |
 | [`runtime/overlay.schema.yaml`](../schemas/runtime/overlay.schema.yaml) | `Overlay` |
 | [`runtime/flavour.schema.yaml`](../schemas/runtime/flavour.schema.yaml) | `Flavour` |
-| [`runtime/infra.schema.yaml`](../schemas/runtime/infra.schema.yaml) | Infra bundle / middleware |
-| [`runtime/tool.schema.yaml`](../schemas/runtime/tool.schema.yaml) | Tool definition |
+| [`runtime/infra.schema.yaml`](../schemas/runtime/infra.schema.yaml) | Infra bundle / middleware / ToolServerRegistry — [infra.md](../manifests/infra.md) · [reference](tool-server-registry.md) |
+| [`runtime/tool.schema.yaml`](../schemas/runtime/tool.schema.yaml) | Tool definition — [tool.md](../manifests/tool.md) |
+| [`runtime/fragments/infra-tool-server.schema.yaml`](../schemas/runtime/fragments/infra-tool-server.schema.yaml) | Infra `tool_servers[]` item — [tool-server-registry.md](tool-server-registry.md) |
 | [`runtime/tool_bundle.schema.yaml`](../schemas/runtime/tool_bundle.schema.yaml) | Bundled tools |
 | [`runtime/prompt_bundle.schema.yaml`](../schemas/runtime/prompt_bundle.schema.yaml) | Prompt bundles |
 
@@ -78,7 +79,9 @@ Sample overlays and bindings under [`schemas/examples/`](../schemas/examples/):
 
 - [`overlays/mock-llm.yaml`](../schemas/examples/overlays/mock-llm.yaml)
 - [`overlays/live-llm.yaml`](../schemas/examples/overlays/live-llm.yaml)
-- [`overlays/observability-native.yaml`](../schemas/examples/overlays/observability-native.yaml)
+- [`overlays/mcp-localhost.yaml`](../schemas/examples/overlays/mcp-localhost.yaml)
+- [`infra/mcp-localhost.yaml`](../schemas/examples/infra/mcp-localhost.yaml)
+- [`tools/annotated.tool.yaml`](../schemas/examples/tools/annotated.tool.yaml)
 
 Plus `*.example.yaml` siblings next to deployment, placement, memory-seed, and
 runtime-profile schemas.

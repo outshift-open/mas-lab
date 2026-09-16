@@ -40,6 +40,22 @@ _SKILL_SHELL_REFS = {
 _SUPPORTED_SKILL_IMPLS = {"native", "adk", "langchain"}
 
 
+def _overlay_providers_from_manifest(
+    manifest: dict | None,
+    resolved_infra: ResolvedInfra | None = None,
+) -> list[Any]:
+    """Instantiate provider plugins (local default, plus MCP when declared).
+
+    Infra ``ToolServerRegistry`` fills unset connection fields (url, headers,
+    timeout, pagination). When both overlay and infra set a key, the overlay
+    value is used.
+    """
+    from mas.runtime.registry.tool_provider_registry import providers_from_manifest
+
+    servers = (resolved_infra.tool_server_registry if resolved_infra else None) or {}
+    return providers_from_manifest(manifest, tool_servers=servers)
+
+
 @dataclass(frozen=True)
 class _SkillPluginConfig:
     impl: str = "native"
@@ -191,9 +207,7 @@ def instantiate_runtime(
     if isinstance(working_memory_spec, dict):
         from mas.runtime.boundary.context.working_memory_registry import WorkingMemoryConfig
 
-        instance.working_memory = WorkingMemoryConfig(
-            persistent=bool(working_memory_spec.get("persistent", True))
-        )
+        instance.working_memory = WorkingMemoryConfig(persistent=bool(working_memory_spec.get("persistent", True)))
     apply_memory_seeds(instance, seeds)
     if seeds and options.agent_manifest:
         from mas.ctl.executor.mas_session import agent_manifest_label
@@ -229,6 +243,10 @@ def instantiate_runtime(
             workspace_root=ws.root if ws.found else None,
             hitl_contract=options.hitl_contract,
             user_io_contract=options.user_io_contract,
+            overlay_providers=_overlay_providers_from_manifest(
+                options.agent_manifest,
+                options.resolved_infra,
+            ),
         )
     return instance, store
 
@@ -384,11 +402,7 @@ def _auto_inject_skill_tools(manifest: dict[str, Any] | None, *, auto_inject_scr
     if not isinstance(tools, list):
         tools = []
 
-    existing_refs = {
-        str(item.get("ref") or "").strip()
-        for item in tools
-        if isinstance(item, dict)
-    }
+    existing_refs = {str(item.get("ref") or "").strip() for item in tools if isinstance(item, dict)}
 
     def _add_if_missing(ref: str) -> None:
         if ref not in existing_refs and f"pkg://{ref.split(':', 1)[1]}" not in existing_refs:

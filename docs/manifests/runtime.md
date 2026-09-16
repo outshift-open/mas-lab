@@ -23,8 +23,8 @@ Validated by `mas-ctl validate` (agents, MAS, overlays) and `mas-lab validate`
 | Flavour | `flavour.schema.yaml` | [flavour.md](flavour.md) |
 | Infrastructure | `infra.schema.yaml` | [infra.md](infra.md) |
 | RuntimeEngine | `runtime-engine.schema.yaml` | [runtime-engine.md](runtime-engine.md) |
-| Tool | `tool.schema.yaml` | below |
-| ToolBundle | `tool_bundle.schema.yaml` | below |
+| Tool | `tool.schema.yaml` | [tool.md](tool.md) |
+| ToolBundle | `tool_bundle.schema.yaml` | [tool.md](tool.md) |
 | PromptBundle | `prompt_bundle.schema.yaml` | below |
 | Workspace | `workspace.py` + docs | [user-config.md](../user-config.md) |
 
@@ -40,8 +40,10 @@ API id (controller): `agent`, `mas`, `overlay`, `workflow`, `flavour`, `tool`, `
 | `ToolBundle` | Bundle of tool entries |
 | `PromptBundle` | Named prompts for `context.*` `{ref: ...}` / `@lib#key` |
 
-Agents reference tools by **semantic name** or inline definition; infra `ToolRegistry` maps
-logical ids to JSON index files.
+Agents reference tools by **semantic name** or `tools[].ref` to a `kind: Tool`
+manifest ([tool.md](tool.md)). Infra `ToolServerRegistry` maps remote endpoints
+([infra.md](infra.md#toolserverregistry)). Invocation is
+[`ToolContract.call_tool`](../references/tool-contract.md).
 
 ---
 
@@ -53,6 +55,8 @@ Enforced by `mas-lab check-config` and flavour separation validators:
 |---------|------------|
 | Model id, temperature | `Agent.spec.models` |
 | API base, API keys | `infra/v1` `LLMProxy` (via `infra_refs`) |
+| Remote tool URL / headers / pagination | `infra/v1` `ToolServerRegistry` |
+| Tool advertise (name, parameters, hints) | `kind: Tool` |
 | Topology, delegation graph | `MAS.spec.workflow` |
 | Protocol / OTel defaults | `Flavour` |
 | Scenario-specific behaviour | `Overlay` |
@@ -82,3 +86,6 @@ Authoring detail: [agent.md](agent.md#delegation) · [mas.md](mas.md).
 - [agent.md](agent.md)
 - [mas.md](mas.md)
 - [infra.md](infra.md)
+- [tool.md](tool.md)
+- [ToolContract](../references/tool-contract.md)
+- [ToolServerRegistry](../references/tool-server-registry.md)

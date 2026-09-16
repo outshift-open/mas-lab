@@ -1,13 +1,12 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
 """Tests for typed InfraBundle spec.entries[] resolution."""
+
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
-import yaml
-
 from mas.ctl.infra.pipeline_chain import BidirectionalInfraPipeline, InfraChainContext
 from mas.ctl.infra.resolve import (
     InfraResolveError,
@@ -219,3 +218,17 @@ def test_workspace_infra_refs_resolve_from_subdirectory():
         workspace=ws,
     )
     assert infra.llm_proxy.get("api_base")
+
+
+def test_tool_server_registry_resolves_connection_defaults():
+    repo = Path(__file__).resolve().parents[2]
+    sample = repo / "library-samples" / "infra" / "mcp-localhost.yaml"
+    if not sample.is_file():
+        pytest.skip("library-samples/infra/mcp-localhost.yaml not in workspace")
+    infra = resolve_infra_refs([str(sample)], anchor=repo)
+    server = infra.tool_server_registry["localhost-mcp-tools"]
+    assert server["url"] == "http://127.0.0.1:9001/mcp"
+    assert server["transport"] == "streamable-http"
+    assert server["timeout"] == 30
+    assert server["follow_pagination"] is True
+    assert server["cache_scope"] == "private"

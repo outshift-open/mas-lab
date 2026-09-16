@@ -24,8 +24,19 @@ types:
   - context_plugin
   - memory
   - governance
+  - tool_provider
 
 plugins:
+  # Default in-process Python spec.tools (used when spec.providers is omitted)
+  - type: tool_provider
+    name: local
+    urn: mas.tool_provider.local
+    module: mas.library.standard.plugins.tools.local
+    class: LocalToolProvider
+    shortcuts:
+      - local
+      - in-process
+
   # Observability plugins
   - type: observability
     name: native
@@ -124,3 +135,6 @@ plugins:
     urn: mas.gov.sample
     module: mas.runtime.boundary.gov.sample
     class: SampleGovernancePlugin
+
+defaults:
+  tool_provider: local

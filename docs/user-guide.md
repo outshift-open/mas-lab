@@ -213,6 +213,68 @@ mas-ctl chat agent.yaml -o overlays/tools.yaml \
 
 See [cli/observability.md](cli/observability.md) for `events.jsonl` and trace flags.
 
+## Running tools through MCP
+
+MAS Lab supports two tool deployment patterns without changing the agent-facing contract:
+
+- **local provider** — the tool runs in-process
+- **MCP provider** — the tool is exposed by a separate MCP server process
+
+The runtime resolves both through the provider registry (tool name → plugin).
+`tools: "*"` registers the provider, then queries advertised names at runtime
+initialization — verification always passes. An explicit list can be checked
+at verification (local names against `spec.tools`).
+
+Serve a MAS tool manifest, then point the agent at that server using
+`library-samples/overlays/mcp-localhost.yaml` (not Tutorial 1 overlays):
+
+```bash
+mas-mcp serve \
+  --tool-manifest library-samples/tools/web-search.tool.yaml \
+  --tool web-search \
+  --host 127.0.0.1 \
+  --port 9001 \
+  --transport streamable-http
+```
+
+```bash
+mcp version
+mas-mcp tools list --url http://127.0.0.1:9001/mcp
+```
+
+```yaml
+providers:
+  - name: localhost-mcp-tools
+    kind: mcp
+    transport: streamable-http
+    url: http://127.0.0.1:9001/mcp
+    tools: "*"
+```
+
+```bash
+mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
+  -o docs/tutorials/01-building-an-agent/overlays/tools.yaml \
+  -o library-samples/overlays/mcp-localhost.yaml \
+  -o library-samples/overlays/local-in-process.yaml \
+  -q "What is the current price of Apple stock?" \
+  --trace --trace-summary
+```
+
+The `mas-mcp serve` process logs `MCP tool call name=web-search` when the agent
+uses the tool. Provider `tools: "*"` is filled at runtime init (discovery),
+not at `mas-ctl validate`. Once an external plugin is present, leftover `spec.tools`
+(Tutorial 1's `calc`) need `library-samples/overlays/local-in-process.yaml`.
+Prod MCP-only setups omit that overlay and must not declare unclaimed tools.
+
+This runs the tool in a dedicated process and exposes it to the MAS runtime via MCP, which is the preferred option when you want infra-owned tooling or a clean separation between the agent process and the tool implementation.
+
+A local tool provider is still the easiest debug path when the tool is part of the same process. The same logical agent interface works in both modes.
+
+See the MCP library docs in [../library-ioa/README.md](../library-ioa/README.md),
+[ToolContract](references/tool-contract.md), [kind: Tool](manifests/tool.md), and
+infra [`ToolServerRegistry`](references/tool-server-registry.md)
+(`library-samples/infra/mcp-localhost.yaml`).
+
 ---
 
 ## Configuration

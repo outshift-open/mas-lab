@@ -26,7 +26,7 @@ sees, and which plugins hook its execution.
 | Context window | `context_manager` | Stack / sliding-window / summarising; optional `params.trimmer` for assembly token cap — [context-assembly.md](context-assembly.md) |
 | Prompt / role | `description`, `context` | `description` → delegation tools; `context.*` → system prompt |
 | Models | `models[]` | LLM routing (ids, temperature, max_tokens) |
-| Tools | `tools`, `tools_ref` | ToolContract surface |
+| Tools | `tools`, `tools_ref`, `providers` | [ToolContract](../references/tool-contract.md) · [tool.md](tool.md) · [ToolServerRegistry](../references/tool-server-registry.md) |
 | Skills | `skills` | Context facet (catalog) + `activate_skill`/`read_skill_file` tools |
 | Memory | `memory`, `memory_seed` | Stores + startup seeds |
 | Working memory | `working_memory.persistent` | Cross-turn buffer survives repeat delegate calls within one session (default `true`) — see below |
@@ -78,7 +78,7 @@ is cleared before every delegate call even though the underlying instance is reu
 
 **Overlays can set this too** (`spec.patch.working_memory.persistent` on an `Overlay` targeting
 `kind: Agent`) — useful to flip a shared agent manifest's default per deployment/experiment without
-forking it.
+duplicating the agent file.
 
 **`context_id`** — the delegating agent's LLM may optionally pass `context_id` as an extra argument
 on `delegate_to_<agent_id>`, alongside `task`. When given, it selects an independent working-memory
@@ -109,6 +109,30 @@ summary block; it degrades to `keep_recent` rather than failing if no live model
 `keep_recent`/`sliding_window` never spend a model call. See
 `docs/design/working-memory-compaction.md` for the full design and why the two dead schema surfaces
 this replaces were removed.
+
+---
+
+## Tool providers
+
+`spec.providers[]` claims **which** plugin owns **which** names. Invocation is
+[`call_tool(name, arguments)`](../references/tool-contract.md). Optional
+advertise fields live on [`kind: Tool`](tool.md).
+
+Connection URL, transport, headers, pagination, and list-cache policy belong
+on infra [`ToolServerRegistry`](../references/tool-server-registry.md). Match
+`providers[].name` to `tool_servers[].id`. Overlay `providers[]` may set
+`url`; when both overlay and infra set a key, the overlay value is used.
+
+```yaml
+providers:
+  - name: localhost-mcp-tools   # matches infra tool_servers[].id
+    kind: mcp
+    tools: "*"                  # discover at runtime init
+```
+
+With no `providers`, the default local plugin owns `spec.tools`. Once any
+external plugin is present, unclaimed names are an error unless reintroduced
+with `kind: local`.
 
 ---
 
@@ -175,5 +199,8 @@ curl http://localhost:8090/api/schemas/agent
 - [execution.md](execution.md) — removed `spec.execution` on agents (migration pointer)
 - [MAS manifest](mas.md) — topology and transport
 - [Overlay manifest](overlay.md) — overrides
+- [Tool manifest](tool.md) — `kind: Tool` advertise fields
+- [ToolContract](../references/tool-contract.md) — `call_tool(name, arguments)`
+- [Infra ToolServerRegistry](infra.md#toolserverregistry) — remote URL / transport · [reference](../references/tool-server-registry.md)
 - [Tutorial: building an agent](../tutorials/01-building-an-agent/README.md)
 - [Design patterns](agent.md#design-pattern) — `spec.design_pattern` on agents

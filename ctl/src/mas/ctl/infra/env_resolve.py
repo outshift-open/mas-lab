@@ -10,8 +10,8 @@ Syntax (same as ``mas.lab.connections``)::
 
     api_base: env:LLM_PROXY_API_BASE|https://llm-proxy.example/v1
 
-    # required — empty string when unset (no default)
-    uri: env:NEO4J_URI
+    # secret — empty string when unset (caller omits the header / field)
+    Authorization: env:MCP_AUTH_HEADER
 
 Fields whose key ends in ``_env`` (``api_key_env``, ``password_env``, …) are
 **secretKeyRef names** and are never resolved — the value is the env var name
@@ -46,20 +46,12 @@ def resolve_env_string(value: str) -> str:
         return default
     resolved = os.environ.get(var)
     if resolved:
-        logger.debug("env_resolve: %s -> %s (from env)", var, resolved)
+        logger.debug("env_resolve: %s resolved from env", var)
         return resolved
     if default:
-        logger.debug(
-            "env_resolve: %s is not set; using default value %r",
-            var,
-            default,
-        )
+        logger.debug("env_resolve: %s is not set; using manifest default", var)
         return default
-    logger.warning(
-        "env_resolve: %s is not set and has no default. "
-        "Set this variable in your .env file or shell environment.",
-        var,
-    )
+    logger.debug("env_resolve: %s is not set and has no default", var)
     return default
 
 
