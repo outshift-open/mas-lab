@@ -8,6 +8,15 @@
 
 From this directory (`docs/tutorials/01-building-an-agent`):
 
+Overlays declare tool refs as `<library>:<path>`. The prefix is always a
+library name. These overlays use the `samples` library from
+**mas-library-samples**, which **mas-lab-workspace** installs. A lab can
+also ship a library next to `lab-config.yaml`: list the path under
+`lab.libraries`, or put `library.yaml` in an immediate child directory.
+Lab-local library names win over workspace config and installed libraries.
+When to use a lab vs a library vs a local plugin:
+[labs-and-libraries.md](../../labs-and-libraries.md).
+
 ```bash
 # Live chat with tools, a skill, and memory
 mas-ctl chat agent.yaml \

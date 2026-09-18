@@ -15,7 +15,8 @@ Human-readable field docs are in [Specifications](index.md#specifications).
 
 | Schema | Purpose |
 | --- | --- |
-| [`config.schema.yaml`](../schemas/config.schema.yaml) | Root `config.yaml` — defaults, flavour, infra refs |
+| [`config.schema.yaml`](../schemas/config.schema.yaml) | Root `config.yaml` — defaults, flavour, infra refs, `manifest_libraries:` |
+| [`library.schema.yaml`](../schemas/library.schema.yaml) | `kind: Library` (`library.yaml`) — [labs-and-libraries.md](../labs-and-libraries.md) |
 | [`deployment.schema.yaml`](../schemas/deployment.schema.yaml) | Deployment / placement descriptors |
 | [`runtime-profile.schema.yaml`](../schemas/runtime-profile.schema.yaml) | Runtime profile flags (governance, observability) |
 | [`placement-plan.schema.yaml`](../schemas/placement-plan.schema.yaml) | Component placement plan |
@@ -55,7 +56,7 @@ bindings, workflow nodes/edges, policy rules, design-pattern config, etc.
 | [`lab/dataset.schema.yaml`](../schemas/lab/dataset.schema.yaml) | Dataset manifest |
 | [`lab/pipeline.schema.yaml`](../schemas/lab/pipeline.schema.yaml) | Pipeline step definitions |
 | [`lab/lab.schema.yaml`](../schemas/lab/lab.schema.yaml) | Lab folder metadata |
-| [`lab/lab-config.schema.yaml`](../schemas/lab/lab-config.schema.yaml) | Local pipeline libraries |
+| [`lab/lab-config.schema.yaml`](../schemas/lab/lab-config.schema.yaml) | Lab config, including `lab.libraries` |
 | [`lab/run-input.schema.yaml`](../schemas/lab/run-input.schema.yaml) | Per-run inputs |
 | [`lab/pipeline-manifest.schema.json`](../schemas/lab/pipeline-manifest.schema.json) | Serialized pipeline manifest |
 | [`lab/artefacts/run_info.schema.json`](../schemas/lab/artefacts/run_info.schema.json) | Run metadata artefact |

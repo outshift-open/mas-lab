@@ -15,6 +15,7 @@ Docs for **benchmarks**, **pipelines**, and validation.
 |------|----------|
 | [labs-quickstart.md](labs-quickstart.md) | Run a **lab**; **embedded pipeline** figures |
 | [labs-going-further.md](labs-going-further.md) | Custom **pipeline steps**, **scenarios** |
+| [labs-and-libraries.md](../../docs/labs-and-libraries.md) | Lab vs library vs local plugin |
 | [benchmark.md](benchmark.md) | `mas-lab benchmark` |
 | [pipeline.md](pipeline.md) | **Pipeline** YAML |
 | [pipeline-steps.md](pipeline-steps.md) | Built-in step types |

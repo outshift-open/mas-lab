@@ -111,7 +111,10 @@ properties:
     additionalProperties:
       type: string
     description: >-
-      Map library scheme to directory (e.g. samples: ./library-samples/src).
+      Library name → path relative to the workspace root. Same role as
+      lab-config.yaml ``lab.libraries`` (a list of library paths). Lab-local
+      libraries are searched first, then this map, then installed libraries.
+      See docs/labs-and-libraries.md.
 
   aliases:
     type: object

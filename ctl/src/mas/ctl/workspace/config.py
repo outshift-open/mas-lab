@@ -202,26 +202,31 @@ class WorkspaceConfig:
         return candidate if candidate.is_file() else None
 
     def resolve_library_path(self, lib_ref: str) -> Path | None:
-        """Resolve ``team:bundle/sub`` via manifest_libraries.
+        """Resolve ``name:path`` via the shared library-name lookup.
 
-        The ``base`` path in manifest_libraries may be:
-        - Absolute: ``/abs/path`` → used directly
-        - Home-relative: ``~/.config/…`` → expanded via Path.expanduser()
-        - Relative: ``./infra`` → resolved relative to the workspace root
+        Library roots come from lab-config paths, workspace
+        ``manifest_libraries:``, then installed libraries (same order as
+        :func:`mas.library_roots.resolve_named_library_root`). The remainder
+        of the ref is a file under that root (``.yaml`` implied for bundle
+        names).
         """
         if ":" not in lib_ref:
             return None
         lib, rest = lib_ref.split(":", 1)
-        base = self.manifest_libraries.get(lib)
-        if not base or self._path is None:
+        from mas.library_roots import resolve_named_library_root
+
+        anchors = [p for p in (self._path, Path.cwd()) if p is not None]
+        root = resolve_named_library_root(lib, *anchors)
+        if root is None:
             return None
-        base_path = Path(base).expanduser()
-        root = (base_path if base_path.is_absolute() else self._path / base_path).resolve()
         candidate = (root / rest).with_suffix(".yaml")
         if candidate.is_file():
             return candidate
         if rest.endswith(".yaml") and (root / rest).is_file():
             return (root / rest).resolve()
+        direct = root / rest
+        if direct.is_file():
+            return direct.resolve()
         return None
 
 

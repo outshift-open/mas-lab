@@ -4,8 +4,11 @@
 -->
 # Lab manifests (`mas-lab-bench`)
 
-A **lab** is a `*.lab/` folder: `experiment.yaml`, `lab-config.yaml` (local **pipeline step**
-libraries), **datasets**, and **overlays**. Validated by `mas-lab benchmark run --dry-run`.
+A **lab** is a `*.lab/` folder: `experiment.yaml`, `lab-config.yaml`,
+**datasets**, and **overlays**. It is the experiment surface — not a library.
+List local reusable code in `lab.libraries` as a subdir that has
+`library.yaml` (see [labs-and-libraries.md](../labs-and-libraries.md)).
+Validated by `mas-lab benchmark run --dry-run`.
 
 **Terms:** [glossary.md](../glossary.md) · Demo walkthrough: [Tutorial 3](../tutorials/03-experiments-and-analysis/README.md).
 
@@ -24,7 +27,7 @@ Validated by `mas.lab.manifests.validator` and `mas-lab benchmark run --dry-run`
 | Dataset | `dataset.schema.yaml` | [dataset.md](dataset.md) |
 | Post-processing pipeline | `pipeline.schema.yaml` | [pipeline.md](pipeline.md#post-processing-pipeline) |
 | Pipeline library file | `pipeline-manifest.schema.json` | [pipeline.md](pipeline.md#pipeline-library-kind-pipeline) |
-| Lab config | `lab-config.schema.yaml` | [user-config.md](../user-config.md) |
+| Lab config | `lab-config.schema.yaml` | [user-config.md](../user-config.md) · [labs-and-libraries.md](../labs-and-libraries.md) |
 
 API ids (controller): `experiment`, `dataset`, `pipeline-post`, `pipeline`.
 

@@ -109,7 +109,24 @@ properties:
               items:
                 type: string
 
-      # ── Dataset ───────────────────────────────────────────────────────────
+      libraries:
+        type: array
+        description: >
+          Library paths (same role as workspace config.yaml
+          ``manifest_libraries:``). A directory containing ``library.yaml``
+          is a library; the name is the listed basename (``lib/`` →
+          ``lib``) and is used in ``name:path`` refs. Immediate children
+          of this lab that contain ``library.yaml`` are included too.
+          A directory without ``library.yaml`` is added to Python's import
+          path only. In-repo labs that list a local dir must ship
+          ``library.yaml`` there. A listed name that is already a known
+          library (for example ``samples``) resolves to that library.
+          Lab-local libraries win over workspace and installed libraries
+          of the same name. See docs/labs-and-libraries.md.
+        items:
+          type: string
+          minLength: 1
+
       dataset:
         type: object
         required: [path]

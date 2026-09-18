@@ -44,11 +44,12 @@ mas-lab plot trajectory library-samples/apps/trip-planner/traces/events.jsonl \
 
 Then continue with:
 
-| Path        | Link                                       |
-| ----------- | ------------------------------------------ |
-| Tutorials   | [docs/tutorials/](docs/tutorials/index.md) |
-| Web UI demo | [docs/ui/index.md](docs/ui/index.md)       |
-| Paper labs  | [docs/paper/index.md](docs/paper/index.md) |
+| Path              | Link                                                         |
+| ----------------- | ------------------------------------------------------------ |
+| Tutorials         | [docs/tutorials/](docs/tutorials/index.md)                   |
+| Web UI demo       | [docs/ui/index.md](docs/ui/index.md)                         |
+| Paper labs        | [docs/paper/index.md](docs/paper/index.md)                   |
+| Labs vs libraries | [docs/labs-and-libraries.md](docs/labs-and-libraries.md)     |
 
 Full install instructions: **[Tutorial 0 — Environment setup](docs/tutorials/00-environment-setup/README.md)**.
 Full site content mirrors [`docs/`](docs/) — see [docs/index.md](docs/index.md) for the full introduction.
@@ -90,7 +91,13 @@ The headline packages:
 Additional libraries ship alongside it (`mas-library-eval`, `mas-library-lab`,
 `mas-library-samples`).
 
-See [docs/libraries.md](docs/libraries.md) for the library model and
+A **lab** (`*.lab/` + `lab-config.yaml`) is the experiment surface. A
+**library** is a folder with `library.yaml`. When to create each, how to
+keep a local library inside a lab, and how `name:path` refs work:
+[docs/labs-and-libraries.md](docs/labs-and-libraries.md). Discovery
+contract (developers): [docs/library-discovery.md](docs/library-discovery.md).
+
+See [docs/libraries.md](docs/libraries.md) for the installable package map and
 [docs/packages-reference.md](docs/packages-reference.md) for the complete,
 auto-generated package list with dependencies and extras.
 

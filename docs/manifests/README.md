@@ -43,6 +43,7 @@ config.yaml       ← project defaults (flavour, infra_refs, .env path)
 | **Inputs** | `Dataset` | [dataset.md](dataset.md) |
 | **Processing** | `pipeline:` / `kind: Pipeline` | [pipeline.md](pipeline.md) |
 | **Interactive demo** | `lab:` | [lab.md](lab.md) |
+| **Library** | `kind: Library` (`library.yaml`) | [labs-and-libraries.md](../labs-and-libraries.md) |
 
 Runtime execution manifests (`Agent`, `MAS`, overlays, infra) are documented under
 [runtime.md](runtime.md).
@@ -90,6 +91,7 @@ See [topology-and-workflow.md](topology-and-workflow.md) for workflow vs routing
 
 ## See also
 
+- [labs-and-libraries.md](../labs-and-libraries.md) — lab vs library vs local plugin
 - [user-config.md](../user-config.md) — XDG user config and project `config.yaml`
 - [cli/observability.md](../cli/observability.md) — `events.jsonl` and CLI flags
 - [paper/index.md](../paper/index.md) — sample labs that ship with the repo

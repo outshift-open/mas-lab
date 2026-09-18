@@ -58,7 +58,36 @@ def _iter_lab_scheme_refs(obj: Any, prefix: str = "") -> list[tuple[str, str]]:
 
 def iter_manifest_refs(obj: Any, prefix: str = "") -> list[tuple[str, str]]:
     """Yield ``(json_path, ref_string)`` for filesystem refs and lab scheme ids."""
-    return iter_ref_paths(obj, prefix) + _iter_lab_scheme_refs(obj, prefix)
+    return (
+        iter_ref_paths(obj, prefix)
+        + _iter_lab_scheme_refs(obj, prefix)
+        + _iter_library_name_path_refs(obj, prefix)
+    )
+
+
+def _is_library_name_path(value: str) -> bool:
+    """True for ``name:path`` library refs (not ``pkg://`` or lab scheme ids)."""
+    if value.startswith(("/", "\\", "pkg://", "app:", "dataset:", "library:", "overlay_id:")):
+        return False
+    scheme, sep, rest = value.partition(":")
+    return bool(sep and scheme and rest and "/" not in scheme and "\\" not in scheme)
+
+
+def _iter_library_name_path_refs(obj: Any, prefix: str = "") -> list[tuple[str, str]]:
+    """Filesystem-ref keys whose value is a ``name:path`` library ref."""
+    from mas.ctl.validate.refs import REF_KEYS
+
+    found: list[tuple[str, str]] = []
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            p = f"{prefix}.{k}" if prefix else k
+            if k in REF_KEYS and isinstance(v, str) and _is_library_name_path(v.strip()):
+                found.append((p, v.strip()))
+            found.extend(_iter_library_name_path_refs(v, p))
+    elif isinstance(obj, list):
+        for i, item in enumerate(obj):
+            found.extend(_iter_library_name_path_refs(item, f"{prefix}[{i}]"))
+    return found
 
 
 def _resolve_ref_target(base_dir: Path, ref: str) -> Path:
@@ -66,6 +95,8 @@ def _resolve_ref_target(base_dir: Path, ref: str) -> Path:
         return Path(ref)
     try:
         return resolve_path_ref(ref, base_dir)
+    except LookupError:
+        raise
     except Exception:
         return (base_dir / ref).resolve()
 
@@ -95,7 +126,7 @@ def _resolve_special_ref(ref: str, base_dir: Path) -> Path | None:
 
     if ref.startswith("library:"):
         scheme = ref[len("library:") :]
-        root = resolve_library_scheme_root(scheme)
+        root = resolve_library_scheme_root(scheme, base_dir)
         if root is not None:
             return root
         candidate = (base_dir / scheme).resolve()

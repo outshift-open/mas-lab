@@ -9,7 +9,8 @@ A **lab** is a folder ending in `.lab` with an **experiment** manifest
 **pipeline** steps turn **runs** into tables and figures.
 
 Full term list: [glossary.md](../../docs/glossary.md). Default paths:
-[`docs/user-config.md`](../../docs/user-config.md).
+[`docs/user-config.md`](../../docs/user-config.md). Lab vs library:
+[labs-and-libraries.md](../../docs/labs-and-libraries.md).
 
 ## What one command does
 

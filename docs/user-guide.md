@@ -11,7 +11,8 @@ MAS Lab is a **specification-driven** toolkit. You declare agents and experiment
 in YAML, run them with `mas-ctl` and `mas-lab`, and analyze results through
 reusable benchmark pipelines.
 
-**Related:** [References](references/index.md) · [Web UI](ui/index.md) ·
+**Related:** [Labs vs libraries](labs-and-libraries.md) ·
+[References](references/index.md) · [Web UI](ui/index.md) ·
 [Run logs](cli/observability.md) · [Paper labs](paper/index.md) · [Glossary](glossary.md)
 
 ---
@@ -72,6 +73,10 @@ Benchmarking is always **`mas-lab`**, not `mas-ctl`.
 - `mas-ctl`
 - `mas-library-standard`
 - `mas-library-lab`
+
+A lab is an experiment pack; a library is reusable code and YAML. When to
+create each, including a local library inside a lab:
+[labs-and-libraries.md](labs-and-libraries.md).
 
 Full package map: [libraries.md](libraries.md).
 
@@ -191,6 +196,7 @@ packaged yet.
 Use only for local composition — not for committed OSS labs.
 
 For committed reusable OSS examples, prefer `app:` or `samples:` scheme refs.
+Library names and `name:path` refs: [labs-and-libraries.md](labs-and-libraries.md).
 
 ---
 

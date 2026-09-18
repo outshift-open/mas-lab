@@ -11,13 +11,26 @@ Start with [labs-quickstart.md](labs-quickstart.md). Terms: [glossary.md](../../
 
 ## Custom pipeline step
 
+Put the step in a **local library** inside the lab (not on the lab root).
+Register that folder in `lab-config.yaml` and give it `library.yaml`:
+
 1. Add `lib/steps/my_step.py` — implement `PipelineStep`, `register_step_type`.
-2. Register the library in `lab-config.yaml`:
+2. List the folder and catalog it:
 
    ```yaml
+   # lab-config.yaml
    lab:
      libraries:
        - lib/
+   ```
+
+   ```yaml
+   # lib/library.yaml
+   apiVersion: mas/v1
+   kind: Library
+   name: lifecycle-control-lib
+   description: Lab-local pipeline figure steps for this lab.
+   version: "0.1.0"
    ```
 
 3. Add a step to `application.post` in `experiment.yaml`:
@@ -31,6 +44,10 @@ Start with [labs-quickstart.md](labs-quickstart.md). Terms: [glossary.md](../../
          config:
            output: "{output_dir}/results/my-figure.png"
    ```
+
+Do not create a separate top-level plugins folder. Pipeline steps and
+runtime plugins belong *in* the library. Lab vs library:
+[labs-and-libraries.md](../../docs/labs-and-libraries.md).
 
 Examples: [lifecycle-control.lab/lib/steps/](../../labs/lifecycle-control.lab/lib/steps/).
 

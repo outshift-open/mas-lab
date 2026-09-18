@@ -152,12 +152,18 @@ Include a value in markdown with pymdownx snippets, for example
 
 ### Resolution Rules
 
-When resolving an infra reference (e.g., `--infra-ref openai.example.yaml`):
+When resolving a library `name:path` ref (tools, overlays, infra bundles, …),
+the prefix is always a **library name**. Lab-local libraries are searched
+first, then workspace `manifest_libraries:`, then installed libraries.
 
-1. **Installed libraries** — Auto-registered via `mas.runtime.manifest_libraries` entry points
-2. **Workspace paths** — `manifest_libraries` in `config.yaml` for checkout trees that are not installed
-3. **User config** — `$XDG_CONFIG_HOME/mas/infra/{ref}`
-4. **Relative path** — Resolve from manifest directory
+List local library dirs in `lab-config.yaml` `lab.libraries` (and put
+`library.yaml` in that dir). Map shared checkout libraries in workspace
+`config.yaml` `manifest_libraries:`.
+
+User guide: [labs-and-libraries.md](labs-and-libraries.md). Search order and
+`LookupError`: [library-discovery.md](library-discovery.md).
+
+Infra files that are not `name:path` still fall through to `$XDG_CONFIG_HOME/mas/infra/{ref}` or a path relative to the manifest directory.
 
 ### Examples
 
@@ -197,3 +203,6 @@ See `library-standard/src/mas/library/standard/libs/standard/openai.yaml` and
 ### Mock / offline
 
 Use `standard:mock-llm` for CI and tutorials (no network).
+
+Library names, lab-local `lab.libraries`, and workspace `manifest_libraries:`:
+[labs-and-libraries.md](labs-and-libraries.md).

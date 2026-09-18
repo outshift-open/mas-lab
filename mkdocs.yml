@@ -94,6 +94,7 @@ nav:
       - Overview: overview.md
   - User guide:
       - user-guide.md
+      - Labs vs libraries: labs-and-libraries.md
       - user-config.md
       - libraries.md
       - cli/observability.md
@@ -130,6 +131,7 @@ nav:
           - Dataset: manifests/dataset.md
           - Pipeline: manifests/pipeline.md
           - Lab folder: manifests/lab.md
+          - Library discovery: library-discovery.md
           - Package documentation: references/lab.md
   - Paper: paper/index.md
   - Blog:

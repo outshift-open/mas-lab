@@ -54,6 +54,8 @@ Experiments, datasets, pipelines, and analysis (`mas-lab`).
 | Dataset | [dataset.md](../manifests/dataset.md) |
 | Pipeline steps | [pipeline.md](../manifests/pipeline.md) |
 | Interactive lab demo | [lab.md](../manifests/lab.md) |
+| Lab vs library | [labs-and-libraries.md](../labs-and-libraries.md) |
+| Library discovery | [library-discovery.md](../library-discovery.md) |
 | Bench design & steps | [Lab package docs](lab.md) |
 | Package map | [libraries.md](../libraries.md) |
 
