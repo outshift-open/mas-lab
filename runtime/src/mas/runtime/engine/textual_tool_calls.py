@@ -97,6 +97,46 @@ def strip_channel_markup(text: str | None) -> str:
     return _CHANNEL_MARKUP_RE.sub("", str(text or "")).strip()
 
 
+def _args_from_xml_tool_body(inner: str) -> dict[str, Any]:
+    stripped = inner.strip()
+    if stripped.startswith("{") and stripped.endswith("}"):
+        try:
+            loaded = json.loads(stripped)
+            if isinstance(loaded, dict):
+                return loaded
+        except json.JSONDecodeError:
+            pass
+    return {"task": stripped}
+
+
+def _xml_named_tool_calls(content: str, known_names: set[str]) -> tuple[list[dict[str, Any]], str]:
+    """Recover ``<tool_name>body</tool_name>`` blocks some backends emit as prose."""
+    if not content or not known_names:
+        return [], content
+    by_lower = {name.lower(): name for name in known_names}
+    found: list[tuple[int, int, str, str]] = []
+    for name in known_names:
+        pattern = re.compile(
+            rf"<{re.escape(name)}>\s*(.*?)\s*</{re.escape(name)}>",
+            re.DOTALL | re.IGNORECASE,
+        )
+        for match in pattern.finditer(content):
+            canonical = by_lower.get(match.group(0)[1:].split(">", 1)[0].lower(), name)
+            found.append((match.start(), match.end(), canonical, match.group(1).strip()))
+    found.sort()
+    used: list[tuple[int, int]] = []
+    tool_calls: list[dict[str, Any]] = []
+    for start, end, name, inner in found:
+        if any(start < prev_end and end > prev_start for prev_start, prev_end in used):
+            continue
+        used.append((start, end))
+        tool_calls.append(_as_tool_call(len(tool_calls) + 1, name, _args_from_xml_tool_body(inner)))
+    cleaned = content
+    for start, end in sorted(used, reverse=True):
+        cleaned = (cleaned[:start] + cleaned[end:]).strip()
+    return tool_calls, cleaned
+
+
 def recover_tool_calls_from_content(
     content: str | None,
     *,
@@ -138,6 +178,10 @@ def recover_tool_calls_from_content(
             spans.append((start, end))
         for start, end in sorted(spans, reverse=True):
             cleaned = (cleaned[:start] + cleaned[end:]).strip()
+
+    if not tool_calls and known_tool_names:
+        xml_calls, cleaned = _xml_named_tool_calls(cleaned, known_tool_names)
+        tool_calls.extend(xml_calls)
 
     if blocks:
         cleaned = _TEXT_TOOL_CALL_BLOCK_RE.sub("", cleaned).strip()
