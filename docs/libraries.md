@@ -28,6 +28,10 @@ Requires **Python 3.11+**.
 | **Standard library** | `mas-library-standard` | Flavours, overlays, infra bundles, and built-in runtime plugins |
 | **Samples** | `mas-library-samples` | Reference apps (e.g. trip planner), datasets, and tutorial fixtures |
 
+A **lab** is an experiment pack (`*.lab/` + `lab-config.yaml`). A **library**
+is a folder with `library.yaml`. When to create each, including a local
+library inside a lab: [labs-and-libraries.md](labs-and-libraries.md).
+
 **Typical path:** [Tutorial 0](tutorials/00-environment-setup/README.md) →
 `mas-ctl` for agents and teams → `mas-lab benchmark run` for experiments.
 
@@ -61,8 +65,10 @@ control plane, and lab stack transitively.
 |------|------------|
 | First install | [Tutorial 0](tutorials/00-environment-setup/README.md) |
 | Day-to-day use | [User guide](user-guide.md) |
+| Lab vs library | [labs-and-libraries.md](labs-and-libraries.md) |
 | YAML manifests | [References](references/index.md) |
 | Paper reproduction | [Paper labs](paper/index.md) |
+| Library discovery | [library-discovery.md](library-discovery.md) |
 | Runtime development | [`runtime/docs/`](../runtime/docs/index.md) in the repository |
 | Control plane | [`ctl/docs/`](../ctl/docs/user-guide.md) in the repository |
 

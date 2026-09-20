@@ -169,9 +169,9 @@ plugins:
    `None` later.
 3. **Library plugin manifests** — every library root returned by
    [`mas.library_roots.discover_library_roots`](../src/mas/library_roots.py)
-   (installed packages via the `mas.runtime.manifest_libraries` entry
-   point, `config.yaml`'s `manifest_libraries:` map, and directory-scanned
-   `library.yaml` files) is checked by
+   (lab-local first, then workspace `manifest_libraries:`, installed
+   libraries, `MAS_LIBRARY_PATHS`, ancestor walk — see
+   [library-discovery.md](../../docs/library-discovery.md)) is checked by
    [`mas.library_catalog.discover_plugin_manifests`](../src/mas/library_catalog.py)
    for plugin manifests. **`library.yaml` *is* the plugin manifest** — the
    same file carries `kind: Library` metadata (name/description/version/

@@ -5,30 +5,20 @@
 from __future__ import annotations
 
 import importlib
-import importlib.metadata
 import importlib.resources
 from pathlib import Path
 
 
-def _manifest_library_root(scheme: str) -> Path | None:
-    """Root path for a ``mas.runtime.manifest_libraries`` entry-point scheme."""
-    try:
-        from mas.library_roots import resolve_manifest_library_package
+def _manifest_library_root(scheme: str, *anchors: Path | None) -> Path | None:
+    """On-disk root for library *scheme*, or None if that library is not present."""
+    from mas.library_roots import resolve_named_library_root
 
-        eps = importlib.metadata.entry_points(group="mas.runtime.manifest_libraries")
-    except Exception:
-        return None
-    for ep in eps:
-        if ep.name == scheme:
-            root = resolve_manifest_library_package(ep.value)
-            if root is not None:
-                return root
-    return None
+    return resolve_named_library_root(scheme, *anchors)
 
 
-def resolve_library_scheme_root(scheme: str) -> Path | None:
-    """Public helper — resolve a manifest library scheme (e.g. ``samples``)."""
-    return _manifest_library_root(scheme)
+def resolve_library_scheme_root(scheme: str, *anchors: Path | None) -> Path | None:
+    """Public helper — root of a named manifest library, or None."""
+    return _manifest_library_root(scheme, *anchors)
 
 
 def _ctl_example_package_root(package: str) -> Path | None:
@@ -60,7 +50,11 @@ def _resolve_pkg_resource(package: str, resource_rel: str) -> Path:
 
 
 def resolve_path_ref(ref: str, base_dir: Path) -> Path:
-    """Resolve a relative filesystem path or a pkg:// resource reference."""
+    """Resolve a library ref (``name:path``), ``pkg://`` resource, or filesystem path.
+
+    A ``name:path`` string is always a library name. Missing libraries raise
+    ``LookupError``; they are not interpreted as relative paths.
+    """
     if ref.startswith("pkg://"):
         package_path = ref[len("pkg://") :]
         package, sep, resource_rel = package_path.partition("/")
@@ -71,9 +65,10 @@ def resolve_path_ref(ref: str, base_dir: Path) -> Path:
     if ":" in ref and not ref.startswith("/"):
         scheme, _, rel_path = ref.partition(":")
         if scheme and "/" not in scheme and "\\" not in scheme:
-            lib_root = _manifest_library_root(scheme)
-            if lib_root is not None:
-                return _resolve_in_library(lib_root, rel_path)
+            lib_root = _manifest_library_root(scheme, base_dir)
+            if lib_root is None:
+                raise LookupError(f"unknown library {scheme!r}")
+            return _resolve_in_library(lib_root, rel_path)
 
     p = Path(ref)
     return p if p.is_absolute() else (base_dir / ref).resolve()

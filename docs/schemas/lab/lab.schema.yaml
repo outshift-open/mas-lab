@@ -26,8 +26,12 @@ properties:
       libraries:
         type: array
         description: >
-          Library scheme names (e.g. ``samples``) or forward-relative directories
-          added to the lab import path.
+          Library paths (same role as workspace ``manifest_libraries:``).
+          Directories with ``library.yaml`` become ``name:path`` libraries
+          (name = basename). Directories without it are import-path only.
+          In-repo labs that list a local dir must ship ``library.yaml``
+          there. Lab-local names win over workspace and installed
+          libraries. See docs/labs-and-libraries.md.
         items:
           type: string
           minLength: 1

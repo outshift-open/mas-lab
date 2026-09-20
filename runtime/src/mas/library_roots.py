@@ -1,30 +1,39 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Discover manifest library roots from installed packages and workspace paths.
+"""Discover manifest library roots from lab, workspace, and installed libraries.
 
-A "manifest library" is a folder with a ``library.yaml`` at its root. It is
-discovered in one of four ways, all additive:
+A "manifest library" is a folder with a ``library.yaml`` at its root.
+``name:path`` refs always use a library name; unknown names raise
+``LookupError`` (they are never a filesystem path). Discovery order is
+shared by :func:`resolve_named_library_root` and
+:func:`discover_library_roots` so ctl, runtime, and lab cannot drift:
 
-1. **Installed packages** — a package registers a
-   ``mas.runtime.manifest_libraries`` entry point; its on-disk root is
-   resolved without requiring a successful full import (see
-   :func:`resolve_manifest_library_package`).
-2. **Workspace config** — ``config.yaml``'s ``manifest_libraries:`` map
-   (scheme -> path, relative to the workspace root).
-3. **Known local paths** — the ``MAS_LIBRARY_PATHS`` environment variable
-   (``os.pathsep``-separated), for libraries that are not installed as
-   packages at all: a plain folder on disk with a ``library.yaml``. Each
-   entry may itself be a library root, or a parent directory containing
-   several sibling library folders (e.g. a monorepo checkout root).
-4. **Anchor scan** — walking upward from a given anchor path (default:
-   the current working directory) looking for ``library.yaml``, stopping
-   at the first ``.git`` boundary. This is dev-checkout convenience, not
-   a substitute for (1)-(3) in an installed environment.
+1. **Lab-local** — from the enclosing ``lab-config.yaml`` (see
+   :func:`find_lab_dir`): ``lab.libraries`` entries that are directories
+   containing ``library.yaml``, plus **immediate** children of the lab
+   root that contain ``library.yaml``. The library name is the listed
+   basename (``mylib/`` → ``mylib``) or the child directory name. A
+   listed directory **without** ``library.yaml`` is Python ``sys.path``
+   only (no library name). A listed name that is already a known library
+   (``samples``) keeps resolve-by-name behaviour via later steps.
+2. **Workspace config** — ``config.yaml`` ``manifest_libraries:``
+   (library name → path, relative to the workspace root).
+3. **Installed libraries** — libraries registered in the environment.
+4. **Known local paths** — ``MAS_LIBRARY_PATHS`` (``os.pathsep``-
+   separated): each entry is a library root or a parent of sibling
+   library folders. Enumeration hatch; names are directory basenames.
+5. **Ancestor walk** — upward from anchors/cwd for ``library.yaml``,
+   stopping at ``.git``. Also stops at a ``.lab`` directory so a
+   ``library.yaml`` on the lab root is not dual-registered as both the
+   lab slug and the directory stem (skipping that lab-root file is
+   intentional).
 
-Every resolution strategy here is defensive: a single library with a
-broken import (missing optional dependency, stale module reference, etc.)
-must never prevent *other* libraries from being discovered. See
-:func:`resolve_manifest_library_package`'s docstring for why this matters.
+First-seen name wins: a lab-local library shadows an installed library
+of the same name. ``.git`` is a walk boundary, not a search root — sibling
+``library-*`` checkouts are not scanned.
+
+Every installed-library strategy is defensive: a single library with a
+broken import must never prevent *other* libraries from being discovered.
 """
 
 from __future__ import annotations
@@ -37,7 +46,10 @@ import json
 import os
 from pathlib import Path
 
-from mas.runtime.constants import LIBRARY_MANIFEST_FILENAME
+import yaml
+from mas.runtime.constants import LAB_CONFIG_FILENAME, LIBRARY_MANIFEST_FILENAME
+
+_LAB_DIR_SUFFIX = ".lab"
 
 
 def find_ancestor_with_file(
@@ -172,13 +184,13 @@ def resolve_manifest_library_package(module: str, dist_name: str | None = None) 
         return None
 
 
-def _installed_library_roots() -> list[Path]:
-    """Return roots for packages registered via ``mas.runtime.manifest_libraries``."""
-    roots: list[Path] = []
+def _installed_named_libraries() -> dict[str, Path]:
+    """Return library name → root for installed libraries."""
+    named: dict[str, Path] = {}
     try:
         eps = importlib.metadata.entry_points(group="mas.runtime.manifest_libraries")
     except Exception:
-        return roots
+        return named
 
     for ep in eps:
         try:
@@ -186,12 +198,17 @@ def _installed_library_roots() -> list[Path]:
             root = resolve_manifest_library_package(ep.value, dist_name)
         except Exception:
             # Belt-and-suspenders: resolve_manifest_library_package() already
-            # guards every strategy it tries, but one broken entry point
+            # guards every strategy it tries, but one broken installed library
             # must never stop the rest of this loop from running.
             continue
-        if root is not None:
-            roots.append(root)
-    return roots
+        if root is not None and ep.name and ep.name not in named:
+            named[ep.name] = root
+    return named
+
+
+def _installed_library_roots() -> list[Path]:
+    """Return roots for installed libraries (name order from :func:`_installed_named_libraries`)."""
+    return list(_installed_named_libraries().values())
 
 
 def _known_library_paths() -> list[Path]:
@@ -222,8 +239,193 @@ def _known_library_paths() -> list[Path]:
     return roots
 
 
+def _scheme_from_listed_entry(entry: str) -> str:
+    """Library name for a ``lab.libraries`` path (``mylib/`` → ``mylib``)."""
+    return Path(str(entry).rstrip("/\\")).name
+
+
+def _is_lab_root(path: Path) -> bool:
+    """True if *path* is a lab root (``.lab`` suffix or ``lab-config.yaml``)."""
+    return path.name.endswith(_LAB_DIR_SUFFIX) or (path / LAB_CONFIG_FILENAME).is_file()
+
+
+def find_lab_dir(start: Path) -> Path | None:
+    """Enclosing lab root from *start*, stopping at a ``.lab`` directory."""
+    return find_ancestor_with_file(
+        start, LAB_CONFIG_FILENAME, stop_at_suffix=_LAB_DIR_SUFFIX
+    )
+
+
+def _lab_library_entries(lab_dir: Path) -> list[str]:
+    """Return ``lab.libraries`` path entries from ``lab-config.yaml``."""
+    cfg = lab_dir / LAB_CONFIG_FILENAME
+    if not cfg.is_file():
+        return []
+    try:
+        data = yaml.safe_load(cfg.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return []
+    if not isinstance(data, dict):
+        return []
+    section = data.get("lab", data)
+    if not isinstance(section, dict):
+        return []
+    raw = section.get("libraries") or []
+    if not isinstance(raw, list):
+        return []
+    return [str(x) for x in raw if x]
+
+
+def _lab_local_named_libraries(lab_dir: Path) -> dict[str, Path]:
+    """Lab-local library name → root (listed ``library.yaml`` dirs + immediate children)."""
+    named: dict[str, Path] = {}
+
+    def _add(scheme: str, path: Path) -> None:
+        name = scheme.strip()
+        if not name or name in named:
+            return
+        if path.is_dir() and (path / LIBRARY_MANIFEST_FILENAME).is_file():
+            named[name] = path.resolve()
+
+    for entry in _lab_library_entries(lab_dir):
+        raw = Path(entry).expanduser()
+        candidate = raw if raw.is_absolute() else (lab_dir / entry)
+        if candidate.is_dir() and (candidate / LIBRARY_MANIFEST_FILENAME).is_file():
+            _add(_scheme_from_listed_entry(entry), candidate)
+
+    try:
+        children = sorted(lab_dir.iterdir())
+    except OSError:
+        children = []
+    for child in children:
+        if child.is_dir() and (child / LIBRARY_MANIFEST_FILENAME).is_file():
+            _add(child.name, child)
+
+    return named
+
+
+def _workspace_named_libraries() -> dict[str, Path]:
+    """Workspace ``manifest_libraries:`` name → root."""
+    named: dict[str, Path] = {}
+    from mas.runtime.workspace_config import RuntimeWorkspaceConfig
+
+    ws = RuntimeWorkspaceConfig.load()
+    if ws.found and ws.root is not None:
+        for scheme, rel in ws.manifest_libraries.items():
+            if isinstance(rel, str) and rel.strip():
+                path = Path(rel).expanduser()
+                root = path if path.is_absolute() else (ws.root / rel)
+                resolved = root.resolve()
+                if resolved.exists():
+                    named[str(scheme)] = resolved
+    return named
+
+
+def _env_named_libraries() -> dict[str, Path]:
+    """``MAS_LIBRARY_PATHS`` roots keyed by directory name."""
+    named: dict[str, Path] = {}
+    for root in _known_library_paths():
+        if root.name and root.name not in named:
+            named[root.name] = root
+    return named
+
+
+def _ancestor_named_libraries(*anchors: Path | None) -> dict[str, Path]:
+    """Upward ``library.yaml`` walk. Stops at ``.git`` and ``.lab``; skips lab-root files."""
+    named: dict[str, Path] = {}
+    starts = [a for a in anchors if a is not None]
+    if not starts:
+        starts = [Path.cwd()]
+    for anchor in starts:
+        try:
+            here = Path(anchor).resolve()
+        except Exception:
+            continue
+        if not here.is_dir():
+            here = here.parent
+        for parent in (here, *here.parents):
+            if (parent / LIBRARY_MANIFEST_FILENAME).is_file() and not _is_lab_root(parent):
+                if parent.name and parent.name not in named:
+                    named[parent.name] = parent.resolve()
+            # .git is a walk boundary. Also stop at .lab so a library.yaml on
+            # the lab root is not dual-registered as both the lab slug and
+            # the directory stem — skipping that lab-root file is intentional.
+            if (parent / ".git").is_dir() or parent.name.endswith(_LAB_DIR_SUFFIX):
+                break
+    return named
+
+
+def _search_starts(*anchors: Path | None) -> list[Path]:
+    """Anchor paths plus cwd, skipping ``None``."""
+    starts: list[Path] = []
+    seen: set[Path] = set()
+    raw: list[Path | None] = list(anchors) if anchors else []
+    raw.append(Path.cwd())
+    for anchor in raw:
+        if anchor is None:
+            continue
+        try:
+            resolved = Path(anchor).resolve()
+        except Exception:
+            continue
+        if resolved not in seen:
+            seen.add(resolved)
+            starts.append(resolved)
+    return starts
+
+
+def iter_named_library_roots(*anchors: Path | None) -> list[tuple[str, Path]]:
+    """Ordered ``(library name, root)`` pairs. First-seen name wins.
+
+    Used by :func:`resolve_named_library_root` (``name:path``) and
+    :func:`discover_library_roots` so ctl, runtime, and lab share one order:
+    lab-local, workspace config, installed libraries, ``MAS_LIBRARY_PATHS``,
+    ancestor walk.
+    """
+    ordered: list[tuple[str, Path]] = []
+    seen_names: set[str] = set()
+
+    def _merge(mapping: dict[str, Path]) -> None:
+        for name, root in mapping.items():
+            if not name or name in seen_names:
+                continue
+            try:
+                resolved = root.resolve()
+            except Exception:
+                continue
+            if not resolved.exists():
+                continue
+            seen_names.add(name)
+            ordered.append((name, resolved))
+
+    seen_labs: set[Path] = set()
+    for start in _search_starts(*anchors):
+        lab_dir = find_lab_dir(start)
+        if lab_dir is not None and lab_dir not in seen_labs:
+            seen_labs.add(lab_dir)
+            _merge(_lab_local_named_libraries(lab_dir))
+
+    _merge(_workspace_named_libraries())
+    _merge(_installed_named_libraries())
+    _merge(_env_named_libraries())
+    _merge(_ancestor_named_libraries(*_search_starts(*anchors)))
+    return ordered
+
+
+def resolve_named_library_root(scheme: str, *anchors: Path | None) -> Path | None:
+    """On-disk root for library *scheme*, or ``None`` if that name is unknown."""
+    for name, root in iter_named_library_roots(*anchors):
+        if name == scheme:
+            return root
+    return None
+
+
 def discover_library_roots(*anchors: Path | None) -> list[Path]:
-    """Return library roots from packages, workspace config, known paths, and anchors."""
+    """Return library roots in the same order as :func:`iter_named_library_roots`.
+
+    ``MAS_LIBRARY_PATHS`` is also applied as an enumeration hatch so a path
+    whose directory name collides with an earlier library name is still listed.
+    """
     roots: list[Path] = []
     seen: set[Path] = set()
 
@@ -233,35 +435,10 @@ def discover_library_roots(*anchors: Path | None) -> list[Path]:
             seen.add(resolved)
             roots.append(resolved)
 
-    for path in _installed_library_roots():
+    for _name, path in iter_named_library_roots(*anchors):
         _add(path)
-
-    from mas.runtime.workspace_config import RuntimeWorkspaceConfig
-
-    ws = RuntimeWorkspaceConfig.load()
-    if ws.found and ws.root is not None:
-        for rel in ws.manifest_libraries.values():
-            if isinstance(rel, str) and rel.strip():
-                _add(ws.root / rel)
 
     for path in _known_library_paths():
         _add(path)
-
-    anchor_candidates = anchors or (Path.cwd(),)
-
-    for anchor in anchor_candidates:
-        if anchor is None:
-            continue
-        here = anchor.resolve()
-        if not here.is_dir():
-            here = here.parent
-        for parent in (here, *here.parents):
-            if (parent / LIBRARY_MANIFEST_FILENAME).is_file():
-                _add(parent)
-            samples = parent / "library-samples"
-            if (samples / LIBRARY_MANIFEST_FILENAME).is_file():
-                _add(samples)
-            if (parent / ".git").is_dir():
-                break
 
     return roots

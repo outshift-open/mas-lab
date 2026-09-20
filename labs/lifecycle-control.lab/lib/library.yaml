@@ -1,0 +1,72 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Lab-local library for lifecycle-control.lab.
+# Scheme name is the listed basename (`lib/`). Pipeline YAML still loads
+# steps as `lib.steps.<module>:<Class>` after the lab root is on sys.path.
+# See docs/schemas/library.schema.yaml for the full schema.
+
+apiVersion: mas/v1
+kind: Library
+
+name: lifecycle-control-lib
+description: >
+  Lab-local pipeline figure steps for lifecycle-control.lab. Not a shipped
+  package; listed from lab-config.yaml as lib/.
+version: "0.1.0"
+
+types:
+  - step
+
+plugins:
+  - type: step
+    name: figure_call_counts
+    module: lib.steps.figure_call_counts
+    class: FigureCallCountsStep
+  - type: step
+    name: figure_governance_overhead
+    module: lib.steps.figure_governance_overhead
+    class: FigureGovernanceOverheadStep
+  - type: step
+    name: figure_precision_recall_detail
+    module: lib.steps.figure_precision_recall_detail
+    class: FigurePrecisionRecallDetailStep
+  - type: step
+    name: figure_moodbar_detail
+    module: lib.steps.figure_moodbar_detail
+    class: FigureMoodbarDetailStep
+  - type: step
+    name: figure_stacking_detail
+    module: lib.steps.figure_stacking_detail
+    class: FigureStackingDetailStep
+  - type: step
+    name: figure_per_call
+    module: lib.steps.figure_per_call
+    class: FigurePerCallStep
+  - type: step
+    name: figure_nonllm
+    module: lib.steps.figure_nonllm
+    class: FigureNonllmStep
+  - type: step
+    name: figure_trajectory_automaton
+    module: lib.steps.figure_trajectory_automaton
+    class: FigureTrajectoryAutomatonStep
+  - type: step
+    name: figure_trajectory_swimlane
+    module: lib.steps.figure_trajectory_swimlane
+    class: FigureTrajectorySwimlaneStep
+  - type: step
+    name: figure_trajectory_compact
+    module: lib.steps.figure_trajectory_compact
+    class: FigureTrajectoryCompactStep
+  - type: step
+    name: figure_trajectory_bw
+    module: lib.steps.figure_trajectory_bw
+    class: FigureTrajectoryBwStep
+  - type: step
+    name: figure_trajectory_paper
+    module: lib.steps.figure_trajectory_paper
+    class: FigureTrajectoryPaperStep
+  - type: step
+    name: figure_trajectory_bw_plot
+    module: lib.steps.figure_trajectory_bw_plot
+    class: FigureTrajectoryBwPlotStep

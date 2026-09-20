@@ -21,6 +21,10 @@ evaluate answer quality with MCE, and generate plots — first
 manually, then via reusable pipelines, and finally in a full experiment
 comparing three MAS topologies on the trip planner.
 
+A **lab** is this experiment pack. A **library** is reusable YAML and code
+(`samples:tools/calc.tool.yaml`). When to create each:
+[labs-and-libraries.md](../../labs-and-libraries.md).
+
 1. **Part A** — Manual trace analysis on a QA agent (CLI commands one by one)
 2. **Part B** — Turning those manual steps into a declarative pipeline
 3. **Part C** — Trip planner experiment: single-agent vs. linear vs. moderator, evaluated with MCEv1 `AnswerRelevancyMetric` and compared in a grouped ggplot2 plot

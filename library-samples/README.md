@@ -7,6 +7,8 @@
 Reusable **artefacts** for tutorials and labs — not runnable experiments.
 
 **Rule:** YAML samples live here, grouped by artefact type. Experiments belong only under `labs/*.lab/`.
+A lab is the experiment pack; this tree is a **library**. When to create
+each: [docs/labs-and-libraries.md](../docs/labs-and-libraries.md).
 
 ## What belongs here
 

@@ -12,6 +12,11 @@ This guide covers extending `mas-runtime` with plugins, tools, and overlays whil
 
 ## Extension points
 
+Plugins belong **in a library** (`library.yaml`), not in a lab root and not
+in a third top-level plugins folder. Discovery order:
+[library-discovery.md](../../docs/library-discovery.md). User model:
+[labs-and-libraries.md](../../docs/labs-and-libraries.md).
+
 ### Plugins
 
 - Implement plugin interfaces using runtime contract expectations.

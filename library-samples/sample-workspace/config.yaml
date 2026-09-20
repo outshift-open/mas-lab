@@ -28,3 +28,9 @@ infra_refs:
 # runtime_refs:
 #   - standard:runtime-default
 #   - runtime/local.yaml
+
+# Optional extra libraries (name → path relative to the workspace root).
+# Lab-local libraries listed in lab-config.yaml are searched first.
+# See docs/labs-and-libraries.md.
+# manifest_libraries:
+#   acme: ./libraries/acme

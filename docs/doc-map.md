@@ -35,6 +35,7 @@ When you add or rename a doc page, update **`mkdocs.yml` nav** and cross-links i
 ### User guide
 
 - [User guide](user-guide.md)
+- [Labs vs libraries](labs-and-libraries.md)
 - [User configuration](user-config.md)
 - [Package map](libraries.md)
 - [Observability / run logs](cli/observability.md)
@@ -55,7 +56,7 @@ When you add or rename a doc page, update **`mkdocs.yml` nav** and cross-links i
 - [References index](references/index.md)
 - Specifications → `manifests/*.md`, [schemas](references/schemas.md)
 - Runtime → [manifests/runtime.md](manifests/runtime.md), [runtime docs](references/runtime.md)
-- Lab & benchmarks → experiment/dataset/pipeline manifests, [lab bench](references/lab.md)
+- Lab & benchmarks → experiment/dataset/pipeline manifests, [lab bench](references/lab.md), [library discovery](library-discovery.md)
 
 ### Paper
 

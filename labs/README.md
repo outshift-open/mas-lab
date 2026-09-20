@@ -8,7 +8,8 @@
 `experiment.yaml` lists **scenarios**, a **dataset**, and an **embedded pipeline**
 that builds figures from **`events.jsonl`** logs.
 
-Terms: [glossary.md](../docs/glossary.md).
+Terms: [glossary.md](../docs/glossary.md). Lab vs library:
+[labs-and-libraries.md](../docs/labs-and-libraries.md).
 
 ## Generate figures
 
@@ -48,7 +49,8 @@ mas-lab benchmark show last plots
 
 ## Extend
 
-[lab/docs/labs-going-further.md](../lab/docs/labs-going-further.md).
+[lab/docs/labs-going-further.md](../lab/docs/labs-going-further.md) ·
+[docs/labs-and-libraries.md](../docs/labs-and-libraries.md).
 
 ## See also
 

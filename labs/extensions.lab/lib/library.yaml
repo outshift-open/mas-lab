@@ -1,0 +1,49 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Lab-local library for extensions.lab.
+# Scheme name is the listed basename (`lib/`). Pipeline YAML still loads
+# steps as `lib.steps.<module>:<Class>` after the lab root is on sys.path.
+# `lib/memory/` is a helper package for Letta overlays, not a runtime plugin.
+# See docs/schemas/library.schema.yaml for the full schema.
+
+apiVersion: mas/v1
+kind: Library
+
+name: extensions-lib
+description: >
+  Lab-local pipeline steps and Letta memory helpers for extensions.lab.
+  Not a shipped package; listed from lab-config.yaml as lib/.
+version: "0.1.0"
+
+types:
+  - step
+
+plugins:
+  - type: step
+    name: attribution_flow
+    module: lib.steps.attribution_flow
+    class: AttributionFlowStep
+  - type: step
+    name: eval_fact_recall
+    module: lib.steps.eval_fact_recall
+    class: EvalFactRecallStep
+  - type: step
+    name: figure_provenance_record
+    module: lib.steps.figure_provenance_record
+    class: FigureProvenanceRecordStep
+  - type: step
+    name: figure_recall_summary
+    module: lib.steps.figure_recall_summary
+    class: FigureRecallSummaryStep
+  - type: step
+    name: figure_smoke_evidence
+    module: lib.steps.figure_smoke_evidence
+    class: FigureSmokeEvidenceStep
+  - type: step
+    name: governance_overhead
+    module: lib.steps.governance_overhead
+    class: GovernanceOverheadStep
+  - type: step
+    name: sankey_flow
+    module: lib.steps.sankey_flow
+    class: SankeyFlowStep
