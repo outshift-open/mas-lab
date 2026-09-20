@@ -31,9 +31,9 @@ mas-lab init
 # 3 — Export the API key printed by init
 export OPENAI_API_KEY=<your-key>
 
-# 4 — Run the trip-planner sample (mock LLM, no key required)
+# 4 — Run the trip-planner sample
 mas-ctl run-mas library-samples/apps/trip-planner/mas.yaml \
-  --infra-ref standard:mock-llm \
+  --infra-ref standard:openai \
   -q "Plan a trip from Celestia to Verdantia"
 
 # 5 — Inspect traces

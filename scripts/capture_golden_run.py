@@ -77,7 +77,7 @@ def _capture_one(
     # point at a private standard:llm-proxy) cannot bleed into the OSS capture.
     os.environ["XDG_CONFIG_HOME"] = str(tmp / "xdg-config")
     # Pin the workspace so find_workspace_file() always finds the OSS workspace
-    # config (infra_refs: [standard:mock-llm]).  Without this, the walk stops at
+    # config.  Without this, the walk stops at
     # .git (no config.yaml at repo root), falls back to the now-isolated XDG
     # path, finds nothing, and resolve_infra_refs falls through to
     # standard:production — hitting a real LLM and causing a 401 or wrong event

@@ -15,7 +15,7 @@ from mas.runtime.driver.driver import KernelDriver
 from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.driver.mocks import AutoCtxAssembler
 from mas.runtime.schema.egress import InvokeEngineIo
-from mas.runtime.schema.ingress import EngineIoReturn
+from mas.runtime.schema.ingress import EngineIoReturn, ToolCallSpec
 
 
 def test_working_memory_source_type():
@@ -60,6 +60,75 @@ def test_driver_records_working_memory():
         ),
     )
     assert ctx.working_memory.messages[0]["tool_calls"][0]["id"] == "call_7"
+
+
+def test_driver_records_parallel_tool_calls_on_llm_return():
+    ctx = AutoCtxAssembler()
+    driver = KernelDriver(kernel=MagicMock(), engine=MagicMock(), ctx=ctx)
+    driver._record_working_memory(
+        InvokeEngineIo(correlation_id=4, op="LLM_CALL"),
+        EngineIoReturn(
+            correlation_id=4,
+            response_kind="MODEL_TEXT",
+            next_step="PARALLEL_TOOL_CALLS",
+            parallel_tools=(
+                ToolCallSpec(tool_name="web-search", tool_arguments={"query": "POTUS"}),
+                ToolCallSpec(tool_name="calc", tool_arguments={"expression": "1+1"}),
+            ),
+            text="",
+        ),
+    )
+    calls = ctx.working_memory.messages[0]["tool_calls"]
+    assert [c["id"] for c in calls] == ["call_4_0", "call_4_1"]
+    driver._sync_tool_result_memory(
+        EngineIoReturn(
+            correlation_id=99,
+            response_kind="TOOL_RESULT",
+            next_step="LLM_CALL",
+            text="search hits",
+        ),
+    )
+    assert ctx.working_memory.messages[-1]["role"] == "tool"
+    assert ctx.working_memory.messages[-1]["tool_call_id"] == "call_4_0"
+
+
+def test_hitl_allow_does_not_record_tool_result_before_tool_runs():
+    """Regression: tool-call HITL ALLOW used to append an empty tool row, then
+    the real TOOL_RESULT invented a second id Azure rejects."""
+    from mas.runtime.schema.hitl import HitlResolveChoice
+    from mas.runtime.schema.ingress import HitlResolve
+
+    ctx = AutoCtxAssembler()
+    kernel = MagicMock()
+    kernel.run.events = []
+    driver = KernelDriver(kernel=kernel, engine=MagicMock(), ctx=ctx)
+    driver._record_working_memory(
+        InvokeEngineIo(correlation_id=1, op="LLM_CALL"),
+        EngineIoReturn(
+            correlation_id=1,
+            response_kind="MODEL_TEXT",
+            next_step="TOOL_CALL",
+            tool_name="web-search",
+            tool_arguments={"query": "POTUS"},
+            text="",
+        ),
+    )
+    driver._sync_tool_result_memory(
+        HitlResolve(request_id=1, resolution=HitlResolveChoice.ALLOW)
+    )
+    assert [m["role"] for m in ctx.working_memory.messages] == ["assistant"]
+    driver._sync_tool_result_memory(
+        EngineIoReturn(
+            correlation_id=3,
+            response_kind="TOOL_RESULT",
+            next_step="LLM_CALL",
+            text="search hits",
+        )
+    )
+    tool_msgs = [m for m in ctx.working_memory.messages if m.get("role") == "tool"]
+    assert len(tool_msgs) == 1
+    assert tool_msgs[0]["tool_call_id"] == "call_1"
+    assert tool_msgs[0]["content"] == "search hits"
 
 
 def test_parallel_tool_calls_single_assistant_message():

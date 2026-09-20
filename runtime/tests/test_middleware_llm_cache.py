@@ -220,3 +220,37 @@ def test_llm_cache_backward_compatible_plain_string_entries(tmp_path):
     assert ret.text == "plain answer"
     assert ret.next_step == "STOP"
     assert inner.calls == 0
+
+
+def test_peer_engine_middleware_instances_do_not_clobber_cache(tmp_path):
+    """MAS peer agents each wrap LiveLlmEngine; persist must keep both keys."""
+    cache_path = tmp_path / "cache.json"
+    inner_a = _SequenceEngine(
+        preview_text="moderator",
+        responses=[
+            EngineIoReturn(
+                correlation_id=1,
+                response_kind="MODEL_TEXT",
+                next_step="TOOL_CALL",
+                tool_name="delegate_to_itinerary_agent",
+                tool_arguments={"task": "routes"},
+                text="",
+            )
+        ],
+    )
+    inner_b = _SequenceEngine(
+        preview_text="itinerary",
+        responses=[
+            EngineIoReturn(
+                correlation_id=1,
+                response_kind="MODEL_TEXT",
+                next_step="STOP",
+                text="Celestia → Verdantia",
+            )
+        ],
+    )
+    spec = {"middleware": "llm_cache", "params": {"cache_path": str(cache_path)}}
+    apply_middleware(inner_a, spec).invoke(InvokeEngineIo(correlation_id=1, op="LLM_CALL"))
+    apply_middleware(inner_b, spec).invoke(InvokeEngineIo(correlation_id=1, op="LLM_CALL"))
+    data = json.loads(cache_path.read_text(encoding="utf-8"))
+    assert len(data) == 2

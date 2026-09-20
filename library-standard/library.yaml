@@ -8,7 +8,7 @@ kind: Library
 
 name: mas-library-standard
 description: >
-  Standard library for MAS — infra bundles (OpenAI, mock, production),
+  Standard library for MAS — infra bundles (OpenAI, production),
   tutorial tools (web-search, calculator), and design-pattern aliases.
 version: "0.0.1"
 dependencies:

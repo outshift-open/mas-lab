@@ -12,7 +12,6 @@ from typing import Any
 
 from mas.ctl.compose.models import ResolvedInfra
 from mas.ctl.infra.resolve import resolution_anchor, resolve_infra_refs
-from mas.ctl.infra.resolve import InfraResolveError
 from mas.ctl.infra.resolve import api_key_for_infra
 from mas.ctl.session.manifest_config import engine_use_tool_loop, kernel_config_from_manifest  # kernel_config_from_manifest: deprecated; prefer RuntimeInstance.from_spec()
 from mas.ctl.workspace.config import UserConfig, WorkspaceConfig, merge_infra_refs
@@ -43,22 +42,22 @@ def _warn_llm_spec_fallback(field: str) -> None:
 @dataclass(frozen=True)
 class EngineSelection:
     engine: Any
-    mode: str  # live | mock
+    mode: str  # live | replay
     reason: str = ""
 
 
-def is_mock_mode(manifest: dict | None, infra: ResolvedInfra | None) -> bool:
-    spec = (manifest or {}).get("spec") or {}
-    llm = spec.get("llm") or {}
-    if str(llm.get("provider", "")).lower() == "mock":
-        return True
-    if os.environ.get("MAS_MOCK_LLM", "").lower() in ("1", "true", "yes"):
-        return True
-    llm_proxy = (infra.llm_proxy if infra else {}) or {}
-    if llm_proxy.get("mock"):
-        return True
-    refs = infra.refs if infra else []
-    return any("mock-llm" in r for r in refs)
+def _strict_replay(llm_proxy: dict[str, Any] | None) -> bool:
+    """True when an llm_cache pipeline step will error on miss (offline replay)."""
+    for step in (llm_proxy or {}).get("pipeline") or []:
+        if not isinstance(step, dict):
+            continue
+        mid = str(step.get("middleware") or "")
+        if mid not in {"llm_cache", "llm-cache"}:
+            continue
+        params = step.get("params") or {}
+        if params.get("raise_on_miss") is True:
+            return True
+    return False
 
 
 def resolve_model_name(
@@ -143,28 +142,15 @@ def _resolve_infra_for_engine(
         cli_refs=[],
         workspace_found=ws.found,
     )
-    if not merged_refs and is_mock_mode(manifest, infra):
-        merged_refs = ["standard:mock-llm"]
     if not merged_refs:
         return infra or ResolvedInfra(refs=[], llm_proxy={})
-    try:
-        return resolve_infra_refs(
-            merged_refs,
-            anchor=anchor,
-            workspace=ws,
-            user=user,
-            runtime_refs=list(runtime_refs_cli or []),
-        )
-    except InfraResolveError:
-        if is_mock_mode(manifest, infra):
-            return resolve_infra_refs(
-                ["standard:mock-llm"],
-                anchor=anchor,
-                workspace=ws,
-                user=user,
-                runtime_refs=list(runtime_refs_cli or []),
-            )
-        raise
+    return resolve_infra_refs(
+        merged_refs,
+        anchor=anchor,
+        workspace=ws,
+        user=user,
+        runtime_refs=list(runtime_refs_cli or []),
+    )
 
 
 def build_engine(
@@ -196,27 +182,27 @@ def build_engine(
         runtime_refs_cli=runtime_refs_cli,
     )
     llm_proxy = dict(resolved.llm_proxy or {})
-    mock = is_mock_mode(manifest, resolved) or bool(llm_proxy.get("mock"))
+    strict_replay = _strict_replay(llm_proxy)
 
     api_base = str(llm_proxy.get("api_base") or "").strip()
     api_key_env = str(llm_proxy.get("api_key_env") or "OPENAI_API_KEY")
 
-    if mock:
-        mode = "mock"
-        reason = "mock infra ref or model_access provider"
+    api_key = api_key_for_infra(llm_proxy)
+    if not api_base and not strict_replay:
+        raise RuntimeError(
+            "No LLM configured: resolve infra (workspace infra_refs or --infra-ref). "
+            "For offline CI, attach llm_cache replay (raise_on_miss) recorded against a live provider."
+        )
+    if not api_key and not strict_replay:
+        env_name = llm_proxy.get("api_key_env") or "OPENAI_API_KEY"
+        raise RuntimeError(
+            f"Live LLM configured ({api_base}) but {env_name} is unset. "
+            "Set the API key, or replay from an llm_cache fixture with raise_on_miss: true."
+        )
+    if strict_replay:
+        mode = "replay"
+        reason = "llm_cache raise_on_miss"
     else:
-        api_key = api_key_for_infra(llm_proxy)
-        if not api_base:
-            raise RuntimeError(
-                "No LLM configured: resolve infra (workspace infra_refs or --infra-ref), "
-                "or use a mock infra ref (e.g. standard:mock-llm in workspace infra_refs)."
-            )
-        if not api_key:
-            env_name = llm_proxy.get("api_key_env") or "OPENAI_API_KEY"
-            raise RuntimeError(
-                f"Live LLM configured ({api_base}) but {env_name} is unset. "
-                "Set the API key or point infra_refs at standard:mock-llm."
-            )
         mode = "live"
         reason = f"resolved infra → {api_base}"
 
@@ -225,7 +211,7 @@ def build_engine(
     runtime_engine = dict(resolved.runtime_engine or {})
     cache_read = _cache_read_enabled(runtime_engine, override=cache_read_override)
     cache_write = _cache_write_enabled(runtime_engine, override=cache_write_override)
-    cache_active = (cache_read or cache_write) and not mock and not (llm_proxy.get("pipeline"))
+    cache_active = (cache_read or cache_write) and not (llm_proxy.get("pipeline"))
     cache_path = Path(str(cache_raw)) if cache_raw else resolve_cache_path() if cache_active else None
     stream = _stream_enabled(runtime_engine, override=stream_override)
 
@@ -233,7 +219,7 @@ def build_engine(
         LiveLlmEngine(
             ctx=ctx,
             manifest=manifest,
-            api_base=api_base or "mock://local",
+            api_base=api_base or "https://api.openai.com/v1",
             api_key_env=api_key_env,
             model=model,
             temperature=_resolve_sampling_param(manifest, "temperature", 0.7),
@@ -250,22 +236,6 @@ def build_engine(
         ),
         llm_proxy.get("pipeline") or [],
     )
-    if mock:
-        from mas.runtime.engine.leaf import leaf_engine
-
-        leaf = leaf_engine(engine)
-        if getattr(leaf, "_model_access", None) is None:
-            ma_cfg = llm_proxy.get("model_access")
-            if isinstance(ma_cfg, dict) and ma_cfg:
-                raise RuntimeError(
-                    "Mock mode has model_access infra config but no plugin was loaded. "
-                    "Check module_path/class_name, or see ModelAccessLoadError above "
-                    "if instantiation failed."
-                )
-            raise RuntimeError(
-                "Mock mode requires model_access from standard:mock-llm infra "
-                "(workspace infra_refs or --infra-ref with standard:mock-llm)."
-            )
     return EngineSelection(engine=engine, mode=mode, reason=reason)
 
 

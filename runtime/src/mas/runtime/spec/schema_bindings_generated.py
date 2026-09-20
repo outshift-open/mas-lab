@@ -19,16 +19,9 @@ EXECUTION_BINDING_KEYS = frozenset(
     'engine_queue_depth',
     'live',
     'max_auto_steps',
-    'mocking',
     'parallel',
     'stream',
     'timeout',
-    }
-)
-
-EXECUTION_MOCKING_KEYS = frozenset(
-    {
-    'enabled',
     }
 )
 

@@ -1,0 +1,20 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: infra/v1
+kind: InfraMiddleware
+
+metadata:
+  name: ci-llm-cache-write
+  description: >
+    Record LLM_CALL results into ci.llm-cache.json. Pair with a live provider
+    then switch tests to ci-replay.yaml.
+
+spec:
+  middleware: llm_cache
+  applies_to:
+    - LLM_CALL
+  params:
+    allow_read: true
+    allow_write: true
+    raise_on_miss: false
+    cache_path: ci.llm-cache.json

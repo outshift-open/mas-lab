@@ -52,7 +52,7 @@ def test_bidirectional_pipeline_backward_transform():
 
 
 def test_bidirectional_pipeline_from_resolved_infra(tmp_path: Path):
-    infra = resolve_infra_refs(["standard:mock-llm"], anchor=tmp_path)
+    infra = resolve_infra_refs(["standard:openai"], anchor=tmp_path)
     pipe = bidirectional_pipeline_for(infra.llm_proxy)
     assert isinstance(pipe, BidirectionalInfraPipeline)
     ctx = InfraChainContext(query={"messages": [{"role": "user", "content": "hi"}]})
@@ -198,8 +198,8 @@ def test_resolve_infra_uses_workspace_root_when_anchor_omitted():
         pytest.skip("library-samples/sample-workspace/config.yaml not in workspace")
     ws = WorkspaceConfig.load(sample)
     assert ws.found and ws.root
-    infra = resolve_infra_refs(["standard:mock-llm"], workspace=ws)
-    assert infra.refs == ["standard:mock-llm"]
+    infra = resolve_infra_refs(["standard:openai"], workspace=ws)
+    assert infra.refs == ["standard:openai"]
     assert infra.llm_proxy.get("api_key_env")
 
 

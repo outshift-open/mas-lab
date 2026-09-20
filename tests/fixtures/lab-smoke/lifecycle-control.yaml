@@ -3,7 +3,7 @@
 experiment:
   name: smoke-lifecycle-control
   description: >
-    CI smoke for lifecycle-control.lab — one mock run, trace/mealy stats pipeline,
+    CI smoke for lifecycle-control.lab — one run, trace/mealy stats pipeline,
     isolated trace cache (cache disabled).
   default_flavour: local
   applications:
@@ -12,8 +12,7 @@ experiment:
   scenarios:
     - id: baseline
       overlays:
-        logic:
-          - ref: ../../../docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml
+        logic: []
         control: []
         infra: []
   dataset:

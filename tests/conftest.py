@@ -4,11 +4,15 @@
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 import time
 from pathlib import Path
 
 import pytest
+
+# Allow `from ci_llm import ...` in tests/ without making tests a package.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 # Isolate controller paths before any mas.lab.controller import at collection time.
 _TEST_HOME = Path(tempfile.mkdtemp(prefix="mas-test-home-"))

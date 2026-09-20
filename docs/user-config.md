@@ -188,7 +188,7 @@ instead:
 | --- | --- |
 | `spec.infra_refs`, `spec.runtime_refs`, `infra_interceptors` | `infra_refs` / `runtime_refs` in `config.yaml`, `MAS_INFRA_REFS` / `MAS_RUNTIME_REFS`, `--infra-ref` / `--runtime-ref` |
 | `spec.execution` (cache, stream, queue depth, parallel tools, …) | `kind: RuntimeEngine` refs (see [runtime-engine.md](manifests/runtime-engine.md)) |
-| Mock overlay only (`llm.provider: mock`) | Same overlay **and** `infra_refs: [standard:mock-llm]` (or env/CLI) |
+| Offline LLM turns (no live provider) | [llm_cache replay](manifests/llm-cache.md) (`raise_on_miss`) recorded against a live provider |
 
 `experiment.execution` in **mas-lab benchmark** YAML is unrelated — batch
 orchestration and trace emulation ([experiment.md](manifests/experiment.md#execution-batch-orchestration)).
@@ -200,9 +200,10 @@ orchestration and trace emulation ([experiment.md](manifests/experiment.md#execu
 See `library-standard/src/mas/library/standard/libs/standard/openai.yaml` and
 `config/infra/openai.example.yaml`.
 
-### Mock / offline
+### Offline replay
 
-Use `standard:mock-llm` for CI and tutorials (no network).
+Record with a live provider, then replay from disk (`raise_on_miss: true`).
+See [llm-cache.md](manifests/llm-cache.md).
 
 Library names, lab-local `lab.libraries`, and workspace `manifest_libraries:`:
 [labs-and-libraries.md](labs-and-libraries.md).

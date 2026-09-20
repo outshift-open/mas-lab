@@ -2,7 +2,7 @@
 #  SPDX-License-Identifier: Apache-2.0
 experiment:
   name: cache-rerun-extensions
-  description: Mock single-run extensions smoke for trace-cache invalidation tests
+  description: Single-run extensions smoke for trace-cache invalidation tests
   default_flavour: local
   applications:
     - app: trip-planner
@@ -10,8 +10,7 @@ experiment:
   scenarios:
     - id: vector-baseline
       overlays:
-        logic:
-          - ref: ../../../docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml
+        logic: []
         control: []
         infra: []
   dataset:

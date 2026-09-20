@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pytest
 from mas.runtime.engine.infra_pipeline import (
@@ -122,3 +122,30 @@ def test_llm_cache_caches_post_tool_preview(tmp_path):
     assert first.text == "live-response-1"
     assert second.text == "live-response-1"
     assert inner.calls == 1
+
+
+@dataclass
+class _ScheduledToolEngine(_EchoEngine):
+    scheduled: list[tuple[int, str, dict]] = field(default_factory=list)
+
+    def set_tool_for_correlation(self, correlation_id: int, name: str, arguments: dict | None = None) -> None:
+        self.scheduled.append((correlation_id, name, dict(arguments or {})))
+
+    def set_scheduled_tool(self, name: str, arguments: dict | None = None) -> None:
+        self.scheduled.append((0, name, dict(arguments or {})))
+
+
+def test_pipeline_forwards_scheduled_tool_setters(tmp_path):
+    """Driver setattr on the wrapped engine must reach the leaf (parallel tools)."""
+    cache_path = tmp_path / "cache.json"
+    inner = _ScheduledToolEngine()
+    engine = wrap_bidirectional_pipeline(
+        inner,
+        [{"middleware": "llm_cache", "params": {"cache_path": str(cache_path)}}],
+    )
+    engine.set_tool_for_correlation(3, "calc", {"expression": "2+2"})
+    engine.set_scheduled_tool("web-search", {"query": "POTUS"})
+    assert inner.scheduled == [
+        (3, "calc", {"expression": "2+2"}),
+        (0, "web-search", {"query": "POTUS"}),
+    ]

@@ -3,7 +3,7 @@
 # Golden-run lab manifest
 #
 # Each entry maps a fixture label under tests/fixtures/golden-runs/ to a
-# mock-LLM capture experiment (fast, deterministic CI parity).
+# llm_cache-replay capture experiment (deterministic CI parity).
 #
 # Capture:
 #   python scripts/capture_golden_run.py --labs all

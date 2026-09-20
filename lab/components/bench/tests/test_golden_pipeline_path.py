@@ -3,12 +3,24 @@
 """Golden-path: experiment run produces events.jsonl and post-run pipeline artifacts."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SMOKE_EXP = REPO_ROOT / "tests/fixtures/lab-smoke/experiment.yaml"
+_CI_CACHE = REPO_ROOT / "tests/fixtures/llm-cache/ci.llm-cache.json"
+_CI_REPLAY = REPO_ROOT / "tests/fixtures/llm-cache/ci-replay.yaml"
+
+
+def _ci_cache_ready() -> bool:
+    if not _CI_CACHE.is_file():
+        return False
+    try:
+        return bool(json.loads(_CI_CACHE.read_text(encoding="utf-8")))
+    except (OSError, json.JSONDecodeError):
+        return False
 
 
 @pytest.fixture
@@ -30,7 +42,7 @@ def smoke_env(tmp_path, monkeypatch):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     (workspace / "config.yaml").write_text(
-        "infra_refs:\n  - standard:mock-llm\n",
+        "infra_refs:\n  - standard:openai\n",
         encoding="utf-8",
     )
 
@@ -41,6 +53,15 @@ def smoke_env(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CACHE_HOME", str(xdg_cache))
     monkeypatch.setenv("XDG_STATE_HOME", str(xdg_state))
     monkeypatch.setenv("MAS_WORKSPACE_ROOT", str(workspace))
+    monkeypatch.setenv(
+        "MAS_INFRA_REFS",
+        f"standard:openai,{_CI_REPLAY.resolve()}",
+    )
+    if not _ci_cache_ready():
+        raise AssertionError(
+            "tests/fixtures/llm-cache/ci.llm-cache.json is empty. "
+            "Record it against a live provider: python scripts/record_ci_llm_cache.py"
+        )
     return out, trace_cache
 
 

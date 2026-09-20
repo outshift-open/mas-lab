@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Shared LLM response cache utilities (live engine, mock model access, HTTP mock server)."""
+"""Shared LLM response cache utilities (live engine and llm_cache middleware)."""
 
 from __future__ import annotations
 

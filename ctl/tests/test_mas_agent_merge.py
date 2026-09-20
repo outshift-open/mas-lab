@@ -399,7 +399,8 @@ def test_create_agent_runtime_applies_mas_overlay_context(monkeypatch, tmp_path:
 
     monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: WorkspaceConfig({}))
     monkeypatch.setattr(UserConfig, "load", lambda *a, **k: UserConfig({}))
-    infra = resolve_infra_refs(["standard:mock-llm"], anchor=tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "ci-test-unused")
+    infra = resolve_infra_refs(["standard:openai"], anchor=tmp_path)
 
     agent_yaml = tmp_path / "agents" / "moderator" / "agent.yaml"
     agent_yaml.parent.mkdir(parents=True)

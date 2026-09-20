@@ -122,7 +122,6 @@ def _render_bindings(agent: dict[str, Any]) -> str:
     chunks = [
         ("LLM_BINDING_KEYS", _property_keys(llm, _FRAGMENTS)),
         ("EXECUTION_BINDING_KEYS", _property_keys(execution, _FRAGMENTS)),
-        ("EXECUTION_MOCKING_KEYS", _nested_keys(execution, "mocking")),
         ("EXECUTION_CACHE_KEYS", _nested_keys(execution, "cache")),
         ("CONTROL_BINDING_KEYS", _property_keys(control, _FRAGMENTS)),
         ("DESIGN_PATTERN_BINDING_KEYS", _agent_binding_keys(agent, "design_pattern")),

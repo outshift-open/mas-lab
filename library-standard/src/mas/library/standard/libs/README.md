@@ -31,10 +31,6 @@ This directory contains infrastructure manifest bundles referenced via the
   - Includes: `standard:ollama`
   - For offline development and testing
 
-- **`standard:mock-llm`** — Mock LLM (offline / CI)
-  - No API key; cache-first echo responses
-  - Tutorials, `task verify`, and benchmark smoke tests
-
 - **`standard:llm-cache`** — `llm_cache` middleware (read+write, XDG cache path)
 
 - **`standard:llm-proxy-cached`** — OpenAI provider with cache middleware in front

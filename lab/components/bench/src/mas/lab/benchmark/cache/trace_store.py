@@ -73,9 +73,9 @@ def extract_flavour_info(flavour: Optional[Any]) -> dict:
     Post-FT4 (docs/design/flavour-boundary.md), a Flavour is deployment
     posture only: agent_comm (protocol, mode, emulation), tools
     (remote_tools_enabled, allowed), observability/control (plugin
-    selection), config (free-form deployment config). llm, skills, mocking,
+    selection), config (free-form deployment config). llm, skills,
     and prefer_local no longer live on the Flavour — they're on the agent
-    spec / execution overlay instead, and already flow into the cache key via
+    spec / workspace infra instead, and already flow into the cache key via
     ``manifest`` (the materialized per-agent config passed into
     :func:`compute_run_hash`), so removing them from the flavour side doesn't
     lose any determinism: it removes a redundant second copy of the same

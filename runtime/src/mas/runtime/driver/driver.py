@@ -59,6 +59,27 @@ def _exchange_timestamp() -> tuple[float, str]:
     )
 
 
+def _next_unbound_tool_call_id(store: Any, extra_messages: list[Any] | None = None) -> str:
+    """Id of the next assistant tool_call that has no matching tool result yet.
+
+    HITL can dispatch parallel tools one-at-a-time, so tool-result correlation
+    ids do not match the ids recorded on the assistant message. Bind in order.
+    ``extra_messages`` is committed history: HITL pause folds WM there before
+    the tool result arrives.
+    """
+    messages = list(extra_messages or []) + list(getattr(store, "messages", None) or [])
+    declared: list[str] = []
+    for msg in reversed(messages):
+        if msg.get("role") == "assistant" and msg.get("tool_calls"):
+            declared = [str(c.get("id") or "") for c in (msg.get("tool_calls") or []) if c.get("id")]
+            break
+    bound = {str(m.get("tool_call_id") or "") for m in messages if m.get("role") == "tool"}
+    for tid in declared:
+        if tid not in bound:
+            return tid
+    return ""
+
+
 def _engine_payload_json(obj: object) -> str:
     if hasattr(obj, "model_dump"):
         data = obj.model_dump(mode="json")  # type: ignore[union-attr]
@@ -605,6 +626,16 @@ class KernelDriver:
             return
         call_id = f"call_{ret.correlation_id if io.op == 'LLM_CALL' else io.correlation_id}"
         if io.op == "LLM_CALL" and ret.next_step == "PARALLEL_TOOL_CALLS":
+            calls = [
+                (
+                    f"call_{ret.correlation_id}_{idx}",
+                    str(spec.tool_name),
+                    dict(spec.tool_arguments or {}),
+                )
+                for idx, spec in enumerate(ret.parallel_tools)
+            ]
+            if calls:
+                store.record_assistant_tool_calls(calls)
             return
         if io.op == "LLM_CALL" and ret.next_step == "TOOL_CALL":
             store.record_assistant_tool_call(
@@ -634,7 +665,7 @@ class KernelDriver:
 
     def _sync_tool_result_memory(self, ingress: IngressSymbol) -> None:
         from mas.runtime.machines.gov import gov_is_hitl_pending
-        from mas.runtime.schema.ingress import EngineIoReturn, HitlResolve
+        from mas.runtime.schema.ingress import EngineIoReturn
 
         if gov_is_hitl_pending(self.kernel.q):
             return
@@ -645,34 +676,45 @@ class KernelDriver:
         if store is None:
             return
 
+        synced: set[int] = getattr(store, "_synced_tool_result_cids", None) or set()
+        store._synced_tool_result_cids = synced
+
         cid = 0
         text = ""
-        if isinstance(ingress, EngineIoReturn) and ingress.response_kind == "TOOL_RESULT":
+        events = getattr(getattr(self.kernel, "run", None), "events", None) or []
+        if not isinstance(events, (list, tuple)):
+            events = []
+        for row in reversed(events):
+            if getattr(row, "response_kind", "") != "TOOL_RESULT":
+                continue
+            row_cid = int(getattr(row, "correlation_id", 0) or 0)
+            if row_cid and row_cid in synced:
+                continue
+            cid = row_cid
+            text = str(getattr(row, "text", "") or "")
+            break
+        if not cid and isinstance(ingress, EngineIoReturn) and ingress.response_kind == "TOOL_RESULT":
             cid = ingress.correlation_id
             text = ingress.text
-        elif isinstance(ingress, HitlResolve):
-            for row in reversed(self.kernel.run.events):
-                if row.response_kind == "TOOL_RESULT":
-                    cid = row.correlation_id
-                    text = row.text or ""
-                    break
-        else:
+        if not cid and not str(text or "").strip():
+            return
+        if cid and cid in synced:
             return
 
-        for row in reversed(self.kernel.run.events):
-            if row.response_kind == "TOOL_RESULT" and (not cid or row.correlation_id == cid):
-                text = row.text or text
-                cid = row.correlation_id
-                break
         open_id = getattr(store, "_open_tool_call_id", "") or ""
-        call_id = open_id or (f"call_{cid}" if cid else "")
+        committed = list(getattr(ctx, "committed_messages", None) or [])
+        call_id = _next_unbound_tool_call_id(store, extra_messages=committed) or open_id
         if not call_id:
             return
         if store.messages and store.messages[-1].get("role") == "tool":
             last_cid = store.messages[-1].get("tool_call_id", "")
             if last_cid == call_id:
+                if cid:
+                    synced.add(cid)
                 return
         store.record_tool_result(call_id=call_id, content=str(text))
+        if cid:
+            synced.add(cid)
         from mas.runtime.boundary.context.telemetry import record_context_mutation
 
         record_context_mutation(
@@ -695,6 +737,10 @@ class KernelDriver:
         store = getattr(ctx, "working_memory", None)
         if store is None:
             return
+        if store.messages:
+            last = store.messages[-1]
+            if last.get("role") == "assistant" and last.get("tool_calls"):
+                return
         calls: list[tuple[str, str, dict]] = []
         for sym in ios:
             by_cid = q.pending_tools_by_cid.get(sym.correlation_id)

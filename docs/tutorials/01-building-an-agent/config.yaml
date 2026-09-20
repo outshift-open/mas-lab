@@ -1,7 +1,8 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
 # Live workspace. mas-ctl chat uses Tutorial 0 default_infra
-# (or MAS_INFRA_REFS / --infra-ref). No mock LLM is pinned here.
+# (or MAS_INFRA_REFS / --infra-ref).
+# Offline CI: pair standard:openai with tests/fixtures/llm-cache/ci-replay.yaml.
 mas_ctl:
   flavour: local
   env: .env

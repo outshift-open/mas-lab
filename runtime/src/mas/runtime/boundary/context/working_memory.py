@@ -68,6 +68,7 @@ class WorkingMemoryStore:
     def clear(self) -> None:
         self.messages.clear()
         self._open_tool_call_id = ""
+        self._synced_tool_result_cids: set[int] = set()
 
     def record_assistant_tool_call(
         self,

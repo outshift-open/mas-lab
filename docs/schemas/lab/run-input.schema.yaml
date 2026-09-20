@@ -37,7 +37,7 @@ properties:
           - type: string
             minLength: 1
       tool_fixtures:
-        description: "World / grounding state for mock tool providers."
+        description: "World / grounding state for deterministic tool fixtures."
         oneOf:
           - type: string
             minLength: 1

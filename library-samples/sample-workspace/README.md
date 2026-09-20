@@ -13,7 +13,8 @@ Canonical `config.yaml` for OSS development and CI.
 
 **Defaults**
 
-- Mock LLM (`standard:mock-llm`) — no API key required
+- Inherit user `default_infra` (Tutorial 0) — requires an API key for live runs
+- Offline CI: pair `standard:openai` with llm_cache replay (`raise_on_miss`)
 - Local ctl/lab flavours for benchmarks and tutorials
 
 For live OpenAI/production infra, start from

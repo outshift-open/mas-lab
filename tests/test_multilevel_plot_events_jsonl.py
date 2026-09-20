@@ -12,7 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 EVENTS_FIXTURE = (
     REPO_ROOT / "docs/tutorials/03-experiments-and-analysis/fixtures/events.jsonl"
 )
-MOCK_LLM_TRACE_FIXTURE = (
+LAB_SMOKE_TRACE_FIXTURE = (
     REPO_ROOT / "tests/fixtures/golden-runs/lab-smoke/events.jsonl"
 )
 # Canonical copy of the trip-planner sandbox trace for deterministic tests.
@@ -1008,12 +1008,12 @@ def test_multilevel_cli_from_events_jsonl(tmp_path: Path) -> None:
     assert out.stat().st_size > 200
 
 
-def test_mock_llm_trace_context_assembly_maps_to_real_llm_calls_only() -> None:
+def test_lab_smoke_trace_context_assembly_maps_to_real_llm_calls_only() -> None:
     from mas.lab.plots.multilevel_trajectory.records import _build_call_records
     from mas.lab.plots.trajectory import load_trace
 
-    assert MOCK_LLM_TRACE_FIXTURE.is_file(), f"missing fixture: {MOCK_LLM_TRACE_FIXTURE}"
-    events = load_trace(MOCK_LLM_TRACE_FIXTURE)
+    assert LAB_SMOKE_TRACE_FIXTURE.is_file(), f"missing fixture: {LAB_SMOKE_TRACE_FIXTURE}"
+    events = load_trace(LAB_SMOKE_TRACE_FIXTURE)
     recs = _build_call_records(events)
 
     llm_keys = {
@@ -1026,7 +1026,7 @@ def test_mock_llm_trace_context_assembly_maps_to_real_llm_calls_only() -> None:
         if r.get("call_type") == "ProcessingCall"
         and str(r.get("processing_name") or "").strip().lower() == "context assembly"
     ]
-    assert ctx_calls, "expected context assembly processing calls in mock-llm fixture"
+    assert ctx_calls, "expected context assembly processing calls in lab-smoke fixture"
     assert all(
         (str(r.get("agent_id") or ""), r.get("correlation_id")) in llm_keys
         for r in ctx_calls
@@ -1034,14 +1034,14 @@ def test_mock_llm_trace_context_assembly_maps_to_real_llm_calls_only() -> None:
     )
 
 
-def test_mock_llm_trace_context_assembly_precedes_llm_and_s1_stays_user_only() -> None:
+def test_lab_smoke_trace_context_assembly_precedes_llm_and_s1_stays_user_only() -> None:
     from mas.lab.plots.multilevel_trajectory.dag import _build_dag
     from mas.lab.plots.multilevel_trajectory.records import _build_call_records
     from mas.lab.plots.multilevel_trajectory.models import TransNode
     from mas.lab.plots.multilevel_trajectory.chart_data import build_trajectory_chart_data
     from mas.lab.plots.trajectory import load_trace
 
-    events = load_trace(MOCK_LLM_TRACE_FIXTURE)
+    events = load_trace(LAB_SMOKE_TRACE_FIXTURE)
     recs = _build_call_records(events)
 
     # Context assembly must end at/before its target LLM start for each correlation.
@@ -1110,7 +1110,7 @@ def test_real_trace_calls_lane_has_no_spurious_connector_only_states() -> None:
     from mas.lab.plots.multilevel_trajectory.chart_data import build_trajectory_chart_data
     from mas.lab.plots.trajectory import load_trace
 
-    events = load_trace(MOCK_LLM_TRACE_FIXTURE)
+    events = load_trace(LAB_SMOKE_TRACE_FIXTURE)
     chart = build_trajectory_chart_data(events, width_mode="log")
     call_lane = next(l for l in chart.get("lanes", []) if l.get("laneId") == "calls")
 
@@ -1125,7 +1125,7 @@ def test_real_trace_wait_states_if_present_are_followed_by_numbered_state_on_bot
     from mas.lab.plots.multilevel_trajectory.chart_data import build_trajectory_chart_data
     from mas.lab.plots.trajectory import load_trace
 
-    events = load_trace(MOCK_LLM_TRACE_FIXTURE)
+    events = load_trace(LAB_SMOKE_TRACE_FIXTURE)
     chart = build_trajectory_chart_data(events, width_mode="log")
     lane_by_id = {l.get("laneId"): l for l in chart.get("lanes", [])}
     if "calls" not in lane_by_id or "agents" not in lane_by_id:

@@ -20,7 +20,7 @@ observability, tool policy, and RAG/skills backend.
 
 | Aspect | Flavour sections | Examples |
 |--------|------------------|----------|
-| **Control / observation** | `observability`, `telemetry`, `tools` (tool-server enable, allow-list), `mocking` | OTel backend, span export path, deny dangerous tools |
+| **Control / observation** | `observability`, `telemetry`, `tools` (tool-server enable, allow-list) | OTel backend, span export path, deny dangerous tools |
 | **Protocol / comm** | `agent_comm` | `protocol: local \| grpc \| hybrid`, `mode`, `emulation` |
 
 Governance plugins that **alter trajectory** are usually declared on **Agent `plugins[]`** or
@@ -53,7 +53,7 @@ mas-lab benchmark run experiment.yaml --flavour local
 
 `metadata.default_flavour` on MAS provides the default name.
 
-**OSS mas-lab:** canonical flavour YAML lives only under `library-standard/src/mas/library/standard/flavours/` (`local.yaml`, `local-benchmark.yaml`, `mock.yaml`). The scheduler resolves flavours via `mas.lab.flavour.resolve.resolve_flavour_path()` — do not copy `flavours/local.yaml` into individual labs or samples.
+**OSS mas-lab:** canonical flavour YAML lives only under `library-standard/src/mas/library/standard/flavours/` (`local.yaml`, `local-benchmark.yaml`). The scheduler resolves flavours via `mas.lab.flavour.resolve.resolve_flavour_path()` — do not copy `flavours/local.yaml` into individual labs or samples.
 
 ---
 

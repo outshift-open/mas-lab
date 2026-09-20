@@ -93,7 +93,7 @@ Record and replay LLM responses via `kind: InfraMiddleware` with
 pipeline order. **Reference:** [llm-cache.md](../references/llm-cache.md).
 
 **Pipeline order:** only `InfraMiddleware` refs add pipeline steps; provider
-refs (`LLMProxy`, `standard:openai`, `standard:mock-llm`) do not. With one
+refs (`LLMProxy`, `standard:openai`, `standard:openai`) do not. With one
 cache middleware, provider and cache `--infra-ref` order is equivalent. With
 multiple middleware refs, **first merged ref = outermost**. See
 [llm-cache.md — Pipeline order](llm-cache.md#pipeline-order).

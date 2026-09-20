@@ -8,10 +8,12 @@ from pathlib import Path
 
 import pytest
 import yaml
+from ci_llm import mas_infra_refs_for_ci, require_ci_cache
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = REPO_ROOT / "tests/fixtures/golden-runs/labs.yaml"
 GOLDEN_ROOT = REPO_ROOT / "tests/fixtures/golden-runs"
+_SAMPLE_WS = REPO_ROOT / "library-samples" / "sample-workspace"
 
 
 def _labs_from_manifest() -> list[tuple[str, Path]]:
@@ -36,10 +38,11 @@ def golden_env(tmp_path, monkeypatch):
     # Isolate from personal ~/.config/mas/config.yaml (e.g. team:llm-proxy)
     # so golden-run parity tests are portable across developer machines and CI.
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-config"))
-    # Isolate from personal ~/.cache/mas/llm_cache.json so MockModelAccess uses
-    # its deterministic fallback rather than stale real-LLM cache entries.
+    # Isolate the built-in engine cache from the developer's XDG cache.
     monkeypatch.setenv("MAS_LLM_CACHE", str(tmp_path / "llm_cache.json"))
-    monkeypatch.setenv("MAS_INFRA_REFS", "standard:mock-llm")
+    monkeypatch.setenv("MAS_INFRA_REFS", mas_infra_refs_for_ci())
+    monkeypatch.setenv("MAS_WORKSPACE_ROOT", str(_SAMPLE_WS))
+    require_ci_cache()
     return out, trace_cache
 
 

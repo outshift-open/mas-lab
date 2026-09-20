@@ -126,8 +126,9 @@ delete the `.run_ref` file (breaks the link) and re-execute.
 > deduplicates whole *experiment runs*. Each individual LLM call within a run
 > has its own separate **LLM response cache** (policy from workspace
 > `runtime_refs` / `standard:runtime-default`, or `--cache-read` /
-> `--cache-write` on `mas-ctl chat`). Mock LLM comes from workspace
-> `infra_refs: [standard:mock-llm]` (see `config.yaml` in this tutorial).
+> `--cache-write` on `mas-ctl chat`). Offline CI replay uses
+> [llm_cache](../../manifests/llm-cache.md) (`raise_on_miss`) recorded against
+> a live provider. Tutorial 0 `config.yaml` inherits user `default_infra`.
 > See [runtime-engine.md](../../manifests/runtime-engine.md) and
 > [llm-cache.md](../../manifests/llm-cache.md).
 

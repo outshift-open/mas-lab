@@ -55,7 +55,7 @@ spec at load time without modifying the base YAML.
 experiment.yaml          ← the spec (scenarios, dataset, design)
 execution/
   local-dev.yaml         ← cache=content-addressed, parallel=4, timeout=120
-  ci-fast.yaml           ← n_runs=1, single scenario, mock LLM
+  ci-fast.yaml           ← n_runs=1, single scenario, llm_cache replay
   full-benchmark.yaml    ← n_runs=10, all scenarios, live LLM
 ```
 
@@ -182,8 +182,8 @@ Estimated scope: small (the merge machinery already exists for agent overlays).
 ## Why this matters for reproducibility
 
 An experiment YAML describes the *hypothesis being tested*.  It should be stable
-across environments.  The execution properties (cache, parallelism, LLM mock vs
-live) are *infrastructure concerns* that vary by context.
+across environments.  The execution properties (cache, parallelism, llm_cache
+replay vs live) are *infrastructure concerns* that vary by context.
 
 Mixing them in one file means the experiment YAML changes when the environment
 changes — making git history less meaningful and reproducibility harder.
