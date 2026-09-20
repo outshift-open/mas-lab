@@ -5,17 +5,14 @@
 Tests MAS manifests, overlay topologies, all trip-planner tools (real data
 from arborian-network.yaml), and mocked MAS execution.
 """
+
 from __future__ import annotations
 
-import json
 import sys
-from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 import yaml
-
-from conftest import T02, load_yaml, run_cli, make_llm_response
+from conftest import T02, load_yaml, run_cli
 
 # Ensure the tutorial tools directory is importable
 sys.path.insert(0, str(T02))
@@ -25,6 +22,7 @@ sys.path.insert(0, str(T02))
 # 1. Manifest validation (CLI)
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestMASValidation:
     """mas-ctl validate must pass for all manifests."""
 
@@ -32,10 +30,16 @@ class TestMASValidation:
         r = run_cli(["mas-ctl", "validate", str(T02 / "mas.yaml")])
         assert r.returncode == 0, r.stderr
 
-    @pytest.mark.parametrize("agent_dir", [
-        "moderator", "schedule-agent", "itinerary-agent",
-        "concierge-agent", "generalist",
-    ])
+    @pytest.mark.parametrize(
+        "agent_dir",
+        [
+            "moderator",
+            "schedule-agent",
+            "itinerary-agent",
+            "concierge-agent",
+            "generalist",
+        ],
+    )
     def test_validate_agent_manifests(self, agent_dir):
         agent_yaml = T02 / "agents" / agent_dir / "agent.yaml"
         if not agent_yaml.exists():
@@ -57,6 +61,7 @@ class TestMASValidation:
 # ═══════════════════════════════════════════════════════════════════════════
 # 2. MAS manifest structure (Python)
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class TestMASStructure:
     """Verify the MAS manifest and agent manifests have correct shape."""
@@ -99,6 +104,7 @@ class TestMASStructure:
 # 3. Arborian Network dataset (Python — data fixture)
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestArborianNetwork:
     """Verify the trip-planner dataset fixture loads correctly."""
 
@@ -132,11 +138,13 @@ class TestArborianNetwork:
 # 4. Trip-planner tools (Python — real execution against dataset)
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestCalcTool:
     """Test the calculator tool."""
 
     def test_collect_tools(self):
         from tools.calc import CalcTool
+
         tool = CalcTool()
         defs = tool.on_collect_tools()
         assert len(defs) == 1
@@ -144,24 +152,28 @@ class TestCalcTool:
 
     def test_basic_arithmetic(self):
         from tools.calc import CalcTool
+
         tool = CalcTool()
         result = tool.on_execute_tool("calc", {"expression": "100 + 200 * 3"})
         assert result["result"] == 700.0
 
     def test_division(self):
         from tools.calc import CalcTool
+
         tool = CalcTool()
         result = tool.on_execute_tool("calc", {"expression": "500 / 4"})
         assert result["result"] == 125.0
 
     def test_invalid_expression(self):
         from tools.calc import CalcTool
+
         tool = CalcTool()
         result = tool.on_execute_tool("calc", {"expression": "import os"})
         assert "error" in result
 
     def test_wrong_tool_name_returns_none(self):
         from tools.calc import CalcTool
+
         tool = CalcTool()
         assert tool.on_execute_tool("other", {}) is None
 
@@ -171,9 +183,8 @@ class TestLookupScheduleTool:
 
     def _make_tool(self):
         from tools.lookup_schedule import LookupScheduleTool
-        return LookupScheduleTool(
-            dataset_path=str(T02 / "datasets" / "arborian-network.yaml")
-        )
+
+        return LookupScheduleTool(dataset_path=str(T02 / "datasets" / "arborian-network.yaml"))
 
     def test_collect_tools(self):
         tool = self._make_tool()
@@ -183,28 +194,37 @@ class TestLookupScheduleTool:
 
     def test_valid_route(self):
         tool = self._make_tool()
-        result = tool.on_execute_tool("lookup_schedule", {
-            "origin": "Celestia",
-            "destination": "Verdantia",
-        })
+        result = tool.on_execute_tool(
+            "lookup_schedule",
+            {
+                "origin": "Celestia",
+                "destination": "Verdantia",
+            },
+        )
         assert result["found"] is True
         assert len(result["routes"]) > 0
 
     def test_invalid_route(self):
         tool = self._make_tool()
-        result = tool.on_execute_tool("lookup_schedule", {
-            "origin": "Nowhere",
-            "destination": "Neverland",
-        })
+        result = tool.on_execute_tool(
+            "lookup_schedule",
+            {
+                "origin": "Nowhere",
+                "destination": "Neverland",
+            },
+        )
         assert result["found"] is False
 
     def test_weekend_departures(self):
         tool = self._make_tool()
-        result = tool.on_execute_tool("lookup_schedule", {
-            "origin": "Celestia",
-            "destination": "Verdantia",
-            "departure_date": "weekend",
-        })
+        result = tool.on_execute_tool(
+            "lookup_schedule",
+            {
+                "origin": "Celestia",
+                "destination": "Verdantia",
+                "departure_date": "weekend",
+            },
+        )
         assert result["found"] is True
 
 
@@ -213,9 +233,8 @@ class TestQueryGraphDatabaseTool:
 
     def _make_tool(self):
         from tools.query_graph_database import QueryGraphDatabaseTool
-        return QueryGraphDatabaseTool(
-            dataset_path=str(T02 / "datasets" / "arborian-network.yaml")
-        )
+
+        return QueryGraphDatabaseTool(dataset_path=str(T02 / "datasets" / "arborian-network.yaml"))
 
     def test_collect_tools(self):
         tool = self._make_tool()
@@ -225,10 +244,13 @@ class TestQueryGraphDatabaseTool:
 
     def test_direct_route(self):
         tool = self._make_tool()
-        result = tool.on_execute_tool("query_graph_database", {
-            "origin": "Celestia",
-            "destination": "Verdantia",
-        })
+        result = tool.on_execute_tool(
+            "query_graph_database",
+            {
+                "origin": "Celestia",
+                "destination": "Verdantia",
+            },
+        )
         assert result["found"] is True
         assert len(result["routes"]) > 0
         # Each route should have hops
@@ -238,20 +260,26 @@ class TestQueryGraphDatabaseTool:
 
     def test_optimise_for_time(self):
         tool = self._make_tool()
-        result = tool.on_execute_tool("query_graph_database", {
-            "origin": "Celestia",
-            "destination": "Verdantia",
-            "optimise_for": "time",
-        })
+        result = tool.on_execute_tool(
+            "query_graph_database",
+            {
+                "origin": "Celestia",
+                "destination": "Verdantia",
+                "optimise_for": "time",
+            },
+        )
         assert result["found"] is True
         assert result["optimise_for"] == "time"
 
     def test_no_path(self):
         tool = self._make_tool()
-        result = tool.on_execute_tool("query_graph_database", {
-            "origin": "Celestia",
-            "destination": "NonExistentCity",
-        })
+        result = tool.on_execute_tool(
+            "query_graph_database",
+            {
+                "origin": "Celestia",
+                "destination": "NonExistentCity",
+            },
+        )
         assert result["found"] is False
 
 
@@ -260,9 +288,8 @@ class TestGetFaresTool:
 
     def _make_tool(self):
         from tools.get_fares import GetFaresTool
-        return GetFaresTool(
-            dataset_path=str(T02 / "datasets" / "arborian-network.yaml")
-        )
+
+        return GetFaresTool(dataset_path=str(T02 / "datasets" / "arborian-network.yaml"))
 
     def test_collect_tools(self):
         tool = self._make_tool()
@@ -278,19 +305,25 @@ class TestGetFaresTool:
         route = next(r for r in data["routes"] if r.get("fares_usd"))
         route_id = route["id"]
         travel_class = list(route["fares_usd"].keys())[0]
-        result = tool.on_execute_tool("get_fares", {
-            "route_id": route_id,
-            "travel_class": travel_class,
-        })
+        result = tool.on_execute_tool(
+            "get_fares",
+            {
+                "route_id": route_id,
+                "travel_class": travel_class,
+            },
+        )
         assert "fare_usd" in result
         assert isinstance(result["fare_usd"], (int, float))
 
     def test_invalid_route_id(self):
         tool = self._make_tool()
-        result = tool.on_execute_tool("get_fares", {
-            "route_id": "NONEXISTENT",
-            "travel_class": "Standard",
-        })
+        result = tool.on_execute_tool(
+            "get_fares",
+            {
+                "route_id": "NONEXISTENT",
+                "travel_class": "Standard",
+            },
+        )
         assert "error" in result
 
     def test_invalid_travel_class(self):
@@ -298,10 +331,13 @@ class TestGetFaresTool:
         with open(T02 / "datasets" / "arborian-network.yaml") as f:
             data = yaml.safe_load(f)
         route = next(r for r in data["routes"] if r.get("fares_usd"))
-        result = tool.on_execute_tool("get_fares", {
-            "route_id": route["id"],
-            "travel_class": "UltraLuxury",
-        })
+        result = tool.on_execute_tool(
+            "get_fares",
+            {
+                "route_id": route["id"],
+                "travel_class": "UltraLuxury",
+            },
+        )
         assert "error" in result
         assert "available_classes" in result
 
@@ -309,6 +345,7 @@ class TestGetFaresTool:
 # ═══════════════════════════════════════════════════════════════════════════
 # 5. Overlay merging (Python)
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class TestMASOverlayMerging:
     """Test overlay merging produces valid topology changes."""
@@ -336,19 +373,32 @@ class TestMASOverlayMerging:
 # 6. Skills presence (Python)
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestSkillsPresence:
     """Verify tutorial skills directories exist and have SKILL.md."""
 
-    @pytest.mark.parametrize("skill", [
-        "fare-and-itinerary-assembly",
-        "route-planning",
-        "transport-schedule-lookup",
-        "trip-orchestration",
-    ])
+    @pytest.mark.parametrize(
+        "skill",
+        [
+            "fare-and-itinerary-assembly",
+            "route-planning",
+            "transport-schedule-lookup",
+            "trip-orchestration",
+        ],
+    )
     def test_skill_has_readme(self, skill):
         skill_dir = T02 / "skills" / skill
         assert skill_dir.exists(), f"Skill dir {skill} missing"
         skill_md = skill_dir / "SKILL.md"
         assert skill_md.exists(), f"SKILL.md missing for {skill}"
-        content = skill_md.read_text()
+        content = skill_md.read_text(encoding="utf-8")
         assert len(content) > 10, f"SKILL.md for {skill} is too short"
+        assert content.startswith("---"), f"SKILL.md for {skill} must begin with YAML frontmatter"
+        from mas.library.skills.lib.frontmatter import parse_skill_frontmatter
+
+        meta, body = parse_skill_frontmatter(content)
+        assert meta.get("name") == skill
+        description = meta.get("description") or ""
+        assert description
+        assert "activate_skill" in description
+        assert len(body) > 10

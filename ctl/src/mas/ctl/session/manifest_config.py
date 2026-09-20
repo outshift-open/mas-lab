@@ -146,12 +146,14 @@ def observability_config_from_manifest(
 
 
 def engine_use_tool_loop(manifest: dict | None, kernel: KernelConfig) -> bool:
-    """Whether the LLM engine exposes ``spec.tools`` for native function-calling.
+    """Whether the LLM engine exposes tools for native function-calling.
 
-    Structural only — not a manifest flag. ReAct (+ tools declared) ⇒ tool egress
-    in the Mealy product; plan-execute schedules tools via the DP plugin instead.
+    Structural only — not a manifest flag. ReAct with declared tools or skills
+    ⇒ tool egress in the Mealy product (``activate_skill`` is a system tool
+    when ``spec.skills`` is non-empty). Plan-execute schedules tools via the
+    DP plugin instead.
     """
     if kernel.pattern_plugin_id == "plan_execute@v1":
         return False
     spec = (manifest or {}).get("spec") or {}
-    return bool(spec.get("tools"))
+    return bool(spec.get("tools") or spec.get("skills"))

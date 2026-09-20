@@ -117,9 +117,11 @@ class SkillToolsPlugin(ToolContract):
             {
                 "name": "activate_skill",
                 "description": (
-                    "Load the full instructions for a named skill. "
-                    "Call this when the task matches a skill listed in the catalog. "
-                    "Returns the skill body and lists bundled resource files."
+                    "Load the full instructions for a named skill listed in the "
+                    "catalog. Call this before composing the user-visible answer "
+                    "when a catalog skill matches; the catalog description is "
+                    "when-to-use only, not the procedure. Returns the skill body "
+                    "and lists bundled resource files."
                     f"{name_hint}"
                 ),
                 "parameters": {
@@ -197,8 +199,9 @@ class SkillToolsPlugin(ToolContract):
         # against a name that doesn't exactly match a registered skill.
         ctx_registry = _registry_from_ctx(ctx)
         reg = ctx_registry if ctx_registry is not None else self._static_registry
-        # Don't register tools when no skills available (agentskills.io Step 3 §Filtering)
-        if reg is not None and not reg:  # registry present but empty
+        # Do not advertise skill tools when no skill is registered (default:
+        # nothing from the skills system is exposed to the LLM).
+        if not reg:
             return []
         session = getattr(ctx, "skill_session_state", None)
         activated = set(session.activated_names()) if session is not None else None

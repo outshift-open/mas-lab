@@ -210,13 +210,13 @@ tasks:
         echo "OK: mas-ctl -> $expected"
 
   verify-chat-smoke:
-    desc: "Tutorial agent chat smoke test (mock LLM + HITL overlay, no network)"
+    desc: "Tutorial agent chat smoke (standard:mock-llm infra, no network)"
     deps: [install-dev]
     cmds:
       - |
         cd docs/tutorials/01-building-an-agent
         {{.VENV}}/mas-ctl chat agent.yaml -q "Who is POTUS" \
-          -o overlays/mock-llm.yaml \
+          --infra-ref standard:mock-llm \
           -o overlays/tools.yaml \
           -o overlays/governance-hitl.yaml
 

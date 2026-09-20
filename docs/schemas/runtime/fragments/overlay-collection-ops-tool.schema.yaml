@@ -2,6 +2,8 @@
 #  SPDX-License-Identifier: Apache-2.0
 $schema: "https://json-schema.org/draft-07/schema#"
 title: OverlayToolCollectionOps
+# Item shapes are inlined (no #/definitions $ref): this fragment is $ref'd
+# into overlay.schema.yaml, and jsonschema resolves # against that parent.
 oneOf:
   - type: array
     items:
@@ -13,6 +15,22 @@ oneOf:
           properties:
             ref:
               type: string
+            params:
+              type: object
+              additionalProperties: true
+        - type: object
+          additionalProperties: false
+          required: [kind, name]
+          properties:
+            kind:
+              type: string
+              const: system
+            name:
+              type: string
+              enum: [request_human_input, inform_user, activate_skill, run_skill_script]
+            params:
+              type: object
+              additionalProperties: true
   - type: object
     additionalProperties: false
     required: [$op]
@@ -36,6 +54,19 @@ oneOf:
                     params:
                       type: object
                       additionalProperties: true
+                - type: object
+                  additionalProperties: false
+                  required: [kind, name]
+                  properties:
+                    kind:
+                      type: string
+                      const: system
+                    name:
+                      type: string
+                      enum: [request_human_input, inform_user, activate_skill, run_skill_script]
+                    params:
+                      type: object
+                      additionalProperties: true
           add:
             type: array
             items:
@@ -47,6 +78,19 @@ oneOf:
                   properties:
                     ref:
                       type: string
+                    params:
+                      type: object
+                      additionalProperties: true
+                - type: object
+                  additionalProperties: false
+                  required: [kind, name]
+                  properties:
+                    kind:
+                      type: string
+                      const: system
+                    name:
+                      type: string
+                      enum: [request_human_input, inform_user, activate_skill, run_skill_script]
                     params:
                       type: object
                       additionalProperties: true

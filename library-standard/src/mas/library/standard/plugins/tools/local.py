@@ -158,7 +158,7 @@ class LocalToolProvider:
         for instance in self._tool_instances:
             try:
                 specs = instance.on_collect_tools(ctx=ctx)
-                if specs:
+                if specs is not None:
                     for spec in specs:
                         yaml_contract = self._tool_contracts.get(str(spec.get("name")))
                         result.append(overlay_tool_advertise(spec, yaml_contract))
@@ -262,6 +262,9 @@ def load_local_tool_provider(
 ) -> LocalToolProvider:
     """Load ``spec.tools`` Python implementations into the local plugin."""
     local = provider or LocalToolProvider()
+    skills_spec = containment_kw.pop("skills_spec", None)
+    auto_inject_scripts = bool(containment_kw.pop("auto_inject_scripts", False))
+    containment_kw.pop("spec_behavior", None)
 
     if include_system_tools:
         hitl_params = _system_tool_params(tools_spec, "request_human_input")
@@ -274,6 +277,14 @@ def load_local_tool_provider(
             hitl_auto_resolve_decision=hitl_params.get("auto_resolve_decision"),
             max_question_length=hitl_params.get("max_question_length"),
             max_message_length=inform_user_params.get("max_message_length"),
+        )
+        _inject_skill_system_tools(
+            local,
+            tools_spec=tools_spec,
+            skills_spec=skills_spec,
+            manifest_dir=manifest_dir,
+            app_root=app_root,
+            auto_inject_scripts=auto_inject_scripts,
         )
 
     if not tools_spec:
@@ -353,6 +364,29 @@ def _inject_system_tools(
     provider._add_instance(
         _SystemToolUserUpdateWrapper(InformUserTool(**inform_user_kwargs), user_io_contract=user_io_contract),
         manifest_contract=None,
+    )
+
+
+def _inject_skill_system_tools(
+    provider: LocalToolProvider,
+    *,
+    tools_spec: list[Any] | None,
+    skills_spec: Any,
+    manifest_dir: Path,
+    app_root: Path | None,
+    auto_inject_scripts: bool,
+) -> None:
+    """Optional skill system tools — no-op when mas-library-skills is absent."""
+    try:
+        from mas.library.skills.plugins.system_tools import inject_skill_system_tools
+    except ImportError:
+        return
+    inject_skill_system_tools(
+        provider,
+        tools_spec=tools_spec,
+        skills_spec=skills_spec,
+        base_dir=app_root or manifest_dir,
+        auto_inject_scripts=auto_inject_scripts,
     )
 
 

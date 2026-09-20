@@ -25,11 +25,6 @@ mas-ctl chat agent.yaml \
   -o overlays/memory.yaml \
   -q "What is the current price of Apple?"
 
-# Offline (no live LLM, no API key) — mock-llm overlay
-mas-ctl chat agent.yaml -i \
-  -o overlays/tools.yaml \
-  -o overlays/mock-llm.yaml
-
 # Operator steering mid-run (interactive session)
 mas-ctl chat agent.yaml -i -o overlays/tools.yaml --trace
 # then type: /steer Use web search for stock prices, not fruit.
@@ -181,8 +176,10 @@ source .env
 ```
 
 With `default_infra: standard:production` in `$XDG_CONFIG_HOME/mas/config.yaml`, you do not
-need `--infra-ref` on every command.  For offline runs (no API key), stack
-the mock overlay: `-o overlays/mock-llm.yaml`.
+need `--infra-ref` on every command. This tutorial does not pin an LLM backend;
+live chat uses Tutorial 0 infra. Record/replay without calling the provider is
+the `llm_cache` middleware ([llm-cache.md](../../manifests/llm-cache.md)), not a
+mock model.
 
 ### Run it
 
@@ -277,7 +274,15 @@ spec:
 ```
 
 The runtime finds `skills/answer-formatting/SKILL.md` automatically.
-No `skills_dir` needed.
+No `skills_dir` needed. That file **must start with YAML frontmatter**
+(`---` then `name` / `description`) so discovery can index it. A leading
+copyright comment before the frontmatter is treated as a body with no name.
+
+Listing the skill is enough: `activate_skill` is added as a system tool
+(it is **not** exposed unless at least one skill is listed). Frontmatter
+`description` is the when-to-use text shown in the catalog. It should also
+tell the model to `activate_skill("answer-formatting")` and follow the
+loaded body. The body is *how* to apply the skill and is not in the catalog.
 
 Stack it on top of the tools overlay with a second `--overlay`:
 
@@ -295,9 +300,10 @@ mas-ctl -v chat agent.yaml \
 > of the previous merge. The base `agent.yaml` is never modified.
 > Fields declared in a later overlay win over earlier ones; list fields (tools, skills) are appended.
 
-The agent now follows the formatting rules from
-`skills/answer-formatting/SKILL.md` — you'll see the structured answer
-format with confidence indicator.
+The catalog lists that frontmatter description, so the model is prompted to
+call `activate_skill("answer-formatting")` and then follow the formatting
+rules from the skill body — a one-sentence summary, supporting bullets, and
+a HIGH / MEDIUM / LOW confidence line.
 
 ---
 
@@ -486,16 +492,13 @@ echo "What is the GDP of France?" | mas-ctl -v chat agent.yaml
 ```bash
 # Default flavour (local) — explicit form is optional
 mas-ctl chat agent.yaml -i --flavour local
-
-# Offline / no API key needed — stack the mock-llm overlay
-mas-ctl chat agent.yaml -i -o overlays/mock-llm.yaml
 ```
 
 The optional `--flavour NAME` flag selects a deployment flavour bundled in
 `mas-library-standard` (see `mas-ctl flavour list`); it defaults to `local`,
 the only flavour wired into `chat`/`tui` today. Passing an unsupported name
-(e.g. `--flavour prod`) exits with an error listing what's available. Offline
-runs use the `overlays/mock-llm.yaml` overlay, not a flavour.
+(e.g. `--flavour prod`) exits with an error listing what's available. This
+tutorial's `config.yaml` does not pin an LLM backend.
 
 The agent manifest is the same in all cases — only the deployment
 posture changes.

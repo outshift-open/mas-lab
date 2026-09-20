@@ -1,5 +1,7 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-# Tutorial workspace — mock LLM for offline chat smoke (see Taskfile verify-chat-smoke).
-infra_refs:
-  - standard:mock-llm
+# Live workspace. mas-ctl chat uses Tutorial 0 default_infra
+# (or MAS_INFRA_REFS / --infra-ref). No mock LLM is pinned here.
+mas_ctl:
+  flavour: local
+  env: .env

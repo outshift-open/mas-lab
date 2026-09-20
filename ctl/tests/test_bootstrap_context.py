@@ -158,15 +158,13 @@ def test_resolve_skill_plugin_config_prefers_manifest_entry_over_env(monkeypatch
     assert cfg.base_dir == (tmp_path / "skills").resolve()
 
 
-def test_auto_inject_skill_tools_adds_only_skill_access_not_shell():
-    """run-skill-script is opt-in (trusted environments only) — never auto-granted."""
+def test_auto_inject_skill_tools_is_noop():
+    """YAML mutation is gone; skill tools are system tools at provider load."""
     from mas.ctl.session.bootstrap import _auto_inject_skill_tools
 
     manifest = {"spec": {"skills": ["answer-formatting"]}}
     _auto_inject_skill_tools(manifest)
-
-    refs = [item["ref"] for item in manifest["spec"]["tools"]]
-    assert refs == ["skills:tools/skill-access.tool.yaml"]
+    assert "tools" not in manifest["spec"]
 
 
 def test_auto_inject_skill_tools_noop_without_skills():
@@ -175,19 +173,6 @@ def test_auto_inject_skill_tools_noop_without_skills():
     manifest = {"spec": {}}
     _auto_inject_skill_tools(manifest)
     assert "tools" not in manifest["spec"]
-
-
-def test_auto_inject_skill_tools_adds_shell_when_opted_in():
-    from mas.ctl.session.bootstrap import _auto_inject_skill_tools
-
-    manifest = {"spec": {"skills": ["answer-formatting"]}}
-    _auto_inject_skill_tools(manifest, auto_inject_scripts=True)
-
-    refs = {item["ref"] for item in manifest["spec"]["tools"]}
-    assert refs == {
-        "skills:tools/skill-access.tool.yaml",
-        "skills:tools/run-skill-script.tool.yaml",
-    }
 
 
 def test_resolve_skill_plugin_config_reads_auto_inject_from_context_sources(tmp_path: Path):

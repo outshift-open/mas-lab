@@ -14,6 +14,12 @@ import yaml
 
 from conftest import T03, T01, T02, load_yaml, run_cli
 
+
+def _ci_infra():
+    from mas.ctl.infra.resolve import resolve_infra_refs
+
+    return resolve_infra_refs(["standard:mock-llm"], anchor=T03)
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 1. Manifest validation (CLI)
 # ═══════════════════════════════════════════════════════════════════════════
@@ -281,6 +287,7 @@ class TestT03AgentInstantiation:
                 agent_manifest=config,
                 manifest_dir=T03,
                 validate_manifests=False,
+                resolved_infra=_ci_infra(),
             ),
         )
         assert instance is not None
@@ -296,6 +303,7 @@ class TestT03AgentInstantiation:
                 agent_manifest=merged,
                 manifest_dir=T03,
                 validate_manifests=False,
+                resolved_infra=_ci_infra(),
             ),
         )
         assert instance is not None

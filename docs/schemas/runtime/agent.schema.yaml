@@ -603,6 +603,18 @@ properties:
               - module_path: library-samples/tools/calc.py
                 class_name: CalcTool
 
+          Form D — system tools (runtime-owned; not listed → not exposed,
+          except request_human_input / inform_user which default on):
+            tools:
+              - kind: system
+                name: activate_skill
+              - kind: system
+                name: run_skill_script
+
+          ``activate_skill`` is also implicit when ``spec.skills`` lists at
+          least one skill. ``run_skill_script`` is implicit when a listed
+          skill has a ``scripts/`` directory.
+
           Additive with tools_ref — both may be set simultaneously.
         default: []
         items:
@@ -638,6 +650,32 @@ properties:
                     Init kwargs merged into the referenced tool's own
                     spec.impl.params (this entry's keys win on conflict) —
                     e.g. {impl: adk, base_dir: ./skills/} for a skill tool ref.
+                  additionalProperties: true
+                  default: {}
+
+            # ── Form D: system tool ──────────────────────────────────────
+            - type: object
+              required: [kind, name]
+              additionalProperties: false
+              description: >
+                Runtime-owned system tool. request_human_input and inform_user
+                are injected by default. activate_skill is implicit when
+                spec.skills is non-empty; declare it here to opt in explicitly.
+                run_skill_script is implicit when a listed skill has scripts/;
+                declare it here to opt in without shipping scripts yet.
+              properties:
+                kind:
+                  type: string
+                  const: system
+                name:
+                  type: string
+                  enum:
+                    - request_human_input
+                    - inform_user
+                    - activate_skill
+                    - run_skill_script
+                params:
+                  type: object
                   additionalProperties: true
                   default: {}
 
