@@ -311,6 +311,82 @@ def test_merge_mas_overlay_patches_agency_agent_context():
     assert agent["spec"]["memory_seed"] == [{"key": "f001", "content": "seed"}]
 
 
+def _trip_mas(*, entry: str = "moderator") -> dict:
+    return {
+        "kind": "MAS",
+        "spec": {
+            "agency": {
+                "agents": [
+                    {"id": "moderator", "ref": "agents/moderator.yaml"},
+                    {"id": "schedule_agent", "ref": "agents/schedule.yaml"},
+                ]
+            },
+            "workflow": {"entry": entry, "nodes": [{"id": "moderator"}, {"id": "schedule_agent"}]},
+        },
+    }
+
+
+def test_merge_mas_overlay_entry_patches_workflow_entry_only():
+    overlay = _overlay(
+        {"agents": {"$entry": {"design_pattern": {"type": "cot", "config": {"max_steps": 10}}}}},
+        target_kind="MAS",
+    )
+    merged = merge_overlay(_trip_mas(), overlay)
+    by_id = {a["id"]: a for a in merged["spec"]["agency"]["agents"]}
+    assert by_id["moderator"]["spec"]["design_pattern"] == {"type": "cot", "config": {"max_steps": 10}}
+    assert "spec" not in by_id["schedule_agent"]
+
+
+def test_merge_mas_overlay_entry_follows_this_overlay_workflow_patch():
+    overlay = _overlay(
+        {
+            "workflow": {"entry": "schedule_agent", "nodes": [{"id": "schedule_agent"}, {"id": "moderator"}]},
+            "agents": {"$entry": {"design_pattern": {"type": "react"}}},
+        },
+        target_kind="MAS",
+    )
+    merged = merge_overlay(_trip_mas(entry="moderator"), overlay)
+    by_id = {a["id"]: a for a in merged["spec"]["agency"]["agents"]}
+    assert by_id["schedule_agent"]["spec"]["design_pattern"] == {"type": "react"}
+    assert "spec" not in by_id["moderator"]
+
+
+def test_merge_mas_overlay_entry_requires_workflow_entry():
+    import pytest
+
+    base = {
+        "kind": "MAS",
+        "spec": {"agency": {"agents": [{"id": "moderator", "ref": "agents/moderator.yaml"}]}},
+    }
+    overlay = _overlay({"agents": {"$entry": {"design_pattern": {"type": "cot"}}}}, target_kind="MAS")
+    with pytest.raises(OverlayTargetError, match=r"patch\.agents\.\$entry requires spec\.workflow\.entry"):
+        merge_overlay(base, overlay)
+
+
+def test_merge_mas_overlay_entry_unknown_agency_id_fails():
+    import pytest
+
+    overlay = _overlay({"agents": {"$entry": {"design_pattern": {"type": "cot"}}}}, target_kind="MAS")
+    with pytest.raises(OverlayTargetError, match="not in spec.agency.agents"):
+        merge_overlay(_trip_mas(entry="missing"), overlay)
+
+
+def test_merge_mas_overlay_entry_conflicts_with_named_id():
+    import pytest
+
+    overlay = _overlay(
+        {
+            "agents": {
+                "$entry": {"design_pattern": {"type": "cot"}},
+                "moderator": {"design_pattern": {"type": "react"}},
+            }
+        },
+        target_kind="MAS",
+    )
+    with pytest.raises(OverlayTargetError, match=r"patch\.agents\.\$entry and patch\.agents\['moderator'\]"):
+        merge_overlay(_trip_mas(), overlay)
+
+
 def test_merge_mas_overlay_keeps_name_only_agents():
     base = {
         "kind": "MAS",
