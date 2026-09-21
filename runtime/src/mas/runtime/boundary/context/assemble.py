@@ -52,11 +52,25 @@ def _pinned_working_memory(ctx: Any, manifest: dict | None = None) -> list[dict[
     return []
 
 
+def _openai_tool_names(tools: list[dict[str, Any]] | None) -> list[str] | None:
+    """Function names from an OpenAI ``tools`` array. ``None`` if not recorded."""
+    if tools is None:
+        return None
+    names: list[str] = []
+    for tool in tools:
+        fn = tool.get("function") if isinstance(tool, dict) else None
+        name = str((fn or {}).get("name") or "") if isinstance(fn, dict) else ""
+        if name:
+            names.append(name)
+    return names
+
+
 def assemble_llm_messages(
     ctx: Any,
     *,
     manifest: dict | None = None,
     correlation_id: int = 0,
+    tools: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Build OpenAI-shaped messages: system → committed history → user → WM / trim."""
     messages: list[dict[str, Any]] = []
@@ -116,6 +130,7 @@ def assemble_llm_messages(
         messages=messages,
         turn_index=int(getattr(ctx, "turn_index", 0) or 0),
         agent_id=str(getattr(ctx, "agent_id", "agent") or "agent"),
+        tools=_openai_tool_names(tools),
     )
     return messages
 

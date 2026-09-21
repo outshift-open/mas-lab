@@ -87,6 +87,9 @@ class EngineIoReturn(BaseModel):
     text: str = ""
     usage: dict = Field(default_factory=dict)
     finish_reason: str = ""
+    # Names sent as the OpenAI ``tools`` array for this LLM call.
+    # None means the engine did not record them (budget stop, non-LLM return).
+    offered_tools: list[str] | None = None
 
 
 class CtxAssemblyComplete(BaseModel):

@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Protocol
 
@@ -27,6 +28,8 @@ if TYPE_CHECKING:
     from mas.runtime.schema.ingress import EngineIoReturn
 else:
     from mas.runtime.schema.ingress import EngineIoReturn
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -61,60 +64,157 @@ def execute_contract_call(
 
     ``execute_fn`` runs only between OBSERVABILITY_PRE_EXECUTE and POST (impure I/O).
     When omitted, caller performs I/O across the kernel/driver boundary.
+
+    If ``execute_fn`` raises, the ingress close (including ENGINE_IO_RETURN)
+    still runs, then the exception is re-raised.
     """
     composer = get_product_composer(ctx.config)
-    egress, ingress = _envelope_symbol_lists(ctx)
+    egress, _ingress = _envelope_symbol_lists(ctx)
     result: Any = None
+    execute_error: BaseException | None = None
 
-    for symbol in egress:
+    def _on_egress(symbol: EnvelopeSymbol) -> None:
         if symbol == EnvelopeSymbol.GOVERNANCE_AUTHORIZE:
             ctx.gov_decision = _evaluate_egress(ctx).value
-        composer.step(symbol, ctx)
+
+    _run_envelope_symbols(composer, egress, ctx, on_symbol=_on_egress)
 
     if execute_fn is not None:
-        composer.step(EnvelopeSymbol.CONTRACT_EXECUTE, ctx)
-        result = execute_fn()
+        try:
+            composer.step(EnvelopeSymbol.CONTRACT_EXECUTE, ctx)
+        except Exception as exc:
+            _logger.debug("CONTRACT_EXECUTE step failed", exc_info=True)
+            execute_error = exc
+        try:
+            result = execute_fn()
+            ctx.ingress_event = EngineIoReturn(
+                correlation_id=ctx.correlation_id,
+                response_kind="TOOL_RESULT" if ctx.scheduled_op == "TOOL_CALL" else "MODEL_TEXT",
+                next_step="STOP",
+                text=str(result) if result is not None else "",
+            )
+        except Exception as exc:
+            execute_error = execute_error or exc
+            ctx.ingress_event = EngineIoReturn(
+                correlation_id=ctx.correlation_id,
+                response_kind="ERROR",
+                next_step="STOP",
+                text=str(exc),
+            )
+        finally:
+            close_envelope(ctx)
+        if execute_error is not None:
+            raise execute_error
+    return result
+
+
+def close_envelope(
+    ctx: EnvelopeContext,
+    *,
+    error: BaseException | str | None = None,
+    enable_governance: bool | None = None,
+) -> IngressGovDecision:
+    """Run the ingress σ list so every opened envelope is paired.
+
+    When *error* is set (or no engine return was recorded), the close is an
+    ERROR observation so contract_start / tool_call_start still get an end.
+
+    ``enable_governance=False`` still emits POST_EXECUTE and CONTRACT_END
+    (the opened pair) without the ingress validate wrap — used when HITL
+    was already approved this turn and must not run again.
+    """
+    if error is not None or ctx.ingress_event is None:
         ctx.ingress_event = EngineIoReturn(
             correlation_id=ctx.correlation_id,
-            response_kind="TOOL_RESULT" if ctx.scheduled_op == "TOOL_CALL" else "MODEL_TEXT",
+            response_kind="ERROR",
             next_step="STOP",
-            text=str(result) if result is not None else "",
+            text=str(error) if error is not None else "envelope closed without an engine return",
         )
-        for symbol in ingress:
-            if symbol == EnvelopeSymbol.GOVERNANCE_VALIDATE:
-                decision = _evaluate_ingress(ctx)
-                ctx.gov_decision = decision.action.value
-            composer.step(symbol, ctx)
-    return result
+    try:
+        return run_ingress_validate_envelope(ctx, enable_governance=enable_governance)
+    except Exception:
+        _logger.debug("close_envelope failed", exc_info=True)
+        return IngressGovDecision(action=GovernanceAction.ALLOW)
 
 
 def run_egress_authorize_envelope(ctx: EnvelopeContext) -> GovDecision:
     """Kernel egress chokepoint: obs⊗gov wrap + contract start + obs pre."""
     composer = get_product_composer(ctx.config)
     decision = GovDecision.ALLOW
-    for symbol in resolve_egress_symbols(**_envelope_flags(ctx)):
+
+    def _on_symbol(symbol: EnvelopeSymbol) -> None:
+        nonlocal decision
         if symbol == EnvelopeSymbol.GOVERNANCE_AUTHORIZE:
             decision = _evaluate_egress(ctx)
             ctx.gov_decision = decision.value
-        composer.step(symbol, ctx)
+
+    _run_envelope_symbols(
+        composer,
+        resolve_egress_symbols(**_envelope_flags(ctx)),
+        ctx,
+        on_symbol=_on_symbol,
+    )
     return decision
 
 
-def run_ingress_validate_envelope(ctx: EnvelopeContext) -> IngressGovDecision:
+def run_ingress_validate_envelope(
+    ctx: EnvelopeContext,
+    *,
+    enable_governance: bool | None = None,
+) -> IngressGovDecision:
     """Kernel ingress chokepoint: obs post + contract end + obs⊗gov validate wrap."""
     composer = get_product_composer(ctx.config)
     decision = IngressGovDecision(action=GovernanceAction.ALLOW)
-    for symbol in resolve_ingress_symbols(**_envelope_flags(ctx)):
+    flags = _envelope_flags(ctx)
+    if enable_governance is not None:
+        flags["enable_governance"] = enable_governance
+
+    def _on_symbol(symbol: EnvelopeSymbol) -> None:
+        nonlocal decision
         if symbol == EnvelopeSymbol.GOVERNANCE_VALIDATE:
             decision = _evaluate_ingress(ctx)
             ctx.gov_decision = decision.action.value
-        composer.step(symbol, ctx)
+
+    _run_envelope_symbols(
+        composer,
+        resolve_ingress_symbols(**flags),
+        ctx,
+        on_symbol=_on_symbol,
+    )
     return decision
 
 
 def run_contract_execute_obs(ctx: EnvelopeContext) -> None:
     """Emit CONTRACT_EXECUTE σ (driver invoked engine; obs records boundary)."""
-    get_product_composer(ctx.config).step(EnvelopeSymbol.CONTRACT_EXECUTE, ctx)
+    try:
+        get_product_composer(ctx.config).step(EnvelopeSymbol.CONTRACT_EXECUTE, ctx)
+    except Exception:
+        _logger.debug("CONTRACT_EXECUTE step failed", exc_info=True)
+
+
+def _run_envelope_symbols(
+    composer: GuardedProductComposer,
+    symbols: tuple[EnvelopeSymbol, ...],
+    ctx: EnvelopeContext,
+    *,
+    on_symbol: Callable[[EnvelopeSymbol], None] | None = None,
+) -> None:
+    """Step every envelope σ. A failure on one symbol does not skip the rest."""
+    first_error: BaseException | None = None
+    for symbol in symbols:
+        if on_symbol is not None:
+            try:
+                on_symbol(symbol)
+            except Exception as exc:
+                _logger.debug("envelope on_symbol failed for %s", symbol.value, exc_info=True)
+                if first_error is None:
+                    first_error = exc
+        try:
+            composer.step(symbol, ctx)
+        except Exception:
+            _logger.debug("envelope step failed for %s", symbol.value, exc_info=True)
+    if first_error is not None:
+        raise first_error
 
 
 def _envelope_flags(ctx: EnvelopeContext) -> dict[str, bool]:
@@ -206,7 +306,15 @@ class GuardedProductComposer:
 
     def step(self, symbol: EnvelopeSymbol, ctx: EnvelopeContext) -> None:
         for machine in self.machines:
-            machine.step(symbol, ctx)
+            try:
+                machine.step(symbol, ctx)
+            except Exception:
+                _logger.debug(
+                    "envelope machine %s failed on %s",
+                    getattr(machine, "machine_id", type(machine).__name__),
+                    symbol.value,
+                    exc_info=True,
+                )
 
     def run(self, symbols: tuple[EnvelopeSymbol, ...], ctx: EnvelopeContext) -> None:
         for symbol in symbols:
