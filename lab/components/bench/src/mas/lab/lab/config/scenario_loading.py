@@ -11,6 +11,31 @@ logger = logging.getLogger(__name__)
 _MISSING = object()
 
 
+def _apply_overlay_workflow(overlay_spec: dict, config: dict) -> None:
+    """Apply ``spec.patch.workflow`` before per-agent patches so ``$entry`` can resolve."""
+    if "workflow" not in overlay_spec:
+        return
+    config["workflow"] = overlay_spec["workflow"]
+    new_entry = overlay_spec["workflow"].get("entry") if isinstance(overlay_spec["workflow"], dict) else None
+    if new_entry:
+        config.setdefault("mas", {})["entry_agent"] = new_entry
+
+
+def _resolved_overlay_agents(overlay_spec: dict, config: dict) -> dict:
+    """Resolve ``patch.agents.$entry`` against the merged workflow entry."""
+    from mas.ctl.overlay.merge import _ENTRY_AGENT_KEY, _resolve_mas_agent_patches
+
+    raw = overlay_spec.get("agents")
+    if not isinstance(raw, dict) or raw.get("$op") is not None:
+        return raw if isinstance(raw, dict) else {}
+    if _ENTRY_AGENT_KEY not in raw:
+        return raw
+    entry = str((config.get("workflow") or {}).get("entry") or "").strip()
+    if not entry:
+        entry = str((config.get("mas") or {}).get("entry_agent") or "").strip()
+    return _resolve_mas_agent_patches(raw, entry=entry)
+
+
 def _apply_overlay_governance(overlay: Optional[dict], overlay_spec: dict, config: dict) -> bool:
     """Inject an overlay's governance plugin list onto each agent's own
     "governance" list, mirroring the spec.plugins merge elsewhere in this
@@ -111,7 +136,6 @@ def load_scenario_config(
             overlay_path = _subdir_path
 
     if overlay_path.exists():
-        import yaml as _yaml
         from mas.lab.manifest.load import load_mas_config
         from mas.runtime.spec.source import load_yaml_mapping
 
@@ -123,9 +147,7 @@ def load_scenario_config(
         # instead of patching a base mas.yaml.
         _overlay_kind = (overlay or {}).get("kind", "")
         if _overlay_kind in ("MAS", "Workflow"):
-            mas_manifest = load_mas_config(
-                overlay_path, validate=False, infra_refs=infra_refs
-            )
+            mas_manifest = load_mas_config(overlay_path, validate=False, infra_refs=infra_refs)
             config = dict(mas_manifest._raw)
             # Store raw overlay for cache key coverage even on full-manifest overlays.
             config["_overlay_hash_input"] = [overlay]
@@ -134,14 +156,10 @@ def load_scenario_config(
         # Resolve mas.yaml: explicit argument > sibling of configs_dir
         _mas_yaml: Path = mas_yaml if mas_yaml is not None else scenarios_dir.parent / "mas.yaml"
         if not _mas_yaml.exists():
-            raise FileNotFoundError(
-                f"mas.yaml not found for overlay {overlay_path}: expected at {_mas_yaml}"
-            )
+            raise FileNotFoundError(f"mas.yaml not found for overlay {overlay_path}: expected at {_mas_yaml}")
         mas_yaml = _mas_yaml
         # validate=False: allow single-agent Workflow manifests in lab overlay contexts.
-        mas_manifest = load_mas_config(
-            mas_yaml, validate=False, infra_refs=infra_refs
-        )  # type: ignore[arg-type]
+        mas_manifest = load_mas_config(mas_yaml, validate=False, infra_refs=infra_refs)  # type: ignore[arg-type]
         config = dict(mas_manifest._raw)
 
         # Inject overlay plugins into each agent in the MAS config so that
@@ -151,10 +169,7 @@ def load_scenario_config(
         #   spec.patch.plugins   (kind:Patch format used by locomo mem0 overlays)
         overlay_spec = overlay.get("spec", {}).get("patch", {}) if overlay else {}
         if overlay:
-            _overlay_agent_plugins = (
-                overlay.get("spec", {}).get("plugins")
-                or overlay_spec.get("plugins")
-            )
+            _overlay_agent_plugins = overlay.get("spec", {}).get("plugins") or overlay_spec.get("plugins")
             if _overlay_agent_plugins and config.get("agents"):
                 for _agent_cfg in config["agents"]:
                     _existing = list(_agent_cfg.get("plugins") or [])
@@ -163,9 +178,7 @@ def load_scenario_config(
         if "capabilities" in overlay_spec:
             config.setdefault("capabilities", {}).update(overlay_spec["capabilities"])
         if "telemetry" in overlay_spec:
-            config.setdefault("mas", {}).setdefault("telemetry", {}).update(
-                overlay_spec["telemetry"]
-            )
+            config.setdefault("mas", {}).setdefault("telemetry", {}).update(overlay_spec["telemetry"])
         # Domain-specific params — opaque to the runtime, consumed by the caller
         # (e.g. the demo server writes artifacts/scene.yaml from params.incident_fixture).
         if "params" in overlay_spec:
@@ -177,9 +190,10 @@ def load_scenario_config(
         # that RFC 7396 Merge Patch cannot express natively).
         if "skills_include" in overlay_spec:
             config["skills_include"] = overlay_spec["skills_include"]
+        _apply_overlay_workflow(overlay_spec, config)
         # Per-agent overrides: spec.patch.agents.<id>.context / design_pattern
         if "agents" in overlay_spec:
-            overlay_agents: dict = overlay_spec["agents"]
+            overlay_agents: dict = _resolved_overlay_agents(overlay_spec, config)
             agents_list: list = config.get("agents", [])
             for agent_cfg in agents_list:
                 agent_id = agent_cfg.get("id", "")
@@ -203,17 +217,21 @@ def load_scenario_config(
                         if t not in existing_tools:
                             existing_tools.append(t)
                     agent_cfg["spec_tools"] = existing_tools
-                    logger.info("[overlay] agent '%s': spec_tools = %s (scenario=%s)", agent_id, existing_tools, scenario_id)
+                    logger.info(
+                        "[overlay] agent '%s': spec_tools = %s (scenario=%s)", agent_id, existing_tools, scenario_id
+                    )
                 # Per-agent skills (add): merge new skill names.
                 if "skills" in per_agent:
                     existing_skills = list(agent_cfg.get("skills") or [])
                     existing_set = set(existing_skills)
-                    for sk in (per_agent["skills"] or []):
+                    for sk in per_agent["skills"] or []:
                         if sk not in existing_set:
                             existing_skills.append(sk)
                             existing_set.add(sk)
                     agent_cfg["skills"] = existing_skills
-                    logger.info("[overlay] agent '%s': skills = %s (scenario=%s)", agent_id, existing_skills, scenario_id)
+                    logger.info(
+                        "[overlay] agent '%s': skills = %s (scenario=%s)", agent_id, existing_skills, scenario_id
+                    )
                 # Per-agent llm override: deep-merge so individual keys can change.
                 if "llm" in per_agent:
                     if isinstance(per_agent["llm"], dict):
@@ -248,9 +266,7 @@ def load_scenario_config(
         agents_remove_ids: list = overlay_spec.get("agents_remove", []) or []
         if agents_remove_ids and config.get("agents"):
             _remove_set = set(agents_remove_ids)
-            config["agents"] = [
-                a for a in config["agents"] if a.get("id") not in _remove_set
-            ]
+            config["agents"] = [a for a in config["agents"] if a.get("id") not in _remove_set]
             logger.debug("[overlay] agents_remove: %s (scenario=%s)", agents_remove_ids, scenario_id)
 
         # agents_add: append new agent entries.  Idempotent — entries whose id
@@ -260,6 +276,7 @@ def load_scenario_config(
         if agents_add_list:
             from mas.lab.manifest.load import load_agent_runtime_entry
             from mas.runtime.spec.source import resolve_yaml_path
+
             # mas_yaml is guaranteed to be set at this point (overlay path is used)
             _mas_base = mas_yaml.parent  # type: ignore[union-attr]
             _existing_ids = {a.get("id") for a in config.get("agents", [])}
@@ -279,7 +296,10 @@ def load_scenario_config(
                     except Exception as _e:
                         logger.warning(
                             "[overlay] agents_add '%s': failed to load ref %s: %s (scenario=%s)",
-                            _aid, _ref, _e, scenario_id,
+                            _aid,
+                            _ref,
+                            _e,
+                            scenario_id,
                         )
                         config.setdefault("agents", []).append(_new_agent)
                 else:
@@ -301,16 +321,6 @@ def load_scenario_config(
                     _agent_cfg.setdefault("pattern_params", {}).update(dp_params)
             logger.debug("[overlay] design_pattern set to '%s' for all agents (scenario=%s)", dp_type, scenario_id)
 
-        # Workflow topology override: spec.patch.workflow → config["workflow"].
-        if "workflow" in overlay_spec:
-            config["workflow"] = overlay_spec["workflow"]
-            # Sync mas.entry_agent: DynamicWorkflow reads config["mas"]["entry_agent"]
-            # (set by yaml_mas.py from workflow.entry at load time) — keep in sync.
-            _new_entry = overlay_spec["workflow"].get("entry")
-            if _new_entry:
-                config.setdefault("mas", {})["entry_agent"] = _new_entry
-            logger.debug("[overlay] workflow overridden (scenario=%s)", scenario_id)
-
         if _apply_overlay_governance(overlay, overlay_spec, config):
             logger.debug("[overlay] governance policies injected (scenario=%s)", scenario_id)
 
@@ -323,10 +333,7 @@ def load_scenario_config(
 
         return config, mas_yaml
 
-    raise FileNotFoundError(
-        f"Scenario '{scenario_id}' not found in {scenarios_dir} "
-        f"(checked {scenario_id}.yaml)"
-    )
+    raise FileNotFoundError(f"Scenario '{scenario_id}' not found in {scenarios_dir} (checked {scenario_id}.yaml)")
 
 
 def load_stacked_config(
@@ -391,15 +398,11 @@ def load_stacked_config(
             overlay_id = str(overlay_entry)
             overlay_path = _overlays_dir / f"{overlay_id}.yaml"
         if not overlay_path.exists():
-            raise FileNotFoundError(
-                f"Overlay '{overlay_entry}' not found: {overlay_path}"
-            )
+            raise FileNotFoundError(f"Overlay '{overlay_entry}' not found: {overlay_path}")
         overlay = load_yaml_mapping(overlay_path)
         _overlay_kind = (overlay or {}).get("kind", "")
         if _overlay_kind in ("MAS", "Workflow"):
-            mas_manifest = load_mas_config(
-                overlay_path, validate=False, infra_refs=infra_refs
-            )
+            mas_manifest = load_mas_config(overlay_path, validate=False, infra_refs=infra_refs)
             config = dict(mas_manifest._raw)
             _applied_overlays = [overlay]
             config["_overlay_hash_input"] = _applied_overlays
@@ -409,18 +412,17 @@ def load_stacked_config(
         if "capabilities" in overlay_spec:
             config.setdefault("capabilities", {}).update(overlay_spec["capabilities"])
         if "telemetry" in overlay_spec:
-            config.setdefault("mas", {}).setdefault("telemetry", {}).update(
-                overlay_spec["telemetry"]
-            )
+            config.setdefault("mas", {}).setdefault("telemetry", {}).update(overlay_spec["telemetry"])
         if "params" in overlay_spec:
             config["params"] = overlay_spec["params"]
         if "skills_exclude" in overlay_spec:
             config["skills_exclude"] = overlay_spec["skills_exclude"]
         if "skills_include" in overlay_spec:
             config["skills_include"] = overlay_spec["skills_include"]
+        _apply_overlay_workflow(overlay_spec, config)
         # Per-agent overrides: spec.patch.agents.<id>.context / design_pattern
         if "agents" in overlay_spec:
-            overlay_agents: dict = overlay_spec["agents"]
+            overlay_agents: dict = _resolved_overlay_agents(overlay_spec, config)
             agents_list: list = config.get("agents", [])
             for agent_cfg in agents_list:
                 agent_id = agent_cfg.get("id", "")
@@ -444,7 +446,7 @@ def load_stacked_config(
                 if "skills" in per_agent:
                     existing_skills = list(agent_cfg.get("skills") or [])
                     existing_set = set(existing_skills)
-                    for sk in (per_agent["skills"] or []):
+                    for sk in per_agent["skills"] or []:
                         if sk not in existing_set:
                             existing_skills.append(sk)
                             existing_set.add(sk)
@@ -474,6 +476,7 @@ def load_stacked_config(
         if _agents_add:
             from mas.lab.manifest.load import load_agent_runtime_entry
             from mas.runtime.spec.source import resolve_yaml_path
+
             _existing_ids = {a.get("id") for a in config.get("agents", [])}
             for _new_agent in _agents_add:
                 _aid = _new_agent.get("id")
@@ -502,13 +505,6 @@ def load_stacked_config(
                 if dp_params:
                     _agent_cfg.setdefault("pattern_params", {}).update(dp_params)
 
-        # Workflow topology override
-        if "workflow" in overlay_spec:
-            config["workflow"] = overlay_spec["workflow"]
-            _new_entry = overlay_spec["workflow"].get("entry")
-            if _new_entry:
-                config.setdefault("mas", {})["entry_agent"] = _new_entry
-
         _apply_overlay_governance(overlay, overlay_spec, config)
 
         # Overlay-level plugins injection (spec.plugins)
@@ -526,4 +522,3 @@ def load_stacked_config(
     config["_overlay_hash_input"] = _applied_overlays
 
     return config, mas_yaml
-

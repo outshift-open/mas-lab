@@ -34,9 +34,11 @@ spec:
   patch:
     design_pattern: { type: cot, config: { max_steps: 10 } }
     agents:
+      $entry:            # workflow.entry after this overlay's workflow patch
+        design_pattern: { type: cot, config: { max_steps: 10 } }
       broker:
         tools: { "$op": { remove: [web-search] } }
-    workflow: { ... }   # topology replacement
+    workflow: { ... }   # topology: entry + directed delegation links
     params:
       incident_fixture: datasets/fixtures/timeout.yaml
   tools: []            # inject tools (scenario level)
@@ -48,6 +50,10 @@ spec:
 
 RFC 7396-style merge on the target resource. Separation rules reject model endpoints,
 api keys, and raw system-prompt rewrites in `patch` (use agent `role` / overlay agent blocks).
+
+On a MAS overlay, `patch.agents.$entry` is applied to `spec.workflow.entry` after this
+overlay's `workflow` patch (so a design-pattern overlay need not name the entry agent).
+A missing entry, an unknown entry id, or both `$entry` and that id as keys is an error.
 
 Merge semantics: later overlays in a scenario stack win on conflicting keys.
 Patches use RFC 7396 JSON merge; list fields such as `tools` accept an explicit

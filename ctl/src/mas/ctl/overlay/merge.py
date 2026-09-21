@@ -411,6 +411,35 @@ class OverlayTargetError(ValueError):
     """A Flavour-targeted overlay patch contains a key that isn't deployment posture."""
 
 
+_ENTRY_AGENT_KEY = "$entry"
+
+
+def _workflow_entry(spec: dict[str, Any]) -> str:
+    wf = spec.get("workflow")
+    if not isinstance(wf, dict):
+        return ""
+    entry = wf.get("entry")
+    return str(entry).strip() if entry is not None else ""
+
+
+def _resolve_mas_agent_patches(overlay_agents: dict[str, Any], *, entry: str) -> dict[str, Any]:
+    """Map ``patch.agents.$entry`` onto ``spec.workflow.entry`` after the workflow patch."""
+    if _ENTRY_AGENT_KEY not in overlay_agents:
+        return overlay_agents
+    if not entry:
+        raise OverlayTargetError("patch.agents.$entry requires spec.workflow.entry on the merged MAS")
+    if entry in overlay_agents:
+        raise OverlayTargetError(
+            f"patch.agents.$entry and patch.agents[{entry!r}] both set; "
+            "use $entry alone — it already names the workflow entry agent"
+        )
+    resolved: dict[str, Any] = {}
+    for agent_id, per_agent in overlay_agents.items():
+        key = entry if agent_id == _ENTRY_AGENT_KEY else agent_id
+        resolved[key] = per_agent
+    return resolved
+
+
 def merge_flavour_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
     """Merge a ``target.kind: Flavour`` overlay patch into a Flavour manifest.
 
@@ -542,6 +571,9 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
         agency["agents"] = existing_agents
         base_spec["agency"] = agency
     elif isinstance(overlay_agents, dict):
+        had_entry_key = _ENTRY_AGENT_KEY in overlay_agents
+        entry_id = _workflow_entry(base_spec)
+        overlay_agents = _resolve_mas_agent_patches(overlay_agents, entry=entry_id)
         agency = base_spec.setdefault("agency", {})
         agents_list = list(agency.get("agents") or [])
         by_id = {
@@ -554,6 +586,10 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
                 continue
             target = by_id.get(str(agent_id))
             if target is None:
+                if had_entry_key and str(agent_id) == entry_id:
+                    raise OverlayTargetError(
+                        f"patch.agents.$entry resolved to {agent_id!r}, which is not in spec.agency.agents"
+                    )
                 continue
             if "ref" in per_agent:
                 target["ref"] = deepcopy(per_agent["ref"])

@@ -37,6 +37,13 @@ properties:
     # in overlay context -- irreducible, not duplication.
     oneOf:
       - type: object
+        properties:
+          $entry:
+            description: >
+              Patch the agent named by spec.workflow.entry (after this overlay's
+              workflow patch) without hardcoding the agency id. Specialists are
+              untouched.
+            $ref: "./agent-patch.schema.yaml"
         additionalProperties:
           $ref: "./agent-patch.schema.yaml"
       - type: object

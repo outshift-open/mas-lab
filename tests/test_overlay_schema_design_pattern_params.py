@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
-from mas.ctl.validate.schemas import load_schema
 from jsonschema import Draft7Validator
+from mas.ctl.validate.schemas import load_schema
 
 
 def test_overlay_schema_rejects_global_design_pattern_params_on_mas_target() -> None:
@@ -81,6 +81,25 @@ def test_overlay_schema_accepts_agents_remove_ops_for_mas_target() -> None:
             "patch": {
                 "agents_remove": {"$op": {"add": ["generalist"]}},
                 "workflow": {"entry": "generalist"},
+            },
+        },
+    }
+
+    errors = sorted(Draft7Validator(schema).iter_errors(doc), key=lambda e: e.path)
+    assert not errors, [e.message for e in errors]
+
+
+def test_overlay_schema_accepts_entry_agent_patch_for_mas_target() -> None:
+    schema = load_schema("overlay")
+    doc = {
+        "apiVersion": "mas/v1",
+        "kind": "Overlay",
+        "metadata": {"name": "entry-pattern"},
+        "spec": {
+            "target": {"kind": "MAS"},
+            "patch": {
+                "workflow": {"entry": "moderator"},
+                "agents": {"$entry": {"design_pattern": {"type": "cot", "config": {"max_steps": 10}}}},
             },
         },
     }
