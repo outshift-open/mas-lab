@@ -20,9 +20,11 @@ mas_lab:
   flavour: local
   benchmark_flavour: local-benchmark
 
-# OSS dev / CI: mock LLM (no API key). For production bundles use standard:production or standard:openai.
-infra_refs:
-  - standard:mock-llm
+# OSS dev / CI: set default_infra in user config (Tutorial 0) or:
+#   infra_refs: [standard:openai]
+# Offline replay: pair with tests/fixtures/llm-cache/ci-replay.yaml
+# infra_refs:
+#   - standard:openai
 
 # Optional shared runtime tuning (omit to use package defaults only):
 # runtime_refs:

@@ -8,9 +8,11 @@ from pathlib import Path
 
 import pytest
 import yaml
+from ci_llm import mas_infra_refs_for_ci, require_ci_cache
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = REPO_ROOT / "tests/fixtures/cache-rerun/labs.yaml"
+_SAMPLE_WS = REPO_ROOT / "library-samples" / "sample-workspace"
 
 
 def _labs_from_manifest() -> list[tuple[str, Path]]:
@@ -32,7 +34,11 @@ def isolated_env(tmp_path, monkeypatch):
     mas_home.mkdir()
     monkeypatch.setenv("MAS_HOME", str(mas_home))
     monkeypatch.setenv("MAS_TRACE_CACHE", str(trace_cache))
-    monkeypatch.setenv("MAS_INFRA_REFS", "standard:mock-llm")
+    monkeypatch.setenv("MAS_INFRA_REFS", mas_infra_refs_for_ci())
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-config"))
+    monkeypatch.setenv("MAS_LLM_CACHE", str(tmp_path / "llm_cache.json"))
+    monkeypatch.setenv("MAS_WORKSPACE_ROOT", str(_SAMPLE_WS))
+    require_ci_cache()
     return out, trace_cache
 
 

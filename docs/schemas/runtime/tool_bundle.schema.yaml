@@ -78,7 +78,7 @@ properties:
               description: >
                 Fully-qualified Python module path (importlib-style).
                 E.g. library-samples/tools/calc.py or ./calc.py.
-                Required unless the tool is mock-only (testing).
+                Required unless the tool is test-only (no runtime impl).
               default: null
 
             class_name:

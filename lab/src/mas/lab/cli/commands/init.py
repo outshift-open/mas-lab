@@ -291,14 +291,14 @@ def init_cmd(yes: bool) -> None:
     click.echo("Try first command:")
     click.echo(
         "mas-ctl run-mas library-samples/apps/trip-planner/mas.yaml "
-        "--infra-ref standard:mock-llm "
+        "--infra-ref standard:openai "
         "-q \"Plan a trip from Celestia to Verdantia\""
     )
     click.echo("Default trace file for this manifest: library-samples/apps/trip-planner/traces/events.jsonl")
     click.echo("To control output location, rerun with --events-file:")
     click.echo(
         "mas-ctl run-mas library-samples/apps/trip-planner/mas.yaml "
-        "--infra-ref standard:mock-llm "
+        "--infra-ref standard:openai "
         "--events-file traces/trip-planner-default.events.jsonl "
         "-q \"Plan a trip from Celestia to Verdantia\""
     )

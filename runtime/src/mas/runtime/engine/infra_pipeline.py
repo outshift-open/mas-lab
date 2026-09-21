@@ -19,6 +19,25 @@ from mas.runtime.engine.llm_cache import (
 from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.ingress import EngineIoReturn
 
+_SHARED_LLM_CACHES: dict[str, dict[str, Any]] = {}
+
+
+def _cache_for_path(path: Path | None) -> dict[str, Any]:
+    """One in-memory dict per resolved cache file.
+
+    MAS peer engines each wrap their own LiveLlmEngine with llm_cache. Without
+    sharing, each persist() dumped a stale snapshot and clobbered keys written
+    by the other agent in the same process.
+    """
+    if path is None:
+        return {}
+    key = str(path.expanduser().resolve())
+    cached = _SHARED_LLM_CACHES.get(key)
+    if cached is None:
+        cached = load_cache(path)
+        _SHARED_LLM_CACHES[key] = cached
+    return cached
+
 
 class InfraMiddleware(Protocol):
     middleware_id: str
@@ -52,7 +71,8 @@ class LlmCacheMiddleware:
 
     def __post_init__(self) -> None:
         if self.cache_path:
-            self._cache = load_cache(self.cache_path)
+            self.cache_path = self.cache_path.expanduser().resolve()
+            self._cache = _cache_for_path(self.cache_path)
 
     def exchange_preview(self, op: str) -> str:
         preview = getattr(self.inner, "exchange_preview", None)
@@ -77,11 +97,12 @@ class LlmCacheMiddleware:
         # turn, where the useful answer is almost always the post-tool-call
         # completion.
         preview = self._preview(io)
-        key = hashlib.sha256(preview.encode()).hexdigest()
+        key = hashlib.sha256(preview.encode("utf-8")).hexdigest()
         if self.allow_read and key in self._cache:
             return middleware_cache_deserialize(self._cache[key], io.correlation_id)
         if self.allow_read and self.raise_on_miss:
-            raise RuntimeError(f"llm_cache miss (raise_on_miss=true) for key {key}")
+            shown = preview if len(preview) <= 4000 else preview[:4000] + "\n…"
+            raise RuntimeError(f"llm_cache miss (raise_on_miss=true) for key {key}\n{shown}")
         ret = self.inner.invoke(io)
         if (
             self.allow_write
@@ -100,6 +121,9 @@ class LlmCacheMiddleware:
         reset_fn = getattr(self.inner, "reset_turn_state", None)
         if callable(reset_fn):
             reset_fn()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.inner, name)
 
     def _preview(self, io: InvokeEngineIo) -> str:
         preview = getattr(self.inner, "exchange_preview", None)
@@ -138,6 +162,14 @@ class FaultInjectMiddleware:
                 text=f"{code}: {self.message}",
             )
         return self.inner.invoke(io)
+
+    def reset_turn_state(self) -> None:
+        reset_fn = getattr(self.inner, "reset_turn_state", None)
+        if callable(reset_fn):
+            reset_fn()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.inner, name)
 
 
 def apply_middleware(engine: Any, spec: dict[str, Any]) -> Any:
@@ -218,6 +250,9 @@ class BidirectionalPipelineEngine:
         reset_fn = getattr(self.inner, "reset_turn_state", None)
         if callable(reset_fn):
             reset_fn()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.inner, name)
 
     def summarize_messages(self, messages: list[dict[str, Any]]) -> str:
         from mas.runtime.engine.protocol import CompactionSummarizeEngine

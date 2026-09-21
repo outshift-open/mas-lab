@@ -5,7 +5,7 @@ $id: "mas/v1#llm-binding"
 title: LlmBinding
 description: >
   Deprecated compat shim for model id and sampling params on kind: Agent.
-  Prefer spec.models[]. Retained for overlay patches (e.g. provider: mock).
+  Prefer spec.models[]. Retained for overlay patches (provider, sampling).
 type: object
 additionalProperties: false
 properties:
@@ -13,7 +13,7 @@ properties:
     type: string
   provider:
     type: string
-    description: "Engine provider hint (mock, openai, azure, …)."
+    description: "Engine provider hint (openai, azure, …)."
   temperature:
     type: number
     minimum: 0

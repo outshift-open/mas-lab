@@ -19,7 +19,7 @@ Manifest: `labs.yaml` (label → experiment path).
 
 Files per label (e.g. `lab-smoke/`):
 
-- `events.jsonl` — raw trace from mock-LLM single run
+- `events.jsonl` — raw trace from a single run
 - `events.normalized.jsonl` — timestamps/ids stripped for diff
 - `events.sha256` — fingerprint of normalized events
 - `cache-backup/<label>/` — full trace-cache entry copy + manifest

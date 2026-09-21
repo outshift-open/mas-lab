@@ -857,7 +857,7 @@ properties:
         $ref: "./fragments/llm-binding.schema.yaml"
         description: >
           Deprecated compat shim for model id and sampling params. Prefer
-          spec.models[]. Overlays may still patch provider/mock hints here until
+          spec.models[]. Overlays may still patch provider/sampling hints here until
           migrated.
         x-merge:
           strategy: mapping_merge_or_ops

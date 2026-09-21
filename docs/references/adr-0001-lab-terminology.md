@@ -46,16 +46,15 @@ readability hazard.
 **dynamic string imports** that only fail at runtime:
 
 - `lab/src/mas/lab/components/controller/backends.py:52-53` —
-  `"mas.lab.components.metrics.server:main"`, `"mas.lab.components.llm.mock_server:main"`
+  `"mas.lab.components.metrics.server:main"`
   (spawned via `python -m …`).
 - `lab/components/bench/src/mas/lab/benchmark/pipeline/steps/eval/annotate_metrics.py:173` —
   `_DEFAULT_METRIC_CLASS = "mas.lab.components.evaluation.deepeval_wrapper.AnswerRelevancyMetric"`.
 - `lab/components/controller/src/mas/lab/controller/routes/health.py:124` — the same
   class path as a display-name map key.
-- `library-standard/src/mas/library/standard/infra/mock-llm.yaml:10` — a `python -m …` comment.
 
 A `py_compile` pass and most unit tests will not catch a missed string here; the
-metrics/llm_mock backends would simply fail when the controller spawns them. The
+metrics backends would simply fail when the controller spawns them. The
 rename should therefore land in a change set where `pytest` (and a backend-spawn
 smoke test) can confirm it.
 
@@ -70,7 +69,6 @@ smoke test) can confirm it.
    - `lab/src/mas/lab/runtime_modules/evaluation/interface.py` (docstring)
    - `lab/components/bench/src/mas/lab/benchmark/pipeline/steps/eval/annotate_metrics.py`
    - `lab/components/controller/src/mas/lab/controller/routes/health.py`
-   - `library-standard/src/mas/library/standard/infra/mock-llm.yaml`
 3. Grep-verify zero remaining `mas\.lab\.components` references.
-4. Run the full suite **and** start the controller so the `metrics` and `llm_mock`
-   backends spawn (covers the dynamic imports).
+4. Run the full suite **and** start the controller so the `metrics`
+   backend spawns (covers the dynamic imports).

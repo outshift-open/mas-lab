@@ -11,7 +11,7 @@ from mas.runtime.kernel.config import KernelConfig
 
 
 def merge_runtime_engine_layers(*layers: dict[str, Any] | None) -> dict[str, Any]:
-    """Deep-merge normalized RuntimeEngine layers (later layers win scalars; nested cache/mocking merge)."""
+    """Deep-merge normalized RuntimeEngine layers (later layers win scalars; nested cache merge)."""
     out: dict[str, Any] = {}
     for layer in layers:
         if not layer:

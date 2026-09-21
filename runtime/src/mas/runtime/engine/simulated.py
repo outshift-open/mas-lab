@@ -32,6 +32,7 @@ class SimulatedEngine:
     script: dict[int, EngineIoReturn] = field(default_factory=dict)
     llm_next_step: Callable[[int], str] | None = None
     llm_tool_intent: Callable[[int], tuple[str, dict]] | None = None
+    stop_text: str | None = None
 
     def exchange_preview(self, op: str) -> str:
         if op == "LLM_CALL":
@@ -53,13 +54,19 @@ class SimulatedEngine:
                 tool_name, tool_arguments = self.llm_tool_intent(io.correlation_id)
             elif next_step == "TOOL_CALL":
                 tool_name = ""
+            if next_step == "TOOL_CALL":
+                text = ""
+            elif self.stop_text is not None:
+                text = self.stop_text
+            else:
+                text = f"[simulated model response cid={io.correlation_id}]"
             return EngineIoReturn(
                 correlation_id=io.correlation_id,
                 response_kind="MODEL_TEXT",
                 next_step=next_step,  # type: ignore[arg-type]
                 tool_name=tool_name,
                 tool_arguments=tool_arguments,
-                text="" if next_step == "TOOL_CALL" else f"[simulated model response cid={io.correlation_id}]",
+                text=text,
             )
 
         if io.op == "TOOL_CALL":

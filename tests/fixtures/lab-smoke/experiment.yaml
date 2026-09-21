@@ -2,7 +2,7 @@
 #  SPDX-License-Identifier: Apache-2.0
 experiment:
   name: verify-lab-smoke
-  description: 'CI smoke — one mock agent run (cache disabled) plus a lightweight post pipeline.
+  description: 'CI smoke — one agent run (cache disabled) plus a lightweight post pipeline.
 
     '
   default_flavour: local
@@ -10,13 +10,12 @@ experiment:
     - manifest: ../../../docs/tutorials/01-building-an-agent/agent.yaml
       configs_dir: ../../../docs/tutorials/01-building-an-agent/overlays
   scenarios:
-  - id: mock-tools
-    overlays:
-      logic:
-      - mock-llm
-      - tools
-      control: []
-      infra: []
+    - id: tools
+      overlays:
+        logic:
+          - tools
+        control: []
+        infra: []
   dataset:
     path: dataset.yaml
     limit: 1

@@ -2,15 +2,14 @@
 #  SPDX-License-Identifier: Apache-2.0
 experiment:
   name: golden-extensions
-  description: Golden capture — trip-planner mock run (extensions lab fingerprint)
+  description: Golden capture — trip-planner run (extensions lab fingerprint)
   default_flavour: local
   applications:
     - app: trip-planner
   scenarios:
     - id: golden
       overlays:
-        logic:
-          - ref: ../../../../../docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml
+        logic: []
         control: []
         infra: []
   dataset:

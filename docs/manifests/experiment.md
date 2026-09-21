@@ -75,7 +75,7 @@ or serialized paths).
 
 > **Planned breaking change (deferred, last in queue):** `experiment.execution` mixes
 > **experimental design** (what we compare) with **bench scheduling** (how we walk the
-> matrix) and **emulation posture** (mock/replay/trace cache). A future release will
+> matrix) and **emulation posture** (replay/trace cache). A future release will
 > split these into separate top-level blocks (`experiment.design`, `experiment.schedule`,
 > and bench emulation posture). Until then, the key name is historical.
 
@@ -84,11 +84,11 @@ runs. It is **not** the removed `spec.execution` field from `kind: Agent` manife
 
 | Concern | Where it lives |
 | --- | --- |
-| LLM endpoints, mock bundles, cache middleware | Workspace `infra_refs`, `MAS_INFRA_REFS`, `--infra-ref`, optional `mas-lab benchmark --infra <name>` (local `infra/<name>.yaml`) |
+| LLM endpoints, cache middleware | Workspace `infra_refs`, `MAS_INFRA_REFS`, `--infra-ref`, optional `mas-lab benchmark --infra <name>` (local `infra/<name>.yaml`) |
 | Per-turn engine tuning (queue depth, LLM response cache read/write, stream, parallel tools) | `kind: RuntimeEngine` via `runtime_refs` / `--runtime-ref` — see [runtime-engine.md](runtime-engine.md) |
 | How many MAS runs run in parallel, timeouts, ordering | `experiment.execution.parallel_scenarios`, `timeout`, `strategy`, … |
 | Whole-run trace skip/replay (content-addressed lab cache) | `experiment.execution.emulation.runtime.cache` (`content-addressed` \| `disabled` \| `forced`) |
-| Live vs mock/replay for LLM, tools, memory during a benchmark | `experiment.execution.emulation.infra.*` |
+| Live vs replay for LLM, tools, memory during a benchmark | `experiment.execution.emulation.infra.*` |
 
 Example (smoke run — disable trace cache, keep infra live):
 

@@ -2,16 +2,15 @@
 #  SPDX-License-Identifier: Apache-2.0
 experiment:
   name: golden-design-space
-  description: Golden capture — tutorial qa agent mock run (design-space lab fingerprint)
+  description: Golden capture — tutorial qa agent run (design-space lab fingerprint)
   default_flavour: local
   applications:
     - manifest: ../../../../../docs/tutorials/01-building-an-agent/agent.yaml
       configs_dir: ../../../../../docs/tutorials/01-building-an-agent/overlays
   scenarios:
-    - id: mock-tools
+    - id: tools
       overlays:
         logic:
-          - mock-llm
           - tools
         control: []
         infra: []

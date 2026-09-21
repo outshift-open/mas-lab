@@ -12,6 +12,7 @@ import yaml
 
 from mas.runtime.schema.hitl import HitlResolveChoice
 from mas.runtime.schema.observability import ObsEventKind
+from ci_llm import web_search_engine
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 T01 = REPO_ROOT / "docs" / "tutorials" / "01-building-an-agent"
@@ -25,7 +26,7 @@ def _merged_tutorial_agent(*, hitl_result: bool = True) -> dict:
     from mas.ctl.overlay import merge_overlay
 
     base = _load_yaml(T01 / "agent.yaml")
-    for name in ("mock-llm.yaml", "tools.yaml"):
+    for name in ("tools.yaml",):
         base = merge_overlay(base, _load_yaml(T01 / "overlays" / name))
     gov = _load_yaml(T01 / "overlays" / "governance-hitl.yaml")
     if not hitl_result:
@@ -52,6 +53,18 @@ def _hitl_requests(instance) -> list:
     return [e for e in (sink.events if sink else []) if e.kind == ObsEventKind.HITL_REQUEST]
 
 
+def _context_text(instance) -> str:
+    """Ledger + committed history — SimulatedEngine does not echo tool results."""
+    parts: list[str] = []
+    for e in instance.driver.kernel.run.events:
+        if getattr(e, "text", None):
+            parts.append(e.text)
+    for m in getattr(instance.driver.ctx, "committed_messages", None) or []:
+        if isinstance(m, dict):
+            parts.append(str(m.get("content") or ""))
+    return "\n".join(parts)
+
+
 @pytest.mark.timeout(60)
 def test_tool_cycle_emits_four_governance_checkpoints() -> None:
     """Egress + ingress governance each record before/after decisions."""
@@ -62,7 +75,12 @@ def test_tool_cycle_emits_four_governance_checkpoints() -> None:
 
     manifest = _merged_tutorial_agent()
     instance, _store = instantiate_runtime(
-        InstantiationOptions(agent_manifest=manifest, manifest_dir=T01, validate_manifests=False),
+        InstantiationOptions(
+            agent_manifest=manifest,
+            manifest_dir=T01,
+            validate_manifests=False,
+            engine=web_search_engine(),
+        ),
         hitl=None,
     )
     controller = SessionController(
@@ -96,7 +114,12 @@ def test_ingress_hitl_steering_text() -> None:
     steer = "Operator note: treat the capital of France as the answer."
     manifest = _merged_tutorial_agent()
     instance, _store = instantiate_runtime(
-        InstantiationOptions(agent_manifest=manifest, manifest_dir=T01, validate_manifests=False),
+        InstantiationOptions(
+            agent_manifest=manifest,
+            manifest_dir=T01,
+            validate_manifests=False,
+            engine=web_search_engine(),
+        ),
         hitl=None,
     )
 
@@ -120,7 +143,9 @@ def test_ingress_hitl_steering_text() -> None:
     close_observability(controller)
 
     assert len(_hitl_requests(instance)) >= 2
-    assert steer in result.text or "capital of France" in result.text
+    blob = _context_text(instance)
+    assert steer in blob or "capital of France" in blob
+    assert result.text
 
 
 @pytest.mark.timeout(60)
@@ -135,7 +160,12 @@ def test_egress_skip_steering_binds_synthetic_tool_result() -> None:
     steer = "Current is Maxence Augé"
     manifest = _merged_tutorial_agent()
     instance, _store = instantiate_runtime(
-        InstantiationOptions(agent_manifest=manifest, manifest_dir=T01, validate_manifests=False),
+        InstantiationOptions(
+            agent_manifest=manifest,
+            manifest_dir=T01,
+            validate_manifests=False,
+            engine=web_search_engine(),
+        ),
         hitl=None,
     )
 
@@ -165,7 +195,8 @@ def test_egress_skip_steering_binds_synthetic_tool_result() -> None:
     ]
     assert tool_events, "expected synthetic TOOL_RESULT in run ledger"
     assert any(steer in (e.text or "") for e in tool_events)
-    assert steer in result.text
+    assert steer in _context_text(instance)
+    assert result.text
     assert "error" not in result.text.lower()[:20]
 
 
@@ -180,7 +211,12 @@ def test_egress_block_synthetic_tool_result() -> None:
 
     manifest = _merged_tutorial_agent()
     instance, _store = instantiate_runtime(
-        InstantiationOptions(agent_manifest=manifest, manifest_dir=T01, validate_manifests=False),
+        InstantiationOptions(
+            agent_manifest=manifest,
+            manifest_dir=T01,
+            validate_manifests=False,
+            engine=web_search_engine(),
+        ),
         hitl=None,
     )
 
@@ -203,7 +239,8 @@ def test_egress_block_synthetic_tool_result() -> None:
     result = controller.run_turn("Who is current POTUS?")
     close_observability(controller)
 
-    assert "blocked" in result.text.lower()
+    assert "blocked" in _context_text(instance).lower()
+    assert result.text
 
 
 @pytest.mark.timeout(60)
@@ -217,7 +254,12 @@ def test_ingress_block_synthetic_tool_result() -> None:
 
     manifest = _merged_tutorial_agent()
     instance, _store = instantiate_runtime(
-        InstantiationOptions(agent_manifest=manifest, manifest_dir=T01, validate_manifests=False),
+        InstantiationOptions(
+            agent_manifest=manifest,
+            manifest_dir=T01,
+            validate_manifests=False,
+            engine=web_search_engine(),
+        ),
         hitl=None,
     )
 
@@ -240,7 +282,8 @@ def test_ingress_block_synthetic_tool_result() -> None:
     result = controller.run_turn("Who is current POTUS?")
     close_observability(controller)
 
-    assert "blocked tool result" in result.text.lower()
+    assert "blocked tool result" in _context_text(instance).lower()
+    assert result.text
 
 
 @pytest.mark.timeout(60)
@@ -252,7 +295,12 @@ def test_ingress_hitl_only_when_enabled() -> None:
 
     manifest = _merged_tutorial_agent(hitl_result=False)
     instance, _store = instantiate_runtime(
-        InstantiationOptions(agent_manifest=manifest, manifest_dir=T01, validate_manifests=False),
+        InstantiationOptions(
+            agent_manifest=manifest,
+            manifest_dir=T01,
+            validate_manifests=False,
+            engine=web_search_engine(),
+        ),
         hitl=None,
     )
     controller = SessionController(

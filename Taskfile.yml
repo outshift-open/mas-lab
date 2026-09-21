@@ -118,7 +118,7 @@ tasks:
       - "{{.VENV}}/pytest tests/tutorials/ -q --tb=line"
 
   verify-lab-smoke:
-    desc: "Per-lab mock run + post-pipeline + envelope parity + cache invalidation"
+    desc: "Per-lab smoke run + post-pipeline + envelope parity + cache invalidation"
     deps: [install-dev]
     cmds:
       - "{{.VENV}}/pytest tests/test_lab_smoke_benchmark.py tests/test_envelope_prompt_parity.py tests/test_lab_cache_invalidation.py -q --tb=line"
@@ -210,15 +210,14 @@ tasks:
         echo "OK: mas-ctl -> $expected"
 
   verify-chat-smoke:
-    desc: "Tutorial agent chat smoke (standard:mock-llm infra, no network)"
+    desc: "Tutorial agent validate + llm_cache-replay chat smoke"
     deps: [install-dev]
     cmds:
       - |
-        cd docs/tutorials/01-building-an-agent
-        {{.VENV}}/mas-ctl chat agent.yaml -q "Who is POTUS" \
-          --infra-ref standard:mock-llm \
-          -o overlays/tools.yaml \
-          -o overlays/governance-hitl.yaml
+        T01="{{.ROOT_DIR}}/docs/tutorials/01-building-an-agent"
+        {{.VENV}}/mas-ctl validate "$T01/agent.yaml"
+        {{.VENV}}/mas-ctl validate "$T01/agent.yaml" -o "$T01/overlays/tools.yaml"
+        {{.VENV}}/pytest tests/test_hitl_tool_gate.py::test_cli_batch_hitl_emits_hitl_gate -q --tb=short
 
   verify:
     desc: "Full pre-commit gate — CI gates + local env check, version check"

@@ -35,7 +35,7 @@ def test_unsupported_flavour_raises_with_guidance() -> None:
         validate_flavour("prod")
     msg = str(exc.value)
     assert "not supported" in msg and "local" in msg
-    assert "mock-llm" in msg  # points offline users to the overlay
+    assert "llm_cache" in msg  # points offline users at replay, not a fake model
 
 
 def test_missing_library_degrades_to_noop(monkeypatch) -> None:

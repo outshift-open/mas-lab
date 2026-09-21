@@ -13,7 +13,8 @@ def _instantiate(manifest: dict, tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: WorkspaceConfig({}))
     monkeypatch.setattr(UserConfig, "load", lambda *a, **k: UserConfig({}))
-    infra = resolve_infra_refs(["standard:mock-llm"], anchor=tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "ci-test-unused")
+    infra = resolve_infra_refs(["standard:openai"], anchor=tmp_path)
     return instantiate_runtime(
         InstantiationOptions(
             agent_manifest=manifest,
@@ -58,12 +59,10 @@ def test_no_working_memory_compaction_leaves_context_manager_absent(tmp_path: Pa
 
 
 def test_summarize_wires_a_real_summarize_fn_off_the_resolved_engine(tmp_path: Path, monkeypatch):
-    """standard:mock-llm still resolves to a LiveLlmEngine (pointed at a fake
-    endpoint, not a SimulatedEngine) -- it implements CompactionSummarizeEngine,
-    so summarize wires a real callable rather
-    than degrading. The degrade-to-keep_recent path (no completion
-    primitives available at all) is covered at the facade level in
-    test_working_memory_compaction.py."""
+    """standard:openai resolves to a LiveLlmEngine (CompactionSummarizeEngine),
+    so summarize wires a real callable rather than degrading. The
+    degrade-to-keep_recent path (no completion primitives available at all)
+    is covered at the facade level in test_working_memory_compaction.py."""
     manifest = {
         "metadata": {"name": "agent"},
         "spec": {

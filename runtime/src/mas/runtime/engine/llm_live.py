@@ -89,7 +89,7 @@ class LiveLlmEngine:
         ma_cfg = (self.llm_proxy or {}).get("model_access")
         self._model_access = load_model_access(ma_cfg if isinstance(ma_cfg, dict) else None)
         if self._uses_model_access():
-            # MockModelAccess owns cache lookup; avoid shadowing it with engine cache.
+            # Plugin model access owns cache lookup; avoid shadowing it with engine cache.
             self.use_cache = False
 
     def _uses_model_access(self) -> bool:

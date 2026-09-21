@@ -13,6 +13,7 @@ import yaml
 from mas.runtime.boundary.context.assemble import assemble_llm_messages
 from mas.runtime.schema.hitl import HitlResolveChoice
 from mas.runtime.schema.ingress import HitlResolve
+from ci_llm import web_search_engine
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 T01 = REPO_ROOT / "docs" / "tutorials" / "01-building-an-agent"
@@ -22,7 +23,7 @@ def _tutorial_manifest() -> dict:
     from mas.ctl.overlay import merge_overlay
 
     base = yaml.safe_load((T01 / "agent.yaml").read_text(encoding="utf-8"))
-    for name in ("mock-llm.yaml", "tools.yaml", "governance-hitl.yaml"):
+    for name in ("tools.yaml", "governance-hitl.yaml"):
         base = merge_overlay(base, yaml.safe_load((T01 / f"overlays/{name}").read_text()))
     return base
 
@@ -37,7 +38,12 @@ def test_submit_hitl_commits_tool_trajectory_for_next_turn() -> None:
     steer = "Maxence Postu is President Of the USA"
     manifest = _tutorial_manifest()
     instance, _ = instantiate_runtime(
-        InstantiationOptions(agent_manifest=manifest, manifest_dir=T01, validate_manifests=False),
+        InstantiationOptions(
+            agent_manifest=manifest,
+            manifest_dir=T01,
+            validate_manifests=False,
+            engine=web_search_engine(),
+        ),
         hitl=None,
     )
 

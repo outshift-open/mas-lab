@@ -3,7 +3,7 @@
 experiment:
   name: smoke-design-space-topologies
   description: >
-    CI smoke for design-space.lab Exp 1.2 — one mock run, eval_mce pipeline,
+    CI smoke for design-space.lab Exp 1.2 — one run, eval_mce pipeline,
     isolated trace cache (cache disabled).
   default_flavour: local
   applications:
@@ -12,8 +12,7 @@ experiment:
   scenarios:
     - id: topo-linear-pipeline
       overlays:
-        logic:
-          - ref: ../../../docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml
+        logic: []
         control: []
         infra: []
   dataset:

@@ -22,7 +22,7 @@ plugins:
 Or by short name when using a flavour that already activates it.
 
 See [flavours documentation](../library-standard/docs/user-guide.md) and
-[Tutorial 2 — Creating a MAS](../tutorials/02-creating-a-mas/) for
+[Tutorial 2 — Creating a MAS](tutorials/02-creating-a-mas/) for
 practical examples.
 
 ---
@@ -149,5 +149,4 @@ Flavour YAML files shipped inside library packages.
 | ----------------- | --------------------------------------------------------------------------------- | ---------------------- |
 | `local`           | Default local development flavour. Infra bundles are resolved via workspace refs… | `mas-library-standard` |
 | `local-benchmark` | Benchmark flavour for mas-lab batch runs. Uses file telemetry and native observa… | `mas-library-standard` |
-| `mock`            | Deployment posture for offline CI / golden benchmark runs — same protocol and ob… | `mas-library-standard` |
 

@@ -116,14 +116,11 @@ docker compose -f docker/compose.yaml run --rm --no-deps cli mas-ctl chat \
 `LLM_PROXY_API_BASE` in `.env` / `docker/.env`. See
 [`.env.example`](.env.example).
 
-**Offline mock** (no network — uses mock infra overlay from Tutorial 1):
+**Offline** (no network — validate only; chat needs a live provider or llm_cache replay):
 
 ```bash
-docker compose -f docker/compose.yaml run --rm --no-deps cli mas-ctl chat \
-  docs/tutorials/01-building-an-agent/agent.yaml \
-  -o docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml \
-  --infra-ref standard:mock-llm \
-  -q "What is 2+2?"
+docker compose -f docker/compose.yaml run --rm --no-deps cli mas-ctl validate \
+  docs/tutorials/01-building-an-agent/agent.yaml
 ```
 
 | CLI | What it does |
@@ -367,13 +364,10 @@ mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
   -q "What is the capital of France?"
 ```
 
-Offline (no network):
+Offline (no network — validate only; chat needs a live provider or [llm_cache](../../manifests/llm-cache.md) replay):
 
 ```bash
-mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
-  -o docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml \
-  --infra-ref standard:mock-llm \
-  -q "What is 2+2?"
+mas-ctl validate docs/tutorials/01-building-an-agent/agent.yaml
 ```
 
 ### 7 — Keeping up to date

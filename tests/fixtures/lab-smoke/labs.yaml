@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-# Per-lab CI smoke: one mock-LLM run + post-pipeline, isolated trace cache.
+# Per-lab CI smoke: one llm_cache-replay run + post-pipeline, isolated trace cache.
 # MAS_MCE_OFFLINE=1 (set by test fixture) stubs LLM-as-judge metrics offline.
 #   pytest tests/test_lab_smoke_benchmark.py -q
 

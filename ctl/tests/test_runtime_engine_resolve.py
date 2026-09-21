@@ -46,7 +46,7 @@ spec:
         encoding="utf-8",
     )
     infra = resolve_infra_refs(
-        ["standard:mock-llm"],
+        ["standard:openai"],
         anchor=tmp_path,
         runtime_refs=["runtime.yaml"],
     )
@@ -75,7 +75,7 @@ spec:
 def test_standard_runtime_default_bundle(tmp_path: Path):
     repo = Path(__file__).resolve().parents[2]
     infra = resolve_infra_refs(
-        ["standard:mock-llm"],
+        ["standard:openai"],
         anchor=repo,
         runtime_refs=["standard:runtime-default"],
     )
@@ -124,7 +124,7 @@ spec:
     )
     ws = WorkspaceConfig.load(tmp_path)
     infra = resolve_infra_refs(
-        ["standard:mock-llm"],
+        ["standard:openai"],
         anchor=tmp_path,
         workspace=ws,
     )
@@ -158,7 +158,7 @@ spec:
         encoding="utf-8",
     )
     infra = resolve_infra_refs(
-        ["standard:mock-llm"],
+        ["standard:openai"],
         anchor=tmp_path,
         runtime_refs=["a.yaml", "b.yaml"],
     )

@@ -17,10 +17,10 @@ end up patching an in-memory spec dict) but are conceptually different:
   selection)
 - **infra** — endpoints, tool name→impl mapping, model wire-names
 - **overlay / agent-spec** — llm params, tools, skills, memory
-- **execution** — mocking, caching (pipeline elements sitting between the
+- **execution** — caching (pipeline elements sitting between the
   agent and the LLM/tool call)
 
-Cache and mocking are called out specifically because they don't obviously
+Cache is called out specifically because it doesn't obviously
 belong to either "flavour" or "infra": a cache is infrastructure-shaped (it
 sits in the `InfraMiddleware` chain, `runtime/src/mas/runtime/engine/
 infra_pipeline.py:26` — `LlmCacheMiddleware`), but *whether it's on* is a
@@ -47,14 +47,13 @@ disagree. Concretely:
   observability/control plugins" from the guiding principle in
   `BRANCHES.md` §5b.
 
-**Resolution: execution (mocking, cache, parallel, live, timeout) is already
-correctly modeled as an `execution` binding, applied via overlay/agent-spec —
-not infra, not flavour.** The `ExecutionBinding` fragment is the answer to
-the cache/mocking frontier question; nothing needs to move. What's broken is
-that the *Flavour* schema also carries a redundant, competing `spec.mocking:
-{enabled, mode}` (`flavour.schema.yaml:170-179`) and `spec.prefer_local`
-(`:139-144`) that duplicate/shadow this. FT4 already lists removing both —
-this doc confirms that's correct, not just cleanup.
+**Resolution: execution (cache, parallel, live, timeout) is already
+correctly modeled as an `execution` binding / `RuntimeEngine`, not flavour.**
+Offline LLM turns use the `llm_cache` infra middleware recorded against a
+live provider. What's broken is that the *Flavour* schema also carries a
+redundant, competing `spec.prefer_local` that duplicates workspace infra
+tuning. FT4 already lists removing it — this doc confirms that's correct,
+not just cleanup.
 
 ## Where flavour and overlay actually converge — and why
 
@@ -93,11 +92,11 @@ manifest kind. Concretely:
    (`merge_plugin_list_field(base_spec, overlay_spec, key)`) called from both
    `merge_agent_overlay` and `merge_flavour_overlay`, rather than duplicated.
 3. Flavours remain schema-validated-only for every field FT4 removes (llm
-   inference params, skills, `prefer_local`, `mocking`) — those are agent-spec
-   / execution concerns and a flavour overlay must not be able to reintroduce
-   them through the back door. `merge_flavour_overlay` should reject unknown
-   patch keys the same way `parse_execution` rejects unknown execution keys,
-   rather than silently ignoring or (worse) applying them.
+   inference params, skills, `prefer_local`) — those are agent-spec /
+   workspace-infra concerns and a flavour overlay must not be able to
+   reintroduce them through the back door. `merge_flavour_overlay` should
+   reject unknown patch keys the same way `parse_execution` rejects unknown
+   execution keys, rather than silently ignoring or (worse) applying them.
 
 This also resolves the "can overlay express arbitrary plugin wiring?"
 question from FT7: no, by design. The plugin-list fragments
@@ -134,13 +133,13 @@ by construction rather than needing a bespoke merge path.
 | Endpoints, api keys, model wire-names, tool name→impl mapping | **Infra** (`infra/v1`: `InfraBundle`, `LLMProxy`, `ToolProvider`, …) | `--infra-ref` / workspace `infra_refs` only — never Agent, MAS, or overlay YAML |
 | Protocol, observability/control plugin *selection* | **Flavour** | `--flavour NAME` (+ future flavour overlay, this doc §3) |
 | LLM inference params, tools, skills, memory | **Agent spec / overlay** | `merge_agent_overlay`, `build_cli_overlay` |
-| Mock LLM / endpoints | **Infra** (`LLMProxy`, bundles) | workspace `infra_refs`, `--infra-ref` |
+| LLM endpoints | **Infra** (`LLMProxy`, bundles) | workspace `infra_refs`, `--infra-ref` |
 | Engine queue, LLM disk cache policy, stream, parallel tool calls | **RuntimeEngine** (`infra/v1`) | workspace `runtime_refs`, `--runtime-ref` (not Agent/MAS/overlays) |
 | Lab trace replay / batch concurrency | **Experiment** `execution:` (mas-lab only) | [experiment.md](../manifests/experiment.md#execution-batch-orchestration) |
 
 ## What this unblocks
 
-- **FT4**: strip `Flavour.spec.{llm-inference-params, skills, mocking,
+- **FT4**: strip `Flavour.spec.{llm-inference-params, skills,
   prefer_local}`; rework `observability`/`control` into the plugin-list
   shape; make flavour resolution *apply* (not just validate) the surviving
   fields.

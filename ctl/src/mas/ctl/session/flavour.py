@@ -26,8 +26,8 @@ import yaml
 
 _FLAVOUR_PACKAGE = "mas.library.standard"
 DEFAULT_FLAVOUR = "local"
-# Flavours wired into the interactive path today. Others (mock, local-benchmark)
-# exist in library-standard for benchmarks; offline chat uses the mock-llm overlay.
+# Flavours wired into the interactive path today. Others (local-benchmark)
+# exist in library-standard for benchmarks. Offline chat uses llm_cache replay.
 SUPPORTED_FLAVOURS = ("local",)
 
 
@@ -63,7 +63,7 @@ def resolve_flavour(name: str | None = None) -> dict[str, Any]:
         supported = ", ".join(SUPPORTED_FLAVOURS)
         raise FlavourError(
             f"flavour {resolved!r} is not supported yet (supported: {supported}). "
-            f"For offline runs use `-o overlays/mock-llm.yaml`; "
+            f"For offline runs attach llm_cache replay (raise_on_miss); "
             f"see all bundled flavours with `mas-ctl flavour list`."
         )
     data = _load_bundled_flavour(resolved)

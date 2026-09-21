@@ -78,7 +78,6 @@ bindings, workflow nodes/edges, policy rules, design-pattern config, etc.
 
 Sample overlays and bindings under [`schemas/examples/`](../schemas/examples/):
 
-- [`overlays/mock-llm.yaml`](../schemas/examples/overlays/mock-llm.yaml)
 - [`overlays/live-llm.yaml`](../schemas/examples/overlays/live-llm.yaml)
 - [`overlays/mcp-localhost.yaml`](../schemas/examples/overlays/mcp-localhost.yaml)
 - [`infra/mcp-localhost.yaml`](../schemas/examples/infra/mcp-localhost.yaml)

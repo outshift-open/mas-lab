@@ -19,7 +19,7 @@ from mas.ctl.adapters.memory_seed import (
 )
 from mas.ctl.compose.models import ResolvedInfra
 from mas.ctl.infra.resolve import resolution_anchor
-from mas.ctl.session.engine_factory import build_engine
+from mas.ctl.session.engine_factory import EngineSelection, build_engine
 from mas.ctl.validate import validate_file, validation_enabled
 from mas.ctl.workspace.config import WorkspaceConfig
 from mas.runtime.agent_defaults import default_pattern_plugin_id
@@ -83,6 +83,7 @@ class InstantiationOptions:
     cache_read_override: bool | None = None
     cache_write_override: bool | None = None
     stream_override: bool | None = None
+    engine: Any | None = None
     runtime_refs_cli: tuple[str, ...] = ()
 
 
@@ -159,20 +160,27 @@ def instantiate_runtime(
         else None
     )
     _kernel_cfg, _obs_binding = parse_agent_spec(spec, runtime_engine=_runtime_engine)
-    selection = build_engine(
-        ctx,
-        options.agent_manifest,
-        options.resolved_infra,
-        pattern_plugin_id=options.pattern_plugin_id,
-        workspace_default_model=ws.default_model,
-        anchor=resolution_anchor(options.manifest_dir, ws),
-        workspace=ws,
-        kernel_config=_kernel_cfg,
-        cache_read_override=options.cache_read_override,
-        cache_write_override=options.cache_write_override,
-        stream_override=options.stream_override,
-        runtime_refs_cli=list(options.runtime_refs_cli),
-    )
+    if options.engine is not None:
+        selection = EngineSelection(
+            engine=options.engine,
+            mode="injected",
+            reason="InstantiationOptions.engine",
+        )
+    else:
+        selection = build_engine(
+            ctx,
+            options.agent_manifest,
+            options.resolved_infra,
+            pattern_plugin_id=options.pattern_plugin_id,
+            workspace_default_model=ws.default_model,
+            anchor=resolution_anchor(options.manifest_dir, ws),
+            workspace=ws,
+            kernel_config=_kernel_cfg,
+            cache_read_override=options.cache_read_override,
+            cache_write_override=options.cache_write_override,
+            stream_override=options.stream_override,
+            runtime_refs_cli=list(options.runtime_refs_cli),
+        )
     logger.info("Engine mode=%s (%s)", selection.mode, selection.reason)
 
     from mas.runtime.boundary.context.working_memory_compaction import (

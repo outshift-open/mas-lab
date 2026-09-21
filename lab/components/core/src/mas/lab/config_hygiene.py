@@ -151,7 +151,7 @@ def _check_file(path: str, base: str) -> List[Violation]:
 
         # Rule 1: model key in non-agent manifests
         if kind in ("flavour", "overlay", "infra", "mas", "config"):
-            if _MODEL_LINE.match(ln) and "null" not in ln and "mock" not in ln:
+            if _MODEL_LINE.match(ln) and "null" not in ln:
                 violations.append(Violation(rel, kind, i + 1, "MODEL_IN_NON_AGENT", stripped))
 
         # Rule 2: access config in non-flavour files

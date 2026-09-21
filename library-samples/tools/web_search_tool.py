@@ -24,10 +24,17 @@ class WebSearchTool(ToolContract):
     def __init__(self, cache_dir: str = None, max_results: int = 5):
         super().__init__()
         if cache_dir is None:
-            cache_dir = os.path.expanduser("~/.mas-cache/web_search")
+            cache_dir = os.environ.get("MAS_WEB_SEARCH_CACHE", "").strip() or os.path.expanduser(
+                "~/.mas-cache/web_search"
+            )
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.max_results = max_results
+        self._offline = os.environ.get("MAS_WEB_SEARCH_OFFLINE", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }
 
     def get_name(self) -> str:
         return "web-search"
@@ -89,16 +96,15 @@ class WebSearchTool(ToolContract):
             # Cap each snippet to ~200 chars to keep the prompt lean.
             if len(snippet) > 200:
                 snippet = snippet[:200].rsplit(" ", 1)[0] + "…"
-            results.append({
-                "title": r.get("title", ""),
-                "snippet": snippet,
-                "url": r.get("href", ""),
-            })
+            results.append(
+                {
+                    "title": r.get("title", ""),
+                    "snippet": snippet,
+                    "url": r.get("href", ""),
+                }
+            )
 
-        summary = "\n".join(
-            f"[{i+1}] {r['title']}: {r['snippet']} ({r['url']})"
-            for i, r in enumerate(results)
-        )
+        summary = "\n".join(f"[{i + 1}] {r['title']}: {r['snippet']} ({r['url']})" for i, r in enumerate(results))
         return {"summary": summary, "results": results}
 
     def execute(self, **kwargs) -> Dict[str, Any]:
@@ -110,6 +116,8 @@ class WebSearchTool(ToolContract):
         if cached is not None:
             cached["cached"] = True
             return cached
+        if self._offline:
+            raise RuntimeError(f"web-search cache miss while MAS_WEB_SEARCH_OFFLINE=1 for query {query!r}")
 
         try:
             result = self._perform_search(query)

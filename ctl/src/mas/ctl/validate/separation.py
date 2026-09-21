@@ -41,12 +41,11 @@ class FlavourSeparationValidator(SeparationValidator):
     kind = "flavour"
 
     # FT4: a flavour is deployment posture only — these moved to kind: Agent
-    # (llm, skills); mocking via workspace infra_refs (standard:mock-llm).
+    # (llm, skills). Offline LLM is llm_cache replay, not a Flavour field.
     # See docs/design/flavour-boundary.md.
     _FORBIDDEN_BLOCKS: ClassVar[dict[str, str]] = {
         "llm": "spec.llm belongs in kind: Agent (spec.models), not Flavour",
         "skills": "spec.skills belongs in kind: Agent, not Flavour",
-        "mocking": "spec.mocking belongs in workspace infra_refs (e.g. standard:mock-llm), not Flavour",
         "prefer_local": "spec.prefer_local belongs in workspace infra_refs / runtime tuning, not Flavour",
     }
 

@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Per-lab end-to-end smoke: one mock run + post-pipeline, isolated trace cache."""
+"""Per-lab end-to-end smoke: one cached/replay run + post-pipeline, isolated trace cache."""
 
 from __future__ import annotations
 
@@ -10,11 +10,13 @@ from pathlib import Path
 
 import pytest
 import yaml
+from ci_llm import mas_infra_refs_for_ci, require_ci_cache
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MAS_LAB = Path(sys.executable).parent / "mas-lab"
 MANIFEST = REPO_ROOT / "tests/fixtures/lab-smoke/labs.yaml"
 _DEFAULT_GLOBAL_CACHE = Path.home() / ".cache" / "mas" / "traces"
+_SAMPLE_WS = REPO_ROOT / "library-samples" / "sample-workspace"
 
 
 def _labs_from_manifest() -> list[tuple[str, Path, list[str]]]:
@@ -39,7 +41,11 @@ def smoke_env(tmp_path, monkeypatch):
     monkeypatch.setenv("MAS_HOME", str(mas_home))
     monkeypatch.setenv("MAS_TRACE_CACHE", str(trace_cache))
     monkeypatch.setenv("MAS_MCE_OFFLINE", "1")
-    monkeypatch.setenv("MAS_INFRA_REFS", "standard:mock-llm")
+    monkeypatch.setenv("MAS_INFRA_REFS", mas_infra_refs_for_ci())
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-config"))
+    monkeypatch.setenv("MAS_LLM_CACHE", str(tmp_path / "llm_cache.json"))
+    monkeypatch.setenv("MAS_WORKSPACE_ROOT", str(_SAMPLE_WS))
+    require_ci_cache()
     return out, trace_cache
 
 
@@ -65,7 +71,7 @@ def test_lab_smoke_one_run_and_pipeline(
     artifacts: list[str],
     smoke_env,
 ) -> None:
-    """Each paper lab: 1 mock run, post-pipeline artefacts, no global cache pollution."""
+    """Each paper lab: 1 run, post-pipeline artefacts, no global cache pollution."""
     pytest.importorskip("mas.lab.benchmark.worker")
     from mas.lab.benchmark.golden.cache_backup import find_events_in_tree
     from mas.lab.benchmark.worker import run_benchmark_sync

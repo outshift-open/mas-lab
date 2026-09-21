@@ -138,7 +138,6 @@ manifests bundled in `mas-library-standard`. List the installed ones:
 ```bash
 mas-ctl flavour list
 # standard:local             ← development default (this tutorial)
-# standard:mock              ← offline / cached responses (benchmarks)
 # standard:local-benchmark   ← batch benchmark runs
 ```
 
@@ -178,8 +177,7 @@ source .env
 With `default_infra: standard:production` in `$XDG_CONFIG_HOME/mas/config.yaml`, you do not
 need `--infra-ref` on every command. This tutorial does not pin an LLM backend;
 live chat uses Tutorial 0 infra. Record/replay without calling the provider is
-the `llm_cache` middleware ([llm-cache.md](../../manifests/llm-cache.md)), not a
-mock model.
+the `llm_cache` middleware ([llm-cache.md](../../manifests/llm-cache.md)).
 
 ### Run it
 
@@ -492,13 +490,18 @@ echo "What is the GDP of France?" | mas-ctl -v chat agent.yaml
 ```bash
 # Default flavour (local) — explicit form is optional
 mas-ctl chat agent.yaml -i --flavour local
+
+# Offline / no API key — llm_cache replay (see docs/manifests/llm-cache.md)
+mas-ctl chat agent.yaml -i --infra-ref standard:openai \
+  --infra-ref library-samples/infra/llm-cache-replay.yaml
 ```
 
 The optional `--flavour NAME` flag selects a deployment flavour bundled in
 `mas-library-standard` (see `mas-ctl flavour list`); it defaults to `local`,
 the only flavour wired into `chat`/`tui` today. Passing an unsupported name
 (e.g. `--flavour prod`) exits with an error listing what's available. This
-tutorial's `config.yaml` does not pin an LLM backend.
+tutorial's `config.yaml` does not pin an LLM backend. Offline runs use
+llm_cache replay, not a flavour.
 
 The agent manifest is the same in all cases — only the deployment
 posture changes.

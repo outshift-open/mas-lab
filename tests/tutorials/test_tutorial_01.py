@@ -3,9 +3,8 @@
 """Tutorial 01 — Building an Agent: integration tests.
 
 Manifest validation, overlay merging, and tool execution run without an LLM.
-Bootstrap inspects engine wiring without calling a provider (standard:mock-llm
-infra so CI does not need OPENAI_API_KEY). Chat effect is checked with a real
-model when OPENAI_API_KEY is set.
+Bootstrap uses an injected SimulatedEngine. Chat effect is checked with a
+real model when OPENAI_API_KEY is set.
 """
 
 from __future__ import annotations
@@ -15,6 +14,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from ci_llm import stop_engine
 from conftest import T01, load_yaml, run_cli
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -185,11 +185,14 @@ class TestSkillsContract:
         assert "Available Skills" not in prompt
 
     def test_activate_skill_is_listed_as_system_tool(self):
+        from mas.ctl.session.manifest_config import engine_use_tool_loop, kernel_config_from_manifest
         from mas.runtime.engine.leaf import leaf_engine
 
+        manifest = _tutorial_agent("skills.yaml")
+        kernel = kernel_config_from_manifest(manifest)
+        assert engine_use_tool_loop(manifest, kernel) is True
         instance, _ = _instantiate("skills.yaml")
         leaf = leaf_engine(instance.driver.engine)
-        assert getattr(leaf, "use_tool_loop", False) is True
         names = {t["name"] for t in leaf.tool_provider.list_tools(ctx=instance.driver.ctx)}
         assert "activate_skill" in names
         assert "run_skill_script" not in names
@@ -250,24 +253,18 @@ class TestOverlayMerging:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 4. Agent instantiation (live engine wiring — no LLM call)
+# 4. Agent instantiation (default runtime — injected SimulatedEngine)
 # ═══════════════════════════════════════════════════════════════════════════
 
 
 def _tutorial_agent(*extra_overlays: str) -> dict:
-    """Tutorial agent.yaml plus optional overlays. Does not stack mock-llm."""
+    """Tutorial agent.yaml plus optional overlays. Does not stack a fake LLM."""
     from mas.ctl.overlay import merge_overlay
 
     base = load_yaml(T01 / "agent.yaml")
     for name in extra_overlays:
         base = merge_overlay(base, load_yaml(T01 / "overlays" / name))
     return base
-
-
-def _ci_infra():
-    from mas.ctl.infra.resolve import resolve_infra_refs
-
-    return resolve_infra_refs(["standard:mock-llm"], anchor=T01)
 
 
 def _instantiate(*extra_overlays: str):
@@ -278,7 +275,7 @@ def _instantiate(*extra_overlays: str):
             agent_manifest=_tutorial_agent(*extra_overlays),
             manifest_dir=T01,
             validate_manifests=False,
-            resolved_infra=_ci_infra(),
+            engine=stop_engine(),
         )
     )
 
@@ -295,6 +292,30 @@ class TestAgentInstantiation:
     def test_instantiate_with_tools_overlay(self):
         instance, _ = _instantiate("tools.yaml")
         assert instance is not None
+
+    def test_session_controller_turn(self):
+        """Run one scripted turn against SimulatedEngine."""
+        from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
+        from mas.ctl.session.controller import ConversationConfig, SessionController
+        from mas.ctl.ui.stdout import StdoutConversationDisplay
+
+        config = _tutorial_agent()
+        instance, _ = instantiate_runtime(
+            InstantiationOptions(
+                agent_manifest=config,
+                manifest_dir=T01,
+                validate_manifests=False,
+                engine=stop_engine(text="Paris"),
+            ),
+        )
+        controller = SessionController(
+            instance=instance,
+            display=StdoutConversationDisplay(show_labels=False, verbose=0),
+            config=ConversationConfig(single_turn=True),
+        )
+        result = controller.run_turn("What is the capital of France?")
+        assert result.text
+        assert "Paris" in result.text
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -326,7 +347,6 @@ class TestLiveSkillChat:
         )
         combined = f"{r.stdout}\n{r.stderr}"
         assert r.returncode == 0, r.stderr
-        assert "[mock]" not in combined
         assert "Available Skills" not in combined
         assert "activate_skill" not in combined
 
@@ -349,7 +369,6 @@ class TestLiveSkillChat:
         )
         combined = f"{r.stdout}\n{r.stderr}"
         assert r.returncode == 0, r.stderr
-        assert "[mock]" not in combined
         assert "Available Skills" in combined
         assert "tool=activate_skill" in combined or "name: activate_skill" in combined
         assert "Confidence:" in combined

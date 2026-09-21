@@ -269,14 +269,11 @@ register_plugin("data_source", LocalFileDataSource, Flavour.DEV)
 register_plugin("data_source", S3DataSource, Flavour.PROD)
 ```
 
-### Pattern 2: LLM Provider (Mock vs Real)
+### Pattern 2: LLM Provider (live vs test injection)
 
 ```python
-# Dev: Mock LLM (deterministic)
-register_plugin("llm", MockLLMPlugin, Flavour.DEV)
-
-# Prod: OpenAI/Anthropic
-register_plugin("llm", RealLLMPlugin, Flavour.PROD)
+# Tests: inject SimulatedEngine (InstantiationOptions.engine)
+# Prod: LiveLlmEngine + llm_cache middleware around a real provider
 ```
 
 ### Pattern 3: Observability (No-op vs Full)

@@ -50,9 +50,8 @@ def _manifest_base() -> dict:
     """Base agent manifest — no skills.
 
     agent.yaml itself is the real quickstart example (meant to run against a
-    live model), so mocking is enabled here rather than in the file -- these
-    tests only inspect prompt assembly/plugin wiring, never an actual LLM
-    call, matching this module's "no API key needed" contract.
+    live model). These tests only inspect prompt assembly/plugin wiring, never
+    an actual LLM call, matching this module's "no API key needed" contract.
     """
     manifest = _load_yaml(AGENT_YAML)
     return manifest
@@ -83,16 +82,15 @@ def _manifest_with_skills() -> dict:
 
 
 def _build_options(manifest: dict, manifest_dir: Path) -> InstantiationOptions:
-    from mas.ctl.infra.resolve import resolve_infra_refs
     from mas.runtime.agent_defaults import default_pattern_plugin_id
+    from mas.runtime.engine.simulated import SimulatedEngine
 
-    infra = resolve_infra_refs(["standard:mock-llm"], anchor=manifest_dir)
     return InstantiationOptions(
         pattern_plugin_id=default_pattern_plugin_id(),
         agent_manifest=manifest,
         manifest_dir=manifest_dir,
         app_root=manifest_dir,
-        resolved_infra=infra,
+        engine=SimulatedEngine(llm_next_step=lambda _cid: "STOP"),
         validate_manifests=False,
         enable_observability=False,
         enable_governance=False,
@@ -249,14 +247,17 @@ class TestWithSkills:
         assert len(collection.get_plugins_by_type(SkillCatalogPlugin)) == 1
 
     def test_activate_skill_is_a_system_tool(self):
+        from mas.ctl.session.manifest_config import engine_use_tool_loop, kernel_config_from_manifest
         from mas.runtime.engine.leaf import leaf_engine
 
+        manifest = _manifest_with_skills()
+        kernel = kernel_config_from_manifest(manifest)
+        assert engine_use_tool_loop(manifest, kernel) is True
         leaf = leaf_engine(self.instance.driver.engine)
-        provider = leaf.tool_provider
-        names = {t["name"] for t in provider.list_tools(ctx=self.ctx)}
-        assert getattr(leaf, "use_tool_loop", False) is True
+        names = {t["name"] for t in leaf.tool_provider.list_tools(ctx=self.ctx)}
         assert "activate_skill" in names
         assert "run_skill_script" not in names
+
 
     # -- Tier 2: activate_skill tool -----------------------------------------
 

@@ -79,11 +79,6 @@ mas-ctl run-mas library-samples/apps/trip-planner/mas-topologies/parallel.mas.ya
 # Linear pipeline (no moderator)
 mas-ctl run-mas library-samples/apps/trip-planner/mas-topologies/linear-pipeline.mas.yaml \
   -q "What trains run from Celestia to Verdantia?"
-
-# Offline/mock (no API key needed)
-mas-ctl run-mas library-samples/apps/trip-planner/mas-topologies/moderator-broker.mas.yaml \
-  -o docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml \
-  -q "What trains run from Celestia to Verdantia?"
 ```
 
 ### 2 — Apply a collaboration pattern overlay

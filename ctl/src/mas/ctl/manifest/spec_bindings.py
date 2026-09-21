@@ -8,7 +8,7 @@ This module adds semantic checks that schema alone does not express (integer ran
 nested object key sets).
 
 Cardinality-one fields (scalar / single object): ``design_pattern``, ``llm``,
-``memory``, ``execution``, ``mocking``.
+``memory``, ``execution``.
 
 Multi-cardinality fields (list): ``observability``, ``tools``, ``skills``,
 ``governance`` (plugin list — see governance-binding.schema.yaml).
@@ -37,7 +37,6 @@ from mas.runtime.spec.schema_bindings_generated import (
     DESIGN_PATTERN_BINDING_KEYS,
     EXECUTION_BINDING_KEYS,
     EXECUTION_CACHE_KEYS,
-    EXECUTION_MOCKING_KEYS,
     LLM_BINDING_KEYS,
 )
 
@@ -235,9 +234,6 @@ def parse_execution(raw: Any) -> None:
     if not isinstance(raw, dict):
         raise SpecBindingError(f"spec.execution must be an object, got {type(raw).__name__}")
     _reject_unknown_keys(raw, allowed=EXECUTION_BINDING_KEYS, field="spec.execution")
-    mocking = raw.get("mocking")
-    if isinstance(mocking, dict):
-        _reject_unknown_keys(mocking, allowed=EXECUTION_MOCKING_KEYS, field="spec.execution.mocking")
     cache = raw.get("cache")
     if isinstance(cache, dict):
         _reject_unknown_keys(cache, allowed=EXECUTION_CACHE_KEYS, field="spec.execution.cache")

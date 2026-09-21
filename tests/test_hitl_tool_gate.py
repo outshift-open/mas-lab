@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-
+from ci_llm import CI_REPLAY_YAML, isolated_mas_env, require_ci_cache, web_search_engine
 from mas.runtime.schema.hitl import HitlResolveChoice
 from mas.runtime.schema.observability import ObsEventKind
 
@@ -28,15 +28,9 @@ def _merged_tutorial_agent() -> dict:
     from mas.ctl.overlay import merge_overlay
 
     base = _load_yaml(T01 / "agent.yaml")
-    for name in ("mock-llm.yaml", "tools.yaml", "governance-hitl.yaml"):
+    for name in ("tools.yaml", "governance-hitl.yaml"):
         base = merge_overlay(base, _load_yaml(T01 / "overlays" / name))
     return base
-
-
-def _mock_infra():
-    from mas.ctl.infra.resolve import resolve_infra_refs
-
-    return resolve_infra_refs(["standard:mock-llm"], anchor=T01)
 
 
 def _event_kinds(events_path: Path) -> list[str]:
@@ -71,7 +65,7 @@ def test_scripted_hitl_terminal_allow_runs_tool(tmp_path: Path) -> None:
             agent_manifest=manifest,
             manifest_dir=T01,
             validate_manifests=False,
-            resolved_infra=_mock_infra(),
+            engine=web_search_engine(),
         ),
         hitl=None,
     )
@@ -86,7 +80,6 @@ def test_scripted_hitl_terminal_allow_runs_tool(tmp_path: Path) -> None:
 
     assert _boundary_hitl_requests(instance), "expected boundary HITL_REQUEST events"
     assert result.text, "expected agent response after ALLOW"
-    assert "president" in result.text.lower() or "potus" in result.text.lower() or "trump" in result.text.lower()
 
 
 @pytest.mark.timeout(60)
@@ -103,7 +96,7 @@ def test_scripted_hitl_block_skips_tool(tmp_path: Path) -> None:
             agent_manifest=manifest,
             manifest_dir=T01,
             validate_manifests=False,
-            resolved_infra=_mock_infra(),
+            engine=web_search_engine(),
         ),
         hitl=None,
     )
@@ -125,6 +118,7 @@ def test_cli_batch_hitl_emits_hitl_gate(tmp_path: Path) -> None:
     """mas-ctl chat -q path (verify-chat-smoke) still records hitl_gate in events."""
     if not MAS_CTL.is_file():
         pytest.skip("mas-ctl CLI not in venv")
+    require_ci_cache()
     events_file = tmp_path / "events.jsonl"
     proc = subprocess.run(
         [
@@ -133,10 +127,10 @@ def test_cli_batch_hitl_emits_hitl_gate(tmp_path: Path) -> None:
             "agent.yaml",
             "-q",
             "Who is POTUS",
-            "-o",
-            "overlays/mock-llm.yaml",
             "--infra-ref",
-            "standard:mock-llm",
+            "standard:openai",
+            "--infra-ref",
+            str(CI_REPLAY_YAML),
             "-o",
             "overlays/tools.yaml",
             "-o",
@@ -146,6 +140,7 @@ def test_cli_batch_hitl_emits_hitl_gate(tmp_path: Path) -> None:
             str(events_file),
         ],
         cwd=str(T01),
+        env=isolated_mas_env(tmp_path),
         capture_output=True,
         text=True,
         timeout=55,

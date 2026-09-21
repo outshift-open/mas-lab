@@ -2,9 +2,9 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Tests for FlavourSeparationValidator.
 
-FT4: a Flavour is deployment posture only. infra_refs, llm, skills, mocking,
-and prefer_local must NOT appear — they belong to kind: Agent or the
-execution overlay binding. See docs/design/flavour-boundary.md.
+FT4: a Flavour is deployment posture only. infra_refs, llm, skills,
+and prefer_local must NOT appear — they belong to kind: Agent or
+workspace infra/runtime refs. See docs/design/flavour-boundary.md.
 """
 
 from mas.ctl.validate.separation import FlavourSeparationValidator
@@ -45,7 +45,7 @@ class TestFlavourInfraRefsRejected:
         assert not FlavourSeparationValidator.collect_violations(data)
 
 
-class TestFlavourLlmSkillsMockingRejected:
+class TestFlavourLlmSkillsRejected:
     def test_llm_block_rejected(self):
         data = _flavour({"llm": {"provider": "openai"}})
         violations = FlavourSeparationValidator.collect_violations(data)
@@ -65,15 +65,10 @@ class TestFlavourLlmSkillsMockingRejected:
         violations = FlavourSeparationValidator.collect_violations(data)
         assert any("spec.skills belongs in kind: Agent" in v for v in violations)
 
-    def test_mocking_block_rejected(self):
-        data = _flavour({"mocking": {"enabled": True}})
-        violations = FlavourSeparationValidator.collect_violations(data)
-        assert any("standard:mock-llm" in v or "infra_refs" in v for v in violations)
-
     def test_prefer_local_true_rejected(self):
         data = _flavour({"prefer_local": True})
         violations = FlavourSeparationValidator.collect_violations(data)
-        assert any("standard:mock-llm" in v or "infra_refs" in v for v in violations)
+        assert any("prefer_local" in v for v in violations)
 
     def test_prefer_local_false_passes(self):
         data = _flavour({"prefer_local": False})

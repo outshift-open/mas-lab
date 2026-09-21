@@ -11,17 +11,17 @@ from mas.ctl.paths import resolve_overlay_ref_entries
 def test_resolve_overlay_ref_entries_registry_id(tmp_path: Path) -> None:
     overlays_dir = tmp_path / "overlays"
     overlays_dir.mkdir()
-    (overlays_dir / "mock-llm.yaml").write_text("kind: Overlay\n", encoding="utf-8")
+    (overlays_dir / "tools.yaml").write_text("kind: Overlay\n", encoding="utf-8")
     mas_dir = tmp_path / "app"
     mas_dir.mkdir()
     (mas_dir / "mas.yaml").write_text("kind: mas\n", encoding="utf-8")
 
     paths = resolve_overlay_ref_entries(
-        ["mock-llm"],
+        ["tools"],
         manifest_dir=mas_dir,
         overlays_dir=overlays_dir,
     )
-    assert paths == (overlays_dir / "mock-llm.yaml",)
+    assert paths == (overlays_dir / "tools.yaml",)
 
 
 def test_resolve_overlay_ref_entries_ref_dict(tmp_path: Path) -> None:
