@@ -19,7 +19,6 @@ from mas.runtime.engine.llm_cache import (
 from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.ingress import EngineIoReturn
 
-
 _SHARED_LLM_CACHES: dict[str, dict[str, Any]] = {}
 
 
@@ -98,11 +97,12 @@ class LlmCacheMiddleware:
         # turn, where the useful answer is almost always the post-tool-call
         # completion.
         preview = self._preview(io)
-        key = hashlib.sha256(preview.encode()).hexdigest()
+        key = hashlib.sha256(preview.encode("utf-8")).hexdigest()
         if self.allow_read and key in self._cache:
             return middleware_cache_deserialize(self._cache[key], io.correlation_id)
         if self.allow_read and self.raise_on_miss:
-            raise RuntimeError(f"llm_cache miss (raise_on_miss=true) for key {key}")
+            shown = preview if len(preview) <= 4000 else preview[:4000] + "\n…"
+            raise RuntimeError(f"llm_cache miss (raise_on_miss=true) for key {key}\n{shown}")
         ret = self.inner.invoke(io)
         if (
             self.allow_write

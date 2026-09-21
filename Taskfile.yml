@@ -214,15 +214,10 @@ tasks:
     deps: [install-dev]
     cmds:
       - |
-        cd docs/tutorials/01-building-an-agent
-        {{.VENV}}/mas-ctl validate agent.yaml
-        {{.VENV}}/mas-ctl validate agent.yaml -o overlays/tools.yaml
-        REPLAY="{{.ROOT_DIR}}/tests/fixtures/llm-cache/ci-replay.yaml"
-        {{.VENV}}/mas-ctl chat agent.yaml -q "Who is POTUS" \
-          --infra-ref standard:openai \
-          --infra-ref "$REPLAY" \
-          -o overlays/tools.yaml \
-          -o overlays/governance-hitl.yaml
+        T01="{{.ROOT_DIR}}/docs/tutorials/01-building-an-agent"
+        {{.VENV}}/mas-ctl validate "$T01/agent.yaml"
+        {{.VENV}}/mas-ctl validate "$T01/agent.yaml" -o "$T01/overlays/tools.yaml"
+        {{.VENV}}/pytest tests/test_hitl_tool_gate.py::test_cli_batch_hitl_emits_hitl_gate -q --tb=short
 
   verify:
     desc: "Full pre-commit gate — CI gates + local env check, version check"

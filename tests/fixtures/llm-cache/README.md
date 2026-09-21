@@ -20,3 +20,8 @@ Optional: `MAS_RECORD_PROVIDER` selects the inner bundle (default:
 `~/.config/mas/infra/llm-proxy.yaml` if present, else `standard:openai`).
 
 Then commit the updated `ci.llm-cache.json` and recaptured golden events.
+
+Chat-smoke also replays `web-search` from `tests/fixtures/llm-cache/web-search/`
+(`MAS_WEB_SEARCH_CACHE`, `MAS_WEB_SEARCH_OFFLINE=1`). Re-record copies
+DuckDuckGo hits into that directory. An offline cache miss fails instead of
+calling the network.

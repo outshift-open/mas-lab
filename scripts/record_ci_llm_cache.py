@@ -101,6 +101,7 @@ def _isolate(tmp: Path, *, refs: str) -> dict[str, str]:
     env["MAS_WORKSPACE_ROOT"] = str(SAMPLE_WS)
     env["MAS_INFRA_REFS"] = refs
     env["MAS_MCE_OFFLINE"] = "1"
+    env["MAS_WEB_SEARCH_CACHE"] = str(CACHE.parent / "web-search")
     return env
 
 
@@ -229,8 +230,7 @@ def main(argv: list[str] | None = None) -> int:
             return chat.returncode
         if "hitl_gate" not in _event_kinds(events_file):
             print(
-                "recorded HITL chat did not emit hitl_gate — "
-                "the model must call a tool for CLI HITL replay",
+                "recorded HITL chat did not emit hitl_gate — the model must call a tool for CLI HITL replay",
                 file=sys.stderr,
             )
             return 1

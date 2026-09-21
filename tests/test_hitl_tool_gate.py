@@ -11,10 +11,9 @@ from pathlib import Path
 
 import pytest
 import yaml
-
+from ci_llm import CI_REPLAY_YAML, isolated_mas_env, require_ci_cache, web_search_engine
 from mas.runtime.schema.hitl import HitlResolveChoice
 from mas.runtime.schema.observability import ObsEventKind
-from ci_llm import CI_REPLAY_YAML, require_ci_cache, web_search_engine
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 T01 = REPO_ROOT / "docs" / "tutorials" / "01-building-an-agent"
@@ -141,6 +140,7 @@ def test_cli_batch_hitl_emits_hitl_gate(tmp_path: Path) -> None:
             str(events_file),
         ],
         cwd=str(T01),
+        env=isolated_mas_env(tmp_path),
         capture_output=True,
         text=True,
         timeout=55,

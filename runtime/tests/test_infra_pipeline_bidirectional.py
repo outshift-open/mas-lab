@@ -71,8 +71,9 @@ def test_llm_cache_raise_on_miss(tmp_path):
         },
     )
     io = InvokeEngineIo(correlation_id=1, op="LLM_CALL")
-    with pytest.raises(RuntimeError, match="llm_cache miss"):
+    with pytest.raises(RuntimeError, match="llm_cache miss") as excinfo:
         engine.invoke(io)
+    assert "echo:LLM_CALL" in str(excinfo.value)
 
 
 def test_llm_cache_read_only_skips_write(tmp_path):
