@@ -1,19 +1,18 @@
-<!--
-  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
-  SPDX-License-Identifier: Apache-2.0
--->
 ---
 name: trip-orchestration
 description: >
-  Trip planning orchestration protocol for the Moderator agent. Use this to
-  classify trip requests, dispatch to the right specialists, and assemble the
-  final itinerary from collected results.
+  Use when moderating a trip request: classify it, dispatch specialists, and
+  assemble the itinerary. Call `activate_skill("trip-orchestration")` and follow
+  the loaded instructions before answering.
 metadata:
   version: "1.0.0"
   domain: travel
   tags: [orchestration, protocol, moderator]
 ---
-
+<!--
+  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+  SPDX-License-Identifier: Apache-2.0
+-->
 # Trip Orchestration Protocol
 
 ## Step 1 — Classify the Request

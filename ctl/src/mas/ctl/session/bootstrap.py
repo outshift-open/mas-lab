@@ -116,7 +116,6 @@ def instantiate_runtime(
         options.agent_manifest,
         default_base_dir=skill_base or Path.cwd(),
     )
-    _auto_inject_skill_tools(options.agent_manifest, auto_inject_scripts=skill_cfg.auto_inject_scripts)
     _apply_manifest_context(
         ctx,
         options.agent_manifest,
@@ -243,6 +242,7 @@ def instantiate_runtime(
             workspace_root=ws.root if ws.found else None,
             hitl_contract=options.hitl_contract,
             user_io_contract=options.user_io_contract,
+            auto_inject_scripts=skill_cfg.auto_inject_scripts,
             overlay_providers=_overlay_providers_from_manifest(
                 options.agent_manifest,
                 options.resolved_infra,
@@ -372,45 +372,11 @@ def _entry_skill_base_dir(entry: dict[str, Any]) -> str | None:
 
 
 def _auto_inject_skill_tools(manifest: dict[str, Any] | None, *, auto_inject_scripts: bool = False) -> None:
-    """Auto-add skill tool refs when ``spec.skills`` is set.
+    """Deprecated no-op.
 
-    SkillCatalogPlugin/SkillToolsPlugin should not require the user to
-    hand-declare ``skill-access.tool.yaml`` — presence of ``spec.skills: [...]``
-    is enough to enable model-driven skill activation. That one is always
-    auto-injected: it is read-only (activate_skill/list_skill_files/
-    read_skill_file).
-
-    ``run-skill-script.tool.yaml`` (shell/script execution) is a trust
-    decision, not a manifest-authoring convenience — see
-    library-skills/docs/user-guide.md's "Shell tool" section. It is only
-    auto-injected when the deployment has opted in via
-    ``spec.context_sources: [{native: {auto_inject: true}}]`` (see
-    _resolve_skill_plugin_config), never merely because ``spec.skills`` is
-    non-empty. Default is off: declaring skills must not silently grant
-    script execution.
+    Skill tools are system tools now: listing ``spec.skills`` injects
+    ``activate_skill``; a skill with ``scripts/`` (or an explicit
+    ``kind: system`` / ``auto_inject`` opt-in) injects ``run_skill_script``.
+    Kept so older tests/callers do not break.
     """
-    if not manifest:
-        return
-    spec = manifest.get("spec")
-    if not isinstance(spec, dict):
-        return
-    skills = spec.get("skills")
-    if not isinstance(skills, list) or not skills:
-        return
-
-    tools = spec.get("tools")
-    if not isinstance(tools, list):
-        tools = []
-
-    existing_refs = {str(item.get("ref") or "").strip() for item in tools if isinstance(item, dict)}
-
-    def _add_if_missing(ref: str) -> None:
-        if ref not in existing_refs and f"pkg://{ref.split(':', 1)[1]}" not in existing_refs:
-            tools.append({"ref": ref})
-            existing_refs.add(ref)
-
-    _add_if_missing("skills:tools/skill-access.tool.yaml")
-    if auto_inject_scripts:
-        _add_if_missing("skills:tools/run-skill-script.tool.yaml")
-
-    spec["tools"] = tools
+    _ = (manifest, auto_inject_scripts)

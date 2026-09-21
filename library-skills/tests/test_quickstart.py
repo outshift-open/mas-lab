@@ -24,7 +24,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
 from mas.runtime.boundary.context.assemble import assemble_llm_messages
 
@@ -41,6 +40,7 @@ SKILL_DIR = QUICKSTART / "skills"
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
 
 def _load_yaml(path: Path) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -111,6 +111,7 @@ def _system_prompt(instance) -> str:
 # 1. Example files structure
 # ---------------------------------------------------------------------------
 
+
 class TestExampleStructure:
     def test_agent_yaml_exists(self):
         assert AGENT_YAML.is_file()
@@ -133,22 +134,24 @@ class TestExampleStructure:
         # spec.skills should appear in the overlay patch
         assert patch.get("skills") is not None
 
-    def test_overlay_adds_tool_ref(self):
+    def test_overlay_does_not_need_tool_ref(self):
         ov = _load_yaml(OVERLAY_YAML)
         patch = (ov.get("spec") or {}).get("patch") or {}
-        tools_section = patch.get("tools") or {}
-        assert tools_section, "overlay must add tools"
+        assert "tools" not in patch
 
     def test_skill_md_frontmatter(self):
         from mas.library.skills.lib.frontmatter import parse_skill_frontmatter
+
         text = (SKILL_DIR / "answer-expert" / "SKILL.md").read_text(encoding="utf-8")
         meta, body = parse_skill_frontmatter(text)
         assert meta.get("name") == "answer-expert"
         assert meta.get("description"), "description required for catalog"
+        assert "activate_skill" in meta["description"]
         assert len(body.strip()) > 100, "skill body should have substantive content"
 
     def test_skill_body_contains_format_rules(self):
         from mas.library.skills.lib.frontmatter import parse_skill_frontmatter
+
         text = (SKILL_DIR / "answer-expert" / "SKILL.md").read_text(encoding="utf-8")
         _, body = parse_skill_frontmatter(text)
         assert "Format rules" in body or "Rules" in body
@@ -157,6 +160,7 @@ class TestExampleStructure:
 # ---------------------------------------------------------------------------
 # 2. Without skills — baseline
 # ---------------------------------------------------------------------------
+
 
 class TestWithoutSkills:
     @pytest.fixture(autouse=True)
@@ -172,20 +176,31 @@ class TestWithoutSkills:
     def test_plugin_collection_has_no_skill_parts(self):
         ctx = self.instance.driver.ctx
         from mas.runtime.contracts.context_contract import ContextPlacement
+
         collection = getattr(ctx, "plugin_collection", None)
         skill_parts = []
         if collection:
             parts = collection.collect_results("collect_context")
-            skill_parts = [
-                p for p in parts
-                if getattr(p, "placement", None) == ContextPlacement.SYSTEM_SKILLS
-            ]
+            skill_parts = [p for p in parts if getattr(p, "placement", None) == ContextPlacement.SYSTEM_SKILLS]
         assert len(skill_parts) == 0
+
+    def test_no_activate_skill_tool(self):
+        from mas.runtime.engine.leaf import leaf_engine
+
+        leaf = leaf_engine(self.instance.driver.engine)
+        provider = getattr(leaf, "tool_provider", None)
+        names = set()
+        if provider is not None:
+            names = {t["name"] for t in provider.list_tools(ctx=self.instance.driver.ctx)}
+        assert "activate_skill" not in names
+        assert "run_skill_script" not in names
+        assert getattr(leaf, "use_tool_loop", False) is False
 
 
 # ---------------------------------------------------------------------------
 # 3. With skills — different, richer context
 # ---------------------------------------------------------------------------
+
 
 class TestWithSkills:
     @pytest.fixture(autouse=True)
@@ -204,9 +219,12 @@ class TestWithSkills:
 
     def test_description_in_catalog(self):
         prompt = _system_prompt(self.instance)
-        # Description contains keywords from the SKILL.md front matter
-        assert any(kw in prompt.lower() for kw in ["summary", "confidence", "structure"]), \
-            "skill description must appear in the catalog"
+        assert "activate_skill" in prompt
+        assert any(kw in prompt.lower() for kw in ["factual", "knowledge"]), (
+            "skill when-to-use description must appear in the catalog"
+        )
+        assert "HIGH / MEDIUM / LOW" not in prompt
+        assert "one-sentence summary" not in prompt.lower()
 
     def test_full_body_not_in_system_prompt(self):
         """Tier 1 only — full SKILL.md body NOT eagerly injected."""
@@ -227,30 +245,39 @@ class TestWithSkills:
         collection = getattr(self.ctx, "plugin_collection", None)
         assert collection is not None
         from mas.library.skills.plugins.sk_catalog import SkillCatalogPlugin
+
         assert len(collection.get_plugins_by_type(SkillCatalogPlugin)) == 1
+
+    def test_activate_skill_is_a_system_tool(self):
+        from mas.runtime.engine.leaf import leaf_engine
+
+        leaf = leaf_engine(self.instance.driver.engine)
+        provider = leaf.tool_provider
+        names = {t["name"] for t in provider.list_tools(ctx=self.ctx)}
+        assert getattr(leaf, "use_tool_loop", False) is True
+        assert "activate_skill" in names
+        assert "run_skill_script" not in names
 
     # -- Tier 2: activate_skill tool -----------------------------------------
 
     def test_activate_skill_returns_body(self):
         """Tier 2: activate_skill returns full SKILL.md body (frontmatter stripped)."""
         from mas.library.skills.plugins.sk_tools import SkillToolsPlugin
+
         plugin = SkillToolsPlugin()
-        result = plugin.on_execute_tool(
-            "activate_skill", {"name": "answer-expert"}, ctx=self.ctx
-        )
+        result = plugin.on_execute_tool("activate_skill", {"name": "answer-expert"}, ctx=self.ctx)
         assert "error" not in result, f"unexpected error: {result.get('error')}"
         content = result["content"]
         assert '<skill_content name="answer-expert">' in content
         assert "Format rules" in content or "Rules" in content  # body present
-        assert "---" not in content           # frontmatter stripped
+        assert "---" not in content  # frontmatter stripped
         assert "name: answer-expert" not in content
 
     def test_activate_skill_unknown_returns_error(self):
         from mas.library.skills.plugins.sk_tools import SkillToolsPlugin
+
         plugin = SkillToolsPlugin()
-        result = plugin.on_execute_tool(
-            "activate_skill", {"name": "ghost-skill"}, ctx=self.ctx
-        )
+        result = plugin.on_execute_tool("activate_skill", {"name": "ghost-skill"}, ctx=self.ctx)
         assert "error" in result
 
     # -- Key assertion: system prompt DIFFERS from baseline ------------------
@@ -262,20 +289,16 @@ class TestWithSkills:
         base_prompt = _system_prompt(base_instance)
         skills_prompt = _system_prompt(self.instance)
 
-        assert skills_prompt != base_prompt, \
-            "system prompt must differ when skills are applied"
-        assert len(skills_prompt) > len(base_prompt), \
-            "skills prompt must be longer (catalog was added)"
+        assert skills_prompt != base_prompt, "system prompt must differ when skills are applied"
+        assert len(skills_prompt) > len(base_prompt), "skills prompt must be longer (catalog was added)"
 
     def test_collect_context_returns_skills_part(self):
         """plugin_collection.collect_results('collect_context') returns ContextPart."""
         from mas.runtime.contracts.context_contract import ContextPlacement
+
         collection = getattr(self.ctx, "plugin_collection", None)
         assert collection is not None
         parts = collection.collect_results("collect_context")
-        skill_parts = [
-            p for p in parts
-            if getattr(p, "placement", None) == ContextPlacement.SYSTEM_SKILLS
-        ]
+        skill_parts = [p for p in parts if getattr(p, "placement", None) == ContextPlacement.SYSTEM_SKILLS]
         assert len(skill_parts) == 1
         assert skill_parts[0].pinned is True  # catalog is pinned

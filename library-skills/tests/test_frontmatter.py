@@ -33,6 +33,23 @@ def test_no_frontmatter():
     assert "Just a body" in body
 
 
+def test_leading_html_comment_is_not_frontmatter():
+    """parse_skill_frontmatter only accepts files that begin with ---."""
+    text = """\
+<!--
+  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+-->
+---
+name: answer-formatting
+description: Format every answer.
+---
+# Answer Formatting
+"""
+    meta, body = parse_skill_frontmatter(text)
+    assert meta == {}
+    assert "name: answer-formatting" in body
+
+
 def test_missing_closing_delimiter():
     text = "---\nname: broken\n# no closing delimiter"
     meta, body = parse_skill_frontmatter(text)

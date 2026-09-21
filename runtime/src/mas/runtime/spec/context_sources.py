@@ -5,10 +5,10 @@
 
 Currently the only consumer is library-skills, which reads the first plugin
 id to pick the skill-plugin engine (native, adk, langchain), and an optional
-per-plugin ``auto_inject: true`` to also auto-grant run-skill-script (script
-execution) alongside the always-auto-granted read-only skill-access tools —
-see ctl/src/mas/ctl/session/bootstrap.py's _resolve_skill_plugin_config /
-_auto_inject_skill_tools. The shape is kept generic so other ContextContract
+per-plugin ``auto_inject: true`` to also grant the ``run_skill_script`` system
+tool (script execution). ``activate_skill`` is implicit when ``spec.skills``
+lists at least one skill — see
+``mas.library.skills.plugins.system_tools``. The shape is kept generic so other ContextContract
 source plugins can register here in the future without a schema change.
 """
 

@@ -25,6 +25,9 @@ def golden_env(tmp_path, monkeypatch):
     # Isolate from personal ~/.config/mas/config.yaml (e.g. team:llm-proxy)
     # so golden-run parity tests are portable across developer machines and CI.
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-config"))
+    # Tutorial 01 config.yaml no longer pins mock-llm; this test must.
+    monkeypatch.setenv("MAS_LLM_CACHE", str(tmp_path / "llm_cache.json"))
+    monkeypatch.setenv("MAS_INFRA_REFS", "standard:mock-llm")
     return out, trace_cache
 
 

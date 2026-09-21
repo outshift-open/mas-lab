@@ -23,6 +23,13 @@ def test_no_tools_means_no_llm_tool_catalog():
     assert engine_use_tool_loop(manifest, kernel) is False
 
 
+def test_declared_skills_enable_llm_tool_catalog():
+    """Listing skills injects activate_skill; the LLM must see that tool."""
+    manifest = {"spec": {"skills": ["answer-formatting"]}}
+    kernel = kernel_config_from_manifest(manifest)
+    assert engine_use_tool_loop(manifest, kernel) is True
+
+
 def test_plan_execute_pattern_uses_dp_tool_scheduling():
     manifest = {"spec": {"tools": ["lookup"]}}
     kernel = kernel_config_from_manifest(manifest, pattern_plugin_id="plan_execute@v1")

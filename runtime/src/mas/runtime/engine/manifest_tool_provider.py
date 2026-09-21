@@ -163,8 +163,11 @@ def attach_manifest_tools(
         else list(spec.get("tools") or [])
     )
     overlay_providers = provider_kw.pop("overlay_providers", [])
+    ctx = provider_kw.pop("ctx", None)
     has_external = any(provider_origin(p) == "external" for p in overlay_providers)
-    if not tools and not has_external:
+    skills = list(spec.get("skills") or [])
+    provider_kw.setdefault("skills_spec", skills)
+    if not tools and not has_external and not skills:
         return None
 
     provider = build_manifest_tool_provider(
@@ -174,7 +177,7 @@ def attach_manifest_tools(
         overlay_providers=overlay_providers,
         **provider_kw,
     )
-    provider.initialize()
+    provider.initialize(ctx=ctx)
     leaf = leaf_engine(engine)
     leaf.tool_provider = provider
     if isinstance(leaf, LiveLlmEngine):
@@ -193,4 +196,7 @@ def attach_manifest_tools_to_instance(
     engine = getattr(getattr(instance, "driver", None), "engine", None)
     if engine is None:
         return None
-    return attach_manifest_tools(engine, manifest, manifest_dir, app_root=app_root, **provider_kw)
+    ctx = getattr(getattr(instance, "driver", None), "ctx", None)
+    return attach_manifest_tools(
+        engine, manifest, manifest_dir, app_root=app_root, ctx=ctx, **provider_kw
+    )

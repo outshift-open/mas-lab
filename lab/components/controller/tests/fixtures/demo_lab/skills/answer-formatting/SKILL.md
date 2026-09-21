@@ -1,12 +1,15 @@
+---
+name: answer-formatting
+description: >
+  Use for every user-visible answer. Call
+  `activate_skill("answer-formatting")` first and follow the loaded
+  instructions; the catalog text is when-to-use only, not the layout.
+---
 <!--
   Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
   SPDX-License-Identifier: Apache-2.0
 -->
 # Answer Formatting
-
-## When to use
-
-Apply these rules to EVERY answer you produce.
 
 ## Rules
 

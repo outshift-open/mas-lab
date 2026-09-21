@@ -16,9 +16,10 @@ without loading everything into the context window upfront.
 | 2 — Instructions | Full `SKILL.md` body | When model calls `activate_skill(name)` | <5000 (recommended) |
 | 3 — Resources | Scripts, references, assets | When model calls `read_skill_file(skill, path)` | Varies |
 
-The model sees the catalog from the start and knows which skills exist.
-When it decides a skill matches the task, it loads the full instructions.
-This keeps context small even with many skills installed.
+The model sees the catalog from the start: each skill's name and when-to-use
+text from frontmatter. That description should tell the model when the skill
+applies and to call `activate_skill(name)` to load the body. The body is how
+to apply the skill and is not in the catalog.
 
 ---
 
@@ -40,8 +41,9 @@ The `SKILL.md` has YAML front matter and a Markdown body:
 ---
 name: answer-formatting
 description: >
-  Format every answer with a one-sentence summary, 2-3 bullet points,
-  and a confidence indicator. Use when answering factual questions.
+  Use when answering factual questions. Call `activate_skill("answer-formatting")`
+  first and follow the loaded instructions; the catalog text is when-to-use
+  only, not the layout.
 tags: [formatting, qa]
 ---
 # Answer Formatting
@@ -55,7 +57,10 @@ tags: [formatting, qa]
 
 Required front matter fields:
 - `name` — must match the directory name (warning if not, still loaded)
-- `description` — shown to the model in the catalog; essential for model-driven activation
+- `description` — when to use the skill, plus a cue to `activate_skill(name)`
+  and follow the loaded body. The catalog lists this text so the model can
+  decide to load the skill. The body is *how* to apply it, shown only after
+  `activate_skill`.
 
 ---
 
@@ -74,18 +79,39 @@ The runtime searches for `SKILL.md` in:
 
 ---
 
-## Step 3 — Add the skill-access tools
+## Step 3 — Skill tools (implicit, or explicit in the manifest)
 
-The model needs tools to load skill instructions.  Add the skill-access tool
-provider to `spec.tools`:
+Nothing from the skills system is shown to the LLM by default.
+
+Listing at least one skill **implicitly** adds `activate_skill` (plus
+`list_skill_files` / `read_skill_file`) as a **system tool**, enables the
+LLM tool loop so those tools are actually advertised, and injects
+the catalog (name + frontmatter description) into the system prompt.
+
+```yaml
+spec:
+  skills:
+    - answer-formatting
+```
+
+If a listed skill has a `scripts/` directory with at least one file,
+`run_skill_script` is added the same way.
+
+**Explicit** opt-in (same tools, written in the manifest):
 
 ```yaml
 spec:
   tools:
-    - ref: skills:tools/skill-access.tool.yaml
+    - kind: system
+      name: activate_skill
+    - kind: system
+      name: run_skill_script   # even if no skill ships scripts yet
 ```
 
-Or use the convenience overlay — the base manifest never changes:
+YAML refs (`skills:tools/skill-access.tool.yaml`) still work as the older
+explicit form.
+
+Or use the convenience overlay:
 
 ```bash
 mas-ctl chat agent.yaml \
@@ -102,10 +128,12 @@ mas-ctl chat agent.yaml \
 ```
 ## Available Skills
 
-When a task matches a skill's description, call `activate_skill(name)` to load
-its full instructions before proceeding.
+Listed skills show name and when-to-use from each skill's frontmatter.
+Full instructions load via `activate_skill(name)`.
 
-- **answer-formatting**: Format every answer with a one-sentence summary, ...
+- **answer-formatting**: Use when answering factual questions. Call
+  `activate_skill("answer-formatting")` first and follow the loaded
+  instructions; the catalog text is when-to-use only, not the layout.
 ```
 
 **After calling `activate_skill("answer-formatting")` (tier 2):**
@@ -164,11 +192,15 @@ directory.  Access is sandboxed — paths that escape the directory are rejected
 ## Shell tool (optional — trusted environments only)
 
 `run_skill_script` executes scripts from a skill's `scripts/` directory.
+It is added implicitly when a listed skill already has a `scripts/` file.
+To opt in without shipping scripts, declare the system tool (or set
+`auto_inject` on the skill engine):
 
 ```yaml
 spec:
   tools:
-    - ref: pkg://skills/tools/run-skill-script.tool.yaml
+    - kind: system
+      name: run_skill_script
 ```
 
 Or use the shell overlay:
@@ -198,8 +230,8 @@ spec:
 
 | Overlay | What it adds |
 |---------|-------------|
-| `skills:overlays/skills.yaml` | `activate_skill`, `list_skill_files`, `read_skill_file` |
-| `skills:overlays/skills-shell.yaml` | Above + `run_skill_script` |
+| `skills:overlays/skills.yaml` | Explicit `{kind: system, name: activate_skill}` (same tools are implicit if `spec.skills` is listed) |
+| `skills:overlays/skills-shell.yaml` | Explicit `activate_skill` + `run_skill_script` |
 
 ---
 

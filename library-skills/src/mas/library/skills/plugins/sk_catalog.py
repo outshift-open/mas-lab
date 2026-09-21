@@ -2,7 +2,7 @@
 #  SPDX-License-Identifier: Apache-2.0
 """SkillCatalogPlugin — ContextContract context source for the SYSTEM_SKILLS band.
 
-Progressive disclosure — tier 1: catalog + behavioral instruction.
+Progressive disclosure — tier 1: catalog of name + when-to-use from frontmatter.
 Full bodies loaded on-demand via activate_skill (tier 2).
 """
 
@@ -23,9 +23,10 @@ from .skill_plugin_registry import SkillImplementation, SkillPluginRegistry
 
 logger = logging.getLogger(__name__)
 
-_BEHAVIORAL_INSTRUCTION = (
-    "When a task matches a skill's description, call `activate_skill(name)` "
-    "to load its full instructions before proceeding. "
+_CATALOG_INTRO = (
+    "Listed skills show name and when-to-use from each skill's frontmatter. "
+    "When a listed skill matches the task, call `activate_skill(name)` and "
+    "follow the loaded body before the user-visible answer. "
     "Resolve relative paths in skill instructions against the skill's directory "
     "using `read_skill_file(skill, path)`."
 )
@@ -89,15 +90,7 @@ class SkillCatalogPlugin(ContextContract):
         if not records:
             return
 
-        lines: list[str] = [
-            "## Available Skills",
-            "",
-            _BEHAVIORAL_INSTRUCTION,
-            "",
-        ]
-        for rec in records:
-            lines.append(f"- **{rec.name}**: {rec.description}")
-        self._catalog_text = "\n".join(lines)
+        self._catalog_text = _format_catalog(records)
         logger.debug(
             "SkillCatalogPlugin: built catalog with %d skill(s): %s",
             len(records),
@@ -135,15 +128,7 @@ class SkillCatalogPlugin(ContextContract):
         if not records:
             return
 
-        lines: list[str] = [
-            "## Available Skills",
-            "",
-            _BEHAVIORAL_INSTRUCTION,
-            "",
-        ]
-        for rec in records:
-            lines.append(f"- **{rec.name}**: {rec.description}")
-        self._catalog_text = "\n".join(lines)
+        self._catalog_text = _format_catalog(records)
         logger.debug(
             "SkillCatalogPlugin(%s): built catalog with %d skill(s): %s",
             self.impl.value,
@@ -215,6 +200,19 @@ def attach_skill_catalog_plugin(
     return plugin
 
 
+def _format_catalog(records: list[SkillRecord]) -> str:
+    """Render catalog: short header plus each skill's frontmatter description."""
+    lines: list[str] = [
+        "## Available Skills",
+        "",
+        _CATALOG_INTRO,
+        "",
+    ]
+    for rec in records:
+        lines.append(f"- **{rec.name}**: {rec.description}")
+    return "\n".join(lines)
+
+
 def _coerce_impl(impl: SkillImplementation | str) -> SkillImplementation:
     if isinstance(impl, SkillImplementation):
         return impl
@@ -239,8 +237,4 @@ def _declared_skill_names(refs: list[str]) -> set[str]:
 
 
 def _matches_declared_name(name: str, selected: set[str]) -> bool:
-    return (
-        name in selected
-        or name.replace("-", "_") in selected
-        or name.replace("_", "-") in selected
-    )
+    return name in selected or name.replace("-", "_") in selected or name.replace("_", "-") in selected

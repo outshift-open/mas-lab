@@ -33,6 +33,12 @@ def _merged_tutorial_agent() -> dict:
     return base
 
 
+def _mock_infra():
+    from mas.ctl.infra.resolve import resolve_infra_refs
+
+    return resolve_infra_refs(["standard:mock-llm"], anchor=T01)
+
+
 def _event_kinds(events_path: Path) -> list[str]:
     kinds: list[str] = []
     for line in events_path.read_text(encoding="utf-8").splitlines():
@@ -65,6 +71,7 @@ def test_scripted_hitl_terminal_allow_runs_tool(tmp_path: Path) -> None:
             agent_manifest=manifest,
             manifest_dir=T01,
             validate_manifests=False,
+            resolved_infra=_mock_infra(),
         ),
         hitl=None,
     )
@@ -96,6 +103,7 @@ def test_scripted_hitl_block_skips_tool(tmp_path: Path) -> None:
             agent_manifest=manifest,
             manifest_dir=T01,
             validate_manifests=False,
+            resolved_infra=_mock_infra(),
         ),
         hitl=None,
     )
@@ -127,6 +135,8 @@ def test_cli_batch_hitl_emits_hitl_gate(tmp_path: Path) -> None:
             "Who is POTUS",
             "-o",
             "overlays/mock-llm.yaml",
+            "--infra-ref",
+            "standard:mock-llm",
             "-o",
             "overlays/tools.yaml",
             "-o",

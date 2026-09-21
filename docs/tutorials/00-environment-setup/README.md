@@ -122,6 +122,7 @@ docker compose -f docker/compose.yaml run --rm --no-deps cli mas-ctl chat \
 docker compose -f docker/compose.yaml run --rm --no-deps cli mas-ctl chat \
   docs/tutorials/01-building-an-agent/agent.yaml \
   -o docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml \
+  --infra-ref standard:mock-llm \
   -q "What is 2+2?"
 ```
 
@@ -371,6 +372,7 @@ Offline (no network):
 ```bash
 mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
   -o docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml \
+  --infra-ref standard:mock-llm \
   -q "What is 2+2?"
 ```
 

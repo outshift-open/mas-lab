@@ -89,7 +89,12 @@ def load_yaml(path: Path) -> dict:
 # CLI runner helper
 # ---------------------------------------------------------------------------
 
-def run_cli(args: list[str], cwd: Path | None = None, timeout: int = 30) -> subprocess.CompletedProcess:
+def run_cli(
+    args: list[str],
+    cwd: Path | None = None,
+    timeout: int = 30,
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess:
     """Run a CLI command and return the result.
 
     Resolves the command from the current Python environment's Scripts/bin
@@ -103,11 +108,15 @@ def run_cli(args: list[str], cwd: Path | None = None, timeout: int = 30) -> subp
     else:
         resolved_args = args
 
+    env = {**os.environ, "MAS_MANIFEST_VALIDATE": "1"}
+    if extra_env:
+        env.update(extra_env)
+
     return subprocess.run(
         resolved_args,
         capture_output=True,
         text=True,
         cwd=str(cwd) if cwd else None,
         timeout=timeout,
-        env={**os.environ, "MAS_MANIFEST_VALIDATE": "1"},
+        env=env,
     )

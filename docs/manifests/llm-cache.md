@@ -145,9 +145,10 @@ Either CLI order works — only the middleware ref adds a pipeline step:
 
 ### Overlay supplies the provider
 
-Tutorial 1's `overlays/mock-llm.yaml` adds `standard:mock-llm` via
-`infra_refs` in `config.yaml`. `--infra-ref library-samples/infra/llm-cache-write.yaml` merges
-after the overlay → effective pipeline `[llm_cache]` wrapping the mock provider.
+Tutorial 1 does not pin `standard:mock-llm` in `config.yaml`. Offline cache
+demos pair `overlays/mock-llm.yaml` with `--infra-ref standard:mock-llm`.
+`--infra-ref library-samples/infra/llm-cache-write.yaml` then merges after
+that so the pipeline is `[llm_cache]` wrapping the mock provider.
 
 ### Multiple middleware
 
@@ -181,6 +182,7 @@ rm -f library-samples/infra/cache/demo.llm-cache.json
 mas-ctl chat "$AGENT" \
   -q "Say hello in exactly three words." \
   -o "$MOCK" \
+  --infra-ref standard:mock-llm \
   --infra-ref library-samples/infra/llm-cache-write.yaml \
   --single-turn
 ```
@@ -191,6 +193,7 @@ mas-ctl chat "$AGENT" \
 mas-ctl chat "$AGENT" \
   -q "Say hello in exactly three words." \
   -o "$MOCK" \
+  --infra-ref standard:mock-llm \
   --infra-ref library-samples/infra/llm-cache-replay.yaml \
   --single-turn
 ```
@@ -201,6 +204,7 @@ mas-ctl chat "$AGENT" \
 mas-ctl chat "$AGENT" \
   -q "Say goodbye in exactly three words." \
   -o "$MOCK" \
+  --infra-ref standard:mock-llm \
   --infra-ref library-samples/infra/llm-cache-replay.yaml \
   --single-turn
 ```

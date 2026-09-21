@@ -1,18 +1,19 @@
-<!--
-  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
-  SPDX-License-Identifier: Apache-2.0
--->
 ---
 name: transport-schedule-lookup
 description: >
-  Step-by-step protocol for looking up departure schedules and attraction
-  opening hours in the Arborian Network dataset. Applies to schedule_agent.
+  Use when looking up departure schedules or attraction opening hours in the
+  Arborian Network dataset (schedule_agent). Call
+  `activate_skill("transport-schedule-lookup")` and follow the loaded
+  instructions before answering.
 metadata:
   version: "1.0.0"
   domain: travel
   tags: [schedule, lookup, transport]
 ---
-
+<!--
+  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+  SPDX-License-Identifier: Apache-2.0
+-->
 # Transport Schedule Lookup Protocol
 
 ## Input

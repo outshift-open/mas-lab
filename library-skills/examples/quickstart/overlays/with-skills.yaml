@@ -1,14 +1,12 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-# Overlay — adds skills support to the quickstart agent.
+# Overlay — adds the answer-expert skill. Listing spec.skills is enough:
+# activate_skill is injected as a system tool; the catalog lists frontmatter.
 #
-# What it does:
-#   1. Declares answer-expert as an active skill (spec.skills).
-#   2. Adds the skill-access tool provider so the model can call activate_skill().
-#
-# The SkillCatalogPlugin (ContextContract) is activated automatically at
-# bootstrap when spec.skills lists one or more skill refs — no explicit
-# plugin declaration needed in the manifest.
+# Explicit alternative (same effect):
+#   tools:
+#     - kind: system
+#       name: activate_skill
 apiVersion: mas/v1
 kind: Overlay
 
@@ -23,7 +21,3 @@ spec:
       $op:
         add:
           - answer-expert
-    tools:
-      $op:
-        add:
-          - ref: "skills:tools/skill-access.tool.yaml"
