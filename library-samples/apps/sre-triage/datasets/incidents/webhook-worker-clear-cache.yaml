@@ -1,0 +1,92 @@
+id: webhook-worker-clear-cache
+description: >
+  Webhook-worker is retrying healthy endpoints because stale destination metadata
+  and signing-key cache entries survived a partner configuration refresh.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: webhook-worker
+  action: clear_cache
+  reasoning: >
+    Endpoint and signing-key metadata in webhook-worker are stale, while current
+    partner configs are healthy. Clearing cache repopulates accurate delivery
+    targets and credentials faster than rollback or restart.
+source_evidence:
+  - source: idempotent_receiver
+    url: https://martinfowler.com/articles/patterns-of-distributed-systems/idempotent-receiver.html
+    facts:
+      - Delivery systems depend on correct dedup and destination state to avoid repeated false failures.
+  - source: aws_retry_limits
+    url: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_limit_retries.html
+    facts:
+      - Retries against stale endpoint state inflate failure counts even when downstream systems are healthy.
+observed_symptoms:
+  - Cache bypass deliveries succeed against current partner endpoint URLs and signing keys.
+  - Failed attempts use stale destination metadata for retired endpoints.
+  - No deployment or broker event correlates with incident onset.
+services:
+  webhook-worker:
+    aliases: [webhook_worker, webhook-consumer]
+    metrics:
+      latency_ms: { p50: 390.0, p95: 1310.0, p99: 2140.0 }
+      error_rate: 0.116
+      requests_per_second: 287.0
+      named:
+        stale_endpoint_cache_entries:
+          value: 612
+          unit: entries
+          status: critical
+        stale_signing_key_refs:
+          value: 188
+          unit: keys
+          status: critical
+        cache_bypass_delivery_success:
+          value: 0.994
+          unit: ratio
+          status: normal
+    health:
+      status: critical
+      uptime_percent: 99.8
+      error_rate_percent: 11.6
+      dependencies:
+        event-broker: healthy
+        webhook-endpoint-cache: critical
+    deployments:
+      - version: "1.33.7"
+        status: success
+        deployed_days_before_incident: 3
+        deployed_by: ci/cd-pipeline
+        commit_sha: 7de61af
+        commit_message: "feat(webhook): refactor consumer ack pipeline and idempotency bookkeeping"
+        duration_seconds: 99
+        overlap_with_incident: false
+      - version: "1.33.6"
+        status: success
+        deployed_days_before_incident: 7
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(webhook): stabilize queue ack ordering"
+        duration_seconds: 87
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[webhook-worker] Cached endpoint https://old.partner.example/webhook returned NXDOMAIN; cache bypass found https://ingest.partner.example/webhook"
+      - level: WARN
+        message: "[webhook-worker] Signing key cache references partner key version 17, current is 19"
+      - level: INFO
+        message: "[webhook-worker] Direct metadata refresh succeeded; stale cache suspected"
+    rollback:
+      from_version: "1.33.7"
+      to_version: "1.33.6"
+      message: "Rollback exists, but stale endpoint metadata is the primary issue and is best fixed by cache purge."
+
+  webhook-endpoint-cache:
+    aliases: [webhook_endpoint_cache]
+    metrics:
+      latency_ms: { p50: 2.5, p95: 7.1, p99: 14.8 }
+      error_rate: 0.0008
+      requests_per_second: 1820.0
+    health:
+      status: critical
+      uptime_percent: 99.99
+      error_rate_percent: 0.08
+      dependencies: {}

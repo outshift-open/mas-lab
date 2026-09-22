@@ -1,0 +1,42 @@
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  x-node-id: sre
+  name: sre
+spec:
+  description: SRE Lead — incident triage orchestrator. Receives user-reported
+    incidents, delegates to telemetry / backend / db / comms / verifier,
+    synthesises a final RCA and remediation plan, then triggers run_action.
+    Always the entry point for any new incident.
+  context:
+    role:
+      ref: prompts/sre/1.2.0.md
+  x-text-input: >-
+    That's a straightforward one -- deployment regression on checkout-service,
+    correct action is rollback. Here's a matching query:
+
+
+    > The checkout-service is degraded. P99 latency has jumped to 800ms and
+    error rate is at 8.7%. A new feature rollout was deployed about 12 minutes
+    ago. Customers are seeing intermittent failures during checkout.
+  models:
+    - model: vertex_ai/gemini-2.5-flash
+      temperature: 0.1
+      max_tokens: 3000
+  design_pattern:
+    type: react
+    params:
+      max_steps: 10
+  tools:
+    - ref: ../tools/run_action.tool.yaml
+  skills:
+    - triage-protocol
+    - severity-classification
+    - memory-protocol
+    - data-access-protocol
+x-canvas-node-ids:
+  role: node_68ac23ff
+  model: node_7bed42d7
+  design_pattern: node_0d43e31f
+  tools: node_c154e792
+  promptSkills: node_7ed100a3

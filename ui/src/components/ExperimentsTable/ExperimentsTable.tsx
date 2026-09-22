@@ -344,9 +344,6 @@ export const ExperimentsTable = ({
         accessorKey: "dataset",
         header: "Dataset",
         size: 150,
-        accessorFn: (row) => (
-          <Typography variant="body2">{row.dataset || "—"}</Typography>
-        ),
       },
     ],
     [runningJobs, showLibraryColumn],

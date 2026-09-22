@@ -35,11 +35,17 @@ Equivalent from repo root: `task start` (builds images if needed, starts detache
 
 ### What you can do in the UI
 
-- Browse and open **agent**, **MAS**, and **experiment** manifests from the mounted workspace
-- **Validate** manifests (same checks as `mas-ctl validate`)
-- Submit **benchmark** jobs — equivalent to `mas-lab benchmark run experiment.yaml`
-- Inspect recent **runs**, open **`events.jsonl`**, and view **pipeline** outputs under `results/`
-- Edit library objects (datasets, pipelines, experiments) when developing new labs
+The sidebar has seven sections, each documented on its own page:
+
+| Page | What it's for |
+|------|----------------|
+| [Applications](applications.md) | Browse, open, validate, and **run** saved MAS apps |
+| [Playground](playground.md) | Build a new MAS from scratch on a visual canvas |
+| [Experiments](experiments.md) | Configure and run benchmarks, analyze/import results, browse run output |
+| [Pipelines](pipelines.md) | Chain post-run analysis/evaluation steps against an experiment's output |
+| [Datasets](datasets.md) | Edit benchmark prompts and ground-truth items |
+| [Overlays](overlays.md) | Patch an agent's design pattern, tools, or instructions without duplicating it |
+| [Control Panel](control-panel.md) | Read-only view of the infra/flavour/workspace config backing your runs |
 
 ### Workspace and data mounts
 
@@ -132,4 +138,5 @@ See [cli/observability.md](../cli/observability.md) for trace flags on `mas-ctl 
 
 - [Tutorial 0](../tutorials/00-environment-setup/README.md) — Docker install and API keys
 - [Tutorial 3](../tutorials/03-experiments-and-analysis/README.md) — experiments the UI can launch
+- [Tutorial 4](../tutorials/04-ui-walkthrough/README.md) — the trip-planner scenario, driven entirely from the browser
 - [User guide](../user-guide.md) — full install paths

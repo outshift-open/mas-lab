@@ -1,0 +1,29 @@
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: concierge-cot
+  description: |-
+    Concierge agent using
+       Chain-of-Thought instead of ReAct
+spec:
+  target:
+    kind: MAS
+  patch:
+    agents:
+      concierge-cot:
+        design_pattern:
+          type: cot
+          config:
+            max_steps: 6
+x-namespace: trip-planner
+x-canvas-positions:
+  node_b7752812:
+    x: 864
+    y: 80
+  node_70ae768a:
+    x: 448
+    y: 96
+x-canvas-node-ids:
+  concierge-cot:
+    agent: node_b7752812
+    designPattern: node_70ae768a

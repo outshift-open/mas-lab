@@ -1,10 +1,14 @@
-pipeline:
+api_version: pipeline/v1
+kind: Pipeline
+metadata:
   name: pipeline-test
+spec:
   output:
     base_dir: ~/.local/share/mas/labs/moderator-design-patterns
   steps:
     - name: extract-trace-stats
       type: extract_trace_stats
+      x-node-id: pnode_f6c355fe
       depends_on:
         - extract-trajectories
       config:
@@ -13,12 +17,14 @@ pipeline:
         run_glob: r*
     - name: extract-trajectories
       type: extract_trajectories
+      x-node-id: pnode_873639c1
       config:
         csv_file: results.csv
         runs_dir: runs
         overwrite: false
     - name: plot-multilevel-trajectory
       type: plot_multilevel_trajectory
+      x-node-id: pnode_97af4dbe
       depends_on:
         - extract-trajectories
       config:
@@ -27,8 +33,20 @@ pipeline:
         width_mode: log
         show_user_actors: true
         filename: multilevel_trajectory
+    - name: eval-mce
+      type: eval_mce
+      x-node-id: pnode_14e28828
+      config:
+        metrics: []
+        overwrite: false
+        validate: true
+        max_workers: 2
+        fail_threshold: 1
+        model: azure/gpt-4o
+        metrics_filename: metrics.json
     - name: plotnine
       type: plotnine
+      x-node-id: pnode_b4931af0
       depends_on:
         - compute-ci
       config:
@@ -52,6 +70,7 @@ pipeline:
         legend_position: bottom
     - name: compute-ci
       type: compute_ci
+      x-node-id: pnode_d95f6724
       depends_on:
         - collect-metrics
       config:
@@ -66,18 +85,9 @@ pipeline:
         ci_level: 0.95
         min_runs: 2
         output: "{output_dir}/ci_summary.csv"
-    - name: eval-mce
-      type: eval_mce
-      config:
-        metrics: []
-        overwrite: false
-        validate: true
-        max_workers: 2
-        fail_threshold: 1
-        model: azure/gpt-4o
-        metrics_filename: metrics.json
     - name: collect-metrics
       type: collect_metrics
+      x-node-id: pnode_85a13f51
       depends_on:
         - eval-mce
       config:
@@ -85,3 +95,25 @@ pipeline:
         run_glob: "*/*/r*"
         scenarios: []
         metrics_filename: metrics.json
+x-canvas-positions:
+  pnode_f6c355fe:
+    x: 288
+    y: -480
+  pnode_873639c1:
+    x: -352
+    y: -128
+  pnode_97af4dbe:
+    x: 288
+    y: 16
+  pnode_14e28828:
+    x: -320
+    y: 864
+  pnode_b4931af0:
+    x: 1648
+    y: 880
+  pnode_d95f6724:
+    x: 912
+    y: 880
+  pnode_85a13f51:
+    x: 240
+    y: 912

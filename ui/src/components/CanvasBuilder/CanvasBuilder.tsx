@@ -40,6 +40,7 @@ import {
   type YamlOutputMap,
   type ChatMessage,
 } from "./types";
+import { autoLayoutYamlMap } from "./autoLayout";
 import "./canvasBuilder.css";
 
 function generateNodeId(): string {
@@ -269,21 +270,30 @@ function buildAgentManifest(
   const spec: Record<string, unknown> = {};
   const canvasNodeIds: Record<string, string> = {};
 
-  const context = { ...((agentData.context as Record<string, string>) ?? {}) };
+  const contextFlat = {
+    ...((agentData.context as Record<string, string>) ?? {}),
+  };
+  const contextRefKeys = new Set<string>(
+    (agentData.contextRefKeys as string[] | undefined) ?? [],
+  );
   const description = agentData.description as string | undefined;
   const instructions = agentData.instructions as string | undefined;
   if (description?.trim()) {
     spec.description = description.trim();
   }
   if (instructions?.trim()) {
-    context.role = instructions.trim();
+    contextFlat.role = instructions.trim();
   }
   const intent = agentData.intent as string | undefined;
   if (intent?.trim()) {
-    context.intent = intent.trim();
+    contextFlat.intent = intent.trim();
   }
-  if (Object.keys(context).length > 0) {
-    spec.context = context;
+  if (Object.keys(contextFlat).length > 0) {
+    const contextOut: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(contextFlat)) {
+      contextOut[k] = contextRefKeys.has(k) ? { ref: v } : v;
+    }
+    spec.context = contextOut;
   }
 
   // TextInput node → x-text-input (used as query for Run MAS)
@@ -448,32 +458,6 @@ function buildDegrees(
   return { outDegree, inDegree };
 }
 
-/** DFS-based cycle detection on the directed agent-to-agent graph. */
-function hasCycle(agentNodes: Node[], agentEdges: Edge[]): boolean {
-  const visited = new Set<string>();
-  const stack = new Set<string>();
-  const adj = new Map<string, string[]>();
-  for (const node of agentNodes) adj.set(node.id, []);
-  for (const edge of agentEdges) adj.get(edge.source)?.push(edge.target);
-
-  function dfs(id: string): boolean {
-    if (stack.has(id)) return true;
-    if (visited.has(id)) return false;
-    visited.add(id);
-    stack.add(id);
-    for (const neighbor of adj.get(id) ?? []) {
-      if (dfs(neighbor)) return true;
-    }
-    stack.delete(id);
-    return false;
-  }
-
-  for (const node of agentNodes) {
-    if (dfs(node.id)) return true;
-  }
-  return false;
-}
-
 /**
  * BFS over the undirected agent graph to find connected components
  * (groups of agents linked by edges but disconnected from other groups).
@@ -551,27 +535,6 @@ function findEntryAgent(agentNodes: Node[], agentEdges: Edge[]): Node {
   return scored[0].node;
 }
 
-/**
- * Classify the MAS workflow topology from the agent-to-agent edge graph:
- *   - "sequential": linear chain (no branching/merging, no cycles)
- *   - "dynamic":    everything else (single agent, branching, merging, cycles)
- */
-function detectWorkflowType(
-  agentNodes: Node[],
-  agentEdges: Edge[],
-): "sequential" | "dynamic" {
-  if (agentNodes.length <= 1 || agentEdges.length === 0) return "dynamic";
-
-  if (hasCycle(agentNodes, agentEdges)) return "dynamic";
-
-  const { outDegree, inDegree } = buildDegrees(agentNodes, agentEdges);
-  const hasBranching = [...outDegree.values()].some((d) => d > 1);
-  const hasMerging = [...inDegree.values()].some((d) => d > 1);
-
-  if (hasBranching || hasMerging) return "dynamic";
-  return "sequential";
-}
-
 function serializeGraphToYamls(
   nodes: Node[],
   edges: Edge[],
@@ -600,7 +563,6 @@ function serializeGraphToYamls(
 
   // Build MAS manifest whenever at least one agent exists
   if (agentNodes.length >= 1) {
-    const workflowType = detectWorkflowType(agentNodes, agentEdges);
     const entryNode = findEntryAgent(agentNodes, agentEdges);
     const entryAgentId = getAgentId(entryNode);
 
@@ -656,7 +618,6 @@ function serializeGraphToYamls(
     }
 
     const workflow: Record<string, unknown> = {
-      type: workflowType,
       entry: entryAgentId,
       nodes: workflowNodes,
     };
@@ -738,7 +699,25 @@ function deserializeYamlsToGraph(yamlMap: YamlOutputMap): {
           "string"
             ? ((spec.context as Record<string, string>).role ?? "")
             : "",
-        context: spec.context ?? {},
+        context: Object.fromEntries(
+          Object.entries(
+            (spec.context as Record<string, unknown>) ?? {},
+          ).map(([k, v]) => [
+            k,
+            typeof v === "string"
+              ? v
+              : v && typeof v === "object" && "ref" in v
+                ? String((v as Record<string, unknown>).ref ?? "")
+                : JSON.stringify(v),
+          ]),
+        ),
+        contextRefKeys: Object.entries(
+          (spec.context as Record<string, unknown>) ?? {},
+        )
+          .filter(
+            ([, v]) => v && typeof v === "object" && "ref" in v,
+          )
+          .map(([k]) => k),
         chatHistory,
         connectedModel: "",
         connectedDesignPattern: "",
@@ -1000,7 +979,10 @@ function CanvasFlow({
   const { library = "" } = useParams();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const initialGraph = useMemo(
-    () => (initialYamlMap ? deserializeYamlsToGraph(initialYamlMap) : null),
+    () =>
+      initialYamlMap
+        ? deserializeYamlsToGraph(autoLayoutYamlMap(initialYamlMap))
+        : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
@@ -1017,7 +999,7 @@ function CanvasFlow({
   useEffect(() => {
     if (hasInitialized.current) return;
     if (!initialYamlMap || Object.keys(initialYamlMap).length === 0) return;
-    const graph = deserializeYamlsToGraph(initialYamlMap);
+    const graph = deserializeYamlsToGraph(autoLayoutYamlMap(initialYamlMap));
     if (graph.nodes.length === 0) return;
     setNodes(graph.nodes);
     setEdges(graph.edges);

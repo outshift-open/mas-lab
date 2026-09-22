@@ -1,0 +1,20 @@
+apiVersion: mas/v1
+kind: Overlay
+
+metadata:
+  name: hybrid-signup-flow-config-regression
+  description: "Hybrid/public-derived fixture: signup flow config regression."
+  annotations:
+    provenance.mix: hybrid_public_seed
+    provenance.source_type: public_incident_pattern_plus_synthetic_trace
+    provenance.confidence: medium
+    provenance.owner: sre-eval
+    provenance.review_status: draft
+    provenance.fixture: datasets/incidents/signup-flow-config-regression.yaml
+
+spec:
+  target:
+    kind: MAS
+  patch:
+    params:
+      incident_fixture: datasets/incidents/signup-flow-config-regression.yaml

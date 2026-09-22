@@ -1,0 +1,131 @@
+id: profile-api-scale-up
+description: >
+  Profile API is experiencing a cache-miss burst on highly requested profiles;
+  request coalescing reduces origin load, but current capacity is still below demand.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: profile-service
+  action: scale_up
+  reasoning: >
+    The cache layer is functioning but there are too many near-simultaneous
+    misses for hot profiles and not enough origin workers to repopulate quickly.
+    There is no clear bad deploy or corrupt cache state. Scaling up origin
+    capacity is the right immediate action.
+source_evidence:
+  - source: redis_distributed_locks
+    url: https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/
+    facts:
+      - Retrying contenders should use randomized delay to avoid synchronized lock acquisition.
+      - Faster parallel lock attempts shrink the invalid window during contention.
+  - source: nginx_thundering_herd
+    url: https://blog.nginx.org/blog/mitigating-thundering-herd-problem-pbs-nginx
+    facts:
+      - Even with caching, miss windows can send bursts of requests to the backend.
+      - Stale or updating cache collapses origin load, but capacity can still be exceeded during big spikes.
+observed_symptoms:
+  - A celebrity signup campaign drove 9x traffic to profile endpoints in 12 minutes.
+  - Most requests succeed, but origin latency rises sharply during repopulation windows.
+  - Cache correctness looks normal; this is primarily a capacity event.
+services:
+  profile-service:
+    aliases: [profile_service, profile-api]
+    metrics:
+      latency_ms: { p50: 480.0, p95: 1880.0, p99: 3220.0 }
+      error_rate: 0.034
+      requests_per_second: 1420.0
+      named:
+        origin_cpu:
+          value: 0.93
+          unit: ratio
+          status: critical
+        active_worker_threads:
+          value: 118
+          unit: threads
+          status: critical
+        cache_hit_ratio:
+          value: 0.78
+          unit: ratio
+          status: warning
+        cache_miss_burst_p95:
+          value: 64
+          unit: requests_per_window
+          status: critical
+    health:
+      status: critical
+      uptime_percent: 99.7
+      error_rate_percent: 3.4
+      dependencies:
+        profile-cache: healthy
+        user-db: healthy
+        edge-cache: healthy
+    deployments:
+      - version: "5.2.4"
+        status: success
+        deployed_days_before_incident: 3
+        deployed_by: ci/cd-pipeline
+        commit_sha: a17c90d
+        commit_message: "feat(profile): namespace cache keys by schema version"
+        duration_seconds: 96
+        overlap_with_incident: false
+      - version: "5.2.3"
+        status: success
+        deployed_days_before_incident: 8
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(profile): stabilize cache hydration"
+        duration_seconds: 89
+        overlap_with_incident: false
+    logs:
+      - level: WARN
+        message: "[profile-service] Miss burst for /profiles/featured exceeded 60 concurrent requests in 250ms window"
+      - level: WARN
+        message: "[profile-service] Origin saturation: 118/120 worker threads active"
+      - level: INFO
+        message: "[profile-service] Stale-while-revalidate protected 86% of hot-profile requests"
+      - level: INFO
+        message: "[profile-service] No serializer or schema mismatch errors observed"
+    feature_flags:
+      edge_stale_profiles:
+        enabled: true
+        rollout_percent: 100
+        enabled_since_days_before_incident: 14
+        changed_by: sre-team
+    config_changes:
+      - key: profile_origin_replicas
+        old_value: 6
+        new_value: 6
+        changed_by: no-change
+        changed_hours_before_incident: null
+      - key: profile_cache_ttl_s
+        old_value: 10
+        new_value: 10
+        changed_by: no-change
+        changed_hours_before_incident: null
+    rollback:
+      from_version: "5.2.4"
+      to_version: "5.2.3"
+      message: "Rollback possible, but not indicated by current evidence."
+
+  profile-cache:
+    aliases: [profile_cache, redis-profile]
+    metrics:
+      latency_ms: { p50: 2.0, p95: 6.8, p99: 14.1 }
+      error_rate: 0.0009
+      requests_per_second: 18200.0
+      named:
+        lock_wait_p95_ms:
+          value: 18
+          unit: ms
+          status: warning
+        stale_served_ratio:
+          value: 0.52
+          unit: ratio
+          status: normal
+    health:
+      status: healthy
+      uptime_percent: 99.99
+      error_rate_percent: 0.09
+      dependencies: {}
+    logs:
+      - level: INFO
+        message: "[profile-cache] Refresh locking reduced hot-key backend fanout to single-digit origin calls"
