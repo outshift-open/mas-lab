@@ -14,7 +14,7 @@ each: [docs/labs-and-libraries.md](../docs/labs-and-libraries.md).
 
 | Kind | Examples |
 |------|----------|
-| **apps** | `apps/trip-planner/` (agents, local tools/skills) |
+| **apps** | `apps/trip-planner/` (real use-case MAS: agents, local tools/skills) |
 | **datasets** | `datasets/trip-planner/`, `datasets/mas-necessity.yaml`, … |
 | **tools** | `tools/calc.py`, `tools/*.tool.yaml` |
 | **skills** | (under app trees or top-level when shared) |
@@ -30,6 +30,8 @@ Generic pipelines, built-in steps, and shared artefacts belong in **`library-sta
 - **`experiment.yaml`** — only in `labs/<name>.lab/`
 - Lab-specific pipeline definitions — colocate with the lab (`labs/.../pipeline-figure.yaml`, inline in experiment)
 - One-off benchmark output paths or canvas exports
+- Small plugin/feature examples — those sit in
+  `library-standard/examples/<category>/` (not under `apps/`)
 
 Labs **compose** library artefacts by registered id — not path traversal:
 

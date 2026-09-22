@@ -69,6 +69,31 @@ def _append_synthetic_skip(q: QProduct, run: RunLedger) -> None:
     control_on_idle(q)
 
 
+def _feed_blocked_tool_to_model(
+    q: QProduct,
+    run: RunLedger,
+    config: KernelConfig,
+    *,
+    cid: int,
+    text: str,
+) -> list[EgressSymbol]:
+    """BLOCK on TOOL_CALL → synthetic tool observation, then another LLM call."""
+    q.scheduled_egress = "NONE"
+    q.inflight_kind = "NONE"
+    q.tool = tool_on_abort(q.tool)
+    run.append(
+        RunEvent(
+            correlation_id=cid,
+            response_kind="TOOL_RESULT",
+            next_step="LLM_CALL",
+            text=text,
+        )
+    )
+    q.scheduled_egress = "LLM_CALL"
+    q.dp = DpState.EGRESS_PENDING
+    return emit_scheduled_egress(q, run, config)
+
+
 def _apply_engine_allow(q: QProduct, view: EgressIntentView) -> None:
     """Peer posture after gov ALLOW — coupling patch + local M_tool/M_model δ only."""
     apply_control_engine_allow(q, op=view.op)  # type: ignore[arg-type]
@@ -170,6 +195,7 @@ def emit_scheduled_egress(
         correlation_id=cid,
         tool_name=q.pending_tool_name,
         tool_arguments=q.pending_tool_args,
+        offered_tools=q.offered_tools,
     )
 
     if decision == GovDecision.HITL:
@@ -206,7 +232,23 @@ def emit_scheduled_egress(
         )
 
     if decision == GovDecision.BLOCK:
+        # Capture before close_envelope: ingress validate overwrites gov_reason.
+        block_reason = env_ctx.gov_reason or (
+            f"Tool '{q.pending_tool_name}' is not allowed."
+        )
         close_envelope(env_ctx, error="GOV_BLOCK")
+        if op == "TOOL_CALL":
+            # Same recovery path as HITL BLOCK: do not run the tool, put the
+            # policy reason in a tool observation, and let the same agent
+            # pick a name it was actually given.
+            coord_on_egress_blocked(q)
+            return _feed_blocked_tool_to_model(
+                q,
+                run,
+                config,
+                cid=cid,
+                text=block_reason,
+            )
         apply_gov_block(q)
         coord_on_egress_blocked(q)
         return [RaiseBoundaryError(code="GOV_BLOCK", recoverable=True)]

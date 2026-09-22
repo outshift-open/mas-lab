@@ -10,6 +10,8 @@ This guide describes how to extend `mas-library-standard` safely.
 
 - Plugins: `src/mas/library/standard/plugins/`
 - Design patterns: `src/mas/library/standard/plugins/design_patterns/`
+- Overlays: `src/mas/library/standard/overlays/` ([index](../src/mas/library/standard/overlays/README.md))
+- Examples: `examples/<category>/` ([index](../examples/README.md); not sample apps)
 - Tools: `src/mas/library/standard/tools/`
 - Production tools: `src/mas/library/standard/tools/standard/`
 - Tests: `tests/`
@@ -31,9 +33,16 @@ Use stable prefixes by capability:
 ## Add a plugin
 
 1. Implement plugin in `plugins/`.
-2. Keep one clear responsibility per plugin.
-3. Document config keys and defaults.
-4. Add unit tests for success and failure paths.
+2. Keep one clear responsibility per plugin. Governance plugins are chain
+   rules: pass (ALLOW) when they do not apply; BLOCK exits the chain with
+   that error. Observability plugins are a sequence and always all run.
+3. Document config keys and defaults. Add a plugin card next to the
+   implementation and, for overlays, a row in
+   [overlays/README.md](../src/mas/library/standard/overlays/README.md).
+4. Add unit tests for success and failure paths. When the plugin exists to
+   stop a specific failure mode, add a small Agent or MAS under
+   `examples/<category>/` (see `examples/governance/undeclared-tool/`).
+   Real use-case MAS belong in `library-samples/apps/`, not here.
 
 ## Add a tool
 

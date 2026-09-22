@@ -10,10 +10,12 @@ nested object key sets).
 Cardinality-one fields (scalar / single object): ``design_pattern``, ``llm``,
 ``memory``, ``execution``.
 
-Multi-cardinality fields (list): ``observability``, ``tools``, ``skills``,
-``governance`` (plugin list — see governance-binding.schema.yaml).
+Multi-cardinality fields (list): ``observability`` (sequence), ``tools``,
+``skills``, ``governance`` (chain — see governance-binding.schema.yaml).
 
-Governance is a **plugin list** (like observability)::
+Observability is a **sequence** (every plugin sees every event).
+Governance is an **iptables-style chain** (BLOCK stops and returns the
+error; ALLOW passes to the next plugin)::
 
     governance:
       - sample_governance:

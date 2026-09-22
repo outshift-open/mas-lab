@@ -135,6 +135,16 @@ plugins:
     urn: mas.gov.sample
     module: mas.runtime.boundary.gov.sample
     class: SampleGovernancePlugin
+  - type: governance
+    name: gov_no_undeclared_tool
+    urn: mas.gov.no_undeclared_tool
+    module: mas.library.standard.plugins.governance.no_undeclared_tool
+    class: NoUndeclaredToolPlugin
+    description: >
+      BLOCK a TOOL_CALL whose name was not in this LLM call's tools list.
+    shortcuts:
+      - gov_no_undeclared_tool
+      - no_undeclared_tool
 
 defaults:
   tool_provider: local

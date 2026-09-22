@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""JSON Schema validation for OSS Agent manifests (tutorials, library-samples, labs)."""
+"""JSON Schema validation for OSS Agent manifests (tutorials, samples, examples, labs)."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ _SKIP_PARTS = {".venv", ".venv-test", "node_modules", "ui", "site", "__pycache__
 _AGENT_ROOTS = (
     _ROOT / "docs" / "tutorials",
     _ROOT / "library-samples",
+    _ROOT / "library-standard" / "examples",
     _ROOT / "labs",
 )
 

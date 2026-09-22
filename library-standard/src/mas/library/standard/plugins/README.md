@@ -54,6 +54,19 @@ Tutorial and benchmark tools live in **`mas-library-samples`** as `kind: Tool` m
 Agents reference them via ``spec.tools[].ref``; the runtime loads implementations
 from the manifest, not from `mas.runtime`.
 
+## Governance
+
+| ID | Alias | Implementation |
+|----|-------|----------------|
+| `gov_no_undeclared_tool@v1` | `gov_no_undeclared_tool`, `no_undeclared_tool` | `NoUndeclaredToolPlugin` — BLOCK names not in this LLM call's `tools` list; chain rule (pass or stop) |
+
+- Card: [governance/no-undeclared-tool.md](governance/no-undeclared-tool.md)
+- Example (not an app): [examples/governance/undeclared-tool/](../../../../../examples/governance/undeclared-tool/)
+  ([index](../../../../../examples/README.md))
+- Overlay: `pkg://mas.library.standard/overlays/with-hardened.yaml` — [overlays/README.md](../overlays/README.md)
+
+`spec.governance` is a chain (BLOCK exits, ALLOW continues). `spec.observability` is a sequence.
+
 ## Deferred (not in this OSS release)
 
 Docker/K8s placement, Petri-net workflow, Letta memory, and extended OTel plugins are planned for a later release.
