@@ -419,19 +419,25 @@ class ObservabilityOperator:
         messages: list | None = None,
         segments: list | None = None,
         total_tokens: int = 0,
+        tools: list | None = None,
     ) -> ObservabilityEvent:
+        payload: dict = {
+            "agent_id": agent_id,
+            "turn_index": turn_index,
+            "messages": list(messages or []),
+            "segments": list(segments or []),
+            "total_tokens": total_tokens,
+            "message_count": len(messages or []),
+        }
+        if tools is not None:
+            payload["tools"] = [str(name) for name in tools if str(name)]
         return self._emit(
             ObsEventKind.CONTEXT_ASSEMBLED,
             ObsPhase.EXECUTE,
             "M_ctx",
             correlation_id=correlation_id,
             payload={
-                "agent_id": agent_id,
-                "turn_index": turn_index,
-                "messages": list(messages or []),
-                "segments": list(segments or []),
-                "total_tokens": total_tokens,
-                "message_count": len(messages or []),
+                **payload,
                 # Context is only ever assembled for one specific LLM_CALL
                 # dispatch — never a guess, always this op. Lets
                 # _resolve_transition_ids resolve the SAME call_id that
@@ -505,6 +511,7 @@ class ObservabilityOperator:
         tool_name: str = "",
         usage: dict | None = None,
         finish_reason: str = "",
+        tools: list | None = None,
     ) -> ObservabilityEvent:
         machine = _machine_for_op(op)
         resolved_tool = str(tool_name or "").strip()
@@ -522,6 +529,8 @@ class ObservabilityOperator:
             payload["usage"] = dict(usage)
         if finish_reason:
             payload["finish_reason"] = finish_reason
+        if tools is not None:
+            payload["tools"] = [str(name) for name in tools if str(name)]
         return self._emit(
             ObsEventKind.ENGINE_IO_RETURN,
             ObsPhase.RESULT,

@@ -113,7 +113,8 @@ Common `kind` values (native transform):
 | Kind | Meaning |
 |------|---------|
 | `execution_start`, `execution_end` | **Run** lifecycle |
-| `llm_call_start`, `llm_call_end` | Model call (latency on `_end`) |
+| `llm_call_start`, `llm_call_end` | Model call (latency on `_end`). `llm_call_end.tools` is the function names sent to the model on that call. |
+| `context_assembled` | Prompt snapshot for that call. `tools` is the same function-name list. |
 | `tool_call_start`, `tool_call_end` | Tool call |
 | `governance_event`, `governance_policy` | Policy / budget hooks |
 | `routing`, `routing_result` | Delegation between agents in a **MAS** |

@@ -28,7 +28,7 @@ from mas.runtime.engine.llm_cache import (
 )
 from mas.runtime.engine.llm_http import classify_llm_http_error, resolve_ssl_verify
 from mas.runtime.engine.textual_tool_calls import maybe_recover_textual_tool_calls, repair_merged_arg_keys
-from mas.runtime.engine.tool_dispatch import execute_engine_tool
+from mas.runtime.engine.tool_dispatch import ToolExecutionError, execute_engine_tool
 from mas.runtime.engine.tools import openai_tools
 from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.ingress import EngineIoReturn
@@ -69,6 +69,7 @@ class LiveLlmEngine:
     _pending_tool: str = field(default="", init=False)
     _pending_tool_args: dict[str, Any] = field(default_factory=dict, init=False)
     _pending_tools_by_cid: dict[int, tuple[str, dict[str, Any]]] = field(default_factory=dict, init=False)
+    _offered_tool_names: list[str] = field(default_factory=list, init=False)
     _budget: BudgetTracker = field(default_factory=BudgetTracker, init=False)
     _model_access: Any | None = field(default=None, init=False)
 
@@ -105,6 +106,7 @@ class LiveLlmEngine:
         self._pending_tool = ""
         self._pending_tool_args = {}
         self._pending_tools_by_cid.clear()
+        self._offered_tool_names = []
 
     def summarize_messages(self, messages: list[dict[str, Any]]) -> str:
         """CompactionSummarizeEngine — one-off summary via this engine's model."""
@@ -134,18 +136,8 @@ class LiveLlmEngine:
         if op == "LLM_CALL":
             if self.ctx is not None:
                 self.ctx._assembly_correlation_id = 0
-            messages = self._build_messages()
-            tool_defs = (
-                openai_tools(
-                    self.manifest,
-                    base_dir=self.manifest_dir,
-                    tool_provider=self.tool_provider,
-                    peer_descriptions=self.delegation_peer_descriptions,
-                    ctx=self.ctx,
-                )
-                if self.use_tool_loop
-                else []
-            )
+            tool_defs = self._tool_defs()
+            messages = self._build_messages(tools=tool_defs)
             api_tools = llm_request_tools(messages, tools=tool_defs or None)
             tools_note = ""
             if tool_defs and api_tools is None and has_tool_results(messages):
@@ -177,11 +169,8 @@ class LiveLlmEngine:
                 args = dict(self._pending_tool_args)
                 self._pending_tool = ""
                 self._pending_tool_args = {}
-            return EngineIoReturn(
-                correlation_id=io.correlation_id,
-                response_kind="TOOL_RESULT",
-                next_step="LLM_CALL" if self.use_tool_loop else "STOP",
-                text=execute_engine_tool(
+            try:
+                text = execute_engine_tool(
                     tool,
                     delegation=self.delegation,
                     ctx=self.ctx,
@@ -195,7 +184,17 @@ class LiveLlmEngine:
                     # delegate's own execution_start.parent_call_id is real,
                     # not reconstructed from timestamps.
                     caller_call_id=io.call_id,
-                ),
+                )
+            except ToolExecutionError as exc:
+                # The model named a tool this agent cannot run. Return that as
+                # the tool observation so the same agent can pick a tool it
+                # was actually given, instead of aborting the turn.
+                text = self._unavailable_tool_observation(tool, exc)
+            return EngineIoReturn(
+                correlation_id=io.correlation_id,
+                response_kind="TOOL_RESULT",
+                next_step="LLM_CALL" if self.use_tool_loop else "STOP",
+                text=text,
             )
         if io.op == "MEMORY_OP":
             return EngineIoReturn(
@@ -222,18 +221,8 @@ class LiveLlmEngine:
         self._budget.note_llm()
         if self.ctx is not None:
             self.ctx._assembly_correlation_id = io.correlation_id
-        messages = self._build_messages()
-        tool_defs = (
-            openai_tools(
-                self.manifest,
-                base_dir=self.manifest_dir,
-                tool_provider=self.tool_provider,
-                peer_descriptions=self.delegation_peer_descriptions,
-                ctx=self.ctx,
-            )
-            if self.use_tool_loop
-            else []
-        )
+        tool_defs = self._tool_defs()
+        messages = self._build_messages(tools=tool_defs)
         tools = llm_request_tools(messages, tools=tool_defs or None)
         answering_from_tools = has_tool_results(messages)
 
@@ -270,6 +259,7 @@ class LiveLlmEngine:
                     response_kind="ERROR",
                     next_step="STOP",
                     text=str(exc),
+                    offered_tools=list(self._offered_tool_names),
                 )
         else:
             api_key = os.environ.get(self.api_key_env, "")
@@ -279,6 +269,7 @@ class LiveLlmEngine:
                     response_kind="ERROR",
                     next_step="STOP",
                     text=f"Missing API key env {self.api_key_env} for live LLM.",
+                    offered_tools=list(self._offered_tool_names),
                 )
 
             try:
@@ -295,6 +286,7 @@ class LiveLlmEngine:
                     response_kind="ERROR",
                     next_step="STOP",
                     text=classify_llm_http_error(exc),
+                    offered_tools=list(self._offered_tool_names),
                 )
 
         usage = message.pop("usage", None) or {}
@@ -337,10 +329,13 @@ class LiveLlmEngine:
                     correlation_id=io.correlation_id,
                     response_kind="MODEL_TEXT",
                     next_step="PARALLEL_TOOL_CALLS",
-                    parallel_tools=tuple(ToolCallSpec(tool_name=name, tool_arguments=args) for name, args in parsed),
+                    parallel_tools=tuple(
+                        ToolCallSpec(tool_name=name, tool_arguments=args) for name, args in parsed
+                    ),
                     text="",
                     usage=usage,
                     finish_reason=finish_reason,
+                    offered_tools=self._names_from_tool_defs(tool_defs),
                 )
             name, args = parsed[0]
             self._pending_tool = name
@@ -354,6 +349,7 @@ class LiveLlmEngine:
                 text="",
                 usage=usage,
                 finish_reason=finish_reason,
+                offered_tools=self._names_from_tool_defs(tool_defs),
             )
 
         text = str(message.get("content") or "").strip()
@@ -364,6 +360,7 @@ class LiveLlmEngine:
             text=text,
             usage=usage,
             finish_reason=finish_reason,
+            offered_tools=self._names_from_tool_defs(tool_defs),
         )
 
     def _cache_message(
@@ -429,10 +426,39 @@ class LiveLlmEngine:
             return out
         raise RuntimeError(f"model access {type(ma).__name__} has no chat_completion/complete")
 
-    def _build_messages(self) -> list[dict[str, Any]]:
+    def _build_messages(self, *, tools: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
         if self.ctx:
-            return assemble_llm_messages(self.ctx, manifest=self.manifest)
+            return assemble_llm_messages(self.ctx, manifest=self.manifest, tools=tools)
         return [{"role": "user", "content": "Hello"}]
+
+    def _tool_defs(self) -> list[dict[str, Any]]:
+        """OpenAI tool schemas for this agent, and the names recorded on the call."""
+        if not self.use_tool_loop:
+            self._offered_tool_names = []
+            return []
+        tool_defs = openai_tools(
+            self.manifest,
+            base_dir=self.manifest_dir,
+            tool_provider=self.tool_provider,
+            peer_descriptions=self.delegation_peer_descriptions,
+            ctx=self.ctx,
+        )
+        self._offered_tool_names = self._names_from_tool_defs(tool_defs)
+        return tool_defs
+
+    @staticmethod
+    def _names_from_tool_defs(tool_defs: list[dict[str, Any]] | None) -> list[str]:
+        names: list[str] = []
+        for tool in tool_defs or []:
+            fn = tool.get("function") if isinstance(tool, dict) else None
+            name = str((fn or {}).get("name") or "") if isinstance(fn, dict) else ""
+            if name:
+                names.append(name)
+        return names
+
+    def _unavailable_tool_observation(self, tool: str, exc: BaseException) -> str:
+        available = ", ".join(self._offered_tool_names) if self._offered_tool_names else "(none)"
+        return f"{exc}. Available tools: {available}."
 
     def _chat_completion(
         self,

@@ -23,6 +23,7 @@ from mas.runtime.kernel.coupling import (
 )
 from mas.runtime.kernel.envelope import (
     EnvelopeContext,
+    close_envelope,
     contract_kind_for_op,
     run_egress_authorize_envelope,
 )
@@ -157,7 +158,11 @@ def emit_scheduled_egress(
         destructive=destructive,
         hitl_override=hitl_override,
     )
-    decision = run_egress_authorize_envelope(env_ctx)
+    try:
+        decision = run_egress_authorize_envelope(env_ctx)
+    except Exception as exc:
+        close_envelope(env_ctx, error=exc)
+        raise
 
     view = EgressIntentView(
         op=op,
@@ -201,15 +206,18 @@ def emit_scheduled_egress(
         )
 
     if decision == GovDecision.BLOCK:
+        close_envelope(env_ctx, error="GOV_BLOCK")
         apply_gov_block(q)
         coord_on_egress_blocked(q)
         return [RaiseBoundaryError(code="GOV_BLOCK", recoverable=True)]
 
     if decision == GovDecision.TERMINATE:
+        close_envelope(env_ctx, error="GOV_TERMINATE")
         apply_gov_terminate(q)
         return [RaiseBoundaryError(code="GOV_TERMINATE", recoverable=False)]
 
     if decision in {GovDecision.SKIP, GovDecision.BLACKLIST}:
+        close_envelope(env_ctx, error=decision.value)
         if decision == GovDecision.BLACKLIST:
             q.tool_blacklisted = True
         q.scheduled_egress = "NONE"
@@ -217,6 +225,7 @@ def emit_scheduled_egress(
         return [NoOp()]
 
     if decision == GovDecision.RETRY:
+        close_envelope(env_ctx, error="GOV_RETRY")
         if q.gov_retry_count >= config.max_gov_retries:
             apply_gov_block(q)
             return [RaiseBoundaryError(code="GOV_RETRY_EXHAUSTED", recoverable=True)]

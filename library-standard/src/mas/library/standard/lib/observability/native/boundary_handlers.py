@@ -117,6 +117,8 @@ def _boundary_engine_io_return(
         finish_reason = payload.get("finish_reason")
         if finish_reason:
             rec["finish_reason"] = finish_reason
+        if isinstance(payload.get("tools"), list):
+            rec["tools"] = list(payload["tools"])
         out.append(_with_parent(rec, record, ctx))
     if op == "TOOL_CALL" and key not in ctx._seen_engine_returns:
         ctx._seen_engine_returns.add(key)
@@ -386,6 +388,8 @@ def _boundary_context_assembled(
     }
     if _asm_msgs:
         _ca["messages"] = _asm_msgs
+    if isinstance(payload.get("tools"), list):
+        _ca["tools"] = list(payload["tools"])
     out: list[dict] = [
         _with_parent(_proc_start, record, ctx),
         _ca,

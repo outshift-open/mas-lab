@@ -84,6 +84,13 @@ def _capture_one(
     # count.  MAS_INFRA_REFS can still override this for real-LLM captures.
     if "MAS_WORKSPACE_ROOT" not in os.environ:
         os.environ["MAS_WORKSPACE_ROOT"] = str(ROOT / "library-samples" / "sample-workspace")
+    # Same isolation as tests/test_golden_labs_run.py: replay the committed
+    # llm_cache fixture, never the developer's engine cache or live provider.
+    if "MAS_INFRA_REFS" not in os.environ:
+        replay = ROOT / "tests/fixtures/llm-cache/ci-replay.yaml"
+        os.environ["MAS_INFRA_REFS"] = f"standard:openai,{replay.resolve()}"
+    os.environ["MAS_LLM_CACHE"] = str(tmp / "llm_cache.json")
+    os.environ.setdefault("MAS_MCE_OFFLINE", "1")
     print(
         f"  workspace: MAS_WORKSPACE_ROOT={os.environ['MAS_WORKSPACE_ROOT']!r}",
         f"  infra:     MAS_INFRA_REFS={os.environ.get('MAS_INFRA_REFS', '<not set — workspace infra_refs used>')!r}",

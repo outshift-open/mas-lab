@@ -13,11 +13,27 @@ from mas.runtime.engine.worker_pool import DEFAULT_ENGINE_QUEUE_DEPTH, EngineWor
 from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.kernel.orchestrator import RuntimeKernel
 from mas.runtime.schema.egress import InvokeEngineIo
+from mas.runtime.schema.ingress import EngineIoReturn
 from mas.runtime.spec.parser import parse_agent_spec
 
 
 def test_default_queue_depth_constant():
     assert DEFAULT_ENGINE_QUEUE_DEPTH == 32
+
+
+def test_process_one_returns_error_when_worker_raises() -> None:
+    def _boom(io: InvokeEngineIo) -> EngineIoReturn:
+        raise RuntimeError("worker exploded")
+
+    pool = EngineWorkerPool(worker=_boom)
+    pool.submit(InvokeEngineIo(correlation_id=7, op="TOOL_CALL"))
+    result = pool.process_one()
+    assert result is not None
+    assert result.response_kind == "ERROR"
+    assert result.next_step == "STOP"
+    assert result.correlation_id == 7
+    assert "worker exploded" in result.text
+    assert pool.pop_inbound() is result
 
 
 def test_submit_rejects_when_queue_full():

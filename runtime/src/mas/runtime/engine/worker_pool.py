@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -13,6 +14,7 @@ from mas.runtime.schema.ingress import EngineIoReturn
 from mas.runtime.spec.defaults import DEFAULT_ENGINE_QUEUE_DEPTH
 
 WorkerFn = Callable[[InvokeEngineIo], EngineIoReturn]
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -39,7 +41,16 @@ class EngineWorkerPool:
         if not self.outbound_queue:
             return None
         intent = self.outbound_queue.popleft()
-        result = self.worker(intent)
+        try:
+            result = self.worker(intent)
+        except Exception as exc:
+            _logger.debug("engine worker failed", exc_info=True)
+            result = EngineIoReturn(
+                correlation_id=intent.correlation_id,
+                response_kind="ERROR",
+                next_step="STOP",
+                text=str(exc),
+            )
         self.inbound_queue.append(result)
         return result
 

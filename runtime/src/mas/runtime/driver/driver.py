@@ -166,7 +166,7 @@ class KernelDriver:
                 if self.kernel is not None
                 else DEFAULT_ENGINE_QUEUE_DEPTH
             )
-            self.engine_pool = EngineWorkerPool(worker=self.engine.invoke, max_depth=depth)
+            self.engine_pool = EngineWorkerPool(worker=self._invoke_engine, max_depth=depth)
         if self.ctx is not None and self.observability is not None:
             self.ctx.observability = self.observability
 
@@ -402,6 +402,22 @@ class KernelDriver:
         except Exception:
             _logger.debug("governance plugin on_transition failed", exc_info=True)
 
+    def _invoke_engine(self, io: InvokeEngineIo) -> EngineIoReturn:
+        """Run one engine op. An exception still becomes an ERROR return so the
+        envelope can close the matching start event (tool_call_end / llm_call_end).
+        """
+        if self.engine is None:
+            raise RuntimeError("no engine configured")
+        try:
+            return self.engine.invoke(io)
+        except Exception as exc:
+            return EngineIoReturn(
+                correlation_id=io.correlation_id,
+                response_kind="ERROR",
+                next_step="STOP",
+                text=str(exc),
+            )
+
     def _dispatch_engine_batch(self, ios: list[InvokeEngineIo], trace: DriverTrace) -> list[IngressSymbol]:
         q = self.kernel.q
         engine = self.engine
@@ -532,8 +548,7 @@ class KernelDriver:
             if pool is not None:
                 pool.submit(sym)
             else:
-                assert engine is not None
-                ret = engine.invoke(sym)
+                ret = self._invoke_engine(sym)
                 self._record_engine_return(trace, sym, ret)
                 self._record_wait_state_obs(sym, q, boundary="end")
                 direct.append(ret)

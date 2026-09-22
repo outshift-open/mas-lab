@@ -130,6 +130,7 @@ def test_context_assembled_emits_processing_span_and_context_event() -> None:
             "segments": [],
             "total_tokens": 25,
             "message_count": 2,
+            "tools": ["get_logs", "get_metrics"],
         },
     }
     out = dispatch_boundary(record, ctx=_ctx())
@@ -137,6 +138,9 @@ def test_context_assembled_emits_processing_span_and_context_event() -> None:
     assert "processing_call_start" in kinds
     assert "context_assembled" in kinds
     assert "processing_call_end" in kinds
+
+    assembled = next(ev for ev in out if ev.get("kind") == "context_assembled")
+    assert assembled["tools"] == ["get_logs", "get_metrics"]
 
     pstart = next(ev for ev in out if ev.get("kind") == "processing_call_start")
     pend = next(ev for ev in out if ev.get("kind") == "processing_call_end")
