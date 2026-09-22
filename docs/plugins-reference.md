@@ -59,9 +59,10 @@ practical examples.
 
 ### Governance
 
-| Class                    | Full module path                                       | Package                |
-| ------------------------ | ------------------------------------------------------ | ---------------------- |
-| `SampleGovernancePlugin` | `mas.library.standard.mas.runtime.boundary.gov.sample` | `mas-library-standard` |
+| Class                    | Full module path                                             | Package                |
+| ------------------------ | ------------------------------------------------------------ | ---------------------- |
+| `NoUndeclaredToolPlugin` | `mas.library.standard.plugins.governance.no_undeclared_tool` | `mas-library-standard` |
+| `SampleGovernancePlugin` | `mas.library.standard.mas.runtime.boundary.gov.sample`       | `mas-library-standard` |
 
 ### Memory
 
@@ -114,6 +115,7 @@ practical examples.
 | `IntrospectionPlugin`            | design_pattern  | `mas-library-standard` |
 | `LocalToolProvider`              | tool_provider   | `mas-library-standard` |
 | `NativeObservabilityPlugin`      | observability   | `mas-library-standard` |
+| `NoUndeclaredToolPlugin`         | governance      | `mas-library-standard` |
 | `OtelObservabilityPlugin`        | observability   | `mas-library-standard` |
 | `PlanExecutePlugin`              | design_pattern  | `mas-library-standard` |
 | `ReactPlugin`                    | design_pattern  | `mas-library-standard` |

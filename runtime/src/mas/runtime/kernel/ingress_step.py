@@ -67,6 +67,8 @@ def commit_engine_io_return(
             text=event.text,
         )
     )
+    if event.offered_tools is not None:
+        q.offered_tools = tuple(event.offered_tools)
     if event.next_step == "TOOL_CALL":
         q.pending_tool_name = event.tool_name
         q.pending_tool_args = dict(event.tool_arguments)

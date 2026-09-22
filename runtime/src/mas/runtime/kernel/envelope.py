@@ -246,6 +246,7 @@ def _evaluate_egress(ctx: EnvelopeContext) -> GovDecision:
         correlation_id=ctx.correlation_id,
         tool_name=ctx.tool_name,
         tool_arguments=ctx.tool_arguments,
+        offered_tools=getattr(ctx.q, "offered_tools", None),
     )
     decision, ctx.policy_name, ctx.gov_reason = evaluate_egress_at_chokepoint(
         view,

@@ -10,6 +10,14 @@ from mas.runtime.boundary.gov.policy import EgressIntentView, resolve_egress_gov
 from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.kernel.coupling import GovDecision
 
+_DENY = {
+    GovDecision.BLOCK,
+    GovDecision.SKIP,
+    GovDecision.TERMINATE,
+    GovDecision.BLACKLIST,
+}
+_HOLD = {GovDecision.HITL, GovDecision.RETRY, GovDecision.MODIFY}
+
 # (decision, policy_name, human-readable reason) — computed together so the
 # reason can never describe a different decision than the one returned
 # alongside it. See boundary/gov/policy.py's module docstring for why this
@@ -21,6 +29,83 @@ class GovernancePlugin(Protocol):
     """Evaluate egress at chokepoint (policy/HITL rules live in plugins, not in M_tool/M_dp)."""
 
     def evaluate_egress(self, intent: EgressIntentView, *, config: KernelConfig) -> EgressDecision: ...
+
+
+class GovernancePluginChain:
+    """``spec.governance`` is an iptables-style chain, not a sequence.
+
+    Observability plugins are a *sequence*: every listed plugin sees every
+    event. Governance plugins are a *chain*: each plugin either passes and
+    the next rule runs, or it errors and the chain stops with that verdict.
+    Remaining plugins are not consulted.
+
+    * ALLOW / LOG — pass. Continue to the next plugin.
+    * BLOCK / SKIP / TERMINATE / BLACKLIST — error. Exit the chain and
+      return that verdict.
+    * HITL / RETRY / MODIFY — hold. Not a pass and not an error; keep
+      walking so a later plugin can still BLOCK. If the chain ends without
+      an error, the first hold is the verdict.
+
+    A plugin that does not apply to this call MUST pass (ALLOW) so later
+    rules can run.
+
+    ``on_transition`` fans out to each child (optional hook). This plugin
+    itself declares no ``transition_filters``, so the driver delivers the
+    full stream and each child applies its own filters.
+    """
+
+    def __init__(self, plugins: list[GovernancePlugin]) -> None:
+        self._plugins = list(plugins)
+
+    @property
+    def plugins(self) -> tuple[GovernancePlugin, ...]:
+        return tuple(self._plugins)
+
+    def evaluate_egress(self, intent: EgressIntentView, *, config: KernelConfig) -> EgressDecision:
+        hold: EgressDecision | None = None
+        log: EgressDecision | None = None
+        allow: EgressDecision | None = None
+        for plugin in self._plugins:
+            decision, name, reason = plugin.evaluate_egress(intent, config=config)
+            if decision in _DENY:
+                return decision, name, reason
+            if decision in _HOLD and hold is None:
+                hold = (decision, name, reason)
+            elif decision == GovDecision.LOG:
+                log = (decision, name, reason)
+            else:
+                allow = (decision, name, reason)
+        return hold or log or allow or (
+            GovDecision.ALLOW,
+            "governance-chain",
+            "all governance plugins passed this call",
+        )
+
+    def on_transition(self, transition: object) -> None:
+        for plugin in self._plugins:
+            hook = getattr(plugin, "on_transition", None)
+            if not callable(hook):
+                continue
+            filters_fn = getattr(plugin, "transition_filters", None)
+            if callable(filters_fn):
+                try:
+                    specs = list(filters_fn() or [])
+                except Exception:
+                    continue
+                if specs:
+                    matches = getattr(specs[0], "matches", None)
+                    if callable(matches) and not any(
+                        getattr(spec, "matches", lambda _t: False)(transition) for spec in specs
+                    ):
+                        continue
+            try:
+                hook(transition)
+            except Exception:
+                continue
+
+
+# Historical name — same chain object.
+CompositeGovernancePlugin = GovernancePluginChain
 
 
 class KernelGovernancePlugin:
