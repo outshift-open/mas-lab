@@ -4,7 +4,7 @@
   "scenario": "tools",
   "item_id": "1",
   "run_idx": 0,
-  "referenced_at": "2026-09-21T12:46:21.408118Z",
+  "referenced_at": "2026-09-22T09:07:56.806683Z",
   "mas": {
     "app": "qa-agent",
     "mas_ref": "sandbox/20260917-agntcon-amsterdam/thirdparty/mas-lab/docs/tutorials/01-building-an-agent/agent.yaml",
