@@ -15,7 +15,7 @@ Human-readable field docs are in [Specifications](index.md#specifications).
 
 | Schema | Purpose |
 | --- | --- |
-| [`config.schema.yaml`](../schemas/config.schema.yaml) | Root `config.yaml` — defaults, flavour, infra refs, `manifest_libraries:` |
+| [`config.schema.yaml`](../schemas/config.schema.yaml) | Root `config.yaml` — [field reference](config.yaml.md) (`mas_ctl`, flavour, infra refs, `manifest_libraries:`) |
 | [`library.schema.yaml`](../schemas/library.schema.yaml) | `kind: Library` (`library.yaml`) — [labs-and-libraries.md](../labs-and-libraries.md) |
 | [`deployment.schema.yaml`](../schemas/deployment.schema.yaml) | Deployment / placement descriptors |
 | [`runtime-profile.schema.yaml`](../schemas/runtime-profile.schema.yaml) | Runtime profile flags (governance, observability) |

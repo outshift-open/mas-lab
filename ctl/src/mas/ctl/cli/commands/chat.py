@@ -10,7 +10,7 @@ from pathlib import Path
 import click
 from mas.ctl.cli.help_text import CHAT_EPILOG
 from mas.ctl.cli.obs_flags import observability_options, resolve_observability_config
-from mas.ctl.cli.trace_flags import trace_options
+from mas.ctl.cli.trace_flags import mas_ctl_from_configs, resolve_trace_settings, trace_options
 from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
 from mas.ctl.session.controller import (
     ConversationConfig,
@@ -99,7 +99,7 @@ from mas.ctl.ui.stdout import StdoutConversationDisplay
 @click.option(
     "--model",
     default=None,
-    help="LLM model ID (default: from LLM_MODEL env or gpt-4o-mini)",
+    help="Override spec.models for this run (same as MAS_CTL_MODEL)",
 )
 @click.pass_context
 def chat_cmd(
@@ -132,11 +132,13 @@ def chat_cmd(
     events_file: str | None,
     events_stdout: bool,
     events_format: str | None,
-    trace: bool,
-    trace_timestamps: bool,
+    trace_mode: str | None,
+    no_trace: bool,
+    trace_timestamps: bool | None,
     trace_engine: bool,
     trace_summary: bool,
-    trace_color: bool,
+    trace_full: bool,
+    trace_color: bool | None,
     model: str | None,
 ) -> None:
     """Run agent conversation on stdout (You:/Agent: labels).
@@ -198,6 +200,18 @@ def chat_cmd(
             session_interactive=interactive,
         )
 
+        trace = resolve_trace_settings(
+            trace_mode=trace_mode,
+            no_trace=no_trace,
+            trace_summary=trace_summary,
+            trace_full=trace_full,
+            trace_timestamps=trace_timestamps,
+            trace_engine=trace_engine,
+            trace_color=trace_color,
+            mas_ctl=mas_ctl_from_configs(user.mas_ctl, workspace.mas_ctl),
+            verbose=verbose,
+        )
+
         # Built here (not later, where it used to live) so it can also back
         # user_io_contract below -- same instance is reused for the
         # SessionController further down.
@@ -206,6 +220,7 @@ def chat_cmd(
             verbose=verbose,
             show_labels=not interactive,
             user_prompt_echoed=interactive,
+            trace=trace.enabled,
         )
 
         # Agent-initiated HITL (request_human_input)/inform_user() otherwise
@@ -261,6 +276,7 @@ def chat_cmd(
                     workspace=workspace,
                     enable_observability=not without_obs,
                     enable_governance=not without_gov,
+                    model_override=model,
                 ),
                 hitl=hitl_responder,
             )
@@ -292,22 +308,14 @@ def chat_cmd(
             manifest=agent_data,
         )
 
-        # Extract agent name from manifest metadata; use "n/a" if not available
-        import os
-
         agent_name = agent_data.get("metadata", {}).get("name", "n/a") if agent_data else "n/a"
         if agent_name == "agent" and not manifest:
             # CLI-only run without explicit manifest: show "n/a" instead of generic "agent"
             agent_name = "n/a"
 
-        # Get LLM model name (in order of precedence: CLI --model > env vars > default)
-        llm_name = (
-            model
-            or os.getenv("LLM_MODEL")
-            or os.getenv("OPENAI_MODEL")
-            or os.getenv("MAS_LLM_MODEL")
-            or "gpt-4o-mini"  # Fallback default
-        )
+        from mas.runtime.driver.driver import engine_model_id
+
+        llm_name = engine_model_id(getattr(instance.driver, "engine", None))
 
         controller = SessionController(
             instance=instance,
@@ -315,11 +323,7 @@ def chat_cmd(
             hitl_terminal=hitl_terminal,
             checkpoint_store=store,
             verbose=verbose,
-            trace=trace,
-            trace_timestamps=trace_timestamps,
-            trace_engine=trace_engine or verbose >= 2,
-            trace_summary=trace_summary,
-            trace_color=trace_color,
+            **trace.as_session_kwargs(),
             obs_recorder=obs_rec,
             agent_id=agent_name,
             llm_id=llm_name,
@@ -335,9 +339,9 @@ def chat_cmd(
                 hitl_terminal=hitl_terminal,
                 hitl_responder=hitl_responder,
                 verbose=verbose,
-                trace=trace,
-                trace_timestamps=trace_timestamps,
-                trace_engine=trace_engine or verbose >= 2,
+                trace=trace.enabled,
+                trace_timestamps=trace.timestamps,
+                trace_engine=trace.engine,
             )
         rc = run_session_loop(controller, interactive=interactive, scripted=scripted)
 

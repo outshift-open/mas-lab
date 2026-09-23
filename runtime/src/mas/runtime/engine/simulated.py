@@ -8,6 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 
+from mas.runtime.engine.exchange_preview import ExchangeSnapshot, format_exchange_snapshot
 from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.ingress import EngineIoReturn
 
@@ -34,10 +35,13 @@ class SimulatedEngine:
     llm_tool_intent: Callable[[int], tuple[str, dict]] | None = None
     stop_text: str | None = None
 
-    def exchange_preview(self, op: str) -> str:
+    def exchange_snapshot(self, op: str) -> ExchangeSnapshot:
         if op == "LLM_CALL":
-            return f"simulated:{self.sim_mode.value}"
-        return ""
+            return ExchangeSnapshot(note=f"simulated:{self.sim_mode.value}")
+        return ExchangeSnapshot()
+
+    def exchange_preview(self, op: str) -> str:
+        return format_exchange_snapshot(self.exchange_snapshot(op))
 
     def invoke(self, io: InvokeEngineIo) -> EngineIoReturn:
         if io.correlation_id in self.script:

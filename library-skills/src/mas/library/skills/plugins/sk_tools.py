@@ -129,6 +129,7 @@ class SkillToolsPlugin(ToolContract):
                     "properties": {"name": name_schema},
                     "required": ["name"],
                 },
+                "semantics": {"concept": "skill", "op": "activate", "subject_arg": "name"},
             },
             {
                 "name": "list_skill_files",
@@ -144,6 +145,7 @@ class SkillToolsPlugin(ToolContract):
                     },
                     "required": ["skill"],
                 },
+                "semantics": {"concept": "skill", "op": "list", "subject_arg": "skill"},
             },
             {
                 "name": "read_skill_file",
@@ -164,6 +166,7 @@ class SkillToolsPlugin(ToolContract):
                     },
                     "required": ["skill", "path"],
                 },
+                "semantics": {"concept": "skill", "op": "read", "subject_arg": "skill"},
             },
         ]
 

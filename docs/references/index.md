@@ -24,7 +24,7 @@ Declarative YAML kinds and how they compose.
 | Overlay | [overlay.md](../manifests/overlay.md) |
 | Flavour & environment | [flavour.md](../manifests/flavour.md), [infra.md](../manifests/infra.md) |
 | LLM cache middleware | [Guide](../manifests/llm-cache.md) · [Reference](llm-cache.md) |
-| Workspace file | [user-config.md](../user-config.md), [config.schema.yaml](../schemas/config.schema.yaml) |
+| Workspace file | [user-config.md](../user-config.md) (paths), [config.yaml reference](config.yaml.md) (fields), [config.schema.yaml](../schemas/config.schema.yaml) |
 | Schemas (all) | [Schema index](schemas.md) |
 | Contracts | [Contracts](contracts.md) |
 
@@ -38,7 +38,7 @@ Execution kernel, contracts, and plugins (`mas-runtime`, `mas-ctl`).
 |-------|-----------|
 | Runtime manifests (Agent, MAS, overlay) | [Manifest fields](../manifests/runtime.md) |
 | Contracts & Mealy envelope | [Contracts](contracts.md) · [runtime package docs](runtime.md) |
-| CLI (`mas-ctl`, `mas-runtime`) | [ctl user guide](https://github.com/outshift-open/mas-lab/blob/main/ctl/docs/user-guide.md) |
+| CLI (`mas-ctl`) | [CLI overview](../cli/index.md) · [mas-ctl options](../cli/mas-ctl.md) |
 | **Web UI** | [ui/index.md](../ui/index.md) |
 | Run logs | [Observability](../cli/observability.md) |
 
@@ -64,6 +64,8 @@ Experiments, datasets, pipelines, and analysis (`mas-lab`).
 ## See also
 
 - [User guide](../user-guide.md) — install and day-to-day workflows
+- [CLI](../cli/index.md) · [mas-ctl options](../cli/mas-ctl.md)
+- [config.yaml](config.yaml.md) — workspace / user YAML fields
 - [Tutorials](../tutorials/index.md) — hands-on tutorials (agents → teams → experiments)
 - [Paper labs](../paper/index.md) — reproduce Section 5 of the article
 - [Web UI](../ui/index.md) — design and inspect in the browser

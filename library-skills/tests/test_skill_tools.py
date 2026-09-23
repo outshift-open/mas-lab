@@ -258,6 +258,13 @@ def test_list_tools_returns_three_tools():
     tools = plugin.list_tools()
     names = {t["name"] for t in tools}
     assert names == {"activate_skill", "list_skill_files", "read_skill_file"}
+    by_name = {t["name"]: t for t in tools}
+    assert by_name["activate_skill"]["semantics"] == {
+        "concept": "skill",
+        "op": "activate",
+        "subject_arg": "name",
+    }
+    assert by_name["read_skill_file"]["semantics"]["op"] == "read"
     for tool in tools:
         assert "description" in tool
         assert "parameters" in tool

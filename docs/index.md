@@ -51,6 +51,8 @@ More on each audience in the [overview](overview.md).
 | Topic | Where |
 | --- | --- |
 | Install and day-to-day use | [User guide](user-guide.md) |
+| Command line | [CLI](cli/index.md) · [mas-ctl options](cli/mas-ctl.md) |
+| Workspace `config.yaml` | [config.yaml reference](references/config.yaml.md) |
 | Labs vs libraries | [labs-and-libraries.md](labs-and-libraries.md) |
 | Hands-on path (agent → team → experiment) | [Tutorials](tutorials/index.md) |
 | YAML manifests, schemas, contracts | [References](references/index.md) |

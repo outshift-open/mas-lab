@@ -8,26 +8,19 @@ import logging
 from pathlib import Path
 
 import pytest
-
 from mas.ctl.compose.models import ResolvedInfra
 from mas.ctl.session.engine_factory import (
     _cache_read_enabled,
     _resolve_model_option,
     _resolve_sampling_param,
-    _strict_replay,
     _stream_enabled,
+    _strict_replay,
     build_engine,
     resolve_model_name,
 )
 from mas.runtime.driver.mocks import AutoCtxAssembler
 
-_CI_REPLAY = (
-    Path(__file__).resolve().parents[2]
-    / "tests"
-    / "fixtures"
-    / "llm-cache"
-    / "ci-replay.yaml"
-)
+_CI_REPLAY = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "llm-cache" / "ci-replay.yaml"
 
 
 def test_build_engine_errors_without_infra(monkeypatch, tmp_path):
@@ -104,6 +97,13 @@ def test_resolve_model_name_prefers_spec_models(monkeypatch):
         }
     }
     assert resolve_model_name(manifest, None) == "vertex_ai/gemini-2.5-pro"
+
+
+def test_resolve_model_name_cli_override_beats_spec(monkeypatch):
+    monkeypatch.delenv("MAS_CTL_MODEL", raising=False)
+    monkeypatch.delenv("MAS_LLM_MODEL", raising=False)
+    manifest = {"spec": {"models": [{"model": "gpt-4o"}]}}
+    assert resolve_model_name(manifest, None, forced="gpt-4.1") == "gpt-4.1"
 
 
 def test_resolve_sampling_param_falls_back_to_deprecated_spec_llm(caplog):

@@ -118,10 +118,10 @@ mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
   -o library-samples/overlays/local-in-process.yaml \
   --infra-ref library-samples/infra/mcp-localhost.yaml \
   -q "What is the current price of Apple stock?" \
-  --trace --trace-summary
+  --trace
 ```
 
-`--trace --trace-summary` (not `-v` on `chat`). You should see `AGENT → TOOL[web-search]` and a new `MCP tool call name=web-search` line on the **server** process.
+`--trace` (not `-v` on `chat`) prints the human exchange log. You should see `AGENT → TOOL[web-search]` and a new `MCP tool call name=web-search` line on the **server** process.
 
 Validate the overlay on this branch:
 

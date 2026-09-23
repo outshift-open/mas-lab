@@ -53,6 +53,11 @@ class _RichTool(_DailyTool):
         return "optional"
 
 
+class _SemanticTool(_DailyTool):
+    def get_semantics(self) -> dict:
+        return {"concept": "calc", "op": "evaluate", "subject_arg": "a"}
+
+
 def test_daily_list_tools_stays_three_keys() -> None:
     spec = _DailyTool().list_tools()[0]
     assert spec == {
@@ -73,6 +78,11 @@ def test_optional_advertise_fields_emitted_only_when_set() -> None:
     assert spec["annotations"]["readOnlyHint"] is True
     assert "destructive" not in spec
     assert "icons" not in spec
+
+
+def test_semantics_advertise_from_getter() -> None:
+    spec = _SemanticTool().list_tools()[0]
+    assert spec["semantics"] == {"concept": "calc", "op": "evaluate", "subject_arg": "a"}
 
 
 def test_call_tool_name_and_arguments_still_work() -> None:
@@ -140,6 +150,7 @@ def test_overlay_copies_optional_yaml_attributes() -> None:
             "title": "Calculator",
             "read_only": True,
             "timeout_seconds": 10,
+            "semantics": {"concept": "memory", "op": "read", "subject_arg": "query"},
         },
     )
     assert merged["description"] == "yaml"
@@ -147,6 +158,7 @@ def test_overlay_copies_optional_yaml_attributes() -> None:
     assert merged["title"] == "Calculator"
     assert merged["read_only"] is True
     assert merged["timeout_seconds"] == 10
+    assert merged["semantics"] == {"concept": "memory", "op": "read", "subject_arg": "query"}
 
 
 def test_tool_document_optional_spec_fields_round_trip() -> None:
@@ -165,6 +177,7 @@ def test_tool_document_optional_spec_fields_round_trip() -> None:
                 "icons": [{"src": "https://example.invalid/i.png"}],
                 "output_schema": {"type": "object"},
                 "meta": {"vendor": "ioa"},
+                "semantics": {"concept": "search", "op": "query", "subject_arg": "query"},
                 "idempotent": True,
                 "impl": {"module_path": "./x.py", "class_name": "X"},
             },
@@ -178,6 +191,7 @@ def test_tool_document_optional_spec_fields_round_trip() -> None:
     assert contract["task_support"] == "optional"
     assert contract["output_schema"] == {"type": "object"}
     assert contract["meta"] == {"vendor": "ioa"}
+    assert contract["semantics"] == {"concept": "search", "op": "query", "subject_arg": "query"}
     advertised = doc.spec.to_tool_server_spec("web-search")
     assert advertised["title"] == "Web Search"
     assert advertised["annotations"]["readOnlyHint"] is True

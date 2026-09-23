@@ -256,6 +256,9 @@ class ToolSpec:
     meta: Dict[str, Any] = field(default_factory=dict)
     """Optional advertise metadata forwarded to protocol adapters."""
 
+    semantics: Dict[str, Any] = field(default_factory=dict)
+    """Optional interpretation for traces and metrics (concept / op / subject_arg)."""
+
     impl: Optional[ToolImpl] = None
     """Implementation reference — hidden from callers."""
 
@@ -287,6 +290,7 @@ class ToolSpec:
             task_support=data.get("task_support"),
             output_schema=dict(data.get("output_schema") or {}),
             meta=dict(data.get("meta") or data.get("_meta") or {}),
+            semantics=dict(data.get("semantics") or {}),
             impl=ToolImpl.from_dict(impl_data) if impl_data else None,
         )
 
@@ -392,6 +396,8 @@ class ToolSpec:
             data["output_schema"] = dict(self.output_schema)
         if self.meta:
             data["meta"] = dict(self.meta)
+        if self.semantics:
+            data["semantics"] = dict(self.semantics)
         return data
 
 

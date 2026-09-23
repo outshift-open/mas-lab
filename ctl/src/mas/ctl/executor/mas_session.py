@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
 from mas.ctl.compose.models import EffectiveBindManifest
 from mas.ctl.compose.pattern_registry import resolve_design_pattern_registry_id
 from mas.ctl.compose.placement_registry import get_placement_backend
@@ -87,8 +86,6 @@ def agent_manifest_label(manifest: dict[str, Any], manifest_path: Path) -> str:
     if resolved != "agent":
         return resolved
     return manifest_path.stem or "agent"
-
-
 
 
 def agent_manifest_path(bind: EffectiveBindManifest, agent_id: str) -> Path | None:
@@ -166,9 +163,7 @@ def prepare_delegation_entry_session(
     compose = materialized.compose
     instance = materialized.materialized.instances.get(entry_id)
     if instance is None:
-        raise KeyError(
-            f"entry agent {entry_id!r} not materialized (have: {list(materialized.materialized.instances)})"
-        )
+        raise KeyError(f"entry agent {entry_id!r} not materialized (have: {list(materialized.materialized.instances)})")
 
     if hasattr(instance.driver, "agent_id"):
         instance.driver.agent_id = entry_id
@@ -409,6 +404,7 @@ def make_workflow_send(
                 verbose=verbose,
                 show_labels=True,
                 user_prompt_echoed=True,
+                trace=getattr(base, "_trace", False),
             )
         controller = SessionController(
             instance=instance,
@@ -434,24 +430,24 @@ def make_workflow_send(
         # Only close a controller that owns its own recorder (non-shared setups).
         if controller.obs_recorder is not None:
             from mas.ctl.session.controller import close_observability
+
             close_observability(controller)
         state["prev_agent"] = agent_id
         if turn_failed(result):
             raise RuntimeError(f"agent {agent_id!r} turn failed")
-        
+
         # Propagate awaiting_hitl state via side channel (not return value)
         # This allows external systems (Webex bot) to detect and resolve HITL
         # from delegated agents without breaking the delegation contract.
         if result.awaiting_hitl:
             from mas.runtime.boundary.hitl.registry import get_hitl_resolver_registry
+
             registry = get_hitl_resolver_registry()
             # Check if there are any pending HITL requests for this agent
             if registry.has_pending(state["session_id"], agent_id):
                 # Mark in state that this agent has pending HITL
                 state.setdefault("pending_hitl_agents", set()).add(agent_id)
-        
+
         return result.text
 
     return send
-
-

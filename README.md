@@ -82,7 +82,7 @@ The headline packages:
 | Package                | Role                                                           |
 | ---------------------- | -------------------------------------------------------------- |
 | `mas-runtime`          | Agent runtime — contracts, plugins, design patterns            |
-| `mas-ctl`              | Orchestration — `chat`, `run-mas`, `validate`                  |
+| `mas-ctl`              | Orchestration — `chat`, `run-mas`, `validate` ([flags](docs/cli/mas-ctl.md)) |
 | `mas-lab`              | Meta-package — benchmarks, pipelines, telemetry, UI controller |
 | `mas-library-standard` | Flavours, overlays, infra bundles                              |
 

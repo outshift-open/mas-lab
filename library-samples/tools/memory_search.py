@@ -19,6 +19,7 @@ class MemorySearchTool:
                 "properties": {"query": {"type": "string"}},
                 "required": ["query"],
             },
+            "semantics": {"concept": "memory", "op": "read", "subject_arg": "query"},
         }
         store_params = {
             "type": "object",
@@ -34,6 +35,11 @@ class MemorySearchTool:
                 "name": "memory_store",
                 "description": "Store a fact or user preference in semantic memory.",
                 "parameters": store_params,
+                "semantics": {
+                    "concept": "memory",
+                    "op": "write",
+                    "subject_arg": ["content", "query"],
+                },
             },
         ]
 

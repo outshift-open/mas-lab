@@ -35,11 +35,13 @@ Context model (see docs/design/context-sources.md):
 
 Examples:
   mas-ctl chat agent.yaml -i -o overlays/tools.yaml --trace
-  mas-ctl chat agent.yaml -i -o overlays/tools.yaml --trace --trace-timestamps
-  mas-ctl chat agent.yaml -i -o overlays/tools.yaml --trace -vv
+  mas-ctl chat agent.yaml -i -o overlays/tools.yaml --trace full
+  mas-ctl chat agent.yaml -i -o overlays/tools.yaml --trace --trace-color
 
-Trace (--trace, or automatic with -i + HITL):
-  Exchanges stream on stderr as they happen (AGENT→LLM context, LLM→AGENT replies,
-  tool calls/results). --trace-timestamps adds UTC time + elapsed. -vv or
-  --trace-engine adds raw engine InvokeEngineIo / EngineIoReturn JSON.
+Trace (--trace, or mas_ctl.trace in config.yaml):
+  Human exchange log on stderr (stdout stays the conversation). Bare --trace is
+  summary: headers + timestamps, untruncated AGENT→USER. --trace full dumps
+  payloads. --trace-color is opt-in (never the default). --no-trace disables a
+  config.yaml default. Machines use events.jsonl / mas-lab telemetry, not this
+  log. -vv or --trace-engine adds raw InvokeEngineIo / EngineIoReturn JSON.
 """

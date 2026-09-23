@@ -64,7 +64,7 @@ mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
   -o library-samples/overlays/mcp-localhost.yaml \
   -o library-samples/overlays/local-in-process.yaml \
   -q "What is the current price of Apple stock?" \
-  --trace --trace-summary
+  --trace
 ```
 
 The serve terminal must log `MCP tool call name=web-search` for both `mas-mcp tools call` and the agent.

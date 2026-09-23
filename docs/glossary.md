@@ -28,7 +28,7 @@ also explains them in context; this page is the single reference list.
 | **Embedded pipeline** | The `pipeline:` list inside `experiment.yaml` — runs automatically after the benchmark execution phase. |
 | **Pipeline step** | One unit in the pipeline (e.g. `extract_trace_stats`, `plotnine`). Declared with `name`, `type`, `config`. |
 | **`events.jsonl`** | Machine-readable run log: one JSON object per line (model calls, tool calls, governance, routing). |
-| **Exchange log** | Human-readable transcript on stderr during `mas-ctl chat` (`--trace`). Not used for experiment scoring. |
+| **Exchange log** | Human-readable transcript on stderr during `mas-ctl chat` (`--trace` = summary + timestamps; `--trace full` for the payload dump). Persist with `mas_ctl.trace` in `config.yaml`. Not used for experiment scoring. |
 | **Trace cache** | Store of completed run logs; identical inputs reuse the cache instead of calling the model again. |
 | **Observability** | Settings that enable `events.jsonl` (manifest `spec.observability`, overlay, or `--events`). |
 

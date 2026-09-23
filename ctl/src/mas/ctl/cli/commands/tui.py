@@ -7,10 +7,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import click
-
 from mas.ctl.cli.obs_flags import observability_options, resolve_observability_config
 from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
-from mas.ctl.session.controller import ConversationConfig, SessionController, close_observability
+from mas.ctl.session.controller import ConversationConfig, close_observability
 from mas.ctl.session.hitl_config import resolve_hitl_from_manifest
 from mas.ctl.session.observability import setup_observability
 from mas.ctl.ui.curses_app import build_curses_controller, run_curses_session
@@ -45,7 +44,7 @@ from mas.ctl.ui.curses_app import build_curses_controller, run_curses_session
 @click.option(
     "--model",
     default=None,
-    help="LLM model ID (default: from LLM_MODEL env or gpt-4o-mini)",
+    help="Override spec.models for this run (same as MAS_CTL_MODEL)",
 )
 @observability_options
 @click.pass_context
@@ -72,8 +71,6 @@ def tui_cmd(
     from mas.ctl.runtime_cli import load_merged_agent_manifest
     from mas.ctl.session.infra_resolve import resolve_session_infra
     from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
-
-    hitl_responder, hitl_terminal = None, None
 
     with manifest_cwd(manifest, overlay_paths=overlays) as session:
         load_dotenv(cwd=session.original_cwd, manifest_dir=session.manifest_dir)
@@ -103,9 +100,7 @@ def tui_cmd(
         def _opt_file(path: str | None) -> Path | None:
             if not path:
                 return None
-            return resolve_overlay_path(
-                path, orig_cwd=session.original_cwd, manifest_dir=session.manifest_dir
-            )
+            return resolve_overlay_path(path, orig_cwd=session.original_cwd, manifest_dir=session.manifest_dir)
 
         instance, store = instantiate_runtime(
             InstantiationOptions(
@@ -124,6 +119,7 @@ def tui_cmd(
                 ),
                 workspace=workspace,
                 runtime_refs_cli=runtime_refs_cli,
+                model_override=model,
             ),
             hitl=hitl_responder,
         )

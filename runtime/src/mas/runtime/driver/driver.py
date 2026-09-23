@@ -18,10 +18,11 @@ from mas.runtime.boundary.hitl.responders import HitlResponder
 from mas.runtime.boundary.ingress_validate import validate_ingress
 from mas.runtime.boundary.obs.exchange_plugin import ExchangePlugin
 from mas.runtime.boundary.obs.operator import ObservabilityOperator
+from mas.runtime.contracts.tool_semantics import bound_tool_semantics, existing_attr
 from mas.runtime.driver.mocks import AutoCtxAssembler
+from mas.runtime.engine.exchange_preview import ExchangeSnapshot
 from mas.runtime.engine.simulated import SimulatedEngine
 from mas.runtime.engine.worker_pool import DEFAULT_ENGINE_QUEUE_DEPTH, EngineWorkerPool
-from mas.runtime.spec.defaults import DEFAULT_MAX_AUTO_STEPS
 from mas.runtime.kernel.inflight import pending_for_validate, register_inflight
 from mas.runtime.kernel.orchestrator import RuntimeKernel
 from mas.runtime.kernel.runtime_context import runtime_binding
@@ -36,20 +37,64 @@ from mas.runtime.schema.egress import (
     RequestCtxAssembly,
 )
 from mas.runtime.schema.ingress import EngineIoReturn, IngressSymbol, UserInputReceived
+from mas.runtime.spec.defaults import DEFAULT_MAX_AUTO_STEPS
 
 _logger = logging.getLogger(__name__)
+
+ExchangeKind = Literal[
+    "user_in",
+    "user_out",
+    "llm_request",
+    "llm_response",
+    "tool_call",
+    "tool_result",
+]
 
 
 @dataclass
 class ExchangeRecord:
-    """One line in the v1-style exchange log (AGENT↔LLM↔TOOL)."""
+    """One USER↔AGENT↔LLM↔TOOL hop. Typed fields only; pretty-print is a view."""
 
-    tag: str
-    text: str
-    detail: str = ""
+    kind: ExchangeKind
+    text: str = ""
     ts_mono: float = 0.0
     ts_wall: str = ""
+    agent_id: str = ""
+    correlation_id: int | None = None
+    op: str | None = None
+    response_kind: str | None = None
+    finish_reason: str | None = None
+    next_step: str | None = None
+    tool_name: str | None = None
+    tool_arguments: dict[str, Any] | None = None
+    semantics: dict[str, Any] | None = None
+    model: str | None = None
+    messages: list[dict[str, Any]] | None = None
+    tools: list[dict[str, Any]] | None = None
+    tools_note: str = ""
     engine_raw: str = ""
+
+
+def engine_model_id(engine: Any) -> str:
+    """Model id the engine will actually call (unwraps infra middleware).
+
+    Uses :func:`existing_attr` so a spec-less ``MagicMock`` cannot auto-create
+    ``.inner`` / ``.model`` and allocate an unbounded mock tree.
+    """
+    seen: set[int] = set()
+    cur = engine
+    for _ in range(8):
+        if cur is None or id(cur) in seen:
+            break
+        seen.add(id(cur))
+        model = existing_attr(cur, "model")
+        if isinstance(model, str) and model.strip():
+            return model.strip()
+        inner = existing_attr(cur, "inner")
+        if inner is None or inner is cur:
+            break
+        cur = inner
+    return ""
 
 
 def _exchange_timestamp() -> tuple[float, str]:
@@ -88,6 +133,72 @@ def _engine_payload_json(obj: object) -> str:
     else:
         return str(obj)
     return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+def _engine_snapshot(engine: Any, op: str) -> ExchangeSnapshot | None:
+    snap_fn = getattr(engine, "exchange_snapshot", None)
+    if not callable(snap_fn):
+        return None
+    snap = snap_fn(op)
+    return snap if isinstance(snap, ExchangeSnapshot) else None
+
+
+def _engine_invoke_record(
+    sym: InvokeEngineIo,
+    *,
+    engine: Any,
+    q: Any,
+    agent_id: str,
+    ts_mono: float,
+    ts_wall: str,
+    engine_raw: str,
+    ctx: Any = None,
+) -> tuple[ExchangeRecord, str]:
+    """Build the outbound engine ExchangeRecord. Returns (record, tool_name to track)."""
+    if sym.op == "TOOL_CALL":
+        tool_name = ""
+        tool_arguments: dict[str, Any] | None = None
+        by_cid = q.pending_tools_by_cid.get(sym.correlation_id)
+        if by_cid is not None:
+            tool_name, raw_args = by_cid[0], by_cid[1]
+            tool_arguments = dict(raw_args or {})
+        elif q.pending_tool_name:
+            tool_name = q.pending_tool_name
+            tool_arguments = dict(q.pending_tool_args or {})
+        return (
+            ExchangeRecord(
+                kind="tool_call",
+                ts_mono=ts_mono,
+                ts_wall=ts_wall,
+                agent_id=agent_id,
+                correlation_id=sym.correlation_id,
+                op=sym.op,
+                tool_name=tool_name or None,
+                tool_arguments=tool_arguments,
+                semantics=bound_tool_semantics(engine, tool_name or None, tool_arguments, ctx=ctx),
+                model=engine_model_id(engine) or None,
+                engine_raw=engine_raw,
+            ),
+            tool_name,
+        )
+    snap = _engine_snapshot(engine, sym.op) if engine is not None else None
+    return (
+        ExchangeRecord(
+            kind="llm_request",
+            text=(snap.note if snap is not None else ""),
+            ts_mono=ts_mono,
+            ts_wall=ts_wall,
+            agent_id=agent_id,
+            correlation_id=sym.correlation_id,
+            op=sym.op,
+            messages=snap.messages if snap is not None else None,
+            tools=snap.tools if snap is not None else None,
+            tools_note=snap.tools_note if snap is not None else "",
+            model=engine_model_id(engine) or None,
+            engine_raw=engine_raw,
+        ),
+        "",
+    )
 
 
 @dataclass
@@ -153,6 +264,7 @@ class KernelDriver:
     # own or gate.
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     _tool_by_correlation_id: dict[int, str] = field(default_factory=dict)  # Track tool name per correlation_id
+    _semantics_by_correlation_id: dict[int, dict[str, Any]] = field(default_factory=dict)
     # Task id of the turn currently being processed — set from
     # UserInputReceived.task_id and carried onto every transition (ingress
     # and egress alike) produced while that turn runs, until the next
@@ -161,11 +273,7 @@ class KernelDriver:
 
     def __post_init__(self) -> None:
         if self.engine_pool is None and self.engine is not None:
-            depth = (
-                self.kernel.config.engine_queue_depth
-                if self.kernel is not None
-                else DEFAULT_ENGINE_QUEUE_DEPTH
-            )
+            depth = self.kernel.config.engine_queue_depth if self.kernel is not None else DEFAULT_ENGINE_QUEUE_DEPTH
             self.engine_pool = EngineWorkerPool(worker=self._invoke_engine, max_depth=depth)
         if self.ctx is not None and self.observability is not None:
             self.ctx.observability = self.observability
@@ -209,17 +317,15 @@ class KernelDriver:
                     # _notify_governance) — so observability logs match.
                     self.observability.set_context(session_id=self.session_id, task_id=self._current_task_id)
                 if self.ctx is not None:
-                    # Emit USER->AGENT exchange for trace visibility
                     ts_mono, ts_wall = _exchange_timestamp()
                     self._emit_exchange(
                         trace,
                         ExchangeRecord(
-                            tag="USER->AGENT",
+                            kind="user_in",
                             text=ingress.text,
-                            detail="",
                             ts_mono=ts_mono,
                             ts_wall=ts_wall,
-                            engine_raw="",
+                            agent_id=self.agent_id,
                         ),
                     )
                     note = getattr(self.ctx, "note_user_input", None)
@@ -306,17 +412,16 @@ class KernelDriver:
 
         if sym.kind == EgressKind.EMIT_CLIENT_RESPONSE:
             assert isinstance(sym, EmitClientResponse)
-            # Emit AGENT->USER exchange for trace visibility
             ts_mono, ts_wall = _exchange_timestamp()
             self._emit_exchange(
                 trace,
                 ExchangeRecord(
-                    tag="AGENT->USER",
+                    kind="user_out",
                     text=sym.content,
-                    detail=f"finish_reason={sym.finish_reason}",
+                    finish_reason=sym.finish_reason,
                     ts_mono=ts_mono,
                     ts_wall=ts_wall,
-                    engine_raw="",
+                    agent_id=self.agent_id,
                 ),
             )
             trace.client_responses.append(sym)
@@ -431,52 +536,23 @@ class KernelDriver:
             parallel_group_id = str(uuid.uuid4())
             self._record_parallel_group_obs(ios, q, boundary="start", group_id=parallel_group_id)
         for sym in ios:
-            preview = ""
-            tool_name_for_detail = ""  # Extract tool name for exchange detail
-            if engine is not None:
-                by_cid = q.pending_tools_by_cid.get(sym.correlation_id)
-                if sym.op == "TOOL_CALL" and by_cid is not None:
-                    from mas.runtime.engine.exchange_preview import format_tool_invoke
-
-                    preview = format_tool_invoke(by_cid[0], by_cid[1])
-                    tool_name_for_detail = by_cid[0]  # Extract tool name
-                elif sym.op == "TOOL_CALL" and q.pending_tool_name:
-                    from mas.runtime.engine.exchange_preview import format_tool_invoke
-
-                    preview = format_tool_invoke(q.pending_tool_name, q.pending_tool_args)
-                    tool_name_for_detail = q.pending_tool_name
-                else:
-                    preview_fn = getattr(engine, "exchange_preview", None)
-                    if callable(preview_fn):
-                        preview = str(preview_fn(sym.op) or "")
             ts_mono, ts_wall = _exchange_timestamp()
-            engine_raw = ""
-            if self.capture_engine_io:
-                engine_raw = _engine_payload_json(sym)
-            self._emit_exchange(
-                trace,
-                ExchangeRecord(
-                    tag=(
-                        "AGENT->LLM"
-                        if sym.op == "LLM_CALL"
-                        else "AGENT→TOOL"
-                        if sym.op == "TOOL_CALL"
-                        else f"AGENT->{sym.op}"
-                    ),
-                    text=preview,
-                    detail=(
-                        f"correlation_id={sym.correlation_id} op={sym.op} tool={tool_name_for_detail}"
-                        if tool_name_for_detail
-                        else f"correlation_id={sym.correlation_id} op={sym.op}"
-                    ),
-                    ts_mono=ts_mono,
-                    ts_wall=ts_wall,
-                    engine_raw=engine_raw,
-                ),
+            engine_raw = _engine_payload_json(sym) if self.capture_engine_io else ""
+            record, tracked_tool = _engine_invoke_record(
+                sym,
+                engine=engine,
+                q=q,
+                agent_id=self.agent_id,
+                ts_mono=ts_mono,
+                ts_wall=ts_wall,
+                engine_raw=engine_raw,
+                ctx=self.ctx,
             )
-            # Track tool name for TOOL_CALL so we can include it in TOOL->AGENT response
-            if sym.op == "TOOL_CALL" and tool_name_for_detail:
-                self._tool_by_correlation_id[sym.correlation_id] = tool_name_for_detail
+            self._emit_exchange(trace, record)
+            if tracked_tool:
+                self._tool_by_correlation_id[sym.correlation_id] = tracked_tool
+                if record.semantics:
+                    self._semantics_by_correlation_id[sym.correlation_id] = record.semantics
             if sym.op == "TOOL_CALL" and engine is not None:
                 by_cid = q.pending_tools_by_cid.get(sym.correlation_id)
                 if by_cid is not None:
@@ -572,7 +648,6 @@ class KernelDriver:
         io: InvokeEngineIo,
         ret: IngressSymbol,
     ) -> None:
-        from mas.runtime.engine.exchange_preview import format_llm_response
         from mas.runtime.schema.ingress import EngineIoReturn
 
         if not isinstance(ret, EngineIoReturn):
@@ -586,35 +661,36 @@ class KernelDriver:
         # keeping it would double-record llm_call_end now that the envelope
         # machine's path actually runs for every op instead of being
         # permanently shadowed.
-        detail = f"correlation_id={ret.correlation_id} response_kind={ret.response_kind}"
-        # Add tool name to detail if LLM is calling a tool
-        if io.op == "LLM_CALL" and ret.next_step == "TOOL_CALL" and ret.tool_name:
-            detail = f"correlation_id={ret.correlation_id} response_kind={ret.response_kind} tool={ret.tool_name}"
-        # Add tool name to detail for TOOL_CALL return (tool->agent response)
-        elif io.op == "TOOL_CALL":
-            tool_name = self._tool_by_correlation_id.get(ret.correlation_id, "")
-            if tool_name:
-                detail = f"correlation_id={ret.correlation_id} response_kind={ret.response_kind} tool={tool_name}"
-            # Clean up tracking dict to avoid memory leak
-            self._tool_by_correlation_id.pop(ret.correlation_id, None)
+        tool_name: str | None = None
+        tool_arguments: dict[str, Any] | None = None
+        semantics: dict[str, Any] | None = None
+        if io.op == "TOOL_CALL":
+            tool_name = self._tool_by_correlation_id.pop(ret.correlation_id, None)
+            semantics = self._semantics_by_correlation_id.pop(ret.correlation_id, None)
+        elif io.op == "LLM_CALL" and ret.next_step == "TOOL_CALL" and ret.tool_name:
+            tool_name = ret.tool_name
+            tool_arguments = dict(ret.tool_arguments or {})
+            semantics = bound_tool_semantics(self.engine, tool_name, tool_arguments, ctx=self.ctx)
         ts_mono, ts_wall = _exchange_timestamp()
         engine_raw = _engine_payload_json(ret) if self.capture_engine_io else ""
+        model = engine_model_id(self.engine) or None
         if io.op == "LLM_CALL":
-            body = format_llm_response(
-                text=ret.text,
-                next_step=ret.next_step,
-                tool_name=ret.tool_name,
-                tool_arguments=ret.tool_arguments,
-                response_kind=ret.response_kind,
-            )
             self._emit_exchange(
                 trace,
                 ExchangeRecord(
-                    tag="LLM->AGENT",
-                    text=body,
-                    detail=detail,
+                    kind="llm_response",
+                    text=ret.text or "",
                     ts_mono=ts_mono,
                     ts_wall=ts_wall,
+                    agent_id=self.agent_id,
+                    correlation_id=ret.correlation_id,
+                    op=io.op,
+                    response_kind=ret.response_kind,
+                    next_step=ret.next_step,
+                    tool_name=tool_name,
+                    tool_arguments=tool_arguments,
+                    semantics=semantics,
+                    model=model,
                     engine_raw=engine_raw,
                 ),
             )
@@ -622,11 +698,17 @@ class KernelDriver:
             self._emit_exchange(
                 trace,
                 ExchangeRecord(
-                    tag="TOOL->AGENT",
+                    kind="tool_result",
                     text=ret.text,
-                    detail=detail,
                     ts_mono=ts_mono,
                     ts_wall=ts_wall,
+                    agent_id=self.agent_id,
+                    correlation_id=ret.correlation_id,
+                    op=io.op,
+                    response_kind=ret.response_kind,
+                    tool_name=tool_name,
+                    semantics=semantics,
+                    model=model,
                     engine_raw=engine_raw,
                 ),
             )

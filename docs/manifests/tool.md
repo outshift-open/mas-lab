@@ -67,6 +67,7 @@ Annotated example with every optional advertise field:
 | `spec.icons[]` | no | `{src, mime_type, sizes, theme}` |
 | `spec.task_support` | no | `forbidden` \| `optional` \| `required` |
 | `spec.meta` | no | Advertise `_meta` for protocol adapters |
+| `spec.semantics` | no | Trace/metrics interpretation (`concept`, `op`, `subject_arg`). Composite providers set this per `list_tools()` entry instead. |
 | `spec.execution_mode` | no (default `sync`) | `sync` \| `async` \| `realtime` |
 | `spec.result_mode` | no (default `inline`) | `inline` \| `stream` \| `session` |
 | `spec.events` | no | Stream/session event descriptors |
@@ -97,7 +98,9 @@ See [infra.md — ToolServerRegistry](infra.md#toolserverregistry).
   **unknown** keys only).
 - `ToolDocument.from_dict` defaults unset advertise fields to empty / `None`.
 - `list_tools()` returns `{name, description, parameters}` when optionals are
-  unset. YAML extras are merged onto that dict when present.
+  unset. YAML extras are merged onto that dict when present. `semantics` is
+  copied onto `ExchangeRecord` for traces and metrics; it is stripped before
+  the LLM wire payload.
 
 ---
 
