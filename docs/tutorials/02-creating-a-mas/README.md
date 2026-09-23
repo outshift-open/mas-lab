@@ -389,6 +389,12 @@ agent definitions.
 | `-o overlays/single-agent.yaml` | `single` | 1 generalist | N/A |
 | `-o overlays/linear.yaml` | `sequential` | 3 specialists | Fixed workflow nodes |
 
+Inspect the resolved MAS (folder of manifests, or `--layout bundle` for one file):
+
+```bash
+mas-ctl compile mas.yaml -o overlays/linear.yaml -O ./compiled-linear/
+```
+
 Ask: *"I want to visit Thornhaven for 3 days, budget €500, interested in history and food."*
 
 Watch the moderator delegate:

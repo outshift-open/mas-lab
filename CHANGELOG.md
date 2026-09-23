@@ -8,6 +8,9 @@
 
 ### Added
 
+- `mas-ctl compile`: dump the resolved Agent or MAS spec after overlay merge
+  and runtime default resolution (`--layout tree|bundle`, `--output` folder
+  or file). See [docs/cli/compile.md](docs/cli/compile.md).
 - `library-skills`: an [agentskills.io](https://agentskills.io)-compatible
   implementation of the Agent Skills spec, with three swappable execution
   backends (native filesystem, google-adk, deepagents/LangChain). Agents

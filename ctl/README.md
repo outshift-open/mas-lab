@@ -4,7 +4,7 @@
 -->
 # mas-ctl
 
-> Multi-agent orchestration — compose, chat, validate, run.
+> Multi-agent orchestration — compile, compose, chat, validate, run.
 
 ---
 
@@ -17,7 +17,7 @@ workflows, and provides the **interactive** CLI (`chat`, `tui`) on top of
 
 ```
 mas-runtime  ←  single agent : kernel + contracts + design-pattern plugins
-mas-ctl      ←  multi-agent  : compose, chat, run-mas, validate
+mas-ctl      ←  multi-agent  : compile, compose, chat, run-mas, validate
 mas-lab      ←  evaluation   : benchmarks, pipelines, controller UI
 ```
 
@@ -38,9 +38,9 @@ uv sync --all-packages
 ## Quickstart
 
 ```bash
-# Validate manifests
+# Validate / compile manifests
 mas-ctl validate agent.yaml
-mas-ctl validate mas.yaml
+mas-ctl compile agent.yaml -o overlays/tools.yaml
 
 # Interactive single agent
 mas-ctl chat agent.yaml -q "Hello"
@@ -85,6 +85,7 @@ Named overlay for A/B configuration without duplicating manifests.
 | `mas-ctl chat MANIFEST` | Interactive or scripted conversation |
 | `mas-ctl tui MANIFEST` | Terminal UI for chat |
 | `mas-ctl run-mas MANIFEST` | Run a multi-agent workflow |
+| `mas-ctl compile …` | Dump resolved Agent/MAS YAML (overlays + defaults) |
 | `mas-ctl compose …` | Compose effective manifests / placement |
 | `mas-ctl plan …` | Dry-run placement plan |
 | `mas-ctl validate PATH …` | Validate agent / MAS / experiment YAML |

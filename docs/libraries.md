@@ -23,7 +23,7 @@ Requires **Python 3.11+**.
 | Layer | Package | What it does |
 |-------|---------|--------------|
 | **Runtime** | `mas-runtime` | Executes agents and teams from YAML manifests — contracts, plugins, traces |
-| **Control plane** | `mas-ctl` | Chat, validate, compose, and run multi-agent workflows (`run-mas`) |
+| **Control plane** | `mas-ctl` | Chat, validate, compile, compose, and run multi-agent workflows (`run-mas`) |
 | **Lab** | `mas-lab` | Benchmark experiments, pipelines, reports, and the web UI controller |
 | **Standard library** | `mas-library-standard` | Flavours, overlays, infra bundles, and built-in runtime plugins |
 | **Samples** | `mas-library-samples` | Reference apps (e.g. trip planner), datasets, and tutorial fixtures |

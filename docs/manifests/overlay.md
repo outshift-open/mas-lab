@@ -82,6 +82,19 @@ patch:
 
 ---
 
+## Inspect the compiled spec
+
+```bash
+mas-ctl compile agent.yaml -o overlays/tools.yaml -o overlays/skills.yaml
+mas-ctl compile mas.yaml -o overlays/linear.yaml -O ./compiled/
+```
+
+`--layout bundle` inlines MAS agents into one YAML file; the default for a
+directory `--output` keeps `mas.yaml` plus `agents/*.yaml`. See
+[compile](../cli/compile.md).
+
+---
+
 ## Experiment linkage
 
 ```yaml
@@ -103,5 +116,6 @@ key, the overlay value is used. See [tool.md](tool.md).
 ## See also
 
 - [experiment.md](experiment.md) — scenario overlay stacks
+- [compile](../cli/compile.md) — dump the resolved spec
 - [ToolContract](../references/tool-contract.md)
 - [ToolServerRegistry](../references/tool-server-registry.md)
