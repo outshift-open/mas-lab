@@ -371,6 +371,7 @@ export interface MasResourceDetail {
   mas_name: string;
   mas_yaml: string;
   agents: Record<string, string>;
+  ui_canvas_overlay?: string;
 }
 
 export async function fetchMasResources(
@@ -987,6 +988,7 @@ export interface OverlayEntry {
   description?: string;
   namespace?: string;
   path?: string;
+  ui_canvas?: boolean | string;
 }
 
 export async function fetchOverlays(

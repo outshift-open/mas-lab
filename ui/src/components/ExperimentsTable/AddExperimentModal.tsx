@@ -37,6 +37,7 @@ import type { OverlayEntry } from "@/api/apiCalls";
 import { CodeBlock } from "@/components";
 import { TabPanel } from "@/components/TabPanel/TabPanel";
 import { useScenarios, useDatasets, useOverlays } from "@/api/apiCalls";
+import { isUiCanvasOverlay } from "@/utils/uiCanvasOverlay";
 
 interface ExperimentModalProps {
   open: boolean;
@@ -180,12 +181,13 @@ export const AddExperimentModal = ({
   const { data: overlayOptions = [] } = useOverlays(library);
 
   const filteredOverlays = useMemo(() => {
-    if (!usePatchOverlays) return overlayOptions;
-    const globalOnly = overlayOptions.filter(
+    const withoutCanvas = overlayOptions.filter((o) => !isUiCanvasOverlay(o));
+    if (!usePatchOverlays) return withoutCanvas;
+    const globalOnly = withoutCanvas.filter(
       (o) => !o.namespace || o.namespace === "global",
     );
     if (!masManifest.trim()) return globalOnly;
-    return overlayOptions.filter(
+    return withoutCanvas.filter(
       (o) =>
         !o.namespace ||
         o.namespace === "global" ||
