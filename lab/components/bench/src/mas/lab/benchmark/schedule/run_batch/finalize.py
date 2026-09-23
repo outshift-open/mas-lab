@@ -22,10 +22,19 @@ def write_results_csv(csv_path: Path, results_rows: list) -> None:
     if not results_rows:
         return
     fieldnames = [
-        "run_id", "scenario", "item_id", "run",
-        "group", "target_agents", "prompt",
-        "status", "output", "output_length",
-        "trace_path", "elapsed_ms", "error",
+        "run_id",
+        "scenario",
+        "item_id",
+        "run",
+        "group",
+        "target_agents",
+        "prompt",
+        "status",
+        "output",
+        "output_length",
+        "trace_path",
+        "elapsed_ms",
+        "error",
     ]
     with open(csv_path, "w", newline="") as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -52,8 +61,12 @@ def update_metadata(
     mas_meta.n_runs_per_test = loaded.n_runs
     if success:
         mas_meta.mark_completed()
+        mas_meta.metadata.pop("error", None)
+        mas_meta.metadata.pop("pipeline_error", None)
     else:
         mas_meta.mark_failed(pipeline_error or "benchmark failed")
+    if pipeline_error:
+        mas_meta.metadata["pipeline_error"] = pipeline_error
     mas_meta.to_yaml(prepared.output_dir / "metadata.yaml")
 
 
@@ -117,15 +130,20 @@ async def finalize_batch(
             pipeline_ok = False
 
     runs_ok = execution.total_fail == 0
-    success = runs_ok and pipeline_ok
-    if not pipeline_ok and not pipeline_error:
-        pipeline_error = "post-pipeline failed"
+    if not pipeline_ok:
+        if not pipeline_error:
+            pipeline_error = "post-pipeline failed"
+        print(
+            f"Post-pipeline failed (executions {execution.total_ok} ok / "
+            f"{execution.total_fail} error): {pipeline_error}"
+        )
+        logger.error("Post-pipeline failed: %s", pipeline_error)
     update_metadata(
         prepared.mas_meta,
         prepared,
         loaded,
         execution,
-        success=success,
+        success=runs_ok and pipeline_ok,
         pipeline_error=pipeline_error if not pipeline_ok else "",
     )
-    return success
+    return runs_ok and pipeline_ok
