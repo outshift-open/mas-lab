@@ -46,9 +46,9 @@ Conversation-history strategies (ConversationStrategy)
 An optional ``ConversationStrategy`` manages the *existing* user/assistant
 turns in ``messages[]`` before context parts are injected:
 
-    ``SlidingWindowConversation``  — keep only the last N exchange pairs.
-    ``SummarizingConversation``    — compress old turns into a summary block
-                                     (requires an LLM callable).
+    ``SlidingWindowConversation``  — keep only the last N user turns.
+    ``SummarizingConversation``    — keep last N turns verbatim; summarize
+                                     (or drop) only older history.
     ``ConversationStrategy``       — no-op base (default).
 
 Ordering rules
@@ -514,8 +514,6 @@ class ContextAssemblerPlugin(BasePlugin):
         if isinstance(self._conv_strategy, _NoOpContextManager):
             return messages  # no-op, fast path
 
-        from mas.library.standard.plugins.context.provider_payload import sanitize_provider_messages
-
         system_msgs = [m for m in messages if m.get("role") == "system"]
         turn_msgs = [m for m in messages if m.get("role") in ("user", "assistant", "tool")]
 
@@ -542,5 +540,6 @@ class ContextAssemblerPlugin(BasePlugin):
         # C5: expose compaction evidence metadata if the strategy tracks it
         self._last_compaction_metadata = getattr(self._conv_strategy, "last_compaction_metadata", None)
 
-        completed = sanitize_provider_messages(system_msgs + managed_past)
-        return completed + current_and_after
+        from mas.library.standard.plugins.context.provider_payload import sanitize_provider_messages
+
+        return sanitize_provider_messages(system_msgs + managed_past + current_and_after)

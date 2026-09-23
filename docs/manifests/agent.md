@@ -23,9 +23,9 @@ sees, and which plugins hook its execution.
 |------|---------------|-------------------|
 | Reasoning loop | `design_pattern` | Selects DesignPatternContract (ReAct, CoT, …) — intra-agent δ transitions |
 | Peer delegation | MAS `workflow` (when embedded in a MAS) | `delegates_to` graph + `workflow.type`; executed by the entry agent's own `design_pattern` (ReAct tool loop) — see [mas.md](mas.md) |
-| Context window | `context_manager` | Stack / sliding-window / summarising; optional `params.trimmer` for assembly token cap — [context-assembly.md](context-assembly.md) |
+| Context window | `context_manager` | summarising (default: last `keep_turns` verbatim, older summarized) / sliding-window / stack; history budget = model `context_window` − completion reserve — [context-assembly.md](context-assembly.md) |
 | Prompt / role | `description`, `context` | `description` → delegation tools; `context.*` → system prompt |
-| Models | `models[]` | LLM routing (ids, temperature, max_tokens) |
+| Models | `models[]` | LLM routing (ids, temperature, max_tokens completion, context_window) |
 | Tools | `tools`, `tools_ref`, `providers` | [ToolContract](../references/tool-contract.md) · [tool.md](tool.md) · [ToolServerRegistry](../references/tool-server-registry.md) |
 | Skills | `skills` | Context facet (catalog) + `activate_skill`/`read_skill_file` tools |
 | Memory | `memory`, `memory_seed` | Stores + startup seeds |
@@ -97,15 +97,16 @@ lower-level control — it takes precedence if both are set):
 ```yaml
 working_memory:
   compaction:
-    strategy: keep_recent   # keep_recent (default, no LLM call) | sliding_window | summarize
+    strategy: keep_recent   # keep_recent (no LLM call) | sliding_window | summarize
     max_messages: 200       # keep_recent
     window_size: 20         # sliding_window
-    summary_threshold: 4000 # summarize
-    keep_turns: 10          # summarize — recent exchanges kept verbatim alongside the summary
+    summary_threshold: 0    # summarize — 0 means use model context_window − reserve
+    keep_turns: 10          # recent user turns kept verbatim; never the live tool round
 ```
 
 `summarize` calls an LLM (using this agent's own resolved model) to compress older turns into one
-summary block; it degrades to `keep_recent` rather than failing if no live model is available.
+summary block; without a live model it keeps the last `keep_turns` and drops the rest rather than
+failing. Prefer `spec.context_manager` (what `mas-ctl compile` emits) for the same plugins.
 `keep_recent`/`sliding_window` never spend a model call. See
 `docs/design/working-memory-compaction.md` for the full design and why the two dead schema surfaces
 this replaces were removed.

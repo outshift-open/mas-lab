@@ -60,8 +60,10 @@ Omitted fields are filled from the same accessors the runtime uses
 (`defaults.yaml` / workspace `defaults.model`):
 
 - `spec.design_pattern.type` (package default `react@v1`)
-- `spec.models[0]` (workspace or package default model)
-- `spec.context_manager.type` (`sliding-window`)
+- `spec.models[0]` (workspace or package default model, plus `context_window`)
+- `spec.context_manager` (`summarising`, with `keep_turns` default 10,
+  `hysteresis_ratio` default 0.2, and a trimmer derived from the model
+  context window minus completion reserve)
 
 Pass `--no-defaults` to emit overlay merge only. Explicit values are never
 overwritten.

@@ -16,6 +16,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
+from mas.runtime.boundary.context.provider_invariant import start_of_tool_group
 from mas.runtime.boundary.context.trim import context_manager_spec
 from mas.runtime.spec.defaults import DEFAULT_WORKING_MEMORY_MESSAGES
 
@@ -48,16 +49,12 @@ def bounded_working_memory_tail(
 ) -> list[dict[str, Any]]:
     """Keep at most the last *limit* messages, never splitting a tool-call group.
 
-    If slicing would start on a ``tool`` message, back up to include the
-    preceding assistant message with the matching ``tool_calls`` — the pair
-    must travel together or the provider payload is invalid.
+    If the cut would land on a result row, start at its assistant so the ask
+    and answers stay together.
     """
     if limit <= 0 or len(messages) <= limit:
         return list(messages)
-    start = max(0, len(messages) - limit)
-    while start > 0 and messages[start].get("role") == "tool":
-        start -= 1
-    return list(messages[start:])
+    return list(messages[start_of_tool_group(messages, len(messages) - limit) :])
 
 
 @dataclass

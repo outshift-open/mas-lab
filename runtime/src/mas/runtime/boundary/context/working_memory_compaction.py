@@ -74,10 +74,12 @@ def working_memory_compaction_runtime(spec: dict[str, Any]) -> WorkingMemoryComp
     if not callable(summarize_fn):
         return None
     try:
+        from mas.runtime.spec.defaults import DEFAULT_KEEP_TURNS
+
         raw_threshold = params.get("summary_threshold")
         raw_keep = params.get("keep_turns")
-        threshold = int(raw_threshold) if raw_threshold is not None else 4000
-        keep = int(raw_keep) if raw_keep is not None else 10
+        threshold = int(raw_threshold) if raw_threshold is not None else 0
+        keep = int(raw_keep) if raw_keep is not None else DEFAULT_KEEP_TURNS
     except (TypeError, ValueError):
         return None
     return WorkingMemoryCompactionRuntime(
@@ -138,12 +140,11 @@ def _wire_summarize_fn(binding: dict[str, Any], engine: Any) -> dict[str, Any]:
     if isinstance(engine, CompactionSummarizeEngine):
         params["summarize_fn"] = engine.summarize_messages
         return {**binding, "params": params}
-    logger.warning(
-        "context_manager.type=summarising needs an engine implementing "
-        "CompactionSummarizeEngine; none available — falling back to keep_recent "
-        "(unbounded history, no compaction)."
+    logger.info(
+        "context_manager.type=summarising has no CompactionSummarizeEngine; "
+        "older turns will be dropped, last keep_turns stay verbatim."
     )
-    return {"type": "stack", "params": {}}
+    return {**binding, "params": params}
 
 
 def apply_working_memory_compaction(spec: dict[str, Any], *, engine: Any = None) -> None:
@@ -162,3 +163,10 @@ def apply_working_memory_compaction(spec: dict[str, Any], *, engine: Any = None)
     cm = spec.get("context_manager")
     if isinstance(cm, dict):
         spec["context_manager"] = _wire_summarize_fn(cm, engine)
+        return
+    from mas.runtime.agent_defaults import default_context_manager_id
+
+    implicit = {"type": default_context_manager_id(), "params": {}}
+    wired = _wire_summarize_fn(implicit, engine)
+    if callable((wired.get("params") or {}).get("summarize_fn")):
+        spec["context_manager"] = wired

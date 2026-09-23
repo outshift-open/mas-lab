@@ -49,13 +49,15 @@ def test_explicit_context_manager_is_left_untouched(tmp_path: Path, monkeypatch)
     assert manifest["spec"]["context_manager"] == {"type": "sliding_window", "params": {"window_size": 9}}
 
 
-def test_no_working_memory_compaction_leaves_context_manager_absent(tmp_path: Path, monkeypatch):
+def test_no_working_memory_compaction_wires_default_summariser_when_engine_can(tmp_path: Path, monkeypatch):
     manifest = {
         "metadata": {"name": "agent"},
         "spec": {},
     }
     _instantiate(manifest, tmp_path, monkeypatch)
-    assert "context_manager" not in manifest["spec"]
+    cm = manifest["spec"]["context_manager"]
+    assert cm["type"] == "summarising"
+    assert callable(cm["params"]["summarize_fn"])
 
 
 def test_summarize_wires_a_real_summarize_fn_off_the_resolved_engine(tmp_path: Path, monkeypatch):

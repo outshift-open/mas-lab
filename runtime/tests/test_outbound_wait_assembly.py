@@ -89,7 +89,10 @@ def test_assemble_committed_history_provider_safe_after_stack_trim() -> None:
     assert_provider_payload(messages)
 
 
-def test_inflight_partial_parallel_tools_preserved_in_payload() -> None:
+def test_inflight_partial_parallel_tools_filled_before_provider() -> None:
+    """A live parallel group with one result still outstanding: final assemble
+    inserts an empty tool row so Bedrock sees 2 toolUse + 2 toolResult.
+    """
     ctx = AutoCtxAssembler(last_user_text="continue")
     ctx.working_memory.record_assistant_tool_calls(
         [
@@ -99,8 +102,12 @@ def test_inflight_partial_parallel_tools_preserved_in_payload() -> None:
     )
     ctx.working_memory.record_tool_result(call_id="call_a", content="result-a")
     messages = assemble_llm_messages(ctx)
-    assert messages[-1]["tool_call_id"] == "call_a"
-    assert len(messages[-2]["tool_calls"]) == 2
+    assert_provider_payload(messages)
+    asst = [m for m in messages if m.get("tool_calls")][-1]
+    assert [c["id"] for c in asst["tool_calls"]] == ["call_a", "call_b"]
+    tools = [m for m in messages if m.get("role") == "tool"]
+    assert [m["tool_call_id"] for m in tools] == ["call_a", "call_b"]
+    assert tools[-1]["content"] == ""
 
 
 def test_multi_turn_committed_tool_visible_on_follow_up() -> None:
@@ -113,6 +120,47 @@ def test_multi_turn_committed_tool_visible_on_follow_up() -> None:
     messages = assemble_llm_messages(ctx)
     assert any(m.get("role") == "tool" for m in messages)
     assert messages[-1]["content"] == "Who was before?"
+
+
+def test_hitl_pause_fold_completes_parallel_group_from_working_memory() -> None:
+    """HITL pause commits the assistant + first result; the remaining result
+    lands in working memory. Assembly must concat then pair — not strip the
+    assistant and leave extra toolResults after the previous turn.
+    """
+    ctx = AutoCtxAssembler(last_user_text="")
+    ctx.committed_messages = [
+        {"role": "user", "content": "research both"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {"id": "call_a", "function": {"name": "search", "arguments": "{}"}},
+                {"id": "call_b", "function": {"name": "search", "arguments": "{}"}},
+            ],
+        },
+        {"role": "tool", "tool_call_id": "call_a", "content": "result-a"},
+    ]
+    ctx.working_memory.record_tool_result(call_id="call_b", content="result-b")
+    messages = assemble_llm_messages(ctx)
+    assert_provider_payload(messages)
+    tools = [m for m in messages if m.get("role") == "tool"]
+    assert [m["tool_call_id"] for m in tools] == ["call_a", "call_b"]
+    asst = [m for m in messages if m.get("tool_calls")]
+    assert len(asst) == 1
+    assert [c["id"] for c in asst[0]["tool_calls"]] == ["call_a", "call_b"]
+
+
+def test_assemble_drops_duplicate_tool_results_before_provider() -> None:
+    ctx = AutoCtxAssembler(last_user_text="q")
+    ctx.working_memory.record_assistant_tool_calls(
+        [("call_a", "search", {"q": "a"}), ("call_b", "search", {"q": "b"})]
+    )
+    ctx.working_memory.record_tool_result(call_id="call_a", content="ra")
+    ctx.working_memory.record_tool_result(call_id="call_b", content="rb")
+    ctx.working_memory.record_tool_result(call_id="call_a", content="ra-dup")
+    messages = assemble_llm_messages(ctx)
+    assert_provider_payload(messages)
+    assert [m["tool_call_id"] for m in messages if m.get("role") == "tool"] == ["call_a", "call_b"]
 
 
 def test_hitl_style_mismatched_ids_rebound_in_assembly() -> None:

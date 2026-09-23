@@ -22,14 +22,17 @@ properties:
   trimmer:
     type: object
     description: >
-      When present with max_tokens, enables assembly-time token trimming
-      (tool-group-aware). Not a registry plugin — tunable assembly params only.
+      Assembly-time token trim (tool-group-aware). When omitted, max_tokens
+      is the model's context_window and reserve_tokens is models[].max_tokens
+      (completion). Not a registry plugin — tunable assembly params only.
     additionalProperties: false
     properties:
       max_tokens:
         type: integer
         minimum: 1
-        description: Max estimated input tokens after assembly.
+        description: >
+          Max estimated input tokens after assembly. Defaults to the primary
+          model's context_window.
       token_budget:
         type: integer
         minimum: 1
@@ -38,7 +41,9 @@ properties:
         type: integer
         minimum: 0
         default: 512
-        description: Tokens reserved for model completion.
+        description: >
+          Tokens reserved for the completion (and other non-history payload).
+          Defaults to the primary model's max_tokens when that is set.
   working_memory_ref:
     type: string
     description: Registry ref for working_memory context source plugin.

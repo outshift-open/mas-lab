@@ -72,10 +72,9 @@ claim to control how much history is kept:
 
    `assemble_llm_messages()` calls `cm.manage_history(past, budget_hint)` on
    **every single turn**, where `past` is committed history and `budget_hint`
-   is the `max_tokens` from `spec.context_manager.params.trimmer` when that
-   block is set (else `0`). See [context-assembly.md](../manifests/context-assembly.md)
-   for optional assembly-time token trim (tool-group-aware, separate from CM
-   strategy params).
+   is the model context window minus completion reserve (overridable via
+   `spec.context_manager.params.trimmer`). See [context-assembly.md](../manifests/context-assembly.md)
+   for assembly-time token trim (tool-group-aware, pin-tail on the live WM round).
 
 2. **`spec.memory.compaction`** (was `agent.schema.yaml` lines ~261-305) — a
    richer, schema-only surface: `strategy: keep_recent|summarize|
@@ -93,15 +92,10 @@ right" there for the pattern this doc follows).
 
 ## The other dead end (fixed): `SummarizingConversation` was unusable
 
-`SummarizingConversation.__init__` (`conversation.py`) raised `ValueError` if
-`summarize_fn` was `None`, and it defaulted to `None`. A repo-wide grep for
-`summarize_fn` turned up exactly one place it was *consumed* (inside
-`conversation.py` itself) and zero places it was *supplied* — no production
-call site, no test. `mas.cm.summarising` was registered and selectable via
-`context_manager: {type: summarising}`, but selecting it raised immediately.
-Also fixed in passing: its `threshold_tokens` constructor param didn't match
-the schema's own `summary_threshold` field name (never caught, since nothing
-ever constructed it) — renamed to match.
+`SummarizingConversation` used to raise if `summarize_fn` was `None`. It is now
+optional: without an LLM summarizer the plugin keeps the last `keep_turns` user
+turns verbatim and drops older ones (same recency pin as sliding-window). Bootstrap
+wires `engine.summarize_messages` when a live engine is present.
 
 ## Resolution (implemented)
 
@@ -119,8 +113,8 @@ already-tested `context_manager`/`CMFactory` machinery. No new engine.**
        strategy: keep_recent   # keep_recent (default) | sliding_window | summarize
        max_messages: 200       # keep_recent
        window_size: 20         # sliding_window
-       summary_threshold: 4000 # summarize
-       keep_turns: 10          # summarize
+       summary_threshold: 0    # summarize — 0 uses model context_window − reserve
+       keep_turns: 10          # summarize — recent user turns kept verbatim
    ```
 
    `runtime/src/mas/runtime/boundary/context/working_memory_compaction.py`

@@ -39,6 +39,8 @@ def test_cm_factory_strips_only_assembly_param_keys():
     assert "trimmer" in CONTEXT_MANAGER_ASSEMBLY_PARAM_KEYS
     assert "token_budget" not in CONTEXT_MANAGER_ASSEMBLY_PARAM_KEYS
     assert "max_turns" in CONTEXT_MANAGER_STRATEGY_PARAM_KEYS
+    assert "keep_turns" in CONTEXT_MANAGER_STRATEGY_PARAM_KEYS
+    assert "hysteresis_ratio" in CONTEXT_MANAGER_STRATEGY_PARAM_KEYS
     assert "max_turns" not in CONTEXT_MANAGER_ASSEMBLY_PARAM_KEYS
     # Smoke: stripping is applied inside create(); keys are schema-driven.
     assert CMFactory is not None

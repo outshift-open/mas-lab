@@ -45,7 +45,13 @@ def test_fill_agent_defaults_fills_omitted_runtime_fields() -> None:
     spec = filled["spec"]
     assert spec["design_pattern"]["type"]
     assert spec["models"][0]["model"]
-    assert spec["context_manager"]["type"] == "sliding-window"
+    assert spec["models"][0]["context_window"] == 128000
+    cm = spec["context_manager"]
+    assert cm["type"] == "summarising"
+    assert cm["params"]["keep_turns"] == 10
+    assert cm["params"]["hysteresis_ratio"] == 0.2
+    assert cm["params"]["trimmer"]["max_tokens"] == 128000
+    assert cm["params"]["trimmer"]["reserve_tokens"] == 2000
     assert "design_pattern" not in doc["spec"]
 
 
@@ -56,13 +62,17 @@ def test_fill_agent_defaults_preserves_explicit_model() -> None:
         "metadata": {"name": "qa"},
         "spec": {
             "description": "qa",
-            "models": [{"model": "gpt-4o"}],
+            "models": [{"model": "gpt-4o", "max_tokens": 1500, "context_window": 64000}],
             "design_pattern": {"type": "cot"},
         },
     }
     filled = fill_agent_defaults(doc)
     assert filled["spec"]["models"][0]["model"] == "gpt-4o"
     assert filled["spec"]["design_pattern"]["type"] == "cot"
+    trimmer = filled["spec"]["context_manager"]["params"]["trimmer"]
+    assert trimmer["max_tokens"] == 64000
+    assert trimmer["reserve_tokens"] == 1500
+    assert filled["spec"]["context_manager"]["params"]["summary_threshold"] == 62500
 
 
 def test_compile_tutorial_1_stacks_overlays() -> None:
@@ -89,7 +99,10 @@ def test_compile_tutorial_1_stacks_overlays() -> None:
     assert "memory_usage" in context
     assert spec["models"][0]["model"] == "gpt-4o"
     assert spec["design_pattern"]["type"]
-    assert spec["context_manager"]["type"]
+    assert spec["context_manager"]["type"] == "summarising"
+    assert spec["context_manager"]["params"]["keep_turns"] == 10
+    assert spec["context_manager"]["params"]["hysteresis_ratio"] == 0.2
+    assert spec["context_manager"]["params"]["trimmer"]["max_tokens"] == 128000
 
 
 def test_compile_rejects_mas_overlay_on_agent() -> None:
