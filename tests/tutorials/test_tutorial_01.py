@@ -369,9 +369,13 @@ class TestLiveSkillChat:
         )
         combined = f"{r.stdout}\n{r.stderr}"
         assert r.returncode == 0, r.stderr
-        assert "Available Skills" in combined
-        assert "tool=activate_skill" in combined or "name: activate_skill" in combined
+        # Summary --trace does not dump the system prompt (Available Skills).
+        assert "SKILL[answer-formatting]" in combined
+        assert "TOOL[activate_skill]" in combined
         assert "Confidence:" in combined
+        user_out = [line for line in r.stderr.splitlines() if "-> USER" in line]
+        assert user_out
+        assert "..." not in user_out[-1]
 
 
 # ═══════════════════════════════════════════════════════════════════════════

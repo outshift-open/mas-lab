@@ -148,3 +148,16 @@ def test_cli_batch_hitl_emits_hitl_gate(tmp_path: Path) -> None:
     assert proc.returncode == 0, proc.stderr or proc.stdout
     assert events_file.is_file()
     assert "hitl_gate" in _event_kinds(events_file)
+    # Workspace config.yaml sets mas_ctl.trace: summary — no --trace flag.
+    err = proc.stderr
+    assert "USER -> AGENT" in err
+    assert "-> LLM[" in err
+    assert "LLM[" in err and "-> AGENT" in err
+    assert "-> TOOL[web-search]" in err
+    assert "TOOL[web-search] -> AGENT" in err
+    assert "LLM[gpt-4o" in err
+    assert "-> USER" in err
+    assert "[system]" not in err
+    user_out = [line for line in err.splitlines() if "-> USER" in line]
+    assert user_out
+    assert "..." not in user_out[-1]

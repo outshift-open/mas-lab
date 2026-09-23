@@ -44,9 +44,10 @@ mas-ctl tui agent.yaml -o docs/schemas/examples/overlays/observability-native.ya
 | `--events-stdout` | Stream JSONL on stderr |
 | `--events-format` | `native` · `boundary` · `both` · `otel` |
 
-Full reference: [cli/observability.md](../cli/observability.md).
+Full reference: [cli/observability.md](../cli/observability.md) ·
+[mas-ctl flags](../cli/mas-ctl.md).
 
-`--trace` (exchange log) is on **`chat` only**:
+`--trace` (human exchange log on stderr) is on **`chat`** / **`run-mas`**:
 
 ```bash
 mas-ctl chat agent.yaml -i --trace --events --events-file traces/events.jsonl
@@ -68,6 +69,7 @@ Governance **overlays** that require human approval work in the TUI like in chat
 
 ## Related
 
-- [user-guide.md](../user-guide.md)
+- [cli/index.md](../cli/index.md) — CLIs
+- [cli/mas-ctl.md](../cli/mas-ctl.md) — flags (`tui` has `--events*`, not `--trace`)
 - [cli/observability.md](../cli/observability.md)
 - [Tutorial 1](../tutorials/01-building-an-agent/README.md)

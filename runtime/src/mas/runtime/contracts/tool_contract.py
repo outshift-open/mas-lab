@@ -397,6 +397,15 @@ class ToolContract(CapabilityContract):
         """Optional advertise ``_meta``. Empty = unspecified."""
         return {}
 
+    def get_semantics(self) -> Dict[str, Any]:
+        """Optional interpretation for traces and metrics. Empty = unspecified.
+
+        Shape: ``{concept, op?, subject_arg?}``. Composite providers that
+        advertise several call names set ``semantics`` on each ``list_tools``
+        entry instead of this getter.
+        """
+        return {}
+
     def is_idempotent(self) -> bool:
         return False
 
@@ -437,6 +446,9 @@ class ToolContract(CapabilityContract):
         meta = self.get_meta()
         if meta:
             entry["meta"] = meta
+        semantics = self.get_semantics()
+        if semantics:
+            entry["semantics"] = dict(semantics)
         if self.is_idempotent():
             entry["idempotent"] = True
         read_only = self.is_read_only()
@@ -506,8 +518,9 @@ class ToolContract(CapabilityContract):
 
         Required keys: ``name``, ``description``, ``parameters``. Optional keys
         (title, output_schema, annotations/hints, icons, task_support, meta,
-        timeout_seconds) are omitted when unspecified. ``kwargs`` such as
-        ``cursor`` / ``ctx`` are ignored here; composite providers may use them.
+        semantics, timeout_seconds) are omitted when unspecified. ``kwargs``
+        such as ``cursor`` / ``ctx`` are ignored here; composite providers
+        may use them.
         """
         try:
             name = self.get_name()

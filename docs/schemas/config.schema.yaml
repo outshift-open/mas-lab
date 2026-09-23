@@ -35,6 +35,30 @@ properties:
       runtime_profile:
         type: string
         description: Path to runtime-profile manifest (relative to workspace).
+      trace:
+        description: >-
+          Human exchange log on stderr for mas-ctl chat / run-mas. `summary`
+          (or `true`) is the usable default: headers + timestamps, untruncated
+          AGENT→USER. `full` dumps payloads. `off` (or `false`) disables.
+          Color is never implied; set trace_color or pass --trace-color.
+          Machine data is events.jsonl / mas-lab telemetry, not this log.
+        oneOf:
+          - type: boolean
+          - type: string
+            enum: [off, summary, full]
+        default: off
+      trace_timestamps:
+        type: boolean
+        default: true
+        description: UTC + elapsed on each exchange (on by default when tracing).
+      trace_color:
+        type: boolean
+        default: false
+        description: ANSI color on the exchange log. Never the CLI default.
+      trace_engine:
+        type: boolean
+        default: false
+        description: Include raw InvokeEngineIo / EngineIoReturn JSON.
 
   mas_lab:
     type: object

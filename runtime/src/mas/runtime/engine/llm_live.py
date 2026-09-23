@@ -18,7 +18,7 @@ from mas.runtime.boundary.context.assemble import (
     llm_tool_choice,
 )
 from mas.runtime.boundary.gov.budget import BudgetTracker, budget_from_manifest
-from mas.runtime.engine.exchange_preview import format_llm_messages, format_tool_invoke
+from mas.runtime.engine.exchange_preview import ExchangeSnapshot, format_exchange_snapshot
 from mas.runtime.engine.llm_cache import (
     assistant_message_from_cache_content,
     llm_cache_key,
@@ -131,8 +131,8 @@ class LiveLlmEngine:
         content = message.get("content") if isinstance(message, dict) else getattr(message, "content", "")
         return str(content or "").strip()
 
-    def exchange_preview(self, op: str) -> str:
-        """Ctl --trace: describe outbound LLM payload or pending tool call."""
+    def exchange_snapshot(self, op: str) -> ExchangeSnapshot:
+        """Structured outbound LLM payload or pending tool call. Not a display string."""
         if op == "LLM_CALL":
             if self.ctx is not None:
                 self.ctx._assembly_correlation_id = 0
@@ -142,11 +142,17 @@ class LiveLlmEngine:
             tools_note = ""
             if tool_defs and api_tools is None and has_tool_results(messages):
                 tools_note = "(omitted — answer-from-tool-result turn)"
-            return format_llm_messages(messages, tools=api_tools, tools_note=tools_note)
+            return ExchangeSnapshot(messages=messages, tools=api_tools, tools_note=tools_note)
         if op == "TOOL_CALL":
-            tool = self._pending_tool or "tool"
-            return format_tool_invoke(tool, self._pending_tool_args)
-        return ""
+            return ExchangeSnapshot(
+                tool_name=self._pending_tool or "tool",
+                arguments=dict(self._pending_tool_args),
+            )
+        return ExchangeSnapshot()
+
+    def exchange_preview(self, op: str) -> str:
+        """Pretty-print of exchange_snapshot (cache keys, tests). Not interchange."""
+        return format_exchange_snapshot(self.exchange_snapshot(op))
 
     def invoke(self, io: InvokeEngineIo) -> EngineIoReturn:
         if io.op == "LLM_CALL":

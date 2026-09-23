@@ -204,6 +204,35 @@ properties:
         additionalProperties: true
         description: "Optional advertise metadata forwarded to protocol adapters."
 
+      semantics:
+        type: object
+        additionalProperties: false
+        description: >
+          Optional interpretation of this tool for traces and metrics.
+          The kernel copies this onto ExchangeRecord and does not infer
+          meaning from the tool name. Composite providers (several call
+          names in one class) advertise per-entry semantics on list_tools()
+          instead of this single-tool YAML field.
+        properties:
+          concept:
+            type: string
+            minLength: 1
+            description: >
+              Stable concept id used for metrics (skill, memory, …).
+          op:
+            type: string
+            description: >
+              Operation within the concept (activate, read, write, execute, …).
+          subject_arg:
+            description: >
+              Argument name, or list of names tried in order, whose value
+              identifies the subject (skill id, memory key, …).
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+
       execution_mode:
         type: string
         enum: [sync, async, realtime]

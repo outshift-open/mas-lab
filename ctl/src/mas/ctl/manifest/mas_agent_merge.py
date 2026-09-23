@@ -11,20 +11,18 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
 from mas.ctl.overlay.merge import _ops_dict, merge_context_map
 from mas.runtime.boundary.context.manifest_context import routing_description_from_agent
 from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
 from mas.runtime.boundary.delegation.policy import delegation_targets
+from mas.runtime.contracts.tool_semantics import existing_attr
+from mas.runtime.engine.leaf import leaf_engine
 from mas.runtime.engine.llm_live import LiveLlmEngine
 from mas.runtime.engine.tools import resolve_manifest_tool_refs
 
 logger = logging.getLogger(__name__)
 
 RunTurnFn = Callable[[str, str, int], str]
-
-
-from mas.runtime.engine.leaf import leaf_engine
 
 
 def _load_agent_yaml(path: Path) -> dict[str, Any] | None:
@@ -206,9 +204,7 @@ def enrich_entry_agent_for_delegation(
     if isinstance(wf, dict):
         spec_out = out.setdefault("spec", {})
         if spec_out.get("workflow") and spec_out.get("workflow") != wf:
-            logger.warning(
-                "entry agent spec.workflow replaced by MAS workflow (MAS topology wins)"
-            )
+            logger.warning("entry agent spec.workflow replaced by MAS workflow (MAS topology wins)")
         spec_out["workflow"] = copy.deepcopy(wf)
     if manifest_dir is not None:
         resolve_manifest_tool_refs(out, manifest_dir, inplace=True)
@@ -240,9 +236,7 @@ def wire_entry_engine_delegation(
     peers = delegation_targets(manifest, agent_id=entry_agent_id)
     peer_manifests: dict[str, dict[str, Any]] = {}
     if isinstance(leaf, LiveLlmEngine) and peers and mas_config is not None and mas_base_dir is not None:
-        peer_manifests = _peer_manifests_for_ids(
-            mas_config, mas_base_dir=mas_base_dir, peer_ids=peers
-        )
+        peer_manifests = _peer_manifests_for_ids(mas_config, mas_base_dir=mas_base_dir, peer_ids=peers)
         leaf.delegation_peer_descriptions = {
             peer_id: desc
             for peer_id, manifest_doc in peer_manifests.items()
@@ -266,9 +260,16 @@ def wire_entry_engine_delegation(
 
 def reset_engine_delegation(engine: Any) -> None:
     """Clear delegate caches at the start of each user turn."""
-    while engine is not None:
-        delegation = getattr(engine, "delegation", None)
-        reset_fn = getattr(delegation, "reset_session", None)
+    seen: set[int] = set()
+    for _ in range(8):
+        if engine is None or id(engine) in seen:
+            break
+        seen.add(id(engine))
+        delegation = existing_attr(engine, "delegation")
+        reset_fn = existing_attr(delegation, "reset_session")
         if callable(reset_fn):
             reset_fn()
-        engine = getattr(engine, "inner", None)
+        inner = existing_attr(engine, "inner")
+        if inner is None or inner is engine:
+            break
+        engine = inner

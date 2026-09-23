@@ -53,6 +53,10 @@ spec:
       theme: light
   meta:
     vendor: samples
+  semantics:
+    concept: search
+    op: query
+    subject_arg: query
   execution_mode: sync
   result_mode: inline
 

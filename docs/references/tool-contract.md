@@ -58,6 +58,7 @@ Guide: [tool.md](../manifests/tool.md).
 | `get_icons()` / `spec.icons` | `icons` |
 | `get_task_support()` / `spec.task_support` | `task_support` |
 | `get_meta()` / `spec.meta` | `meta` |
+| `get_semantics()` / `spec.semantics` | `semantics` |
 | `get_timeout_seconds()` / `spec.timeout_seconds` | `timeout_seconds` |
 
 ---

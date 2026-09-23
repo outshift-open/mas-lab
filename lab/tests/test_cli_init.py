@@ -67,7 +67,9 @@ def test_init_interactive_custom_provider(monkeypatch, tmp_path: Path):
     assert "mas-ctl run-mas library-samples/apps/trip-planner/mas.yaml" in result.output
     assert "Default trace file for this manifest" in result.output
     assert "--events-file traces/trip-planner-default.events.jsonl" in result.output
-    assert "--trace --trace-summary --trace-color" in result.output
+    assert "For a human exchange log on stderr (summary + timestamps), add --trace" in result.output
+    assert "--trace full" in result.output
+    assert "--trace-color" in result.output
     assert "mas-lab telemetry show library-samples/apps/trip-planner/traces/events.jsonl" in result.output
     assert "mas-lab plot trajectory library-samples/apps/trip-planner/traces/events.jsonl" in result.output
 

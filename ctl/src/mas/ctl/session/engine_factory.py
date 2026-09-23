@@ -11,21 +11,18 @@ from pathlib import Path
 from typing import Any
 
 from mas.ctl.compose.models import ResolvedInfra
-from mas.ctl.infra.resolve import resolution_anchor, resolve_infra_refs
-from mas.ctl.infra.resolve import api_key_for_infra
-from mas.ctl.session.manifest_config import engine_use_tool_loop, kernel_config_from_manifest  # kernel_config_from_manifest: deprecated; prefer RuntimeInstance.from_spec()
+from mas.ctl.infra.resolve import api_key_for_infra, resolution_anchor, resolve_infra_refs
+from mas.ctl.session.manifest_config import engine_use_tool_loop, kernel_config_from_manifest
 from mas.ctl.workspace.config import UserConfig, WorkspaceConfig, merge_infra_refs
-from mas.runtime.engine.llm_cache import resolve_cache_path
-from mas.runtime.engine.llm_live import LiveLlmEngine
 from mas.runtime.agent_defaults import default_pattern_plugin_id, resolve_default_model
 from mas.runtime.driver.mocks import AutoCtxAssembler
+from mas.runtime.engine.llm_cache import resolve_cache_path
+from mas.runtime.engine.llm_live import LiveLlmEngine
 from mas.runtime.kernel.config import KernelConfig
 
 logger = logging.getLogger(__name__)
 
-_LLM_SPEC_DEPRECATION = (
-    "spec.llm is deprecated; declare model settings under spec.models[] instead"
-)
+_LLM_SPEC_DEPRECATION = "spec.llm is deprecated; declare model settings under spec.models[] instead"
 
 
 def _primary_model_entry(spec: dict[str, Any]) -> dict[str, Any] | None:
@@ -65,11 +62,11 @@ def resolve_model_name(
     infra: ResolvedInfra | None,
     *,
     workspace_default: str | None = None,
+    forced: str | None = None,
 ) -> str:
     llm_proxy = (infra.llm_proxy if infra else {}) or {}
-    forced = (
-        os.environ.get("MAS_CTL_MODEL", "").strip()
-        or os.environ.get("MAS_LLM_MODEL", "").strip()
+    forced = (forced or "").strip() or (
+        os.environ.get("MAS_CTL_MODEL", "").strip() or os.environ.get("MAS_LLM_MODEL", "").strip()
     )
     if forced:
         raw = forced
@@ -167,9 +164,12 @@ def build_engine(
     cache_write_override: bool | None = None,
     stream_override: bool | None = None,
     runtime_refs_cli: list[str] | None = None,
+    model_override: str | None = None,
 ) -> EngineSelection:
     pid = pattern_plugin_id or default_pattern_plugin_id()
-    kernel_cfg = kernel_config if kernel_config is not None else kernel_config_from_manifest(manifest, pattern_plugin_id=pid)
+    kernel_cfg = (
+        kernel_config if kernel_config is not None else kernel_config_from_manifest(manifest, pattern_plugin_id=pid)
+    )
     tool_loop = engine_use_tool_loop(manifest, kernel_cfg)
     ws = workspace or WorkspaceConfig.load(anchor)
     ref_anchor = resolution_anchor(anchor, ws)
@@ -206,7 +206,12 @@ def build_engine(
         mode = "live"
         reason = f"resolved infra → {api_base}"
 
-    model = resolve_model_name(manifest, resolved, workspace_default=workspace_default_model)
+    model = resolve_model_name(
+        manifest,
+        resolved,
+        workspace_default=workspace_default_model,
+        forced=model_override,
+    )
     cache_raw = llm_proxy.get("cache_path")
     runtime_engine = dict(resolved.runtime_engine or {})
     cache_read = _cache_read_enabled(runtime_engine, override=cache_read_override)

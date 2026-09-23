@@ -85,6 +85,7 @@ class InstantiationOptions:
     stream_override: bool | None = None
     engine: Any | None = None
     runtime_refs_cli: tuple[str, ...] = ()
+    model_override: str | None = None
 
 
 def instantiate_runtime(
@@ -180,8 +181,9 @@ def instantiate_runtime(
             cache_write_override=options.cache_write_override,
             stream_override=options.stream_override,
             runtime_refs_cli=list(options.runtime_refs_cli),
+            model_override=options.model_override,
         )
-    logger.info("Engine mode=%s (%s)", selection.mode, selection.reason)
+    logger.debug("Engine mode=%s (%s)", selection.mode, selection.reason)
 
     from mas.runtime.boundary.context.working_memory_compaction import (
         apply_working_memory_compaction,

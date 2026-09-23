@@ -74,7 +74,7 @@ def test_bridge_forwards_to_exchange_listener_even_when_trace_is_off():
     )
     controller._setup_exchange_tracing()
 
-    record = ExchangeRecord(tag="AGENT->USER", text="hi", detail="", engine_raw="", ts_mono=0.0, ts_wall="")
+    record = ExchangeRecord(kind="user_out", text="hi", ts_mono=0.0, ts_wall="")
     bridge = next(
         p for p in controller.instance.driver.exchange_plugins if not isinstance(p, CliTraceExchangePlugin)
     )

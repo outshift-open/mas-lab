@@ -36,10 +36,10 @@ When you add or rename a doc page, update **`mkdocs.yml` nav** and cross-links i
 
 - [User guide](user-guide.md)
 - [Labs vs libraries](labs-and-libraries.md)
-- [User configuration](user-config.md)
+- [User configuration](user-config.md) — XDG paths
+- [config.yaml](references/config.yaml.md) — workspace / user YAML fields
+- CLI → [overview](cli/index.md), [mas-ctl options](cli/mas-ctl.md), [observability / run logs](cli/observability.md), [`compile`](cli/compile.md)
 - [Package map](libraries.md)
-- [Observability / run logs](cli/observability.md)
-- [`mas-ctl compile`](cli/compile.md)
 - **[Web UI](ui/index.md)**
 - [Terminal UI (TUI)](ctl/tui.md)
 - [Glossary](glossary.md)
@@ -55,7 +55,7 @@ When you add or rename a doc page, update **`mkdocs.yml` nav** and cross-links i
 ### References
 
 - [References index](references/index.md)
-- Specifications → `manifests/*.md`, [schemas](references/schemas.md)
+- Specifications → `manifests/*.md`, [config.yaml](references/config.yaml.md), [schemas](references/schemas.md)
 - Runtime → [manifests/runtime.md](manifests/runtime.md), [runtime docs](references/runtime.md)
 - Lab & benchmarks → experiment/dataset/pipeline manifests, [lab bench](references/lab.md), [library discovery](library-discovery.md)
 

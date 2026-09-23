@@ -302,8 +302,8 @@ def init_cmd(yes: bool) -> None:
         "--events-file traces/trip-planner-default.events.jsonl "
         "-q \"Plan a trip from Celestia to Verdantia\""
     )
-    click.echo("For inline trace stream (summary + color), add:")
-    click.echo("--trace --trace-summary --trace-color")
+    click.echo("For a human exchange log on stderr (summary + timestamps), add --trace")
+    click.echo("Verbose payload dump: --trace full    Color (opt-in): --trace-color")
     click.echo("Then inspect traces:")
     click.echo("mas-lab telemetry show library-samples/apps/trip-planner/traces/events.jsonl")
     click.echo(

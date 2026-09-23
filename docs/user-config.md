@@ -9,6 +9,10 @@ prefer **`$XDG_*` / `MAS_*` names** (not hardcoded home paths). MkDocs tutorials
 can include values via
 [`includes/mas-paths.md`](includes/mas-paths.md) snippets (`task docs-gen`).
 
+Field-by-field `config.yaml` keys (including `mas_ctl.trace`) are in the
+[config.yaml reference](references/config.yaml.md). CLI flags:
+[mas-ctl.md](cli/mas-ctl.md).
+
 ## Path variable reference
 
 | Symbol | Default layout | Role |
@@ -99,6 +103,15 @@ export OPENAI_API_KEY=sk-...
 # Uses workspace infra_refs or $XDG_CONFIG_HOME/mas/infra/default.yaml
 mas-ctl chat agent.yaml -q "What is 2+2?"
 ```
+
+### Human exchange log (`mas_ctl.trace`)
+
+Stdout is the conversation. The AGENT↔LLM↔TOOL transcript is a **human** log on
+stderr. Persist `mas_ctl.trace: summary` in `config.yaml` so you do not need
+`--trace`. Color stays opt-in (`--trace-color` / `trace_color: true`).
+
+Complete tables: [config.yaml](references/config.yaml.md#mas_ctl) ·
+[mas-ctl flags](cli/mas-ctl.md#exchange-log).
 
 ## Configuration Discovery
 

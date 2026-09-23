@@ -10,9 +10,9 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from mas.runtime.workspace_config import _user_config_path, find_workspace_file, resolve_config_relative
+from mas.runtime.xdg import mas_cache_root
 
-from mas.runtime.workspace_config import find_workspace_file, _user_config_path, resolve_config_relative
-from mas.runtime.xdg import mas_cache_root, mas_infra_dir, mas_runtime_dir
 _ENV_INFRA_REFS = "MAS_INFRA_REFS"
 _ENV_RUNTIME_REFS = "MAS_RUNTIME_REFS"
 
@@ -235,6 +235,12 @@ class UserConfig:
     default_infra: str | None = None
     default_runtime: str | None = None
     cache_dir: Path = field(default_factory=mas_cache_root)
+    _data: dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @property
+    def mas_ctl(self) -> dict[str, Any]:
+        raw = self._data.get("mas_ctl") or {}
+        return dict(raw) if isinstance(raw, dict) else {}
 
     @classmethod
     def load(cls) -> UserConfig:
@@ -245,6 +251,8 @@ class UserConfig:
             data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
         except Exception:
             return cls(default_infra="standard:production")
+        if not isinstance(data, dict):
+            data = {}
         cache = data.get("cache_dir")
         if not cache and isinstance(data.get("paths"), dict):
             cache = data["paths"].get("cache_dir")
@@ -256,6 +264,7 @@ class UserConfig:
             default_infra=data.get("default_infra"),
             default_runtime=data.get("default_runtime"),
             cache_dir=cache_dir,
+            _data=data,
         )
 
 

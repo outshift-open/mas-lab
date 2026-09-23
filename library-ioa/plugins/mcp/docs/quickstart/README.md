@@ -46,7 +46,7 @@ mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
   -o library-samples/overlays/mcp-localhost.yaml \
   -o library-samples/overlays/local-in-process.yaml \
   -q "What is the current price of Apple stock?" \
-  --trace --trace-summary
+  --trace
 ```
 
 `tools: "*"` on MCP registers the provider, then discovers names at runtime init (`mas-ctl validate` always passes). Tutorial 1's `tools.yaml` also adds `calc`; keep it in-process with `-o library-samples/overlays/local-in-process.yaml`. Prod MCP-only deployments omit that overlay and must not declare unclaimed tools.

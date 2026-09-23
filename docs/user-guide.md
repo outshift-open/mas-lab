@@ -12,6 +12,8 @@ in YAML, run them with `mas-ctl` and `mas-lab`, and analyze results through
 reusable benchmark pipelines.
 
 **Related:** [Labs vs libraries](labs-and-libraries.md) ·
+[CLI](cli/index.md) · [mas-ctl options](cli/mas-ctl.md) ·
+[config.yaml](references/config.yaml.md) ·
 [References](references/index.md) · [Web UI](ui/index.md) ·
 [Run logs](cli/observability.md) · [Paper labs](paper/index.md) · [Glossary](glossary.md)
 
@@ -58,11 +60,11 @@ browser. Started as part of Tutorial 0 (same Docker stack).
 
 | CLI | Package | Use for |
 |-----|---------|---------|
-| `mas-ctl` | `ctl/` | Chat, TUI, compile, compose, validate, `run-mas` |
-| `mas-runtime` | `runtime/` | Headless `run-agent` (Docker / CI) |
-| `mas-lab` | `lab/` | Benchmarks, pipelines, controller UI |
+| `mas-ctl` | `ctl/` | Chat, TUI, compile, compose, validate, `run-mas` — [options](cli/mas-ctl.md) |
+| `mas-runtime` | `runtime/` | Library only (no CLI) |
+| `mas-lab` | `lab/` | Benchmarks, pipelines, telemetry — [CLI overview](cli/index.md#mas-lab) |
 
-Benchmarking is always **`mas-lab`**, not `mas-ctl`.
+Benchmarking is always **`mas-lab`**, not `mas-ctl`. Full map: [cli/index.md](cli/index.md).
 
 ---
 
@@ -217,7 +219,8 @@ mas-ctl chat agent.yaml -o overlays/tools.yaml \
   -q "What is the capital of France?" -v
 ```
 
-See [cli/observability.md](cli/observability.md) for `events.jsonl` and trace flags.
+See [cli/observability.md](cli/observability.md) for `events.jsonl`.
+Exchange-log flags (`--trace`, `--trace full`, `--trace-color`): [mas-ctl.md](cli/mas-ctl.md#exchange-log).
 
 ## Running tools through MCP
 
@@ -263,7 +266,7 @@ mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
   -o library-samples/overlays/mcp-localhost.yaml \
   -o library-samples/overlays/local-in-process.yaml \
   -q "What is the current price of Apple stock?" \
-  --trace --trace-summary
+  --trace
 ```
 
 The `mas-mcp serve` process logs `MCP tool call name=web-search` when the agent
@@ -285,7 +288,9 @@ infra [`ToolServerRegistry`](references/tool-server-registry.md)
 
 ## Configuration
 
-Machine-wide paths and workspace defaults: [user-config.md](user-config.md).
+Machine-wide paths: [user-config.md](user-config.md).
+Workspace YAML fields: [config.yaml reference](references/config.yaml.md).
+CLI flags: [mas-ctl.md](cli/mas-ctl.md).
 
 Runtime contributor docs live under [`runtime/docs/`](../runtime/docs/index.md)
 (Mealy envelope, contracts, design patterns).

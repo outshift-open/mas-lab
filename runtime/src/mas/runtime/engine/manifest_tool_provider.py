@@ -76,6 +76,7 @@ class ManifestToolProvider:
         return self._registry.list_tools(ctx=ctx)
 
     def list_openai_tools(self, *, ctx: Any = None) -> list[dict[str, Any]]:
+        """OpenAI wire tools. Extra advertise keys (semantics, meta, …) stay off the payload."""
         out: list[dict[str, Any]] = []
         for spec in self.list_tools(ctx=ctx):
             name = str(spec.get("name") or "")

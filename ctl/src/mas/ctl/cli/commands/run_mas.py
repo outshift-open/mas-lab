@@ -4,14 +4,11 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import click
 import yaml
-
 from mas.ctl.cli.obs_flags import observability_options, resolve_observability_config
 from mas.ctl.cli.runtime_flags import runtime_id_choice
-from mas.ctl.cli.trace_flags import trace_options
+from mas.ctl.cli.trace_flags import mas_ctl_from_configs, resolve_trace_settings, trace_options
 from mas.ctl.deployment.runtime_id import DEFAULT_RUNTIME_ID
 from mas.ctl.executor.run_mas import execute_run_mas
 
@@ -63,11 +60,13 @@ def run_mas_cmd(
     events_file,
     events_stdout,
     events_format,
-    trace: bool,
-    trace_timestamps: bool,
+    trace_mode: str | None,
+    no_trace: bool,
+    trace_timestamps: bool | None,
     trace_engine: bool,
     trace_summary: bool,
-    trace_color: bool,
+    trace_full: bool,
+    trace_color: bool | None,
 ) -> None:
     """Run a MAS manifest (compose → materialize → session on entry agent)."""
     from mas.ctl.paths import manifest_cwd, resolve_overlay_path
@@ -85,6 +84,21 @@ def run_mas_cmd(
         raise SystemExit(2) from None
 
     with manifest_cwd(manifest, overlay_paths=overlays) as session:
+        from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
+
+        workspace = WorkspaceConfig.load(session.manifest_dir or session.original_cwd)
+        user = UserConfig.load()
+        trace = resolve_trace_settings(
+            trace_mode=trace_mode,
+            no_trace=no_trace,
+            trace_summary=trace_summary,
+            trace_full=trace_full,
+            trace_timestamps=trace_timestamps,
+            trace_engine=trace_engine,
+            trace_color=trace_color,
+            mas_ctl=mas_ctl_from_configs(user.mas_ctl, workspace.mas_ctl),
+            verbose=verbose,
+        )
         deployment_path = None
         deployment_doc = None
         if deployment:
@@ -120,10 +134,6 @@ def run_mas_cmd(
             verbose=verbose,
             manifest_dir=session.manifest_dir,
             obs_config=obs_cfg,
-            trace=trace,
-            trace_timestamps=trace_timestamps,
-            trace_engine=trace_engine or verbose >= 2,
-            trace_summary=trace_summary,
-            trace_color=trace_color,
+            **trace.as_session_kwargs(),
         )
     raise SystemExit(rc)

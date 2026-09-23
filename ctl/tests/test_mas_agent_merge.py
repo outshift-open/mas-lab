@@ -5,7 +5,6 @@
 from pathlib import Path
 
 import yaml
-
 from mas.ctl.manifest.mas_agent_merge import enrich_entry_agent_for_delegation, wire_entry_engine_delegation
 from mas.runtime.engine.llm_live import LiveLlmEngine
 from mas.runtime.engine.tools import openai_tools, resolve_manifest_tool_refs
@@ -186,15 +185,12 @@ def test_wire_entry_engine_delegation_enables_tool_loop_on_leaf():
 
 
 def test_reset_engine_delegation_does_not_suppress_repeated_delegation():
-    from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
-
     from mas.ctl.manifest.mas_agent_merge import reset_engine_delegation
+    from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
 
     calls: list[str] = []
 
-    def run_turn(
-        agent_id: str, task: str, correlation_id: int, caller_call_id: str, context_id: str
-    ) -> str:
+    def run_turn(agent_id: str, task: str, correlation_id: int, caller_call_id: str, context_id: str) -> str:
         calls.append(agent_id)
         return f"findings:{agent_id}:{task}"
 
@@ -207,6 +203,46 @@ def test_reset_engine_delegation_does_not_suppress_repeated_delegation():
     reset_engine_delegation(engine)
     assert engine.delegation.delegate("peer", "task") == "findings:peer:task"
     assert calls == ["peer", "peer"]
+
+
+def test_reset_engine_delegation_walks_inner_wrapper():
+    from mas.ctl.manifest.mas_agent_merge import reset_engine_delegation
+    from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
+
+    calls: list[str] = []
+
+    def run_turn(agent_id: str, task: str, correlation_id: int, caller_call_id: str, context_id: str) -> str:
+        calls.append(agent_id)
+        return f"findings:{agent_id}:{task}"
+
+    class _Engine:
+        def __init__(self) -> None:
+            self.delegation = LlmDelegator(run_turn=run_turn)
+
+    class _Wrapper:
+        def __init__(self, inner: object) -> None:
+            self.inner = inner
+
+        def __getattr__(self, name: str) -> object:
+            return getattr(self.inner, name)
+
+    inner = _Engine()
+    engine = _Wrapper(inner)
+    assert inner.delegation.delegate("peer", "task") == "findings:peer:task"
+    reset_engine_delegation(engine)
+    assert inner.delegation.delegate("peer", "task") == "findings:peer:task"
+    assert calls == ["peer", "peer"]
+
+
+def test_reset_engine_delegation_does_not_follow_mock_inner():
+    from unittest.mock import MagicMock
+
+    from mas.ctl.manifest.mas_agent_merge import reset_engine_delegation
+
+    engine = MagicMock()
+    reset_engine_delegation(engine)
+    assert "inner" not in engine._mock_children
+    assert "delegation" not in engine._mock_children
 
 
 def test_apply_agency_entry_overlay_merges_context_and_tools():
@@ -441,9 +477,7 @@ def test_create_agent_runtime_applies_mas_overlay_context(monkeypatch, tmp_path:
         composed_application=ComposedApplication(mas_id="trip", config=mas),
         mas_base_dir=tmp_path,
     )
-    instance = MasRuntimePyKernelBackend(resolved_infra=infra).create_agent_runtime(
-        bind, "moderator"
-    )
+    instance = MasRuntimePyKernelBackend(resolved_infra=infra).create_agent_runtime(bind, "moderator")
     from mas.runtime.engine.leaf import leaf_engine
 
     leaf = leaf_engine(instance.driver.engine)
