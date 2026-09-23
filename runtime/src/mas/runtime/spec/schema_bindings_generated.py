@@ -70,6 +70,7 @@ CONTEXT_MANAGER_ASSEMBLY_PARAM_KEYS = frozenset(
 
 CONTEXT_MANAGER_STRATEGY_PARAM_KEYS = frozenset(
     {
+    'hysteresis_ratio',
     'keep_turns',
     'max_messages',
     'max_turns',

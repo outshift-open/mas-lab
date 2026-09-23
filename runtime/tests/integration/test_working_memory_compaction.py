@@ -168,11 +168,15 @@ def test_apply_working_memory_compaction_wires_explicit_summarising_context_mana
     assert callable(spec["context_manager"]["params"]["summarize_fn"])
 
 
-def test_apply_working_memory_compaction_summarize_without_engine_degrades_to_keep_recent():
-    """No live LLM engine available -- must not crash; falls back safely."""
+def test_apply_working_memory_compaction_summarize_without_engine_keeps_summarising():
+    """No live LLM engine — recency pin still applies; do not rewrite to stack."""
     spec = {"working_memory": {"compaction": {"strategy": "summarize"}}}
     apply_working_memory_compaction(spec, engine=None)
-    assert spec["context_manager"] == {"type": "stack", "params": {}}
+    assert spec["context_manager"]["type"] == "summarising"
+    assert "summarize_fn" not in spec["context_manager"]["params"]
+    cm = CMFactory.create(spec=spec["context_manager"])
+    assert isinstance(cm, SummarizingConversation)
+    assert cm._summarize_fn is None
 
 
 def test_apply_working_memory_compaction_noop_when_nothing_configured():

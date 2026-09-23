@@ -30,6 +30,10 @@ def estimate_tokens(messages: list[dict[str, Any]]) -> int:
 
 
 def _oldest_group_size(msgs: list[dict[str, Any]]) -> int:
+    """How many leading rows are one assistant tool-call plus its results.
+
+    Drop this many together so a result is never left without its ask.
+    """
     if not msgs:
         return 0
     first = msgs[0]

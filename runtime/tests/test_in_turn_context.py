@@ -22,9 +22,12 @@ def test_working_memory_source_type():
     assert SOURCE_TYPE == "working_memory"
 
 
-def test_default_cm_is_sliding_window():
+def test_default_cm_is_summarising():
     cm = CMFactory.create(manifest={})
-    assert cm.__class__.__name__ == "SlidingWindowConversation"
+    assert cm.__class__.__name__ == "SummarizingConversation"
+    assert cm.keep_turns == 10
+    assert cm.hysteresis_ratio == 0.2
+    assert cm._summarize_fn is None
 
 
 def test_cm_assembly_includes_working_memory_after_user():

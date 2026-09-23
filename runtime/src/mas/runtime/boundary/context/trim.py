@@ -7,10 +7,14 @@ from __future__ import annotations
 from typing import Any
 
 CONTEXT_MANAGER_TYPE_SUMMARISING = "summarising"
+_SUMMARISING_TYPES = frozenset({"summarising", "summarizing"})
 
 
 def is_summarising_context_manager(cm: dict[str, Any] | None) -> bool:
-    return isinstance(cm, dict) and cm.get("type") == CONTEXT_MANAGER_TYPE_SUMMARISING
+    if not isinstance(cm, dict):
+        return False
+    type_name = str(cm.get("type") or "").strip().lower().replace("_", "-")
+    return type_name in _SUMMARISING_TYPES
 
 
 def context_manager_spec(manifest: dict | None) -> dict[str, Any]:

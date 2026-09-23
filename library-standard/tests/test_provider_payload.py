@@ -66,6 +66,61 @@ def test_sanitize_preserves_complete_tool_exchange() -> None:
     assert_provider_payload(out)
 
 
+def test_sanitize_drops_duplicate_tool_results_in_a_group() -> None:
+    """Two calls, three result rows: keep one each."""
+    out = sanitize_provider_messages(
+        [
+            {"role": "user", "content": "q"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"id": "call_a", "function": {"name": "f", "arguments": "{}"}},
+                    {"id": "call_b", "function": {"name": "g", "arguments": "{}"}},
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call_a", "content": "ra"},
+            {"role": "tool", "tool_call_id": "call_b", "content": "rb"},
+            {"role": "tool", "tool_call_id": "call_a", "content": "ra-dup"},
+        ]
+    )
+    tool_msgs = [m for m in out if m.get("role") == "tool"]
+    assert [m["tool_call_id"] for m in tool_msgs] == ["call_a", "call_b"]
+    assert_provider_payload(out)
+
+
+def test_sanitize_does_not_glue_incomplete_parallel_onto_previous_turn() -> None:
+    """Incomplete 2-call group at the end: fill the missing id, do not glue
+    the leftover tool row onto the previous turn (that was the extra-results 400).
+    """
+    out = sanitize_provider_messages(
+        [
+            {"role": "user", "content": "q1"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [{"id": "call_1", "function": {"name": "f", "arguments": "{}"}}],
+            },
+            {"role": "tool", "tool_call_id": "call_1", "content": "r1"},
+            {"role": "assistant", "content": "done1"},
+            {"role": "user", "content": "q2"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"id": "call_2", "function": {"name": "f", "arguments": "{}"}},
+                    {"id": "call_3", "function": {"name": "g", "arguments": "{}"}},
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call_2", "content": "r2"},
+        ]
+    )
+    tools = [m for m in out if m.get("role") == "tool"]
+    assert [m["tool_call_id"] for m in tools] == ["call_1", "call_2", "call_3"]
+    assert tools[-1]["content"] == ""  # filled for the missing call_3
+    assert_provider_payload(out)
+
+
 def test_sanitize_rebinds_hitl_steering_tool_to_preceding_assistant() -> None:
     out = sanitize_provider_messages(
         [
@@ -97,6 +152,27 @@ def test_stack_trim_plus_sanitize_is_provider_safe() -> None:
     assert_provider_payload(out)
 
 
+def test_sliding_window_keeps_whole_user_turn_with_parallel_tools() -> None:
+    """max_turns=1 must keep both results of a parallel call, not only the last row."""
+    past = _tool_turn("old") + [
+        {"role": "user", "content": "q"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {"id": "a", "function": {"name": "f", "arguments": "{}"}},
+                {"id": "b", "function": {"name": "g", "arguments": "{}"}},
+            ],
+        },
+        {"role": "tool", "tool_call_id": "a", "content": "ra"},
+        {"role": "tool", "tool_call_id": "b", "content": "rb"},
+        {"role": "assistant", "content": "done"},
+    ]
+    out = SlidingWindowConversation(max_turns=1).manage_history(past, budget_tokens=0)
+    assert [m.get("tool_call_id") for m in out if m.get("role") == "tool"] == ["a", "b"]
+    assert_provider_payload(out)
+
+
 def test_sliding_window_plus_sanitize_is_provider_safe() -> None:
     past: list[dict[str, Any]] = []
     for i in range(6):
@@ -118,6 +194,88 @@ def test_summarizing_conversation_plus_sanitize_is_provider_safe() -> None:
     trimmed = cm.manage_history(past, budget_tokens=0)
     out = sanitize_provider_messages(trimmed)
     assert_provider_payload(out)
+    assert trimmed[-4:] == past[-4:]
+    assert trimmed[0]["role"] == "system"
+
+
+def test_summarizing_keeps_last_round_verbatim_without_summarize_fn() -> None:
+    past: list[dict[str, Any]] = []
+    for i in range(4):
+        past.extend(_tool_turn(f"call_{i}", content=f"result-{i}"))
+    last_round = past[-4:]
+    cm = SummarizingConversation(summary_threshold=1, keep_turns=1)
+    out = cm.manage_history(past, budget_tokens=0)
+    assert out == last_round
+    assert_provider_payload(out)
+
+
+def test_summarizing_under_budget_does_not_touch_history() -> None:
+    past = _tool_turn("call_old") + _tool_turn("call_new")
+    cm = SummarizingConversation(
+        summary_threshold=1,
+        keep_turns=1,
+        summarize_fn=lambda msgs: "should not run",
+    )
+    assert cm.manage_history(past, budget_tokens=10_000) == past
+
+
+def test_sliding_window_accepts_keep_turns_alias() -> None:
+    past: list[dict[str, Any]] = []
+    for i in range(4):
+        past.extend(_tool_turn(f"call_{i}"))
+    out = SlidingWindowConversation(keep_turns=1).manage_history(past, budget_tokens=0)
+    assert out == past[-4:]
+    assert_provider_payload(out)
+
+
+def test_summarizing_hysteresis_reuses_summary_on_the_next_call() -> None:
+    """Committed history is still the full list; without a cache we would
+    re-summarize the same older turns on every LLM call."""
+    calls: list[int] = []
+
+    def summarize(msgs: list[dict[str, Any]]) -> str:
+        calls.append(len(msgs))
+        return "SUM"
+
+    def fat(i: int) -> list[dict[str, Any]]:
+        return _tool_turn(f"call_{i}", content="x" * 800)
+
+    past = fat(0) + fat(1) + fat(2)
+    high = SummarizingConversation._estimate_tokens(past) - 1
+    cm = SummarizingConversation(keep_turns=1, hysteresis_ratio=0.2, summarize_fn=summarize)
+    first = cm.manage_history(past, high)
+    assert len(calls) == 1
+    assert first[0]["role"] == "system"
+    assert cm.manage_history(past, high) == first
+    assert len(calls) == 1
+    grown = past + fat(3)
+    reused = cm.manage_history(grown, high)
+    assert len(calls) == 1
+    assert reused[0]["content"] == first[0]["content"]
+    assert_provider_payload(reused)
+
+
+def test_summarizing_recompacts_after_hysteresis_ceiling() -> None:
+    calls: list[int] = []
+
+    def summarize(msgs: list[dict[str, Any]]) -> str:
+        calls.append(len(msgs))
+        return f"SUM-{len(calls)}"
+
+    def fat(i: int) -> list[dict[str, Any]]:
+        return _tool_turn(f"call_{i}", content="x" * 800)
+
+    past = fat(0) + fat(1) + fat(2)
+    high = SummarizingConversation._estimate_tokens(past) - 1
+    cm = SummarizingConversation(keep_turns=1, hysteresis_ratio=0.0, summarize_fn=summarize)
+    cm.manage_history(past, high)
+    assert len(calls) == 1
+    for i in range(3, 12):
+        past = past + fat(i)
+        cm.manage_history(past, high)
+        if len(calls) == 2:
+            break
+    assert len(calls) == 2
 
 
 def test_trim_with_structural_pin_tail() -> None:
@@ -135,7 +293,7 @@ def test_trim_with_structural_pin_tail() -> None:
     assert_provider_payload(out)
 
 
-# --- PR #55 Bedrock-style regressions (orphan tool at slice boundary) ---
+# --- slice-boundary pairing (orphan tool at the cut) ---
 
 
 def test_pr55_stack_slice_orphan_tool_at_front() -> None:

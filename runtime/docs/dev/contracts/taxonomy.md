@@ -86,7 +86,10 @@ Use this table when introducing a new feature.
 | `ContextManagerContract` | Trims or compresses past turns before the next LLM call |
 
 `ContextContract` says what should be present. `ContextManagerContract` says
-how much historical conversation survives into the next turn.
+how much historical conversation survives into the next turn. The list it
+returns is still a **protocol** `messages[]` (roles and tool ids), not a token
+string — see [ContextManagerContract](state-and-context.md#contextmanagercontract)
+for the two layers and the pairing rules plugins must keep.
 
 ## Hook-driven execution
 

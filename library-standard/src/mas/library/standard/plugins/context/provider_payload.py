@@ -1,6 +1,15 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Provider-safe history helpers for context_manager plugins (not a registry plugin)."""
+"""Last-pass pairing: one tool result per tool call, in the next messages.
+
+Ask, then answers. If trim left extra answers, drop them. If it left a hole,
+insert an empty result (empty is valid; a missing row is not). HITL used to
+record a result under the wrong id — rebound in declaration order.
+
+Call this once, on the fully assembled list (history + user + working memory).
+History slicers must not call it: filling holes before working memory is
+concatenated would duplicate the real result.
+"""
 
 from __future__ import annotations
 
@@ -18,7 +27,11 @@ __all__ = [
 def sanitize_provider_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if not messages:
         return []
-    return _sanitize_completed(messages)
+    return _sanitize_completed(_repair_tool_call_bindings(messages))
+
+
+def _empty_tool_result(call_id: str) -> dict[str, Any]:
+    return {"role": "tool", "tool_call_id": call_id, "content": ""}
 
 
 def _repair_tool_call_bindings(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -50,37 +63,44 @@ def _repair_tool_call_bindings(messages: list[dict[str, Any]]) -> list[dict[str,
 
 
 def _sanitize_completed(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    if not messages:
-        return []
-
-    messages = _repair_tool_call_bindings(messages)
     declared = tool_call_pairs(messages)[0]
-    without_orphan_tools = [
+    rows = [
         msg for msg in messages if msg.get("role") != "tool" or str(msg.get("tool_call_id") or "") in declared
     ]
-
-    sanitized: list[dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     i = 0
-    while i < len(without_orphan_tools):
-        msg = without_orphan_tools[i]
+    n = len(rows)
+    while i < n:
+        msg = rows[i]
         if msg.get("role") == "assistant" and msg.get("tool_calls"):
-            call_ids = {str(c.get("id")) for c in msg["tool_calls"] if c.get("id")}
+            call_ids = [str(c.get("id")) for c in msg["tool_calls"] if c.get("id")]
+            wanted = set(call_ids)
             j = i + 1
-            found: set[str] = set()
-            while j < len(without_orphan_tools) and without_orphan_tools[j].get("role") == "tool":
-                tool_id = without_orphan_tools[j].get("tool_call_id")
-                if tool_id:
-                    found.add(str(tool_id))
+            tool_rows: list[dict[str, Any]] = []
+            while j < n and rows[j].get("role") == "tool":
+                tool_rows.append(rows[j])
                 j += 1
-            if call_ids and call_ids <= found:
-                sanitized.extend(without_orphan_tools[i:j])
-                i = j
-                continue
-            stripped = {k: v for k, v in msg.items() if k != "tool_calls"}
-            if str(stripped.get("content") or "").strip():
-                sanitized.append(stripped)
+            kept: list[dict[str, Any]] = []
+            seen: set[str] = set()
+            for tool in tool_rows:
+                tid = str(tool.get("tool_call_id") or "")
+                if tid in wanted and tid not in seen:
+                    kept.append(tool)
+                    seen.add(tid)
+            trailing = j == n
+            if not kept and not trailing:
+                stripped = {k: v for k, v in msg.items() if k != "tool_calls"}
+                if str(stripped.get("content") or "").strip():
+                    out.append(stripped)
+            else:
+                out.append(msg)
+                out.extend(kept)
+                out.extend(_empty_tool_result(tid) for tid in call_ids if tid not in seen)
+            i = j
+            continue
+        if msg.get("role") == "tool":
             i += 1
             continue
-        sanitized.append(msg)
+        out.append(msg)
         i += 1
-    return sanitized
+    return out

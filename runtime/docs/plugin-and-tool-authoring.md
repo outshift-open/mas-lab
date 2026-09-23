@@ -352,7 +352,7 @@ release. They ship in `mas-lab-internal` with `SandboxContract` enforcement.
 
 ```
 ContractBase
-├── CapabilityContract  — WHAT the agent can access (20 contracts)
+├── CapabilityContract  — WHAT the agent can access
 │   ├── ToolContract        (tool)
 │   ├── PromptContract      (prompt)
 │   ├── MemoryContract      (memory)
@@ -367,6 +367,8 @@ ContractBase
 │   ├── DelegationContract  (delegation)
 │   ├── ModelAccessContract (model_access)
 │   ├── ContextContract     (context — BasePlugin mixin)
+│   ├── ContextManagerContract (context_manager — history trim/summarize;
+│   │                          payload rules: dev/contracts/state-and-context.md)
 │   ├── LLMContract         (llm)
 │   ├── DesignPatternContract (dp)
 │   ├── GatewayContract     (gateway)

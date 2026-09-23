@@ -24,7 +24,6 @@ from mas.ctl.validate import validate_data, validate_file, validation_enabled
 from mas.ctl.workspace.config import WorkspaceConfig
 from mas.runtime.agent_defaults import (
     agent_defaults,
-    default_context_manager_id,
     default_pattern_plugin_id,
 )
 from mas.runtime.spec.source import load_yaml_mapping, resolve_yaml_path
@@ -74,11 +73,9 @@ def fill_agent_defaults(doc: dict[str, Any], *, workspace: Any = None) -> dict[s
     if not spec.get("models"):
         spec["models"] = copy.deepcopy(defaults["models"])
 
-    cm = spec.get("context_manager")
-    if not cm:
-        spec["context_manager"] = {"type": default_context_manager_id()}
-    elif isinstance(cm, dict) and not (cm.get("type") or cm.get("ref")):
-        cm["type"] = default_context_manager_id()
+    from mas.runtime.spec.history_budget import fill_context_manager_defaults
+
+    fill_context_manager_defaults(spec)
 
     return out
 

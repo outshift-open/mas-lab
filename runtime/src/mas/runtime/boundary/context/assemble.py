@@ -8,14 +8,16 @@ Message layers (in order appended to the provider payload):
 2. **Committed history** — chunk store / ``committed_messages`` / turn history,
    then passed through ``CMFactory`` (registry ``context_manager`` plugin;
    defaults to ``defaults.yaml`` when ``spec.context_manager`` is omitted).
-   Context-manager plugins must return provider-safe history themselves.
+   Context-manager plugins slice by user turn (or a tool-group-aligned tail).
+   After WM is appended, the kernel runs one pairing pass: one result per
+   tool call, empty string if a result row was lost.
 3. **Current user** — ``last_user_text`` for this ingress.
 4. **In-turn working memory (WM)** — assistant/tool messages from the current
    dispatch loop, read from ``ctx.working_memory`` (``WorkingMemoryStore``).
 
-Optional trim: set ``spec.context_manager.params.trimmer`` with ``max_tokens``
-(and optional ``reserve_tokens``). When ``trimmer`` is absent, WM is appended
-with no token-based trimming. WM is passed as ``pin_tail`` only when trim runs.
+Token trim: ``spec.context_manager.params.trimmer`` when set, otherwise the
+primary model's ``context_window`` minus completion ``max_tokens``. In-turn
+working memory is passed as ``pin_tail`` so the live tool round stays intact.
 """
 
 from __future__ import annotations
@@ -119,6 +121,10 @@ def assemble_llm_messages(
         )
     else:
         messages = messages + wm_messages
+
+    from mas.library.standard.plugins.context.provider_payload import sanitize_provider_messages
+
+    messages = sanitize_provider_messages(messages)
 
     from mas.runtime.boundary.context.telemetry import record_context_assembly
 

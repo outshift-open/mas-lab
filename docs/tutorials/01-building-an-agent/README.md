@@ -99,7 +99,7 @@ That's it. Everything else has sensible defaults:
 |-------|---------|---------|
 | `spec.models[0].model` | `gpt-4` (overridden by flavour) | Main LLM — works without flavour; flavour overrides |
 | `spec.design_pattern.type` | `react` | ReAct loop — up to **25 steps** per turn |
-| `spec.context_manager.type` | `sliding-window` | Keep last **20 turns** in context (optional `params.trimmer` caps assembled tokens — [context-assembly.md](../../manifests/context-assembly.md)) |
+| `spec.context_manager.type` | `summarising` | Last **10 user turns** stay verbatim (`params.keep_turns`, overridable); older history is summarized with hysteresis so it does not re-run every step. Token cap is the model `context_window` minus completion reserve — [context-assembly.md](../../manifests/context-assembly.md) |
 
 > **Key insight:** The manifest is a *specification*, not a configuration file.
 > It declares the agent's capabilities and intent. The runtime resolves how
@@ -586,7 +586,7 @@ Live `mas-ctl chat` steps need `TUTORIAL_ONLINE=1` and a configured LLM (Tutoria
 ## Key takeaways
 
 1. **Spec-first**: define *what* the agent does, not *how*
-2. **Defaults matter**: ReAct, sliding-window, model — you get a capable agent with 3 fields
+2. **Defaults matter**: ReAct, summarising context, model — you get a capable agent with 3 fields
 3. **Overlays compose**: `--overlay` stacks features without duplication
 4. **Tools by name**: the agent says `web-search`; the runtime binds it to a Python module or tool server — the agent manifest never sees implementation details
 5. **Skills are markdown**: domain knowledge injected into the system prompt

@@ -118,6 +118,19 @@ properties:
               type: integer
               minimum: 1
               default: 2000
+              description: >
+                Completion budget (reserved from the input window when sizing
+                conversation history). Not the model context size. Also used as
+                the bound on internal reasoning for models that bill thinking
+                against max_tokens (e.g. Gemini 2.5, o-series).
+            context_window:
+              type: integer
+              minimum: 1
+              default: 128000
+              description: >
+                Model input context size in tokens. History is sized as
+                context_window minus completion reserve (max_tokens) and any
+                spec.context_manager.params.trimmer.reserve_tokens override.
             reasoning_effort:
               type: string
               description: >
@@ -156,16 +169,19 @@ properties:
       context_manager:
         type: object
         description: >
-          Context window management strategy. Defaults to stack (StackConversation,
-          unbounded history) when absent. Builtin types: stack | sliding-window |
-          summarising | full-history.
+          Conversation-history plugin (library-standard ContextManagerContract).
+          Defaults to summarising when absent: last keep_turns user turns stay
+          verbatim; older turns are summarized when an LLM summarizer is wired,
+          otherwise dropped. Builtin types: summarising | sliding-window | stack
+          | full-history. mas-ctl compile fills type plus recency/trimmer params
+          from the model context window.
         x-merge:
           strategy: mapping_merge_or_ops
         additionalProperties: false
         properties:
           type:
             type: string
-            description: "Builtin name shorthand — mutually exclusive with ref: stack | sliding-window | summarising | full-history."
+            description: "Builtin name shorthand — mutually exclusive with ref: summarising | sliding-window | stack | full-history."
           ref:
             type: string
             description: "Unified plugin locator — mutually exclusive with type. Same forms as design_pattern.ref."
