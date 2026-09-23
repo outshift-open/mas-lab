@@ -98,6 +98,7 @@ nav:
       - user-config.md
       - libraries.md
       - cli/observability.md
+      - cli/compile.md
       - Web UI: ui/index.md
       - ctl/tui.md
       - glossary.md

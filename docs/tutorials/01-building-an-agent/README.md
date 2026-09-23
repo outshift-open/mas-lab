@@ -546,8 +546,22 @@ One base manifest, overlays stacked with `--overlay`:
 | 3 | `+ overlays/skills.yaml` | + skills: `answer-formatting` |
 | 4 | `+ overlays/memory.yaml` | + memory resource (plugin) + context injection + `memory-search` tool |
 
-The file `agent-final.yaml` shows what the runtime sees after merging all four
-overlays — a single assembled view for reference. Validate it:
+The file `agent-final.yaml` is a commented snapshot of that merge. Generate
+the live equivalent with [`mas-ctl compile`](../../cli/compile.md) (overlays
+applied, runtime defaults filled):
+
+```bash
+mas-ctl compile agent.yaml \
+  -o overlays/tools.yaml \
+  -o overlays/skills.yaml \
+  -o overlays/memory.yaml \
+  -O compiled-agent.yaml
+```
+
+Full flags, MAS folder vs single-file layouts, and examples:
+[compile command reference](../../cli/compile.md).
+
+Validate the snapshot:
 
 ```bash
 mas-ctl validate agent-final.yaml

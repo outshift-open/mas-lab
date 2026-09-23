@@ -2,6 +2,21 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Shared CLI help epilogs for mas-ctl commands."""
 
+COMPILE_EPILOG = """
+Examples:
+  mas-ctl compile agent.yaml -o overlays/tools.yaml -o overlays/skills.yaml
+  mas-ctl compile agent.yaml -o overlays/tools.yaml -O compiled-agent.yaml
+  mas-ctl compile mas.yaml -o overlays/linear.yaml -O ./compiled/
+  mas-ctl compile mas.yaml -o overlays/linear.yaml --layout bundle -O team.yaml
+
+Layouts:
+  auto    YAML file or stdout → one document; directory → mas.yaml + agents/
+  tree    Always a folder (MAS keeps one file per agent; Agent writes agent.yaml)
+  bundle  Always one YAML file (MAS inlines agents into agency.agents)
+
+``compose`` emits EffectiveBind + placement. ``compile`` dumps the resolved spec.
+"""
+
 CHAT_EPILOG = """
 Interactive session commands (at the You: prompt):
   /quit, /exit, /q     End the session

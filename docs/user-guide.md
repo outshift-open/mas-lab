@@ -58,7 +58,7 @@ browser. Started as part of Tutorial 0 (same Docker stack).
 
 | CLI | Package | Use for |
 |-----|---------|---------|
-| `mas-ctl` | `ctl/` | Chat, TUI, compose, validate, `run-mas` |
+| `mas-ctl` | `ctl/` | Chat, TUI, compile, compose, validate, `run-mas` |
 | `mas-runtime` | `runtime/` | Headless `run-agent` (Docker / CI) |
 | `mas-lab` | `lab/` | Benchmarks, pipelines, controller UI |
 

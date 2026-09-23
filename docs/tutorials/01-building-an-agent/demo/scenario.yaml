@@ -260,6 +260,18 @@ sections:
           skills, memory, and context-manager, all merged into a single
           readable manifest.
 
+          Generate the live equivalent with `mas-ctl compile` (overlays
+          applied, runtime defaults filled). Full flags and output layouts:
+          docs/cli/compile.md.
+
+          ```
+          mas-ctl compile agent.yaml \
+            -o overlays/tools.yaml \
+            -o overlays/skills.yaml \
+            -o overlays/memory.yaml \
+            -O compiled-agent.yaml
+          ```
+
           It is useful for code review, documentation, and debugging — you can
           see at a glance what the agent looks like when fully configured.
 

@@ -39,6 +39,7 @@ When you add or rename a doc page, update **`mkdocs.yml` nav** and cross-links i
 - [User configuration](user-config.md)
 - [Package map](libraries.md)
 - [Observability / run logs](cli/observability.md)
+- [`mas-ctl compile`](cli/compile.md)
 - **[Web UI](ui/index.md)**
 - [Terminal UI (TUI)](ctl/tui.md)
 - [Glossary](glossary.md)

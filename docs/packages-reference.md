@@ -7,7 +7,7 @@
 | Package                | Layer         | Description                                                                                                   | CLI                  |
 | ---------------------- | ------------- | ------------------------------------------------------------------------------------------------------------- | -------------------- |
 | `mas-runtime`          | Runtime core  | MAS Runtime V2 — Mealy kernel (embeddable library)                                                            | `mas-runtime`        |
-| `mas-ctl`              | Orchestration | MAS control plane V2 — compose, session, placement                                                            | `mas-ctl`            |
+| `mas-ctl`              | Orchestration | MAS control plane V2 — compile, compose, session, placement                                                   | `mas-ctl`            |
 | `mas-lab`              | Lab framework | MAS Lab — Multi-Agent System experimentation, benchmarking, and analysis toolkit.                             | `mas-lab`, `mas-ctl` |
 | `mas-lab-core`         | Lab framework | Core contracts, telemetry, schemas and utilities shared across MAS Lab components.                            | —                    |
 | `mas-lab-bench`        | Lab framework | Benchmark engine, pipeline execution, plots and validation for MAS Lab.                                       | —                    |
@@ -103,7 +103,7 @@ uv pip install -e "runtime[grpc,dev]"  # with all extras
 ### `mas-ctl`
 **Install path:** `ctl`  
 **Layer:** Orchestration  
-MAS control plane V2 — compose, session, placement
+MAS control plane V2 — compile, compose, session, placement
 
 ```bash
 uv pip install -e ctl  # core
