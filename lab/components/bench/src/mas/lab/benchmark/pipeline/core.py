@@ -1,6 +1,7 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 """
 Pipeline step base classes and YAML pipeline loader.
 """
@@ -17,9 +18,6 @@ from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
 
 import yaml
-
-from mas.runtime.registry import get_registry, register_plugin
-
 from mas.lab.benchmark.pipeline.models import (
     _STEP_KNOWN_KEYS,
     ConfigParam,
@@ -27,7 +25,7 @@ from mas.lab.benchmark.pipeline.models import (
     StepManifest,
     StepOutput,
 )
-
+from mas.runtime.registry import get_registry, register_plugin
 
 # ---------------------------------------------------------------------------
 # Step type resolution
@@ -41,6 +39,7 @@ from mas.lab.benchmark.pipeline.models import (
 # registered plugin at all, but a raw 'module.path:ClassName' or
 # './file.py:ClassName' reference straight from pipeline YAML.
 # ---------------------------------------------------------------------------
+
 
 def register_step(name: str, obj: Any, *, attributes: dict[str, Any] | None = None) -> None:
     """Register a pipeline step class in the runtime registry."""
@@ -145,18 +144,22 @@ def resolve_step_class(name: str, *, base_dir: Optional[Path] = None, required_b
         except Exception as exc:
             known = ", ".join(sorted(list_steps().keys()))
             cause = _manifest_lookup_error or exc
+            hint = ""
+            if not known:
+                hint = (
+                    " No pipeline steps are registered. Install mas-library-lab "
+                    "(workspace member) so extract_trace_stats and other library-lab "
+                    "steps are on the plugin registry."
+                )
             raise ValueError(
                 f"Unknown step type: {name!r}. "
-                f"Registered types: {known}. "
+                f"Registered types: {known or '(none)'}.{hint} "
                 f"For custom objects, use 'module.path:ClassName' or './file.py:ClassName'. "
                 f"Import error: {cause}"
             ) from cause
 
     if required_base and not (isinstance(cls, type) and issubclass(cls, required_base)):
-        raise TypeError(
-            f"step type {name!r} resolved to {cls!r}, "
-            f"which is not a {required_base.__name__} subclass."
-        )
+        raise TypeError(f"step type {name!r} resolved to {cls!r}, which is not a {required_base.__name__} subclass.")
     return cls
 
 
@@ -205,9 +208,7 @@ class PipelineStep(ABC):
         step_type = data["type"]
         step_class = resolve_step_class(step_type, base_dir=base_dir, required_base=PipelineStep)
 
-        unknown_keys = {
-            k for k in data.keys() if k not in _STEP_KNOWN_KEYS and not k.startswith("x-")
-        }
+        unknown_keys = {k for k in data.keys() if k not in _STEP_KNOWN_KEYS and not k.startswith("x-")}
         if unknown_keys:
             _warnings_module.warn(
                 f"Step {data.get('name', '?')!r}: unknown key(s) {sorted(unknown_keys)!r} "
@@ -265,8 +266,7 @@ class BatchPipelineStep(PipelineStep, ABC):
         items = self.config.get("items", [])
         if not items:
             raise ValueError(
-                f"Step '{self.name}': no 'items' in config.  "
-                "Override _get_items() or provide config.items."
+                f"Step '{self.name}': no 'items' in config.  Override _get_items() or provide config.items."
             )
         return items
 
@@ -352,9 +352,7 @@ class Pipeline:
         for step in self.steps:
             for dep in step.depends_on:
                 if dep not in self._step_map:
-                    raise ValueError(
-                        f"Step '{step.name}' depends on unknown step '{dep}'"
-                    )
+                    raise ValueError(f"Step '{step.name}' depends on unknown step '{dep}'")
 
         from mas.lab.benchmark.pipeline.resolver import DependencyResolver
 
@@ -416,10 +414,7 @@ class Pipeline:
             }
 
         config = PipelineConfig.from_dict(pipeline_data)
-        steps = [
-            PipelineStep.from_dict(step_data)
-            for step_data in pipeline_data.get("steps", [])
-        ]
+        steps = [PipelineStep.from_dict(step_data) for step_data in pipeline_data.get("steps", [])]
 
         return cls(config=config, steps=steps, config_path=path)
 
