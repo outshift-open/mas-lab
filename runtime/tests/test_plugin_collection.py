@@ -147,7 +147,7 @@ def test_skills_shorthand_pinned_override():
 
 def test_inject_context_plugins_ordering(tmp_path):
     """Parts from multiple plugins are sorted by placement before injection."""
-    from mas.runtime.boundary.context.assemble import _inject_context_plugins
+    from mas.library.standard.plugins.context.assembler import inject_context_plugins
 
     memory_part = ContextPart.memory("memory content")  # priority 100
     skills_part = ContextPart.skills("skills catalog")  # priority 40
@@ -164,7 +164,7 @@ def test_inject_context_plugins_ordering(tmp_path):
 
     ctx = _FakeCtx()
     system_parts: list[str] = []
-    _inject_context_plugins(ctx, system_parts)
+    inject_context_plugins(ctx, system_parts)
 
     assert len(system_parts) == 2
     # Skills (SYSTEM_SKILLS, priority 40) should come before memory (SYSTEM_MEMORY, priority 100)

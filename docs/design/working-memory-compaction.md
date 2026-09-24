@@ -3,11 +3,15 @@
 
 # Working memory: what it is, and unifying its compaction story
 
-Status: **implemented** on `feat/persistent-working-memory`
-(`spec.working_memory.persistent` and `spec.working_memory.compaction` both
-shipped — see `docs/manifests/agent.md` §Working memory across delegate
-calls). File:line references are current as of writing and will drift —
-treat them as pointers, not guarantees.
+Status: **converged** — compaction is **context assembly**, not a working-memory
+cache. `spec.working_memory.compaction` writes `spec.context_manager` when that
+slot is omitted. The summarising plugin's hysteresis is the cache (reuse summary
+until history grows 20%). Authoritative:
+[context-assembly.md](../manifests/context-assembly.md),
+[agent.md](../manifests/agent.md), [plugin-bindings.md](../manifests/plugin-bindings.md).
+
+File:line references below are historical and will drift.
+
 
 ## What "working memory" actually is (one buffer, two phases)
 
@@ -21,20 +25,18 @@ to describe as two phases of a single pipeline, not two separate memories:
    its own not-yet-committed tool trajectory before the turn concludes.
 2. **Committed phase** — `AutoCtxAssembler.committed_messages`/`turn_history`
    (`runtime/src/mas/runtime/driver/mocks.py`). At the end of every turn,
-   `note_agent_response()` (`mocks.py:80-103`) copies whatever is sitting in
-   the in-flight buffer into `committed_messages` (`self.working_memory.
-   messages` → `self.committed_messages.extend(...)`, `mocks.py:86-87`)
-   *before* clearing the in-flight buffer. Nothing is discarded at turn end —
-   it's relocated.
+   `note_agent_response()` copies whatever is sitting in the in-flight buffer
+   into `committed_messages` *before* clearing the in-flight buffer, then
+   applies the context manager's recency cap so the stored log cannot grow
+   without bound.
 
 So the full picture the manifest author should have in mind: system prompt
 (`injected_context`, rebuilt fresh from the manifest every time — never
-accumulates) + `committed_messages` (the permanent, growing record — system
-prompt, then every turn's user input, tool calls, tool results, and assistant
-replies, all folded in) + whatever the CURRENT turn has produced so far but
-not yet committed. `assemble_llm_messages()` (`runtime/src/mas/runtime/
-boundary/context/assemble.py:52-104`) stitches exactly these three pieces
-into the message list sent to the LLM, in that order.
+accumulates) + `committed_messages` (the recency-capped record — recent
+user turns, tool calls, tool results, and assistant replies) + whatever the
+CURRENT turn has produced so far but not yet committed.
+`assemble_llm_messages()` stitches exactly these three pieces into the
+message list sent to the LLM, in that order.
 
 `spec.working_memory.persistent` governs the committed phase only — it's
 what a delegated agent falls back on across separate `delegate_to_<agent>`
@@ -70,7 +72,7 @@ claim to control how much history is kept:
    - `SummarizingConversation` — compress older turns into a summary system
      block, keep the last N verbatim.
 
-   `assemble_llm_messages()` calls `cm.manage_history(past, budget_hint)` on
+   The assembler plugin calls `cm.manage_history(past, budget_hint)` on
    **every single turn**, where `past` is committed history and `budget_hint`
    is the model context window minus completion reserve (overridable via
    `spec.context_manager.params.trimmer`). See [context-assembly.md](../manifests/context-assembly.md)
@@ -93,66 +95,45 @@ right" there for the pattern this doc follows).
 ## The other dead end (fixed): `SummarizingConversation` was unusable
 
 `SummarizingConversation` used to raise if `summarize_fn` was `None`. It is now
-optional: without an LLM summarizer the plugin keeps the last `keep_turns` user
-turns verbatim and drops older ones (same recency pin as sliding-window). Bootstrap
-wires `engine.summarize_messages` when a live engine is present.
+optional: a `drop` summarizer (or `llm` with no live engine) keeps the last
+`keep_turns` user turns verbatim and discards older ones.
 
 ## Resolution (implemented)
 
-**One config surface, exposed where the manifest author actually looks for
-it — `spec.working_memory.compaction` — backed entirely by the existing,
-already-tested `context_manager`/`CMFactory` machinery. No new engine.**
+**One config surface: `spec.context_manager`.** `spec.working_memory.compaction`
+is sugar that writes that slot. Compaction policy is `manage_history`. The
+LLM view is bounded at assemble time. After each turn commit the same recency
+cap is written back to the committed log (folded prefix dropped). The cache
+for in-turn LLM calls is **hysteresis on the context-manager instance**.
 
-1. **`working_memory.compaction`** added to `agent.schema.yaml` (sibling of
-   `working_memory.persistent`):
+1. **`working_memory.compaction`** translates to `context_manager`:
 
    ```yaml
    working_memory:
      persistent: true
      compaction:
-       strategy: keep_recent   # keep_recent (default) | sliding_window | summarize
-       max_messages: 200       # keep_recent
+       strategy: keep_recent   # keep_recent | sliding_window | summarize
+       max_messages: 200       # keep_recent → stack
        window_size: 20         # sliding_window
        summary_threshold: 0    # summarize — 0 uses model context_window − reserve
        keep_turns: 10          # summarize — recent user turns kept verbatim
    ```
 
-   `runtime/src/mas/runtime/boundary/context/working_memory_compaction.py`
-   translates this into the existing `context_manager` binding shape
-   (`{"type": ..., "params": {...}}`) via a strategy → plugin-type table
-   (`keep_recent → stack`, `sliding_window → sliding_window`,
-   `summarize → summarising`) and hands it to the same
-   `CMFactory.create()` already wired at `assemble.py:78`. Pure facade:
-   `StackConversation`, `SlidingWindowConversation`, and
-   `SummarizingConversation` are reused verbatim, not rewritten.
+   Mapping: `keep_recent → stack`, `sliding_window → sliding_window`,
+   `summarize → summarising`. Prefer writing `spec.context_manager` directly;
+   if both are set, `context_manager` wins.
 
-   `spec.context_manager` set directly still works and takes precedence —
-   `working_memory.compaction` is sugar over it, not a replacement.
-   `instantiate_runtime()` (`ctl/src/mas/ctl/session/bootstrap.py`) calls
-   `apply_working_memory_compaction(spec, engine=selection.engine)` right
-   after the engine is resolved, and mirrors the result onto
-   `options.agent_manifest["spec"]["context_manager"]` too (the dict
-   `LiveLlmEngine` holds a live reference to and re-reads every turn).
+2. **Summarizer sub-plugins** (registry type `summarizer`): `llm` (default)
+   uses the agent's engine via `CMFactory.create(..., engine=ctx.engine)`.
+   `drop` discards older turns. The engine is **not** stored in the spec.
 
-2. **`spec.memory.compaction` deleted** from the schema — no implementation,
-   no test coverage, no callers. Pure subtraction.
+3. **Package default** when both slots are omitted: `context_manager:
+   summarising` with `summarizer: llm` (see [plugin-bindings.md](../manifests/plugin-bindings.md)).
+   That is not unbounded stack history.
 
-3. **`summarize` strategy is now real.** `build_llm_summarize_fn(engine)`
-   builds a `summarize_fn` backed by the agent's own resolved engine, reusing
-   `LiveLlmEngine`'s existing completion primitives
-   (`_model_access_chat`/`_chat_completion`) rather than the full
-   `InvokeEngineIo`/kernel turn machinery (this is a one-off, out-of-band
-   call during context assembly, not a tracked turn). If the resolved engine
-   doesn't look live (no completion primitives — e.g. a bare
-   `SimulatedEngine`), compaction degrades to `keep_recent` with a warning
-   instead of crashing at first use.
+4. **`spec.memory.compaction` deleted** — it was never wired.
 
-4. **Sensible default: no LLM round-trip unless asked for.**
-   `strategy: keep_recent` stays the default when `working_memory.compaction`
-   is omitted entirely (unbounded history, matching prior behavior) — never
-   spends a model call just to manage history size. `summarize` is opt-in.
-
-Tests: `runtime/tests/integration/test_working_memory_compaction.py` (facade
+Tests: `library-standard/tests/test_working_memory_compaction.py` (facade
 translation + `build_llm_summarize_fn` + real `CMFactory` instantiation),
 `ctl/tests/test_working_memory_compaction_bootstrap.py` (end-to-end through
 `instantiate_runtime()`).

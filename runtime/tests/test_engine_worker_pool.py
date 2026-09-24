@@ -75,6 +75,16 @@ def test_parse_agent_spec_default_max_auto_steps():
     assert config.max_auto_steps == DEFAULT_MAX_AUTO_STEPS
 
 
+def test_parse_agent_spec_design_pattern_string_shorthand():
+    config, _ = parse_agent_spec({"design_pattern": "cot"})
+    assert config.pattern_plugin_id == "cot"
+
+
+def test_parse_agent_spec_design_pattern_max_steps_sets_dispatch_cap():
+    config, _ = parse_agent_spec({"design_pattern": {"type": "react", "params": {"max_steps": 12}}})
+    assert config.max_auto_steps == 12
+
+
 def test_runtime_instance_threads_kernel_config_max_auto_steps_to_driver():
     instance = RuntimeInstance.from_parts(config=KernelConfig(max_auto_steps=7))
     assert instance.driver.max_auto_steps == 7

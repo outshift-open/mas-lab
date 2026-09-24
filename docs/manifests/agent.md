@@ -10,12 +10,101 @@ An **agent** manifest (`agent.yaml`) declares one LLM actor: tools, skills, desi
 pattern, plugins, and **observability** settings. A **MAS** manifest references one or
 more agents; **overlays** patch agents without duplicating the base file.
 
-**Terms:** [glossary.md](../glossary.md) · Hub: [README.md](README.md).
-
-Declares one runtime participant: how it reasons, what it can call, what context it
-sees, and which plugins hook its execution.
-
 ---
+
+## Plugin bindings
+
+Singleton slots accept a **plugin name** or `{type, ref, params}`. List slots
+use `[{plugin_name: {params}}]`. Full rules: [plugin-bindings.md](plugin-bindings.md).
+
+```yaml
+spec:
+  design_pattern: cot          # ≡ {type: cot}
+  context_manager: stack       # ≡ {type: stack}
+  assembler: assembler         # omit for the same default
+```
+
+## Spec field reference
+
+Every `spec` key from `agent.schema.yaml`. **Default** is what omitting the
+field does. **Equivalent** is the object `mas-ctl compile` writes. Bindings:
+[plugin-bindings.md](plugin-bindings.md). To see this table as one real
+`mas-ctl compile` output instead of a hand-written summary:
+[Compiled agent defaults](../references/defaults.md).
+
+| Field | Default | Notes |
+|-------|---------|-------|
+| `description` | *(required)* | Routing one-liner for `delegate_to_*` tools. Not the system prompt. |
+| `context` | `{}` | Named system-prompt chunks (`role`, `intent`, …). String, `{ref}`, or fragment list. |
+| `params` | `{}` | Free-form strings for middleware / sidecars. Not kernel config. |
+| `models[]` | `[{id: main, model: <defaults.model>}]` | `temperature` 0.7, `max_tokens` 2000 (completion reserve), `context_window` 128000. |
+| `design_pattern` | `react` | Shorthand `design_pattern: cot` ≡ `{type: cot}`. Compile fills `params.max_steps: 512`, `max_cot_pass: 1`, `parallel: true`. |
+| `assembler` | `assembler` | Builds `messages[]`. Compile fills `emit_segments: true`, `always_reassemble: false`. |
+| `context_manager` | `summarising` | History plugin. Sub-plugin `params.summarizer` (`llm` \| `drop`). See [context-assembly.md](context-assembly.md). |
+| `working_memory.persistent` | `true` | Committed buffer survives delegate calls in-session. |
+| `working_memory.compaction` | *(unset)* | Sugar for `context_manager` (LLM view + stored-log cap). Ignored if `context_manager` is set. |
+| `memory` | flavour | Shorthand `semantic` or full `types` / `persistence` / `search` object. |
+| `memory_seed` | `[]` | Documents indexed at startup. |
+| `skills` | `[]` | Skill names or `@library/name`. |
+| `tools` | `[]` | Semantic name, `{ref}`, `{kind: system, name}`, or inline `module_path`. |
+| `tools_ref` | `null` | Logical tool-set name for infra ToolRegistry. |
+| `providers` | `[]` | Tool-provider claims. Empty → local plugin owns `spec.tools`. |
+| `behavior.share_reasoning` | `false` | Optional `reasoning_context` on send_to_caller. |
+| `behavior.delegation_style` | `typed` | `delegate_to_<id>` from MAS topology. |
+| `governance` | `[]` | List slot. Bare id or `{plugin_name: {params}}`. |
+| `observability` | `[]` | List slot (`native`, `otel`). Flavour/CLI may attach native. |
+| `context_sources` | `[]` | Skill-engine list (`native`, `adk`, `langchain`). |
+| `control` | `{}` | Control-plane plugin configs keyed by id. |
+| `llm` | `{}` | Deprecated model shim. Prefer `models[]`. |
+
+### `design_pattern` (default equivalent)
+
+```yaml
+spec:
+  design_pattern:
+    type: react
+    params:
+      max_steps: 512
+      max_cot_pass: 1
+      parallel: true
+```
+
+Shipped ids: `react`, `cot`, `single_pass`, `introspection`, `plan_execute`,
+`tree_of_thoughts`, `deterministic_single`, `deterministic_linear`,
+`deterministic_parallel`. Same default params; `cot` / `introspection` /
+`tree_of_thoughts` consume `max_cot_pass`.
+
+### `context_manager` + `summarizer` (default equivalent)
+
+```yaml
+spec:
+  context_manager:
+    type: summarising
+    params:
+      keep_turns: 10
+      hysteresis_ratio: 0.2
+      summarizer: llm          # registry type summarizer; drop = discard older turns
+      summary_threshold: 126000
+      working_memory_messages: 20
+      trimmer:
+        max_tokens: 128000
+        reserve_tokens: 2000
+```
+
+The summarising manager **has strategy code** (recency pin + hysteresis cache)
+and **composes** a summarizer sub-plugin. `stack` and `sliding-window` have
+no summarizer.
+
+### `assembler` (default equivalent)
+
+```yaml
+spec:
+  assembler:
+    type: assembler
+    params:
+      emit_segments: true
+      always_reassemble: false
+```
 
 ## Responsibilities
 
@@ -23,15 +112,16 @@ sees, and which plugins hook its execution.
 |------|---------------|-------------------|
 | Reasoning loop | `design_pattern` | Selects DesignPatternContract (ReAct, CoT, …) — intra-agent δ transitions |
 | Peer delegation | MAS `workflow` (when embedded in a MAS) | `delegates_to` graph + `workflow.type`; executed by the entry agent's own `design_pattern` (ReAct tool loop) — see [mas.md](mas.md) |
-| Context window | `context_manager` | summarising (default: last `keep_turns` verbatim, older summarized) / sliding-window / stack; history budget = model `context_window` − completion reserve — [context-assembly.md](context-assembly.md) |
+| Prompt assembly | `assembler` | default `assembler` (ContextAssemblerPlugin) — [context-assembly.md](context-assembly.md) · [plugin-bindings.md](plugin-bindings.md) |
+| Context window | `context_manager` | default `summarising` (last `keep_turns` verbatim; `summarizer: llm` or `drop`) / sliding-window / stack — [context-assembly.md](context-assembly.md) |
 | Prompt / role | `description`, `context` | `description` → delegation tools; `context.*` → system prompt |
 | Models | `models[]` | LLM routing (ids, temperature, max_tokens completion, context_window) |
 | Tools | `tools`, `tools_ref`, `providers` | [ToolContract](../references/tool-contract.md) · [tool.md](tool.md) · [ToolServerRegistry](../references/tool-server-registry.md) |
 | Skills | `skills` | Context facet (catalog) + `activate_skill`/`read_skill_file` tools |
 | Memory | `memory`, `memory_seed` | Stores + startup seeds |
 | Working memory | `working_memory.persistent` | Cross-turn buffer survives repeat delegate calls within one session (default `true`) — see below |
-| Kernel plugins | `plugins[]`, `governance[]`, `observability[]` | Governance and observability on Mealy envelope chokepoints (not a hook plane) |
-| Execution mode | `execution` | Mocking, LLM cache, parallel tools, engine queue depth — see [execution.md](execution.md) |
+| Kernel plugins | `governance[]`, `observability[]` | Governance and observability on Mealy envelope chokepoints (not a hook plane) |
+| Engine / flavour | workspace `runtime_refs` / flavour | Mocking, LLM cache, engine queue — not an agent spec field; see [execution.md](execution.md) |
 
 ---
 
@@ -90,26 +180,30 @@ default bucket, as described above.
 This is in-memory and scoped to one mas-ctl session/run — it does not persist across separate CLI
 invocations. Cross-process persistence (`spec.memory.persistence`) is a tracked follow-up.
 
-**`spec.working_memory.compaction`** — how much of the committed history to keep as it grows. A
-facade over `spec.context_manager`/`CMFactory` (set `context_manager` directly instead for
-lower-level control — it takes precedence if both are set):
+**`spec.working_memory.compaction`** is **sugar for `spec.context_manager`**, not a
+second engine and not a cache of working memory.
+
+- **Committed history is rewritten at turn commit** to the same recency cap
+  (`keep_turns` / `max_turns` / `max_messages`). Folded prefix data is dropped
+  from `committed_messages` and conversation chunks so snapshots stay bounded.
+- **The LLM view** is the same policy: each call, `context_manager.manage_history`
+  builds the payload (drop or summarize older turns).
+- **The cache is hysteresis on the context-manager instance** (summarising plugin):
+  after a summary, new turns stay verbatim until the managed payload grows
+  `hysteresis_ratio` (default 0.2) past budget. That avoids a summarizer LLM call
+  on every in-turn step without mutating working memory.
+- **Working memory** is the live tool round (this turn) plus the optional
+  persistent committed buffer (`working_memory.persistent`).
+
+Prefer `spec.context_manager` (what compile emits). If both are set, `context_manager` wins.
 
 ```yaml
+# equivalent to context_manager: {type: stack, params: {max_messages: 200}}
 working_memory:
   compaction:
-    strategy: keep_recent   # keep_recent (no LLM call) | sliding_window | summarize
-    max_messages: 200       # keep_recent
-    window_size: 20         # sliding_window
-    summary_threshold: 0    # summarize — 0 means use model context_window − reserve
-    keep_turns: 10          # recent user turns kept verbatim; never the live tool round
+    strategy: keep_recent
+    max_messages: 200
 ```
-
-`summarize` calls an LLM (using this agent's own resolved model) to compress older turns into one
-summary block; without a live model it keeps the last `keep_turns` and drops the rest rather than
-failing. Prefer `spec.context_manager` (what `mas-ctl compile` emits) for the same plugins.
-`keep_recent`/`sliding_window` never spend a model call. See
-`docs/design/working-memory-compaction.md` for the full design and why the two dead schema surfaces
-this replaces were removed.
 
 ---
 
@@ -203,5 +297,7 @@ curl http://localhost:8090/api/schemas/agent
 - [Tool manifest](tool.md) — `kind: Tool` advertise fields
 - [ToolContract](../references/tool-contract.md) — `call_tool(name, arguments)`
 - [Infra ToolServerRegistry](infra.md#toolserverregistry) — remote URL / transport · [reference](../references/tool-server-registry.md)
+- [plugin-bindings.md](plugin-bindings.md) — string shorthand vs `{type, params}` vs list slots
+- [Compiled agent defaults](../references/defaults.md) — a minimal manifest, fully expanded
 - [Tutorial: building an agent](../tutorials/01-building-an-agent/README.md)
-- [Design patterns](agent.md#design-pattern) — `spec.design_pattern` on agents
+

@@ -49,3 +49,17 @@ properties:
       again. After compressing to keep_turns, new turns accumulate verbatim
       until the managed payload exceeds the budget times (1 + hysteresis_ratio).
       Stops a summary LLM call on every subsequent iteration.
+  summarizer:
+    description: >
+      Sub-plugin of the summarising context manager. Compresses older turns.
+      `llm` (default): this agent's model. `drop`: discard older turns, keep
+      keep_turns verbatim. String shorthand (`summarizer: llm`) ≡ `{type: llm}`.
+    oneOf:
+      - type: string
+        enum: [llm, drop]
+      - type: object
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            enum: [llm, drop]

@@ -17,7 +17,8 @@ Declarative YAML kinds and how they compose.
 | Topic | Reference |
 |-------|-----------|
 | Overview & composition | [Manifest overview](../manifests/README.md) |
-| Agent | [agent.md](../manifests/agent.md) |
+| Agent | [agent.md](../manifests/agent.md) · [plugin-bindings.md](../manifests/plugin-bindings.md) · [context-assembly.md](../manifests/context-assembly.md) |
+| Compiled agent defaults (worked example) | [defaults.md](defaults.md) |
 | Tool (`kind: Tool`) | [tool.md](../manifests/tool.md) · [ToolContract](tool-contract.md) |
 | ToolServerRegistry | [infra.md](../manifests/infra.md#toolserverregistry) · [reference](tool-server-registry.md) |
 | MAS & workflow | [mas.md](../manifests/mas.md), [workflow.md](../manifests/workflow.md) |

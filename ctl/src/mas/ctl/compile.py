@@ -24,8 +24,10 @@ from mas.ctl.validate import validate_data, validate_file, validation_enabled
 from mas.ctl.workspace.config import WorkspaceConfig
 from mas.runtime.agent_defaults import (
     agent_defaults,
+    default_assembler_id,
     default_pattern_plugin_id,
 )
+from mas.runtime.spec.plugin_binding import normalize_plugin_binding, plugin_binding_id
 from mas.runtime.spec.source import load_yaml_mapping, resolve_yaml_path
 
 logger = logging.getLogger(__name__)
@@ -62,20 +64,52 @@ def fill_agent_defaults(doc: dict[str, Any], *, workspace: Any = None) -> dict[s
     if str(out.get("kind", "")).lower() != "agent":
         return out
     spec = out.setdefault("spec", {})
+    if "context_plugin" in spec:
+        raise CompileError("spec.context_plugin was removed; use spec.assembler")
     defaults = agent_defaults(workspace)
 
-    dp = spec.get("design_pattern")
-    if not dp:
+    dp = normalize_plugin_binding(spec.get("design_pattern"), field="spec.design_pattern")
+    if not plugin_binding_id(dp, field="spec.design_pattern"):
         spec["design_pattern"] = copy.deepcopy(defaults["design_pattern"])
-    elif isinstance(dp, dict) and not (dp.get("type") or dp.get("ref")):
-        dp["type"] = default_pattern_plugin_id()
+        dp = spec["design_pattern"]
+    else:
+        spec["design_pattern"] = dp
+        if not (dp.get("type") or dp.get("ref")):
+            dp["type"] = default_pattern_plugin_id()
+    dp_params = dp.get("params")
+    if not isinstance(dp_params, dict):
+        dp_params = {}
+        dp["params"] = dp_params
+    from mas.runtime.kernel.config import KernelConfig
+
+    kernel_defaults = KernelConfig()
+    dp_params.setdefault("max_steps", kernel_defaults.max_auto_steps)
+    dp_params.setdefault("max_cot_pass", kernel_defaults.max_cot_pass)
+    dp_params.setdefault("parallel", kernel_defaults.parallel_tool_calls)
 
     if not spec.get("models"):
         spec["models"] = copy.deepcopy(defaults["models"])
 
-    from mas.runtime.spec.history_budget import fill_context_manager_defaults
+    from mas.library.standard.lib.context.compaction import apply_working_memory_compaction
+    from mas.library.standard.lib.context.history_budget import fill_context_manager_defaults
 
+    apply_working_memory_compaction(spec)
     fill_context_manager_defaults(spec)
+
+    asm = normalize_plugin_binding(spec.get("assembler"), field="spec.assembler")
+    if not plugin_binding_id(asm, field="spec.assembler"):
+        spec["assembler"] = {"type": default_assembler_id()}
+        asm = spec["assembler"]
+    else:
+        spec["assembler"] = asm
+        if not (asm.get("type") or asm.get("ref")):
+            asm["type"] = default_assembler_id()
+    asm_params = asm.get("params")
+    if not isinstance(asm_params, dict):
+        asm_params = {}
+        asm["params"] = asm_params
+    asm_params.setdefault("emit_segments", True)
+    asm_params.setdefault("always_reassemble", False)
 
     return out
 

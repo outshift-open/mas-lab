@@ -199,11 +199,23 @@ class PluginRegistry:
         manifest: dict | None = None,
         **params: Any,
     ) -> Any:
-        """Instantiate the plugin declared under ``spec.<spec_key>``."""
+        """Instantiate the plugin declared under ``spec.<spec_key>``.
+
+        Reads the binding leniently: ``ctl`` already validates every
+        singleton plugin slot at authoring time, so this is the runtime's
+        one central plugin-construction path, hit by every spec key
+        (``design_pattern``, ``context_manager``, ``assembler``, ``summarizer``,
+        ...). A malformed value that bypassed ``ctl`` (e.g. a hand-built
+        manifest in a test or embedding) degrades to the slot's default
+        plugin rather than failing construction.
+        """
+        from mas.runtime.spec.plugin_binding import normalize_plugin_binding_lenient
+
         if binding is None and manifest is not None:
-            raw = (manifest.get("spec") or {}).get(spec_key) or {}
-            binding = raw if isinstance(raw, dict) else {}
-        binding = dict(binding or {})
+            raw = (manifest.get("spec") or {}).get(spec_key)
+            binding = normalize_plugin_binding_lenient(raw, field=f"spec.{spec_key}")
+        else:
+            binding = normalize_plugin_binding_lenient(binding, field=f"spec.{spec_key}")
         info = self.resolve_spec(spec_key, binding)
         cls = info.load_class()
         ctor_params = {**dict(binding.get("params") or {}), **params}

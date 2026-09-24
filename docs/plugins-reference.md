@@ -29,6 +29,12 @@ practical examples.
 
 ## Plugins by Category
 
+### Assembler
+
+| Class                    | Full module path                                 | Package                |
+| ------------------------ | ------------------------------------------------ | ---------------------- |
+| `ContextAssemblerPlugin` | `mas.library.standard.plugins.context.assembler` | `mas-library-standard` |
+
 ### Context_Manager
 
 | Class                       | Full module path                                    | Package                |
@@ -36,12 +42,6 @@ practical examples.
 | `SlidingWindowConversation` | `mas.library.standard.plugins.context.conversation` | `mas-library-standard` |
 | `StackConversation`         | `mas.library.standard.plugins.context.conversation` | `mas-library-standard` |
 | `SummarizingConversation`   | `mas.library.standard.plugins.context.conversation` | `mas-library-standard` |
-
-### Context_Plugin
-
-| Class                    | Full module path                                 | Package                |
-| ------------------------ | ------------------------------------------------ | ---------------------- |
-| `ContextAssemblerPlugin` | `mas.library.standard.plugins.context.assembler` | `mas-library-standard` |
 
 ### Design_Pattern
 
@@ -62,7 +62,7 @@ practical examples.
 | Class                    | Full module path                                             | Package                |
 | ------------------------ | ------------------------------------------------------------ | ---------------------- |
 | `NoUndeclaredToolPlugin` | `mas.library.standard.plugins.governance.no_undeclared_tool` | `mas-library-standard` |
-| `SampleGovernancePlugin` | `mas.library.standard.mas.runtime.boundary.gov.sample`       | `mas-library-standard` |
+| `SampleGovernancePlugin` | `mas.library.standard.plugins.governance.sample`             | `mas-library-standard` |
 
 ### Memory
 
@@ -95,6 +95,13 @@ practical examples.
 | ------------------ | ------------------------------------- | -------------------- |
 | `SkillToolsPlugin` | `mas.library.skills.plugins.sk_tools` | `mas-library-skills` |
 
+### Summarizer
+
+| Class            | Full module path                                  | Package                |
+| ---------------- | ------------------------------------------------- | ---------------------- |
+| `DropSummarizer` | `mas.library.standard.plugins.context.summarizer` | `mas-library-standard` |
+| `LlmSummarizer`  | `mas.library.standard.plugins.context.summarizer` | `mas-library-standard` |
+
 ### Tool_Provider
 
 | Class               | Full module path                           | Package                |
@@ -107,12 +114,14 @@ practical examples.
 
 | Class                            | Category        | Package                |
 | -------------------------------- | --------------- | ---------------------- |
-| `ContextAssemblerPlugin`         | context_plugin  | `mas-library-standard` |
+| `ContextAssemblerPlugin`         | assembler       | `mas-library-standard` |
 | `CotPlugin`                      | design_pattern  | `mas-library-standard` |
 | `DeterministicLinearPlugin`      | design_pattern  | `mas-library-standard` |
 | `DeterministicParallelPlugin`    | design_pattern  | `mas-library-standard` |
 | `DeterministicSingleAgentPlugin` | design_pattern  | `mas-library-standard` |
+| `DropSummarizer`                 | summarizer      | `mas-library-standard` |
 | `IntrospectionPlugin`            | design_pattern  | `mas-library-standard` |
+| `LlmSummarizer`                  | summarizer      | `mas-library-standard` |
 | `LocalToolProvider`              | tool_provider   | `mas-library-standard` |
 | `NativeObservabilityPlugin`      | observability   | `mas-library-standard` |
 | `NoUndeclaredToolPlugin`         | governance      | `mas-library-standard` |

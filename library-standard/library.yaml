@@ -21,7 +21,8 @@ types:
   - observability
   - design_pattern
   - context_manager
-  - context_plugin
+  - summarizer
+  - assembler
   - memory
   - governance
   - tool_provider
@@ -115,12 +116,32 @@ plugins:
     module: mas.library.standard.plugins.context.conversation
     class: SummarizingConversation
 
-  # Context plugins
-  - type: context_plugin
+  # Summarizer sub-plugins (composed by summarising context manager)
+  - type: summarizer
+    name: llm
+    urn: mas.summarizer.llm
+    module: mas.library.standard.plugins.context.summarizer
+    class: LlmSummarizer
+    shortcuts:
+      - llm
+  - type: summarizer
+    name: drop
+    urn: mas.summarizer.drop
+    module: mas.library.standard.plugins.context.summarizer
+    class: DropSummarizer
+    shortcuts:
+      - drop
+
+  # Prompt assembler (spec.assembler)
+  - type: assembler
     name: assembler
     urn: mas.ctx.assembler
     module: mas.library.standard.plugins.context.assembler
     class: ContextAssemblerPlugin
+    shortcuts:
+      - assembler
+      - context-assembler
+      - ctx-assembler
 
   # Memory plugins
   - type: memory
@@ -129,11 +150,11 @@ plugins:
     module: mas.library.standard.plugins.memory.memory_semantic
     class: SemanticMemoryPlugin
 
-  # Governance plugins (SampleGovernancePlugin lives in the runtime boundary layer)
+  # Governance plugins
   - type: governance
     name: sample
     urn: mas.gov.sample
-    module: mas.runtime.boundary.gov.sample
+    module: mas.library.standard.plugins.governance.sample
     class: SampleGovernancePlugin
   - type: governance
     name: gov_no_undeclared_tool
@@ -148,3 +169,4 @@ plugins:
 
 defaults:
   tool_provider: local
+  summarizer: llm

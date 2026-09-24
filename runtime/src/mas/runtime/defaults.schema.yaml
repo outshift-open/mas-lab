@@ -39,7 +39,7 @@ properties:
         type: string
         minLength: 1
         description: Default plugin id for spec.context_manager when omitted.
-      context_plugin:
+      assembler:
         type: string
         minLength: 1
-        description: Default plugin id for spec.context_plugin when omitted.
+        description: Default plugin id for spec.assembler when omitted.

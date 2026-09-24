@@ -228,6 +228,8 @@ class TestPluginRegistry:
         assert len(categories) > 0
         assert "design_pattern" in categories
         assert "context_manager" in categories
+        assert "summarizer" in categories
+        assert "assembler" in categories
     
     def test_all_aliases(self):
         """Test getting all aliases."""

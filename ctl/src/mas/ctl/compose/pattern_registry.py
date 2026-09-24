@@ -10,6 +10,7 @@ from typing import Any
 import yaml
 
 from mas.runtime.agent_defaults import default_pattern_plugin_id
+from mas.runtime.spec.plugin_binding import plugin_binding_id
 
 # Manifest ``design_pattern.type`` aliases → registry id suffix (before @v1).
 _TYPE_ALIASES: dict[str, str] = {
@@ -21,17 +22,22 @@ _TYPE_ALIASES: dict[str, str] = {
 }
 
 
-def resolve_design_pattern_registry_id(design_pattern: dict[str, Any] | None) -> str:
-    """Map agent spec.design_pattern {type|ref} to internal registry id (compose output)."""
-    if not design_pattern or not isinstance(design_pattern, dict):
+def resolve_design_pattern_registry_id(design_pattern: dict[str, Any] | str | None) -> str:
+    """Map agent spec.design_pattern name or {type|ref} to internal registry id."""
+    binding = (
+        design_pattern
+        if isinstance(design_pattern, dict)
+        else {"type": design_pattern} if isinstance(design_pattern, str) else {}
+    )
+    if not plugin_binding_id(binding, field="spec.design_pattern"):
         return default_pattern_plugin_id()
-    ref = design_pattern.get("ref")
+    ref = binding.get("ref")
     if isinstance(ref, str) and ref.strip():
         if "://" in ref or ref.startswith(("./", "../")):
             return default_pattern_plugin_id()
         bare = ref.split("@", 1)[0]
         return f"{bare}@v1"
-    ptype = str(design_pattern.get("type") or "react")
+    ptype = str(binding.get("type") or "react")
     normalized = _TYPE_ALIASES.get(ptype, ptype)
     return f"{normalized}@v1"
 

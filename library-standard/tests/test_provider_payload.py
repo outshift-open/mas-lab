@@ -255,6 +255,30 @@ def test_summarizing_hysteresis_reuses_summary_on_the_next_call() -> None:
     assert_provider_payload(reused)
 
 
+def test_summarizing_hysteresis_does_not_reuse_a_different_prefix() -> None:
+    """Same compressed-turn count, different conversation — do not attach
+    the previous summary. This is the WM-restore / context_id case."""
+    calls: list[str] = []
+
+    def summarize(msgs: list[dict[str, Any]]) -> str:
+        calls.append(str(msgs[0].get("content", "")))
+        return f"SUM-{len(calls)}"
+
+    def fat(label: str) -> list[dict[str, Any]]:
+        return _tool_turn(label, content=label + "-x" * 400)
+
+    cm = SummarizingConversation(keep_turns=1, hysteresis_ratio=0.2, summarize_fn=summarize)
+    first_past = fat("alpha") + fat("beta") + fat("gamma")
+    high = SummarizingConversation._estimate_tokens(first_past) - 1
+    first = cm.manage_history(first_past, high)
+    assert len(calls) == 1
+    other_past = fat("other-a") + fat("other-b") + fat("other-c")
+    second = cm.manage_history(other_past, high)
+    assert len(calls) == 2
+    assert first[0]["content"] != second[0]["content"]
+    assert "SUM-2" in second[0]["content"]
+
+
 def test_summarizing_recompacts_after_hysteresis_ceiling() -> None:
     calls: list[int] = []
 

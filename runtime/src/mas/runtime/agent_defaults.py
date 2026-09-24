@@ -29,11 +29,11 @@ def default_context_manager_id() -> str:
     return get_registry().default_for("context_manager")
 
 
-def default_context_plugin_id() -> str:
-    """Registry id for ``spec.context_plugin`` when manifest omits type/ref."""
+def default_assembler_id() -> str:
+    """Registry id for ``spec.assembler`` when manifest omits type/ref."""
     from mas.runtime.registry import get_registry
 
-    return get_registry().default_for("context_plugin")
+    return get_registry().default_for("assembler") or "assembler"
 
 
 def default_model() -> str:

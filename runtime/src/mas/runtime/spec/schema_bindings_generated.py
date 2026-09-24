@@ -59,6 +59,14 @@ CONTEXT_MANAGER_BINDING_KEYS = frozenset(
     }
 )
 
+ASSEMBLER_BINDING_KEYS = frozenset(
+    {
+    'params',
+    'ref',
+    'type',
+    }
+)
+
 CONTEXT_MANAGER_ASSEMBLY_PARAM_KEYS = frozenset(
     {
     'max_in_turn_messages',
@@ -74,6 +82,7 @@ CONTEXT_MANAGER_STRATEGY_PARAM_KEYS = frozenset(
     'keep_turns',
     'max_messages',
     'max_turns',
+    'summarizer',
     'summary_threshold',
     'window_size',
     }

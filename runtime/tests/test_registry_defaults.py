@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from mas.runtime.agent_defaults import (
     agent_defaults,
+    default_assembler_id,
     default_context_manager_id,
-    default_context_plugin_id,
     default_model,
     default_pattern_plugin_id,
     resolve_default_model,
@@ -28,7 +28,7 @@ def test_default_defaults_loaded_from_package_data() -> None:
     assert defaults["model"] == "gpt-4o-mini"
     assert defaults["design_pattern"] == "react@v1"
     assert defaults["context_manager"] == "summarising"
-    assert defaults["context_plugin"] == "context-assembler"
+    assert defaults["assembler"] == "assembler"
 
 
 def test_workspace_defaults_override_package_defaults(tmp_path) -> None:
@@ -50,6 +50,7 @@ def test_workspace_defaults_override_package_defaults(tmp_path) -> None:
     assert merged["design_pattern"] == "cot@v1"
     # ...untouched keys fall back to the package default.
     assert merged["context_manager"] == "summarising"
+    assert merged["assembler"] == "assembler"
 
 
 def test_registry_set_default_reflects_workspace_override(tmp_path) -> None:
@@ -68,6 +69,7 @@ def test_registry_set_default_reflects_workspace_override(tmp_path) -> None:
     assert registry.default_for("design_pattern") == "cot@v1"
     # context_manager wasn't overridden, so the package default still applies.
     assert registry.default_for("context_manager") == "summarising"
+    assert registry.default_for("assembler") == "assembler"
 
 
 def test_registry_does_not_register_model_as_a_spec_default() -> None:
@@ -82,7 +84,7 @@ def test_registry_does_not_register_model_as_a_spec_default() -> None:
 def test_agent_defaults_accessors_use_single_source_of_truth() -> None:
     assert default_pattern_plugin_id() == "react@v1"
     assert default_context_manager_id() == "summarising"
-    assert default_context_plugin_id() == "context-assembler"
+    assert default_assembler_id() == "assembler"
     assert default_model() == "gpt-4o-mini"
     assert resolve_default_model() == "gpt-4o-mini"
 

@@ -31,6 +31,7 @@ from mas.runtime.contracts.protocols import (
     ObservabilitySink,
 )
 from mas.runtime.contracts.recorder_contract import RecorderContract
+from mas.runtime.contracts.summarizer_contract import SummarizerContract
 from mas.runtime.contracts.tool_contract import (
     ToolContract,
     ToolResultEnvelope,
@@ -62,6 +63,7 @@ __all__ = [
     "OrchestrationContract",
     "PolicyViolation",
     "RecorderContract",
+    "SummarizerContract",
     "ToolContract",
     "ToolResultEnvelope",
     "invoke_call_tool",

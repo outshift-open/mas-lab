@@ -138,64 +138,107 @@ properties:
                 against max_tokens (e.g. Gemini 2.5, o-series).
 
       design_pattern:
-        type: [object, "null"]
-        description: "Reasoning strategy. Defaults to react if absent."
+        description: >
+          Reasoning strategy. String shorthand is the plugin name
+          (`design_pattern: cot` ≡ `{type: cot}`). Defaults to react when absent.
+          See docs/manifests/plugin-bindings.md.
         x-merge:
-          strategy: replace
-        additionalProperties: false
-        properties:
-          type:
-            type: string
-            description: >
-              Builtin name shorthand — mutually exclusive with ref.
-              react | cot | cot_native | plan_execute | tree_of_thoughts | accumulator | role aliases.
-              Equivalent to ref: <name> when no scheme prefix.
-          ref:
-            type: string
-            description: >
-              Unified plugin locator — mutually exclusive with type.
-              Forms: bare-name, ./local/path, module://pkg.Class, oci://registry/img:tag
-          params:
-            type: object
-            description: Plugin-specific design-pattern parameters.
-            additionalProperties: true
-            default: {}
-          config:
-            type: object
-            description: Alias for params (overlay compatibility).
-            additionalProperties: true
-            default: {}
+          strategy: plugin_binding_merge
+        oneOf:
+          - type: "null"
+          - type: string
+            minLength: 1
+            description: Plugin name (react, cot, plan_execute, …).
+          - type: object
+            additionalProperties: false
+            properties:
+              type:
+                type: string
+                description: >
+                  Plugin name — mutually exclusive with ref.
+                  react | cot | cot_native | plan_execute | tree_of_thoughts | accumulator | role aliases.
+              ref:
+                type: string
+                description: >
+                  Unified plugin locator — mutually exclusive with type.
+                  Forms: bare-name, ./local/path, module://pkg.Class, oci://registry/img:tag
+              params:
+                $ref: "./fragments/design-pattern-config.schema.yaml"
+                description: Plugin-specific parameters (max_steps → kernel dispatch cap).
+                default: {}
+              config:
+                $ref: "./fragments/design-pattern-config.schema.yaml"
+                description: Alias for params (overlay compatibility).
+                default: {}
 
       context_manager:
-        type: object
         description: >
-          Conversation-history plugin (library-standard ContextManagerContract).
-          Defaults to summarising when absent: last keep_turns user turns stay
-          verbatim; older turns are summarized when an LLM summarizer is wired,
-          otherwise dropped. Builtin types: summarising | sliding-window | stack
-          | full-history. mas-ctl compile fills type plus recency/trimmer params
-          from the model context window.
+          Conversation-history plugin. String shorthand is the plugin name
+          (`context_manager: stack` ≡ `{type: stack}`). Defaults to summarising
+          when absent. Builtin types: summarising | sliding-window | stack |
+          full-history. See docs/manifests/plugin-bindings.md and context-assembly.md.
         x-merge:
-          strategy: mapping_merge_or_ops
-        additionalProperties: false
-        properties:
-          type:
-            type: string
-            description: "Builtin name shorthand — mutually exclusive with ref: summarising | sliding-window | stack | full-history."
-          ref:
-            type: string
-            description: "Unified plugin locator — mutually exclusive with type. Same forms as design_pattern.ref."
-          params:
-            $ref: "./fragments/context-manager-params.schema.yaml"
-            default: {}
-          memory:
-            type: array
-            description: >
-              Memory types whose content is auto-injected into the system
-              prompt as context facets.  E.g. [semantic].
-            default: []
-            items:
-              type: string
+          strategy: plugin_binding_merge
+        oneOf:
+          - type: string
+            minLength: 1
+          - type: object
+            additionalProperties: false
+            properties:
+              type:
+                type: string
+                description: "Plugin name — mutually exclusive with ref: summarising | sliding-window | stack | full-history."
+              ref:
+                type: string
+                description: "Unified plugin locator — mutually exclusive with type. Same forms as design_pattern.ref."
+              params:
+                $ref: "./fragments/context-manager-params.schema.yaml"
+                default: {}
+              memory:
+                type: array
+                description: >
+                  Memory types whose content is auto-injected into the system
+                  prompt as context facets.  E.g. [semantic].
+                default: []
+                items:
+                  type: string
+
+      assembler:
+        description: >
+          Prompt assembler. Builds messages[] for each LLM call. String shorthand
+          is the plugin name (`assembler: assembler`). Defaults to assembler
+          (ContextAssemblerPlugin) when absent. See plugin-bindings.md.
+        x-merge:
+          strategy: plugin_binding_merge
+        oneOf:
+          - type: "null"
+          - type: string
+            minLength: 1
+          - type: object
+            additionalProperties: false
+            properties:
+              type:
+                type: string
+                description: Plugin name (default assembler / alias context-assembler).
+              ref:
+                type: string
+                description: Unified plugin locator — mutually exclusive with type.
+              params:
+                type: object
+                description: Constructor kwargs for the assembler plugin.
+                additionalProperties: true
+                default: {}
+                properties:
+                  token_budget:
+                    type: integer
+                    minimum: 1
+                    description: Max estimated tokens for injected context parts.
+                  always_reassemble:
+                    type: boolean
+                    default: false
+                  emit_segments:
+                    type: boolean
+                    default: true
 
       memory_seed:
         type: array
@@ -524,12 +567,12 @@ properties:
           compaction:
             type: object
             description: >
-              How much of this agent's committed history to keep as it grows.
-              Facade over spec.context_manager/CMFactory — instantiate_runtime()
-              translates this into a context_manager binding; set
-              spec.context_manager directly instead for lower-level control
-              (it takes precedence if both are set). See
-              docs/design/working-memory-compaction.md.
+              How much of this agent's committed history to include in each
+              LLM call. Sugar for spec.context_manager — not a second engine
+              and not a working-memory cache. Compaction is an assembly-time
+              view (manage_history); the summarising plugin caches the last
+              summary (hysteresis). Prefer spec.context_manager. Ignored when
+              context_manager is already set.
             additionalProperties: false
             properties:
               strategy:

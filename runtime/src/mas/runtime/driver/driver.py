@@ -97,6 +97,24 @@ def engine_model_id(engine: Any) -> str:
     return ""
 
 
+def engine_manifest(engine: Any) -> dict[str, Any] | None:
+    """Agent manifest on the engine, unwrapping infra ``.inner`` wrappers."""
+    seen: set[int] = set()
+    cur = engine
+    for _ in range(8):
+        if cur is None or id(cur) in seen:
+            break
+        seen.add(id(cur))
+        manifest = existing_attr(cur, "manifest")
+        if isinstance(manifest, dict):
+            return manifest
+        inner = existing_attr(cur, "inner")
+        if inner is None or inner is cur:
+            break
+        cur = inner
+    return None
+
+
 def _exchange_timestamp() -> tuple[float, str]:
     return (
         time.perf_counter(),
@@ -275,8 +293,14 @@ class KernelDriver:
         if self.engine_pool is None and self.engine is not None:
             depth = self.kernel.config.engine_queue_depth if self.kernel is not None else DEFAULT_ENGINE_QUEUE_DEPTH
             self.engine_pool = EngineWorkerPool(worker=self._invoke_engine, max_depth=depth)
-        if self.ctx is not None and self.observability is not None:
-            self.ctx.observability = self.observability
+        if self.ctx is not None:
+            if self.observability is not None:
+                self.ctx.observability = self.observability
+            if self.engine is not None:
+                self.ctx.engine = self.engine
+                bound_manifest = engine_manifest(self.engine)
+                if bound_manifest is not None:
+                    self.ctx.manifest = bound_manifest
 
     def feed(self, event: IngressSymbol) -> DriverTrace:
         with runtime_binding(self.coordination, self.observability):

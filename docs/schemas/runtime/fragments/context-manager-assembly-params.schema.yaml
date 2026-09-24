@@ -4,8 +4,8 @@ $schema: "https://json-schema.org/draft-07/schema#"
 $id: "mas/v1#context-manager-assembly-params"
 title: ContextManagerAssemblyParams
 description: >
-  Kernel assembly knobs under spec.context_manager.params. Read by
-  assemble_llm_messages / working-memory slicing — not forwarded to
+  Assembly knobs under spec.context_manager.params. Read by the
+  assembler / working-memory slicing — not forwarded to
   ContextManagerContract constructors (stripped in CMFactory).
 type: object
 additionalProperties: false

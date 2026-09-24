@@ -109,25 +109,19 @@ class LiveLlmEngine:
         self._offered_tool_names = []
 
     def summarize_messages(self, messages: list[dict[str, Any]]) -> str:
-        """CompactionSummarizeEngine — one-off summary via this engine's model."""
-        from mas.runtime.boundary.context.working_memory_compaction import SUMMARIZE_INSTRUCTIONS
-
+        """One-off chat completion. The summarizer plugin builds the prompt."""
         if not self._budget.allow_llm():
             raise RuntimeError(
-                "working_memory compaction summarize_fn: LLM call budget "
+                "history summarizer: LLM call budget "
                 "exceeded (spec.budget.max_llm_calls)"
             )
-        prompt = [
-            {"role": "system", "content": SUMMARIZE_INSTRUCTIONS},
-            {"role": "user", "content": json.dumps(messages, default=str)},
-        ]
         self._budget.note_llm()
-        logger.debug("working_memory compaction: summarizing %d message(s) via LLM", len(messages))
+        logger.debug("history summarizer: completing %d message(s) via LLM", len(messages))
         if self._uses_model_access():
-            message = self._model_access_chat(prompt, tools=None, temperature=0.0)
+            message = self._model_access_chat(messages, tools=None, temperature=0.0)
         else:
             api_key = os.environ.get(self.api_key_env, "")
-            message = self._chat_completion(prompt, api_key=api_key, tools=None, temperature=0.0)
+            message = self._chat_completion(messages, api_key=api_key, tools=None, temperature=0.0)
         content = message.get("content") if isinstance(message, dict) else getattr(message, "content", "")
         return str(content or "").strip()
 

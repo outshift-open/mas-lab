@@ -44,6 +44,9 @@ def test_fill_agent_defaults_fills_omitted_runtime_fields() -> None:
     filled = fill_agent_defaults(doc)
     spec = filled["spec"]
     assert spec["design_pattern"]["type"]
+    assert spec["design_pattern"]["params"]["max_steps"] == 512
+    assert spec["design_pattern"]["params"]["max_cot_pass"] == 1
+    assert spec["design_pattern"]["params"]["parallel"] is True
     assert spec["models"][0]["model"]
     assert spec["models"][0]["context_window"] == 128000
     cm = spec["context_manager"]
@@ -52,6 +55,9 @@ def test_fill_agent_defaults_fills_omitted_runtime_fields() -> None:
     assert cm["params"]["hysteresis_ratio"] == 0.2
     assert cm["params"]["trimmer"]["max_tokens"] == 128000
     assert cm["params"]["trimmer"]["reserve_tokens"] == 2000
+    assert spec["assembler"]["type"] == "assembler"
+    assert spec["assembler"]["params"]["emit_segments"] is True
+    assert spec["assembler"]["params"]["always_reassemble"] is False
     assert "design_pattern" not in doc["spec"]
 
 
@@ -73,6 +79,65 @@ def test_fill_agent_defaults_preserves_explicit_model() -> None:
     assert trimmer["max_tokens"] == 64000
     assert trimmer["reserve_tokens"] == 1500
     assert filled["spec"]["context_manager"]["params"]["summary_threshold"] == 62500
+    assert filled["spec"]["assembler"]["type"] == "assembler"
+    assert filled["spec"]["context_manager"]["params"]["summarizer"] == "llm"
+
+
+def test_fill_agent_defaults_accepts_design_pattern_string_shorthand() -> None:
+    doc = {
+        "apiVersion": "mas/v1",
+        "kind": "Agent",
+        "metadata": {"name": "qa"},
+        "spec": {"description": "qa", "design_pattern": "cot"},
+    }
+    filled = fill_agent_defaults(doc)
+    assert filled["spec"]["design_pattern"]["type"] == "cot"
+    assert filled["spec"]["design_pattern"]["params"]["max_steps"] == 512
+
+
+def test_fill_agent_defaults_preserves_explicit_assembler() -> None:
+    doc = {
+        "apiVersion": "mas/v1",
+        "kind": "Agent",
+        "metadata": {"name": "qa"},
+        "spec": {
+            "description": "qa",
+            "assembler": {"type": "assembler", "params": {"emit_segments": False}},
+        },
+    }
+    filled = fill_agent_defaults(doc)
+    assert filled["spec"]["assembler"]["type"] == "assembler"
+    assert filled["spec"]["assembler"]["params"]["emit_segments"] is False
+
+
+def test_fill_agent_defaults_rejects_removed_context_plugin() -> None:
+    doc = {
+        "apiVersion": "mas/v1",
+        "kind": "Agent",
+        "metadata": {"name": "qa"},
+        "spec": {"description": "qa", "context_plugin": "assembler"},
+    }
+    with pytest.raises(CompileError, match="spec.assembler"):
+        fill_agent_defaults(doc)
+
+
+def test_fill_agent_defaults_translates_working_memory_compaction() -> None:
+    """Compile must alias compaction before filling CM defaults, or keep_recent
+    would be overwritten by the package summarising default."""
+    doc = {
+        "apiVersion": "mas/v1",
+        "kind": "Agent",
+        "metadata": {"name": "capped"},
+        "spec": {
+            "description": "capped",
+            "working_memory": {"compaction": {"strategy": "keep_recent", "max_messages": 4}},
+        },
+    }
+    filled = fill_agent_defaults(doc)
+    cm = filled["spec"]["context_manager"]
+    assert cm["type"] == "stack"
+    assert cm["params"]["max_messages"] == 4
+    assert cm["params"]["trimmer"]["max_tokens"] == 128000
 
 
 def test_compile_tutorial_1_stacks_overlays() -> None:
@@ -103,6 +168,7 @@ def test_compile_tutorial_1_stacks_overlays() -> None:
     assert spec["context_manager"]["params"]["keep_turns"] == 10
     assert spec["context_manager"]["params"]["hysteresis_ratio"] == 0.2
     assert spec["context_manager"]["params"]["trimmer"]["max_tokens"] == 128000
+    assert spec["assembler"]["type"] == "assembler"
 
 
 def test_compile_rejects_mas_overlay_on_agent() -> None:

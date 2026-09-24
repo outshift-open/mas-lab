@@ -59,11 +59,10 @@ from the original agent directory, not from the compiled tree.
 Omitted fields are filled from the same accessors the runtime uses
 (`defaults.yaml` / workspace `defaults.model`):
 
-- `spec.design_pattern.type` (package default `react@v1`)
+- `spec.design_pattern` (package default `react`; string `design_pattern: cot` ≡ `{type: cot}`. Compile fills `params.max_steps: 512`, `max_cot_pass: 1`, `parallel: true`)
 - `spec.models[0]` (workspace or package default model, plus `context_window`)
-- `spec.context_manager` (`summarising`, with `keep_turns` default 10,
-  `hysteresis_ratio` default 0.2, and a trimmer derived from the model
-  context window minus completion reserve)
+- `spec.context_manager` (`summarising`, `keep_turns` 10, `hysteresis_ratio` 0.2, `summarizer: llm`, trimmer from the model window)
+- `spec.assembler` (package default `assembler`; compile fills `emit_segments: true`, `always_reassemble: false`)
 
 Pass `--no-defaults` to emit overlay merge only. Explicit values are never
 overwritten.
@@ -86,4 +85,4 @@ MAS overlays cannot be applied to an Agent manifest.
 
 - [Tutorial 1](../tutorials/01-building-an-agent/README.md) — overlay stack
 - [Tutorial 2](../tutorials/02-creating-a-mas/README.md) — MAS topology overlays
-- [`mas-ctl compose`](../ctl/README.md) — EffectiveBind + placement
+- [`mas-ctl compose`](mas-ctl.md#other-commands) — EffectiveBind + placement

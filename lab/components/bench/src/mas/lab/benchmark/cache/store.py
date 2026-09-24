@@ -10,7 +10,7 @@ Future: pluggable DB backends.
 import json
 import logging
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 import gzip
@@ -139,7 +139,7 @@ class UnifiedCacheStore:
         
         entry = CacheEntry(
             cache_key=cache_key,
-            created_at=datetime.utcnow().isoformat() + "Z",
+            created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             manifest_hash=manifest_hash,
             overlay_hashes=overlay_hashes,
             item_id=item_id,

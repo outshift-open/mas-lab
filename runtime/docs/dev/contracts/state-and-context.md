@@ -160,17 +160,26 @@ Return value is layer-1 objects, not a token string.
 4. **Ids over text.** Pair on `tool_calls[].id` / `tool_call_id`. Never parse
    tool-result content to decide what to keep.
 
-The kernel still runs a last-pass pairing repair after assembly
-(`sanitize_provider_messages`). Plugins must not rely on that to paper over a
-split group; repair fills missing results with empty strings and drops extras.
+The kernel does **not** repair pairing itself — it only asserts the invariant
+after the `spec.assembler` plugin returns, raising `ProviderPayloadError`
+(survives `python -O`) if it still doesn't hold. The bundled
+`ContextAssemblerPlugin` runs the actual last-pass repair
+(`sanitize_provider_messages`: fills missing results with empty strings,
+drops extras) before returning. A custom assembler plugin must either
+produce an already-paired payload or call `sanitize_provider_messages`
+itself — the kernel will not paper over a split group on its behalf.
 
 | Method | Parameters | Notes |
 |--------|------------|-------|
 | `manage_history(past, budget_tokens)` | committed messages; token hint (model context window minus completion reserve) | Return a possibly shorter `past`. Must remain a valid layer-1 prefix. |
 
-**Runtime path:** `assemble_llm_messages` → `CMFactory` / cached plugin →
+**Runtime path:** `assemble_llm_messages` (kernel) → `spec.assembler` plugin
+(default `ContextAssemblerPlugin`: `CMFactory` / cached context manager →
 `manage_history` → append current user → pin-tail working memory → trim →
-sanitize → provider. Manifest: `spec.context_manager` (see
+sanitize) → kernel asserts pairing (`assert_provider_payload`) → provider.
+After each turn, kernel `compact_committed_history` asks the same plugin to
+rewrite stored history to the recency cap.
+Manifest: `spec.context_manager`, `spec.assembler` (see
 [context-assembly.md](../../../../docs/manifests/context-assembly.md)).
 
 Bundled implementations (not the contract): `StackConversation`,

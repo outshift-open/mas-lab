@@ -154,7 +154,7 @@ def apply_agency_entry_overlay(
     if tools_val:
         spec["tools"] = _merge_agency_entry_tools(list(spec.get("tools") or []), tools_val)
 
-    for field in ("design_pattern", "skills", "memory", "governance"):
+    for field in ("design_pattern", "context_manager", "assembler", "skills", "memory", "governance"):
         if (val := _entry_val(agency_entry, entry_spec, field)) is not None:
             spec[field] = copy.deepcopy(val)
 

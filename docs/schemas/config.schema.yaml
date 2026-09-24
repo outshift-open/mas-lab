@@ -165,6 +165,9 @@ properties:
       context_manager:
         type: string
         description: Default plugin id for spec.context_manager when manifests omit one.
+      assembler:
+        type: string
+        description: Default plugin id for spec.assembler when manifests omit one.
 
   paths:
     type: object

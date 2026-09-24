@@ -1,57 +1,20 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Assemble LLM ``messages[]`` for kernel engines — CMFactory + working memory.
+"""Dispatch LLM ``messages[]`` assembly and turn-commit compact to ``spec.assembler``.
 
-Message layers (in order appended to the provider payload):
-
-1. **System** — injected context, memory seeds, context plugins.
-2. **Committed history** — chunk store / ``committed_messages`` / turn history,
-   then passed through ``CMFactory`` (registry ``context_manager`` plugin;
-   defaults to ``defaults.yaml`` when ``spec.context_manager`` is omitted).
-   Context-manager plugins slice by user turn (or a tool-group-aligned tail).
-   After WM is appended, the kernel runs one pairing pass: one result per
-   tool call, empty string if a result row was lost.
-3. **Current user** — ``last_user_text`` for this ingress.
-4. **In-turn working memory (WM)** — assistant/tool messages from the current
-   dispatch loop, read from ``ctx.working_memory`` (``WorkingMemoryStore``).
-
-Token trim: ``spec.context_manager.params.trimmer`` when set, otherwise the
-primary model's ``context_window`` minus completion ``max_tokens``. In-turn
-working memory is passed as ``pin_tail`` so the live tool round stays intact.
+The kernel does not choose history/trim policy. It instantiates the registry
+``assembler`` (default ``assembler``), asserts layer-1 pairing,
+and records assembly telemetry. After each turn it asks the same plugin to
+rewrite stored history to the context manager's recency cap.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from mas.runtime.boundary.context.assembly_cache import cached_context_manager
-from mas.runtime.boundary.context.assembly_trim import (
-    assembly_trimmer_params,
-    context_manager_history_budget_hint,
-    trim_assembled_messages,
-)
-from mas.runtime.boundary.context.conversation_chunks import ConversationChunkStore
-from mas.runtime.boundary.context.working_memory import (
-    WorkingMemoryStore,
-    bounded_working_memory_tail,
-    working_memory_slice_limit,
-)
-
-
-def _turn_history_to_past(turn_history: list[tuple[str, str]]) -> list[dict[str, Any]]:
-    past: list[dict[str, Any]] = []
-    for user_q, assistant_a in turn_history:
-        past.append({"role": "user", "content": user_q})
-        if assistant_a.strip():
-            past.append({"role": "assistant", "content": assistant_a})
-    return past
-
-
-def _pinned_working_memory(ctx: Any, manifest: dict | None = None) -> list[dict[str, Any]]:
-    store = getattr(ctx, "working_memory", None)
-    if isinstance(store, WorkingMemoryStore) and store.messages:
-        return bounded_working_memory_tail(store.messages, working_memory_slice_limit(manifest))
-    return []
+from mas.runtime.boundary.context.assembly_cache import cached_assembler
+from mas.runtime.boundary.context.provider_invariant import assert_provider_payload
+from mas.runtime.boundary.context.telemetry import record_context_assembly
 
 
 def _openai_tool_names(tools: list[dict[str, Any]] | None) -> list[str] | None:
@@ -74,59 +37,21 @@ def assemble_llm_messages(
     correlation_id: int = 0,
     tools: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Build OpenAI-shaped messages: system → committed history → user → WM / trim."""
-    messages: list[dict[str, Any]] = []
-    system_parts: list[str] = []
-    for line in getattr(ctx, "injected_context", []) or []:
-        if str(line).strip():
-            system_parts.append(str(line).strip())
-    for key, content in getattr(ctx, "memory_seeds", []) or []:
-        system_parts.append(f"[memory:{key}] {content}")
-    _inject_context_plugins(ctx, system_parts)
-    if system_parts:
-        messages.append({"role": "system", "content": "\n\n".join(system_parts)})
-
-    chunk_store = getattr(ctx, "conversation_chunks", None)
-    committed = list(getattr(ctx, "committed_messages", []) or [])
-    if isinstance(chunk_store, ConversationChunkStore) and (
-        chunk_store.order or chunk_store.summary_chunk_id
-    ):
-        past = chunk_store.project_messages()
-    elif committed:
-        past = list(committed)
-    else:
-        past = _turn_history_to_past(list(getattr(ctx, "turn_history", []) or []))
-
-    cm = cached_context_manager(ctx, manifest)
-    managed = cm.manage_history(past, context_manager_history_budget_hint(manifest))
-    messages.extend(managed)
-
-    last_user_text = str(getattr(ctx, "last_user_text", "") or "")
-    if last_user_text:
-        messages.append({"role": "user", "content": last_user_text})
-
-    wm_messages = _pinned_working_memory(ctx, manifest)
-
-    if not messages and not wm_messages:
-        messages.append({"role": "user", "content": "Hello"})
-
-    trimmer = assembly_trimmer_params(manifest)
-    if trimmer is not None:
-        max_tokens, reserve = trimmer
-        messages = trim_assembled_messages(
-            messages,
-            max_tokens=max_tokens,
-            reserve_tokens=reserve,
-            pin_tail=wm_messages,
+    """Build OpenAI-shaped messages via the registered assembler plugin."""
+    plugin = cached_assembler(ctx, manifest)
+    assemble = getattr(plugin, "assemble_messages", None)
+    if not callable(assemble):
+        raise TypeError(
+            f"{type(plugin).__name__} is not a context assembler "
+            "(missing assemble_messages)"
         )
-    else:
-        messages = messages + wm_messages
-
-    from mas.library.standard.plugins.context.provider_payload import sanitize_provider_messages
-
-    messages = sanitize_provider_messages(messages)
-
-    from mas.runtime.boundary.context.telemetry import record_context_assembly
+    messages = assemble(
+        ctx,
+        manifest=manifest,
+        correlation_id=correlation_id,
+        tools=tools,
+    )
+    assert_provider_payload(messages)
 
     obs = getattr(ctx, "observability", None)
     cid = correlation_id or int(getattr(ctx, "_assembly_correlation_id", 0) or 0)
@@ -141,34 +66,14 @@ def assemble_llm_messages(
     return messages
 
 
-def _inject_context_plugins(ctx: Any, system_parts: list[str]) -> None:
-    collection = getattr(ctx, "plugin_collection", None)
-    if not collection:
+def compact_committed_history(ctx: Any, *, manifest: dict | None = None) -> None:
+    """Ask the assembler plugin to rewrite stored history to its recency cap."""
+    resolved = manifest if manifest is not None else getattr(ctx, "manifest", None)
+    plugin = cached_assembler(ctx, resolved)
+    compact = getattr(plugin, "compact_committed_history", None)
+    if not callable(compact):
         return
-
-    from mas.runtime.contracts.context_contract import (
-        _SYSTEM_PLACEMENTS_ORDER,
-        ContextPart,
-        ContextPlacement,
-    )
-
-    raw_parts = collection.collect_results("collect_context")
-    if not raw_parts:
-        return
-
-    placement_order = {pl: i for i, pl in enumerate(_SYSTEM_PLACEMENTS_ORDER)}
-
-    def _sort_key(part: Any) -> tuple[int, int]:
-        placement = getattr(part, "placement", ContextPlacement.SYSTEM_BODY)
-        priority = getattr(part, "priority", 60)
-        return (placement_order.get(placement, 99), priority)
-
-    for part in sorted(
-        (p for p in raw_parts if isinstance(p, ContextPart)),
-        key=_sort_key,
-    ):
-        if str(part.content).strip():
-            system_parts.append(str(part.content).strip())
+    compact(ctx, manifest=resolved)
 
 
 def llm_request_tools(
@@ -195,6 +100,7 @@ def has_tool_results(messages: list[dict[str, Any]]) -> bool:
 
 __all__ = [
     "assemble_llm_messages",
+    "compact_committed_history",
     "has_tool_results",
     "llm_request_tools",
     "llm_tool_choice",

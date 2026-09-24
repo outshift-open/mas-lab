@@ -19,6 +19,6 @@ class EngineContract(Protocol):
 
 @runtime_checkable
 class CompactionSummarizeEngine(Protocol):
-    """Out-of-band summarization for commit-time / view-time context compaction."""
+    """One-off chat completion used by the llm summarizer plugin."""
 
     def summarize_messages(self, messages: list[dict[str, Any]]) -> str: ...

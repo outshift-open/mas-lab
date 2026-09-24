@@ -88,10 +88,20 @@ def _nested_keys(schema: dict[str, Any], *path: str) -> frozenset[str]:
     return frozenset(props.keys())
 
 
+def _object_branch(schema: dict[str, Any]) -> dict[str, Any]:
+    """Prefer the object alternative when a slot is ``string | object``."""
+    if schema.get("properties"):
+        return schema
+    for alt in schema.get("oneOf") or []:
+        if isinstance(alt, dict) and (alt.get("type") == "object" or alt.get("properties")):
+            return alt
+    return schema
+
+
 def _agent_binding_keys(agent: dict[str, Any], binding: str) -> frozenset[str]:
     spec = (agent.get("properties") or {}).get("spec") or {}
     spec_props = spec.get("properties") or {}
-    binding_schema = spec_props.get(binding) or {}
+    binding_schema = _object_branch(spec_props.get(binding) or {})
     props = binding_schema.get("properties") or {}
     return frozenset(props.keys())
 
@@ -126,6 +136,7 @@ def _render_bindings(agent: dict[str, Any]) -> str:
         ("CONTROL_BINDING_KEYS", _property_keys(control, _FRAGMENTS)),
         ("DESIGN_PATTERN_BINDING_KEYS", _agent_binding_keys(agent, "design_pattern")),
         ("CONTEXT_MANAGER_BINDING_KEYS", _agent_binding_keys(agent, "context_manager")),
+        ("ASSEMBLER_BINDING_KEYS", _agent_binding_keys(agent, "assembler")),
         (
             "CONTEXT_MANAGER_ASSEMBLY_PARAM_KEYS",
             _property_keys(assembly, _FRAGMENTS),

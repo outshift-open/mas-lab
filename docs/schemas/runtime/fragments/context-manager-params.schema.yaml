@@ -5,8 +5,8 @@ $id: "mas/v1#context-manager-params"
 title: ContextManagerParams
 description: >
   spec.context_manager.params — strategy plugin kwargs plus assembly knobs.
-  Strategy keys instantiate the CM plugin; assembly keys are consumed by kernel
-  context assembly (see fragment schemas).
+  Strategy keys instantiate the CM plugin; assembly keys are consumed by the
+  context assembler (see fragment schemas).
 allOf:
   - $ref: "./context-manager-assembly-params.schema.yaml"
   - $ref: "./context-manager-strategy-params.schema.yaml"

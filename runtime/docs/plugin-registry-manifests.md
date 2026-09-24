@@ -96,9 +96,10 @@ registerable — if at least one of these is true *before* the fixpoint
 resolves that candidate:
 
 1. It's a core runtime type (`design_pattern`, `context_manager`,
-   `context_plugin`, `memory`, `governance`, `step`, `codec` — see
-   `bootstrap._BUILTIN_TYPES`).
-2. It's listed in this manifest's own top-level `types:`.
+   `assembler`, `memory`, `governance`, `step`, `codec`).
+2. It's listed in this manifest's own top-level `types:` (how
+   `summarizer` is introduced — a sub-plugin composed by the summarising
+   context manager, not a top-level agent spec key).
 3. It's listed in `provides_types:` on some *other* candidate that has
    already been resolved (possibly from an earlier-loaded manifest, or
    builtins).

@@ -47,8 +47,11 @@ An optional ``ConversationStrategy`` manages the *existing* user/assistant
 turns in ``messages[]`` before context parts are injected:
 
     ``SlidingWindowConversation``  — keep only the last N user turns.
-    ``SummarizingConversation``    — keep last N turns verbatim; summarize
-                                     (or drop) only older history.
+    ``SummarizingConversation``    — keep last N turns verbatim; compose a
+                                     summarizer sub-plugin (``llm`` | ``drop``)
+                                     for older history. The CM owns recency
+                                     and hysteresis; the summarizer only
+                                     produces summary text.
     ``ConversationStrategy``       — no-op base (default).
 
 Ordering rules
@@ -75,6 +78,19 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
+from mas.library.standard.plugins.context.token_budget import trim_messages_to_budget
+from mas.library.standard.lib.context.history_budget import (
+    assembly_trimmer_params,
+    context_manager_history_budget_hint,
+)
+from mas.library.standard.lib.context.payload import sanitize_provider_messages
+from mas.library.standard.lib.context.working_memory import (
+    bounded_working_memory_tail,
+    working_memory_slice_limit,
+)
+from mas.runtime.boundary.context.assembly_cache import cached_context_manager
+from mas.runtime.boundary.context.conversation_chunks import ConversationChunkStore
+from mas.runtime.boundary.context.working_memory import WorkingMemoryStore
 from mas.runtime.contracts.base import BasePlugin
 from mas.runtime.contracts.cm_factory import CMFactory
 from mas.runtime.contracts.context_contract import (
@@ -164,6 +180,40 @@ class _NoOpContextManager(ContextManagerContract):
         return past
 
 
+def _turn_history_to_past(turn_history: list[tuple[str, str]]) -> list[dict[str, Any]]:
+    past: list[dict[str, Any]] = []
+    for user_q, assistant_a in turn_history:
+        past.append({"role": "user", "content": user_q})
+        if assistant_a.strip():
+            past.append({"role": "assistant", "content": assistant_a})
+    return past
+
+
+def inject_context_plugins(ctx: Any, system_parts: list[str]) -> None:
+    """Append ContextPart contents from ``ctx.plugin_collection``, placement-ordered."""
+    collection = getattr(ctx, "plugin_collection", None)
+    if not collection:
+        return
+
+    raw_parts = collection.collect_results("collect_context")
+    if not raw_parts:
+        return
+
+    placement_order = {pl: i for i, pl in enumerate(_SYSTEM_PLACEMENTS_ORDER)}
+
+    def _sort_key(part: Any) -> tuple[int, int]:
+        placement = getattr(part, "placement", ContextPlacement.SYSTEM_BODY)
+        priority = getattr(part, "priority", 60)
+        return (placement_order.get(placement, 99), priority)
+
+    for part in sorted(
+        (p for p in raw_parts if isinstance(p, ContextPart)),
+        key=_sort_key,
+    ):
+        if str(part.content).strip():
+            system_parts.append(str(part.content).strip())
+
+
 # ---------------------------------------------------------------------------
 # ContextAssemblerPlugin
 # ---------------------------------------------------------------------------
@@ -183,8 +233,10 @@ class ContextAssemblerPlugin(BasePlugin):
         ``MaxTokenStrategy`` when ``token_budget`` is set, ``ContextStrategy``
         (no-op) otherwise.
     conversation_strategy:
-        :class:`ContextManagerContract` instance for past-turn trimming.
-        When omitted, resolved from the agent manifest via ``CMFactory``.
+        :class:`ContextManagerContract` instance for the legacy
+        ``on_pre_llm_call`` path. Live ``assemble_messages`` always uses the
+        cached context manager (with ``ctx.engine``). When omitted here,
+        attach_agent instantiates from the agent manifest.
     always_reassemble:
         If True, re-assemble context parts on every call even if the marker is
         present in the system message.  Default: False (idempotent within a
@@ -218,8 +270,6 @@ class ContextAssemblerPlugin(BasePlugin):
         self._manifest = manifest
         if conversation_strategy is not None:
             self._conv_strategy = conversation_strategy
-        elif manifest is not None:
-            self._conv_strategy = CMFactory.create(manifest=manifest)
         else:
             self._conv_strategy = _NoOpContextManager()
 
@@ -233,7 +283,89 @@ class ContextAssemblerPlugin(BasePlugin):
         if isinstance(self._conv_strategy, _NoOpContextManager):
             manifest = getattr(agent, "manifest", None) or getattr(agent, "config", {})
             if isinstance(manifest, dict):
-                self._conv_strategy = CMFactory.create(manifest=manifest)
+                engine = getattr(agent, "engine", None)
+                if engine is None:
+                    driver = getattr(agent, "driver", None)
+                    engine = getattr(driver, "engine", None)
+                self._conv_strategy = CMFactory.create(manifest=manifest, engine=engine)
+
+    def assemble_messages(
+        self,
+        ctx: Any,
+        *,
+        manifest: Optional[Dict[str, Any]] = None,
+        correlation_id: int = 0,
+        tools: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Engine path: system → managed history → user → WM / token trim / pairing.
+
+        ``correlation_id`` and ``tools`` are accepted for the kernel dispatcher
+        signature; telemetry is recorded in the kernel after this returns.
+        """
+        _ = correlation_id, tools
+        manifest = manifest if manifest is not None else self._manifest
+
+        messages: List[Dict[str, Any]] = []
+        system_parts: List[str] = []
+        for line in getattr(ctx, "injected_context", []) or []:
+            if str(line).strip():
+                system_parts.append(str(line).strip())
+        for key, content in getattr(ctx, "memory_seeds", []) or []:
+            system_parts.append(f"[memory:{key}] {content}")
+        inject_context_plugins(ctx, system_parts)
+        if system_parts:
+            messages.append({"role": "system", "content": "\n\n".join(system_parts)})
+
+        chunk_store = getattr(ctx, "conversation_chunks", None)
+        committed = list(getattr(ctx, "committed_messages", []) or [])
+        if isinstance(chunk_store, ConversationChunkStore) and (
+            chunk_store.order or chunk_store.summary_chunk_id
+        ):
+            past = chunk_store.project_messages()
+        elif committed:
+            past = list(committed)
+        else:
+            past = _turn_history_to_past(list(getattr(ctx, "turn_history", []) or []))
+
+        cm = cached_context_manager(ctx, manifest)
+        managed = cm.manage_history(past, context_manager_history_budget_hint(manifest))
+        messages.extend(managed)
+
+        last_user_text = str(getattr(ctx, "last_user_text", "") or "")
+        if last_user_text:
+            messages.append({"role": "user", "content": last_user_text})
+
+        store = getattr(ctx, "working_memory", None)
+        wm_messages: List[Dict[str, Any]] = []
+        if isinstance(store, WorkingMemoryStore) and store.messages:
+            wm_messages = bounded_working_memory_tail(
+                store.messages, working_memory_slice_limit(manifest)
+            )
+
+        if not messages and not wm_messages:
+            messages.append({"role": "user", "content": "Hello"})
+
+        trimmer = assembly_trimmer_params(manifest)
+        if trimmer is not None:
+            max_tokens, reserve = trimmer
+            messages = trim_messages_to_budget(
+                messages,
+                max_tokens=max_tokens,
+                reserve_tokens=reserve,
+                pin_tail=wm_messages,
+            )
+        else:
+            messages = messages + wm_messages
+
+        return sanitize_provider_messages(messages)
+
+    def compact_committed_history(self, ctx: Any, *, manifest: Optional[Dict[str, Any]] = None) -> None:
+        """Rewrite stored committed history to the context manager's recency cap."""
+        from mas.library.standard.lib.context.committed_history import (
+            compact_committed_history as _compact,
+        )
+
+        _compact(ctx, manifest=manifest if manifest is not None else self._manifest)
 
     def on_pre_llm_call(self, hook_data: Dict[str, Any], **_: Any) -> Dict[str, Any]:
         """Called by PluginRegistry before every LLM call.
@@ -539,7 +671,5 @@ class ContextAssemblerPlugin(BasePlugin):
         self._last_summarized_turns = max(0, len(past) - len(managed_past))
         # C5: expose compaction evidence metadata if the strategy tracks it
         self._last_compaction_metadata = getattr(self._conv_strategy, "last_compaction_metadata", None)
-
-        from mas.library.standard.plugins.context.provider_payload import sanitize_provider_messages
 
         return sanitize_provider_messages(system_msgs + managed_past + current_and_after)
