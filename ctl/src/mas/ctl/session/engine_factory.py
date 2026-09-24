@@ -186,6 +186,7 @@ def build_engine(
 
     api_base = str(llm_proxy.get("api_base") or "").strip()
     api_key_env = str(llm_proxy.get("api_key_env") or "OPENAI_API_KEY")
+    http_timeout = float(llm_proxy["timeout"]) if llm_proxy.get("timeout") is not None else None
 
     api_key = api_key_for_infra(llm_proxy)
     if not api_base and not strict_replay:
@@ -238,6 +239,7 @@ def build_engine(
             use_tool_loop=tool_loop,
             parallel_tool_calls=kernel_cfg.parallel_tool_calls,
             llm_proxy=llm_proxy,
+            http_timeout=http_timeout,
         ),
         llm_proxy.get("pipeline") or [],
     )

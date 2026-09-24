@@ -13,6 +13,7 @@ from typing import Any
 class ProxySpec:
     api_base: str = ""
     api_key_env: str = "OPENAI_API_KEY"
+    timeout: float | None = None
 
 
 @dataclass
@@ -61,7 +62,7 @@ class InfraManifest:
         return _from_dict(resolve_manifest_values(data))
 
     def to_llm_proxy_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "api_base": self.proxy.api_base,
             "api_key_env": self.proxy.api_key_env,
             "default_model": self.models.default_llm,
@@ -70,3 +71,6 @@ class InfraManifest:
             "model_access": dict(self.model_access),
             "pipeline": list(self.pipeline),
         }
+        if self.proxy.timeout is not None:
+            d["timeout"] = self.proxy.timeout
+        return d

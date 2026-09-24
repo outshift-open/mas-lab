@@ -455,6 +455,7 @@ def _from_dict(data: dict[str, Any]) -> InfraManifest:
         proxy=ProxySpec(
             api_base=str(proxy_raw.get("api_base", "") or ""),
             api_key_env=api_key_env,
+            timeout=float(proxy_raw["timeout"]) if proxy_raw.get("timeout") is not None else None,
         ),
         models=ModelsSpec(
             allowed=list(models_raw.get("allowed") or models_raw.get("available") or []),
@@ -494,7 +495,9 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
         if m.runtime_engine:
             runtime_engine = merge_runtime_engine_layers(runtime_engine, m.runtime_engine)
         if m.proxy.api_base:
-            proxy = ProxySpec(api_base=m.proxy.api_base, api_key_env=m.proxy.api_key_env)
+            proxy = ProxySpec(api_base=m.proxy.api_base, api_key_env=m.proxy.api_key_env, timeout=m.proxy.timeout)
+        elif m.proxy.timeout is not None:
+            proxy = ProxySpec(api_base=proxy.api_base, api_key_env=proxy.api_key_env, timeout=m.proxy.timeout)
         pipeline = _merge_pipeline(pipeline, m.pipeline)
         for item in m.models.allowed:
             if item not in seen_allowed:

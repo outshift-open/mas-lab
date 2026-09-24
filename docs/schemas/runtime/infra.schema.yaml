@@ -126,6 +126,10 @@ properties:
             description: >
               Name of the environment variable holding the API key (secretKeyRef).
               Literal only — do not use ``env:`` syntax here.
+          timeout:
+            type: number
+            description: >
+              HTTP request timeout in seconds for LLM API calls. Defaults to 120.
 
       server:
         type: object
@@ -136,6 +140,10 @@ properties:
             type: string
           api_key_env:
             type: string
+          timeout:
+            type: number
+            description: >
+              HTTP request timeout in seconds for LLM API calls. Defaults to 120.
 
       models:
         type: object
