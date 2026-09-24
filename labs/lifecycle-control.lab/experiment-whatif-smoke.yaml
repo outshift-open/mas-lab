@@ -65,6 +65,20 @@ experiment:
   run:
     n_runs: 1
   application:
+    artifacts:
+      fig-fork: plot
+      fig_trajectory_schematic:
+        type: plot
+        path: "{output_dir}/fig_trajectory_schematic.svg"
+      fig_trajectory:
+        type: plot
+        path: "{output_dir}/fig_trajectory.svg"
+      fig_trajectory_swimlane:
+        type: plot
+        path: "{output_dir}/fig_trajectory_swimlane.svg"
+      fig_trajectory_compact:
+        type: plot
+        path: "{output_dir}/fig_trajectory_compact.svg"
     post:
       - name: extract-trace-stats
         type: extract_trace_stats
@@ -93,7 +107,7 @@ experiment:
             subtitle: "Shared LLM cache, same fault item class; policy fire is the only fork signal"
             x: "Item"
             y: "Scenario"
-          output: "{output_dir}/results/fig-fork.png"
+          output: "{output_dir}/fig-fork.png"
           width: 6.0
           height: 2.8
           palette: ["#d9d9d9", "#1a9850"]
@@ -111,7 +125,7 @@ experiment:
         config:
           trace_baseline: "{output_dir}/baseline/itemf-guardrail/r1/traces/events.jsonl"
           trace_guardrail: "{output_dir}/with-guardrail/itemf-guardrail/r1/traces/events.jsonl"
-          output: "{output_dir}/results/fig_trajectory_schematic.svg"
+          output: "{output_dir}/fig_trajectory_schematic.svg"
 
       - name: figure-trajectory-automaton
         type: lib.steps.figure_trajectory_automaton:FigureTrajectoryAutomatonStep
@@ -119,7 +133,7 @@ experiment:
         config:
           trace_baseline: "{output_dir}/baseline/itemf-guardrail/r1/traces/events.jsonl"
           trace_guardrail: "{output_dir}/with-guardrail/itemf-guardrail/r1/traces/events.jsonl"
-          output: "{output_dir}/results/fig_trajectory.svg"
+          output: "{output_dir}/fig_trajectory.svg"
 
       - name: figure-trajectory-swimlane
         type: lib.steps.figure_trajectory_swimlane:FigureTrajectorySwimlaneStep
@@ -127,7 +141,7 @@ experiment:
         config:
           trace_baseline: "{output_dir}/baseline/itemf-guardrail/r1/traces/events.jsonl"
           trace_guardrail: "{output_dir}/with-guardrail/itemf-guardrail/r1/traces/events.jsonl"
-          output: "{output_dir}/results/fig_trajectory_swimlane.svg"
+          output: "{output_dir}/fig_trajectory_swimlane.svg"
 
       - name: figure-trajectory-compact
         type: lib.steps.figure_trajectory_compact:FigureTrajectoryCompactStep
@@ -135,4 +149,4 @@ experiment:
         config:
           trace_baseline: "{output_dir}/baseline/itemf-guardrail/r1/traces/events.jsonl"
           trace_guardrail: "{output_dir}/with-guardrail/itemf-guardrail/r1/traces/events.jsonl"
-          output: "{output_dir}/results/fig_trajectory_compact.svg"
+          output: "{output_dir}/fig_trajectory_compact.svg"

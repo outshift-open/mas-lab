@@ -89,7 +89,9 @@ def setup_output_dir(
 
     _mas_meta = register_mas_run(output_dir, loaded.experiment_yaml, exp)
     _mas_run_manager = BenchmarkRunManager()
-    _mas_run_manager.record_last_run(_mas_meta, output_dir)
+    _mas_run_manager.record_last_run(
+        _mas_meta, output_dir, experiment_yaml=loaded.experiment_yaml,
+    )
     logger.info("Benchmark ID: %s  (%s)", _mas_meta.short_id, output_dir)
 
     if force:

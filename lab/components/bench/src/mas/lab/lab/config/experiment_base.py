@@ -152,6 +152,22 @@ class MASRunBase:
             result[art.name] = art
         return result
 
+    def declared_artifacts(self) -> List[tuple[str, "ArtifactSpec"]]:
+        """Return ``(level, spec)`` for every artifact declared on this experiment.
+
+        Level is ``experiment`` for the top-level ``artifacts:`` map, otherwise
+        the section name (``run``, ``test``, ``scenario``, ``application``).
+        """
+        rows: List[tuple[str, ArtifactSpec]] = [
+            ("experiment", art) for art in self.artifacts
+        ]
+        for level_name in ("run", "test", "scenario", "application"):
+            if level_name in self.levels:
+                rows.extend(
+                    (level_name, art) for art in self.levels[level_name].artifacts
+                )
+        return rows
+
     def all_pipeline_steps(self) -> List["PipelineStepSpec"]:
         """Return all pipeline steps from all levels + experiment.
 

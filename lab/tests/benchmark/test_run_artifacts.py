@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from mas.lab.artifacts import classify_file
 from mas.lab.benchmark.pipeline.executor import ExecutionContext
 from mas.lab.benchmark.pipeline.resources import ScopeContext
 from mas.lab.benchmark.pipeline.run_artifacts import (
@@ -111,15 +110,6 @@ def test_materialize_per_run_steps(tmp_path: Path) -> None:
     assert steps[0]["name"] == "plot-native-full-item1-r1"
     assert steps[0]["config"]["run"] == "r1"
     assert steps[0]["config"]["run_dir"] == str(run_dir.resolve())
-
-
-def test_classify_run_artifacts() -> None:
-    assert classify_file(Path("kg.json")).abbrev == "KG"
-    assert classify_file(Path("trajectory-native.html")).abbrev == "TrajNative"
-    assert classify_file(Path("trajectory-kg.html")).abbrev == "TrajKG"
-    assert classify_file(Path("validation_report.json")).abbrev == "Validation"
-    assert classify_file(Path("parity_report.json")).abbrev == "Parity"
-    assert classify_file(Path("otel_sdk_spans_replay.jsonl")).abbrev == "OtelReplay"
 
 
 def test_registry_has_both_trajectory_plotters() -> None:

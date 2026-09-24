@@ -25,15 +25,8 @@ import click
               type=click.Choice(["text","json","yaml"]),
               default="text", show_default=True)
 @click.option("-v", "--verbose", count=True,
-              help="-v: show output artifacts (results.csv, figures)  "
-                   "-vv: also show intermediate artifacts (.cache, metrics.json)  "
-                   "-vvv: also show pipeline DAG with artifact lineage and provenance")
-@click.option("-a", "--artifacts-only", is_flag=True, default=False,
-              help="Show only the [artifacts] section, skip the scenario/run tree. "
-                   "Implies -v. Useful with -t to filter by type.")
-@click.option("-t", "--type", "artifact_type", default=None, metavar="TYPE",
-              help="Filter artifacts by type abbreviation (e.g. CSV, PNG, Metrics). "
-                   "Case-insensitive. Use 'mas-lab benchmark artifact-types' to list all.")
+              help="-v/-vv: reserved  "
+                   "-vvv: show pipeline DAG with artifact lineage")
 @click.option("-d", "--depth", "depth",
               type=click.Choice(["exp", "scenario", "item", "run"], case_sensitive=False),
               default=None, metavar="LEVEL",
@@ -50,7 +43,7 @@ import click
               help="Filter tree to a specific run index (requires --recursive).")
 def show_cmd(target: str, what: str, recursive: bool, output_dir: Path | None,
              trace_cache_dir: Path | None, fmt: str, verbose: int,
-             artifacts_only: bool, artifact_type: str | None, depth: str | None,
+             depth: str | None,
              scenario: str | None, item: str | None, run_idx: int | None) -> None:
     """Show benchmark run details, or display a lab/experiment tree.
 
@@ -62,21 +55,22 @@ def show_cmd(target: str, what: str, recursive: bool, output_dir: Path | None,
     \b
     Tree mode (--recursive / -r):
       mas-lab benchmark show labs/design-space.lab/ -r
-      mas-lab benchmark show labs/design-space.lab/ -r -v    # + output artifacts
-      mas-lab benchmark show labs/design-space.lab/ -r -vv   # + intermediate artifacts
       mas-lab benchmark show labs/design-space.lab/ -r -d exp         # experiments only
       mas-lab benchmark show labs/design-space.lab/ -r -d item        # expand items
       mas-lab benchmark show labs/design-space.lab/01-design-patterns/ -r
       mas-lab benchmark show labs/design-space.lab/ -r --scenario pattern-cot
       mas-lab benchmark show labs/design-space.lab/ -r --item analysis-1 --run 2
       mas-lab benchmark show -r 318222ed   # look up artifact by short id
+      mas-lab benchmark artifact list last
+      mas-lab benchmark artifact list labs/design-space.lab/02-topologies/experiment.yaml
+      mas-lab benchmark artifact show 318222ed
     """
     if recursive:
         import re as _re
         if target and _re.fullmatch(r'[0-9a-fA-F]{8}', target):
             from mas.lab.benchmark.cli import show_artifact_by_id_command
             raise SystemExit(show_artifact_by_id_command(
-                SimpleNamespace(artifact_id=target, search_root=Path.cwd())
+                SimpleNamespace(artifact_id=target)
             ))
         _target_path = Path(target) if target else Path.cwd()
         if not _target_path.exists():
@@ -91,8 +85,6 @@ def show_cmd(target: str, what: str, recursive: bool, output_dir: Path | None,
             item=item,
             run_idx=run_idx,
             output_dir=output_dir,
-            artifacts_only=artifacts_only,
-            artifact_type=artifact_type,
             depth=depth,
         )
         raise SystemExit(show_lab_tree_command(args))

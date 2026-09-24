@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
 from mas.runtime.workspace_config import RuntimeWorkspaceConfig
 
 from . import (
@@ -72,7 +71,16 @@ def _parse_generic_manifest(
     for type_name in data.get("types") or []:
         known_types.add(_canonical_type_name(str(type_name)))
 
-    for item in data.get("plugins") or []:
+    raw_plugins = data.get("plugins")
+    if raw_plugins is None:
+        raw_plugins = []
+    elif not isinstance(raw_plugins, list):
+        raise ValueError(
+            "plugins: must be a list of plugin declarations (each with "
+            "type:), not a mapping keyed by type. "
+            f"Got {type(raw_plugins).__name__}."
+        )
+    for item in raw_plugins:
         if not isinstance(item, dict):
             continue
         candidate = _candidate_from_manifest_item(item)

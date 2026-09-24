@@ -85,7 +85,7 @@ pipeline:
           y: "Score (AR / GSR)"
           color: "Topology"
           shape: "Metric"
-        output: "{output_dir}/results/figure-02-overhead-quality.png"
+        output: "{output_dir}/figure-02-overhead-quality.png"
         width: 8
         height: 5
         rename_values:
