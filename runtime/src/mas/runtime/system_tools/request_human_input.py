@@ -12,7 +12,7 @@ from mas.runtime.contracts.tool_contract import ToolContract
 from mas.runtime.system_tools._arg_coercion import coerce_json_string_to_dict
 
 #: Default cap on ``question`` length — see ``max_question_length`` on __init__.
-DEFAULT_MAX_QUESTION_LENGTH = 2000
+DEFAULT_MAX_QUESTION_LENGTH = 20000
 
 
 class RequestHumanInputTool(ToolContract):

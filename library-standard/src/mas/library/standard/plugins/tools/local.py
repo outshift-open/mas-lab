@@ -254,7 +254,7 @@ def load_local_tool_provider(
     manifest_dir: Path,
     *,
     app_root: Path | None = None,
-    include_system_tools: bool = True,
+    include_system_tools: bool = False,
     hitl_contract: HITLContract | None = None,
     user_io_contract: UserIOContract | None = None,
     provider: LocalToolProvider | None = None,
@@ -266,6 +266,19 @@ def load_local_tool_provider(
     auto_inject_scripts = bool(containment_kw.pop("auto_inject_scripts", False))
     containment_kw.pop("spec_behavior", None)
 
+    # System tools (request_human_input, inform_user) are opt-in, not
+    # auto-injected: an agent gets them only when a caller explicitly passes
+    # include_system_tools=True. Letting a model reach for
+    # request_human_input mid-task silently substitutes a fabricated or
+    # rubber-stamped non-answer for a real one — with no way for the
+    # protocol driving the agent to tell the difference — and inform_user
+    # narration burns a turn without advancing anything. A
+    # {kind: system, name: request_human_input, params: {...}} entry in
+    # tools_spec configures the HITL wrapper (timeout, auto_resolve_decision,
+    # max_question_length) when a caller does opt in; a
+    # {kind: system, name: inform_user, params: {...}} entry configures
+    # max_message_length. Both are otherwise a redundant/documentation-only
+    # declaration (skipped below) — read before injecting.
     if include_system_tools:
         hitl_params = _system_tool_params(tools_spec, "request_human_input")
         inform_user_params = _system_tool_params(tools_spec, "inform_user")

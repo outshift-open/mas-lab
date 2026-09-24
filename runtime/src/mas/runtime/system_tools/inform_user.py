@@ -12,7 +12,7 @@ from mas.runtime.contracts.tool_contract import ToolContract
 from mas.runtime.system_tools._arg_coercion import coerce_json_string_to_dict
 
 #: Default cap on ``message`` length — see ``max_message_length`` on __init__.
-DEFAULT_MAX_MESSAGE_LENGTH = 2000
+DEFAULT_MAX_MESSAGE_LENGTH = 20000
 
 
 class InformUserTool(ToolContract):

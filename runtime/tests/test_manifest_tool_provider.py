@@ -68,9 +68,10 @@ def test_build_manifest_tool_provider_from_ref(calculator_tool_tree: Path):
 
 def test_redundant_system_tool_entry_is_skipped_not_raised(calculator_tool_tree: Path):
     """spec.tools entries with kind: system (e.g. request_human_input) are
-    always auto-injected by build_manifest_tool_provider itself; an explicit
-    manifest declaration for one is redundant and must be skipped rather than
-    raising ManifestToolLoadError (regression: this previously crashed
+    auto-injected by build_manifest_tool_provider itself when a caller opts
+    in via include_system_tools=True; an explicit manifest declaration for
+    one is then redundant and must be skipped rather than raising
+    ManifestToolLoadError (regression: this previously crashed
     instantiate_runtime for any manifest declaring a system tool in
     spec.tools, silently degrading agents to an empty tool/skill setup)."""
     provider = build_manifest_tool_provider(
@@ -79,6 +80,7 @@ def test_redundant_system_tool_entry_is_skipped_not_raised(calculator_tool_tree:
             {"name": "request_human_input", "kind": "system"},
         ],
         calculator_tool_tree,
+        include_system_tools=True,
     )
     names = {t["function"]["name"] for t in provider.list_openai_tools()}
     assert "calculator" in names
