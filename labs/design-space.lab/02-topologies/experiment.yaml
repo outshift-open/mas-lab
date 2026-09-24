@@ -35,7 +35,7 @@ experiment:
   output_schema:
     required_files:
       - "results/ci_summary.csv"
-      - "results/figure-02-overhead-quality.png"
+      - "figure-02-overhead-quality.png"
     required_columns:
       results/ci_summary.csv:
         [scenario, metric, mean, ci_low, ci_high, latency_s_mean]
@@ -70,6 +70,8 @@ experiment:
   pipeline_bind: experiment/post
 
   application:
+    artifacts:
+      figure-02-overhead-quality: plot
     post:
       - name: eval-quality
         type: eval_mce
@@ -178,7 +180,7 @@ experiment:
             x: "Session Latency (s)"
             y: "Goal Success Rate"
             color: "Topology"
-          output: "{output_dir}/results/figure-02-overhead-quality.png"
+          output: "{output_dir}/figure-02-overhead-quality.png"
           width: 8
           height: 5
           factor_levels:

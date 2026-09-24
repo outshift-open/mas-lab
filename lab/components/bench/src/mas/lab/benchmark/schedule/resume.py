@@ -43,7 +43,7 @@ async def resume_mas_benchmark(
     logger.info("  Experiment: %s", metadata.experiment_name)
     logger.info("  Progress: %s/%s scenarios", metadata.completed_scenarios, metadata.total_scenarios)
 
-    rm.record_last_run(metadata, run_dir)
+    rm.record_last_run(metadata, run_dir, experiment_yaml=experiment_yaml)
 
     exp_yaml = Path(metadata.experiment_yaml_path)
     if not exp_yaml.exists():

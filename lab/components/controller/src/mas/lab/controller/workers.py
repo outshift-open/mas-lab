@@ -98,10 +98,10 @@ def run_benchmark_worker(registry: WorkerRegistry, runner: "WorkerRunner", spec:
                 # so the CLI shows the real cause, not just "benchmark run failed".
                 traceback.print_exc()
                 raise
-        if not ok:
-            raise RuntimeError(
-                "benchmark run failed — see the logged error above for the cause"
-            )
+            if not ok:
+                raise RuntimeError(
+                    "benchmark run failed — see the logged error above for the cause"
+                )
         return ok
 
     runner.submit(record, _execute)

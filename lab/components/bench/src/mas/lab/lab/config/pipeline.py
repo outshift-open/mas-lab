@@ -6,6 +6,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .artifact_types import type_info
+
+
 @dataclass
 class PipelineStepSpec:
     """Specification for a single step in an inline experiment pipeline.
@@ -98,81 +101,6 @@ class PipelineStepSpec:
 # ArtifactSpec — named data product at a hierarchy level
 # ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# Artifact type registry
-# ---------------------------------------------------------------------------
-
-# Default path templates keyed by artifact type.
-# Users can register custom types via ``register_artifact_type()``.
-_ARTIFACT_TYPE_REGISTRY: Dict[str, Dict[str, Any]] = {
-    "trace": {
-        "path": "{run_dir}/traces/events.jsonl",
-        "format": "jsonl",
-        "description": "Raw observability event stream from a single run.",
-    },
-    "run_info": {
-        "path": "{run_dir}/run_info.json",
-        "format": "json",
-        "description": "Run metadata (hash, model, timing, status).",
-    },
-    "metrics": {
-        "path": "{level_dir}/metrics.json",
-        "format": "json",
-        "schema": "artefacts/metrics.schema.json",
-        "description": "Quality metrics computed by evaluation providers.",
-    },
-    "dataframe": {
-        "path": "{level_dir}/data.csv",
-        "format": "csv",
-        "description": "Tidy CSV dataframe for analysis and plotting.",
-    },
-    "plot": {
-        "path": "{level_dir}/plot.png",
-        "format": "png",
-        "description": "Visualization output (PNG, SVG, HTML, or PDF).",
-    },
-}
-
-# Keep backward compat alias
-_ARTIFACT_DEFAULT_PATHS: Dict[str, str] = {
-    k: v["path"] for k, v in _ARTIFACT_TYPE_REGISTRY.items()
-}
-
-
-def register_artifact_type(
-    name: str,
-    path: str,
-    format: str = "json",
-    description: str = "",
-    schema: Optional[str] = None,
-) -> None:
-    """Register a custom artifact type.
-
-    Custom types can then be referenced in experiment YAML::
-
-        artifacts:
-            my_data: my_custom_type
-
-    Args:
-        name: Type identifier (e.g. ``"embeddings"``).
-        path: Default path template with ``{run_dir}``/``{level_dir}`` vars.
-        format: File format hint (``json``, ``csv``, ``jsonl``, ``parquet``, ``png``).
-        description: Human-readable description.
-        schema: Optional JSON schema path for validation.
-    """
-    _ARTIFACT_TYPE_REGISTRY[name] = {
-        "path": path,
-        "format": format,
-        "description": description,
-        **({"schema": schema} if schema else {}),
-    }
-    _ARTIFACT_DEFAULT_PATHS[name] = path
-
-
-def list_artifact_types() -> Dict[str, Dict[str, Any]]:
-    """Return all registered artifact types."""
-    return dict(_ARTIFACT_TYPE_REGISTRY)
-
 
 @dataclass
 class ArtifactSpec:
@@ -189,15 +117,15 @@ class ArtifactSpec:
             path: "{run_dir}/trajectory.html"
             validate: true
 
-    Built-in artifacts ``trace`` and ``run_info`` are auto-created by the
-    execution engine at run level.
+    Types come from library.yaml plugins (``type: artifact``).  The
+    execution engine writes ``trace`` and ``run_info`` at run level.
     """
 
     name: str
     """Artifact name (unique within the level)."""
 
     type: str
-    """Type key from the artifact library (e.g. ``trace``, ``metrics``, ``plot``)."""
+    """Type key from a library.yaml ``type: artifact`` plugin."""
 
     path: Optional[str] = None
     """Path template.  If None, uses the default for the type."""
@@ -208,19 +136,35 @@ class ArtifactSpec:
     @property
     def effective_path(self) -> str:
         """Return the path template, falling back to the type default."""
-        return self.path or _ARTIFACT_DEFAULT_PATHS.get(self.type, "{level_dir}/{name}")
+        return self.path or type_info(self.type).get("path", "{level_dir}/{name}")
 
     @property
     def format(self) -> str:
         """Return the file format for this artifact type."""
-        info = _ARTIFACT_TYPE_REGISTRY.get(self.type, {})
-        return info.get("format", "")
+        return type_info(self.type).get("format", "")
 
     @property
     def description(self) -> str:
         """Return the description for this artifact type."""
-        info = _ARTIFACT_TYPE_REGISTRY.get(self.type, {})
-        return info.get("description", "")
+        return type_info(self.type).get("description", "")
+
+    def relative_path(self) -> Path:
+        """Path relative to the producing level directory.
+
+        A custom ``path`` template keeps subdirectories after ``{run_dir}`` /
+        ``{level_dir}`` / ``{output_dir}``.  Short-form declarations use
+        ``{name}.{format}`` — not the type's default filename — so two
+        ``plot`` artifacts do not collapse onto ``plot.png``.
+        """
+        if self.path:
+            parts = [
+                p
+                for p in Path(self.path).parts
+                if not (p.startswith("{") and p.endswith("}"))
+            ]
+            return Path(*parts) if parts else Path(Path(self.path).name)
+        fmt = self.format
+        return Path(self.name if not fmt else f"{self.name}.{fmt}")
 
     @classmethod
     def from_entry(cls, name: str, value: Any) -> "ArtifactSpec":

@@ -21,6 +21,18 @@ def test_is_mas_experiment_yaml_detects_applications(tmp_path: Path) -> None:
     assert _is_mas_experiment_yaml(path)
 
 
+def test_is_mas_experiment_yaml_applications_win_over_mas_key(tmp_path: Path) -> None:
+    path = tmp_path / "exp.yaml"
+    path.write_text(
+        "experiment:\n"
+        "  mas: leftover\n"
+        "  applications:\n"
+        "    - app: demo\n",
+        encoding="utf-8",
+    )
+    assert _is_mas_experiment_yaml(path)
+
+
 def test_is_mas_experiment_yaml_rejects_non_mas(tmp_path: Path) -> None:
     path = tmp_path / "exp.yaml"
     path.write_text("experiment:\n  pipeline: []\n", encoding="utf-8")

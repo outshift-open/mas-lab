@@ -99,6 +99,7 @@ MASExperimentConfig YAML structure::
           - id: analysis
 """
 
+from .artifact_types import list_artifact_types, register_artifact_type
 from .execution import (
     EmulationSpec,
     InfraEmulationSpec,
@@ -115,8 +116,6 @@ from .pipeline import (
     ArtifactSpec,
     LevelSpec,
     PipelineStepSpec,
-    list_artifact_types,
-    register_artifact_type,
 )
 from .scenario import MASScenarioSpec, MASSpec, OverlayStack
 from .scenario_loading import (

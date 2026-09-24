@@ -378,7 +378,7 @@ $defs:
             type:
               type: string
               description: >
-                Artifact type from the library: trace, run_info, metrics, plot, dataframe.
+                Artifact type from a library.yaml plugin (type: artifact).
             path:
               type: string
               description: >
