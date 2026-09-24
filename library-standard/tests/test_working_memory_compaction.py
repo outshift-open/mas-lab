@@ -5,19 +5,18 @@
 import json
 
 import pytest
+from mas.library.standard.lib.context.compaction import (
+    apply_working_memory_compaction,
+    build_llm_summarize_fn,
+    context_manager_binding_from_compaction,
+    resolve_working_memory_context_manager,
+)
 from mas.library.standard.plugins.context.conversation import (
     SlidingWindowConversation,
     StackConversation,
     SummarizingConversation,
 )
-from mas.runtime.boundary.context.working_memory_compaction import (
-    SUMMARIZE_INSTRUCTIONS,
-    apply_working_memory_compaction,
-    build_llm_summarize_fn,
-    context_manager_binding_from_compaction,
-    resolve_working_memory_context_manager,
-    working_memory_compaction_runtime,
-)
+from mas.library.standard.plugins.context.summarizer import SUMMARIZE_INSTRUCTIONS, LlmSummarizer
 from mas.runtime.contracts.cm_factory import CMFactory
 
 
@@ -73,58 +72,39 @@ def test_resolve_translates_compaction_when_no_explicit_context_manager():
     assert binding == {"type": "sliding_window", "params": {"window_size": 7}}
 
 
-class _FakeEngineNoModelAccess:
-    api_key_env = "FAKE_API_KEY"
-
-    def _uses_model_access(self):
-        return False
-
-    def _chat_completion(self, messages, *, api_key, tools, temperature):
-        assert tools is None
-        assert temperature == 0.0
-        return {"role": "assistant", "content": f"summary of {len(messages)} prompt messages"}
-
+class _FakeEngine:
     def summarize_messages(self, messages):
-        prompt = [
-            {"role": "system", "content": SUMMARIZE_INSTRUCTIONS},
-            {"role": "user", "content": json.dumps(messages, default=str)},
-        ]
-        message = self._chat_completion(prompt, api_key="", tools=None, temperature=0.0)
-        return str(message.get("content") or "").strip()
+        return f"summary of {len(messages)} prompt messages"
 
 
-class _FakeEngineModelAccess:
-    def _uses_model_access(self):
-        return True
-
-    def _model_access_chat(self, messages, *, tools, temperature):
-        assert tools is None
-        return {"role": "assistant", "content": "summary via model access"}
-
-    def summarize_messages(self, messages):
-        prompt = [
-            {"role": "system", "content": SUMMARIZE_INSTRUCTIONS},
-            {"role": "user", "content": json.dumps(messages, default=str)},
-        ]
-        message = self._model_access_chat(prompt, tools=None, temperature=0.0)
-        return str(message.get("content") or "").strip()
-
-
-def test_build_llm_summarize_fn_uses_chat_completion_path():
-    fn = build_llm_summarize_fn(_FakeEngineNoModelAccess())
+def test_build_llm_summarize_fn_is_engine_completion():
+    fn = build_llm_summarize_fn(_FakeEngine())
     result = fn([{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}])
     assert result == "summary of 2 prompt messages"
 
 
-def test_build_llm_summarize_fn_uses_model_access_path():
-    fn = build_llm_summarize_fn(_FakeEngineModelAccess())
-    result = fn([{"role": "user", "content": "hi"}])
-    assert result == "summary via model access"
+def test_llm_summarizer_wraps_then_engine_completes():
+    seen: list[list[dict]] = []
+
+    class _Capture:
+        def summarize_messages(self, messages):
+            seen.append(messages)
+            return "ok"
+
+    plugin = LlmSummarizer()
+    plugin.bind_engine(_Capture())
+    result = plugin.summarize(
+        [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]
+    )
+    assert result == "ok"
+    assert seen[0][0]["content"] == SUMMARIZE_INSTRUCTIONS
+    assert json.loads(seen[0][1]["content"]) == [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": "hello"},
+    ]
 
 
 def test_apply_working_memory_compaction_wires_a_real_context_manager():
-    """End to end: the resolved binding actually instantiates via CMFactory
-    and produces the expected ConversationStrategy behavior."""
     spec = {"working_memory": {"compaction": {"strategy": "keep_recent", "max_messages": 2}}}
     apply_working_memory_compaction(spec)
     assert spec["context_manager"] == {"type": "stack", "params": {"max_messages": 2}}
@@ -137,23 +117,16 @@ def test_apply_working_memory_compaction_wires_a_real_context_manager():
 
 def test_apply_working_memory_compaction_summarize_with_live_engine():
     spec = {"working_memory": {"compaction": {"strategy": "summarize", "keep_turns": 3}}}
-    apply_working_memory_compaction(spec, engine=_FakeEngineNoModelAccess())
+    apply_working_memory_compaction(spec, engine=_FakeEngine())
 
     cm_binding = spec["context_manager"]
     assert cm_binding["type"] == "summarising"
-    assert callable(cm_binding["params"]["summarize_fn"])
+    assert cm_binding["params"] == {"keep_turns": 3}
+    assert "summarize_fn" not in cm_binding["params"]
 
-    cm = CMFactory.create(spec=cm_binding)
+    cm = CMFactory.create(spec=cm_binding, engine=_FakeEngine())
     assert isinstance(cm, SummarizingConversation)
-
-
-def test_working_memory_compaction_runtime_from_spec():
-    spec = {"working_memory": {"compaction": {"strategy": "summarize", "keep_turns": 3}}}
-    apply_working_memory_compaction(spec, engine=_FakeEngineNoModelAccess())
-    runtime = working_memory_compaction_runtime(spec)
-    assert runtime is not None
-    assert runtime.keep_turns == 3
-    assert runtime.summarize_fn([{"role": "user", "content": "hi"}]) == "summary of 2 prompt messages"
+    assert cm._summarize_fn is not None
 
 
 def test_apply_working_memory_compaction_wires_explicit_summarising_context_manager():
@@ -163,20 +136,19 @@ def test_apply_working_memory_compaction_wires_explicit_summarising_context_mana
             "params": {"summary_threshold": 1000, "keep_turns": 2},
         }
     }
-    apply_working_memory_compaction(spec, engine=_FakeEngineNoModelAccess())
+    apply_working_memory_compaction(spec, engine=_FakeEngine())
     assert spec["context_manager"]["type"] == "summarising"
-    assert callable(spec["context_manager"]["params"]["summarize_fn"])
+    assert "summarize_fn" not in (spec["context_manager"].get("params") or {})
 
 
 def test_apply_working_memory_compaction_summarize_without_engine_keeps_summarising():
-    """No live LLM engine — recency pin still applies; do not rewrite to stack."""
     spec = {"working_memory": {"compaction": {"strategy": "summarize"}}}
     apply_working_memory_compaction(spec, engine=None)
     assert spec["context_manager"]["type"] == "summarising"
     assert "summarize_fn" not in spec["context_manager"]["params"]
     cm = CMFactory.create(spec=spec["context_manager"])
     assert isinstance(cm, SummarizingConversation)
-    assert cm._summarize_fn is None
+    assert cm._summarize_fn is not None
 
 
 def test_apply_working_memory_compaction_noop_when_nothing_configured():
@@ -193,7 +165,7 @@ def test_sliding_window_binding_instantiates_via_registry():
     assert cm.max_turns == 4
 
 
-class _FakeEngineWithBudget(_FakeEngineNoModelAccess):
+class _FakeEngineWithBudget(_FakeEngine):
     def __init__(self, *, max_llm_calls):
         from mas.runtime.boundary.gov.budget import BudgetTracker
 
@@ -202,7 +174,7 @@ class _FakeEngineWithBudget(_FakeEngineNoModelAccess):
     def summarize_messages(self, messages):
         if not self._budget.allow_llm():
             raise RuntimeError(
-                "working_memory compaction summarize_fn: LLM call budget "
+                "history summarizer: LLM call budget "
                 "exceeded (spec.budget.max_llm_calls)"
             )
         self._budget.note_llm()

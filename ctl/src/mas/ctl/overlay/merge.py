@@ -11,6 +11,7 @@ from typing import Any
 
 import yaml
 from mas.ctl.validate.schemas import schema_root
+from mas.runtime.spec.plugin_binding import normalize_plugin_binding, plugin_binding_id
 
 logger = logging.getLogger(__name__)
 
@@ -346,6 +347,9 @@ def _merge_value_by_meta(existing: Any, incoming: Any, meta: dict[str, Any]) -> 
         existing_map = existing if isinstance(existing, dict) else {}
         return _merge_mapping_ops(existing_map, incoming)
 
+    if strategy == "plugin_binding_merge":
+        return _merge_plugin_binding(existing, incoming)
+
     if strategy == "mapping_merge_or_ops":
         existing_map = existing if isinstance(existing, dict) else {}
         if isinstance(incoming, dict) and _ops_dict(incoming) is not None:
@@ -382,6 +386,53 @@ def _merge_value_by_meta(existing: Any, incoming: Any, meta: dict[str, Any]) -> 
         return deepcopy(incoming)
 
     return deepcopy(incoming)
+
+
+def _plugin_binding_object(raw: Any) -> dict[str, Any]:
+    return deepcopy(normalize_plugin_binding(raw, field="plugin binding"))
+
+
+def _deep_merge_maps(base: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    """Recurse dict values so a partial nested patch keeps sibling keys."""
+    merged = deepcopy(base)
+    for key, value in incoming.items():
+        if isinstance(merged.get(key), dict) and isinstance(value, dict):
+            merged[key] = _deep_merge_maps(merged[key], value)
+        else:
+            merged[key] = deepcopy(value)
+    return merged
+
+
+def _merge_plugin_binding(existing: Any, incoming: Any) -> Any:
+    """Merge a singleton plugin slot (string shorthand or {type, ref, params}).
+
+    A type/ref change replaces the binding (no leftover constructor kwargs).
+    Same type, or params-only overlay, deep-merges nested ``params``/``config``.
+    """
+    if isinstance(incoming, str) and incoming.strip():
+        return normalize_plugin_binding(incoming, field="plugin binding")
+    base = _plugin_binding_object(existing)
+    if not isinstance(incoming, dict):
+        return deepcopy(incoming)
+    if _ops_dict(incoming) is not None:
+        return _merge_mapping_ops(base, incoming)
+    incoming_id = plugin_binding_id(incoming, field="plugin binding")
+    base_id = plugin_binding_id(base, field="plugin binding")
+    if incoming_id and base_id and incoming_id != base_id:
+        return deepcopy(incoming)
+    merged = deepcopy(base)
+    for key, value in incoming.items():
+        if (
+            key in {"params", "config"}
+            and isinstance(merged.get(key), dict)
+            and isinstance(value, dict)
+        ):
+            merged[key] = _deep_merge_maps(merged[key], value)
+        elif isinstance(merged.get(key), list) and isinstance(value, list):
+            merged[key] = list(merged[key]) + list(value)
+        else:
+            merged[key] = deepcopy(value)
+    return merged
 
 
 def _agency_entry_key(entry: dict[str, Any]) -> str | None:
@@ -489,21 +540,6 @@ def merge_agent_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[s
     agent_meta = _overlay_merge_meta("Agent")
 
     for key, incoming in overlay_spec.items():
-        if key == "context_manager" and isinstance(incoming, dict):
-            base_cm = base_spec.get("context_manager") or {}
-            for cm_key, cm_val in incoming.items():
-                meta = agent_meta.get(f"context_manager.{cm_key}")
-                if meta is not None:
-                    base_cm[cm_key] = _merge_value_by_meta(base_cm.get(cm_key), cm_val, meta)
-                elif isinstance(base_cm.get(cm_key), list):
-                    items = list(base_cm.get(cm_key) or [])
-                    items.extend(list(cm_val or []) if isinstance(cm_val, list) else [cm_val])
-                    base_cm[cm_key] = items
-                else:
-                    base_cm[cm_key] = cm_val
-            base_spec["context_manager"] = base_cm
-            continue
-
         meta = agent_meta.get(key)
         if meta is not None:
             base_spec[key] = _merge_value_by_meta(base_spec.get(key), incoming, meta)

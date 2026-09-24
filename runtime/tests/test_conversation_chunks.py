@@ -1,18 +1,17 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Commit-time conversation chunk graph."""
+"""Committed conversation chunk graph (append / project / serialize)."""
 
 from __future__ import annotations
 
+import json
+
 from mas.runtime.boundary.context.provider_invariant import assert_provider_payload
 from mas.runtime.boundary.context.assemble import assemble_llm_messages
-from mas.runtime.boundary.context.chunk_compaction import maybe_compact_chunks_after_commit
 from mas.runtime.boundary.context.conversation_chunks import (
     ConversationChunkStore,
-    MessageChunk,
     SummaryChunk,
 )
-from mas.runtime.boundary.context.working_memory_compaction import WorkingMemoryCompactionRuntime
 from mas.runtime.boundary.context.working_memory_registry import (
     WorkingMemorySnapshot,
     restore_ctx,
@@ -72,88 +71,14 @@ def test_project_summary_before_recent_chunks() -> None:
     assert projected[-1]["content"] == "b"
 
 
-def test_compact_retains_child_chunks_for_audit() -> None:
-    store = ConversationChunkStore()
-    for i in range(6):
-        store.append_turn(_turn(f"q{i}", "x" * 500))
-
-    def summarize(msgs: list) -> str:
-        return "summary-text"
-
-    assert store.maybe_compact(
-        summary_threshold=100,
-        keep_message_chunks=2,
-        summarize_fn=summarize,
-    )
-    assert store.summary_chunk_id
-    summary = store.chunks[store.summary_chunk_id]
-    assert isinstance(summary, SummaryChunk)
-    assert summary.text == "summary-text"
-    assert len(summary.child_chunk_ids) == 4
-    assert len(store.order) == 2
-    for child_id in summary.child_chunk_ids:
-        assert child_id in store.chunks
-        assert isinstance(store.chunks[child_id], MessageChunk)
-
-
-def test_second_compact_is_incremental_not_full_rescan() -> None:
-    store = ConversationChunkStore()
-    calls = 0
-
-    def summarize(msgs: list) -> str:
-        nonlocal calls
-        calls += 1
-        if any("[Prior summary]" in str(m.get("content", "")) for m in msgs):
-            return "summary-v2"
-        return "summary-v1"
-
-    for i in range(4):
-        store.append_turn(_turn(f"q{i}", "y" * 400))
-    store.maybe_compact(summary_threshold=50, keep_message_chunks=1, summarize_fn=summarize)
-    store.append_turn(_turn("q4", "y" * 400))
-    store.append_turn(_turn("q5", "y" * 400))
-    store.maybe_compact(summary_threshold=50, keep_message_chunks=1, summarize_fn=summarize)
-    assert calls == 2
-    assert store.chunks[store.summary_chunk_id].text == "summary-v2"
-
-
-def test_maybe_compact_noop_under_threshold() -> None:
-    store = ConversationChunkStore()
-    store.append_turn(_turn("a", "short"))
-    assert not store.maybe_compact(
-        summary_threshold=10_000,
-        keep_message_chunks=1,
-        summarize_fn=lambda m: "nope",
-    )
-
-
-def test_maybe_compact_noop_when_keep_covers_all_chunks() -> None:
-    store = ConversationChunkStore()
-    store.append_turn(_turn("a", "x" * 500))
-    store.append_turn(_turn("b", "x" * 500))
-    assert not store.maybe_compact(
-        summary_threshold=10,
-        keep_message_chunks=5,
-        summarize_fn=lambda m: "nope",
-    )
-
-
 def test_serialization_round_trip() -> None:
     store = ConversationChunkStore()
-    cid = store.append_turn(_turn("u", "x" * 500))
-    assert store.maybe_compact(
-        summary_threshold=50,
-        keep_message_chunks=0,
-        summarize_fn=lambda m: "sum",
-    )
+    store.append_turn(_turn("u", "a"))
+    store.append_turn(_turn("v", "b"))
     restored = ConversationChunkStore.from_dict(store.to_dict())
-    assert restored.summary_chunk_id == store.summary_chunk_id
     assert restored.order == store.order
     assert set(restored.chunks) == set(store.chunks)
     assert restored.project_messages() == store.project_messages()
-    summary = restored.chunks[restored.summary_chunk_id]
-    assert isinstance(summary, SummaryChunk)
-    assert cid in summary.child_chunk_ids
 
 
 def test_from_dict_none_returns_empty_store() -> None:
@@ -180,55 +105,108 @@ def test_assembly_chunk_projection_is_provider_safe() -> None:
     assert_provider_payload(messages)
 
 
-def test_assembly_does_not_invoke_summarize_fn() -> None:
+def test_assembly_does_not_rewrite_chunks() -> None:
     ctx = AutoCtxAssembler(last_user_text="q")
-    ctx.working_memory_compaction = WorkingMemoryCompactionRuntime(
-        summary_threshold=10,
-        keep_turns=0,
-        summarize_fn=lambda m: (_ for _ in ()).throw(AssertionError("no assembly summarize")),
-    )
     ctx.conversation_chunks.append_turn(_turn("a", "b" * 500))
-    # working_memory_compaction is commit-time only; assembly uses manifest/CMFactory.
     assemble_llm_messages(ctx)
     assemble_llm_messages(ctx)
+    assert not ctx.conversation_chunks.summary_chunk_id
+    assert len(ctx.conversation_chunks.order) == 1
 
 
-def test_turn_commit_appends_chunk_and_compacts_at_commit_only() -> None:
+def test_turn_commit_keeps_chunks_while_under_keep_turns() -> None:
     ctx = AutoCtxAssembler()
-    calls = 0
-
-    def summarize(msgs: list) -> str:
-        nonlocal calls
-        calls += 1
-        return "rolled-up"
-
-    ctx.working_memory_compaction = WorkingMemoryCompactionRuntime(
-        summary_threshold=80,
-        keep_turns=1,
-        summarize_fn=summarize,
-    )
     for i in range(4):
         ctx.note_user_input(f"q{i}")
         ctx.note_agent_response("x" * 200)
-    assert calls >= 1
-    assert ctx.conversation_chunks.summary_chunk_id
+    assert len(ctx.conversation_chunks.order) == 4
     projected = ctx.conversation_chunks.project_messages()
-    assert projected[0]["role"] == "system"
-    assert "rolled-up" in projected[0]["content"]
+    assert projected[0]["role"] == "user"
+    assert projected[0]["content"] == "q0"
 
 
-def test_maybe_compact_chunks_after_commit_respects_manifest() -> None:
-    store = ConversationChunkStore()
-    store.append_turn(_turn("a", "x" * 800))
-    assert not maybe_compact_chunks_after_commit(store, compaction=None)
-    assert maybe_compact_chunks_after_commit(
-        store,
-        compaction=WorkingMemoryCompactionRuntime(
-            summary_threshold=50,
-            keep_turns=0,
-            summarize_fn=lambda m: "ok",
-        ),
+def test_turn_commit_bounds_history_to_keep_turns() -> None:
+    ctx = AutoCtxAssembler(
+        manifest={
+            "spec": {
+                "context_manager": {
+                    "type": "summarising",
+                    "params": {"keep_turns": 2, "hysteresis_ratio": 0, "summarizer": "drop"},
+                }
+            }
+        }
     )
+    for i in range(6):
+        ctx.note_user_input(f"q{i}")
+        ctx.note_agent_response(f"a{i}")
+    contents = [m.get("content") for m in ctx.committed_messages]
+    assert "q0" not in contents
+    assert "q5" in contents
+    assert len(ctx.conversation_chunks.order) == 2
+    assert [m.get("content") for m in ctx.conversation_chunks.project_messages() if m.get("role") == "user"] == [
+        "q4",
+        "q5",
+    ]
+    assert len(ctx.turn_history) == 2
+    store = ctx.conversation_chunks
+    assert set(store.chunks) == set(store.order)
+    blob = json.dumps(snapshot_ctx(ctx).conversation_chunks)
+    assert "q0" not in blob
+    assert "q1" not in blob
+    assert "q5" in blob
+
+
+def test_turn_commit_bounds_default_keep_turns() -> None:
+    ctx = AutoCtxAssembler()
+    for i in range(12):
+        ctx.note_user_input(f"q{i}")
+        ctx.note_agent_response(f"a{i}")
+    contents = [m.get("content") for m in ctx.committed_messages]
+    assert "q0" not in contents
+    assert "q11" in contents
+    assert len(ctx.conversation_chunks.order) == 10
+    assert len(ctx.turn_history) == 10
+
+
+def test_turn_commit_bounds_sliding_window() -> None:
+    ctx = AutoCtxAssembler(
+        manifest={
+            "spec": {
+                "context_manager": {
+                    "type": "sliding-window",
+                    "params": {"keep_turns": 3},
+                }
+            }
+        }
+    )
+    for i in range(8):
+        ctx.note_user_input(f"q{i}")
+        ctx.note_agent_response(f"a{i}")
+    users = [m.get("content") for m in ctx.committed_messages if m.get("role") == "user"]
+    assert users == ["q5", "q6", "q7"]
+    assert len(ctx.conversation_chunks.order) == 3
+    assert len(ctx.turn_history) == 3
+
+
+def test_turn_commit_bounds_stack_max_messages() -> None:
+    ctx = AutoCtxAssembler(
+        manifest={
+            "spec": {
+                "context_manager": {
+                    "type": "stack",
+                    "params": {"max_messages": 4},
+                }
+            }
+        }
+    )
+    for i in range(6):
+        ctx.note_user_input(f"q{i}")
+        ctx.note_agent_response(f"a{i}")
+    assert len(ctx.committed_messages) == 4
+    contents = [m.get("content") for m in ctx.committed_messages]
+    assert "q0" not in contents
+    assert "q5" in contents
+    assert len(ctx.turn_history) == 2
 
 
 def test_tool_trajectory_preserved_in_message_chunk() -> None:

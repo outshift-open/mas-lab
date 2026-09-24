@@ -7,8 +7,8 @@ Allowed binding keys are generated from JSON Schema
 This module adds semantic checks that schema alone does not express (integer ranges,
 nested object key sets).
 
-Cardinality-one fields (scalar / single object): ``design_pattern``, ``llm``,
-``memory``, ``execution``.
+Cardinality-one fields (string shorthand or `{type, ref, params}`): ``design_pattern``,
+``context_manager``, ``assembler``, ``llm``, ``memory``.
 
 Multi-cardinality fields (list): ``observability`` (sequence), ``tools``,
 ``skills``, ``governance`` (chain — see governance-binding.schema.yaml).
@@ -34,6 +34,7 @@ from typing import Any
 from mas.runtime.boundary.obs.binding import ObservabilityBinding
 from mas.runtime.spec.gov import GovernanceBinding
 from mas.runtime.spec.schema_bindings_generated import (
+    ASSEMBLER_BINDING_KEYS,
     CONTEXT_MANAGER_BINDING_KEYS,
     CONTROL_BINDING_KEYS,
     DESIGN_PATTERN_BINDING_KEYS,
@@ -209,17 +210,43 @@ def _reject_unknown_keys(raw: dict[str, Any], *, allowed: frozenset[str], field:
 def parse_design_pattern(raw: Any) -> None:
     if raw is None:
         return
+    if isinstance(raw, str):
+        if not raw.strip():
+            raise SpecBindingError("spec.design_pattern string must be a plugin name")
+        return
     if not isinstance(raw, dict):
-        raise SpecBindingError(f"spec.design_pattern must be an object, got {type(raw).__name__}")
+        raise SpecBindingError(
+            f"spec.design_pattern must be a plugin name or object, got {type(raw).__name__}"
+        )
     _reject_unknown_keys(raw, allowed=DESIGN_PATTERN_BINDING_KEYS, field="spec.design_pattern")
 
 
 def parse_context_manager(raw: Any) -> None:
     if raw is None:
         return
+    if isinstance(raw, str):
+        if not raw.strip():
+            raise SpecBindingError("spec.context_manager string must be a plugin name")
+        return
     if not isinstance(raw, dict):
-        raise SpecBindingError(f"spec.context_manager must be an object, got {type(raw).__name__}")
+        raise SpecBindingError(
+            f"spec.context_manager must be a plugin name or object, got {type(raw).__name__}"
+        )
     _reject_unknown_keys(raw, allowed=CONTEXT_MANAGER_BINDING_KEYS, field="spec.context_manager")
+
+
+def parse_assembler(raw: Any) -> None:
+    if raw is None:
+        return
+    if isinstance(raw, str):
+        if not raw.strip():
+            raise SpecBindingError("spec.assembler string must be a plugin name")
+        return
+    if not isinstance(raw, dict):
+        raise SpecBindingError(
+            f"spec.assembler must be a plugin name or object, got {type(raw).__name__}"
+        )
+    _reject_unknown_keys(raw, allowed=ASSEMBLER_BINDING_KEYS, field="spec.assembler")
 
 
 def parse_llm(raw: Any) -> None:
@@ -314,6 +341,12 @@ def validate_agent_spec_bindings(spec: Any) -> None:
         parse_design_pattern(spec["design_pattern"])
     if "context_manager" in spec:
         parse_context_manager(spec["context_manager"])
+    if "assembler" in spec:
+        parse_assembler(spec["assembler"])
+    if "context_plugin" in spec:
+        raise SpecBindingError(
+            "spec.context_plugin was removed; use spec.assembler"
+        )
 
 
 def parse_sink_from_deployment(deployment: dict | None) -> str | None:

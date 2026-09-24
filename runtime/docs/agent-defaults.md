@@ -5,9 +5,9 @@
 # Agent Defaults
 
 `mas-runtime` needs a handful of package-wide defaults for values a manifest
-is allowed to omit: the LLM model, the design pattern, and the context
-manager. These are data, not Python constants, following the same pattern
-as [plugin aliases](plugin-aliases.md).
+is allowed to omit: the LLM model, the design pattern, the context
+manager, and the assembler. These are data, not Python constants, following the same pattern
+as [plugin aliases](plugin-aliases.md). Bindings: [plugin-bindings.md](../../docs/manifests/plugin-bindings.md).
 
 ## Discovery order
 
@@ -25,12 +25,13 @@ defaults:
   model: gpt-4.1-mini
   design_pattern: cot@v1
   context_manager: stack
+  assembler: assembler
 ```
 
 This is validated against
 [src/mas/runtime/defaults.schema.yaml](../src/mas/runtime/defaults.schema.yaml)
-(and against the root `config.schema.yaml`, which declares the same three
-keys under its own `defaults:` property).
+(and against the root `config.schema.yaml`, which declares the same keys
+under its own `defaults:` property).
 
 ## How the values are used
 
@@ -38,21 +39,22 @@ keys under its own `defaults:` property).
   `resolve_default_model(workspace=None)`, and is *not* a registry plugin
   type — it's a plain string consumed directly by callers that need an LLM
   model id (e.g. `mas-ctl`'s `resolve_model_name`).
-- `design_pattern` and `context_manager` *are* registry spec keys: on
+- `design_pattern`, `context_manager`, and `assembler` *are* registry spec keys: on
   startup, `bootstrap.load_registry()` reads `defaults.yaml` (merged with
   any `config.yaml` override) via `mas.runtime.registry.defaults.
   load_defaults()` and calls `PluginRegistry.set_default(spec_key,
-  plugin_id)` for each one. `agent_defaults.default_pattern_plugin_id()`
-  and `default_context_manager_id()` then simply read those back via
-  `PluginRegistry.default_for(spec_key)` — there is exactly one source of
-  truth for "what plugin does an omitted `spec.design_pattern` resolve to."
+  plugin_id)` for each one. `agent_defaults.default_pattern_plugin_id()`,
+  `default_context_manager_id()`, and `default_assembler_id()` then
+  simply read those back via `PluginRegistry.default_for(spec_key)` — there
+  is exactly one source of truth for "what plugin does an omitted
+  `spec.design_pattern` resolve to."
 
 A plugin manifest (`library.yaml`, or a split-out `*.plugins.yaml`) can
 *also* declare its own `defaults:` block (see
 [plugin-registry-manifests.md](plugin-registry-manifests.md)) to set the
 default for a type it introduces. That is scoped to a single manifest's
 own plugin types and complements this mechanism, which is the runtime-wide
-default for `model`, `design_pattern`, and `context_manager`.
+default for `model`, `design_pattern`, `context_manager`, and `assembler`.
 
 ## Notes for contributors
 
@@ -66,4 +68,4 @@ default for `model`, `design_pattern`, and `context_manager`.
   `model`).
 - `agent_defaults.py`'s public API is `default_model()`,
   `resolve_default_model(workspace=None)`, `default_pattern_plugin_id()`,
-  and `default_context_manager_id()`.
+  `default_context_manager_id()`, and `default_assembler_id()`.

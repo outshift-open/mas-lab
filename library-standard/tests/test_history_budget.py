@@ -4,11 +4,9 @@
 
 from __future__ import annotations
 
-from mas.runtime.boundary.context.assembly_trim import (
+from mas.library.standard.lib.context.history_budget import (
     assembly_trimmer_params,
     context_manager_history_budget_hint,
-)
-from mas.runtime.spec.history_budget import (
     derived_trimmer_params,
     fill_context_manager_defaults,
     history_token_budget,
@@ -59,6 +57,7 @@ def test_fill_context_manager_defaults_emits_sota_summarising() -> None:
     assert spec["models"][0]["context_window"] == 128000
     assert cm["params"]["trimmer"] == {"max_tokens": 128000, "reserve_tokens": 1800}
     assert cm["params"]["summary_threshold"] == 128000 - 1800
+    assert cm["params"]["summarizer"] == "llm"
 
 
 def test_fill_preserves_explicit_keep_turns_and_sliding_window() -> None:

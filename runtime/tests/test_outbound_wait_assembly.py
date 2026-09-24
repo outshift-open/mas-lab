@@ -9,12 +9,12 @@ from unittest.mock import patch
 
 from mas.library.standard.plugins.context.assembler import ContextAssemblerPlugin
 from mas.library.standard.plugins.context.conversation import StackConversation
-from mas.runtime.boundary.context.provider_invariant import assert_provider_payload
-from mas.runtime.boundary.context.assemble import assemble_llm_messages
-from mas.runtime.boundary.context.working_memory import (
+from mas.library.standard.lib.context.working_memory import (
     bounded_working_memory_tail,
     working_memory_slice_limit,
 )
+from mas.runtime.boundary.context.assemble import assemble_llm_messages
+from mas.runtime.boundary.context.provider_invariant import assert_provider_payload
 from mas.runtime.driver.mocks import AutoCtxAssembler
 from mas.runtime.kernel.inflight import register_inflight
 from mas.runtime.kernel.outbound_waits import pending_outbound_waits
@@ -237,7 +237,10 @@ def test_issue_65_stuck_retry_loop_ages_out_of_working_memory() -> None:
     assert len(ctx.working_memory.messages) == 30
 
     # Repro: pre-#65-fix behaviour had no cap at all — every retry pinned forever.
-    with patch("mas.runtime.boundary.context.assemble.working_memory_slice_limit", return_value=0):
+    with patch(
+        "mas.library.standard.plugins.context.assembler.working_memory_slice_limit",
+        return_value=0,
+    ):
         unbounded = assemble_llm_messages(ctx)
     unbounded_tool_msgs = [m for m in unbounded if m.get("role") == "tool"]
     assert len(unbounded_tool_msgs) == 15, "sanity: with no cap, every retry is still present (the bug)"
@@ -272,6 +275,16 @@ def test_working_memory_messages_configurable_via_manifest() -> None:
 def test_working_memory_slice_limit_defaults_to_twenty() -> None:
     assert working_memory_slice_limit(None) == 20
     assert working_memory_slice_limit({"spec": {"context_manager": {"params": {"working_memory_messages": 3}}}}) == 3
+
+
+def test_working_memory_slice_limit_degrades_on_malformed_context_manager() -> None:
+    """A hand-built manifest that bypassed ctl validation must not fail the turn.
+
+    ``ctl`` rejects a non-str/dict ``spec.context_manager`` at compile time;
+    the runtime read here degrades to the default instead of raising.
+    """
+    assert working_memory_slice_limit({"spec": {"context_manager": ["not", "a", "binding"]}}) == 20
+    assert working_memory_slice_limit({"spec": {"context_manager": 42}}) == 20
 
 
 def test_bounded_working_memory_tail_never_splits_tool_group() -> None:

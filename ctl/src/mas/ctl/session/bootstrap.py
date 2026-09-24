@@ -185,19 +185,13 @@ def instantiate_runtime(
         )
     logger.debug("Engine mode=%s (%s)", selection.mode, selection.reason)
 
-    from mas.runtime.boundary.context.working_memory_compaction import (
-        apply_working_memory_compaction,
-        working_memory_compaction_runtime,
-    )
+    from mas.library.standard.lib.context.compaction import apply_working_memory_compaction
 
     apply_working_memory_compaction(spec, engine=selection.engine)
-    ctx.working_memory_compaction = working_memory_compaction_runtime(spec)
     if "context_manager" in spec and options.agent_manifest is not None:
-        # LiveLlmEngine holds a live reference to options.agent_manifest (not
-        # `spec` above, a separate shallow copy) and reads context_manager
-        # fresh from it on every assemble_llm_messages() call -- keep both in
-        # sync so the facade takes effect for the engine actually constructed
-        # above, not just the copy this function goes on to use locally.
+        # working_memory.compaction → context_manager is applied to a shallow
+        # copy of spec; keep the engine's live manifest in sync. The engine
+        # itself is bound onto ctx at driver init, not written into spec params.
         options.agent_manifest.setdefault("spec", {})["context_manager"] = spec["context_manager"]
 
     instance = RuntimeInstance.from_spec(

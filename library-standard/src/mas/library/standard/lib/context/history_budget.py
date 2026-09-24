@@ -1,12 +1,13 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Derive conversation-history budget from the model context window.
+"""History token budget from the model context window.
+
+Used by the assembler plugin (``manage_history`` hint + payload trim) and by
+``mas-ctl compile`` (fill omitted context-manager params). Not imported by
+runtime: the kernel does not choose a history budget.
 
 History max size = model ``context_window`` minus reserved completion space
-(``models[].max_tokens``) and any explicit ``trimmer.reserve_tokens``. Strategy
-plugins in library-standard consume the resulting hint; this module only does
-arithmetic and manifest fill so ``mas-ctl compile`` and assembly share one
-policy.
+(``models[].max_tokens``) and any explicit ``trimmer.reserve_tokens``.
 """
 
 from __future__ import annotations
@@ -110,6 +111,23 @@ def history_token_budget(manifest_or_spec: dict[str, Any] | None) -> int:
     return max(1, max_tokens - reserve)
 
 
+def assembly_trimmer_params(manifest: dict | None) -> tuple[int, int] | None:
+    """Return ``(max_tokens, reserve_tokens)`` for the assembled payload cap.
+
+    Uses explicit ``spec.context_manager.params.trimmer`` when set; otherwise
+    the primary model's ``context_window`` minus completion ``max_tokens``.
+    """
+    max_tokens, reserve = derived_trimmer_params(manifest)
+    if max_tokens < 1:
+        return None
+    return max_tokens, max(0, reserve)
+
+
+def context_manager_history_budget_hint(manifest: dict | None) -> int:
+    """Token hint for ``manage_history``: context window minus completion reserve."""
+    return history_token_budget(manifest)
+
+
 def _normalise_cm_type(cm: dict[str, Any]) -> str:
     raw = str(cm.get("type") or cm.get("ref") or "").strip().lower()
     return raw.replace("_", "-")
@@ -134,19 +152,18 @@ def fill_model_window_defaults(spec: dict[str, Any]) -> None:
 
 
 def fill_context_manager_defaults(spec: dict[str, Any]) -> None:
-    """Fill omitted ``spec.context_manager`` type and SOTA recency/trimmer params.
+    """Fill omitted ``spec.context_manager`` type and recency/trimmer params.
 
-    Used by ``mas-ctl compile`` so the resolved agent YAML shows the history
-    policy. Runtime assembly derives the same numbers when the keys are absent.
+    ``mas-ctl compile`` calls this so the resolved agent YAML shows the history
+    policy. The assembler plugin derives the same numbers when the keys are absent.
     """
     from mas.runtime.agent_defaults import default_context_manager_id
+    from mas.runtime.spec.plugin_binding import normalize_plugin_binding
 
     fill_model_window_defaults(spec)
 
-    cm = spec.get("context_manager")
-    if not isinstance(cm, dict):
-        cm = {}
-        spec["context_manager"] = cm
+    cm = normalize_plugin_binding(spec.get("context_manager"), field="spec.context_manager")
+    spec["context_manager"] = cm
     if not (cm.get("type") or cm.get("ref")):
         cm["type"] = default_context_manager_id()
 
@@ -167,9 +184,12 @@ def fill_context_manager_defaults(spec: dict[str, Any]) -> None:
                 continue
 
     if _is_summarising_type(cm_type):
+        from mas.runtime.registry import get_registry
+
         params.setdefault("keep_turns", keep)
         params.setdefault("hysteresis_ratio", DEFAULT_HYSTERESIS_RATIO)
         params.setdefault("summary_threshold", history_token_budget({"spec": spec}))
+        params.setdefault("summarizer", get_registry().default_for("summarizer") or "llm")
     elif _is_sliding_type(cm_type) or not cm_type:
         params.setdefault("keep_turns", keep)
         params.setdefault("window_size", keep)

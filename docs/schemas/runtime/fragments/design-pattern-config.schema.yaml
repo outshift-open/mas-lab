@@ -5,13 +5,23 @@ $id: "mas/v1#design-pattern-config"
 title: DesignPatternConfig
 description: Plugin params passed to DesignPatternPlugin registry entry.
 type: object
-additionalProperties: false
+additionalProperties: true
 properties:
   max_steps:
     type: integer
     minimum: 1
+    default: 512
+    description: >
+      Kernel dispatch-loop cap (KernelConfig.max_auto_steps). Default 512.
+  max_cot_pass:
+    type: integer
+    minimum: 0
+    default: 1
+    description: Extra CoT refinement passes (KernelConfig.max_cot_pass). Default 1.
   parallel:
     type: boolean
+    default: true
+    description: Allow parallel tool calls (KernelConfig.parallel_tool_calls). Default true.
   critique_turns:
     type: integer
     minimum: 0

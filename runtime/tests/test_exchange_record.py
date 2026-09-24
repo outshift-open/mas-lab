@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from mas.runtime.driver.driver import _engine_invoke_record, engine_model_id
+from mas.runtime.driver.driver import _engine_invoke_record, engine_manifest, engine_model_id
 from mas.runtime.engine.exchange_preview import ExchangeSnapshot
 from mas.runtime.schema.egress import InvokeEngineIo
 
@@ -168,3 +168,12 @@ def test_engine_model_id_mock_does_not_grow_with_repeated_calls():
     for _ in range(1000):
         assert engine_model_id(engine) == ""
     assert engine._mock_children == {}
+
+
+def test_engine_manifest_unwraps_inner():
+    spec = {"spec": {"context_manager": "summarising"}}
+    inner = SimpleNamespace(manifest=spec, inner=None)
+    outer = SimpleNamespace(manifest=None, inner=inner)
+    assert engine_manifest(outer) is spec
+    assert engine_manifest(None) is None
+    assert engine_manifest(SimpleNamespace()) is None

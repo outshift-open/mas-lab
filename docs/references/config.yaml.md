@@ -52,7 +52,7 @@ For `mas_ctl.trace*` (and the rest of the `mas_ctl` map used by chat / run-mas):
 | `infra_interceptors` | string or list | Optional interceptor bundle refs |
 | `manifest_libraries` | map name → path | Extra libraries relative to the workspace root |
 | `aliases` | map | Runtime plugin alias → canonical URN |
-| `defaults` | object | Overrides for runtime `defaults.yaml` (`model`, `design_pattern`, `context_manager`) |
+| `defaults` | object | Overrides for runtime `defaults.yaml` (`model`, `design_pattern`, `context_manager`, `assembler`) |
 | `paths` | object | `labs_dir`, `cache_dir`, `runs_dir` (else XDG / `MAS_*`) |
 
 ---
@@ -109,6 +109,7 @@ See [mas-ctl.md](../cli/mas-ctl.md#exchange-log) and
 | `model` | Default model id when a manifest omits one |
 | `design_pattern` | Default plugin id for `spec.design_pattern` |
 | `context_manager` | Default plugin id for `spec.context_manager` |
+| `assembler` | Default plugin id for `spec.assembler` |
 
 See [runtime/docs/agent-defaults.md](../../runtime/docs/agent-defaults.md).
 

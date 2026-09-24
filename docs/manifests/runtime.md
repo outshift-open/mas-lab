@@ -16,7 +16,7 @@ Validated by `mas-ctl validate` (agents, MAS, overlays) and `mas-lab validate`
 
 | Manifest | Schema file | Reference page |
 |----------|-------------|----------------|
-| Agent | `agent.schema.yaml` | [agent.md](agent.md) |
+| Agent | `agent.schema.yaml` | [agent.md](agent.md) · [plugin-bindings.md](plugin-bindings.md) · [context-assembly.md](context-assembly.md) |
 | MAS | `mas.schema.yaml` | [mas.md](mas.md) |
 | Overlay | `overlay.schema.yaml` | [overlay.md](overlay.md) |
 | Workflow topology | `workflow.schema.yaml` | [workflow.md](workflow.md) |

@@ -117,6 +117,9 @@ nav:
       - "ADR 0001 — lab terminology": references/adr-0001-lab-terminology.md
       - Specifications:
           - Agent: manifests/agent.md
+          - Plugin bindings: manifests/plugin-bindings.md
+          - Context assembly: manifests/context-assembly.md
+          - "Compiled agent defaults": references/defaults.md
           - MAS: manifests/mas.md
           - Topology & workflow: manifests/topology-and-workflow.md
           - Workflow: manifests/workflow.md

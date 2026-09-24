@@ -42,6 +42,10 @@ properties:
     $ref: "../agent.schema.yaml#/properties/spec/properties/memory"
   working_memory:
     $ref: "../agent.schema.yaml#/properties/spec/properties/working_memory"
+  context_manager:
+    $ref: "../agent.schema.yaml#/properties/spec/properties/context_manager"
+  assembler:
+    $ref: "../agent.schema.yaml#/properties/spec/properties/assembler"
   llm:
     $ref: "../agent.schema.yaml#/properties/spec/properties/llm"
   memory_seed:
@@ -51,20 +55,23 @@ properties:
   skills:
     $ref: "./overlay-collection-ops-string.schema.yaml"
   design_pattern:
-    # Not a plain $ref: params/config use the stricter design-pattern-config
-    # fragment here, vs. the base schema's permissive additionalProperties:
-    # true -- overlay-time validation is intentionally tighter.
-    type: [object, "null"]
-    additionalProperties: false
-    properties:
-      type:
-        type: string
-      ref:
-        type: string
-      params:
-        $ref: "./design-pattern-config.schema.yaml"
-      config:
-        $ref: "./design-pattern-config.schema.yaml"
+    # Object form is tighter than the base schema (design-pattern-config fragment).
+    # String shorthand (plugin name) is the same as agent spec.
+    oneOf:
+      - type: "null"
+      - type: string
+        minLength: 1
+      - type: object
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+          ref:
+            type: string
+          params:
+            $ref: "./design-pattern-config.schema.yaml"
+          config:
+            $ref: "./design-pattern-config.schema.yaml"
   control:
     oneOf:
       - type: "null"

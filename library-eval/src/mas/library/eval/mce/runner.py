@@ -70,7 +70,17 @@ ALL_SESSION_METRICS: List[str] = list(METRIC_MAP.keys())
 # relevant statements; GEval = weighted rubric 0-1 float).
 _DEEPEVAL_METRIC_NAMES = {"answer_relevancy", "goal_success_rate"}
 
-_deepeval_model: Any = None   # deepeval GPTModel instance; set by install_openai_llm_service
+_deepeval_model: Any = None   # deepeval OpenAIModel instance; set by install_openai_llm_service
+
+
+def _deepeval_llm_cls() -> Any:
+    """DeepEval OpenAI-compatible LLM class (``GPTModel`` is a deprecated alias)."""
+    try:
+        from deepeval.models import OpenAIModel
+        return OpenAIModel
+    except ImportError:  # pragma: no cover - deepeval < 4.2
+        from deepeval.models import GPTModel
+        return GPTModel
 
 
 def _make_deepeval_model(
@@ -78,16 +88,16 @@ def _make_deepeval_model(
     api_key: str,
     base_url: Optional[str],
 ) -> Any:
-    """Build a ``deepeval.models.GPTModel`` from the resolved LLM config."""
+    """Build a ``deepeval.models.OpenAIModel`` from the resolved LLM config."""
     try:
-        from deepeval.models import GPTModel
-        return GPTModel(
+        cls = _deepeval_llm_cls()
+        return cls(
             model=model,
             api_key=api_key,
             base_url=base_url or None,
         )
     except Exception as exc:
-        logger.warning("deepeval GPTModel unavailable: %s", exc)
+        logger.warning("deepeval OpenAIModel unavailable: %s", exc)
         return None
 
 

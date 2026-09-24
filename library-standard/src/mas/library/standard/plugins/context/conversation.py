@@ -2,20 +2,26 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Conversation-history strategies — ContextManagerContract plugins.
 
-SOTA recency: keep the last N **user turns** verbatim (user + everything until
-the next user, including tool ask/result groups). Older history is dropped
-(sliding-window / stack) or compressed into one summary block (summarising).
-The live tool round lives in working memory and is not passed here.
+Each context manager **is** a plugin with strategy code (not an empty shell):
 
-Pairing repair itself runs once later, in ``assemble_llm_messages``.
+- ``StackConversation`` — optional ``max_messages`` cap, tool-group aligned.
+- ``SlidingWindowConversation`` — keep the last N user turns; drop older.
+- ``SummarizingConversation`` — keep last ``keep_turns`` verbatim, hysteresis
+  cache, then call a **summarizer sub-plugin** (registry type ``summarizer``:
+  ``llm`` or ``drop``) on older turns. The CM owns recency/cache; the
+  summarizer only produces summary text (or ``None`` to drop).
+
+``manage_history`` bounds the LLM view. Turn commit persists that same
+recency cap onto the stored log.
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from typing import Any, Callable
 
-from mas.runtime.boundary.context.provider_invariant import split_user_turns, start_of_tool_group
+from mas.library.standard.lib.context.payload import split_user_turns, start_of_tool_group
 from mas.runtime.contracts.context_manager_contract import ContextManagerContract
 
 _log = logging.getLogger(__name__)
@@ -99,10 +105,9 @@ class SlidingWindowConversation(ContextManagerContract):
 class SummarizingConversation(ContextManagerContract):
     """Keep recent user turns verbatim; summarize only older history.
 
-    Compaction is a *view* over the still-growing committed history, so the
-    same older turns would otherwise be re-summarized on every LLM call.
     After a compaction, the cached summary is reused while new turns append
     verbatim, until the managed payload exceeds ``budget * (1 + hysteresis_ratio)``.
+    Turn commit writes the bounded view back to the stored log.
     """
 
     def __init__(
@@ -116,9 +121,26 @@ class SummarizingConversation(ContextManagerContract):
         self.keep_turns = max(1, int(keep_turns))
         self.hysteresis_ratio = min(1.0, max(0.0, float(hysteresis_ratio)))
         self._summarize_fn = summarize_fn
+        self._summarizer: Any | None = None
         self.last_compaction_metadata: dict[str, Any] | None = None
         self._cached_summary: str | None = None
         self._cached_n_compressed: int = 0
+        self._cached_prefix_fp: str | None = None
+        self._cached_prefix_ids: tuple[int, int, int] | None = None
+
+    def bind_summarizer(self, summarizer: Any) -> None:
+        """Attach a summarizer plugin, a ``summarize`` callable, or ``None`` (drop)."""
+        if summarizer is None:
+            self._summarizer = None
+            self._summarize_fn = None
+            return
+        if callable(summarizer) and not hasattr(summarizer, "summarize"):
+            self._summarizer = None
+            self._summarize_fn = summarizer
+            return
+        fn = getattr(summarizer, "summarize", None)
+        self._summarizer = summarizer
+        self._summarize_fn = fn if callable(fn) else None
 
     @staticmethod
     def _estimate_tokens(messages: list[dict[str, Any]]) -> int:
@@ -129,9 +151,46 @@ class SummarizingConversation(ContextManagerContract):
                 total += len(content)
         return total // 4 + len(messages) * 4
 
+    @staticmethod
+    def _prefix_ids(turns: list[list[dict[str, Any]]], n: int) -> tuple[int, int, int] | None:
+        """Object identity of the prefix endpoints (append-only live path)."""
+        if n <= 0 or n > len(turns) or not turns[0] or not turns[n - 1]:
+            return None
+        return (n, id(turns[0][0]), id(turns[n - 1][-1]))
+
+    @staticmethod
+    def _fingerprint(turns: list[list[dict[str, Any]]]) -> str:
+        """Content identity of a turn prefix — used when message objects were copied."""
+        digest = hashlib.sha256()
+        for turn in turns:
+            for msg in turn:
+                digest.update(str(msg.get("role") or "").encode())
+                digest.update(b"\x1f")
+                content = msg.get("content", "")
+                digest.update(content.encode() if isinstance(content, str) else repr(content).encode())
+                digest.update(b"\x1e")
+            digest.update(b"\x1d")
+        return digest.hexdigest()
+
+    def _remember_prefix(self, turns: list[list[dict[str, Any]]], n: int) -> None:
+        self._cached_n_compressed = n
+        self._cached_prefix_ids = self._prefix_ids(turns, n)
+        self._cached_prefix_fp = self._fingerprint(turns[:n])
+
+    def _prefix_unchanged(self, turns: list[list[dict[str, Any]]], n: int) -> bool:
+        mark = self._prefix_ids(turns, n)
+        if mark is not None and mark == self._cached_prefix_ids:
+            return True
+        if self._cached_prefix_fp is None or self._fingerprint(turns[:n]) != self._cached_prefix_fp:
+            return False
+        self._cached_prefix_ids = mark
+        return True
+
     def _clear_cache(self) -> None:
         self._cached_summary = None
         self._cached_n_compressed = 0
+        self._cached_prefix_fp = None
+        self._cached_prefix_ids = None
 
     def _budget(self, budget_tokens: int) -> int:
         return budget_tokens if budget_tokens > 0 else self.summary_threshold
@@ -151,6 +210,8 @@ class SummarizingConversation(ContextManagerContract):
     def _cached_view(self, turns: list[list[dict[str, Any]]]) -> list[dict[str, Any]] | None:
         n = self._cached_n_compressed
         if n <= 0 or n >= len(turns):
+            return None
+        if not self._prefix_unchanged(turns, n):
             return None
         suffix = _flatten(turns[n:])
         if self._cached_summary is None:
@@ -199,7 +260,7 @@ class SummarizingConversation(ContextManagerContract):
 
         if self._summarize_fn is None:
             self._cached_summary = None
-            self._cached_n_compressed = n_compressed
+            self._remember_prefix(to_compress, n_compressed)
             self.last_compaction_metadata = {
                 "compressed_exchanges": 0,
                 "dropped_exchanges": n_compressed,
@@ -222,8 +283,23 @@ class SummarizingConversation(ContextManagerContract):
             )
             return verbatim_msgs
 
+        if not (isinstance(summary_text, str) and summary_text.strip()):
+            self._cached_summary = None
+            self._remember_prefix(to_compress, n_compressed)
+            self.last_compaction_metadata = {
+                "compressed_exchanges": 0,
+                "dropped_exchanges": n_compressed,
+                "kept_exchanges": len(verbatim),
+            }
+            _log.debug(
+                "SummarizingConversation: summarizer returned no text; dropped %d older turn(s), keeping last %d",
+                n_compressed,
+                keep,
+            )
+            return verbatim_msgs
+
         self._cached_summary = summary_text
-        self._cached_n_compressed = n_compressed
+        self._remember_prefix(to_compress, n_compressed)
         self.last_compaction_metadata = {
             "compressed_exchanges": n_compressed,
             "kept_exchanges": len(verbatim),

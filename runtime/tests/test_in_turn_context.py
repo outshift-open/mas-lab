@@ -27,7 +27,8 @@ def test_default_cm_is_summarising():
     assert cm.__class__.__name__ == "SummarizingConversation"
     assert cm.keep_turns == 10
     assert cm.hysteresis_ratio == 0.2
-    assert cm._summarize_fn is None
+    assert cm._summarizer is not None
+    assert cm._summarizer.__class__.__name__ == "LlmSummarizer"
 
 
 def test_cm_assembly_includes_working_memory_after_user():

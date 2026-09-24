@@ -32,10 +32,10 @@ spec:
     kind: MAS          # MAS | Agent | Flavour | any
     name: optional-filter
   patch:
-    design_pattern: { type: cot, config: { max_steps: 10 } }
+    design_pattern: cot      # string shorthand ≡ {type: cot}; or {type: cot, params: {max_steps: 10}}
     agents:
       $entry:            # workflow.entry after this overlay's workflow patch
-        design_pattern: { type: cot, config: { max_steps: 10 } }
+        design_pattern: { type: cot, params: { max_steps: 10 } }
       broker:
         tools: { "$op": { remove: [web-search] } }
     workflow: { ... }   # topology: entry + directed delegation links
@@ -115,6 +115,7 @@ key, the overlay value is used. See [tool.md](tool.md).
 
 ## See also
 
+- [plugin-bindings.md](plugin-bindings.md) — string shorthand vs `{type, params}`
 - [experiment.md](experiment.md) — scenario overlay stacks
 - [compile](../cli/compile.md) — dump the resolved spec
 - [ToolContract](../references/tool-contract.md)

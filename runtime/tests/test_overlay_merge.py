@@ -275,6 +275,90 @@ def test_merge_context_manager_list():
     assert merged["spec"]["context_manager"]["include"] == ["a", "b"]
 
 
+def test_merge_assembler_type_keeps_existing_params():
+    base = {
+        "spec": {
+            "assembler": {
+                "type": "assembler",
+                "params": {"emit_segments": True},
+            }
+        }
+    }
+    merged = merge_overlay(base, _overlay({"assembler": {"type": "assembler"}}))
+    assert merged["spec"]["assembler"]["type"] == "assembler"
+    assert merged["spec"]["assembler"]["params"]["emit_segments"] is True
+
+
+def test_merge_context_manager_type_change_drops_params():
+    base = {
+        "spec": {
+            "context_manager": {
+                "type": "summarising",
+                "params": {"keep_turns": 10, "hysteresis_ratio": 0.2},
+            }
+        }
+    }
+    merged = merge_overlay(base, _overlay({"context_manager": {"type": "stack"}}))
+    assert merged["spec"]["context_manager"] == {"type": "stack"}
+
+
+def test_merge_design_pattern_type_change_drops_params():
+    base = {
+        "spec": {
+            "design_pattern": {
+                "type": "react",
+                "params": {"max_steps": 8, "parallel": False},
+            }
+        }
+    }
+    merged = merge_overlay(base, _overlay({"design_pattern": {"type": "cot"}}))
+    assert merged["spec"]["design_pattern"] == {"type": "cot"}
+
+
+def test_merge_nested_context_manager_params_keeps_siblings():
+    base = {
+        "spec": {
+            "context_manager": {
+                "type": "summarising",
+                "params": {
+                    "keep_turns": 10,
+                    "trimmer": {"max_tokens": 128000, "reserve_tokens": 2000},
+                },
+            }
+        }
+    }
+    merged = merge_overlay(
+        base,
+        _overlay({"context_manager": {"params": {"trimmer": {"reserve_tokens": 4000}}}}),
+    )
+    trimmer = merged["spec"]["context_manager"]["params"]["trimmer"]
+    assert trimmer == {"max_tokens": 128000, "reserve_tokens": 4000}
+    assert merged["spec"]["context_manager"]["params"]["keep_turns"] == 10
+
+
+def test_merge_invalid_plugin_binding_raises():
+    import pytest
+    from mas.runtime.spec.plugin_binding import PluginBindingError
+
+    base = {"spec": {"context_manager": ["stack"]}}
+    with pytest.raises(PluginBindingError, match="plugin binding"):
+        merge_overlay(base, _overlay({"context_manager": {"params": {"max_messages": 1}}}))
+
+
+def test_merge_string_context_manager_keeps_type_when_params_patched():
+    base = {"spec": {"context_manager": "stack"}}
+    merged = merge_overlay(base, _overlay({"context_manager": {"params": {"max_messages": 50}}}))
+    assert merged["spec"]["context_manager"]["type"] == "stack"
+    assert merged["spec"]["context_manager"]["params"]["max_messages"] == 50
+
+
+def test_merge_string_assembler_keeps_type_when_params_patched():
+    base = {"spec": {"assembler": "assembler"}}
+    merged = merge_overlay(base, _overlay({"assembler": {"params": {"emit_segments": False}}}))
+    assert merged["spec"]["assembler"]["type"] == "assembler"
+    assert merged["spec"]["assembler"]["params"]["emit_segments"] is False
+
+
 def test_merge_no_spec_in_overlay():
     base = {"spec": {"tools": ["x"]}}
     merged = merge_overlay(base, {"metadata": {"name": "ov"}})

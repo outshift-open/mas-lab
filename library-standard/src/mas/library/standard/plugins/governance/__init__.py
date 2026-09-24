@@ -6,5 +6,10 @@ from mas.library.standard.plugins.governance.no_undeclared_tool import (
     NoUndeclaredToolPlugin,
     undeclared_tool_observation,
 )
+from mas.library.standard.plugins.governance.sample import SampleGovernancePlugin
 
-__all__ = ["NoUndeclaredToolPlugin", "undeclared_tool_observation"]
+__all__ = [
+    "NoUndeclaredToolPlugin",
+    "SampleGovernancePlugin",
+    "undeclared_tool_observation",
+]
