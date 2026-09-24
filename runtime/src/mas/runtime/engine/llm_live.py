@@ -61,6 +61,7 @@ class LiveLlmEngine:
     use_tool_loop: bool = False
     parallel_tool_calls: bool = True
     llm_proxy: dict[str, Any] | None = None
+    http_timeout: float | None = None
     manifest_dir: Path | None = None
     delegation: Any | None = None
     delegation_peer_descriptions: dict[str, str] | None = None
@@ -497,7 +498,7 @@ class LiveLlmEngine:
         verify = resolve_ssl_verify(self.llm_proxy)
         if self.stream:
             return self._chat_completion_streamed(url, payload, headers, verify=verify)
-        with httpx.Client(timeout=120.0, verify=verify) as client:
+        with httpx.Client(timeout=self.http_timeout or 120.0, verify=verify) as client:
             resp = client.post(url, json=payload, headers=headers)
             resp.raise_for_status()
             data = resp.json()
@@ -550,7 +551,7 @@ class LiveLlmEngine:
         finish_reason = ""
         usage: dict[str, Any] = {}
 
-        with httpx.Client(timeout=120.0, verify=verify) as client:
+        with httpx.Client(timeout=self.http_timeout or 120.0, verify=verify) as client:
             with client.stream("POST", url, json=stream_payload, headers=headers) as resp:
                 resp.raise_for_status()
                 for raw_line in resp.iter_lines():
