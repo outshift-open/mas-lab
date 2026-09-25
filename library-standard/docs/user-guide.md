@@ -50,6 +50,7 @@ Index: [src/mas/library/standard/overlays/README.md](../src/mas/library/standard
 |---------|--------|
 | `observability-native` | native `events.jsonl` |
 | `with-hardened` | append `gov_no_undeclared_tool` |
+| `cheap-summarizer` | `summarizer.params.model: gpt-4o-mini` |
 
 ```bash
 mas-ctl chat agent.yaml \
@@ -84,6 +85,36 @@ mas-ctl validate library-standard/examples/governance/undeclared-tool/agent.yaml
 mas-ctl chat library-standard/examples/governance/undeclared-tool/agent.yaml \
   -q "Investigate the latency spike for payment-service."
 ```
+
+### Override the history summarizer
+
+Default `summarising` + `summarizer: llm` uses the agent model and a package
+system prompt. Compaction fires on the **token budget**, not that prompt.
+
+```yaml
+context_manager:
+  type: summarising
+  params:
+    summarizer:
+      type: llm
+      params:
+        model: gpt-4o-mini
+        instructions: |
+          Preserve city names and dates. One paragraph.
+```
+
+Feature example (not a sample app):
+[examples/context/summarizer-override/](../examples/context/summarizer-override/).
+Card: [summarizer.md](../src/mas/library/standard/plugins/context/summarizer.md).
+Docs: [summarization.md](../../docs/manifests/summarization.md).
+
+```bash
+mas-ctl validate library-standard/examples/context/summarizer-override/agent.yaml
+mas-ctl chat library-standard/examples/context/summarizer-override/agent.yaml -v \
+  -q "We fly to Lyon on 12 May."
+```
+
+Or overlay: `-o pkg://mas.library.standard/overlays/cheap-summarizer.yaml`.
 
 ### Add reasoning patterns
 

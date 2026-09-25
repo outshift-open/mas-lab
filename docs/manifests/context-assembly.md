@@ -111,6 +111,16 @@ Not a top-level spec key. Bound only on `type: summarising`:
 | `llm` (default) | `summarizer: llm` | `{type: llm}` | Agent's live engine; degrades to drop without one |
 | `drop` | `summarizer: drop` | `{type: drop}` | Discard older turns |
 
+Optional cheaper summary model (`params.model` is a `spec.models[].id` or LiteLLM string):
+
+```yaml
+params:
+  summarizer:
+    type: llm
+    params:
+      model: gpt-4o-mini
+```
+
 The context manager owns recency (`keep_turns`) and the hysteresis cache.
 The summarizer only returns summary text (or nothing, which means drop).
 The live engine is bound when the context manager is instantiated from
@@ -216,6 +226,7 @@ memory (one result per tool call). The kernel then raises
 
 - [Compiled agent defaults](../references/defaults.md) — `assembler` + `context_manager` + `summarizer`, fully expanded
 - [plugin-bindings.md](plugin-bindings.md) — string shorthand vs `{type, params}` vs list slots
+- [summarization.md](summarization.md) — thresholds, which model, MCE judge, logs
 - [agent.md](agent.md) — `working_memory` (live round + persistent buffer; compaction is sugar)
 - [ContextManagerContract](../../runtime/docs/dev/contracts/state-and-context.md#contextmanagercontract)
 - [working-memory-compaction.md](../design/working-memory-compaction.md)

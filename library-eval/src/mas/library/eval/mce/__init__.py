@@ -7,6 +7,11 @@ from mas.library.eval.mce.registry_api import (
     compute_session_metrics,
 )
 from mas.library.eval.mce.trace_provider import MASTraceProvider
+from mas.library.eval.mce.judge_model import (
+    ResolvedJudgeModel,
+    apply_eval_mce_model_defaults,
+    resolve_judge_model,
+)
 from mas.library.eval.mce.runner import (
     ALL_SESSION_METRICS,
     METRIC_MAP,
@@ -22,9 +27,12 @@ __all__ = [
     "METRIC_MAP",
     "METRIC_REGISTRY",
     "METRICS_SCHEMA_VERSION",
+    "ResolvedJudgeModel",
+    "apply_eval_mce_model_defaults",
     "build_metrics_document",
     "build_session_from_trace",
     "compute_session_metrics",
     "compute_trace_metrics",
     "install_openai_llm_service",
+    "resolve_judge_model",
 ]

@@ -5,17 +5,32 @@
 Registry type ``summarizer``. Bound by ``CMFactory`` onto a summarising
 context manager — not a standalone spec slot.
 
-- ``llm`` (default): this agent's engine (``summarize_messages``).
+- ``llm`` (default): this agent's engine (``summarize_messages``). Optional
+  ``params.model`` / ``params.instructions`` override the summary LLM and
+  system prompt. Trigger is the history token budget, not this prompt.
 - ``drop``: discard older turns; keep ``keep_turns`` verbatim.
 """
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 from typing import Any
 
 _log = logging.getLogger(__name__)
+
+
+def _accepts_kwarg(fn: Any, name: str) -> bool:
+    """Whether callable *fn* accepts keyword argument *name*."""
+    try:
+        params = inspect.signature(fn).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params):
+        return True
+    return name in {p.name for p in params}
+
 
 SUMMARIZE_INSTRUCTIONS = (
     "Summarize the following conversation turns concisely, preserving key "
@@ -33,19 +48,66 @@ class DropSummarizer:
 
 
 class LlmSummarizer:
-    """Summarize older turns with the agent's live engine.
+    """Summarize older turns with an LLM.
 
-    ``bind_engine`` is called by ``CMFactory`` after construction — the engine
-    is a runtime object, not a spec param. Without a ``summarize_messages``
-    engine this degrades to drop and logs a warning.
+    Default model is the agent's live engine (same as the turn). ``model`` is
+    a spec override: a ``spec.models[].id`` or a LiteLLM model string, resolved
+    by ``CMFactory`` before ``bind_engine``. ``instructions`` overrides the
+    package system prompt. Without ``summarize_messages`` this degrades to
+    drop and logs a warning.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, model: str | None = None, instructions: str | None = None) -> None:
         self._engine: Any | None = None
+        self._model_ref = str(model).strip() if model else None
+        text = str(instructions).strip() if instructions else ""
+        self._instructions = text or None
+        self._resolved_model: str | None = None
+        self._model_source: str = "agent"
         self._warned_no_engine = False
 
-    def bind_engine(self, engine: Any | None) -> None:
+    @property
+    def model(self) -> str | None:
+        """Effective summary model (override or engine.model)."""
+        if self._resolved_model:
+            return self._resolved_model
+        engine_model = getattr(self._engine, "model", None)
+        return str(engine_model).strip() if engine_model else self._model_ref
+
+    @property
+    def model_source(self) -> str:
+        return self._model_source
+
+    @property
+    def instructions(self) -> str:
+        """System prompt for the summary call (override or package default)."""
+        return self._instructions or SUMMARIZE_INSTRUCTIONS
+
+    def bind_engine(
+        self,
+        engine: Any | None,
+        *,
+        model: str | None = None,
+        model_source: str | None = None,
+    ) -> None:
         self._engine = engine
+        if model:
+            self._resolved_model = str(model).strip() or None
+        elif self._resolved_model is None:
+            engine_model = getattr(engine, "model", None)
+            self._resolved_model = str(engine_model).strip() if engine_model else self._model_ref
+        if model_source:
+            self._model_source = model_source
+        elif self._model_ref:
+            self._model_source = "override"
+        engine_model = getattr(engine, "model", None)
+        _log.info(
+            "summarizer llm: model=%s source=%s agent_model=%s instructions=%s",
+            self.model or "(none)",
+            self._model_source,
+            engine_model or "(none)",
+            "override" if self._instructions else "default",
+        )
 
     def summarize(self, messages: list[dict[str, Any]]) -> str | None:
         engine = self._engine
@@ -58,12 +120,16 @@ class LlmSummarizer:
                 )
                 self._warned_no_engine = True
             return None
-        text = fn(
-            [
-                {"role": "system", "content": SUMMARIZE_INSTRUCTIONS},
-                {"role": "user", "content": json.dumps(messages, default=str)},
-            ]
-        )
+        prompt = [
+            {"role": "system", "content": self.instructions},
+            {"role": "user", "content": json.dumps(messages, default=str)},
+        ]
+        text: Any
+        override = self._resolved_model
+        if override and _accepts_kwarg(fn, "model"):
+            text = fn(prompt, model=override)
+        else:
+            text = fn(prompt)
         if not isinstance(text, str):
             return None
         stripped = text.strip()

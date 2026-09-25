@@ -8,7 +8,7 @@ Small feature scenarios for plugins in this library — closer to functional
 tests than to sample apps.
 
 Layout: `examples/<category>/<name>/`. `<category>` is a plugin kind
-(`governance`, `observability`, `design-pattern`, `memory`, `workflow`,
+(`governance`, `observability`, `context`, `design-pattern`, `memory`, `workflow`,
 `tools`). Add the folder when the first example lands. Each `<name>/` is a
 runnable **Agent** or **MAS** that pins one failure mode.
 
@@ -24,3 +24,4 @@ in `library-samples/apps/` and are registered in that library's
 | Category | Example | Kind | What it shows |
 |----------|---------|------|----------------|
 | [governance](governance/) | [undeclared-tool](governance/undeclared-tool/) | Agent | `gov_no_undeclared_tool` BLOCKs a name not in this LLM call's `tools` list |
+| [context](context/) | [summarizer-override](context/summarizer-override/) | Agent | `summarizer: llm` `params.model` + `params.instructions` |

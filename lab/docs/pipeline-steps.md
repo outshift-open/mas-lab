@@ -31,7 +31,7 @@ curl -s http://localhost:8090/api/pipeline-step-types   # when controller runnin
 
 | Type | Output |
 |------|--------|
-| `eval_mce` | MCE evaluation metrics |
+| `eval_mce` | MCE evaluation metrics (judge model: `experiment.evaluation.model`, default = agent model) |
 | `eval_trip_planner_gt` | Trip-planner ground truth |
 | `eval_adversarial` | Adversarial probes |
 | `annotate_metrics` | Attach scores to run metadata |
@@ -82,3 +82,4 @@ Pattern: subclass `PipelineStep`, `register_step_type`, declare in `experiment.y
 
 - [pipeline.md](pipeline.md)
 - [benchmark.md](benchmark.md)
+- [summarization.md](../manifests/summarization.md) — `eval_mce` judge model

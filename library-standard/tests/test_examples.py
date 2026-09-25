@@ -17,6 +17,7 @@ _CATEGORIES = {
     "memory",
     "workflow",
     "tools",
+    "context",
 }
 
 

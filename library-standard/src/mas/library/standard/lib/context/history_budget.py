@@ -32,12 +32,16 @@ def _spec(manifest_or_spec: dict[str, Any] | None) -> dict[str, Any]:
     return raw if isinstance(raw, dict) else {}
 
 
-def primary_model_binding(manifest_or_spec: dict[str, Any] | None) -> dict[str, Any]:
-    """First ``spec.models[]`` entry, preferring ``id: main``."""
+def _typed_models(manifest_or_spec: dict[str, Any] | None) -> list[dict[str, Any]]:
     models = _spec(manifest_or_spec).get("models") or []
     if not isinstance(models, list):
-        return {}
-    typed = [m for m in models if isinstance(m, dict)]
+        return []
+    return [m for m in models if isinstance(m, dict)]
+
+
+def primary_model_binding(manifest_or_spec: dict[str, Any] | None) -> dict[str, Any]:
+    """First ``spec.models[]`` entry, preferring ``id: main``."""
+    typed = _typed_models(manifest_or_spec)
     for model in typed:
         if str(model.get("id") or "main") == "main":
             return model

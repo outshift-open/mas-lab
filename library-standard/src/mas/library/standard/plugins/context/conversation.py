@@ -258,6 +258,9 @@ class SummarizingConversation(ContextManagerContract):
         verbatim_msgs = _flatten(verbatim)
         n_compressed = len(to_compress)
 
+        model = getattr(self._summarizer, "model", None)
+        model_source = getattr(self._summarizer, "model_source", None)
+
         if self._summarize_fn is None:
             self._cached_summary = None
             self._remember_prefix(to_compress, n_compressed)
@@ -265,11 +268,17 @@ class SummarizingConversation(ContextManagerContract):
                 "compressed_exchanges": 0,
                 "dropped_exchanges": n_compressed,
                 "kept_exchanges": len(verbatim),
+                "estimated_tokens": raw_tokens,
+                "threshold": high,
+                "model": model,
             }
-            _log.debug(
-                "SummarizingConversation: no summarize_fn; dropped %d older turn(s), keeping last %d",
+            _log.info(
+                "SummarizingConversation: dropped %d older turn(s) (no summarizer), "
+                "keeping last %d (estimated_tokens=%d threshold=%d)",
                 n_compressed,
                 keep,
+                raw_tokens,
+                high,
             )
             return verbatim_msgs
 
@@ -290,11 +299,18 @@ class SummarizingConversation(ContextManagerContract):
                 "compressed_exchanges": 0,
                 "dropped_exchanges": n_compressed,
                 "kept_exchanges": len(verbatim),
+                "estimated_tokens": raw_tokens,
+                "threshold": high,
+                "model": model,
             }
-            _log.debug(
-                "SummarizingConversation: summarizer returned no text; dropped %d older turn(s), keeping last %d",
+            _log.info(
+                "SummarizingConversation: summarizer returned no text; dropped %d older turn(s), "
+                "keeping last %d (estimated_tokens=%d threshold=%d model=%s)",
                 n_compressed,
                 keep,
+                raw_tokens,
+                high,
+                model or "agent",
             )
             return verbatim_msgs
 
@@ -304,5 +320,19 @@ class SummarizingConversation(ContextManagerContract):
             "compressed_exchanges": n_compressed,
             "kept_exchanges": len(verbatim),
             "reused": False,
+            "estimated_tokens": raw_tokens,
+            "threshold": high,
+            "model": model,
+            "model_source": model_source,
         }
+        _log.info(
+            "SummarizingConversation: compacted %d exchange(s) model=%s source=%s "
+            "estimated_tokens=%d threshold=%d keep_turns=%d",
+            n_compressed,
+            model or "agent",
+            model_source or "agent",
+            raw_tokens,
+            high,
+            keep,
+        )
         return [self._summary_block(n_compressed, summary_text)] + verbatim_msgs

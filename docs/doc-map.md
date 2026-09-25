@@ -55,7 +55,7 @@ When you add or rename a doc page, update **`mkdocs.yml` nav** and cross-links i
 ### References
 
 - [References index](references/index.md)
-- Specifications → `manifests/*.md`, [config.yaml](references/config.yaml.md), [schemas](references/schemas.md)
+- Specifications → `manifests/*.md` (including [summarization.md](manifests/summarization.md)), [config.yaml](references/config.yaml.md), [schemas](references/schemas.md)
 - Runtime → [manifests/runtime.md](manifests/runtime.md), [runtime docs](references/runtime.md)
 - Lab & benchmarks → experiment/dataset/pipeline manifests, [lab bench](references/lab.md), [library discovery](library-discovery.md)
 

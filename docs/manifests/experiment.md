@@ -53,6 +53,30 @@ experiment:
 
 ---
 
+## Evaluation model (`evaluation.model`)
+
+`eval_mce` defaults to the **same model the agent used**
+(`metadata.model_name`, then workspace infra). Override once on the lab spec;
+a per-step `eval_mce.config.model` still wins.
+
+```yaml
+experiment:
+  metadata:
+    model_name: gpt-4o
+  evaluation:
+    method: llm_judge
+    model: gpt-4o-mini          # judge; omit to use gpt-4o
+  application:
+    post:
+      - {type: eval_mce, depends_on: [extract_trajectories]}
+```
+
+See [summarization.md](summarization.md#mce-judge-model) for resolution order
+and logs. Feature example (not a sample app):
+[library-eval/examples/mce/judge-override/](../../library-eval/examples/mce/judge-override/).
+
+---
+
 ## Pipeline reference forms
 
 | Form | Example |
@@ -109,5 +133,6 @@ Implementation types: `mas.lab.lab.config.execution` (`MASExecutionSpec`, `Emula
 
 - [lab.md](lab.md)
 - [pipeline.md](pipeline.md)
+- [summarization.md](summarization.md) — judge model + conversation summarization
 - [Tutorial 03](../tutorials/03-experiments-and-analysis/README.md)
 - [Tutorial 3](../tutorials/03-experiments-and-analysis/README.md)

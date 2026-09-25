@@ -119,6 +119,7 @@ nav:
           - Agent: manifests/agent.md
           - Plugin bindings: manifests/plugin-bindings.md
           - Context assembly: manifests/context-assembly.md
+          - Summarization: manifests/summarization.md
           - "Compiled agent defaults": references/defaults.md
           - MAS: manifests/mas.md
           - Topology & workflow: manifests/topology-and-workflow.md

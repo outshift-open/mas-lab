@@ -15,6 +15,7 @@ Checkout path: `library-standard/src/mas/library/standard/overlays/<file>`.
 |------|-----------------|--------|----------------|
 | `observability-native.yaml` | `observability-native` | Agent | Writes native `events.jsonl` (`spec.observability` → `native`). |
 | `with-hardened.yaml` | `with-hardened` | Agent | Appends `gov_no_undeclared_tool` to the `spec.governance` chain (`$op.add`). |
+| `cheap-summarizer.yaml` | `cheap-summarizer` | Agent | Sets `summarizer.params.model` to `gpt-4o-mini` (same `summarising` type; params merge). |
 
 `spec.observability` is a sequence (every plugin sees every event).
 `spec.governance` is a chain: BLOCK stops and returns the error; ALLOW
@@ -32,3 +33,6 @@ See [docs/cli/observability.md](../../../../../../../docs/cli/observability.md).
 
 `gov_no_undeclared_tool` example (not a sample app):
 [examples/governance/undeclared-tool/](../../../../../examples/governance/undeclared-tool/).
+
+Summarizer model override example:
+[examples/context/summarizer-override/](../../../../../examples/context/summarizer-override/).

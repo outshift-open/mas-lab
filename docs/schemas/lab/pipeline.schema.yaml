@@ -104,6 +104,9 @@ properties:
 # eval_mce config:
 #   trajectory_csv: str    (path from extract_trajectories step)
 #   output_csv: str        (default: trajectories_eval.csv)
+#   model: str             (judge model; default: experiment.evaluation.model
+#                          then metadata.model_name then infra default — same
+#                          as the agent model unless overridden)
 #
 # embed_trajectories config:
 #   trajectory_csv: str

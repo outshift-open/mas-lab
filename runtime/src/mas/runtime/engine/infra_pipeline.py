@@ -254,10 +254,12 @@ class BidirectionalPipelineEngine:
     def __getattr__(self, name: str) -> Any:
         return getattr(self.inner, name)
 
-    def summarize_messages(self, messages: list[dict[str, Any]]) -> str:
+    def summarize_messages(self, messages: list[dict[str, Any]], *, model: str | None = None) -> str:
         from mas.runtime.engine.protocol import CompactionSummarizeEngine
 
         inner = self.inner
         if not isinstance(inner, CompactionSummarizeEngine):
             raise TypeError(f"{type(inner).__name__} does not implement CompactionSummarizeEngine")
+        if model is not None:
+            return inner.summarize_messages(messages, model=model)
         return inner.summarize_messages(messages)

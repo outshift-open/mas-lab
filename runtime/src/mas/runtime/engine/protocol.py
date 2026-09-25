@@ -19,6 +19,14 @@ class EngineContract(Protocol):
 
 @runtime_checkable
 class CompactionSummarizeEngine(Protocol):
-    """One-off chat completion used by the llm summarizer plugin."""
+    """One-off chat completion used by the llm summarizer plugin.
 
-    def summarize_messages(self, messages: list[dict[str, Any]]) -> str: ...
+    ``model`` selects the summary LLM. Default is this engine's agent model.
+    """
+
+    def summarize_messages(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        model: str | None = None,
+    ) -> str: ...

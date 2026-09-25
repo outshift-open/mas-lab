@@ -45,6 +45,18 @@ def test_summarize_translates_threshold_and_keep_turns():
     }
 
 
+def test_summarize_model_becomes_summarizer_params():
+    binding = context_manager_binding_from_compaction(
+        {"strategy": "summarize", "model": "gpt-4o-mini", "keep_turns": 4}
+    )
+    assert binding["type"] == "summarising"
+    assert binding["params"]["keep_turns"] == 4
+    assert binding["params"]["summarizer"] == {
+        "type": "llm",
+        "params": {"model": "gpt-4o-mini"},
+    }
+
+
 def test_unknown_strategy_raises():
     with pytest.raises(ValueError, match="unknown working_memory.compaction.strategy"):
         context_manager_binding_from_compaction({"strategy": "bogus"})

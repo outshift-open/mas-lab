@@ -93,7 +93,7 @@ spec:
 | `design_pattern` | `react@v1` (registry alias `react`) | `max_steps` (dispatch-loop cap), `max_cot_pass`, `parallel` | [plugin-bindings.md § design_pattern](../manifests/plugin-bindings.md#design_pattern-default-react) |
 | `assembler` | `assembler` (`ContextAssemblerPlugin`) | `emit_segments`, `always_reassemble` — builds `messages[]`; **not** where history policy lives | [plugin-bindings.md § assembler](../manifests/plugin-bindings.md#assembler-default-assembler) · [context-assembly.md](../manifests/context-assembly.md#assembler-required-default) |
 | `context_manager` | `summarising` | `keep_turns`, `hysteresis_ratio`, `summary_threshold`, `working_memory_messages`, `trimmer.{max_tokens,reserve_tokens}` | [plugin-bindings.md § context_manager](../manifests/plugin-bindings.md#context_manager-default-summarising) · [context-assembly.md](../manifests/context-assembly.md#context_manager-plugins) |
-| `context_manager.params.summarizer` | `llm` (sub-plugin of `summarising`) | none of its own; composed onto the context manager, bound to the agent's live engine at instantiation | [plugin-bindings.md § summarizer](../manifests/plugin-bindings.md#summarizer-sub-plugin-of-summarising) |
+| `context_manager.params.summarizer` | `llm` (sub-plugin of `summarising`) | `params.model` omitted → agent's primary model. Compile does **not** invent a cheaper summarizer. | [plugin-bindings.md § summarizer](../manifests/plugin-bindings.md#summarizer-sub-plugin-of-summarising) · [summarization.md](../manifests/summarization.md) |
 
 Every one of these is a real registered plugin — resolving `type: react@v1`,
 `type: summarising`, `type: assembler`, `type: llm` through the same plugin
@@ -124,5 +124,6 @@ manifest sets versus package defaults, add `--no-defaults` and diff.
 - [plugin-bindings.md](../manifests/plugin-bindings.md) — the binding shape these defaults fill (string ≡ object, list slots)
 - [agent.md](../manifests/agent.md) — every `spec` field, not just the plugin slots shown here
 - [context-assembly.md](../manifests/context-assembly.md) — how `assembler` + `context_manager` + `summarizer` cooperate at assemble time
+- [summarization.md](../manifests/summarization.md) — thresholds, summarizer/judge model, logs
 - [working-memory-compaction.md](../design/working-memory-compaction.md) — why `context_manager` is the single history-policy surface
 - [Tutorial 1: building an agent](../tutorials/01-building-an-agent/README.md) — the manifest this page compiles

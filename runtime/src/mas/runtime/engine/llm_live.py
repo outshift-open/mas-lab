@@ -109,7 +109,7 @@ class LiveLlmEngine:
         self._pending_tools_by_cid.clear()
         self._offered_tool_names = []
 
-    def summarize_messages(self, messages: list[dict[str, Any]]) -> str:
+    def summarize_messages(self, messages: list[dict[str, Any]], *, model: str | None = None) -> str:
         """One-off chat completion. The summarizer plugin builds the prompt."""
         if not self._budget.allow_llm():
             raise RuntimeError(
@@ -117,12 +117,22 @@ class LiveLlmEngine:
                 "exceeded (spec.budget.max_llm_calls)"
             )
         self._budget.note_llm()
-        logger.debug("history summarizer: completing %d message(s) via LLM", len(messages))
+        use_model = (model or self.model or "").strip() or self.model
+        logger.info(
+            "history summarizer: completing %d message(s) model=%s%s",
+            len(messages),
+            use_model,
+            " (override)" if model and model != self.model else "",
+        )
         if self._uses_model_access():
-            message = self._model_access_chat(messages, tools=None, temperature=0.0)
+            message = self._model_access_chat(
+                messages, tools=None, temperature=0.0, model=use_model
+            )
         else:
             api_key = os.environ.get(self.api_key_env, "")
-            message = self._chat_completion(messages, api_key=api_key, tools=None, temperature=0.0)
+            message = self._chat_completion(
+                messages, api_key=api_key, tools=None, temperature=0.0, model=use_model
+            )
         content = message.get("content") if isinstance(message, dict) else getattr(message, "content", "")
         return str(content or "").strip()
 
@@ -397,13 +407,15 @@ class LiveLlmEngine:
         *,
         tools: list[dict[str, Any]] | None,
         temperature: float,
+        model: str | None = None,
     ) -> dict[str, Any]:
         ma = self._model_access
         if ma is None:
             raise RuntimeError("model access not configured")
+        use_model = (model or self.model or "").strip() or self.model
         if hasattr(ma, "chat_completion"):
             return ma.chat_completion(
-                model=self.model,
+                model=use_model,
                 messages=messages,
                 tools=tools,
                 temperature=temperature,
@@ -411,7 +423,7 @@ class LiveLlmEngine:
             )
         if hasattr(ma, "complete"):
             resp = ma.complete(
-                self.model,
+                use_model,
                 messages,
                 temperature=temperature,
                 max_tokens=self.max_tokens,
@@ -468,12 +480,13 @@ class LiveLlmEngine:
         api_key: str,
         tools: list[dict[str, Any]] | None,
         temperature: float | None = None,
+        model: str | None = None,
     ) -> dict[str, Any]:
         import httpx
 
         url = self.api_base.rstrip("/") + "/chat/completions"
         payload: dict[str, Any] = {
-            "model": self.model,
+            "model": (model or self.model or "").strip() or self.model,
             "messages": messages,
             "temperature": self.temperature if temperature is None else temperature,
             "max_tokens": self.max_tokens,

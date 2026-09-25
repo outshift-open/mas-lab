@@ -86,3 +86,5 @@ MAS overlays cannot be applied to an Agent manifest.
 - [Tutorial 1](../tutorials/01-building-an-agent/README.md) — overlay stack
 - [Tutorial 2](../tutorials/02-creating-a-mas/README.md) — MAS topology overlays
 - [`mas-ctl compose`](mas-ctl.md#other-commands) — EffectiveBind + placement
+- [summarization.md](../manifests/summarization.md) — compiled `summary_threshold`, summarizer model, and `params.instructions`
+- Example: [summarizer-override](../../library-standard/examples/context/summarizer-override/)

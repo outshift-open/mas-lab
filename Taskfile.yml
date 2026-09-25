@@ -95,6 +95,7 @@ tasks:
           lab/components/bench/tests/ \
           ctl/tests/ \
           library-standard/tests/ \
+          library-eval/tests/ \
           library-ioa/tests/ \
           -q --tb=line
       - |

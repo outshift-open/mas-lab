@@ -99,3 +99,171 @@ def test_unknown_summarizer_type_fails() -> None:
         CMFactory.create(
             spec={"type": "summarising", "params": {"summarizer": "not-a-plugin"}},
         )
+
+
+class _EngineWithModel:
+    model = "gpt-4o"
+
+    def __init__(self) -> None:
+        self.seen: list[tuple[list, str | None]] = []
+
+    def summarize_messages(self, messages, *, model=None):
+        self.seen.append((messages, model))
+        return f"sum:{model or self.model}:{len(messages)}"
+
+
+def test_llm_summarizer_defaults_to_agent_model(caplog: pytest.LogCaptureFixture) -> None:
+    engine = _EngineWithModel()
+    with caplog.at_level("INFO"):
+        cm = CMFactory.create(
+            spec={"type": "summarising", "params": {"keep_turns": 1, "summarizer": "llm"}},
+            engine=engine,
+        )
+    assert cm._summarizer.model == "gpt-4o"
+    assert cm._summarizer.model_source == "agent"
+    assert any("summarizer llm: model=gpt-4o" in rec.message for rec in caplog.records)
+
+
+def test_llm_summarizer_raw_model_override() -> None:
+    engine = _EngineWithModel()
+    cm = CMFactory.create(
+        spec={
+            "type": "summarising",
+            "params": {
+                "keep_turns": 1,
+                "hysteresis_ratio": 0,
+                "summarizer": {"type": "llm", "params": {"model": "gpt-4o-mini"}},
+            },
+        },
+        engine=engine,
+    )
+    assert cm._summarizer.model == "gpt-4o-mini"
+    assert cm._summarizer.model_source == "override"
+    past = [
+        {"role": "user", "content": "old " + "x" * 80},
+        {"role": "assistant", "content": "a"},
+        {"role": "user", "content": "new"},
+        {"role": "assistant", "content": "b"},
+    ]
+    out = cm.manage_history(past, budget_tokens=1)
+    assert "gpt-4o-mini" in out[0]["content"]
+    assert engine.seen[0][1] == "gpt-4o-mini"
+    assert cm.last_compaction_metadata["model"] == "gpt-4o-mini"
+    assert cm.last_compaction_metadata["threshold"] == 1
+
+
+def test_llm_summarizer_top_level_model_shorthand() -> None:
+    engine = _EngineWithModel()
+    cm = CMFactory.create(
+        spec={
+            "type": "summarising",
+            "params": {"summarizer": {"type": "llm", "model": "haiku"}},
+        },
+        engine=engine,
+    )
+    assert cm._summarizer.model == "haiku"
+
+
+def test_omitted_summarizer_type_keeps_params_model() -> None:
+    engine = _EngineWithModel()
+    cm = CMFactory.create(
+        spec={
+            "type": "summarising",
+            "params": {"summarizer": {"params": {"model": "gpt-4o-mini"}}},
+        },
+        engine=engine,
+    )
+    assert isinstance(cm._summarizer, LlmSummarizer)
+    assert cm._summarizer.model == "gpt-4o-mini"
+
+
+def test_llm_summarizer_resolves_models_id() -> None:
+    engine = _EngineWithModel()
+    manifest = {
+        "spec": {
+            "models": [
+                {"id": "main", "model": "gpt-4o"},
+                {"id": "summarizer", "model": "gpt-4o-mini"},
+            ],
+            "context_manager": {
+                "type": "summarising",
+                "params": {
+                    "keep_turns": 1,
+                    "summarizer": {"type": "llm", "params": {"model": "summarizer"}},
+                },
+            },
+        }
+    }
+    cm = CMFactory.create(manifest=manifest, engine=engine)
+    assert cm._summarizer.model == "gpt-4o-mini"
+    assert "spec.models[id=summarizer]" in cm._summarizer.model_source
+
+
+def test_compaction_logs_threshold_and_model(caplog: pytest.LogCaptureFixture) -> None:
+    engine = _EngineWithModel()
+    cm = CMFactory.create(
+        spec={
+            "type": "summarising",
+            "params": {
+                "keep_turns": 1,
+                "hysteresis_ratio": 0,
+                "summarizer": {"type": "llm", "model": "gpt-4o-mini"},
+            },
+        },
+        engine=engine,
+    )
+    past = [
+        {"role": "user", "content": "old " + "x" * 80},
+        {"role": "assistant", "content": "a"},
+        {"role": "user", "content": "new"},
+        {"role": "assistant", "content": "b"},
+    ]
+    with caplog.at_level("INFO"):
+        cm.manage_history(past, budget_tokens=1)
+    assert any("compacted" in rec.message and "gpt-4o-mini" in rec.message for rec in caplog.records)
+    assert any("estimated_tokens=" in rec.message for rec in caplog.records)
+
+
+def test_drop_summarizer_does_not_receive_model() -> None:
+    cm = CMFactory.create(
+        spec={
+            "type": "summarising",
+            "params": {
+                "summarizer": {"type": "drop", "model": "gpt-4o-mini"},
+            },
+        },
+    )
+    assert isinstance(cm._summarizer, DropSummarizer)
+
+
+def test_llm_summarizer_falls_back_when_engine_rejects_model_kw() -> None:
+    class _EngineNoModelKw:
+        model = "gpt-4o"
+
+        def summarize_messages(self, messages):
+            return f"legacy:{len(messages)}"
+
+    plugin = LlmSummarizer(model="gpt-4o-mini")
+    plugin.bind_engine(_EngineNoModelKw(), model="gpt-4o-mini", model_source="override")
+    text = plugin.summarize([{"role": "user", "content": "hi"}])
+    assert text == "legacy:2"
+
+
+def test_under_budget_does_not_call_summarizer() -> None:
+    engine = _EngineWithModel()
+    cm = CMFactory.create(
+        spec={
+            "type": "summarising",
+            "params": {"keep_turns": 1, "summarizer": {"type": "llm", "model": "gpt-4o-mini"}},
+        },
+        engine=engine,
+    )
+    past = [
+        {"role": "user", "content": "old"},
+        {"role": "assistant", "content": "a"},
+        {"role": "user", "content": "new"},
+        {"role": "assistant", "content": "b"},
+    ]
+    out = cm.manage_history(past, budget_tokens=10_000)
+    assert out == past
+    assert engine.seen == []
