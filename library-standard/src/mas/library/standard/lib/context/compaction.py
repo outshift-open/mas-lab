@@ -18,7 +18,7 @@ _STRATEGY_TO_CM_TYPE: dict[str, str] = {
 _STRATEGY_PARAM_KEYS: dict[str, tuple[str, ...]] = {
     "keep_recent": ("max_messages",),
     "sliding_window": ("window_size",),
-    "summarize": ("summary_threshold", "keep_turns"),
+    "summarize": ("summary_threshold", "keep_turns", "model"),
 }
 
 
@@ -33,6 +33,9 @@ def context_manager_binding_from_compaction(compaction: dict[str, Any]) -> dict[
         )
     param_keys = _STRATEGY_PARAM_KEYS.get(strategy, ())
     params = {k: compaction[k] for k in param_keys if k in compaction}
+    model = params.pop("model", None)
+    if model:
+        params["summarizer"] = {"type": "llm", "params": {"model": model}}
     return {"type": cm_type, "params": params}
 
 

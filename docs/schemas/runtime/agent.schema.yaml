@@ -584,8 +584,8 @@ properties:
                   no LLM call. sliding_window: keep the last window_size
                   user/assistant exchange pairs, no LLM call. summarize:
                   compress older turns into one summary block via an LLM
-                  call using this agent's own model, keep the last
-                  keep_turns pairs verbatim.
+                  call (default: this agent's primary model), keep the last
+                  keep_turns pairs verbatim. See docs/manifests/summarization.md.
               max_messages:
                 type: integer
                 minimum: 1
@@ -596,14 +596,23 @@ properties:
                 description: "sliding_window — number of recent exchange pairs to keep."
               summary_threshold:
                 type: integer
-                minimum: 1
-                default: 4000
-                description: "summarize — estimated-token threshold before compaction triggers."
+                minimum: 0
+                description: >
+                  summarize — estimated-token threshold before compaction
+                  triggers. 0 / omitted uses model context_window minus
+                  completion reserve (same as spec.context_manager).
               keep_turns:
                 type: integer
                 minimum: 1
                 default: 10
                 description: "summarize — recent exchange pairs kept verbatim alongside the summary."
+              model:
+                type: string
+                description: >
+                  summarize — model for the summary LLM call. A spec.models[].id
+                  or a LiteLLM model string. Default: this agent's primary
+                  model (same as the turn). Sugar for
+                  context_manager.params.summarizer.params.model.
 
       skills:
         type: array

@@ -125,6 +125,7 @@ spec:
       keep_turns: 10
       hysteresis_ratio: 0.2
       summarizer: llm          # sub-plugin; ≡ {type: llm}. Alternative: drop
+      # summarizer: {type: llm, params: {model: gpt-4o-mini}}  # cheaper summary LLM
       summary_threshold: 126000  # compile: context_window − max_tokens
       working_memory_messages: 20
       trimmer:
@@ -143,18 +144,31 @@ summarising context manager:
 
 | Plugin | Default? | Behaviour |
 |--------|----------|-----------|
-| `llm` | yes | this agent's engine (`summarize_messages`); degrades to drop without a live engine |
+| `llm` | yes | agent's engine (`summarize_messages`); optional `params.model` (a `spec.models[].id` or LiteLLM string) uses a different model; degrades to drop without a live engine |
 | `drop` | | discard older turns; keep `keep_turns` verbatim |
 
 ```yaml
-# default (inside summarising)
+# default (inside summarising) — same model as the agent turn
 params:
   summarizer: llm              # ≡ {type: llm}
+
+# cheaper / dedicated summarizer
+params:
+  summarizer:
+    type: llm
+    params:
+      model: gpt-4o-mini       # or a spec.models[].id such as summarizer
+      # instructions: |        # optional; default is the package system prompt
+      #   Preserve city names and dates.
 
 # explicit drop
 params:
   summarizer: drop             # ≡ {type: drop}
 ```
+
+Thresholds, prompt, logs, MCE judge: [summarization.md](summarization.md).
+Example: [summarizer-override](../../library-standard/examples/context/summarizer-override/).
+Card: [summarizer.md](../../library-standard/src/mas/library/standard/plugins/context/summarizer.md).
 
 ### `memory`
 
@@ -180,6 +194,8 @@ after each turn commit the same cap is written back to `committed_messages`
 and conversation chunks (folded prefix data is dropped). Hysteresis on the
 context-manager instance avoids a summarizer LLM call on every in-turn step.
 Prefer `spec.context_manager`. If both are set, `context_manager` wins.
+`compaction.model` (strategy `summarize`) is sugar for
+`summarizer.params.model` — [summarization.md](summarization.md).
 
 `stack` with no `max_messages` has no recency cap. Set `max_messages`, or
 use the default `summarising` / `sliding-window` plugins.
@@ -248,5 +264,6 @@ it only matters if you construct a manifest dict yourself.
 - [Compiled agent defaults](../references/defaults.md) — Tutorial 1's minimal manifest, fully expanded
 - [agent.md](agent.md) — every agent spec field
 - [context-assembly.md](context-assembly.md) — assembler, context managers, summarizers
+- [summarization.md](summarization.md) — thresholds, summarizer/judge model overrides, logs
 - [runtime/docs/agent-defaults.md](../../runtime/docs/agent-defaults.md)
 - [plugins-reference.md](../plugins-reference.md) — catalog of registered plugins

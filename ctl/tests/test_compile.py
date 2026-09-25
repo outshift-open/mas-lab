@@ -140,6 +140,55 @@ def test_fill_agent_defaults_translates_working_memory_compaction() -> None:
     assert cm["params"]["trimmer"]["max_tokens"] == 128000
 
 
+def test_fill_agent_defaults_compaction_summarize_model() -> None:
+    doc = {
+        "apiVersion": "mas/v1",
+        "kind": "Agent",
+        "metadata": {"name": "cheap-sum"},
+        "spec": {
+            "description": "cheap-sum",
+            "working_memory": {
+                "compaction": {
+                    "strategy": "summarize",
+                    "model": "gpt-4o-mini",
+                    "keep_turns": 4,
+                }
+            },
+        },
+    }
+    filled = fill_agent_defaults(doc)
+    params = filled["spec"]["context_manager"]["params"]
+    assert filled["spec"]["context_manager"]["type"] == "summarising"
+    assert params["keep_turns"] == 4
+    assert params["summarizer"] == {"type": "llm", "params": {"model": "gpt-4o-mini"}}
+    assert params["summary_threshold"] == 126000
+
+
+def test_fill_agent_defaults_preserves_summarizer_model_id() -> None:
+    doc = {
+        "apiVersion": "mas/v1",
+        "kind": "Agent",
+        "metadata": {"name": "sum-id"},
+        "spec": {
+            "description": "sum-id",
+            "models": [
+                {"id": "main", "model": "gpt-4o", "max_tokens": 2000},
+                {"id": "summarizer", "model": "gpt-4o-mini"},
+            ],
+            "context_manager": {
+                "type": "summarising",
+                "params": {
+                    "summarizer": {"type": "llm", "params": {"model": "summarizer"}},
+                },
+            },
+        },
+    }
+    filled = fill_agent_defaults(doc)
+    params = filled["spec"]["context_manager"]["params"]
+    assert params["summarizer"]["params"]["model"] == "summarizer"
+    assert params["summary_threshold"] == 126000
+
+
 def test_compile_tutorial_1_stacks_overlays() -> None:
     compiled = compile_manifest(
         TUTORIAL_1 / "agent.yaml",

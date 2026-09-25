@@ -113,9 +113,9 @@ spec:
 | Reasoning loop | `design_pattern` | Selects DesignPatternContract (ReAct, CoT, …) — intra-agent δ transitions |
 | Peer delegation | MAS `workflow` (when embedded in a MAS) | `delegates_to` graph + `workflow.type`; executed by the entry agent's own `design_pattern` (ReAct tool loop) — see [mas.md](mas.md) |
 | Prompt assembly | `assembler` | default `assembler` (ContextAssemblerPlugin) — [context-assembly.md](context-assembly.md) · [plugin-bindings.md](plugin-bindings.md) |
-| Context window | `context_manager` | default `summarising` (last `keep_turns` verbatim; `summarizer: llm` or `drop`) / sliding-window / stack — [context-assembly.md](context-assembly.md) |
+| Context window | `context_manager` | default `summarising` (last `keep_turns` verbatim; `summarizer: llm` or `drop`; optional cheaper summary model) / sliding-window / stack — [summarization.md](summarization.md) · [context-assembly.md](context-assembly.md) |
 | Prompt / role | `description`, `context` | `description` → delegation tools; `context.*` → system prompt |
-| Models | `models[]` | LLM routing (ids, temperature, max_tokens completion, context_window) |
+| Models | `models[]` | LLM routing (ids, temperature, max_tokens completion, context_window). Summarizer/judge default to the primary model — [summarization.md](summarization.md) |
 | Tools | `tools`, `tools_ref`, `providers` | [ToolContract](../references/tool-contract.md) · [tool.md](tool.md) · [ToolServerRegistry](../references/tool-server-registry.md) |
 | Skills | `skills` | Context facet (catalog) + `activate_skill`/`read_skill_file` tools |
 | Memory | `memory`, `memory_seed` | Stores + startup seeds |
@@ -204,6 +204,19 @@ working_memory:
     strategy: keep_recent
     max_messages: 200
 ```
+
+Summarize with a cheaper model (sugar for `summarizer.params.model`):
+
+```yaml
+working_memory:
+  compaction:
+    strategy: summarize
+    model: gpt-4o-mini
+    keep_turns: 10
+```
+
+Full thresholds, model, prompt, and logs: [summarization.md](summarization.md).
+Example: [summarizer-override](../../library-standard/examples/context/summarizer-override/).
 
 ---
 

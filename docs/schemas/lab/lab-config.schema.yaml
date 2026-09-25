@@ -148,6 +148,11 @@ properties:
           method:
             type: string
             enum: [user_emulation, llm_judge, metrics]
+          model:
+            type: string
+            description: >
+              LLM-as-judge model for demo eval_mce. Default: the same model
+              as the lab agent. Per-step eval_mce config.model still wins.
           config:
             type: object
             additionalProperties: true

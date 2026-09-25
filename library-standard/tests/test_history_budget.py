@@ -23,6 +23,29 @@ def test_defaults_when_models_omitted() -> None:
     assert history_token_budget({"spec": spec}) == 126000
 
 
+def test_model_binding_by_id_and_resolve_model_ref() -> None:
+    from mas.runtime.spec.model_ref import model_binding_by_id, resolve_model_ref
+
+    spec = {
+        "models": [
+            {"id": "main", "model": "gpt-4o", "context_window": 128000},
+            {"id": "summarizer", "model": "gpt-4o-mini", "context_window": 128000},
+        ]
+    }
+    assert model_binding_by_id({"spec": spec}, "summarizer")["model"] == "gpt-4o-mini"
+    model, source = resolve_model_ref({"spec": spec}, "summarizer", engine_model="gpt-4o")
+    assert model == "gpt-4o-mini"
+    assert source == "spec.models[id=summarizer]"
+    model, source = resolve_model_ref({"spec": spec}, None, engine_model="gpt-4o")
+    assert model == "gpt-4o"
+    assert source == "agent"
+    model, source = resolve_model_ref({"spec": spec}, "haiku-3", engine_model="gpt-4o")
+    assert model == "haiku-3"
+    assert source == "override"
+    model, source = resolve_model_ref({"spec": spec}, "gpt-4o", engine_model="gpt-4o")
+    assert (model, source) == ("gpt-4o", "agent")
+
+
 def test_explicit_model_window_and_completion() -> None:
     manifest = {
         "spec": {
@@ -72,3 +95,48 @@ def test_fill_preserves_explicit_keep_turns_and_sliding_window() -> None:
     assert "summary_threshold" not in params
     assert params["trimmer"]["max_tokens"] == 8000
     assert params["trimmer"]["reserve_tokens"] == 500
+
+
+def test_history_budget_uses_primary_model_not_summarizer() -> None:
+    """Thresholds come from the agent (main) window, even if a cheaper
+    summarizer model is declared with a different window."""
+    manifest = {
+        "spec": {
+            "models": [
+                {"id": "main", "model": "gpt-4o", "context_window": 128000, "max_tokens": 2000},
+                {
+                    "id": "summarizer",
+                    "model": "gpt-4o-mini",
+                    "context_window": 8000,
+                    "max_tokens": 500,
+                },
+            ]
+        }
+    }
+    assert history_token_budget(manifest) == 126000
+
+
+def test_fill_preserves_explicit_summarizer_model() -> None:
+    spec = {
+        "models": [{"model": "gpt-4o", "max_tokens": 2000}],
+        "context_manager": {
+            "type": "summarising",
+            "params": {
+                "summarizer": {"type": "llm", "params": {"model": "gpt-4o-mini"}},
+            },
+        },
+    }
+    fill_context_manager_defaults(spec)
+    params = spec["context_manager"]["params"]
+    assert params["summarizer"] == {
+        "type": "llm",
+        "params": {"model": "gpt-4o-mini"},
+    }
+    assert params["summary_threshold"] == 126000
+
+
+def test_resolve_model_ref_empty_engine() -> None:
+    from mas.runtime.spec.model_ref import resolve_model_ref
+
+    model, source = resolve_model_ref({}, None, engine_model=None)
+    assert (model, source) == (None, "agent")

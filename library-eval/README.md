@@ -188,6 +188,8 @@ llm_config = {
 
 ## See Also
 
+- Feature example (not a sample app): [examples/mce/judge-override/](examples/mce/judge-override/)
+- [summarization.md § MCE judge](../docs/manifests/summarization.md#mce-judge-model)
 - [MCE documentation](https://github.com/agntcy/telemetry-hub/tree/main/metrics_computation_engine)
 - [mce_metrics_plugin](https://github.com/agntcy/telemetry-hub/tree/main/metrics_computation_engine/plugins/mce_metrics_plugin)
 - [Tutorial: Output Quality Evaluation](../../docs/tutorial-evaluation.md)

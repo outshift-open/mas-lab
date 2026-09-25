@@ -213,10 +213,20 @@ properties:
             type: string
             enum: [user_emulation, llm_judge, metrics, trace_only]
             description: "Evaluation strategy. trace_only = collect trajectories without scoring."
+          model:
+            type: string
+            description: >
+              LLM-as-judge model for eval_mce (and other llm_judge steps).
+              Default: the same model the experiment agent uses
+              (metadata.model_name, then workspace infra default_model).
+              A per-step eval_mce config.model override still wins.
+              See docs/manifests/summarization.md#mce-judge-model.
           config:
             type: object
             additionalProperties: true
-            description: "Method-specific configuration."
+            description: >
+              Method-specific configuration. config.model is an alias of
+              evaluation.model (evaluation.model wins when both are set).
 
       # ── Output ────────────────────────────────────────────────────────────
       trace_cache_dir:

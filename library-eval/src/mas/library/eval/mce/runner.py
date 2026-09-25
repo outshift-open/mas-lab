@@ -170,30 +170,40 @@ def _compute_deepeval_score(
 
 _jury: Any = None          # metrics_computation_engine.llm_judge.jury.Jury
 _jury_patched = False
+_effective_model: str = ""
 
 
 def install_openai_llm_service(
     model_override: Optional[str] = None,
     *,
     api_key_env: Optional[str] = None,
-) -> None:
+    model_source: Optional[str] = None,
+) -> str:
     """Create a ``Jury`` (public MCE) backed by the openai SDK.
 
     Patches ``LLMClient.query`` at class level so that all ``Jury`` instances
     route through our openai client (no litellm required).  Idempotent.
 
     Configuration resolution order:
-      1. *model_override* argument
-      2. ``config.yaml`` → InfraManifest
-      3. Hard-coded fallback: ``vertex_ai/gemini-3-pro-preview``
+      1. *model_override* argument (eval_mce / experiment.evaluation.model)
+      2. ``config.yaml`` → InfraManifest (same default as the agent)
+      3. Hard-coded fallback: ``gpt-4o``
+
+    Returns the effective model id. Logs at INFO so the judge is visible
+    next to summarizer model logs.
     """
-    global _jury, _jury_patched, _deepeval_model
-    if _jury_patched and model_override is None and api_key_env is None:
-        return
-
+    global _jury, _jury_patched, _deepeval_model, _effective_model
     infra_api_base, infra_api_key_env, infra_model = _resolve_infra()
+    effective_model = model_override or infra_model
 
-    effective_model    = model_override or infra_model
+    # Idempotency fast path: skip the reinstall only when the model this call
+    # would actually use already matches the installed one — not merely
+    # whether *this* call happened to pass an explicit override. A prior
+    # call's override (or infra default) can differ from this call's, even
+    # when both pass model_override=None.
+    if _jury_patched and api_key_env is None and effective_model == _effective_model:
+        return _effective_model
+
     effective_api_base = infra_api_base or None
     effective_api_key  = (
         os.environ.get(api_key_env or infra_api_key_env)
@@ -254,10 +264,13 @@ def install_openai_llm_service(
     )
 
     _jury_patched = True
-    logger.debug(
-        "MCE Jury configured (model=%s, base_url=%s, deepeval=%s)",
-        effective_model, effective_api_base, "ok" if _deepeval_model else "unavailable",
+    _effective_model = str(effective_model)
+    source = model_source or ("override" if model_override else "infra")
+    logger.info(
+        "MCE Jury configured (model=%s, source=%s, base_url=%s, deepeval=%s)",
+        effective_model, source, effective_api_base, "ok" if _deepeval_model else "unavailable",
     )
+    return effective_model
 
 
 def _resolve_infra() -> tuple[str, str, str]:

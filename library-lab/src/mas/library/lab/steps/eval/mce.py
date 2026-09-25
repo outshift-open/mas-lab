@@ -41,6 +41,10 @@ fail_threshold float         Fraction of items that may fail before the step
                              raises ``StepError``.  0.0 = any failure raises;
                              1.0 = never raise (default for backward compat).
                              Recommended lab value: 0.5.
+model          str           LLM-as-judge model. Default: experiment.evaluation.model,
+                             then metadata.model_name, then workspace infra
+                             (the same model the agent used). See
+                             docs/manifests/summarization.md.
 
 Step output
 -----------
@@ -64,6 +68,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from mas.lab.benchmark.pipeline import PipelineStep, StepOutput
 from mas.lab.benchmark.pipeline.executor import ExecutionContext
+from mas.lab.benchmark.pipeline.models import ConfigParam
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +81,28 @@ class EvalMceStep(PipelineStep):
 
     type = "eval_mce"
     persistent = True  # LLM-as-judge calls are expensive; persist output to avoid re-running
+
+    PARAMS = [
+        ConfigParam("runs_dir", str, default=None,
+                    description="Runs tree containing item*/r*/traces/events.jsonl."),
+        ConfigParam("response_agent", str, default=None,
+                    description="agent_id whose last execution_end is the session answer."),
+        ConfigParam("metrics", list, default=None,
+                    description="MCE session metric ids. Default: all session metrics."),
+        ConfigParam("overwrite", bool, default=False,
+                    description="Recompute existing metrics.json."),
+        ConfigParam("validate", bool, default=True,
+                    description="Validate metrics.json against schema."),
+        ConfigParam("max_workers", int, default=2,
+                    description="Parallel judge threads."),
+        ConfigParam("fail_threshold", float, default=1.0,
+                    description="Fraction of items that may fail before the step raises."),
+        ConfigParam("model", str, default=None,
+                    description="LLM-as-judge model. Default: experiment.evaluation.model, "
+                                "then the agent/infra model."),
+        ConfigParam("metrics_filename", str, default="metrics.json",
+                    description="Artefact filename written next to run_info.json."),
+    ]
 
     async def execute(self, ctx: ExecutionContext) -> StepOutput:
         from mas.library.eval.mce.runner import (
@@ -112,8 +139,40 @@ class EvalMceStep(PipelineStep):
         do_validate: bool = bool(config.get("validate", True))
         max_workers: int = int(config.get("max_workers", 2))
         fail_threshold: float = float(config.get("fail_threshold", 1.0))
-        model_override: Optional[str] = config.get("model") or None
+        model_override: Optional[str] = None
         metrics_filename: str = config.get("metrics_filename", "metrics.json")
+
+        from mas.library.eval.mce.judge_model import resolve_judge_model
+
+        # config["model"] may be a step-authored override, or a default
+        # backfilled at experiment-load time from evaluation.model /
+        # metadata.model_name (see _inject_eval_mce_judge_model in
+        # experiment_base.py, which tags it via config["model_source"]).
+        # Route a backfilled value back into its real precedence slot
+        # instead of treating it as the (highest-priority) step override,
+        # so pipeline template_vars can still take effect over a
+        # metadata-derived default.
+        backfilled_source: Optional[str] = config.get("model_source") if config.get("model") else None
+        step_model = config.get("model")
+        evaluation_model = None
+        judge_metadata: Optional[Dict[str, Any]] = None
+        if backfilled_source:
+            step_model = None
+            if backfilled_source.startswith("experiment.evaluation"):
+                evaluation_model = config.get("model")
+            elif backfilled_source.startswith("experiment.metadata"):
+                judge_metadata = {"model_name": config.get("model")}
+
+        judged = resolve_judge_model(
+            step_model=step_model,
+            step_judge_model=config.get("judge_model"),
+            evaluation_model=evaluation_model,
+            metadata=judge_metadata,
+            template_vars=getattr(ctx, "template_vars", None),
+        )
+        if judged.model:
+            model_override = judged.model
+        model_source = judged.source
 
         # ----------------------------------------------------------------
         # Install MCE LLM service (once per process)
@@ -121,9 +180,17 @@ class EvalMceStep(PipelineStep):
         if model_override:
             # Force re-install with the requested judge model so Lab 4.A can
             # re-evaluate the same traces under multiple judges.
-            install_openai_llm_service(model_override=model_override)
+            effective = install_openai_llm_service(
+                model_override=model_override, model_source=model_source
+            )
         else:
-            install_openai_llm_service()
+            effective = install_openai_llm_service(model_source=model_source)
+        logger.info(
+            "EvalMceStep '%s': judge model=%s source=%s",
+            self.name,
+            effective or model_override or "(infra default)",
+            model_source,
+        )
 
         # ----------------------------------------------------------------
         # Load JSON schema for validation
@@ -273,6 +340,8 @@ class EvalMceStep(PipelineStep):
             metadata={
                 "runs_dir": str(runs_dir),
                 "summary": f"computed={computed}, skipped={skipped}, errors={errors}, warnings={warnings_count}",
+                "judge_model": effective or model_override,
+                "judge_model_source": model_source,
                 **summary,
             },
         )

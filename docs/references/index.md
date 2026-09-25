@@ -17,7 +17,7 @@ Declarative YAML kinds and how they compose.
 | Topic | Reference |
 |-------|-----------|
 | Overview & composition | [Manifest overview](../manifests/README.md) |
-| Agent | [agent.md](../manifests/agent.md) · [plugin-bindings.md](../manifests/plugin-bindings.md) · [context-assembly.md](../manifests/context-assembly.md) |
+| Agent | [agent.md](../manifests/agent.md) · [plugin-bindings.md](../manifests/plugin-bindings.md) · [context-assembly.md](../manifests/context-assembly.md) · [summarization.md](../manifests/summarization.md) |
 | Compiled agent defaults (worked example) | [defaults.md](defaults.md) |
 | Tool (`kind: Tool`) | [tool.md](../manifests/tool.md) · [ToolContract](tool-contract.md) |
 | ToolServerRegistry | [infra.md](../manifests/infra.md#toolserverregistry) · [reference](tool-server-registry.md) |
@@ -52,6 +52,7 @@ Experiments, datasets, pipelines, and analysis (`mas-lab`).
 | Topic | Reference |
 |-------|-----------|
 | Experiment manifest | [experiment.md](../manifests/experiment.md) |
+| Conversation summarization & eval models | [summarization.md](../manifests/summarization.md) |
 | Dataset | [dataset.md](../manifests/dataset.md) |
 | Pipeline steps | [pipeline.md](../manifests/pipeline.md) |
 | Interactive lab demo | [lab.md](../manifests/lab.md) |

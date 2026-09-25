@@ -100,11 +100,23 @@ class EvaluationSpec:
             "emulator_manifest": "path/to/emulator.yaml",
             "criteria": ["correctness", "helpfulness"],
         }
+
+    ``config.model`` is an alias of ``evaluation.model`` (the top-level field
+    wins when both are set).
     """
+
+    model: Optional[str] = None
+    """LLM-as-judge model for eval_mce. Default: the experiment agent model."""
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> EvaluationSpec:
-        return cls(method=data["method"], config=data.get("config", {}))
+        config = dict(data.get("config") or {})
+        model = data.get("model") or config.get("model") or config.get("judge_model")
+        return cls(
+            method=data["method"],
+            model=str(model).strip() if model else None,
+            config=config,
+        )
 
 
 @dataclass

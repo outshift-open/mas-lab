@@ -1,0 +1,14 @@
+{
+  "model": "gpt-4o-mini",
+  "messages": [
+    {
+      "role": "system",
+      "content": "Preserve city names, dates, and numeric facts. One short paragraph.\nDo not write a transcript.\n"
+    },
+    {
+      "role": "user",
+      "content": "[{\"role\": \"user\", \"content\": \"We fly to Lyon on 12 May.\"}, {\"role\": \"assistant\", \"content\": \"Noted: Lyon, 12 May.\"}]"
+    }
+  ],
+  "temperature": 0.0
+}

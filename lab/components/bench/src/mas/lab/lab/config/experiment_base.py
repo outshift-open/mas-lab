@@ -329,6 +329,8 @@ class MASRunBase:
                 if not step.scope:
                     step.scope = "application"
 
+        _inject_eval_mce_judge_model(levels, evaluation, data.get("metadata"))
+
         return dict(
             name=exp_name,
             description=data.get("description", ""),
@@ -348,4 +350,28 @@ class MASRunBase:
             levels=levels,
             artifacts=artifacts,
         )
+
+
+def _inject_eval_mce_judge_model(
+    levels: Dict[str, "LevelSpec"],
+    evaluation: Optional[EvaluationSpec],
+    metadata: Any,
+) -> None:
+    """Fill omitted eval_mce config.model from experiment.evaluation / metadata."""
+    try:
+        from mas.library.eval.mce.judge_model import (
+            apply_eval_mce_model_defaults,
+            resolve_judge_model,
+        )
+    except ImportError:
+        return
+    resolved = resolve_judge_model(
+        evaluation_model=evaluation.model if evaluation else None,
+        evaluation_config=evaluation.config if evaluation else None,
+        metadata=metadata if isinstance(metadata, dict) else None,
+    )
+    if not resolved.model:
+        return
+    for level in levels.values():
+        apply_eval_mce_model_defaults(list(level.pipeline), resolved)
 

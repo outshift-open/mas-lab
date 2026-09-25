@@ -8,7 +8,6 @@ description: >
   assembler / working-memory slicing — not forwarded to
   ContextManagerContract constructors (stripped in CMFactory).
 type: object
-additionalProperties: false
 properties:
   working_memory_messages:
     type: integer

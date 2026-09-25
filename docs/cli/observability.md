@@ -175,3 +175,5 @@ and figure workflows.
 - [ctl/tui.md](../ctl/tui.md) — same `--events*` flags
 - [Web UI](../ui/index.md) — browse **run** artifacts
 - [glossary.md](../glossary.md) — manifest terms
+- [summarization.md](../manifests/summarization.md) — summarizer / MCE judge models and the summary system prompt in the log
+- Example: [summarizer-override](../../library-standard/examples/context/summarizer-override/)

@@ -100,7 +100,7 @@ That's it. Everything else has sensible defaults:
 | `spec.models[0].model` | `gpt-4` (overridden by flavour) | Main LLM — works without flavour; flavour overrides |
 | `spec.design_pattern` | `react` | ReAct loop. Shorthand `design_pattern: react` ≡ `{type: react, params: {max_steps: 512, max_cot_pass: 1, parallel: true}}`. [plugin-bindings.md](../../manifests/plugin-bindings.md) |
 | `spec.assembler` | `assembler` | Builds `messages[]`. Omit ≡ `{type: assembler, params: {emit_segments: true, always_reassemble: false}}` — [context-assembly.md](../../manifests/context-assembly.md) |
-| `spec.context_manager` | `summarising` | Last **10 user turns** verbatim; `summarizer: llm`; hysteresis 0.2 — [context-assembly.md](../../manifests/context-assembly.md) |
+| `spec.context_manager` | `summarising` | Last **10 user turns** verbatim; `summarizer: llm`; hysteresis 0.2 — [summarization.md](../../manifests/summarization.md) · [context-assembly.md](../../manifests/context-assembly.md) |
 
 Don't take this table's word for it — `mas-ctl compile agent.yaml` prints the
 real, fully-expanded object for every one of these plugins (and the

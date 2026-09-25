@@ -14,12 +14,30 @@ of failing every turn.
 
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 from mas.runtime.contracts.context_manager_contract import ContextManagerContract
 from mas.runtime.registry import get_registry
-from mas.runtime.spec.plugin_binding import normalize_plugin_binding_lenient, plugin_binding_id
+from mas.runtime.spec.model_ref import resolve_model_ref
+from mas.runtime.spec.plugin_binding import (
+    normalize_plugin_binding_lenient,
+    plugin_binding_id,
+    plugin_binding_params,
+)
 from mas.runtime.spec.schema_bindings_generated import CONTEXT_MANAGER_ASSEMBLY_PARAM_KEYS
+
+
+def _accepts_kwargs(fn: Any, *names: str) -> bool:
+    """Whether callable *fn* accepts every keyword name in *names*."""
+    try:
+        params = inspect.signature(fn).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params):
+        return True
+    declared = {p.name for p in params}
+    return set(names) <= declared
 
 # Assembly param keys come from context-manager-assembly-params.schema.yaml
 # (generated). Strategy keys stay in params for ContextManagerContract ctors.
@@ -31,20 +49,56 @@ def _default_summarizer_id() -> str:
     return get_registry().default_for("summarizer") or "llm"
 
 
-def _instantiate_summarizer(raw: Any, engine: Any | None) -> Any:
+def _summarizer_model_ref(sub: dict[str, Any]) -> str | None:
+    field = "spec.context_manager.params.summarizer"
+    params = plugin_binding_params(sub, field=field)
+    raw = params.get("model") or sub.get("model")
+    token = str(raw).strip() if raw else ""
+    return token or None
+
+
+def _instantiate_summarizer(
+    raw: Any,
+    engine: Any | None,
+    *,
+    manifest: dict[str, Any] | None = None,
+) -> Any:
     """Create a ``summarizer`` registry plugin and bind the live engine if needed."""
     field = "spec.context_manager.params.summarizer"
     sub = normalize_plugin_binding_lenient(raw, field=field)
     if not plugin_binding_id(sub, field=field):
-        sub = {"type": _default_summarizer_id()}
+        sub = {**sub, "type": _default_summarizer_id()}
+    model_ref = _summarizer_model_ref(sub)
+    plugin_id = plugin_binding_id(sub, field=field).lower()
+    if model_ref and "llm" in plugin_id:
+        params = dict(sub.get("params") or {})
+        params.setdefault("model", model_ref)
+        sub = {**sub, "params": params}
     plugin = get_registry().create("summarizer", sub)
     bind_engine = getattr(plugin, "bind_engine", None)
     if callable(bind_engine):
-        bind_engine(engine)
+        engine_model = getattr(engine, "model", None)
+        resolved, source = resolve_model_ref(
+            manifest or getattr(engine, "manifest", None),
+            model_ref,
+            engine_model=str(engine_model) if engine_model else None,
+        )
+        bind_kwargs: dict[str, Any] = {}
+        if _accepts_kwargs(bind_engine, "model"):
+            bind_kwargs["model"] = resolved
+        if _accepts_kwargs(bind_engine, "model_source"):
+            bind_kwargs["model_source"] = source
+        bind_engine(engine, **bind_kwargs)
     return plugin
 
 
-def _bind_summarizer(instance: Any, binding: dict[str, Any], engine: Any | None) -> None:
+def _bind_summarizer(
+    instance: Any,
+    binding: dict[str, Any],
+    engine: Any | None,
+    *,
+    manifest: dict[str, Any] | None = None,
+) -> None:
     bind = getattr(instance, "bind_summarizer", None)
     if not callable(bind):
         return
@@ -52,7 +106,7 @@ def _bind_summarizer(instance: Any, binding: dict[str, Any], engine: Any | None)
     raw = params.get("summarizer")
     if raw is None:
         raw = _default_summarizer_id()
-    bind(_instantiate_summarizer(raw, engine))
+    bind(_instantiate_summarizer(raw, engine, manifest=manifest))
 
 
 class CMFactory:
@@ -93,7 +147,7 @@ class CMFactory:
         instance = get_registry().create("context_manager", ctor_binding, manifest=manifest)
         if not isinstance(instance, ContextManagerContract):
             raise TypeError(f"{type(instance).__name__} is not a ContextManagerContract")
-        _bind_summarizer(instance, binding, engine)
+        _bind_summarizer(instance, binding, engine, manifest=manifest)
         return instance
 
     @classmethod

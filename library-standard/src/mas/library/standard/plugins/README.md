@@ -67,6 +67,17 @@ from the manifest, not from `mas.runtime`.
 
 `spec.governance` is a chain (BLOCK exits, ALLOW continues). `spec.observability` is a sequence.
 
+## Context (`summarizer` sub-plugin)
+
+| ID | Alias | Implementation |
+|----|-------|----------------|
+| `llm` / `drop` | `summarizer` | `LlmSummarizer` / `DropSummarizer` — compress or drop older turns |
+
+- Card: [context/summarizer.md](context/summarizer.md)
+- Example (not an app): [examples/context/summarizer-override/](../../../../../examples/context/summarizer-override/)
+- Overlay: `pkg://mas.library.standard/overlays/cheap-summarizer.yaml`
+- Docs: [summarization.md](../../../../../../docs/manifests/summarization.md)
+
 ## Deferred (not in this OSS release)
 
 Docker/K8s placement, Petri-net workflow, Letta memory, and extended OTel plugins are planned for a later release.

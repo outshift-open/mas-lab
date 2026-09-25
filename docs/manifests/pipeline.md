@@ -82,3 +82,4 @@ UI may emit `x-canvas-positions` (stripped before execution).
 
 - [experiment.md](experiment.md)
 - [lab.md](lab.md)
+- [summarization.md](summarization.md) — `eval_mce` judge model
