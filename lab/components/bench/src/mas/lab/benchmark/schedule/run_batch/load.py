@@ -278,7 +278,7 @@ def print_dry_run(loaded: LoadedExperiment) -> None:
         for s in _all_steps:
             _by_scope.setdefault(s.scope, []).append(s)
         _parts = []
-        for scope in ("run", "test", "scenario", "experiment"):
+        for scope in ("run", "test", "scenario", "application", "experiment"):
             count = len(_by_scope.get(scope, []))
             if count:
                 _parts.append(f"{count} {scope}")

@@ -195,7 +195,7 @@ def test_react_loop_second_llm_sees_tool_result():
     rounds = {"n": 0}
 
     class ScriptEngine:
-        def exchange_preview(self, op: str) -> str:
+        def exchange_preview(self, op: str, *, correlation_id: int = 0) -> str:
             return op
 
         def invoke(self, io: InvokeEngineIo) -> EngineIoReturn:

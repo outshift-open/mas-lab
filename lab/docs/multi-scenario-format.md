@@ -18,13 +18,27 @@ for scenario in scenarios:
       execute (scenario overlays × item)
 ```
 
-On disk:
+On disk, the directory tree *is* the artifact tree — each level (`application` /
+`scenario` / `test` / `run`) owns whatever artifacts it declares in its own
+`artifacts:` block:
 
 ```text
 <output_dir>/
-  <scenario-id>/item<N>/r<R>/traces/events.jsonl
-  results/          # pipeline outputs (all scenarios)
+  data.csv                              # application-level artifact (e.g. gathered df)
+  <scenario-id>/
+    data.csv                            # scenario-level artifact
+    item<N>/
+      data.csv                          # test-level artifact
+      r<R>/
+        traces/events.jsonl             # run-level artifact (trace)
+        metrics.json                    # run-level artifact (eval_mce output)
+        data.csv                        # run-level artifact (metrics_to_dataframe output)
 ```
+
+A `gather_level` step placed at `test:`/`scenario:`/`application:` fans the
+level below's named artifact upward (see [pipeline-steps.md](pipeline-steps.md)
+and the `in:`/`out:`/`scope:` fields in
+[manifests/pipeline.md](../../docs/manifests/pipeline.md)).
 
 ## `scenarios:`
 
@@ -77,7 +91,21 @@ Or explicit manifest:
 
 ## Post-run pipeline
 
+Each level (`run:`/`test:`/`scenario:`/`application:`) can declare its own
+`artifacts:` and `post:` steps. A step's `scope` is inferred from which level
+block it's declared under:
+
 ```yaml
+  run:
+    artifacts:
+      trace: { type: trace, path: "{run_dir}/traces/events.jsonl" }
+      metrics: metrics
+    post:
+      - name: eval-quality
+        type: eval_mce
+        in: trace
+        out: metrics
+
   application:
     post:
       - name: extract-trace-stats

@@ -39,6 +39,34 @@ from mas.runtime.constants import LAB_CONFIG_FILENAME
 logger = logging.getLogger(__name__)
 
 
+#: Above this many steps, progress/summary output collapses to counts.
+COMPACT_STEP_LIST_THRESHOLD = 24
+
+
+def compact_step_names(
+    names: List[str],
+    *,
+    type_of: Optional[Callable[[str], str]] = None,
+    limit: int = COMPACT_STEP_LIST_THRESHOLD,
+) -> str:
+    """Join step names, collapsing long lists to counts by step type.
+
+    ``type_of`` resolves a step name to its declared type (e.g. from
+    ``pipeline.get_step(name).type``); without it, falls back to the name's
+    hyphen-prefix as an approximation.
+    """
+    if not names:
+        return ""
+    if len(names) <= limit:
+        return ", ".join(names)
+    key_of = type_of or (lambda name: name.split("-")[0] if "-" in name else name)
+    counts: Dict[str, int] = {}
+    for name in names:
+        key = key_of(name)
+        counts[key] = counts.get(key, 0) + 1
+    return ", ".join(f"{k}×{n}" for k, n in counts.items())
+
+
 @dataclass
 class ExecutionPlan:
     """Plan for pipeline execution."""
@@ -60,8 +88,8 @@ class ExecutionPlan:
         lines = [
             f"Execution Plan:",
             f"  Total steps: {len(self.execution_order)}",
-            f"  To rerun: {len(self.steps_to_rerun)} ({', '.join(self.steps_to_rerun) or 'none'})",
-            f"  Cached: {len(self.steps_cached)} ({', '.join(self.steps_cached) or 'none'})",
+            f"  To rerun: {len(self.steps_to_rerun)} ({compact_step_names(self.steps_to_rerun) or 'none'})",
+            f"  Cached: {len(self.steps_cached)} ({compact_step_names(self.steps_cached) or 'none'})",
             f"  Layers: {len(self.execution_layers)} (max parallelism: {max(len(l) for l in self.execution_layers) if self.execution_layers else 0})",
         ]
         return "\n".join(lines)
@@ -395,9 +423,9 @@ class PipelineExecutor:
             n_cached = len(steps_cached)
             print(f"\nPipeline: {n_total} steps ({n_run} to run, {n_cached} cached)")
             if steps_cached:
-                print(f"  cached: {', '.join(steps_cached)}")
+                print(f"  cached: {compact_step_names(steps_cached)}")
             if steps_to_rerun:
-                print(f"  to run: {', '.join(steps_to_rerun)}")
+                print(f"  to run: {compact_step_names(steps_to_rerun)}")
             print()
         
         if dry_run:
@@ -537,7 +565,8 @@ class PipelineExecutor:
         step = self.pipeline.get_step(step_name)
         logger.info(f"Executing step: {step_name} (type: {step.type})")
         
-        if self.progress:
+        compact = len(self.pipeline.steps) > COMPACT_STEP_LIST_THRESHOLD
+        if self.progress and not compact:
             print(f"  ▶ {step_name} ({step.type}) ...", end="", flush=True)
         
         step_start = datetime.now()
@@ -605,7 +634,7 @@ class PipelineExecutor:
         fingerprint = self.cache_manager.compute_fingerprint(step, dep_outputs)
         self.cache_manager.save_fingerprint(step_name, fingerprint)
         
-        if self.progress:
+        if self.progress and not compact:
             _data_summary = ""
             if "rows" in output.data:
                 _data_summary = f" [{output.data['rows']} rows]"

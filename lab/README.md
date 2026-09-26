@@ -87,8 +87,6 @@ Index: [docs/tutorials/index.md](../docs/tutorials/index.md).
 | [docs/contracts.md](docs/contracts.md) | `mas-lab check` |
 | [docs/replay-equivalence-checklist.md](docs/replay-equivalence-checklist.md) | Trace equivalence |
 
-Executor internals: [components/bench/PIPELINE_DESIGN.md](components/bench/PIPELINE_DESIGN.md).
-
 ---
 
 ## Examples

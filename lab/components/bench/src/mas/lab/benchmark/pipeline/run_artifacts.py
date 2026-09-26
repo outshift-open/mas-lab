@@ -32,6 +32,16 @@ RUN_ARTIFACTS: Dict[str, RunArtifactSpec] = {
         artifact=Artifact(name="events", format="jsonl", scope=Scope.RUN),
         produced_by=("mas_runtime",),
     ),
+    "metrics": RunArtifactSpec(
+        key="metrics",
+        artifact=Artifact(name="metrics", format="json", scope=Scope.RUN),
+        produced_by=("eval_mce",),
+    ),
+    "dataframe": RunArtifactSpec(
+        key="dataframe",
+        artifact=Artifact(name="data", format="csv", scope=Scope.RUN),
+        produced_by=("metrics_to_dataframe",),
+    ),
     "kg": RunArtifactSpec(
         key="kg",
         artifact=Artifact(name="kg", format="json", scope=Scope.RUN),

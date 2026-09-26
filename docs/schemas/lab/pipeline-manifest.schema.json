@@ -78,6 +78,21 @@
                 "type": "object",
                 "description": "Named outputs for downstream steps. Disk serialization is step-config driven (output_csv, output_dir, …)."
               },
+              "in": {
+                "type": ["string", "array"],
+                "items": { "type": "string" },
+                "description": "(v2) Input artifact name(s) fanned in from the level below — see the backend's experiment-manifest artifacts: blocks."
+              },
+              "out": {
+                "type": ["string", "array"],
+                "items": { "type": "string" },
+                "description": "(v2) Output artifact name(s) produced at this step's scope."
+              },
+              "scope": {
+                "type": "string",
+                "enum": ["run", "test", "scenario", "application", "experiment"],
+                "description": "(v2) Execution scope, normally inferred from the enclosing experiment-level block."
+              },
               "config": {
                 "type": "object"
               }

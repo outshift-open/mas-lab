@@ -37,5 +37,4 @@ Docs for **benchmarks**, **pipelines**, and validation.
 
 | Page | Contents |
 |------|----------|
-| [PIPELINE_DESIGN.md](../components/bench/PIPELINE_DESIGN.md) | Pipeline executor |
 | [bench README](../components/bench/README.md) | Full benchmark CLI |

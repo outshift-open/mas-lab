@@ -174,7 +174,7 @@ df.columns
 Paper figures use **`type: plotnine`** in `experiment.yaml` `application.post`.
 Ad-hoc charts from step data use **`type: plot`** with **`config.spec`** (plot library).
 
-See [PIPELINE_DESIGN.md](PIPELINE_DESIGN.md) and `labs/*/experiment.yaml` for examples.
+See [pipeline-steps.md](../../../../../../docs/pipeline-steps.md) and `labs/*/experiment.yaml` for examples.
 
 ## Complete Example
 

@@ -369,9 +369,12 @@ class PlotNineStep(PipelineStep):
                     oov_layer_df = layer_df[layer_df[x_col_layer] > float(oov_max)].copy()
                     if not oov_layer_df.empty:
                         oov_layer_df[x_col_layer] = float(oov_max)
+                        oov_layer_mapping = {
+                            k: v for k, v in layer_mapping_cfg.items() if k != "shape"
+                        }
                         p = p + geom_point(
                             data=oov_layer_df,
-                            mapping=layer_aes,
+                            mapping=aes(**oov_layer_mapping),
                             alpha=oov_alpha,
                             size=oov_size,
                             shape=oov_shape,
@@ -446,9 +449,10 @@ class PlotNineStep(PipelineStep):
 
         # Main-layer out-of-viewport marker (after main geom so marker is visible)
         if oov_main_df is not None and not oov_main_df.empty:
+            oov_main_mapping = {k: v for k, v in base_mapping.items() if k != "shape"}
             p = p + geom_point(
                 data=oov_main_df,
-                mapping=aes(**base_mapping),
+                mapping=aes(**oov_main_mapping),
                 alpha=oov_alpha,
                 size=oov_size,
                 shape=oov_shape,

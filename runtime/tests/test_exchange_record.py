@@ -14,7 +14,7 @@ from mas.runtime.schema.egress import InvokeEngineIo
 class _SnapshotEngine:
     model = "gpt-4o"
 
-    def exchange_snapshot(self, op: str) -> ExchangeSnapshot:
+    def exchange_snapshot(self, op: str, *, correlation_id: int = 0) -> ExchangeSnapshot:
         assert op == "LLM_CALL"
         return ExchangeSnapshot(
             messages=[

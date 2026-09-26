@@ -44,7 +44,7 @@ class InfraMiddleware(Protocol):
 
     def invoke(self, io: InvokeEngineIo) -> EngineIoReturn: ...
 
-    def exchange_preview(self, op: str) -> str: ...
+    def exchange_preview(self, op: str, *, correlation_id: int = 0) -> str: ...
 
 
 @dataclass
@@ -74,10 +74,10 @@ class LlmCacheMiddleware:
             self.cache_path = self.cache_path.expanduser().resolve()
             self._cache = _cache_for_path(self.cache_path)
 
-    def exchange_preview(self, op: str) -> str:
+    def exchange_preview(self, op: str, *, correlation_id: int = 0) -> str:
         preview = getattr(self.inner, "exchange_preview", None)
         if callable(preview):
-            head = str(preview(op) or "")
+            head = str(preview(op, correlation_id=correlation_id) or "")
             return f"[llm_cache middleware]\n{head}".strip()
         return "[llm_cache middleware]"
 
@@ -127,7 +127,11 @@ class LlmCacheMiddleware:
 
     def _preview(self, io: InvokeEngineIo) -> str:
         preview = getattr(self.inner, "exchange_preview", None)
-        return str(preview("LLM_CALL") if callable(preview) else io.correlation_id)
+        return str(
+            preview("LLM_CALL", correlation_id=io.correlation_id)
+            if callable(preview)
+            else io.correlation_id
+        )
 
     def _persist(self) -> None:
         if not self.cache_path:
@@ -145,10 +149,10 @@ class FaultInjectMiddleware:
     status_codes: list[int] = field(default_factory=lambda: [503])
     message: str = "injected fault"
 
-    def exchange_preview(self, op: str) -> str:
+    def exchange_preview(self, op: str, *, correlation_id: int = 0) -> str:
         preview = getattr(self.inner, "exchange_preview", None)
         if callable(preview):
-            head = str(preview(op) or "")
+            head = str(preview(op, correlation_id=correlation_id) or "")
             return f"[fault_inject middleware rate={self.rate}]\n{head}".strip()
         return f"[fault_inject middleware rate={self.rate}]"
 
@@ -222,10 +226,10 @@ class BidirectionalPipelineEngine:
     inner: Any
     pipeline_steps: list[dict[str, Any]]
 
-    def exchange_preview(self, op: str) -> str:
+    def exchange_preview(self, op: str, *, correlation_id: int = 0) -> str:
         preview = getattr(self.inner, "exchange_preview", None)
         if callable(preview):
-            return str(preview(op) or "")
+            return str(preview(op, correlation_id=correlation_id) or "")
         return ""
 
     def invoke(self, io: InvokeEngineIo) -> EngineIoReturn:

@@ -136,11 +136,21 @@ class LiveLlmEngine:
         content = message.get("content") if isinstance(message, dict) else getattr(message, "content", "")
         return str(content or "").strip()
 
-    def exchange_snapshot(self, op: str) -> ExchangeSnapshot:
-        """Structured outbound LLM payload or pending tool call. Not a display string."""
+    def exchange_snapshot(self, op: str, *, correlation_id: int = 0) -> ExchangeSnapshot:
+        """Structured outbound LLM payload or pending tool call. Not a display string.
+
+        ``correlation_id`` is this op's real id when the caller has one (a
+        cache-key preview, an exchange-log entry) — assembling messages
+        records context-assembly telemetry tagged with whatever id is set on
+        ``ctx``, so a preview must pass the real id through rather than
+        leaving the previous call's id in place (stale) or zeroing it
+        (untraceable): both defeat mapping that telemetry back to its LLM
+        call, which matters most on a cache hit, where this preview is the
+        only assembly this op ever does.
+        """
         if op == "LLM_CALL":
             if self.ctx is not None:
-                self.ctx._assembly_correlation_id = 0
+                self.ctx._assembly_correlation_id = correlation_id
             tool_defs = self._tool_defs()
             messages = self._build_messages(tools=tool_defs)
             api_tools = llm_request_tools(messages, tools=tool_defs or None)
@@ -155,9 +165,9 @@ class LiveLlmEngine:
             )
         return ExchangeSnapshot()
 
-    def exchange_preview(self, op: str) -> str:
+    def exchange_preview(self, op: str, *, correlation_id: int = 0) -> str:
         """Pretty-print of exchange_snapshot (cache keys, tests). Not interchange."""
-        return format_exchange_snapshot(self.exchange_snapshot(op))
+        return format_exchange_snapshot(self.exchange_snapshot(op, correlation_id=correlation_id))
 
     def invoke(self, io: InvokeEngineIo) -> EngineIoReturn:
         if io.op == "LLM_CALL":

@@ -77,7 +77,7 @@ Nested folders (e.g. `02-bit-exactness/`) are separate **labs** with their own
 ## Evaluation
 
 - Structural metrics from **`events.jsonl`**: `extract_trace_stats`, `extract_mealy_stats`
-- Semantic metrics: `eval_mce` (judge model — [summarization.md](../manifests/summarization.md#mce-judge-model))
+- Semantic metrics: `eval_mce` (judge model — [summarization.md](../../docs/manifests/summarization.md#mce-judge-model))
 
 [library-eval/README.md](../../library-eval/README.md).
 

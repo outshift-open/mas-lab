@@ -156,22 +156,19 @@ experiment:
   # ------------------------------------------------------------------
   run:
     n_runs: 3
-  pipeline_bind: experiment/post
-
-  application:
     post:
       - name: eval-quality
         type: eval_mce
         config:
-          runs_dir: "{output_dir}"
-          max_workers: 2
-          fail_threshold: 0.5
           metrics:
             - goal_success_rate
             - response_completeness
             - answer_relevancy
             - groundedness
+  pipeline_bind: experiment/post
 
+  application:
+    post:
       - name: collect-metrics
         type: collect_metrics
         config:

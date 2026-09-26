@@ -20,7 +20,7 @@ class _SequenceEngine:
     calls: int = 0
     _index: int = 0
 
-    def exchange_preview(self, op: str) -> str:
+    def exchange_preview(self, op: str, *, correlation_id: int = 0) -> str:
         return self.preview_text if op == "LLM_CALL" else ""
 
     def invoke(self, io: InvokeEngineIo) -> EngineIoReturn:
@@ -39,7 +39,7 @@ class _TrajectoryEngine:
     preview_calls: int = 0
     _turn: int = 0
 
-    def exchange_preview(self, op: str) -> str:
+    def exchange_preview(self, op: str, *, correlation_id: int = 0) -> str:
         if op != "LLM_CALL":
             return ""
         idx = min(self.preview_calls, len(self.previews) - 1)

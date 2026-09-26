@@ -3,8 +3,8 @@
 experiment:
   name: smoke-design-space-topologies
   description: >
-    CI smoke for design-space.lab Exp 1.2 — one run, eval_mce pipeline,
-    isolated trace cache (cache disabled).
+    CI smoke for design-space.lab Exp 1.2 — one run, level-scoped
+    eval/gather pipeline, isolated trace cache (cache disabled).
   default_flavour: local
   applications:
     - app: trip-planner
@@ -25,27 +25,73 @@ experiment:
         cache: disabled
   run:
     n_runs: 1
-  application:
+    artifacts:
+      trace:
+        type: trace
+        path: "{run_dir}/traces/events.jsonl"
+      metrics: metrics
+      df:
+        type: dataframe
+        path: "{level_dir}/data.csv"
     post:
       - name: eval-quality
         type: eval_mce
+        in: trace
+        out: metrics
         config:
-          max_workers: 1
-          fail_threshold: 0.5
           overwrite: true
           metrics:
             - goal_success_rate
             - answer_relevancy
-      - name: collect-metrics
-        type: collect_metrics
+      - name: run-df
+        type: metrics_to_dataframe
+        in: metrics
+        out: df
         depends_on: [eval-quality]
+  test:
+    artifacts:
+      df:
+        type: dataframe
+        path: "{level_dir}/data.csv"
+    post:
+      - name: gather-test
+        type: gather_level
+        in: df
+        out: df
+        depends_on: [run-df]
         config:
-          scenarios: [topo-linear-pipeline]
+          output: data.csv
+  scenario:
+    artifacts:
+      df:
+        type: dataframe
+        path: "{level_dir}/data.csv"
+    post:
+      - name: gather-scenario
+        type: gather_level
+        in: df
+        out: df
+        depends_on: [gather-test]
+        config:
+          output: data.csv
+  application:
+    artifacts:
+      df:
+        type: dataframe
+        path: "{level_dir}/data.csv"
+    post:
+      - name: gather-experiment
+        type: gather_level
+        in: df
+        out: df
+        depends_on: [gather-scenario]
+        config:
+          output: data.csv
       - name: compute-ci
         type: compute_ci
-        depends_on: [collect-metrics]
+        depends_on: [gather-experiment]
         config:
-          data: "@collect-metrics"
+          data: "@gather-experiment"
           groupby: [scenario, metric]
           metrics: [answer_relevancy, goal_success_rate]
           extra_cols: [latency_s]

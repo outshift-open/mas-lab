@@ -36,6 +36,7 @@ from mas.library.lab.steps.eval.collect_metrics import CollectMetricsStep
 from mas.library.lab.steps.eval.compute_ci import ComputeCIStep
 from mas.library.lab.steps.eval.compute_drift import ComputeDriftStep
 from mas.library.lab.steps.eval.mce import EvalMceStep
+from mas.library.lab.steps.eval.metrics_to_dataframe import MetricsToDataFrameStep
 from mas.library.lab.steps.extract.mealy_stats import ExtractMealyStatsStep
 from mas.library.lab.steps.extract.sys_stats import ExtractSysStatsStep
 from mas.library.lab.steps.extract.trace_stats import ExtractTraceStatsStep
@@ -68,6 +69,7 @@ __all__ = [
     "DiffTrajectoriesStep",
     "EmbedStep",
     "EvalMceStep",
+    "MetricsToDataFrameStep",
     "ExperimentStep",
     "ExportOtelStep",
     "EventsToOtelStep",

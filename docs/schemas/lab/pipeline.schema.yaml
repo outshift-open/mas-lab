@@ -11,8 +11,10 @@ description: >
   **Artifacts and transport:** Steps pass outputs in-memory within a single pipeline
   run (Python dicts / dataframes). Steps that declare file paths in config
   (events_jsonl, trajectory_csv, output_dir) serialize artifacts to disk. Experiment
-  manifests declare typed artifacts (trace, metrics, plot, …) for persistence
-  targets; see PIPELINE_DESIGN.md and experiment.schema.yaml artifacts block.
+  manifests declare typed artifacts (trace, metrics, dataframe, plot, …) at each
+  level's ``artifacts:`` block; a step's ``in:``/``out:`` names which one it
+  reads/writes, fanning in the level below's instances. See
+  docs/manifests/pipeline.md and experiment.schema.yaml's artifacts block.
 
 type: object
 required: [pipeline]
@@ -57,13 +59,15 @@ properties:
           depends_on."
         items:
           type: object
-          required: [name, type]
+          required: [type]
           additionalProperties: false
           properties:
             name:
               type: string
               minLength: 1
-              description: "Unique step identifier within this pipeline."
+              description: >
+                Step identifier within this pipeline. Optional — defaults to
+                ``type`` when omitted (see PipelineStepSpec.name).
             type:
               type: string
               description: "Registered step type."
@@ -84,6 +88,40 @@ properties:
               description: >
                 Named outputs exposed to downstream steps. File serialization is
                 configured inside step config (output_csv, output_dir, …).
+            in:
+              type: [string, array]
+              items:
+                type: string
+              description: >
+                (v2) Input artifact name(s) — fans in the named artifact from the
+                level below (e.g. all child ``run`` instances into a ``test``-scope
+                step). See experiment.schema.yaml's per-level ``artifacts:`` blocks.
+            out:
+              type: [string, array]
+              items:
+                type: string
+              description: "(v2) Output artifact name(s) produced at this step's scope."
+            scope:
+              type: string
+              enum: [run, test, scenario, application, experiment]
+              description: >
+                (v2) Execution scope. Normally inferred from which experiment-level
+                block (run/test/scenario/application) declared the step; only needed
+                here for a standalone pipeline.yaml with no enclosing level block.
+            phase:
+              type: string
+              enum: [pre, post]
+              default: post
+              description: "Execution phase relative to the benchmark run loop."
+            persist:
+              type: boolean
+              description: "Persist this step's output as a resumable artifact (e.g. LLM-as-judge steps)."
+            per_scenario:
+              type: boolean
+              description: "(v1, legacy) Expand this step once per scenario. Superseded by scope: scenario."
+            per_run:
+              type: boolean
+              description: "(v1, legacy) Expand this step once per benchmark run folder. Superseded by scope: run."
             config:
               type: object
               additionalProperties: true
@@ -101,12 +139,27 @@ properties:
 #   output_csv: str        (default: trajectories.csv)
 #   scenarios: [str]       (optional filter)
 #
-# eval_mce config:
-#   trajectory_csv: str    (path from extract_trajectories step)
-#   output_csv: str        (default: trajectories_eval.csv)
-#   model: str             (judge model; default: experiment.evaluation.model
-#                          then metadata.model_name then infra default — same
-#                          as the agent model unless overridden)
+# eval_mce config (one run per invocation — place at scope: run):
+#   events_path / trace_path: str  (override; default resolved from run_dir)
+#   metrics: [str]                 (default: all session-level MCE metrics)
+#   metrics_filename: str          (default: metrics.json)
+#   overwrite: bool                (default: false — skip if metrics.json exists)
+#   validate: bool                 (default: true)
+#   max_workers: int               (default: 2 — process-wide cap on judge calls)
+#   model: str                     (judge; default: experiment.evaluation.model,
+#                                    then metadata.model_name, then infra)
+#   response_agent: str            (agent_id whose last execution_end is the answer)
+#
+# metrics_to_dataframe config (one run's metrics.json → data.csv — scope: run):
+#   metrics_filename: str  (default: metrics.json)
+#   output: str            (default: data.csv, relative to run_dir)
+#
+# gather_level config (concatenate child dataframe artifacts at a folder):
+#   artifact_paths: [str]  (from `in:` fan-in)
+#   annotate: {str: str}   (constant columns on every gathered row)
+#   output: str            (default: data.csv)
+#   output_dir: str        (default: ctx.output_dir)
+#   format: csv | parquet  (default: csv)
 #
 # embed_trajectories config:
 #   trajectory_csv: str

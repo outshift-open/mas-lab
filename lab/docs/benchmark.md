@@ -14,8 +14,8 @@ Terms: [glossary.md](../../docs/glossary.md).
 
 | Phase | Command | Produces |
 |-------|---------|----------|
-| **Execution** | `mas-lab benchmark run experiment.yaml` | Per-**run** `events.jsonl`, `metrics.json` |
-| **Pipeline** | Automatic after execution | `results/*.csv`, `results/fig-*.png` |
+| **Execution** | `mas-lab benchmark run experiment.yaml` | Per-**run** `events.jsonl` |
+| **Pipeline** | Automatic after execution | Per-level artifacts (`run/…/metrics.json`, `run/…/data.csv`, gathered up through `scenario/data.csv` to `data.csv` and any figures at the application level) |
 
 Re-running skips completed **runs** (unless `--force`) and re-executes **pipeline
 steps** when step fingerprints change.
@@ -51,6 +51,5 @@ Per lab: [labs-quickstart.md](labs-quickstart.md).
 |-------|----------|
 | Pipeline YAML | [pipeline.md](pipeline.md) |
 | Pipeline step types | [pipeline-steps.md](pipeline-steps.md) |
-| Executor design | [PIPELINE_DESIGN.md](../components/bench/PIPELINE_DESIGN.md) |
 | Reproducibility | [Experiments and analysis](../../docs/tutorials/03-experiments-and-analysis/README.md) |
 | Paper labs | [paper/index.md](../../docs/paper/index.md) |

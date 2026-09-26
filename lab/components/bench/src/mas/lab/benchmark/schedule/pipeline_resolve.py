@@ -93,22 +93,10 @@ def _load_specs_from_yaml(path: Path) -> list:
         logger.warning("Failed to load pipeline from %s: %s", path, exc)
         return []
 
-    specs: list[PipelineStepSpec] = []
-    for step_data in step_dicts:
-        specs.append(
-            PipelineStepSpec.from_dict(
-                {
-                    "name": step_data["name"],
-                    "type": step_data["type"],
-                    "phase": step_data.get("phase", "post"),
-                    "per_scenario": bool(step_data.get("per_scenario", False)),
-                    "per_run": bool(step_data.get("per_run", False)),
-                    "config": dict(step_data.get("config", {})),
-                    "depends_on": list(step_data.get("depends_on", [])),
-                }
-            )
-        )
-    return specs
+    # PipelineStepSpec.from_dict reads name/type/phase/scope/in/out/per_scenario/
+    # per_run/config/depends_on directly off the raw step dict — pass it through
+    # as-is rather than re-listing (and silently dropping) fields here.
+    return [PipelineStepSpec.from_dict(dict(step_data)) for step_data in step_dicts]
 
 
 def spec_to_step_dict(spec: Any) -> dict:

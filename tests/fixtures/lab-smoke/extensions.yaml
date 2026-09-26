@@ -24,18 +24,16 @@ experiment:
         cache: disabled
   run:
     n_runs: 1
-  pipeline_bind: experiment/post
-  application:
     post:
       - name: eval-quality
         type: eval_mce
         config:
-          runs_dir: "{output_dir}"
-          max_workers: 1
-          fail_threshold: 0.5
           metrics:
             - goal_success_rate
             - answer_relevancy
+  pipeline_bind: experiment/post
+  application:
+    post:
       - name: collect-metrics
         type: collect_metrics
         depends_on: [eval-quality]
