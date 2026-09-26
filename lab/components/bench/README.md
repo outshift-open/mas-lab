@@ -223,9 +223,10 @@ steps:
 
   - name: eval
     type: eval_mce
+    scope: run              # scores ONE run per invocation; needs run-level context
     depends_on: [extract]
     config:
-      events_path: "{{output_dir}}/runs/**/traces/events.jsonl"
+      metrics: [goal_success_rate]
 
   - name: plot
     type: plot

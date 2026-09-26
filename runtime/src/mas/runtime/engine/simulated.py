@@ -35,13 +35,13 @@ class SimulatedEngine:
     llm_tool_intent: Callable[[int], tuple[str, dict]] | None = None
     stop_text: str | None = None
 
-    def exchange_snapshot(self, op: str) -> ExchangeSnapshot:
+    def exchange_snapshot(self, op: str, *, correlation_id: int = 0) -> ExchangeSnapshot:
         if op == "LLM_CALL":
             return ExchangeSnapshot(note=f"simulated:{self.sim_mode.value}")
         return ExchangeSnapshot()
 
-    def exchange_preview(self, op: str) -> str:
-        return format_exchange_snapshot(self.exchange_snapshot(op))
+    def exchange_preview(self, op: str, *, correlation_id: int = 0) -> str:
+        return format_exchange_snapshot(self.exchange_snapshot(op, correlation_id=correlation_id))
 
     def invoke(self, io: InvokeEngineIo) -> EngineIoReturn:
         if io.correlation_id in self.script:

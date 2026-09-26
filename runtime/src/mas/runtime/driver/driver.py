@@ -153,11 +153,11 @@ def _engine_payload_json(obj: object) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2)
 
 
-def _engine_snapshot(engine: Any, op: str) -> ExchangeSnapshot | None:
+def _engine_snapshot(engine: Any, op: str, *, correlation_id: int = 0) -> ExchangeSnapshot | None:
     snap_fn = getattr(engine, "exchange_snapshot", None)
     if not callable(snap_fn):
         return None
-    snap = snap_fn(op)
+    snap = snap_fn(op, correlation_id=correlation_id)
     return snap if isinstance(snap, ExchangeSnapshot) else None
 
 
@@ -199,7 +199,7 @@ def _engine_invoke_record(
             ),
             tool_name,
         )
-    snap = _engine_snapshot(engine, sym.op) if engine is not None else None
+    snap = _engine_snapshot(engine, sym.op, correlation_id=sym.correlation_id) if engine is not None else None
     return (
         ExchangeRecord(
             kind="llm_request",

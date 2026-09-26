@@ -89,9 +89,57 @@ and logs. Feature example (not a sample app):
 
 ## Artifacts
 
-`artifacts:` declares typed outputs (`trace`, `metrics`, `plot`, …) at experiment
-or level scope. Pipeline steps consume/produce these as **typed intermediates** (memory streams
-or serialized paths).
+`artifacts:` declares typed outputs (`trace`, `metrics`, `dataframe`, `plot`, …) at each
+level. Short form names just the type (`metrics: metrics`); long form overrides the path
+template and turns on schema validation:
+
+```yaml
+run:
+  artifacts:
+    trace: { type: trace, path: "{run_dir}/traces/events.jsonl" }
+    metrics: metrics
+    df: { type: dataframe, path: "{level_dir}/data.csv" }
+  post:
+    - name: eval-quality
+      type: eval_mce
+      in: trace     # reads this level's `trace` artifact
+      out: metrics  # writes this level's `metrics` artifact
+
+test:
+  artifacts:
+    df: { type: dataframe, path: "{level_dir}/data.csv" }
+  post:
+    - name: gather-test
+      type: gather_level
+      in: df        # fans in every child `run`'s `df` instance
+      out: df        # writes this level's own `df`
+```
+
+A step's `in:` names an artifact declared at the level **below** its own scope — the
+executor resolves every child instance's file path and passes them as
+`config["artifact_paths"]`. `out:` just documents which of this level's own declared
+artifacts the step produces; nothing enforces it beyond the step's own config
+(`output:`/`output_dir:`).
+
+---
+
+## `output_schema:`
+
+Optional fail-fast check on the final output directory — declares files that must
+exist and, per file, columns that must be present:
+
+```yaml
+experiment:
+  output_schema:
+    required_files:
+      - "results/ci_summary.csv"
+    required_columns:
+      results/ci_summary.csv: [scenario, metric, mean, ci_low, ci_high]
+```
+
+Declaring it doesn't run the check by itself — add a `validate_outputs` step
+(typically last in `application: post:`) with `config: {schema: <the output_schema
+dict above>}`; see [pipeline-steps.md](../../lab/docs/pipeline-steps.md).
 
 ---
 

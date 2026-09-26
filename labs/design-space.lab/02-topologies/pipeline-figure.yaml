@@ -1,28 +1,24 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
+#
+# Replay figure-02 from the experiment-level dataframe (data.csv) produced by
+# gather-experiment. Does not walk run folders.
+#   mas-lab benchmark pipeline run labs/design-space.lab/02-topologies/pipeline-figure.yaml \
+#     -o "$HOME/.local/share/mas/labs/design-space/lab1-exp1.2-topologies-trip-planner-100"
+
 pipeline:
   name: figure-02-topologies
-  description: "Dual-metric (AR + GSR) latency/quality figure from topology benchmark runs."
+  description: >
+    Dual-metric (AR + GSR) latency/quality figure from the topology sweep.
+    Reads the experiment-level dataframe written by gather-experiment.
 
   steps:
-    - name: collect-metrics
-      type: collect_metrics
-      config:
-        scenarios:
-          - topo-parallel
-          - topo-linear-pipeline
-          - topo-moderator-broker
-          - topo-supervised
-          - topo-verifier
-
     - name: compute-ci
       type: compute_ci
-      depends_on: [collect-metrics]
       config:
-        data: "@collect-metrics"
+        data: "{output_dir}/data.csv"
         groupby: [scenario, metric]
         metrics: [answer_relevancy, goal_success_rate]
-        # Pre-aggregate runs → item means, then CI over items (n=n_items, wider CI)
         pre_aggregate:
           by: [scenario, metric, item_id]
           agg: mean
@@ -33,9 +29,31 @@ pipeline:
 
     - name: figure-overhead-quality
       type: plotnine
-      depends_on: [collect-metrics, compute-ci]
+      depends_on: [compute-ci]
       config:
         data: "@compute-ci"
+        df_schema:
+          required_columns:
+            [
+              scenario,
+              metric,
+              mean,
+              ci_low,
+              ci_high,
+              latency_s_mean,
+              latency_s_ci_low,
+              latency_s_ci_high,
+            ]
+          required_groups:
+            scenario:
+              [
+                topo-parallel,
+                topo-linear-pipeline,
+                topo-moderator-broker,
+                topo-supervised,
+                topo-verifier,
+              ]
+            metric: [answer_relevancy, goal_success_rate]
         mapping:
           x: latency_s_mean
           y: mean
@@ -46,7 +64,6 @@ pipeline:
           ymin: ci_low
           ymax: ci_high
         layers:
-          # Dotted gray segment connecting AR mean to GSR mean for each scenario
           - data: "@compute-ci"
             geom: line
             mapping:
@@ -57,8 +74,7 @@ pipeline:
             linetype: "dotted"
             alpha: 0.85
             size: 0.8
-          # Individual-run scatter (faint)
-          - data: "@collect-metrics"
+          - data: "{output_dir}/data.csv"
             geom: point
             mapping:
               x: latency_s

@@ -31,12 +31,14 @@ curl -s http://localhost:8090/api/pipeline-step-types   # when controller runnin
 
 | Type | Output |
 |------|--------|
-| `eval_mce` | MCE evaluation metrics (judge model: `experiment.evaluation.model`, default = agent model) |
+| `eval_mce` | One run's `events.jsonl` → `metrics.json` (`scope: run`). Judge: `experiment.evaluation.model`, else the agent model. |
 | `eval_trip_planner_gt` | Trip-planner ground truth |
 | `eval_adversarial` | Adversarial probes |
 | `annotate_metrics` | Attach scores to run metadata |
-| `collect_metrics` | Aggregate run metrics |
+| `collect_metrics` | Aggregate run metrics (whole-tree walk; legacy alternative to `metrics_to_dataframe` + `gather_level`) |
+| `metrics_to_dataframe` | One run's `metrics.json` → tidy `data.csv` in that run folder (`scope: run`) |
 | `compute_ci` | Confidence intervals |
+| `validate_outputs` | Check `experiment.output_schema`'s `required_files`/`required_columns` against the output directory |
 
 ## viz/ — figures
 
@@ -55,7 +57,8 @@ curl -s http://localhost:8090/api/pipeline-step-types   # when controller runnin
 |------|------|
 | `dataset` | Load scenario inputs |
 | `experiment` | Run trials (nested pipelines) |
-| `collect_dataframe` / `gather_level` | Merge step outputs |
+| `collect_dataframe` | Merge step outputs |
+| `gather_level` | Concatenate the level below's named artifact (`config["artifact_paths"]`, populated from `in:`) into this level's `data.csv` |
 | `join_dataframe` | Join tables |
 | `processor` | Custom dataframe transforms |
 
@@ -82,4 +85,4 @@ Pattern: subclass `PipelineStep`, `register_step_type`, declare in `experiment.y
 
 - [pipeline.md](pipeline.md)
 - [benchmark.md](benchmark.md)
-- [summarization.md](../manifests/summarization.md) — `eval_mce` judge model
+- [summarization.md](../../docs/manifests/summarization.md) — `eval_mce` judge model

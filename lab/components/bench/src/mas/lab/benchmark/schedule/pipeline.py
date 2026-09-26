@@ -1,20 +1,22 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-
-from __future__ import annotations
-
 """Batch pipeline orchestration — resolve once, materialize, execute."""
+from __future__ import annotations
 
 import copy
 import logging
+from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
 from mas.lab.benchmark.execution import apply_step_overrides
-from mas.lab.benchmark.schedule.run_discovery import discover_benchmark_runs
-from mas.lab.benchmark.schedule.pipeline_resolve import (
-    resolve_pipeline_specs,
-    spec_to_step_dict,
+from mas.lab.benchmark.schedule.pipeline_resolve import resolve_pipeline_specs
+from mas.lab.benchmark.schedule.run_discovery import (
+    discover_benchmark_runs,
+    discover_benchmark_scenarios,
+    discover_benchmark_tests,
+    list_child_artifact_paths,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,28 +44,225 @@ def _base_step_name(spec: Any) -> str:
     return spec.name or spec.type
 
 
-def _expand_depends_on(
+def _effective_scope(spec: Any) -> str:
+    """Resolve a spec's materialization scope.
+
+    An explicit ``scope:`` (set by the level block a v2 spec was declared
+    under, or written directly) always wins. The v1 ``per_run``/``per_scenario``
+    booleans are a fallback for specs with no ``scope:`` at all — checked only
+    when ``scope`` is unset, so a v2 spec's explicit scope can never be
+    silently overridden by a stray legacy flag.
+    """
+    scope = str(getattr(spec, "scope", "") or "").strip()
+    if scope:
+        return scope
+    if getattr(spec, "per_run", False):
+        return "run"
+    if getattr(spec, "per_scenario", False):
+        return "scenario"
+    return "application"
+
+
+@dataclass(frozen=True)
+class _Node:
+    """One folder in the application / scenario / test / run tree."""
+
+    scope: str
+    path: Path
+    scenario: str = ""
+    test: str = ""
+    run: str = ""
+
+    def suffix(self) -> str:
+        if self.scope == "run":
+            return f"{self.scenario}-{self.test}-{self.run}"
+        if self.scope == "test":
+            return f"{self.scenario}-{self.test}"
+        if self.scope == "scenario":
+            return self.scenario
+        return ""
+
+    def contains(self, other: "_Node") -> bool:
+        if self.scope in ("application", "experiment"):
+            return True
+        if other.scenario != self.scenario:
+            return False
+        if self.scope == "scenario":
+            return True
+        if other.test != self.test:
+            return False
+        if self.scope == "test":
+            return True
+        return other.run == self.run
+
+
+def _filter_scenario(refs: list, scenario_ids: list[str]) -> list:
+    allowed = set(scenario_ids)
+    if not allowed:
+        return list(refs)
+    return [r for r in refs if r.scenario in allowed]
+
+
+def _nodes_for_scope(
+    scope: str, output_dir: Path, scenario_ids: list[str]
+) -> list[_Node]:
+    """Discover the folders/instances for one scope, shared by every spec at
+    that scope in this ``materialize_step_dicts`` call.
+
+    ``scenario_ids`` always filters "run" discovery here — including for a
+    legacy ``per_run: true``-without-``per_scenario`` spec, which previously
+    swept every run on disk unfiltered. No current experiment.yaml uses that
+    flag combination (all real configs use ``scope:``), and per-spec filtering
+    would need per-spec node lists rather than one shared list per scope, so
+    this asymmetry is left as a known, currently-dormant gap.
+    """
+    if scope == "run":
+        return [
+            _Node("run", r.path, r.scenario, r.test, r.run)
+            for r in _filter_scenario(discover_benchmark_runs(output_dir), scenario_ids)
+        ]
+    if scope == "test":
+        return [
+            _Node("test", t.path, t.scenario, t.test)
+            for t in _filter_scenario(discover_benchmark_tests(output_dir), scenario_ids)
+        ]
+    if scope == "scenario":
+        found = _filter_scenario(discover_benchmark_scenarios(output_dir), scenario_ids)
+        if found:
+            return [_Node("scenario", s.path, s.scenario) for s in found]
+        return [_Node("scenario", output_dir / sid, sid) for sid in scenario_ids]
+    return [_Node("application", output_dir)]
+
+
+def _expand_deps(
     depends_on: list[str],
-    scenario_id: str,
-    per_scenario_names: set[str],
-    *,
-    run_suffix: str | None = None,
-    per_run_names: set[str] | None = None,
+    node: _Node,
+    name_scope: dict[str, str],
+    nodes: dict[str, list[_Node]],
 ) -> list[str]:
+    """Rewrite each dependency to the child instances under *node*."""
     expanded: list[str] = []
-    per_run_names = per_run_names or set()
     for dep in depends_on or []:
-        if run_suffix and dep in per_run_names:
-            expanded.append(f"{dep}-{run_suffix}")
-        elif dep in per_scenario_names:
-            expanded.append(f"{dep}-{scenario_id}")
-        else:
+        child_scope = name_scope.get(dep)
+        if not child_scope or child_scope == "application":
             expanded.append(dep)
+            continue
+        for child in nodes.get(child_scope, []):
+            if node.contains(child):
+                suffix = child.suffix()
+                expanded.append(f"{dep}-{suffix}" if suffix else dep)
     return expanded
 
 
-def _run_step_suffix(scenario: str, test: str, run: str) -> str:
-    return f"{scenario}-{test}-{run}"
+#: The level one step down the hierarchy — whose artifacts a node fans in from.
+_CHILD_LEVEL = {"application": "scenario", "experiment": "scenario", "scenario": "test", "test": "run"}
+
+
+def _child_artifact_filename(
+    inputs: list[str], child_artifacts: dict[str, Any]
+) -> str:
+    """Resolve the fan-in filename for artifact ``inputs[0]``.
+
+    Prefers the child level's own declared ``ArtifactSpec`` (honoring a
+    custom ``path:``); falls back to the global artifact-type default when
+    the child level didn't declare that artifact name explicitly (the
+    conventional ``df`` alias for a ``dataframe`` artifact is not itself
+    registered as a type, so this is the common case, not just a last
+    resort). If the guessed filename is wrong, ``gather_level`` raises at
+    execute() time when nothing was found to concatenate — see there.
+    """
+    from mas.lab.lab.config.artifact_types import type_info
+    from mas.lab.lab.config.pipeline import ArtifactSpec
+
+    name = inputs[0] if inputs else "df"
+    declared = child_artifacts.get(name)
+    if declared is not None:
+        return str(declared.relative_path())
+    info = type_info(name)
+    type_name = name if info else "dataframe"
+    if not info:
+        info = type_info("dataframe")
+    spec = ArtifactSpec(
+        name=name, type=type_name, path=info.get("path") or ""
+    )
+    return str(spec.relative_path())
+
+
+def _inject_fan_in(
+    cfg: dict[str, Any],
+    spec: Any,
+    node: _Node,
+    output_dir: Path,
+    level_artifacts: dict[str, dict[str, Any]],
+) -> None:
+    inputs = list(getattr(spec, "inputs", None) or [])
+    if not inputs or node.scope == "run":
+        return
+    child_level = _CHILD_LEVEL.get(node.scope, "")
+    filename = _child_artifact_filename(inputs, level_artifacts.get(child_level, {}))
+    cfg.setdefault(
+        "artifact_paths",
+        [
+            str(path)
+            for path in list_child_artifact_paths(
+                output_dir=output_dir,
+                scope=node.scope,
+                scenario=node.scenario,
+                test=node.test,
+                filename=filename,
+            )
+        ],
+    )
+
+
+def _fill_cfg(
+    spec: Any,
+    node: _Node,
+    output_dir: Path,
+    level_artifacts: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    cfg = copy.deepcopy(spec.config or {})
+    cfg.setdefault("level_dir", str(node.path))
+    if node.scenario:
+        cfg.setdefault("scenario", node.scenario)
+        cfg.setdefault("scenario_dir", str(output_dir / node.scenario))
+    if node.test:
+        cfg.setdefault("test", node.test)
+    if node.run:
+        cfg.setdefault("run", node.run)
+        cfg.setdefault("run_dir", str(node.path))
+    if node.scope == "scenario":
+        cfg.setdefault("scenarios", [node.scenario])
+    if node.scope != "application":
+        cfg.setdefault("output_dir", str(node.path))
+    _inject_fan_in(cfg, spec, node, output_dir, level_artifacts)
+    return cfg
+
+
+def _finalize_cfg(
+    spec: Any,
+    cfg: dict[str, Any],
+    *,
+    infra_name: Optional[str],
+    step_overrides: Optional[dict],
+    tmpl: dict[str, str],
+) -> dict[str, Any]:
+    if infra_name and spec.type in _INFRA_STEP_TYPES:
+        cfg.setdefault("infra", infra_name)
+    cfg = apply_step_overrides(cfg, spec.type, step_overrides or {})
+    if tmpl:
+        cfg = substitute_template_vars(cfg, tmpl)
+    return cfg
+
+
+def _step_dict(spec: Any, name: str, cfg: dict[str, Any], deps: list[str]) -> dict:
+    return {
+        "name": name,
+        "type": spec.type,
+        "phase": getattr(spec, "phase", "post"),
+        "config": cfg,
+        "depends_on": deps,
+    }
 
 
 def materialize_step_dicts(
@@ -74,8 +273,16 @@ def materialize_step_dicts(
     infra_name: Optional[str],
     step_overrides: Optional[dict],
     template_vars: Optional[dict[str, str]] = None,
+    level_artifacts: Optional[dict[str, dict[str, Any]]] = None,
 ) -> list[dict]:
-    """Expand specs (per-scenario, infra, overrides) and optionally filter by ``phase``."""
+    """Expand each spec once per folder at its level.
+
+    Higher-level steps receive ``artifact_paths`` — the child files of the
+    artifact named in ``in:``. ``level_artifacts`` (``{level: {name: ArtifactSpec}}``,
+    from the experiment's declared ``artifacts:`` blocks) resolves the child's
+    filename from its own declared path when the caller has it; without it,
+    fan-in falls back to the artifact type's default path.
+    """
     phase_specs = (
         [s for s in specs if getattr(s, "phase", "post") == phase]
         if phase is not None
@@ -84,100 +291,36 @@ def materialize_step_dicts(
     if not phase_specs:
         return []
 
-    per_scenario_names = {
-        _base_step_name(s) for s in phase_specs if getattr(s, "per_scenario", False)
-    }
-    per_run_names = {
-        _base_step_name(s) for s in phase_specs if getattr(s, "per_run", False)
-    }
-    step_dicts: list[dict] = []
     tmpl = template_vars or {}
     output_dir = Path(tmpl.get("output_dir", "."))
+    ids = list(scenario_ids or [])
+    nodes = {
+        scope: _nodes_for_scope(scope, output_dir, ids)
+        for scope in ("run", "test", "scenario", "application")
+    }
+    name_scope = {
+        _base_step_name(spec): _effective_scope(spec) for spec in phase_specs
+    }
+    level_arts = level_artifacts or {}
 
+    step_dicts: list[dict] = []
     for spec in phase_specs:
         base_name = _base_step_name(spec)
-        is_per_scenario = getattr(spec, "per_scenario", False)
-        is_per_run = getattr(spec, "per_run", False)
-
-        if is_per_run:
-            scenario_filter = scenario_ids if is_per_scenario else None
-            run_targets = []
-            if is_per_scenario:
-                for sid in scenario_ids:
-                    run_targets.extend(
-                        discover_benchmark_runs(output_dir, scenario=sid)
-                    )
-            else:
-                run_targets = discover_benchmark_runs(output_dir)
-
-            for run_ref in run_targets:
-                cfg = copy.deepcopy(spec.config or {})
-                cfg.setdefault("scenario", run_ref.scenario)
-                cfg.setdefault("test", run_ref.test)
-                cfg.setdefault("run", run_ref.run)
-                cfg.setdefault("run_dir", str(run_ref.path))
-                cfg.setdefault("scenario_dir", str(output_dir / run_ref.scenario))
-                if infra_name and spec.type in _INFRA_STEP_TYPES:
-                    cfg.setdefault("infra", infra_name)
-
-                cfg = apply_step_overrides(cfg, spec.type, step_overrides or {})
-                if tmpl:
-                    cfg = substitute_template_vars(cfg, tmpl)
-                suffix = _run_step_suffix(run_ref.scenario, run_ref.test, run_ref.run)
-                name = f"{base_name}-{suffix}"
-                deps = _expand_depends_on(
-                    list(spec.depends_on or []),
-                    run_ref.scenario,
-                    per_scenario_names,
-                    run_suffix=suffix,
-                    per_run_names=per_run_names,
-                )
-                step_dicts.append(
-                    {
-                        "name": name,
-                        "type": spec.type,
-                        "phase": getattr(spec, "phase", "post"),
-                        "config": cfg,
-                        "depends_on": deps,
-                    }
-                )
-            continue
-
-        targets = scenario_ids if is_per_scenario else [None]
-
-        for sid in targets:
-            cfg = copy.deepcopy(spec.config or {})
-            if sid is not None:
-                cfg.setdefault("scenario", sid)
-                cfg.setdefault("scenarios", [sid])
-                if tmpl.get("output_dir"):
-                    cfg.setdefault("scenario_dir", f"{tmpl['output_dir']}/{sid}")
-            if infra_name and spec.type in _INFRA_STEP_TYPES:
-                cfg.setdefault("infra", infra_name)
-
-            cfg = apply_step_overrides(cfg, spec.type, step_overrides or {})
-            if tmpl:
-                cfg = substitute_template_vars(cfg, tmpl)
-            name = f"{base_name}-{sid}" if sid is not None else base_name
-            deps = (
-                _expand_depends_on(
-                    list(spec.depends_on or []),
-                    sid,
-                    per_scenario_names,
-                    per_run_names=per_run_names,
-                )
-                if sid is not None
-                else list(spec.depends_on or [])
+        scope = _effective_scope(spec)
+        for node in nodes[scope]:
+            cfg = _finalize_cfg(
+                spec,
+                _fill_cfg(spec, node, output_dir, level_arts),
+                infra_name=infra_name,
+                step_overrides=step_overrides,
+                tmpl=tmpl,
             )
-            step_dicts.append(
-                {
-                    "name": name,
-                    "type": spec.type,
-                    "phase": getattr(spec, "phase", "post"),
-                    "config": cfg,
-                    "depends_on": deps,
-                }
+            suffix = node.suffix()
+            name = f"{base_name}-{suffix}" if suffix else base_name
+            deps = _expand_deps(
+                list(spec.depends_on or []), node, name_scope, nodes
             )
+            step_dicts.append(_step_dict(spec, name, cfg, deps))
     return step_dicts
 
 
@@ -210,6 +353,21 @@ class PipelineExecutionError(RuntimeError):
     """Raised when a benchmark post/pre pipeline step fails."""
 
 
+def _print_pipeline_banner(pipeline, phase_label: str) -> None:
+    from mas.lab.benchmark.pipeline.executor import COMPACT_STEP_LIST_THRESHOLD
+
+    title = f"{phase_label}-phase" if phase_label else "pipeline"
+    print(f"Running {title} ({len(pipeline.steps)} steps):")
+    if len(pipeline.steps) > COMPACT_STEP_LIST_THRESHOLD:
+        counts = Counter(ps.type for ps in pipeline.steps)
+        for step_type, count in counts.items():
+            label = f" × {count}" if count > 1 else ""
+            print(f"  · {step_type}{label}")
+        return
+    for ps in pipeline.steps:
+        print(f"  · {ps.name} ({ps.type})")
+
+
 async def execute_runtime_pipeline(
     pipeline,
     *,
@@ -229,10 +387,7 @@ async def execute_runtime_pipeline(
 
     if pipeline.steps:
         print()
-        title = f"{phase_label}-phase" if phase_label else "pipeline"
-        print(f"Running {title} ({len(pipeline.steps)} steps):")
-        for ps in pipeline.steps:
-            print(f"  · {ps.name} ({ps.type})")
+        _print_pipeline_banner(pipeline, phase_label)
 
     executor = PipelineExecutor(
         pipeline,
@@ -283,6 +438,15 @@ def _load_generated_dataset(output_dir: Path) -> list | None:
     return None
 
 
+def _level_artifacts(exp: Any) -> dict[str, dict[str, Any]]:
+    """Return ``{level: {artifact_name: ArtifactSpec}}`` declared on *exp*."""
+    levels = getattr(exp, "levels", None) or {}
+    return {
+        level_name: {a.name: a for a in getattr(level_spec, "artifacts", None) or []}
+        for level_name, level_spec in levels.items()
+    }
+
+
 async def run_pipeline_phase(
     *,
     phase: str,
@@ -309,6 +473,7 @@ async def run_pipeline_phase(
         infra_name=infra_name,
         step_overrides=step_overrides,
         template_vars={"output_dir": str(output_dir)},
+        level_artifacts=_level_artifacts(exp),
     )
     if not step_dicts:
         return None

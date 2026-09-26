@@ -86,6 +86,46 @@ def test_resolve_sibling_pipeline_yaml(tmp_path: Path):
     assert specs[0].type == "extract_trace_stats"
 
 
+def test_resolve_sibling_pipeline_yaml_preserves_scope_in_out(tmp_path: Path):
+    """A standalone pipeline.yaml's v2 fields (scope/in/out) must survive
+    resolution, not just its v1 fields (phase/per_scenario/per_run/config).
+    """
+    sibling = tmp_path / "pipeline.yaml"
+    sibling.write_text(
+        yaml.dump(
+            {
+                "pipeline": {
+                    "name": "post",
+                    "steps": [
+                        {
+                            "name": "eval-quality",
+                            "type": "eval_mce",
+                            "phase": "post",
+                            "scope": "run",
+                            "in": "trace",
+                            "out": "metrics",
+                        },
+                    ],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Exp:
+        name = "demo"
+        pipeline = []
+
+        def all_pipeline_steps(self):
+            return []
+
+    specs = resolve_pipeline_specs(_Exp(), tmp_path / "experiment.yaml")
+    assert len(specs) == 1
+    assert specs[0].scope == "run"
+    assert specs[0].inputs == ["trace"]
+    assert specs[0].outputs == ["metrics"]
+
+
 def test_materialize_filters_by_phase():
     specs = [
         PipelineStepSpec(type="service_start", name="start", phase="pre"),

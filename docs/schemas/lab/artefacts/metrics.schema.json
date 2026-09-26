@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "mas-lab/artefacts/session-metrics/v1",
   "title": "Session Metrics Artefact",
-  "description": "Schema for metrics.json — standalone per-run MCE metric scores written by EvalMceBatchStep. Lives next to run_info.json in each run folder (item{N}/r{K}/metrics.json).",
+  "description": "Schema for metrics.json — standalone per-run MCE metric scores written by EvalMceStep (scores one run per invocation). Lives next to run_info.json in each run folder (item{N}/r{K}/metrics.json).",
   "type": "object",
   "required": ["schema_version", "item_id", "scenario", "session", "computed_at"],
   "additionalProperties": false,
@@ -64,6 +64,14 @@
       "type": "string",
       "format": "date-time",
       "description": "ISO-8601 UTC timestamp when the metrics were computed."
+    },
+    "run_hash": {
+      "type": "string",
+      "description": "Content-addressed run hash, embedded from .run_ref when present. Written after schema validation — see cache_key."
+    },
+    "cache_key": {
+      "type": "string",
+      "description": "Cache key for this run; currently identical to run_hash (single-manifest, single-overlay path). Written after schema validation."
     }
   },
   "$defs": {

@@ -119,6 +119,28 @@ def test_registry_has_both_trajectory_plotters() -> None:
     assert "plot_multilevel_trajectory_kg" in kg.produced_by
 
 
+def test_compact_step_names_collapses_past_threshold() -> None:
+    from mas.lab.benchmark.pipeline.executor import (
+        COMPACT_STEP_LIST_THRESHOLD,
+        compact_step_names,
+    )
+
+    short = [f"step-{i}" for i in range(COMPACT_STEP_LIST_THRESHOLD)]
+    assert compact_step_names(short) == ", ".join(short)
+
+    long_list = [f"step-{i}" for i in range(COMPACT_STEP_LIST_THRESHOLD + 1)]
+    assert compact_step_names(long_list) == f"step×{len(long_list)}"
+
+    # A type_of resolver groups by real step type instead of guessing from
+    # the name's hyphen prefix (which would wrongly merge unrelated steps
+    # that happen to share a first word, e.g. "run-df" and "run-anything").
+    mixed = ["run-df-a", "run-anything-b"] * (COMPACT_STEP_LIST_THRESHOLD // 2 + 1)
+    types = {"run-df-a": "metrics_to_dataframe", "run-anything-b": "gather_level"}
+    grouped = compact_step_names(mixed, type_of=lambda n: types[n])
+    assert "metrics_to_dataframe×" in grouped
+    assert "gather_level×" in grouped
+
+
 def test_kg_plotter_processor_registered() -> None:
     import mas.lab.graph  # noqa: F401 — registers internal processor
 

@@ -22,7 +22,7 @@ class _EchoEngine:
     preview_text: str = "echo:LLM_CALL"
     calls: int = 0
 
-    def exchange_preview(self, op: str) -> str:
+    def exchange_preview(self, op: str, *, correlation_id: int = 0) -> str:
         return self.preview_text if op == "LLM_CALL" else f"echo:{op}"
 
     def invoke(self, io: InvokeEngineIo) -> EngineIoReturn:

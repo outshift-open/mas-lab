@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import re
 from importlib import resources
+from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any
 
@@ -22,9 +23,16 @@ _DEFAULT_MODEL_ALIAS = "generic-model"
 _DEFAULT_TARGET_MODEL = "gpt-4o-mini"
 
 
-def _templates_root() -> Path:
-    """Bundled under ``mas.lab/templates`` — no library-samples checkout required."""
-    return Path(str(resources.files("mas.lab") / "templates"))
+def _templates_root() -> Traversable:
+    """Bundled under ``mas.lab/templates`` — no library-samples checkout required.
+
+    ``mas.lab`` is a namespace package spanning every ``mas-lab-*`` editable
+    install, so ``resources.files()`` returns a ``MultiplexedPath`` searching
+    all of them. Round-tripping that through ``Path(str(...))`` corrupts it
+    into the object's repr text (not a filesystem path) — use the
+    Traversable's own ``/`` and ``read_text`` instead of converting it.
+    """
+    return resources.files("mas.lab") / "templates"
 
 
 def _load_template(name: str) -> str:

@@ -132,6 +132,10 @@ plugins:
     module: mas.library.lab.steps.viz.metrics_comparison_plot
     class: MetricsComparisonPlotStep
   - type: step
+    name: metrics_to_dataframe
+    module: mas.library.lab.steps.eval.metrics_to_dataframe
+    class: MetricsToDataFrameStep
+  - type: step
     name: pipeline_diagram
     module: mas.library.lab.steps.viz.pipeline_diagram
     class: PipelineDiagramStep
@@ -179,6 +183,10 @@ plugins:
     name: to_dataframe
     module: mas.library.lab.steps.data.to_dataframe
     class: ToDataFrameStep
+  - type: step
+    name: validate_outputs
+    module: mas.library.lab.steps.eval.validate_outputs
+    class: ValidateOutputsStep
   - type: codec
     name: otel_traces-otlp
     urn: mas.codec.otel_traces_otlp

@@ -4,7 +4,7 @@
   "scenario": "golden",
   "item_id": "1",
   "run_idx": 0,
-  "referenced_at": "2026-09-22T09:08:21.970294Z",
+  "referenced_at": "2026-09-26T09:33:58.783332Z",
   "mas": {
     "app": "trip-planner",
     "mas_ref": "sandbox/20260917-agntcon-amsterdam/thirdparty/mas-lab/library-samples/apps/trip-planner/mas.yaml",

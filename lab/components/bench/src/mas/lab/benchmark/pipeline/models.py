@@ -18,6 +18,9 @@ _STEP_KNOWN_KEYS: frozenset = frozenset({
     "name", "type", "config", "depends_on", "description", "persist", "phase",
     "per_scenario",
     "per_run",
+    "in",
+    "out",
+    "scope",
 })
 
 #: Keys accepted at the pipeline-config level.

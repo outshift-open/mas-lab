@@ -1,26 +1,27 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-# Lab 1 / Exp 1.2 — Topology Sweep on Trip Planner
 #
-# Central claim: switching the collaboration topology (linear-pipeline → parallel
-# → moderator-broker → supervised → verifier) is a single-overlay change —
-# zero agent code is modified.
+# Lab 1 / Exp 1.2 — Topology sweep on trip-planner (paper §5.1)
 #
-# Run:
+# Hierarchy: experiment → scenario (topology overlay) → test (dataset item) → run
+#   5 scenarios × 100 tests × 1 run = 500 executions
+#
+# Pipeline levels — each step consumes/produces a named artifact at that level.
+#   run.post          events.jsonl → metrics.json → data.csv
+#   test.post         gather run data.csv → test data.csv
+#   scenario.post     gather test data.csv → scenario data.csv
+#   application.post  gather scenario data.csv → experiment df → CI → plot
+#
 #   mas-lab benchmark run labs/design-space.lab/02-topologies/experiment.yaml --progress
-# Limit to N items (smoke-style):
-#   mas-lab benchmark run labs/design-space.lab/02-topologies/experiment.yaml --max-items 5 --progress
 
 experiment:
   name: "lab1-exp1.2-topologies-trip-planner"
   description: >
     Exp 02 of Lab 1 (§5.1). Sweeps 5 collaboration topologies on the 4-agent
-    trip-planner MAS across the 100-item trip-planner-benchmark-100 dataset
-    (released in library-samples). Demonstrates that topology selection is a
-    declarative overlay change — no agent code is modified. Topologies:
+    trip-planner MAS across the 100-item trip-planner-benchmark-100 dataset.
+    Topology is a declarative overlay — agent code is unchanged. Topologies:
     linear-pipeline, parallel, moderator-broker, supervised, verifier.
 
-  # Optional: reproducibility metadata (recommended for published experiments)
   default_flavour: local
   metadata:
     model_name: "gpt-4o"
@@ -31,7 +32,6 @@ experiment:
       100-item trip-planner dataset. Model sensitivity analysis can be run by
       updating model_name and re-running eval_mce + compute_ci steps only.
 
-  # Optional: output schema validation (fail-fast on missing results)
   output_schema:
     required_files:
       - "results/ci_summary.csv"
@@ -47,66 +47,135 @@ experiment:
   scenarios:
     - id: topo-parallel
       description: "Parallel — moderator fans out to all specialists concurrently"
+      overlays:
+        logic: [topo-parallel]
+        control: []
+        infra: []
 
     - id: topo-linear-pipeline
       description: "Linear pipeline — agents execute in a fixed sequential chain"
+      overlays:
+        logic: [topo-linear-pipeline]
+        control: []
+        infra: []
 
     - id: topo-moderator-broker
       description: "Moderator-broker — dynamic delegation to the right specialist"
+      overlays:
+        logic: [topo-moderator-broker]
+        control: []
+        infra: []
 
     - id: topo-supervised
       description: "Supervised — supervisor reviews and approves each output"
+      overlays:
+        logic: [topo-supervised]
+        control: []
+        infra: []
 
     - id: topo-verifier
       description: "Verifier — a dedicated verifier checks all agent outputs"
+      overlays:
+        logic: [topo-verifier]
+        control: []
+        infra: []
 
   dataset:
     name: trip-planner-benchmark-100
     locator: samples
     limit: 100
 
+  execution:
+    parallel_scenarios: 4
+    timeout: 300
+    pause_between_runs: 0
+    strategy: coverage
+    emulation:
+      infra:
+        llm: live
+        tools: live
+      runtime:
+        cache: content-addressed
+
   run:
     n_runs: 1
-  pipeline_bind: experiment/post
-
-  application:
     artifacts:
-      figure-02-overhead-quality: plot
+      trace:
+        type: trace
+        path: "{run_dir}/traces/events.jsonl"
+      metrics: metrics
+      df:
+        type: dataframe
+        path: "{level_dir}/data.csv"
     post:
       - name: eval-quality
         type: eval_mce
+        in: trace
+        out: metrics
         config:
-          max_workers: 2
-          fail_threshold: 0.5
-          overwrite: true
+          overwrite: false
           metrics:
             - goal_success_rate
             - answer_relevancy
-            # Domain-specific metrics — moved to Exp 03
-            # - groundedness
-            # - response_completeness
-            # - workflow_cohesion_index
-
-      - name: collect-metrics
-        type: collect_metrics
+      - name: run-df
+        type: metrics_to_dataframe
+        in: metrics
+        out: df
         depends_on: [eval-quality]
+
+  test:
+    artifacts:
+      df:
+        type: dataframe
+        path: "{level_dir}/data.csv"
+    post:
+      - name: gather-test
+        type: gather_level
+        in: df
+        out: df
+        depends_on: [run-df]
         config:
-          scenarios:
-            [
-              topo-parallel,
-              topo-linear-pipeline,
-              topo-moderator-broker,
-              topo-supervised,
-              topo-verifier,
-            ]
+          output: data.csv
+
+  scenario:
+    artifacts:
+      df:
+        type: dataframe
+        path: "{level_dir}/data.csv"
+    post:
+      - name: gather-scenario
+        type: gather_level
+        in: df
+        out: df
+        depends_on: [gather-test]
+        config:
+          output: data.csv
+
+  application:
+    artifacts:
+      df:
+        type: dataframe
+        path: "{level_dir}/data.csv"
+      figure-02-overhead-quality: plot
+    post:
+      - name: gather-experiment
+        type: gather_level
+        in: df
+        out: df
+        depends_on: [gather-scenario]
+        config:
+          output: data.csv
 
       - name: compute-ci
         type: compute_ci
-        depends_on: [collect-metrics]
+        depends_on: [gather-experiment]
         config:
-          data: "@collect-metrics"
+          data: "@gather-experiment"
           groupby: [scenario, metric]
           metrics: [answer_relevancy, goal_success_rate]
+          pre_aggregate:
+            by: [scenario, metric, item_id]
+            agg: mean
           extra_cols: [latency_s]
           ci_method: t
           ci_level: 0.95
@@ -114,9 +183,8 @@ experiment:
 
       - name: figure-overhead-quality
         type: plotnine
-        depends_on: [collect-metrics, compute-ci]
+        depends_on: [gather-experiment, compute-ci]
         config:
-          # Main data: group means ± 95% CI (from compute-ci)
           data: "@compute-ci"
           df_schema:
             required_columns:
@@ -139,24 +207,29 @@ experiment:
                   topo-supervised,
                   topo-verifier,
                 ]
-              metric: [goal_success_rate]
-          filter:
-            metric: [goal_success_rate]
+              metric: [answer_relevancy, goal_success_rate]
           mapping:
             x: latency_s_mean
             y: mean
             color: scenario
-            # 2D crosshair confidence intervals
+            shape: metric
             xmin: latency_s_ci_low
             xmax: latency_s_ci_high
             ymin: ci_low
             ymax: ci_high
-          # Background layer: individual run scatter (faint)
           layers:
-            - data: "@collect-metrics"
+            - data: "@compute-ci"
+              geom: line
+              mapping:
+                x: latency_s_mean
+                y: mean
+                group: scenario
+              color: "#666666"
+              linetype: "dotted"
+              alpha: 0.85
+              size: 0.8
+            - data: "@gather-experiment"
               geom: point
-              filter:
-                metric: [goal_success_rate]
               mapping:
                 x: latency_s
                 y: value
@@ -176,17 +249,18 @@ experiment:
             alpha: 0.75
           legend_position: [0.98, 0.02]
           legend_justification: [1, 0]
+          errorbarh_height: 0.02
           labels:
             x: "Session Latency (s)"
-            y: "Goal Success Rate"
+            y: "Score (AR / GSR)"
             color: "Topology"
+            shape: "Metric"
           output: "{output_dir}/figure-02-overhead-quality.png"
           width: 8
           height: 5
-          factor_levels:
-            metric: ["Goal Success Rate"]
           rename_values:
             metric:
+              answer_relevancy: "Answer Relevancy"
               goal_success_rate: "Goal Success Rate"
             scenario:
               topo-parallel: "Parallel"

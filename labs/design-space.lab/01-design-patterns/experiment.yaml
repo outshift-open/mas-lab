@@ -64,17 +64,16 @@ experiment:
     limit: 100
   run:
     n_runs: 1
-  application:
     post:
       - name: eval-quality
         type: eval_mce
         config:
-          max_workers: 2
-          fail_threshold: 0.5
           overwrite: true
           metrics:
           - goal_success_rate
           - answer_relevancy
+  application:
+    post:
       - name: collect-metrics
         type: collect_metrics
         depends_on:

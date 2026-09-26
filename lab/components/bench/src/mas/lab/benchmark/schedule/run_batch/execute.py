@@ -216,8 +216,8 @@ async def execute_batch(
             _use_cache
             and not force
             and not _global_hit
-            and _events_path.exists()
             and not _events_path.is_symlink()
+            and _events_path.exists()
             and _events_path.stat().st_size > 0
         )
         if _cache_policy == "forced" and not _global_hit and not _local_hit:
@@ -241,6 +241,8 @@ async def execute_batch(
             _src = "cached:" + _run_hash[:8] if _global_hit else "local"
             if _global_hit:
                 link_trace_to_cache_entry(run_output_dir, _global_run_dir, _run_hash)
+            # write_run_info is idempotent (no-ops once cached, repoints a stale
+            # symlink) so it's safe — and necessary — to call on every hit.
             write_run_info(
                 _global_run_dir, run_output_dir, _run_hash, exp.name, scenario_id,
                 item_id, run_idx,
