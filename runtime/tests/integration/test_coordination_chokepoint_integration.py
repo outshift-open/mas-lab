@@ -22,3 +22,10 @@ def test_coordination_hitl_sets_pending_gov():
     coord.on_egress_hitl(q)
     assert coord.gov_state == GovState.HITL_PENDING
     assert coord.obs_state in {ObsState.RECORDING, ObsState.IDLE, ObsState.FLUSHING}
+
+
+def test_coordination_gov_error():
+    coord = ChokepointCoordinator()
+    q = QProduct()
+    coord.on_gov_error(q)
+    assert coord.gov_state == GovState.ERROR

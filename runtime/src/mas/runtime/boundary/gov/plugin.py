@@ -88,20 +88,14 @@ class GovernancePluginChain:
                 continue
             filters_fn = getattr(plugin, "transition_filters", None)
             if callable(filters_fn):
-                try:
-                    specs = list(filters_fn() or [])
-                except Exception:
-                    continue
+                specs = list(filters_fn() or [])
                 if specs:
                     matches = getattr(specs[0], "matches", None)
                     if callable(matches) and not any(
                         getattr(spec, "matches", lambda _t: False)(transition) for spec in specs
                     ):
                         continue
-            try:
-                hook(transition)
-            except Exception:
-                continue
+            hook(transition)
 
 
 # Historical name — same chain object.

@@ -47,3 +47,7 @@ def gov_on_egress_allowed(q: QProduct) -> None:
 
 def gov_on_idle(q: QProduct) -> None:
     q.gov_state = GovState.IDLE.value
+
+
+def gov_on_error(q: QProduct) -> None:
+    q.gov_state = GovState.ERROR.value

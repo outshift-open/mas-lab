@@ -8,6 +8,7 @@ from mas.runtime.machines.gov import (
     gov_enter_hitl_pending,
     gov_is_hitl_pending,
     gov_on_egress_allowed,
+    gov_on_error,
     gov_on_idle,
 )
 
@@ -26,3 +27,9 @@ def test_gov_egress_allowed_to_validating():
     assert q.gov_state == "VALIDATING"
     gov_on_idle(q)
     assert q.gov_state == "IDLE"
+
+
+def test_gov_on_error():
+    q = QProduct()
+    gov_on_error(q)
+    assert q.gov_state == "ERROR"

@@ -9,7 +9,12 @@ from mas.runtime.boundary.ingress_validate import ingress_governance_valid
 from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.kernel.control_pipeline import control_on_egress_gov, control_on_result
 from mas.runtime.kernel.coord_hook import coord_after_ingress, coord_before_ingress
-from mas.runtime.kernel.coupling import apply_control_valid, apply_ingress_deny
+from mas.runtime.kernel.coupling import (
+    apply_control_valid,
+    apply_gov_error,
+    apply_ingress_deny,
+    gov_plugin_boundary_error,
+)
 from mas.runtime.kernel.egress_gate import emit_scheduled_egress
 from mas.runtime.kernel.envelope import (
     EnvelopeContext,
@@ -74,8 +79,7 @@ def commit_engine_io_return(
         q.pending_tool_args = dict(event.tool_arguments)
     if event.next_step == "PARALLEL_TOOL_CALLS":
         q.parallel_tool_batch = [
-            {"tool_name": spec.tool_name, "tool_arguments": dict(spec.tool_arguments)}
-            for spec in event.parallel_tools
+            {"tool_name": spec.tool_name, "tool_arguments": dict(spec.tool_arguments)} for spec in event.parallel_tools
         ]
     q.session = session_on_done(q.session)
     q.memory = memory_on_ingress(q.memory)
@@ -176,7 +180,12 @@ def apply_engine_io_return(
         control_on_egress_gov(q)
         return commit_engine_io_return(q, run, event, config=config, evaluate=evaluate)
 
-    ingress_decision = run_ingress_validate_envelope(env_ctx)
+    try:
+        ingress_decision = run_ingress_validate_envelope(env_ctx)
+    except Exception as exc:
+        close_envelope(env_ctx, error="GOV_PLUGIN_ERROR")
+        apply_gov_error(q)
+        return [gov_plugin_boundary_error(exc)]
     action = ingress_decision.action
     control_on_result(q)
     control_on_egress_gov(q)
@@ -205,15 +214,11 @@ def apply_engine_io_return(
         code = ingress_decision.boundary_code or "INGRESS_GOV_BLOCK"
         msg = ingress_decision.message
         recoverable = ingress_decision.recoverable
-        return [
-            RaiseBoundaryError(code=code, recoverable=recoverable, message=msg)
-        ]
+        return [RaiseBoundaryError(code=code, recoverable=recoverable, message=msg)]
 
     if action == GovernanceAction.SKIP:
         cid = run.next_correlation_id()
-        run.append(
-            RunEvent(correlation_id=cid, response_kind="TOOL_RESULT", next_step="STOP")
-        )
+        run.append(RunEvent(correlation_id=cid, response_kind="TOOL_RESULT", next_step="STOP"))
         q.inflight_kind = "NONE"
         q.dp = DpState.EVALUATING
         return evaluate(q, run, config=config)

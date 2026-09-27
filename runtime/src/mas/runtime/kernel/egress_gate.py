@@ -18,8 +18,10 @@ from mas.runtime.kernel.coupling import (
     apply_control_engine_allow,
     apply_control_tool_request,
     apply_gov_block,
+    apply_gov_error,
     apply_gov_terminate,
     enter_egress_chokepoint,
+    gov_plugin_boundary_error,
 )
 from mas.runtime.kernel.envelope import (
     EnvelopeContext,
@@ -59,9 +61,7 @@ def _destructive_for_op(op: ScheduledEgress, config: KernelConfig) -> bool:
 
 def _append_synthetic_skip(q: QProduct, run: RunLedger) -> None:
     cid = run.next_correlation_id()
-    run.append(
-        RunEvent(correlation_id=cid, response_kind="TOOL_RESULT", next_step="STOP")
-    )
+    run.append(RunEvent(correlation_id=cid, response_kind="TOOL_RESULT", next_step="STOP"))
     q.model = model_on_abort(q.model)
     q.tool = tool_on_abort(q.tool)
     q.inflight_kind = "NONE"
@@ -107,9 +107,7 @@ def _apply_engine_allow(q: QProduct, view: EgressIntentView) -> None:
         q.transport = transport_on_egress(q.transport, view.op)
 
 
-def schedule_tool_egress(
-    q: QProduct, run: RunLedger, config: KernelConfig
-) -> list[EgressSymbol]:
+def schedule_tool_egress(q: QProduct, run: RunLedger, config: KernelConfig) -> list[EgressSymbol]:
     """Agentic ACT → control REQUEST; run egress governance / HITL at chokepoint."""
     apply_control_tool_request(q)
     return emit_scheduled_egress(q, run, config)
@@ -138,9 +136,7 @@ def _envelope_context(
     )
 
 
-def emit_scheduled_egress(
-    q: QProduct, run: RunLedger, config: KernelConfig
-) -> list[EgressSymbol]:
+def emit_scheduled_egress(q: QProduct, run: RunLedger, config: KernelConfig) -> list[EgressSymbol]:
     if q.scheduled_egress == "NONE":
         return [NoOp()]
     if q.tool_blacklisted and q.scheduled_egress == "TOOL_CALL":
@@ -172,8 +168,7 @@ def emit_scheduled_egress(
     cid = run.allocate_correlation_id()
     destructive = _destructive_for_op(op, config)
     hitl_override = bool(
-        q.hitl_gov_override
-        or (config.hitl_once_per_turn and q.hitl_tools_approved_turn and op == "TOOL_CALL")
+        q.hitl_gov_override or (config.hitl_once_per_turn and q.hitl_tools_approved_turn and op == "TOOL_CALL")
     )
     env_ctx = _envelope_context(
         q,
@@ -186,8 +181,9 @@ def emit_scheduled_egress(
     try:
         decision = run_egress_authorize_envelope(env_ctx)
     except Exception as exc:
-        close_envelope(env_ctx, error=exc)
-        raise
+        close_envelope(env_ctx, error="GOV_PLUGIN_ERROR")
+        apply_gov_error(q)
+        return [gov_plugin_boundary_error(exc)]
 
     view = EgressIntentView(
         op=op,

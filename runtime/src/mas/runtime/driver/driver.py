@@ -356,14 +356,27 @@ class KernelDriver:
                     if callable(note):
                         note(ingress.text)
 
-            self._notify_governance("ingress", ingress)
+            err = self._notify_governance("ingress", ingress)
+            if err is not None:
+                self._dispatch_egress(err, trace)
+                break
+
             result = self.kernel.transition(ingress)
             trace.steps.append(DriverStep(ingress=ingress, egress=list(result.egress)))
             self._sync_tool_result_memory(ingress)
             if self.coordination is not None:
                 self.coordination.on_internal_mutation(self.kernel.q, label=ingress.kind.value)
+
+            halt_err: RaiseBoundaryError | None = None
             for sym in result.egress:
-                self._notify_governance("egress", sym)
+                err = self._notify_governance("egress", sym)
+                if err is not None:
+                    halt_err = err
+                    break
+            if halt_err is not None:
+                self._dispatch_egress(halt_err, trace)
+                break
+
             if self.observability is not None:
                 self.observability.record_ingress(ingress, self.kernel.q)
                 for sym in result.egress:
@@ -473,8 +486,10 @@ class KernelDriver:
         for plugin in self.exchange_plugins:
             plugin.on_exchange(record)
 
-    def _notify_governance(self, hook: Literal["ingress", "egress"], symbol: IngressSymbol | EgressSymbol) -> None:
-        """Give the governance plugin every ingress/egress symbol, read-only.
+    def _notify_governance(
+        self, hook: Literal["ingress", "egress"], symbol: IngressSymbol | EgressSymbol
+    ) -> RaiseBoundaryError | None:
+        """Give every governance plugin the ingress/egress symbol, read-only.
 
         Single hook (``on_transition(GovTransition)``), not one bespoke
         ``note_*`` method per symbol kind — replaces the old
@@ -490,29 +505,21 @@ class KernelDriver:
         (the method absent, or returning empty) means "everything",
         matching ``GovTransitionFilter``'s own "empty matches all" rule.
 
-        Called synchronously and unconditionally (unlike observability's
-        ``on_transition``, which may be dispatched on a background worker
-        thread once ``enable_async_plugins`` is on) — a governance plugin
-        needs to observe transitions in the order the driver produces them,
-        since a later transition's ``evaluate_egress`` may depend on state
-        an earlier one set (e.g. the casa plugin's alignment check needs
-        this turn's user query before its first tool-call decision).
-        Exceptions are swallowed: this hook cannot influence control flow,
-        so a plugin bug here must not break the turn.
+        Called synchronously (unlike observability's ``on_transition``,
+        which may be dispatched on a background worker once
+        ``enable_async_plugins`` is on) — a later ``evaluate_egress`` may
+        depend on state an earlier observer set (e.g. Casa stashing this
+        turn's user query). An observer bug must not fail open: exceptions
+        move M_gov to ERROR and return ``RaiseBoundaryError(code="GOV_PLUGIN_ERROR")``.
         """
+        from mas.runtime.boundary.gov.transition import build_gov_transition
+        from mas.runtime.kernel.coupling import apply_gov_error, gov_plugin_boundary_error
+
         gov = getattr(getattr(self.kernel, "config", None), "egress_governance_plugin", None)
         on_transition = getattr(gov, "on_transition", None)
         if not callable(on_transition):
-            return
-        # Everything below — building the transition, calling the plugin's
-        # own transition_filters(), and calling on_transition itself — is
-        # inside the one try/except: a plugin bug (a bad transition_filters()
-        # implementation, or on_transition itself) must not break the turn,
-        # and neither should a future IngressSymbol/EgressSymbol variant that
-        # build_gov_transition doesn't yet handle cleanly.
+            return None
         try:
-            from mas.runtime.boundary.gov.transition import build_gov_transition
-
             transition = build_gov_transition(
                 hook,
                 symbol,
@@ -526,10 +533,12 @@ class KernelDriver:
             if callable(get_filters):
                 filters = get_filters()
                 if filters and not any(f.matches(transition) for f in filters):
-                    return
+                    return None
             on_transition(transition)
-        except Exception:
-            _logger.debug("governance plugin on_transition failed", exc_info=True)
+        except Exception as exc:
+            apply_gov_error(self.kernel.q)
+            return gov_plugin_boundary_error(exc)
+        return None
 
     def _invoke_engine(self, io: InvokeEngineIo) -> EngineIoReturn:
         """Run one engine op. An exception still becomes an ERROR return so the
