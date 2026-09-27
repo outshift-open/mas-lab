@@ -27,12 +27,16 @@ class GovEnvelopeMachine:
     def step(self, symbol: EnvelopeSymbol, ctx: EnvelopeContext) -> None:
         q = ctx.q
         if symbol == EnvelopeSymbol.GOV_AUTHORIZE_START:
+            if q.gov_state == GovState.ERROR.value:
+                return
             q.gov_state = GovState.AUTHZ_EGRESS.value
             self._record(ctx, hook="egress", checkpoint="before")
         elif symbol == EnvelopeSymbol.GOVERNANCE_AUTHORIZE:
             pass
         elif symbol == EnvelopeSymbol.GOV_AUTHORIZE_END:
             self._record(ctx, hook="egress", checkpoint="after")
+            if q.gov_state == GovState.ERROR.value:
+                return
             if ctx.gov_decision not in ("BLOCK", "TERMINATE", "HITL"):
                 gov_on_egress_allowed(q)
         elif symbol == EnvelopeSymbol.GOV_VALIDATE_START:
@@ -42,7 +46,8 @@ class GovEnvelopeMachine:
             pass
         elif symbol == EnvelopeSymbol.GOV_VALIDATE_END:
             self._record(ctx, hook="ingress", checkpoint="after")
-            gov_on_idle(q)
+            if q.gov_state != GovState.ERROR.value:
+                gov_on_idle(q)
 
     def _record(self, ctx: EnvelopeContext, *, hook: str, checkpoint: str) -> None:
         obs = ctx.observability

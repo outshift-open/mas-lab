@@ -7,11 +7,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from mas.runtime.boundary.gov.filter import GovTransitionFilter
+from mas.runtime.boundary.gov.ingress_chain import RegisteredIngressPlugin
 from mas.runtime.boundary.gov.transition import GovTransition
 from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.engine.simulated import SimulatedEngine
 from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.kernel.coupling import GovDecision
+from mas.runtime.kernel.inflight import pending_for_validate
+from mas.runtime.kernel.types import GovState, ModelState
 from mas.runtime.schema.ingress import EngineIoReturn
 
 
@@ -49,7 +52,7 @@ class _FilteredGovPlugin:
 
 @dataclass
 class _RaisingGovPlugin:
-    """Every hook raises — none of it may propagate out of the driver."""
+    """transition_filters() raises — must land M_gov in ERROR, not crash the driver."""
 
     calls: int = 0
 
@@ -76,19 +79,60 @@ class _RaisingOnTransitionPlugin:
         return GovDecision.ALLOW, "test", ""
 
 
+@dataclass
+class _RaisingEvaluateEgressPlugin:
+    def evaluate_egress(self, intent, *, config):
+        raise RuntimeError("boom in evaluate_egress")
+
+
+@dataclass
+class _RaisingOnEngineEgressPlugin:
+    """Observer boom after ALLOW — engine I/O must not dispatch."""
+
+    def transition_filters(self) -> list[GovTransitionFilter]:
+        return [GovTransitionFilter(hook="egress", kind=("INVOKE_ENGINE_IO",))]
+
+    def on_transition(self, transition: GovTransition) -> None:
+        raise RuntimeError("boom on egress observe")
+
+    def evaluate_egress(self, intent, *, config):
+        return GovDecision.ALLOW, "test", ""
+
+
 def _instance_with(plugin) -> RuntimeInstance:
     engine = SimulatedEngine(
-        script={
-            1: EngineIoReturn(
-                correlation_id=1, response_kind="MODEL_TEXT", next_step="STOP", text="ok"
-            )
-        }
+        script={1: EngineIoReturn(correlation_id=1, response_kind="MODEL_TEXT", next_step="STOP", text="ok")}
     )
-    inst = RuntimeInstance.from_parts(
-        engine=engine, config=KernelConfig(egress_governance_plugin=plugin)
-    )
+    inst = RuntimeInstance.from_parts(engine=engine, config=KernelConfig(egress_governance_plugin=plugin))
     inst.capture_session_baseline()
     return inst
+
+
+def _assert_gov_plugin_error(inst: RuntimeInstance, trace, *, needle: str) -> None:
+    assert inst.kernel.q.gov_state == GovState.ERROR.value
+    assert trace.boundary_errors
+    err = trace.boundary_errors[0]
+    assert err.code == "GOV_PLUGIN_ERROR"
+    assert needle in (err.message or "")
+    assert err.recoverable is False
+
+
+def test_on_transition_notifies_every_plugin_in_the_chain() -> None:
+    from mas.runtime.boundary.gov.plugin import GovernancePluginChain
+
+    first = _RecordingGovPlugin()
+    second = _RecordingGovPlugin()
+    engine = SimulatedEngine(
+        script={1: EngineIoReturn(correlation_id=1, response_kind="MODEL_TEXT", next_step="STOP", text="ok")}
+    )
+    inst = RuntimeInstance.from_parts(
+        engine=engine,
+        config=KernelConfig(egress_governance_plugin=GovernancePluginChain([first, second])),
+    )
+    inst.capture_session_baseline()
+    inst.run_user_text("hello")
+    assert first.seen
+    assert {t.kind for t in first.seen} == {t.kind for t in second.seen}
 
 
 def test_plugin_without_on_transition_is_a_silent_no_op() -> None:
@@ -130,21 +174,65 @@ def test_declared_filters_admit_only_matching_transitions_or_semantics() -> None
     assert not any(t.kind == "ENGINE_IO_RETURN" for t in plugin.seen)
 
 
-def test_transition_filters_exception_is_swallowed_and_on_transition_not_called() -> None:
+def test_transition_filters_exception_moves_gov_to_error() -> None:
     plugin = _RaisingGovPlugin()
     inst = _instance_with(plugin)
-    # Must not raise out of run_user_text.
     trace = inst.run_user_text("hello")
-    assert trace.client_responses or trace.steps
     assert plugin.calls > 0
+    _assert_gov_plugin_error(inst, trace, needle="boom in transition_filters")
+    assert not any(t.ingress.__class__.__name__ == "EngineIoReturn" for t in trace.steps)
 
 
-def test_on_transition_exception_is_swallowed() -> None:
+def test_on_transition_exception_moves_gov_to_error() -> None:
     plugin = _RaisingOnTransitionPlugin()
     inst = _instance_with(plugin)
     trace = inst.run_user_text("hello")
-    assert trace.client_responses or trace.steps
     assert plugin.calls > 0
+    _assert_gov_plugin_error(inst, trace, needle="boom in on_transition")
+    assert not any(t.ingress.__class__.__name__ == "EngineIoReturn" for t in trace.steps)
+
+
+def test_evaluate_egress_exception_moves_gov_to_error() -> None:
+    plugin = _RaisingEvaluateEgressPlugin()
+    inst = _instance_with(plugin)
+    trace = inst.run_user_text("hello")
+    _assert_gov_plugin_error(inst, trace, needle="boom in evaluate_egress")
+    assert not any(t.ingress.__class__.__name__ == "EngineIoReturn" for t in trace.steps)
+
+
+def test_evaluate_ingress_exception_moves_gov_to_error() -> None:
+    @dataclass
+    class _BoomIngress:
+        plugin_id: str = "boom-ingress"
+
+        def evaluate_ingress(self, intent, *, config):
+            raise RuntimeError("boom in evaluate_ingress")
+
+    engine = SimulatedEngine(
+        script={1: EngineIoReturn(correlation_id=1, response_kind="MODEL_TEXT", next_step="STOP", text="ok")}
+    )
+    inst = RuntimeInstance.from_parts(
+        engine=engine,
+        config=KernelConfig(
+            egress_governance_plugin=_RecordingGovPlugin(),
+            ingress_governance_plugins=(RegisteredIngressPlugin(plugin=_BoomIngress()),),
+        ),
+    )
+    inst.capture_session_baseline()
+    trace = inst.run_user_text("hello")
+    _assert_gov_plugin_error(inst, trace, needle="boom in evaluate_ingress")
+    assert not trace.client_responses
+
+
+def test_observer_exception_after_allow_does_not_dispatch_engine_io() -> None:
+    plugin = _RaisingOnEngineEgressPlugin()
+    inst = _instance_with(plugin)
+    trace = inst.run_user_text("hello")
+    _assert_gov_plugin_error(inst, trace, needle="boom on egress observe")
+    assert inst.kernel.q.model == ModelState.ERROR
+    assert pending_for_validate(inst.kernel.q) == []
+    assert not any(t.ingress.__class__.__name__ == "EngineIoReturn" for t in trace.steps)
+    assert not trace.client_responses
 
 
 def test_session_id_and_task_id_are_populated_and_consistent_within_one_turn() -> None:

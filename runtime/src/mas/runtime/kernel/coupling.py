@@ -25,20 +25,19 @@ from mas.runtime.kernel.control_pipeline import (
     set_control_phase,
 )
 from mas.runtime.kernel.inflight import clear_inflight
-from mas.runtime.machines.context import ctx_on_abort
-from mas.runtime.kernel.types import GovState
-from mas.runtime.machines.gov import gov_enter_hitl_pending
-from mas.runtime.machines.model import model_on_abort
-from mas.runtime.machines.tool import tool_on_abort
 from mas.runtime.kernel.state import (
-    CtxState,
     DpState,
     InflightKind,
     LifecycleState,
+    ModelState,
     QProduct,
     ScheduledEgress,
     ToolState,
 )
+from mas.runtime.machines.context import ctx_on_abort
+from mas.runtime.machines.gov import gov_enter_hitl_pending, gov_on_error
+from mas.runtime.machines.model import model_on_abort
+from mas.runtime.machines.tool import tool_on_abort
 
 
 class GovDecision(str, Enum):
@@ -167,6 +166,39 @@ def apply_gov_terminate(q: QProduct) -> CouplingPatch:
     q.tool = tool_on_abort(q.tool)
     control_on_idle(q)
     return patch
+
+
+def apply_gov_error(q: QProduct) -> CouplingPatch:
+    """Plugin exception at M_gov: product ERROR; abort peers; drop scheduled egress.
+
+    Fail closed — same coupling as a block (no further engine I/O), but M_gov
+    (and any in-flight model/tool) land in ERROR rather than IDLE/BLOCKED.
+    """
+    was_calling = q.model == ModelState.CALLING
+    was_executing = q.tool == ToolState.EXECUTING
+    gov_on_error(q)
+    patch = coupling_for_gov_block()
+    apply_coupling_patch(q, patch)
+    clear_inflight(q)
+    q.ctx = ctx_on_abort(q.ctx)
+    q.model = ModelState.ERROR if was_calling else model_on_abort(q.model)
+    q.tool = ToolState.ERROR if was_executing else tool_on_abort(q.tool)
+    control_on_idle(q)
+    from mas.runtime.kernel.coord_hook import coord_on_gov_error
+
+    coord_on_gov_error(q)
+    return patch
+
+
+def gov_plugin_boundary_error(exc: BaseException):
+    """Σ_out for a governance plugin exception — kernel error, not a Python raise."""
+    from mas.runtime.schema.egress import RaiseBoundaryError
+
+    return RaiseBoundaryError(
+        code="GOV_PLUGIN_ERROR",
+        recoverable=False,
+        message=str(exc) or type(exc).__name__,
+    )
 
 
 def apply_control_tool_request(q: QProduct) -> None:

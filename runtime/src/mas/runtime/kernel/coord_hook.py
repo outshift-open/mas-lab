@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Protocol
 from mas.runtime.kernel.runtime_context import get_coordination
 
 if TYPE_CHECKING:
-    from mas.runtime.boundary.coordination.chokepoint import ChokepointCoordinator
     from mas.runtime.kernel.state import QProduct
 
 
@@ -18,6 +17,7 @@ class CoordHook(Protocol):
     def after_egress_allowed(self, q: QProduct) -> None: ...
     def on_egress_hitl(self, q: QProduct) -> None: ...
     def on_egress_blocked(self, q: QProduct) -> None: ...
+    def on_gov_error(self, q: QProduct) -> None: ...
     def before_ingress_governance(self, q: QProduct) -> None: ...
     def after_ingress_allowed(self, q: QProduct) -> None: ...
 
@@ -57,6 +57,14 @@ def coord_on_egress_blocked(q: QProduct) -> None:
     coord = get_coordination()
     if coord is not None:
         coord.on_egress_blocked(q)
+
+
+def coord_on_gov_error(q: QProduct) -> None:
+    coord = get_coordination()
+    if coord is not None:
+        on_error = getattr(coord, "on_gov_error", None)
+        if callable(on_error):
+            on_error(q)
 
 
 def coord_before_ingress(q: QProduct) -> None:
