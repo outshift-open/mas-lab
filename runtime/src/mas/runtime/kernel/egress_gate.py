@@ -247,7 +247,14 @@ def emit_scheduled_egress(q: QProduct, run: RunLedger, config: KernelConfig) -> 
             )
         apply_gov_block(q)
         coord_on_egress_blocked(q)
-        return [RaiseBoundaryError(code="GOV_BLOCK", recoverable=True)]
+        return [
+            RaiseBoundaryError(
+                code="GOV_BLOCK",
+                recoverable=True,
+                message=block_reason,
+                policy_name=env_ctx.policy_name or "",
+            )
+        ]
 
     if decision == GovDecision.TERMINATE:
         close_envelope(env_ctx, error="GOV_TERMINATE")

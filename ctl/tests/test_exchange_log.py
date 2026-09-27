@@ -262,3 +262,21 @@ def test_format_exchange_dump_pretty_prints_last():
     assert "tool=web-search" in out
     assert "current POTUS" in out
     assert "correlation_id=2" in out
+
+
+def test_format_exchange_gov_block_prints_agent_to_gov():
+    ex = ExchangeRecord(
+        kind="gov_block",
+        text="Restricted destination: Shadowmere",
+        policy_name="forbidden-destination",
+    )
+    dump = format_exchange("moderator", ex)
+    assert "AGENT[moderator] → GOV[forbidden-destination]" in dump
+    assert "Restricted destination: Shadowmere" in dump
+    summary = format_exchange(
+        "moderator",
+        ex,
+        fmt=TraceFormatOptions(summary_only=True, agent_name="moderator"),
+    )
+    assert "AGENT[moderator] -> GOV[forbidden-destination]" in summary
+    assert "Shadowmere" in summary

@@ -130,6 +130,9 @@ def test_undeclared_tool_block_is_fed_back_not_fatal() -> None:
     trace = inst.run_user_text("check latency")
 
     assert not any(getattr(err, "code", "") == "GOV_BLOCK" for err in trace.boundary_errors)
+    gov_ex = [ex for ex in trace.exchanges if ex.kind == "gov_block"]
+    assert gov_ex, f"expected AGENT->GOV exchange, got {[ex.kind for ex in trace.exchanges]!r}"
+    assert any("gov_no_undeclared_tool" in (ex.policy_name or "") for ex in gov_ex)
     results = [
         ev.text
         for ev in inst.kernel.run.events

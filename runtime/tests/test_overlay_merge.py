@@ -745,3 +745,101 @@ def test_merge_infra_overlay_json_merge_patch_semantics() -> None:
     }
     assert merged["spec"]["models"] == {"allowed": ["gpt-4o"]}
     assert merged["spec"]["tools"] == {"calc": {"enabled": True}}
+
+
+def _gov_names(spec: dict) -> list[str]:
+    names = []
+    for item in spec.get("governance") or []:
+        names.append(item if isinstance(item, str) else next(iter(item)))
+    return names
+
+
+def test_agent_overlay_fans_out_onto_mas_agency_rows() -> None:
+    """run-mas/compose only merge_overlay the MAS document. Agent overlays
+    must land on nested agency rows, not on MAS.spec (unsupported)."""
+    base = {
+        "kind": "MAS",
+        "spec": {
+            "agency": {
+                "agents": [
+                    {"id": "moderator", "ref": "agents/moderator.yaml"},
+                    {"id": "helper", "ref": "agents/helper.yaml"},
+                ]
+            }
+        },
+    }
+    overlay = _overlay(
+        {
+            "observability": ["native"],
+            "governance": [{"sample_governance": {"policies": [{"name": "forbidden-destination"}]}}],
+        }
+    )
+    merged = merge_overlay(base, overlay)
+    assert "governance" not in (merged.get("spec") or {})
+    assert "observability" not in (merged.get("spec") or {})
+    for agent in merged["spec"]["agency"]["agents"]:
+        assert agent["ref"].startswith("agents/")
+        assert agent["spec"]["observability"] == ["native"]
+        assert "sample_governance" in _gov_names(agent["spec"])
+
+
+def test_agent_overlay_on_mas_with_no_agents_raises() -> None:
+    import pytest
+
+    with pytest.raises(OverlayTargetError, match="matched no agents"):
+        merge_overlay(
+            {"kind": "MAS", "spec": {"agency": {"agents": []}}},
+            _overlay({"observability": ["native"]}),
+        )
+
+
+def test_agent_overlay_target_name_filters_agency_row() -> None:
+    base = {
+        "kind": "MAS",
+        "spec": {
+            "agency": {
+                "agents": [
+                    {"id": "moderator", "ref": "agents/moderator.yaml"},
+                    {"id": "helper", "ref": "agents/helper.yaml"},
+                ]
+            }
+        },
+    }
+    overlay = {
+        "apiVersion": "mas/v1",
+        "kind": "Overlay",
+        "metadata": {"name": "named"},
+        "spec": {
+            "target": {"kind": "Agent", "name": "helper"},
+            "patch": {"observability": ["native"]},
+        },
+    }
+    merged = merge_overlay(base, overlay)
+    by_id = {a["id"]: a for a in merged["spec"]["agency"]["agents"]}
+    assert "spec" not in by_id["moderator"]
+    assert by_id["helper"]["spec"]["observability"] == ["native"]
+
+
+def test_agent_overlay_target_name_miss_raises() -> None:
+    import pytest
+
+    with pytest.raises(OverlayTargetError, match="named 'missing'"):
+        merge_overlay(
+            _trip_mas(),
+            {
+                "apiVersion": "mas/v1",
+                "kind": "Overlay",
+                "metadata": {"name": "named"},
+                "spec": {
+                    "target": {"kind": "Agent", "name": "missing"},
+                    "patch": {"observability": ["native"]},
+                },
+            },
+        )
+
+
+def test_agent_overlay_on_agent_document_is_unchanged() -> None:
+    base = {"kind": "Agent", "spec": {"tools": ["calc"]}}
+    merged = merge_overlay(base, _overlay({"observability": ["native"]}))
+    assert merged["spec"]["observability"] == ["native"]
+    assert merged["spec"]["tools"] == ["calc"]

@@ -44,9 +44,10 @@ _KIND_EDGE: dict[ExchangeKind, tuple[str, str]] = {
     "llm_response": ("LLM", "AGENT"),
     "tool_call": ("AGENT", "TOOL"),
     "tool_result": ("TOOL", "AGENT"),
+    "gov_block": ("AGENT", "GOV"),
 }
 
-_ENTITY_COLOR = {"AGENT": "agent", "USER": "user", "LLM": "llm", "TOOL": "tool", "SKILL": "tool"}
+_ENTITY_COLOR = {"AGENT": "agent", "USER": "user", "LLM": "llm", "TOOL": "tool", "SKILL": "tool", "GOV": "processing"}
 
 
 def _colorize(text: str, color_key: str) -> str:
@@ -315,6 +316,8 @@ def _header_with_identities(
             label = f"LLM[{llm_name}]" if llm_name else "LLM"
         elif entity == "TOOL":
             label = _tool_label(ex)
+        elif entity == "GOV":
+            label = f"GOV[{ex.policy_name}]" if ex.policy_name else "GOV"
         else:
             label = entity
         color_key = "tool" if entity == "TOOL" else _ENTITY_COLOR.get(entity, "processing")

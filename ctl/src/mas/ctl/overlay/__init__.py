@@ -5,6 +5,7 @@
 from mas.ctl.overlay.merge import (
     OverlayTargetError,
     apply_merge_patch,
+    fanout_agent_overlay,
     merge_agent_overlay,
     merge_flavour_overlay,
     merge_overlay,
@@ -14,6 +15,7 @@ from mas.ctl.overlay.normalize import normalize_overlay
 __all__ = [
     "OverlayTargetError",
     "apply_merge_patch",
+    "fanout_agent_overlay",
     "merge_agent_overlay",
     "merge_flavour_overlay",
     "merge_overlay",

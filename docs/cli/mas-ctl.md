@@ -32,7 +32,7 @@ mas-ctl [-v] [--env FILE] COMMAND …
 | Destination | What | Enable |
 |-------------|------|--------|
 | **stdout** | Conversation (`You:` / `Agent:`) | Always for `chat` / `run-mas` |
-| **stderr** | Human exchange log (AGENT↔LLM↔TOOL) | `--trace` or `mas_ctl.trace` |
+| **stderr** | Human exchange log (AGENT↔LLM↔TOOL↔GOV) | `--trace` or `mas_ctl.trace` |
 | **`events.jsonl`** | Machine run log | `--events` / overlay / manifest — [observability.md](observability.md) |
 
 Stdout stays the conversation. Color is never the default (`--trace-color`).

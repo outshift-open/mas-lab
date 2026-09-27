@@ -174,6 +174,10 @@ def _agent_runtime_dict(doc: dict[str, Any], *, agent_id: str, agent_dir: Path) 
         raw["description"] = spec["description"]
     if spec.get("context"):
         raw["context"] = spec["context"]
+    if spec.get("governance") is not None:
+        raw["governance"] = deepcopy(spec["governance"])
+    if spec.get("observability") is not None:
+        raw["observability"] = deepcopy(spec["observability"])
     return raw
 
 

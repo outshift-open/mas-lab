@@ -62,6 +62,18 @@ On a MAS overlay, `patch.agents.$entry` is applied to `spec.workflow.entry` afte
 overlay's `workflow` patch (so a design-pattern overlay need not name the entry agent).
 A missing entry, an unknown entry id, or both `$entry` and that id as keys is an error.
 
+A **`target.kind: Agent` overlay applied to a MAS** copies `spec.patch` onto every
+nested `spec.agency.agents[]` row (or `spec.agents[]` when agency is absent). Optional
+`spec.target.name` selects one row by `id`, `name`, or `metadata.name`
+(the agency row id should match the agent YAML `metadata.name` when the same
+overlay is reused on both). Zero matches is an error (`OverlayTargetError`) — the overlay must attach somewhere. That is how
+labs reuse an Agent overlay such as `with-guardrail` on trip-planner: compose /
+`run-mas` merge the overlay into the MAS document, then instantiate merges each
+agency row onto the agent YAML (`governance` / `observability` union by plugin id,
+they do not replace the agent's existing lists). Lab/bench MAS runs already attach
+a shared native sink; a fanned-out default `native` list joins that sink instead of
+opening a second `events.jsonl`. Custom observability paths stay per-agent.
+
 Merge semantics: later overlays in a scenario stack win on conflicting keys.
 Patches use RFC 7396 JSON merge; list fields such as `tools` accept an explicit
 `{"$op": {replace|add|remove|clear: [...]}}` form (handled explicitly by the

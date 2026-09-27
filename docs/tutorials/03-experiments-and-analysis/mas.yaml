@@ -16,10 +16,10 @@ intent:
 spec:
   agency:
     agents:
-      - id: qa
+      - id: qa-agent-t3
         ref: agent.yaml
 
   workflow:
-    entry: qa
+    entry: qa-agent-t3
     nodes:
-      - id: qa
+      - id: qa-agent-t3

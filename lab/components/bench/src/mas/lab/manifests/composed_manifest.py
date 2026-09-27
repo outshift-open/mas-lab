@@ -128,6 +128,10 @@ def materialize_composed_mas_tree(
         if not isinstance(entry, dict):
             continue
         aid, doc = _load_agent_entry(entry, mas_dir=mas_dir)
+        from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
+
+        if not _is_inline_agent(entry):
+            doc = apply_agency_entry_overlay(doc, entry)
         agents_by_id[aid] = doc
 
     for overlay_path in overlay_paths:
