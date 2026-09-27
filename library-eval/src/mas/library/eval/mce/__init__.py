@@ -11,6 +11,7 @@ from mas.library.eval.mce.judge_model import (
     ResolvedJudgeModel,
     apply_eval_mce_model_defaults,
     resolve_judge_model,
+    unique_application_model,
 )
 from mas.library.eval.mce.runner import (
     ALL_SESSION_METRICS,
@@ -35,4 +36,5 @@ __all__ = [
     "compute_trace_metrics",
     "install_openai_llm_service",
     "resolve_judge_model",
+    "unique_application_model",
 ]

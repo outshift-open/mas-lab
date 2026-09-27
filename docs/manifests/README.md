@@ -39,7 +39,7 @@ config.yaml       ← project defaults — [reference](../references/config.yaml
 | **MAS** | `MAS`, `Workflow` | [mas.md](mas.md), [workflow.md](workflow.md) |
 | **Override** | `Overlay` | [overlay.md](overlay.md) |
 | **Environment** | `Flavour`, `InfraBundle`, `LLMProxy`, `InfraMiddleware`, `ToolServerRegistry` | [flavour.md](flavour.md), [infra.md](infra.md), [llm-cache.md](llm-cache.md) · [ref](../references/llm-cache.md), [ToolServerRegistry](../references/tool-server-registry.md) |
-| **Experiment** | `experiment:` | [experiment.md](experiment.md) |
+| **Experiment** | `experiment:` | [experiment.md](experiment.md) — `models` slot map (`main` / `summarizer` / `judge`) |
 | **Inputs** | `Dataset` | [dataset.md](dataset.md) |
 | **Processing** | `pipeline:` / `kind: Pipeline` | [pipeline.md](pipeline.md) |
 | **Interactive demo** | `lab:` | [lab.md](lab.md) |

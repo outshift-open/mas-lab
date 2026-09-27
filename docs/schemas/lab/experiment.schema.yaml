@@ -56,6 +56,27 @@ properties:
           Runtime flavour name resolved via library-standard
           (mas.lab.flavour.resolve).
 
+      model:
+        type: string
+        description: >
+          Shorthand for models.main. Experiment default LLM (LiteLLM id, or
+          `any`). Agents/MAS that omit spec.models or set model: any inherit
+          this. `any` (and omitted) means this experiment does not pin a
+          provider id — inherit the application spec.models, then local
+          config.yaml defaults.model. models.main wins when both are set.
+          See docs/manifests/summarization.md.
+
+      models:
+        type: object
+        additionalProperties:
+          type: string
+        description: >
+          Slot map matching Agent/MAS spec.models[].id, plus `judge`.
+          `main` is the turn default (same as scalar model). `summarizer`
+          defaults the summary LLM when the agent omitted params.model.
+          `judge` defaults eval_mce; evaluation.model still overrides the
+          judge only. Values are LiteLLM ids or `any`.
+
       default_infra:
         type: string
         description: "Default infra bundle name for service/codec pipeline steps."
@@ -217,10 +238,11 @@ properties:
             type: string
             description: >
               LLM-as-judge model for eval_mce (and other llm_judge steps).
-              Default: the same model the experiment agent uses
-              (metadata.model_name, then workspace infra default_model).
-              A per-step eval_mce config.model override still wins.
-              See docs/manifests/summarization.md#mce-judge-model.
+              Overrides experiment.models.judge / experiment.model /
+              application spec.models for the judge only. Omit to inherit
+              those defaults (`any` resolves from local config.yaml). A
+              per-step eval_mce config.model still wins. See
+              docs/manifests/summarization.md#mce-judge-model.
           config:
             type: object
             additionalProperties: true

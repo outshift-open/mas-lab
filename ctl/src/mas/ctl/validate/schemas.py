@@ -53,6 +53,7 @@ _KIND_MAP: dict[str, str] = {
     "effective-bind": "effective-bind.schema.yaml",
     "placement_plan": "placement-plan.schema.yaml",
     "experiment": "lab/experiment.schema.yaml",
+    "lab_config": "lab/lab-config.schema.yaml",
     "dataset": "lab/dataset.schema.yaml",
     "pipeline": "lab/pipeline.schema.yaml",
     "library": "library.schema.yaml",

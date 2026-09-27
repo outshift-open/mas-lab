@@ -88,8 +88,11 @@ mas-ctl chat library-standard/examples/governance/undeclared-tool/agent.yaml \
 
 ### Override the history summarizer
 
-Default `summarising` + `summarizer: llm` uses the agent model and a package
-system prompt. Compaction fires on the **token budget**, not that prompt.
+Default `summarising` + `summarizer: llm` uses the **summarizer slot**
+(Agent → MAS → `experiment.models.summarizer`) or else this agent's
+resolved turn model, plus a package system prompt. Compaction fires on the
+**token budget**, not that prompt. `summarizer.params.model` overrides the
+summary call only.
 
 ```yaml
 context_manager:

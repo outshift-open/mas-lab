@@ -23,7 +23,7 @@ Validated by `mas.lab.manifests.validator` and `mas-lab benchmark run --dry-run`
 
 | Manifest | Schema file | Reference |
 |----------|-------------|-----------|
-| Experiment | `experiment.schema.yaml` | [experiment.md](experiment.md) |
+| Experiment | `experiment.schema.yaml` | [experiment.md](experiment.md) (`models` slot map) |
 | Dataset | `dataset.schema.yaml` | [dataset.md](dataset.md) |
 | Post-processing pipeline | `pipeline.schema.yaml` | [pipeline.md](pipeline.md#post-processing-pipeline) |
 | Pipeline library file | `pipeline-manifest.schema.json` | [pipeline.md](pipeline.md#pipeline-library-kind-pipeline) |

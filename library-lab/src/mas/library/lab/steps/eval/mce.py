@@ -36,12 +36,24 @@ def _install_judge(config: dict[str, Any], ctx: ExecutionContext) -> tuple[str, 
     backfilled = config.get("model_source") if config.get("model") else None
     step_model = config.get("model")
     evaluation_model = None
+    experiment_model = None
+    experiment_judge_model = None
+    application_model = None
+    application_source = "application.spec.models"
     judge_metadata: Optional[Dict[str, Any]] = None
     if backfilled:
         step_model = None
-        if str(backfilled).startswith("experiment.evaluation"):
+        source = str(backfilled)
+        if source.startswith("experiment.evaluation"):
             evaluation_model = config.get("model")
-        elif str(backfilled).startswith("experiment.metadata"):
+        elif source == "experiment.models.judge":
+            experiment_judge_model = config.get("model")
+        elif source.startswith("experiment.model"):
+            experiment_model = config.get("model")
+        elif source.startswith("application"):
+            application_model = config.get("model")
+            application_source = source
+        elif source.startswith("experiment.metadata"):
             judge_metadata = {"model_name": config.get("model")}
     judged = resolve_judge_model(
         step_model=step_model,
@@ -49,6 +61,10 @@ def _install_judge(config: dict[str, Any], ctx: ExecutionContext) -> tuple[str, 
         evaluation_model=evaluation_model,
         metadata=judge_metadata,
         template_vars=getattr(ctx, "template_vars", None),
+        application_model=application_model,
+        application_source=application_source,
+        experiment_model=experiment_model,
+        experiment_judge_model=experiment_judge_model,
     )
     effective = install_openai_llm_service(
         model_override=judged.model, model_source=judged.source
@@ -84,7 +100,8 @@ class EvalMceStep(PipelineStep):
                     description="Fraction of items that may fail before the step raises."),
         ConfigParam("model", str, default=None,
                     description="LLM-as-judge model. Default: experiment.evaluation.model, "
-                                "then the agent/infra model."),
+                                "then experiment.models.judge, then experiment.model / "
+                                "models.main, then application spec.models[]."),
         ConfigParam("metrics_filename", str, default="metrics.json",
                     description="Artefact filename written next to run_info.json."),
     ]

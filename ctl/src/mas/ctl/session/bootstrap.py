@@ -86,6 +86,10 @@ class InstantiationOptions:
     engine: Any | None = None
     runtime_refs_cli: tuple[str, ...] = ()
     model_override: str | None = None
+    parent_default_model: str | None = None
+    experiment_default_model: str | None = None
+    experiment_model_slots: dict[str, str] | None = None
+    parent_spec: dict | None = None
 
 
 def instantiate_runtime(
@@ -182,7 +186,13 @@ def instantiate_runtime(
             stream_override=options.stream_override,
             runtime_refs_cli=list(options.runtime_refs_cli),
             model_override=options.model_override,
+            parent_default_model=options.parent_default_model,
+            experiment_default_model=options.experiment_default_model,
         )
+    engine_obj = selection.engine
+    if engine_obj is not None:
+        engine_obj.model_slots = options.experiment_model_slots or {}
+        engine_obj.parent_spec = options.parent_spec
     logger.debug("Engine mode=%s (%s)", selection.mode, selection.reason)
 
     from mas.library.standard.lib.context.compaction import apply_working_memory_compaction

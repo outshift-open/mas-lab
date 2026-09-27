@@ -8,6 +8,8 @@ experiment:
     memory each time. Sequential conversational dataset.
 
   default_flavour: local
+  models:
+    main: gpt-4o
   applications:
     - manifest: "letta-native/mas.yaml"
       configs_dir: "letta-native/overlays"

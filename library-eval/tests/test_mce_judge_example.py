@@ -24,7 +24,9 @@ def test_sample_files_exist() -> None:
     readme = (SAMPLE / "README.md").read_text(encoding="utf-8")
     assert "library-eval/examples/mce/judge-override" in readme
     assert "library-samples/apps" not in readme
-    assert "evaluation.model" in readme
+    assert "evaluation.model" in readme or "models.judge" in readme
+    assert "application.spec.models" in readme
+    assert "config.yaml" in readme or "experiment.model" in readme or "experiment.models" in readme
 
 
 def test_sample_experiment_validates() -> None:
@@ -48,7 +50,7 @@ def test_sample_injects_evaluation_model_and_keeps_step_override() -> None:
     inherited = next(s for s in steps if s.name != "eval_mce_strict")
     strict = next(s for s in steps if s.name == "eval_mce_strict")
     assert inherited.config["model"] == "gpt-4o-mini"
-    assert inherited.config["model_source"] == "experiment.evaluation.model"
+    assert inherited.config["model_source"] == "experiment.models.judge"
     assert strict.config["model"] == "gpt-4o"
 
 

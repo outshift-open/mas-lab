@@ -37,7 +37,7 @@ field does. **Equivalent** is the object `mas-ctl compile` writes. Bindings:
 | `description` | *(required)* | Routing one-liner for `delegate_to_*` tools. Not the system prompt. |
 | `context` | `{}` | Named system-prompt chunks (`role`, `intent`, …). String, `{ref}`, or fragment list. |
 | `params` | `{}` | Free-form strings for middleware / sidecars. Not kernel config. |
-| `models[]` | `[{id: main, model: <defaults.model>}]` | `temperature` 0.7, `max_tokens` 2000 (completion reserve), `context_window` 128000. |
+| `models[]` | `[{id: main, model: any}]` | `any` means inherit MAS / `experiment.models.main` (`experiment.model`), then local `config.yaml` `defaults.model`. Pin a LiteLLM id for reproducibility. Named ids (`summarizer`, …) are filled from `experiment.models.<id>` when unbound. `temperature` 0.7, `max_tokens` 2000, `context_window` 128000. |
 | `design_pattern` | `react` | Shorthand `design_pattern: cot` ≡ `{type: cot}`. Compile fills `params.max_steps: 512`, `max_cot_pass: 1`, `parallel: true`. |
 | `assembler` | `assembler` | Builds `messages[]`. Compile fills `emit_segments: true`, `always_reassemble: false`. |
 | `context_manager` | `summarising` | History plugin. Sub-plugin `params.summarizer` (`llm` \| `drop`). See [context-assembly.md](context-assembly.md). |
@@ -115,7 +115,7 @@ spec:
 | Prompt assembly | `assembler` | default `assembler` (ContextAssemblerPlugin) — [context-assembly.md](context-assembly.md) · [plugin-bindings.md](plugin-bindings.md) |
 | Context window | `context_manager` | default `summarising` (last `keep_turns` verbatim; `summarizer: llm` or `drop`; optional cheaper summary model) / sliding-window / stack — [summarization.md](summarization.md) · [context-assembly.md](context-assembly.md) |
 | Prompt / role | `description`, `context` | `description` → delegation tools; `context.*` → system prompt |
-| Models | `models[]` | LLM routing (ids, temperature, max_tokens completion, context_window). Summarizer/judge default to the primary model — [summarization.md](summarization.md) |
+| Models | `models[]` | LLM routing (ids, temperature, max_tokens completion, context_window). Unbound ids inherit MAS / `experiment.models.<id>`. Summarizer/judge slots default the summary and MCE calls — [summarization.md](summarization.md) |
 | Tools | `tools`, `tools_ref`, `providers` | [ToolContract](../references/tool-contract.md) · [tool.md](tool.md) · [ToolServerRegistry](../references/tool-server-registry.md) |
 | Skills | `skills` | Context facet (catalog) + `activate_skill`/`read_skill_file` tools |
 | Memory | `memory`, `memory_seed` | Stores + startup seeds |

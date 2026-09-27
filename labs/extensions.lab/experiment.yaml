@@ -55,6 +55,8 @@ experiment:
     queries across 3 reproducible runs.
 
   default_flavour: local
+  models:
+    main: gpt-4o
   applications:
     - app: trip-planner
       configs_dir: "./overlays"

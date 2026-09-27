@@ -31,6 +31,9 @@ Each level supports `pre:` and `post:` as **lists of pipelines** (0..N).
 ```yaml
 experiment:
   name: topology-ablation
+  model: any                    # shorthand for models.main; omit ≡ any
+  models:                       # optional slot map (main / summarizer / judge)
+    main: any
   applications:
     - manifest: ./mas.yaml
       configs_dir: ./overlays
@@ -53,19 +56,46 @@ experiment:
 
 ---
 
+## Model slots (`models` / `model`)
+
+Named slots, not `$variables`. Keys match Agent/MAS `spec.models[].id`, plus
+`judge`. Agents that say `model: any` inherit the experiment (then MAS, then
+local `config.yaml`). Scalar `experiment.model` is **shorthand for
+`models.main`**; `models.main` wins when both are set.
+
+```yaml
+experiment:
+  models:
+    main: gpt-4o                # turn default (fills Agent/MAS model: any)
+    summarizer: gpt-4o-mini     # summary default when params.model omitted
+    judge: gpt-4o-mini          # MCE default; evaluation.model still wins
+```
+
+`evaluation.model` and `eval_mce.config.model` remain judge-only overrides.
+`summarizer.params.model` remains a per-agent summary override. Overlay the
+graph (tools, pattern); pin models here.
+
+See [summarization.md](summarization.md) for the full chain.
+
+---
+
 ## Evaluation model (`evaluation.model`)
 
-`eval_mce` defaults to the **same model the agent used**
-(`metadata.model_name`, then workspace infra). Override once on the lab spec;
+`eval_mce` defaults to `experiment.models.judge`, then `models.main` /
+`experiment.model`, then the application MAS/Agent `spec.models[]`. `any`
+(or omitted) means the spec does not pin a provider id — local `config.yaml`
+`defaults.model` fills it. Override the judge with `experiment.evaluation.model`;
 a per-step `eval_mce.config.model` still wins.
 
 ```yaml
 experiment:
-  metadata:
-    model_name: gpt-4o
+  models:
+    main: gpt-4o
+    judge: gpt-4o-mini          # or evaluation.model: gpt-4o-mini
+  applications:
+    - manifest: ./mas.yaml
   evaluation:
     method: llm_judge
-    model: gpt-4o-mini          # judge; omit to use gpt-4o
   application:
     post:
       - {type: eval_mce, depends_on: [extract_trajectories]}

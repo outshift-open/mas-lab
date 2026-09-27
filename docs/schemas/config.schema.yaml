@@ -158,7 +158,7 @@ properties:
     properties:
       model:
         type: string
-        description: Default model id when manifests omit one.
+        description: Fill-in LLM id for remaining Agent/MAS/experiment `any` after experiment.models (not written into committed specs).
       design_pattern:
         type: string
         description: Default plugin id for spec.design_pattern when manifests omit one.

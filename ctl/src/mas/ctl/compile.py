@@ -27,6 +27,7 @@ from mas.runtime.agent_defaults import (
     default_assembler_id,
     default_pattern_plugin_id,
 )
+from mas.runtime.spec.model_ref import ANY_MODEL
 from mas.runtime.spec.plugin_binding import normalize_plugin_binding, plugin_binding_id
 from mas.runtime.spec.source import load_yaml_mapping, resolve_yaml_path
 
@@ -89,6 +90,10 @@ def fill_agent_defaults(doc: dict[str, Any], *, workspace: Any = None) -> dict[s
 
     if not spec.get("models"):
         spec["models"] = copy.deepcopy(defaults["models"])
+    else:
+        for entry in spec["models"]:
+            if isinstance(entry, dict) and not str(entry.get("model") or "").strip():
+                entry["model"] = ANY_MODEL
 
     from mas.library.standard.lib.context.compaction import apply_working_memory_compaction
     from mas.library.standard.lib.context.history_budget import fill_context_manager_defaults
@@ -111,6 +116,20 @@ def fill_agent_defaults(doc: dict[str, Any], *, workspace: Any = None) -> dict[s
     asm_params.setdefault("emit_segments", True)
     asm_params.setdefault("always_reassemble", False)
 
+    return out
+
+
+def fill_mas_defaults(doc: dict[str, Any]) -> dict[str, Any]:
+    """Fill omitted MAS ``spec.models`` with ``any`` (local config resolves it)."""
+    out = copy.deepcopy(doc)
+    out.pop("_validation_base_dir", None)
+    spec = out.setdefault("spec", {})
+    if not spec.get("models"):
+        spec["models"] = [{"id": "main", "model": ANY_MODEL}]
+    else:
+        for entry in spec["models"]:
+            if isinstance(entry, dict) and not str(entry.get("model") or "").strip():
+                entry["model"] = ANY_MODEL
     return out
 
 
@@ -157,6 +176,8 @@ def compile_manifest(
     mas = doc
     for _ov_path, overlay in classified.mas:
         mas = merge_overlay(mas, overlay)
+    if fill_defaults:
+        mas = fill_mas_defaults(mas)
 
     agents, agent_ids, relpaths = _load_mas_agents(mas, mas_dir=manifest.parent)
     for ov_path, overlay in classified.agent:

@@ -14,6 +14,7 @@ from mas.ctl.compile import (
     compile_manifest,
     compiled_documents,
     fill_agent_defaults,
+    fill_mas_defaults,
     resolve_layout,
     write_compiled,
 )
@@ -47,7 +48,7 @@ def test_fill_agent_defaults_fills_omitted_runtime_fields() -> None:
     assert spec["design_pattern"]["params"]["max_steps"] == 512
     assert spec["design_pattern"]["params"]["max_cot_pass"] == 1
     assert spec["design_pattern"]["params"]["parallel"] is True
-    assert spec["models"][0]["model"]
+    assert spec["models"][0]["model"] == "any"
     assert spec["models"][0]["context_window"] == 128000
     cm = spec["context_manager"]
     assert cm["type"] == "summarising"
@@ -59,6 +60,26 @@ def test_fill_agent_defaults_fills_omitted_runtime_fields() -> None:
     assert spec["assembler"]["params"]["emit_segments"] is True
     assert spec["assembler"]["params"]["always_reassemble"] is False
     assert "design_pattern" not in doc["spec"]
+
+
+def test_fill_mas_defaults_writes_any() -> None:
+    doc = {
+        "apiVersion": "mas/v1",
+        "kind": "MAS",
+        "metadata": {"name": "team"},
+        "spec": {"agency": {"agents": []}},
+    }
+    filled = fill_mas_defaults(doc)
+    assert filled["spec"]["models"][0] == {"id": "main", "model": "any"}
+    pinned = fill_mas_defaults(
+        {
+            "apiVersion": "mas/v1",
+            "kind": "MAS",
+            "metadata": {"name": "team"},
+            "spec": {"models": [{"id": "main", "model": "gpt-4o"}]},
+        }
+    )
+    assert pinned["spec"]["models"][0]["model"] == "gpt-4o"
 
 
 def test_fill_agent_defaults_preserves_explicit_model() -> None:

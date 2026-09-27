@@ -90,7 +90,7 @@ def test_agent_defaults_accessors_use_single_source_of_truth() -> None:
 
     defaults = agent_defaults()
     assert defaults["design_pattern"]["type"] == "react@v1"
-    assert defaults["models"][0]["model"] == "gpt-4o-mini"
+    assert defaults["models"][0]["model"] == "any"
 
 
 def test_resolve_default_model_prefers_explicit_workspace_object() -> None:

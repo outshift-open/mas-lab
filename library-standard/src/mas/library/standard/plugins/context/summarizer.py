@@ -50,11 +50,13 @@ class DropSummarizer:
 class LlmSummarizer:
     """Summarize older turns with an LLM.
 
-    Default model is the agent's live engine (same as the turn). ``model`` is
-    a spec override: a ``spec.models[].id`` or a LiteLLM model string, resolved
-    by ``CMFactory`` before ``bind_engine``. ``instructions`` overrides the
-    package system prompt. Without ``summarize_messages`` this degrades to
-    drop and logs a warning.
+    Default model is the **summarizer slot**, else **this agent's** live
+    engine. Slot chain: Agent ``spec.models[id=summarizer]`` → MAS →
+    ``experiment.models.summarizer`` → resolved turn model. ``params.model``
+    overrides that default (a ``spec.models[].id`` or a LiteLLM string,
+    resolved by ``CMFactory`` before ``bind_engine``). ``instructions``
+    overrides the package system prompt. Without ``summarize_messages`` this
+    degrades to drop and logs a warning.
     """
 
     def __init__(self, model: str | None = None, instructions: str | None = None) -> None:

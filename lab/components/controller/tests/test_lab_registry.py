@@ -18,7 +18,8 @@ def test_agent_defaults():
     reg = get_lab_registry()
     defaults = reg.agent_defaults()
     assert defaults["design_pattern"]["type"] == default_pattern_plugin_id()
-    assert defaults["models"][0]["model"] == reg.default_model()
+    assert defaults["models"][0]["model"] == "any"
+    assert reg.default_model()
     reset_lab_registry()
 
 

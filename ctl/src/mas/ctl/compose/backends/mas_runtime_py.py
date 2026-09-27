@@ -74,6 +74,17 @@ class MasRuntimePyKernelBackend:
                                 }
                     agent_manifest = resolve_manifest_tool_refs(agent_manifest, manifest_dir)
 
+        parent_model = None
+        mas_config = (
+            bind.composed_application.config
+            if bind.composed_application is not None
+            else None
+        )
+        if isinstance(mas_config, dict):
+            from mas.runtime.spec.model_ref import primary_model_string
+
+            parent_model = primary_model_string(mas_config)
+
         instance, _ = instantiate_runtime(
             InstantiationOptions(
                 pattern_plugin_id=slice_.pattern_plugin_id,
@@ -81,6 +92,10 @@ class MasRuntimePyKernelBackend:
                 manifest_dir=manifest_dir,
                 app_root=bind.mas_base_dir,
                 resolved_infra=self._infra or ResolvedInfra(),
+                parent_default_model=parent_model,
+                experiment_default_model=bind.experiment_default_model,
+                experiment_model_slots=bind.experiment_model_slots,
+                parent_spec=mas_config if isinstance(mas_config, dict) else None,
             ),
         )
         instance.driver.agent_id = agent_id

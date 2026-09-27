@@ -10,6 +10,8 @@ experiment:
     - app: trip-planner
       configs_dir: ./overlays
   default_flavour: local-benchmark
+  models:
+    main: gpt-4o
   default_infra: llm-proxy
   scenarios:
   - id: single-agent_cot

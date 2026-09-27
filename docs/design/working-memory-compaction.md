@@ -125,7 +125,9 @@ for in-turn LLM calls is **hysteresis on the context-manager instance**.
 
 2. **Summarizer sub-plugins** (registry type `summarizer`): `llm` (default)
    uses the agent's engine via `CMFactory.create(..., engine=ctx.engine)`.
-   Optional `params.model` (a `spec.models[].id` or LiteLLM string) uses a
+   Omitted / `any` `params.model` uses the summarizer slot (Agent → MAS →
+   `experiment.models.summarizer`), else the turn model. Optional
+   `params.model` (a `spec.models[].id` or LiteLLM string) uses a
    different model for the summary call. Optional `params.instructions`
    replaces the package system prompt (the **trigger** is still the token
    budget). `drop` discards older turns. The engine is **not** stored in the

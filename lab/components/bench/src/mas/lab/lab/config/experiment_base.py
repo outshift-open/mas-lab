@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from mas.lab.benchmark.experiment import EvaluationSpec
+from mas.runtime.spec.model_ref import ANY_MODEL, normalize_model_slots
 from mas.runtime.spec.source import resolve_path as resolve_path_ref
 
 from .lab_context import _discover_lab_name
@@ -60,6 +61,28 @@ class MASRunBase:
 
     mas: Optional[MASSpec] = None
     """MAS configuration pointer (required for any run)."""
+
+    model: Optional[str] = "any"
+    """Experiment/lab default LLM. Shorthand for ``models.main``.
+
+    Agents and MAS that omit ``spec.models`` or set ``model: any`` inherit
+    this. ``any`` means this experiment does not pin a provider id —
+    inherit the application ``spec.models``, then local ``config.yaml``.
+    """
+
+    models: Dict[str, str] = field(default_factory=dict)
+    """Slot map matching Agent/MAS ``spec.models[].id`` plus ``judge``.
+
+    ``main`` is the turn default (same as scalar ``model``; ``models.main``
+    wins if both are set). ``summarizer`` defaults the summary call when
+    the agent omitted ``params.model``. ``judge`` defaults MCE; 
+    ``evaluation.model`` still overrides the judge only.
+    """
+
+    @property
+    def model_slots(self) -> Dict[str, str]:
+        """Concrete slot map (scalar ``model`` merged into ``main``)."""
+        return normalize_model_slots(model=self.model, models=self.models)
 
     scenarios: List[MASScenarioSpec] = field(default_factory=list)
     """Ordered list of scenario specs.
@@ -329,13 +352,31 @@ class MASRunBase:
                 if not step.scope:
                     step.scope = "application"
 
-        _inject_eval_mce_judge_model(levels, evaluation, data.get("metadata"))
+        raw_models = data.get("models") if isinstance(data.get("models"), dict) else {}
+        authored_models = {
+            str(k).strip(): ("" if v is None else str(v).strip())
+            for k, v in raw_models.items()
+            if str(k).strip()
+        }
+        slots = normalize_model_slots(model=data.get("model"), models=raw_models)
+        model = slots.get("main") or ANY_MODEL
+
+        _inject_eval_mce_judge_model(
+            levels,
+            evaluation,
+            data.get("metadata"),
+            mas=mas,
+            experiment_model=slots.get("main"),
+            experiment_judge_model=slots.get("judge"),
+        )
 
         return dict(
             name=exp_name,
             description=data.get("description", ""),
             lab_name=lab_name,
             mas=mas,
+            model=model,
+            models=authored_models,
             scenarios=scenarios,
             dataset=dataset,
             dataset_filter=dataset_filter,
@@ -356,19 +397,30 @@ def _inject_eval_mce_judge_model(
     levels: Dict[str, "LevelSpec"],
     evaluation: Optional[EvaluationSpec],
     metadata: Any,
+    mas: Optional[MASSpec] = None,
+    experiment_model: Any = None,
+    experiment_judge_model: Any = None,
 ) -> None:
-    """Fill omitted eval_mce config.model from experiment.evaluation / metadata."""
+    """Fill omitted eval_mce config.model from evaluation / experiment / application."""
     try:
         from mas.library.eval.mce.judge_model import (
             apply_eval_mce_model_defaults,
             resolve_judge_model,
+            unique_application_model,
         )
     except ImportError:
         return
+    app_model, app_source = unique_application_model(
+        mas.manifest if mas is not None else None
+    )
     resolved = resolve_judge_model(
         evaluation_model=evaluation.model if evaluation else None,
         evaluation_config=evaluation.config if evaluation else None,
         metadata=metadata if isinstance(metadata, dict) else None,
+        application_model=app_model,
+        application_source=app_source or "application.spec.models",
+        experiment_model=experiment_model,
+        experiment_judge_model=experiment_judge_model,
     )
     if not resolved.model:
         return

@@ -108,7 +108,7 @@ Not a top-level spec key. Bound only on `type: summarising`:
 
 | Plugin | Omit / shorthand | Equivalent | Behaviour |
 |--------|------------------|------------|-----------|
-| `llm` (default) | `summarizer: llm` | `{type: llm}` | Agent's live engine; degrades to drop without one |
+| `llm` (default) | `summarizer: llm` | `{type: llm}` | Summarizer slot else agent's live engine; degrades to drop without one |
 | `drop` | `summarizer: drop` | `{type: drop}` | Discard older turns |
 
 Optional cheaper summary model (`params.model` is a `spec.models[].id` or LiteLLM string):

@@ -19,6 +19,8 @@ experiment:
     Exp 2.3 (governance policy insertion via unified trigger/action model).
 
   default_flavour: local
+  models:
+    main: gpt-4o
   applications:
     - app: trip-planner
       configs_dir: "./overlays"

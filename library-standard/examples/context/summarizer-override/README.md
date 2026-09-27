@@ -7,9 +7,10 @@
 Context-manager feature example. Not a sample app.
 
 Default `context_manager: summarising` + `summarizer: llm` already uses the
-**agent model** and a **package system prompt**. Compaction **fires on the
-history token budget**, not on that prompt. This Agent pins two plugin
-params:
+**summarizer slot** (Agent → MAS → `experiment.models.summarizer`) or else
+this agent's resolved turn model, plus a **package system prompt**. Compaction
+**fires on the history token budget**, not on that prompt. This Agent pins two
+plugin params:
 
 - `params.model` — cheaper / dedicated summary LLM (`spec.models[].id`)
 - `params.instructions` — replace the default system prompt
@@ -59,7 +60,7 @@ The overlay sets `params.model: gpt-4o-mini` only (default instructions).
 | Recency pin | `params.keep_turns` | `10` |
 | Hysteresis | `params.hysteresis_ratio` | `0.2` |
 | Plugin | `params.summarizer` | `llm` (`drop` = no LLM) |
-| Summary LLM | `summarizer.params.model` | agent primary model |
+| Summary LLM | `summarizer.params.model` | summarizer slot, else agent turn model |
 | System prompt | `summarizer.params.instructions` | package constant (facts / decisions / identifiers, plain prose) |
 
 There is **no** “please summarize now” user prompt. The CM compares an

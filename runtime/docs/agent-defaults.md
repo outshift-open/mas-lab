@@ -5,9 +5,15 @@
 # Agent Defaults
 
 `mas-runtime` needs a handful of package-wide defaults for values a manifest
-is allowed to omit: the LLM model, the design pattern, the context
-manager, and the assembler. These are data, not Python constants, following the same pattern
-as [plugin aliases](plugin-aliases.md). Bindings: [plugin-bindings.md](../../docs/manifests/plugin-bindings.md).
+is allowed to omit: the LLM model **fill-in for `any`**, the design pattern,
+the context manager, and the assembler.
+
+**`defaults.model` is not written into the committed spec.** Compile records
+`model: any` when the Agent/MAS/experiment omitted a pin. Named
+`experiment.models` slots fill matching `any` ids first. Local
+`config.yaml` `defaults.model` (then package `defaults.yaml`) only resolves
+remaining `any` at engine time, so a checkout stays reproducible unless the
+author explicitly chose `any`.
 
 ## Discovery order
 
@@ -36,9 +42,9 @@ under its own `defaults:` property).
 ## How the values are used
 
 - `model` is exposed via `mas.runtime.agent_defaults.default_model()` /
-  `resolve_default_model(workspace=None)`, and is *not* a registry plugin
-  type — it's a plain string consumed directly by callers that need an LLM
-  model id (e.g. `mas-ctl`'s `resolve_model_name`).
+  `resolve_default_model(workspace=None)`. It fills the compiled ``any``
+  sentinel at engine time; compile never writes this value into Agent/MAS
+  YAML. It is *not* a registry plugin type.
 - `design_pattern`, `context_manager`, and `assembler` *are* registry spec keys: on
   startup, `bootstrap.load_registry()` reads `defaults.yaml` (merged with
   any `config.yaml` override) via `mas.runtime.registry.defaults.

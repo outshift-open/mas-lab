@@ -144,11 +144,11 @@ summarising context manager:
 
 | Plugin | Default? | Behaviour |
 |--------|----------|-----------|
-| `llm` | yes | agent's engine (`summarize_messages`); optional `params.model` (a `spec.models[].id` or LiteLLM string) uses a different model; degrades to drop without a live engine |
+| `llm` | yes | summarizer slot (Agent → MAS → `experiment.models.summarizer`) else agent's resolved turn model (`summarize_messages`); optional `params.model` (a `spec.models[].id` or LiteLLM string) uses a different model; degrades to drop without a live engine |
 | `drop` | | discard older turns; keep `keep_turns` verbatim |
 
 ```yaml
-# default (inside summarising) — same model as the agent turn
+# default (inside summarising) — summarizer slot else this agent's turn model
 params:
   summarizer: llm              # ≡ {type: llm}
 

@@ -31,7 +31,7 @@ curl -s http://localhost:8090/api/pipeline-step-types   # when controller runnin
 
 | Type | Output |
 |------|--------|
-| `eval_mce` | One run's `events.jsonl` → `metrics.json` (`scope: run`). Judge: `experiment.evaluation.model`, else the agent model. |
+| `eval_mce` | One run's `events.jsonl` → `metrics.json` (`scope: run`). Judge: `experiment.evaluation.model`, else `experiment.models.judge`, else `experiment.model` / `models.main`, else application `spec.models[]`. |
 | `eval_trip_planner_gt` | Trip-planner ground truth |
 | `eval_adversarial` | Adversarial probes |
 | `annotate_metrics` | Attach scores to run metadata |
