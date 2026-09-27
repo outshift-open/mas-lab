@@ -47,6 +47,22 @@ Each plugin has a canonical **`plugin_id@version`**. Short names resolve via the
 | `workflow-graph@v1` | workflow-graph | 2026.1 | Graph topology |
 | `workflow-supervised@v1` | workflow-supervised | 2026.1 | Operator approve between nodes |
 
+## LLM providers (`mas.library.standard.plugins.llm`)
+
+Same procedure as tools: a plugin speaks **one protocol**; the registry routes
+`spec.models[].kind` (like `spec.providers[].kind`) to that plugin.
+
+| ID | Role | Implementation |
+|----|------|----------------|
+| `openai` | Wire protocol | OpenAI-compatible `/chat/completions` HTTP |
+| `cache` | Wrapper (not a protocol) | Disk cache around a routed protocol plugin |
+
+Infra `spec.protocol` / agent `spec.models[].kind` select the wire protocol (default `openai`). Ollama and LiteLLM proxies use the OpenAI plugin. A future Bedrock plugin would register as `type: llm_provider` with its own class. Offline CI replays a recorded live protocol through `llm_cache` (`raise_on_miss`).
+
+Thinking depth, thinking-token budget, and hiding chain-of-thought live on
+`spec.models[].reasoning` (`effort`, `budget_tokens`, `exclude`) — see
+[`docs/manifests/llm-reasoning.md`](../../../../../../docs/manifests/llm-reasoning.md).
+
 ## Tools (library-samples)
 
 Tutorial and benchmark tools live in **`mas-library-samples`** as `kind: Tool` manifests

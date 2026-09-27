@@ -44,6 +44,7 @@ class InfraManifest:
     proxy: ProxySpec = field(default_factory=ProxySpec)
     models: ModelsSpec = field(default_factory=ModelsSpec)
     model_access: dict[str, Any] = field(default_factory=dict)
+    protocol: str = ""
     pipeline: list[dict[str, Any]] = field(default_factory=list)
     runtime_engine: dict[str, Any] = field(default_factory=dict)
     tool_servers: list[dict[str, Any]] = field(default_factory=list)
@@ -62,7 +63,7 @@ class InfraManifest:
         return _from_dict(resolve_manifest_values(data))
 
     def to_llm_proxy_dict(self) -> dict[str, Any]:
-        d: dict[str, Any] = {
+        out: dict[str, Any] = {
             "api_base": self.proxy.api_base,
             "api_key_env": self.proxy.api_key_env,
             "default_model": self.models.default_llm,
@@ -72,5 +73,7 @@ class InfraManifest:
             "pipeline": list(self.pipeline),
         }
         if self.proxy.timeout is not None:
-            d["timeout"] = self.proxy.timeout
-        return d
+            out["timeout"] = self.proxy.timeout
+        if self.protocol:
+            out["protocol"] = self.protocol
+        return out

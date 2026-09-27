@@ -129,6 +129,8 @@ nav:
           - Infra: manifests/infra.md
           - RuntimeEngine: manifests/runtime-engine.md
           - "LLM cache (guide)": manifests/llm-cache.md
+          - "LLM reasoning / thinking": manifests/llm-reasoning.md
+          - "LLM model catalog": manifests/llm-model-catalog.md
           - "config.yaml": references/config.yaml.md
           - Schemas: references/schemas.md
       - Runtime:

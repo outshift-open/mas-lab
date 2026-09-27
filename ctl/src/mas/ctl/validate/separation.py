@@ -126,8 +126,32 @@ class OverlaySeparationValidator(MASSeparationValidator):
 
     @classmethod
     def _collect_violations(cls, data: dict[str, Any]) -> list[str]:
-        violations = list(super()._collect_violations(data))
-        patch = (data.get("spec") or {}).get("patch") or {}
+        violations: list[str] = []
+        spec = data.get("spec") or {}
+        target_kind = str((spec.get("target") or {}).get("kind") or "").strip().lower()
+        patch = spec.get("patch") if isinstance(spec.get("patch"), dict) else {}
+        if spec.get("runtime_refs") or spec.get("runtime_ref"):
+            violations.append(
+                "spec.runtime_refs is forbidden on Overlay — use workspace config or CLI"
+            )
+        if spec.get("infra_refs") or spec.get("infra_ref"):
+            violations.append(
+                "spec.infra_refs is forbidden on Overlay — use workspace config.yaml or --infra-ref"
+            )
+        if spec.get("infra_interceptors") or spec.get("infra_interceptor"):
+            violations.append(
+                "spec.infra_interceptors is forbidden on Overlay — use workspace config or CLI"
+            )
+        for path, val in _iter_paths(data):
+            if "agency.agents[" in path:
+                continue
+            key = path.rsplit(".", 1)[-1].split("[")[0]
+            if key in cls._ACCESS_KEYS and _is_set(val):
+                violations.append(f"{path} is an access concern — move to flavour/infra bundle")
+            if key == "model" and _is_set(val):
+                if target_kind == "agent" and path.startswith("spec.patch"):
+                    continue
+                violations.append(f"{path} is model-selection — move to agent spec.models")
         if isinstance(patch, dict):
             if patch.get("execution"):
                 violations.append(

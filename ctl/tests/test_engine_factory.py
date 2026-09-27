@@ -64,6 +64,9 @@ def test_parse_execution_rejects_removed_mocking_key():
 def test_build_engine_replay_does_not_require_api_key(monkeypatch, tmp_path):
     from mas.ctl.infra.resolve import resolve_infra_refs
     from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
+    from mas.runtime.engine.leaf import leaf_engine
+    from mas.runtime.engine.llm_live import LiveLlmEngine
+    from mas.library.standard.plugins.llm.openai import OpenAILLMProvider
 
     monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: WorkspaceConfig({}))
     monkeypatch.setattr(UserConfig, "load", lambda *a, **k: UserConfig({}))
@@ -74,6 +77,9 @@ def test_build_engine_replay_does_not_require_api_key(monkeypatch, tmp_path):
 
     sel = build_engine(ctx, {"spec": {}}, infra, anchor=tmp_path)
     assert sel.mode == "replay"
+    leaf = leaf_engine(sel.engine)
+    assert isinstance(leaf, LiveLlmEngine)
+    assert isinstance(leaf.llm_provider, OpenAILLMProvider)
 
 
 def test_resolve_sampling_param_prefers_spec_models():
@@ -85,6 +91,19 @@ def test_resolve_sampling_param_prefers_spec_models():
     }
     assert _resolve_sampling_param(manifest, "temperature", 0.7) == 0.1
     assert _resolve_sampling_param(manifest, "max_tokens", 2000) == 8000
+
+
+def test_resolve_sampling_param_matches_named_model_row():
+    manifest = {
+        "spec": {
+            "models": [
+                {"id": "main", "model": "gpt-4o", "temperature": 0.1},
+                {"id": "alt", "model": "gpt-5-mini", "temperature": 0.9, "max_tokens": 111},
+            ]
+        }
+    }
+    assert _resolve_sampling_param(manifest, "temperature", 0.7, model="gpt-5-mini") == 0.9
+    assert _resolve_sampling_param(manifest, "max_tokens", 2000, model="alt") == 111
 
 
 def test_resolve_model_name_prefers_spec_models(monkeypatch):
@@ -153,6 +172,34 @@ def test_resolve_sampling_param_falls_back_to_deprecated_spec_llm(caplog):
 def test_resolve_model_option_from_spec_models():
     manifest = {"spec": {"models": [{"model": "gpt-4", "reasoning_effort": "low"}]}}
     assert _resolve_model_option(manifest, "reasoning_effort") == "low"
+
+
+def test_build_engine_loads_nested_reasoning_from_spec_models(monkeypatch, tmp_path):
+    from mas.ctl.infra.resolve import resolve_infra_refs
+    from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
+    from mas.runtime.engine.leaf import leaf_engine
+
+    monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: WorkspaceConfig({}))
+    monkeypatch.setattr(UserConfig, "load", lambda *a, **k: UserConfig({}))
+    ctx = AutoCtxAssembler()
+    manifest = {
+        "spec": {
+            "models": [
+                {
+                    "model": "gpt-5",
+                    "reasoning": {"effort": "low", "budget_tokens": 64, "exclude": True},
+                }
+            ]
+        }
+    }
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    infra = resolve_infra_refs(["standard:openai"], anchor=tmp_path)
+    sel = build_engine(ctx, manifest, infra, anchor=tmp_path)
+    leaf = leaf_engine(sel.engine)
+    assert leaf.reasoning.effort == "low"
+    assert leaf.reasoning.budget_tokens == 64
+    assert leaf.reasoning.exclude is True
+    assert leaf.reasoning.exclude_from_spec is True
 
 
 def test_cache_and_stream_from_runtime_engine():

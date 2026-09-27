@@ -11,6 +11,7 @@ metadata:
     No API key required.
 
 spec:
+  protocol: openai
   proxy:
     api_base: http://localhost:11434/v1
     # No api_key_env needed for local Ollama

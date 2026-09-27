@@ -12,6 +12,7 @@ metadata:
     to OPENAI_API_KEY).
 
 spec:
+  protocol: openai
   proxy:
     api_base: env:LLM_PROXY_API_BASE|https://api.openai.com/v1
     api_key_env: env:LLM_PROXY_API_KEY_ENV|OPENAI_API_KEY

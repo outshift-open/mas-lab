@@ -64,6 +64,13 @@ practical examples.
 | `NoUndeclaredToolPlugin` | `mas.library.standard.plugins.governance.no_undeclared_tool` | `mas-library-standard` |
 | `SampleGovernancePlugin` | `mas.library.standard.plugins.governance.sample`             | `mas-library-standard` |
 
+### Llm_Provider
+
+| Class               | Full module path                          | Package                |
+| ------------------- | ----------------------------------------- | ---------------------- |
+| `CacheLLMProvider`  | `mas.library.standard.plugins.llm.cache`  | `mas-library-standard` |
+| `OpenAILLMProvider` | `mas.library.standard.plugins.llm.openai` | `mas-library-standard` |
+
 ### Memory
 
 | Class                  | Full module path                                      | Package                |
@@ -114,6 +121,7 @@ practical examples.
 
 | Class                            | Category        | Package                |
 | -------------------------------- | --------------- | ---------------------- |
+| `CacheLLMProvider`               | llm_provider    | `mas-library-standard` |
 | `ContextAssemblerPlugin`         | assembler       | `mas-library-standard` |
 | `CotPlugin`                      | design_pattern  | `mas-library-standard` |
 | `DeterministicLinearPlugin`      | design_pattern  | `mas-library-standard` |
@@ -125,6 +133,7 @@ practical examples.
 | `LocalToolProvider`              | tool_provider   | `mas-library-standard` |
 | `NativeObservabilityPlugin`      | observability   | `mas-library-standard` |
 | `NoUndeclaredToolPlugin`         | governance      | `mas-library-standard` |
+| `OpenAILLMProvider`              | llm_provider    | `mas-library-standard` |
 | `OtelObservabilityPlugin`        | observability   | `mas-library-standard` |
 | `PlanExecutePlugin`              | design_pattern  | `mas-library-standard` |
 | `ReactPlugin`                    | design_pattern  | `mas-library-standard` |

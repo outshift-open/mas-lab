@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Live LLM engine — OpenAI-compatible chat completions via httpx."""
+"""Live LLM engine — EngineContract over an LLMProvider plugin."""
 
 from __future__ import annotations
 
@@ -15,21 +15,19 @@ from mas.runtime.boundary.context.assemble import (
     assemble_llm_messages,
     has_tool_results,
     llm_request_tools,
-    llm_tool_choice,
 )
 from mas.runtime.boundary.gov.budget import BudgetTracker, budget_from_manifest
 from mas.runtime.engine.exchange_preview import ExchangeSnapshot, format_exchange_snapshot
-from mas.runtime.engine.llm_cache import (
-    assistant_message_from_cache_content,
-    llm_cache_key,
-    load_cache,
-    lookup_response,
-    persist_cache,
-)
-from mas.runtime.engine.llm_http import classify_llm_http_error, resolve_ssl_verify
+from mas.runtime.engine.llm_http import classify_llm_http_error
 from mas.runtime.engine.textual_tool_calls import maybe_recover_textual_tool_calls, repair_merged_arg_keys
 from mas.runtime.engine.tool_dispatch import ToolExecutionError, execute_engine_tool
 from mas.runtime.engine.tools import openai_tools
+from mas.runtime.engine.llm_reasoning import (
+    ReasoningSettings,
+    coerce_reasoning_settings,
+    reasoning_settings_from_manifest,
+)
+from mas.runtime.engine.llm_request import extra_from_manifest, sampling_settings_from_manifest
 from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.ingress import EngineIoReturn
 
@@ -41,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class LiveLlmEngine:
-    """EngineContract implementation — calls remote LLM proxy / OpenAI API."""
+    """EngineContract implementation — delegates chat completions to LLMProvider plugins."""
 
     ctx: AutoCtxAssembler | None = None
     manifest: dict | None = None
@@ -53,6 +51,8 @@ class LiveLlmEngine:
     # Reasoning models (Gemini 2.5, o-series) bill internal thinking against
     # max_tokens, so an unbounded budget can leave zero tokens for the answer.
     reasoning_effort: str | None = None
+    reasoning: ReasoningSettings | dict[str, Any] | None = None
+    extra_body: dict[str, Any] | None = None
     cache_path: Path | None = None
     use_cache: bool = True
     cache_read: bool = True
@@ -66,7 +66,7 @@ class LiveLlmEngine:
     delegation: Any | None = None
     delegation_peer_descriptions: dict[str, str] | None = None
     tool_provider: Any | None = None
-    _cache: dict[str, Any] = field(default_factory=dict, init=False)
+    llm_provider: Any | None = None
     _pending_tool: str = field(default="", init=False)
     _pending_tool_args: dict[str, Any] = field(default_factory=dict, init=False)
     _pending_tools_by_cid: dict[int, tuple[str, dict[str, Any]]] = field(default_factory=dict, init=False)
@@ -83,25 +83,50 @@ class LiveLlmEngine:
         self._pending_tools_by_cid[correlation_id] = (name, dict(arguments or {}))
 
     def __post_init__(self) -> None:
+        self.reasoning = coerce_reasoning_settings(
+            self.reasoning if self.reasoning is not None else reasoning_settings_from_manifest(
+                self.manifest, model=self.model
+            ),
+            effort=self.reasoning_effort,
+        )
+        self.reasoning_effort = self.reasoning.effort
+        self.sampling = sampling_settings_from_manifest(self.manifest, model=self.model)
+        if self.extra_body is None:
+            self.extra_body = extra_from_manifest(self.manifest, model=self.model)
         self._budget = budget_from_manifest(self.manifest)
-        if self.cache_path and self._cache_reads_enabled():
-            self._cache = load_cache(self.cache_path)
-        from mas.runtime.engine.model_access import load_model_access
+        if self.llm_provider is None:
+            self.llm_provider = self._default_llm_provider()
+        self.llm_provider = self._wrap_cache(self.llm_provider)
+        # Tests that still inspect _model_access see the routed provider.
+        self._model_access = self.llm_provider
 
-        ma_cfg = (self.llm_proxy or {}).get("model_access")
-        self._model_access = load_model_access(ma_cfg if isinstance(ma_cfg, dict) else None)
-        if self._uses_model_access():
-            # Plugin model access owns cache lookup; avoid shadowing it with engine cache.
-            self.use_cache = False
+    def _default_llm_provider(self) -> Any:
+        from mas.runtime.registry.llm_provider_registry import llm_provider_from_infra
 
-    def _uses_model_access(self) -> bool:
-        return self._model_access is not None
+        proxy = dict(self.llm_proxy or {})
+        proxy.setdefault("api_base", self.api_base)
+        proxy.setdefault("api_key_env", self.api_key_env)
+        if self.http_timeout is not None:
+            proxy.setdefault("timeout", self.http_timeout)
+        return llm_provider_from_infra(
+            proxy,
+            manifest=self.manifest,
+            stream=self.stream,
+            reasoning_effort=self.reasoning.effort,
+            reasoning=self.reasoning.to_spec_dict(),
+        )
 
-    def _cache_reads_enabled(self) -> bool:
-        return self.use_cache and self.cache_read
+    def _wrap_cache(self, provider: Any) -> Any:
+        if not (self.use_cache and (self.cache_read or self.cache_write) and self.cache_path):
+            return provider
+        from mas.runtime.registry.llm_provider_registry import wrap_llm_provider_cache
 
-    def _cache_writes_enabled(self) -> bool:
-        return self.use_cache and self.cache_write
+        return wrap_llm_provider_cache(
+            provider,
+            cache_path=self.cache_path,
+            cache_read=self.cache_read,
+            cache_write=self.cache_write,
+        )
 
     def reset_turn_state(self) -> None:
         self._pending_tool = ""
@@ -124,15 +149,10 @@ class LiveLlmEngine:
             use_model,
             " (override)" if model and model != self.model else "",
         )
-        if self._uses_model_access():
-            message = self._model_access_chat(
-                messages, tools=None, temperature=0.0, model=use_model
-            )
-        else:
-            api_key = os.environ.get(self.api_key_env, "")
-            message = self._chat_completion(
-                messages, api_key=api_key, tools=None, temperature=0.0, model=use_model
-            )
+        api_key = os.environ.get(self.api_key_env, "")
+        message = self._chat_completion(
+            messages, api_key=api_key, tools=None, temperature=0.0, model=use_model
+        )
         content = message.get("content") if isinstance(message, dict) else getattr(message, "content", "")
         return str(content or "").strip()
 
@@ -246,69 +266,22 @@ class LiveLlmEngine:
         messages = self._build_messages(tools=tool_defs)
         tools = llm_request_tools(messages, tools=tool_defs or None)
         answering_from_tools = has_tool_results(messages)
-
-        if self._cache_reads_enabled():
-            content, cached_usage, _source = lookup_response(
-                self._cache,
-                self.model,
+        try:
+            message = self._chat_completion(
                 messages,
-                tools=tool_defs or None,
+                api_key=os.environ.get(self.api_key_env, ""),
+                tools=tools,
+                temperature=0.0 if answering_from_tools else self.temperature,
             )
-            cached_message = assistant_message_from_cache_content(content)
-            if cached_message is not None:
-                return self._message_to_engine_return(
-                    io,
-                    cached_message,
-                    messages,
-                    tool_defs,
-                    answering_from_tools,
-                    cached_usage or {},
-                    "stop",
-                )
-
-        if self._uses_model_access():
-            try:
-                message = self._model_access_chat(
-                    messages,
-                    tools=tools,
-                    temperature=0.0 if answering_from_tools else self.temperature,
-                )
-            except Exception as exc:
-                logger.debug("model access call failed", exc_info=True)
-                return EngineIoReturn(
-                    correlation_id=io.correlation_id,
-                    response_kind="ERROR",
-                    next_step="STOP",
-                    text=str(exc),
-                    offered_tools=list(self._offered_tool_names),
-                )
-        else:
-            api_key = os.environ.get(self.api_key_env, "")
-            if not api_key:
-                return EngineIoReturn(
-                    correlation_id=io.correlation_id,
-                    response_kind="ERROR",
-                    next_step="STOP",
-                    text=f"Missing API key env {self.api_key_env} for live LLM.",
-                    offered_tools=list(self._offered_tool_names),
-                )
-
-            try:
-                message = self._chat_completion(
-                    messages,
-                    api_key=api_key,
-                    tools=tools,
-                    temperature=0.0 if answering_from_tools else self.temperature,
-                )
-            except Exception as exc:
-                logger.debug("live LLM call failed", exc_info=True)
-                return EngineIoReturn(
-                    correlation_id=io.correlation_id,
-                    response_kind="ERROR",
-                    next_step="STOP",
-                    text=classify_llm_http_error(exc),
-                    offered_tools=list(self._offered_tool_names),
-                )
+        except Exception as exc:
+            logger.debug("LLM provider call failed", exc_info=True)
+            return EngineIoReturn(
+                correlation_id=io.correlation_id,
+                response_kind="ERROR",
+                next_step="STOP",
+                text=classify_llm_http_error(exc),
+                offered_tools=list(self._offered_tool_names),
+            )
 
         usage = message.pop("usage", None) or {}
         finish_reason = message.pop("finish_reason", None) or ""
@@ -326,10 +299,9 @@ class LiveLlmEngine:
         usage: dict[str, Any],
         finish_reason: str,
     ) -> EngineIoReturn:
+        _ = messages, answering_from_tools
         message = maybe_recover_textual_tool_calls(message, tool_defs)
         tool_calls = message.get("tool_calls") or []
-        if self._cache_writes_enabled():
-            self._cache_message(messages, tool_defs, message, usage)
         if tool_calls and self.use_tool_loop:
             parsed: list[tuple[str, dict[str, Any]]] = []
             for call in tool_calls:
@@ -384,71 +356,6 @@ class LiveLlmEngine:
             offered_tools=self._names_from_tool_defs(tool_defs),
         )
 
-    def _cache_message(
-        self,
-        messages: list[dict[str, Any]],
-        tool_defs: list[dict[str, Any]],
-        message: dict[str, Any],
-        usage: dict[str, Any],
-    ) -> None:
-        cache_key = llm_cache_key(self.model, messages, tool_defs or None)
-        tool_calls = message.get("tool_calls") or []
-        if tool_calls:
-            self._cache[cache_key] = {
-                "tool_calls": tool_calls,
-                "usage": usage,
-                "source": "cache",
-            }
-            self._persist_cache()
-            return
-        text = str(message.get("content") or "").strip()
-        if not text:
-            return
-        self._cache[cache_key] = {
-            "content": text,
-            "usage": usage,
-            "source": "cache",
-        }
-        self._persist_cache()
-
-    def _model_access_chat(
-        self,
-        messages: list[dict[str, Any]],
-        *,
-        tools: list[dict[str, Any]] | None,
-        temperature: float,
-        model: str | None = None,
-    ) -> dict[str, Any]:
-        ma = self._model_access
-        if ma is None:
-            raise RuntimeError("model access not configured")
-        use_model = (model or self.model or "").strip() or self.model
-        if hasattr(ma, "chat_completion"):
-            return ma.chat_completion(
-                model=use_model,
-                messages=messages,
-                tools=tools,
-                temperature=temperature,
-                max_tokens=self.max_tokens,
-            )
-        if hasattr(ma, "complete"):
-            resp = ma.complete(
-                use_model,
-                messages,
-                temperature=temperature,
-                max_tokens=self.max_tokens,
-                tools=tools,
-            )
-            if isinstance(resp, dict):
-                return resp
-            content = getattr(resp, "content", None)
-            tool_calls = getattr(resp, "tool_calls", None)
-            out: dict[str, Any] = {"role": "assistant", "content": content}
-            if tool_calls:
-                out["tool_calls"] = tool_calls
-            return out
-        raise RuntimeError(f"model access {type(ma).__name__} has no chat_completion/complete")
-
     def _build_messages(self, *, tools: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
         if self.ctx:
             return assemble_llm_messages(self.ctx, manifest=self.manifest, tools=tools)
@@ -492,137 +399,27 @@ class LiveLlmEngine:
         temperature: float | None = None,
         model: str | None = None,
     ) -> dict[str, Any]:
-        import httpx
-
-        url = self.api_base.rstrip("/") + "/chat/completions"
-        payload: dict[str, Any] = {
-            "model": (model or self.model or "").strip() or self.model,
+        """Dispatch to ``llm_provider``. Tests may patch this method."""
+        provider = self.llm_provider
+        if provider is None:
+            raise RuntimeError("no LLM provider configured")
+        on_chunk = getattr(self.ctx, "on_stream_chunk", None) if self.ctx is not None else None
+        use_model = (model or self.model or "").strip() or self.model
+        kwargs: dict[str, Any] = {
+            "model": use_model,
             "messages": messages,
+            "tools": tools,
             "temperature": self.temperature if temperature is None else temperature,
             "max_tokens": self.max_tokens,
+            "stream": self.stream,
+            "on_stream_chunk": on_chunk,
+            "api_key": api_key,
+            "reasoning_effort": self.reasoning.effort,
+            "reasoning": self.reasoning,
+            "sampling": self.sampling.to_spec_dict() or None,
+            "extra_body": self.extra_body or None,
         }
-        if self.reasoning_effort:
-            payload["reasoning_effort"] = self.reasoning_effort
-        if tools:
-            payload["tools"] = tools
-            choice = llm_tool_choice(messages, tools=tools)
-            if choice:
-                payload["tool_choice"] = choice
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-        verify = resolve_ssl_verify(self.llm_proxy)
-        if self.stream:
-            return self._chat_completion_streamed(url, payload, headers, verify=verify)
-        with httpx.Client(timeout=self.http_timeout or 120.0, verify=verify) as client:
-            resp = client.post(url, json=payload, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
-        choices = data.get("choices") or []
-        if not choices:
-            return {}
-        message = dict(choices[0].get("message") or {})
-        usage = data.get("usage") or {}
-        if usage:
-            message["usage"] = usage
-        finish_reason = choices[0].get("finish_reason")
-        if finish_reason:
-            message["finish_reason"] = finish_reason
-        return message
-
-    def _chat_completion_streamed(
-        self,
-        url: str,
-        payload: dict[str, Any],
-        headers: dict[str, str],
-        *,
-        verify: Any,
-    ) -> dict[str, Any]:
-        """SSE-streamed variant of _chat_completion, same OpenAI-compatible
-        endpoint with ``stream: true``.
-
-        Reassembles the same message shape ({"content", "tool_calls",
-        "usage", "finish_reason"}) the non-streamed path returns, so nothing
-        downstream (_message_to_engine_return, caching) needs to know
-        streaming happened -- the only externally visible difference is that
-        content deltas are also forwarded, as they arrive, to
-        ``ctx.on_stream_chunk(text)`` if the caller set one (a plain
-        attribute read fresh per call, not a constructor field, so a caller
-        like a chat UI can install/replace it per turn without touching
-        engine construction).
-
-        Tool-call argument deltas are accumulated but never forwarded to
-        on_stream_chunk (only content text is): reconstructing valid partial
-        JSON mid-stream is unreliable and not what a "show the answer as
-        it's typed" UI wants anyway.
-        """
-        import httpx
-
-        stream_payload = dict(payload)
-        stream_payload["stream"] = True
-        on_chunk = getattr(self.ctx, "on_stream_chunk", None) if self.ctx is not None else None
-
-        content_parts: list[str] = []
-        tool_call_accum: dict[int, dict[str, Any]] = {}
-        finish_reason = ""
-        usage: dict[str, Any] = {}
-
-        with httpx.Client(timeout=self.http_timeout or 120.0, verify=verify) as client:
-            with client.stream("POST", url, json=stream_payload, headers=headers) as resp:
-                resp.raise_for_status()
-                for raw_line in resp.iter_lines():
-                    line = raw_line if isinstance(raw_line, str) else raw_line.decode("utf-8", "replace")
-                    if not line.startswith("data:"):
-                        continue
-                    data_str = line[len("data:") :].strip()
-                    if not data_str or data_str == "[DONE]":
-                        continue
-                    try:
-                        chunk = json.loads(data_str)
-                    except (TypeError, ValueError):
-                        continue
-                    if isinstance(chunk.get("usage"), dict):
-                        usage = chunk["usage"]
-                    choices = chunk.get("choices") or []
-                    if not choices:
-                        continue
-                    choice = choices[0]
-                    fr = choice.get("finish_reason")
-                    if fr:
-                        finish_reason = fr
-                    delta = choice.get("delta") or {}
-                    text = delta.get("content")
-                    if text:
-                        content_parts.append(text)
-                        if callable(on_chunk):
-                            try:
-                                on_chunk(text)
-                            except Exception:
-                                logger.exception("on_stream_chunk callback failed")
-                    for tc in delta.get("tool_calls") or []:
-                        idx = int(tc.get("index", 0) or 0)
-                        slot = tool_call_accum.setdefault(
-                            idx, {"id": "", "type": "function", "function": {"name": "", "arguments": ""}}
-                        )
-                        if tc.get("id"):
-                            slot["id"] = tc["id"]
-                        fn = tc.get("function") or {}
-                        if fn.get("name"):
-                            slot["function"]["name"] += fn["name"]
-                        if fn.get("arguments"):
-                            slot["function"]["arguments"] += fn["arguments"]
-
-        message: dict[str, Any] = {"content": "".join(content_parts) or None}
-        if tool_call_accum:
-            message["tool_calls"] = [tool_call_accum[i] for i in sorted(tool_call_accum)]
-        if usage:
-            message["usage"] = usage
-        if finish_reason:
-            message["finish_reason"] = finish_reason
-        return message
-
-    def _persist_cache(self) -> None:
-        if not self.cache_path:
-            return
-        persist_cache(self.cache_path, self._cache)
+        kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        if not hasattr(provider, "chat_completion"):
+            raise RuntimeError(f"LLM provider {type(provider).__name__} has no chat_completion")
+        return provider.chat_completion(**kwargs)

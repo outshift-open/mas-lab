@@ -36,5 +36,11 @@
   (not deprecated). Offline CI records a live provider into
   `tests/fixtures/llm-cache/ci.llm-cache.json` and replays with
   `raise_on_miss`.
+- LLM access now goes through `llm_provider` plugins registered by URN
+  (`runtime/src/mas/runtime/registry/llm_provider_registry.py`). Wire
+  protocol and cache live in `library-standard` (`plugins/llm/`). The old
+  `llm_proxy.model_access.module_path` / `class_name` infra config is no
+  longer read; a custom implementation must register as an `llm_provider`
+  plugin (see `library-standard/src/mas/library/standard/plugins/llm/README.md`).
 
 ## Initial release v0.1

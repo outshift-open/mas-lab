@@ -26,8 +26,27 @@ types:
   - memory
   - governance
   - tool_provider
+  - llm_provider
 
 plugins:
+  # Wire protocols (routed by spec.models[].kind / infra spec.protocol)
+  - type: llm_provider
+    name: openai
+    urn: mas.llm_provider.openai
+    module: mas.library.standard.plugins.llm.openai
+    class: OpenAILLMProvider
+    shortcuts:
+      - openai
+  # Decorator around a routed protocol plugin — not claimed as spec.models[].kind
+  - type: llm_provider
+    name: cache
+    urn: mas.llm_provider.cache
+    module: mas.library.standard.plugins.llm.cache
+    class: CacheLLMProvider
+    shortcuts:
+      - cache
+      - llm_cache
+
   # Default in-process Python spec.tools (used when spec.providers is omitted)
   - type: tool_provider
     name: local
@@ -170,3 +189,4 @@ plugins:
 defaults:
   tool_provider: local
   summarizer: llm
+  llm_provider: openai

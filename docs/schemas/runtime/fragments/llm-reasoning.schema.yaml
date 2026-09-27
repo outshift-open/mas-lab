@@ -1,0 +1,56 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#llm-reasoning"
+title: LlmReasoning
+description: >
+  Thinking / chain-of-thought controls. Portable overset of vendor fields.
+  See docs/manifests/llm-reasoning.md. Per-model support lives in the
+  versioned catalog (docs/manifests/llm-model-catalog.md).
+type: object
+additionalProperties: false
+properties:
+  effort:
+    type: string
+    enum: [none, disable, minimal, low, medium, high, xhigh, max]
+    description: >
+      How much hidden thinking the model should do. ``none`` / ``disable``
+      turn thinking off where the backend allows it.
+  budget_tokens:
+    type: integer
+    minimum: 0
+    description: >
+      Thinking-token cap (OpenRouter/Anthropic reasoning.max_tokens,
+      Gemini thinkingBudget via LiteLLM). Independent of max_tokens.
+  exclude:
+    type: boolean
+    default: true
+    description: >
+      Omit chain-of-thought from the assistant message (default true).
+      MAS also strips reasoning / <think> locally so CoT does not enter
+      working memory.
+  mode:
+    type: string
+    enum: [standard, pro]
+    description: >
+      OpenAI Responses / GPT-5.6 reasoning.mode. Sent as reasoning.mode
+      on Chat Completions when the catalog (or the user) asks for it.
+      LiteLLM proxies may map this; api.openai.com Chat Completions may 400.
+  think:
+    oneOf:
+      - type: boolean
+      - type: string
+        enum: [low, medium, high]
+    description: >
+      Ollama / vLLM / gpt-oss think flag. Ollama Chat Completions send
+      top-level ``think``. Native vLLM OpenAI servers get
+      ``chat_template_kwargs.enable_thinking`` merged into the JSON body
+      (OpenAI SDK ``extra_body`` semantics). Catalog-gated so Azure/OpenAI
+      hosted models do not receive it.
+  include:
+    type: array
+    items:
+      type: string
+    description: >
+      Extra response parts to request, e.g. reasoning.encrypted_content
+      (Responses-style multi-turn state). Forwarded when the spec sets it.

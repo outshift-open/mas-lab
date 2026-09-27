@@ -48,8 +48,15 @@ spec:
 
 ## Merge semantics
 
-RFC 7396-style merge on the target resource. Separation rules reject model endpoints,
-api keys, and raw system-prompt rewrites in `patch` (use agent `role` / overlay agent blocks).
+RFC 7396-style merge on the target resource. Flavour overlays still cannot
+select models or API keys (deployment posture only). **Agent** overlays may
+patch **any** Agent `spec` field the schema declares (including `models[]`,
+sampling, `reasoning`, `extra`, `description`, `behavior`, `tools_ref`).
+`spec.models[]` deep-merges by `id`, then `model`, then `main`. Access fields
+(`api_base`, `api_key_env`) stay on infra.
+
+Examples: [llm-reasoning.yaml](../schemas/examples/overlays/llm-reasoning.yaml),
+[llm-sampling.yaml](../schemas/examples/overlays/llm-sampling.yaml).
 
 On a MAS overlay, `patch.agents.$entry` is applied to `spec.workflow.entry` after this
 overlay's `workflow` patch (so a design-pattern overlay need not name the entry agent).

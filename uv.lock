@@ -2837,6 +2837,7 @@ version = "0.1.0"
 source = { editable = "library-standard" }
 dependencies = [
     { name = "ddgs" },
+    { name = "httpx" },
     { name = "mas-runtime" },
 ]
 
@@ -2849,6 +2850,7 @@ otel = [
 [package.metadata]
 requires-dist = [
     { name = "ddgs", specifier = ">=9.14.0" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "mas-runtime", editable = "runtime" },
     { name = "opentelemetry-exporter-otlp-proto-http", marker = "extra == 'otel'", specifier = ">=1.27.0" },
     { name = "opentelemetry-sdk", marker = "extra == 'otel'", specifier = ">=1.27.0" },

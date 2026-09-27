@@ -18,6 +18,8 @@ from mas.runtime.agent_defaults import default_pattern_plugin_id, resolve_defaul
 from mas.runtime.spec.model_ref import concrete_model, first_concrete, primary_model_binding
 from mas.runtime.driver.mocks import AutoCtxAssembler
 from mas.runtime.engine.llm_cache import resolve_cache_path
+from mas.runtime.engine.llm_reasoning import reasoning_settings_from_manifest
+from mas.runtime.engine.llm_request import model_entry_from_manifest
 from mas.runtime.engine.llm_live import LiveLlmEngine
 from mas.runtime.kernel.config import KernelConfig
 
@@ -26,9 +28,11 @@ logger = logging.getLogger(__name__)
 _LLM_SPEC_DEPRECATION = "spec.llm is deprecated; declare model settings under spec.models[] instead"
 
 
-def _primary_model_entry(spec: dict[str, Any]) -> dict[str, Any] | None:
+def _primary_model_entry(spec: dict[str, Any], *, model: str | None = None) -> dict[str, Any] | None:
+    if model:
+        return model_entry_from_manifest({"spec": spec}, model=model)
     entry = primary_model_binding({"spec": spec} if spec else {})
-    return entry or None
+    return entry or model_entry_from_manifest({"spec": spec}, model=model)
 
 
 def _warn_llm_spec_fallback(field: str) -> None:
@@ -103,23 +107,31 @@ def resolve_model_name(
     return str(mappings.get(raw, raw))
 
 
-def _resolve_sampling_param(manifest: dict | None, key: str, default: float) -> float:
-    """Read a sampling param from ``spec.models[0]``, then deprecated ``spec.llm``."""
+def _resolve_sampling_param(
+    manifest: dict | None, key: str, default: float, *, model: str | None = None
+) -> float:
+    """Read a sampling param from the matching ``spec.models[]`` row, then ``spec.llm``."""
     spec = (manifest or {}).get("spec") or {}
-    entry = _primary_model_entry(spec)
+    entry = _primary_model_entry(spec, model=model)
     if entry and key in entry:
         return float(entry[key])
     llm = spec.get("llm") or {}
     if key in llm:
         _warn_llm_spec_fallback(key)
         return float(llm[key])
+    from mas.runtime.engine.llm_model_catalog import default_model_catalog
+
+    name = model or (entry or {}).get("model")
+    info = default_model_catalog().get(str(name) if name else None)
+    if info is not None and key in info.defaults:
+        return float(info.defaults[key])
     return default
 
 
-def _resolve_model_option(manifest: dict | None, key: str) -> str | None:
-    """Read a string model option from ``spec.models[0]``, then deprecated ``spec.llm``."""
+def _resolve_model_option(manifest: dict | None, key: str, *, model: str | None = None) -> str | None:
+    """Read a string model option from the matching ``spec.models[]`` row, then ``spec.llm``."""
     spec = (manifest or {}).get("spec") or {}
-    entry = _primary_model_entry(spec)
+    entry = _primary_model_entry(spec, model=model)
     value = entry.get(key) if entry else None
     if value is None:
         llm = spec.get("llm") or {}
@@ -233,6 +245,20 @@ def build_engine(
     cache_path = Path(str(cache_raw)) if cache_raw else resolve_cache_path() if cache_active else None
     stream = _stream_enabled(runtime_engine, override=stream_override)
 
+    from mas.runtime.registry.llm_provider_registry import llm_provider_from_infra
+
+    reasoning = reasoning_settings_from_manifest(manifest, model=model)
+    llm_provider = llm_provider_from_infra(
+        llm_proxy,
+        manifest=manifest,
+        stream=stream,
+        reasoning_effort=reasoning.effort,
+        reasoning=reasoning.to_spec_dict(),
+        cache_path=cache_path,
+        wrap_cache=cache_active,
+        cache_read=cache_read,
+        cache_write=cache_write,
+    )
     engine = _wrap_with_infra_pipeline(
         LiveLlmEngine(
             ctx=ctx,
@@ -240,11 +266,12 @@ def build_engine(
             api_base=api_base or "https://api.openai.com/v1",
             api_key_env=api_key_env,
             model=model,
-            temperature=_resolve_sampling_param(manifest, "temperature", 0.7),
-            max_tokens=int(_resolve_sampling_param(manifest, "max_tokens", 2000)),
-            reasoning_effort=_resolve_model_option(manifest, "reasoning_effort"),
+            temperature=_resolve_sampling_param(manifest, "temperature", 0.7, model=model),
+            max_tokens=int(_resolve_sampling_param(manifest, "max_tokens", 2000, model=model)),
+            reasoning_effort=reasoning.effort,
+            reasoning=reasoning.to_spec_dict(),
             cache_path=cache_path,
-            use_cache=cache_active,
+            use_cache=False,
             cache_read=cache_read,
             cache_write=cache_write,
             stream=stream,
@@ -252,6 +279,7 @@ def build_engine(
             parallel_tool_calls=kernel_cfg.parallel_tool_calls,
             llm_proxy=llm_proxy,
             http_timeout=http_timeout,
+            llm_provider=llm_provider,
         ),
         llm_proxy.get("pipeline") or [],
     )

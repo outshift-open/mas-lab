@@ -24,6 +24,7 @@ These boundaries are wired in the kernel and exercised by tutorials and paper la
 | `ContextContract` / `ContextManagerContract` | Prompt and conversation context |
 | `DesignPatternPlugin` | ReAct, chain-of-thought, single-pass lifecycles |
 | `EngineContract` | LLM, tool, and memory I/O |
+| `LLMProvider` | Chat-completion wire protocol (OpenAI-compatible now; routed like tools). Static knobs: [`spec.models[]`](../manifests/agent.md) sampling/`reasoning`/`extra` + [catalog](../manifests/llm-model-catalog.md). Dynamic kwargs: `stream`, `stream_options`, `tool_choice`, `extra_body`, `extra_headers`, `extra_query`. |
 | `CtxAssembler` | Context / prompt assembly |
 | `ObservabilitySink` / `EventEmitter` | Trace and JSONL event emission |
 | `BudgetTracker` + budget overlays | Stateful token/cost governance (`lifecycle-control.lab`) |

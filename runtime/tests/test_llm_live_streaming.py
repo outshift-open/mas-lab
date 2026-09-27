@@ -35,7 +35,7 @@ class _FakeClient:
     def __init__(self, lines: list[str], **_: object) -> None:
         self._lines = lines
 
-    def stream(self, method: str, url: str, *, json: object, headers: object):
+    def stream(self, method: str, url: str, *, json: object, headers: object, params: object = None):
         assert method == "POST"
         return _FakeStreamResponse(self._lines)
 
