@@ -367,6 +367,82 @@ def test_apply_agency_entry_overlay_context_op_add_appends_without_duplicating()
     ]
 
 
+def test_apply_agency_entry_overlay_merges_governance_and_observability():
+    from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
+
+    manifest = {
+        "metadata": {"name": "a"},
+        "spec": {
+            "governance": ["sample_governance"],
+            "observability": ["otel"],
+        },
+    }
+    entry = {
+        "id": "a",
+        "spec": {
+            "governance": [{"gov_no_undeclared_tool": {}}],
+            "observability": ["native"],
+        },
+    }
+    merged = apply_agency_entry_overlay(manifest, entry)
+    gov = merged["spec"]["governance"]
+    names = [g if isinstance(g, str) else next(iter(g)) for g in gov]
+    assert "sample_governance" in names
+    assert "gov_no_undeclared_tool" in names
+    obs = merged["spec"]["observability"]
+    assert "otel" in obs
+    assert "native" in obs
+
+
+def test_apply_agency_entry_overlay_empty_governance_clears():
+    from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
+
+    manifest = {"metadata": {"name": "a"}, "spec": {"governance": ["sample_governance"]}}
+    merged = apply_agency_entry_overlay(manifest, {"id": "a", "spec": {"governance": []}})
+    assert merged["spec"]["governance"] == []
+
+
+def test_fanout_agency_row_merges_onto_agent_yaml():
+    from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
+    from mas.ctl.overlay.merge import merge_overlay
+
+    mas = {
+        "kind": "MAS",
+        "spec": {
+            "agency": {
+                "agents": [
+                    {"id": "moderator", "ref": "agents/moderator.yaml"},
+                ]
+            }
+        },
+    }
+    overlay = {
+        "apiVersion": "mas/v1",
+        "kind": "Overlay",
+        "metadata": {"name": "with-guardrail"},
+        "spec": {
+            "target": {"kind": "Agent"},
+            "patch": {
+                "observability": ["native"],
+                "governance": [{"sample_governance": {"policies": [{"name": "forbidden-destination"}]}}],
+            },
+        },
+    }
+    fanned = merge_overlay(mas, overlay)
+    entry = fanned["spec"]["agency"]["agents"][0]
+    agent = {
+        "metadata": {"name": "moderator"},
+        "spec": {"governance": ["sample_governance"], "observability": ["otel"]},
+    }
+    merged = apply_agency_entry_overlay(agent, entry)
+    names = [g if isinstance(g, str) else next(iter(g)) for g in merged["spec"]["governance"]]
+    assert "sample_governance" in names
+    assert merged["spec"]["observability"] == ["otel", "native"] or set(merged["spec"]["observability"]) == {
+        "otel",
+        "native",
+    }
+
+
 def test_agency_entries_by_id_prefers_agency_bucket():
     from mas.ctl.manifest.mas_agent_merge import _agency_entries_by_id
 

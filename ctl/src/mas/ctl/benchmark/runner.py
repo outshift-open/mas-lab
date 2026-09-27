@@ -208,24 +208,6 @@ def ensure_live_otel_span_files(events_path: Path, obs_cfg: Any) -> None:
             logger.warning("Failed to materialize span export %s", dest, exc_info=True)
 
 
-def _default_observability_overlay_path() -> Path:
-    """Canonical ``observability-native`` overlay shipped with library-standard."""
-    import mas.library.standard as std_pkg
-
-    return (Path(std_pkg.__file__).resolve().parent / "overlays" / "observability-native.yaml")
-
-
-def _ensure_observability_overlay(overlay_paths: list[Path]) -> list[Path]:
-    """Prepend observability-native overlay so lab/bench runs are always instrumented."""
-    obs = _default_observability_overlay_path()
-    if not obs.is_file():
-        return overlay_paths
-    resolved = obs.resolve()
-    if any(p.resolve() == resolved for p in overlay_paths):
-        return overlay_paths
-    return [resolved, *overlay_paths]
-
-
 def _resolve_overlay_paths(
     overlay_refs: list[OverlayRefEntry],
     *,
@@ -419,13 +401,16 @@ class MasBenchRunner:
                 experiment_model_slots=experiment_model_slots,
             )
 
-        overlay_paths = _ensure_observability_overlay(
-            _resolve_overlay_paths(
-                overlay_refs,
-                manifest_path=resolved_mas_path,
-                overlays_dir=overlays_dir,
-                base_dir=overlay_base_dir,
-            )
+        # Do not prepend observability-native. That overlay is target.kind:
+        # Agent; compose now fans it onto every agency row, which would give
+        # each agent a private native sink on top of bench_obs_config's
+        # shared traces/events.jsonl. The harness already instruments MAS
+        # runs via setup_run_observability.
+        overlay_paths = _resolve_overlay_paths(
+            overlay_refs,
+            manifest_path=resolved_mas_path,
+            overlays_dir=overlays_dir,
+            base_dir=overlay_base_dir,
         )
         compose = compose_run(
             ComposeRequest(

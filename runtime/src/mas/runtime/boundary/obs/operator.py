@@ -91,6 +91,11 @@ class ObservabilityOperator:
         if plugin not in self._subscribers:
             self._subscribers.append(plugin)
 
+    def unsubscribe(self, plugin: object) -> None:
+        """Drop a previously subscribed plugin. No-op if it is not registered."""
+        if plugin in self._subscribers:
+            self._subscribers.remove(plugin)
+
     def set_context(
         self,
         *,

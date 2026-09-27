@@ -9,6 +9,11 @@ merged, omitted runtime defaults filled. That is the in-memory Agent or MAS
 dict `chat` / `run-mas` hold **before** bootstrap wiring (delegation tools,
 skill injection, expanding tool refs to files).
 
+`mas-ctl compile` applies `target.kind: Agent` overlays onto each nested agent
+file. `compose` / `run-mas` merge those same overlays onto the MAS document:
+`merge_overlay` copies the patch onto `spec.agency.agents[]`, then instantiate
+unions each row onto the agent YAML. See [overlay.md](../manifests/overlay.md).
+
 `mas-ctl compose` is different: it emits **EffectiveBind** + **placement**.
 Use `compile` to inspect or snapshot YAML; use `compose` to inspect runtime
 bind and placement.

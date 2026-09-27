@@ -37,6 +37,7 @@ from mas.runtime.schema.egress import (
     RequestCtxAssembly,
 )
 from mas.runtime.schema.ingress import EngineIoReturn, IngressSymbol, UserInputReceived
+from mas.runtime.schema.observability import ObsEventKind
 from mas.runtime.spec.defaults import DEFAULT_MAX_AUTO_STEPS
 
 _logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ ExchangeKind = Literal[
     "llm_response",
     "tool_call",
     "tool_result",
+    "gov_block",
 ]
 
 
@@ -73,6 +75,7 @@ class ExchangeRecord:
     tools: list[dict[str, Any]] | None = None
     tools_note: str = ""
     engine_raw: str = ""
+    policy_name: str | None = None
 
 
 def engine_model_id(engine: Any) -> str:
@@ -288,6 +291,7 @@ class KernelDriver:
     # and egress alike) produced while that turn runs, until the next
     # UserInputReceived replaces it. See GovTransition.task_id.
     _current_task_id: str = field(default="", repr=False)
+    _gov_exchange_seq: int = field(default=0, repr=False)
 
     def __post_init__(self) -> None:
         if self.engine_pool is None and self.engine is not None:
@@ -387,6 +391,7 @@ class KernelDriver:
                             self.coordination.on_egress_hitl(self.kernel.q)
                     if sym.kind != EgressKind.INVOKE_ENGINE_IO:
                         self.observability.record_egress(sym, self.kernel.q)
+            self._emit_gov_block_exchanges(trace)
             auto_steps += 1
 
             engine_ios: list[InvokeEngineIo] = []
@@ -466,6 +471,7 @@ class KernelDriver:
 
         if sym.kind == EgressKind.RAISE_BOUNDARY_ERROR:
             assert isinstance(sym, RaiseBoundaryError)
+            self._emit_gov_block_from_symbol(trace, sym)
             trace.boundary_errors.append(sym)
             return []
 
@@ -485,6 +491,52 @@ class KernelDriver:
         trace.exchanges.append(record)
         for plugin in self.exchange_plugins:
             plugin.on_exchange(record)
+
+    def _gov_block_exchange(self, *, policy_name: str, text: str) -> ExchangeRecord:
+        ts_mono, ts_wall = _exchange_timestamp()
+        return ExchangeRecord(
+            kind="gov_block",
+            text=text,
+            ts_mono=ts_mono,
+            ts_wall=ts_wall,
+            agent_id=self.agent_id,
+            policy_name=policy_name or None,
+        )
+
+    def _emit_gov_block_from_symbol(self, trace: DriverTrace, sym: RaiseBoundaryError) -> None:
+        if sym.code not in {"GOV_BLOCK", "GOV_TERMINATE"}:
+            return
+        if any(ex.kind == "gov_block" and ex.policy_name == (sym.policy_name or None) for ex in trace.exchanges):
+            return
+        self._emit_exchange(
+            trace,
+            self._gov_block_exchange(policy_name=sym.policy_name, text=sym.message or sym.code),
+        )
+
+    def _emit_gov_block_exchanges(self, trace: DriverTrace) -> None:
+        """Print AGENT->GOV on --trace when egress governance BLOCKs, including
+        the TOOL_CALL recovery path that never raises RaiseBoundaryError."""
+        if self.observability is None:
+            return
+        for ev in self.observability.events:
+            if ev.seq <= self._gov_exchange_seq:
+                continue
+            self._gov_exchange_seq = ev.seq
+            if ev.kind != ObsEventKind.GOVERNANCE_DECISION:
+                continue
+            payload = ev.payload or {}
+            if payload.get("hook") != "egress" or payload.get("checkpoint") != "after":
+                continue
+            if payload.get("decision") not in {"BLOCK", "TERMINATE"}:
+                continue
+            policy_name = ev.policy_name or str(payload.get("policy_name") or "")
+            text = str(payload.get("reason") or payload.get("decision") or "")
+            if any(
+                ex.kind == "gov_block" and (ex.policy_name or "") == policy_name and ex.text == text
+                for ex in trace.exchanges
+            ):
+                continue
+            self._emit_exchange(trace, self._gov_block_exchange(policy_name=policy_name, text=text))
 
     def _notify_governance(
         self, hook: Literal["ingress", "egress"], symbol: IngressSymbol | EgressSymbol

@@ -6,6 +6,8 @@ metadata:
   name: with-guardrail-fault
 # +Guardrail (fault scenario): same as with-guardrail but tested with
 # a query that contains "Shadowmere" — the policy should fire.
+#
+# Agent overlay on a MAS: see with-guardrail.yaml (fan-out onto agency rows).
 spec:
   target:
     kind: Agent

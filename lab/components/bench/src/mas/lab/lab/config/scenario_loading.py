@@ -36,6 +36,47 @@ def _resolved_overlay_agents(overlay_spec: dict, config: dict) -> dict:
     return _resolve_mas_agent_patches(raw, entry=entry)
 
 
+def _apply_overlay_plugin_list(
+    overlay: Optional[dict],
+    overlay_spec: dict,
+    config: dict,
+    field: str,
+) -> bool:
+    """Union an overlay plugin list onto every agent's *field*.
+
+    Same absent-vs-empty distinction as :func:`_apply_overlay_governance`.
+    A raw list concatenates (with plugin-id dedup). ``{"$op": ...}`` uses
+    overlay merge semantics so ``$op.add`` / ``$op.clear`` match Agent YAML.
+    """
+    from mas.ctl.overlay.merge import _ops_dict, merge_agent_overlay
+
+    incoming = _MISSING
+    if overlay:
+        incoming = overlay.get("spec", {}).get(field, _MISSING)
+    if incoming is _MISSING:
+        incoming = overlay_spec.get(field, _MISSING)
+    if incoming is _MISSING or not config.get("agents"):
+        return False
+
+    ops = _ops_dict(incoming)
+    if ops is None:
+        patch_value = list(incoming or [])
+        if not patch_value:
+            for agent_cfg in config["agents"]:
+                agent_cfg[field] = []
+            return True
+        patch_value = {"$op": {"add": patch_value}}
+    else:
+        patch_value = incoming
+
+    overlay_doc = {"spec": {"patch": {field: patch_value}}}
+    for agent_cfg in config["agents"]:
+        stub = {"spec": {field: list(agent_cfg.get(field) or [])}}
+        merged = merge_agent_overlay(stub, overlay_doc)
+        agent_cfg[field] = list((merged.get("spec") or {}).get(field) or [])
+    return True
+
+
 def _apply_overlay_governance(overlay: Optional[dict], overlay_spec: dict, config: dict) -> bool:
     """Inject an overlay's governance plugin list onto each agent's own
     "governance" list, mirroring the spec.plugins merge elsewhere in this
@@ -51,21 +92,7 @@ def _apply_overlay_governance(overlay: Optional[dict], overlay_spec: dict, confi
     Returns True when a governance key was present and applied (for the
     caller's own debug logging), False when there was nothing to do.
     """
-    _overlay_gov = _MISSING
-    if overlay:
-        _overlay_gov = overlay.get("spec", {}).get("governance", _MISSING)
-    if _overlay_gov is _MISSING:
-        _overlay_gov = overlay_spec.get("governance", _MISSING)
-    if _overlay_gov is _MISSING or not config.get("agents"):
-        return False
-    _overlay_gov = list(_overlay_gov or [])
-    for _agent_cfg in config["agents"]:
-        if _overlay_gov:
-            _existing = list(_agent_cfg.get("governance") or [])
-            _agent_cfg["governance"] = _existing + _overlay_gov
-        else:
-            _agent_cfg["governance"] = []
-    return True
+    return _apply_overlay_plugin_list(overlay, overlay_spec, config, "governance")
 
 
 def discover_scenario_stems(scenarios_dir: Path) -> List[str]:
@@ -323,6 +350,8 @@ def load_scenario_config(
 
         if _apply_overlay_governance(overlay, overlay_spec, config):
             logger.debug("[overlay] governance policies injected (scenario=%s)", scenario_id)
+        if _apply_overlay_plugin_list(overlay, overlay_spec, config, "observability"):
+            logger.debug("[overlay] observability sinks injected (scenario=%s)", scenario_id)
 
         # Embed the full raw overlay in the config so _compute_run_hash captures
         # every overlay dimension automatically — including any fields not yet
@@ -506,6 +535,7 @@ def load_stacked_config(
                     _agent_cfg.setdefault("pattern_params", {}).update(dp_params)
 
         _apply_overlay_governance(overlay, overlay_spec, config)
+        _apply_overlay_plugin_list(overlay, overlay_spec, config, "observability")
 
         # Overlay-level plugins injection (spec.plugins)
         if overlay:

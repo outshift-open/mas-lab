@@ -88,6 +88,50 @@ def setup_shared_obs(
     return shared_set
 
 
+def _emitter_path(plugin: object) -> Path | None:
+    for emitter in getattr(plugin, "emitters", None) or []:
+        path = getattr(emitter, "path", None)
+        if path is not None:
+            return Path(path)
+    return None
+
+
+def _is_default_native_plugin_set(plugin_set: object) -> bool:
+    """True when *plugin_set* is native-only writing the default traces/events.jsonl.
+
+    Agent overlays such as ``observability-native`` and ``with-guardrail``
+    declare ``observability: [native]`` (optionally with path
+    ``traces/events.jsonl``). After Agent-on-MAS fan-out that list lands on
+    every agency row, so materialization builds a private plugin set per
+    agent. That is "enable native for this run", not an isolated sink — the
+    ctl shared ``events.jsonl`` already covers it. A custom filename or an
+    extra plugin (otel, …) stays scoped.
+    """
+    plugins = list(getattr(plugin_set, "plugins", None) or [])
+    if len(plugins) != 1:
+        return False
+    plugin = plugins[0]
+    plugin_id = str(getattr(plugin, "plugin_id", "") or type(plugin).__name__).lower()
+    if "native" not in plugin_id:
+        return False
+    path = _emitter_path(plugin)
+    if path is None:
+        return True
+    return path.name == "events.jsonl" and path.parent.name == "traces"
+
+
+def _release_plugin_set(instance: "RuntimeInstance") -> None:
+    """Unsubscribe a private set without ``close()`` (that would emit ``mas_call_end``)."""
+    plugin_set = getattr(instance, "obs_plugin_set", None)
+    op = getattr(getattr(instance, "driver", None), "observability", None)
+    if plugin_set is not None and op is not None:
+        unsubscribe = getattr(op, "unsubscribe", None)
+        for plugin in getattr(plugin_set, "plugins", None) or []:
+            if callable(unsubscribe):
+                unsubscribe(plugin)
+    instance.obs_plugin_set = None
+
+
 def partition_instances_by_observability(
     instances: "dict[str, RuntimeInstance]",
 ) -> "tuple[dict[str, RuntimeInstance], dict[str, RuntimeInstance]]":
@@ -97,21 +141,26 @@ def partition_instances_by_observability(
     plugin set from an agent's own non-empty ``spec.observability`` — see
     ``mas.runtime.spec.parser.parse_agent_spec``, which returns a binding only
     when that agent's manifest declares a non-empty plugin list. An instance
-    that already carries one (``instance.obs_plugin_set is not None``) must be
-    left alone: folding it into the shared set via :func:`setup_shared_obs`
-    would attach a *second* plugin set to the same operator (subscribing is
-    additive, not a replacement — see :meth:`ObsPluginSet.subscribe_to`), so
-    its events would land in both its own sink and the shared events.jsonl
-    instead of being cleanly scoped to just its own. Instances with no
-    self-declared observability (the common case) join the shared set as before.
+    that already carries a *custom* set (``instance.obs_plugin_set is not None``
+    and not default-native) must be left alone: folding it into the shared set
+    via :func:`setup_shared_obs` would attach a *second* plugin set to the same
+    operator (subscribing is additive, not a replacement — see
+    :meth:`ObsPluginSet.subscribe_to`), so its events would land in both its
+    own sink and the shared events.jsonl instead of being cleanly scoped to
+    just its own. Default ``native`` / ``traces/events.jsonl`` is released and
+    joins the shared set. Instances with no self-declared observability (the
+    common case) join the shared set as before.
     """
     shared: "dict[str, RuntimeInstance]" = {}
     scoped: "dict[str, RuntimeInstance]" = {}
     for agent_id, instance in instances.items():
-        if getattr(instance, "obs_plugin_set", None) is not None:
+        plugin_set = getattr(instance, "obs_plugin_set", None)
+        if plugin_set is not None and not _is_default_native_plugin_set(plugin_set):
             scoped[agent_id] = instance
-        else:
-            shared[agent_id] = instance
+            continue
+        if plugin_set is not None:
+            _release_plugin_set(instance)
+        shared[agent_id] = instance
     return shared, scoped
 
 

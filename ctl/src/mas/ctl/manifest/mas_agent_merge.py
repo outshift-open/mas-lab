@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from mas.ctl.overlay.merge import _ops_dict, merge_context_map
+from mas.ctl.overlay.merge import _ops_dict, _plugin_entry_key, merge_agent_overlay, merge_context_map
 from mas.runtime.boundary.context.manifest_context import routing_description_from_agent
 from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
 from mas.runtime.boundary.delegation.policy import delegation_targets
@@ -133,6 +133,26 @@ def _apply_description_overlay(
         spec["description"] = description.strip()
 
 
+def _plugin_list_as_add(value: Any) -> Any:
+    """Union a plain plugin list onto the agent YAML list (upsert by plugin id).
+
+    Agency-entry inline ``governance`` / ``observability`` used to replace the
+    agent YAML list. Agent overlays that fan out onto a MAS must keep other
+    plugins the agent already declared. Same plugin id is replaced by the
+    overlay stanza (so ``sample_governance`` plus policies overwrites a bare
+    ``sample_governance`` string). An explicit empty list still clears.
+    ``$op`` values pass through.
+    """
+    if _ops_dict(value) is not None:
+        return copy.deepcopy(value)
+    if isinstance(value, list):
+        if not value:
+            return {"$op": {"clear": True}}
+        keys = [_plugin_entry_key(item) for item in value]
+        return {"$op": {"remove": [k for k in keys if k], "add": copy.deepcopy(value)}}
+    return copy.deepcopy(value)
+
+
 def apply_agency_entry_overlay(
     agent_manifest: dict[str, Any],
     agency_entry: dict[str, Any],
@@ -154,9 +174,19 @@ def apply_agency_entry_overlay(
     if tools_val:
         spec["tools"] = _merge_agency_entry_tools(list(spec.get("tools") or []), tools_val)
 
-    for field in ("design_pattern", "context_manager", "assembler", "skills", "memory", "governance"):
+    for field in ("design_pattern", "context_manager", "assembler", "skills", "memory"):
         if (val := _entry_val(agency_entry, entry_spec, field)) is not None:
             spec[field] = copy.deepcopy(val)
+
+    plugin_patch: dict[str, Any] = {}
+    for field in ("governance", "observability"):
+        val = _entry_val(agency_entry, entry_spec, field)
+        if val is not None:
+            plugin_patch[field] = _plugin_list_as_add(val)
+    if plugin_patch:
+        merged = merge_agent_overlay(out, {"spec": {"patch": plugin_patch}})
+        out["spec"] = merged.get("spec") or spec
+        spec = out["spec"]
 
     memory_seed = _entry_val(agency_entry, entry_spec, "memory_seed")
     if memory_seed:

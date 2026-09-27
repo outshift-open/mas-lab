@@ -64,6 +64,7 @@ class RaiseBoundaryError(BaseModel):
     code: str
     recoverable: bool = True
     message: str = ""
+    policy_name: str = ""
 
 
 class RequestCtxAssembly(BaseModel):

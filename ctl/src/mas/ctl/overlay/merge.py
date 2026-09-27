@@ -520,7 +520,7 @@ def apply_merge_patch(target: Any, patch: Any) -> Any:
 
 
 class OverlayTargetError(ValueError):
-    """A Flavour-targeted overlay patch contains a key that isn't deployment posture."""
+    """Overlay target kind, name, or patch field does not match the base document."""
 
 
 _ENTRY_AGENT_KEY = "$entry"
@@ -730,12 +730,106 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
     return merged
 
 
+def _nested_agent_rows(spec: dict[str, Any]) -> list[dict[str, Any]]:
+    """Agency rows that an Agent overlay can fan out onto.
+
+    ``spec.agency.agents`` wins when present (even if empty); otherwise
+    ``spec.agents``. Empty agency.agents does not fall through to spec.agents —
+    that list is the declared participant set.
+    """
+    agency = spec.get("agency")
+    if isinstance(agency, dict) and "agents" in agency:
+        agents = agency.get("agents") or []
+        return [e for e in agents if isinstance(e, dict)]
+    agents = spec.get("agents")
+    if isinstance(agents, list):
+        return [e for e in agents if isinstance(e, dict)]
+    return []
+
+
+def _base_is_mas(base: dict[str, Any]) -> bool:
+    kind = str(base.get("kind") or "").lower()
+    if kind in ("mas", "app", "workflow"):
+        return True
+    spec = base.get("spec") or {}
+    return bool(_nested_agent_rows(spec if isinstance(spec, dict) else {}))
+
+
+def _overlay_target_name(overlay: dict[str, Any]) -> str | None:
+    name = ((overlay.get("spec") or {}).get("target") or {}).get("name")
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+    return None
+
+
+def _row_matches_agent_target(row: dict[str, Any], target_name: str) -> bool:
+    keys = {
+        str(row.get("id") or "").strip(),
+        str(row.get("name") or "").strip(),
+        str((row.get("metadata") or {}).get("name") or "").strip(),
+    }
+    keys.discard("")
+    return target_name in keys
+
+
+def _is_inline_agent_row(row: dict[str, Any]) -> bool:
+    return str(row.get("kind") or "").lower() == "agent" and isinstance(row.get("spec"), dict)
+
+
+def fanout_agent_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    """Copy a ``target.kind: Agent`` overlay onto nested MAS agency rows.
+
+    ``compile`` already merges Agent overlays onto separately loaded agent
+    YAML. ``compose`` / ``run-mas`` only call :func:`merge_overlay` on the MAS
+    document, so without this step the patch never reaches
+    ``spec.agency.agents`` and instantiate loads the unpatched files.
+
+    ``spec.target.name``, when set, selects one row (id, name, or
+    metadata.name). Use the agency row id, which should match the agent
+    YAML ``metadata.name`` when the overlay is reused on both. Omit the
+    name to patch every nested agent. Zero matches is an error — an Agent
+    overlay that attaches nowhere would look applied.
+    """
+    merged = deepcopy(base)
+    spec = merged.setdefault("spec", {})
+    if not isinstance(spec, dict):
+        spec = {}
+        merged["spec"] = spec
+    rows = _nested_agent_rows(spec)
+    target_name = _overlay_target_name(overlay)
+    matched = 0
+    for row in rows:
+        if target_name and not _row_matches_agent_target(row, target_name):
+            continue
+        if _is_inline_agent_row(row):
+            updated = merge_agent_overlay(row, overlay)
+            row.clear()
+            row.update(updated)
+        else:
+            stub = {
+                "apiVersion": "mas/v1",
+                "kind": "Agent",
+                "spec": deepcopy(row.get("spec") or {}),
+            }
+            updated = merge_agent_overlay(stub, overlay)
+            row["spec"] = deepcopy(updated.get("spec") or {})
+        matched += 1
+    if matched == 0:
+        named = f" named {target_name!r}" if target_name else ""
+        raise OverlayTargetError(
+            f"target.kind: Agent overlay{named} matched no agents in "
+            "spec.agency.agents / spec.agents"
+        )
+    return merged
+
+
 def merge_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
-    """Merge an Agent, MAS, or Flavour patch overlay into a base manifest.
+    """Merge an Agent, MAS, Flavour, or Infra patch overlay into a base manifest.
 
     Dispatch is strict by canonical ``spec.target.kind``: ``MAS`` ->
     :func:`merge_mas_overlay`, ``Flavour`` -> :func:`merge_flavour_overlay`,
-    ``Agent`` -> :func:`merge_agent_overlay`.
+    ``Agent`` on an Agent document -> :func:`merge_agent_overlay`, ``Agent``
+    on a MAS -> :func:`fanout_agent_overlay`.
     """
     from mas.ctl.overlay.normalize import normalize_overlay
 
@@ -775,5 +869,7 @@ def merge_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, An
             return merged
         return merged
     if target_kind == "agent":
+        if _base_is_mas(base):
+            return fanout_agent_overlay(base, overlay)
         return merge_agent_overlay(base, overlay)
     raise OverlayTargetError("overlay spec.target.kind must be one of Agent, MAS, Flavour, Infra")

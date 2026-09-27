@@ -46,6 +46,12 @@ def _own_plugin_set(tmp_path, filename: str) -> ObsPluginSet:
     return ObsPluginSet(plugins=plugins)
 
 
+def _default_native_plugin_set(tmp_path) -> ObsPluginSet:
+    binding = ObservabilityBinding(plugins=["native"])
+    plugins = build_observability_plugins(binding, base_dir=tmp_path, agent_id="agent")
+    return ObsPluginSet(plugins=plugins)
+
+
 def test_partition_splits_by_existing_plugin_set(tmp_path) -> None:
     scoped_instance = _FakeInstance(obs_plugin_set=_own_plugin_set(tmp_path, "scoped.jsonl"))
     default_instance = _FakeInstance()
@@ -56,6 +62,38 @@ def test_partition_splits_by_existing_plugin_set(tmp_path) -> None:
 
     assert list(shared) == ["moderator"]
     assert list(scoped) == ["specialist"]
+
+
+def test_default_native_plugin_set_joins_shared(tmp_path) -> None:
+    own_set = _default_native_plugin_set(tmp_path)
+    planner = _FakeInstance(obs_plugin_set=own_set)
+    own_set.subscribe_to(planner.driver.observability, agent_id="planner")
+    specialist = _FakeInstance(obs_plugin_set=_own_plugin_set(tmp_path, "scoped.jsonl"))
+
+    shared, scoped = partition_instances_by_observability(
+        {"planner": planner, "specialist": specialist}
+    )
+
+    assert list(shared) == ["planner"]
+    assert list(scoped) == ["specialist"]
+    assert planner.obs_plugin_set is None
+    assert planner.driver.observability._subscribers == []
+
+
+def test_native_default_relative_path_joins_shared_sink(tmp_path) -> None:
+    """observability-native.yaml patches path: traces/events.jsonl — still shared."""
+    own_set = _own_plugin_set(tmp_path, "traces/events.jsonl")
+    planner = _FakeInstance(obs_plugin_set=own_set)
+    own_set.subscribe_to(planner.driver.observability, agent_id="planner")
+
+    shared, scoped = partition_instances_by_observability({"planner": planner})
+    config = ObservabilityConfig(enabled=True, plugins=["native"], events_file="shared.jsonl")
+    shared_set = setup_shared_obs(shared, config, base_dir=tmp_path, entry_agent_id="planner")
+
+    assert scoped == {}
+    assert shared_set is not None
+    assert planner.obs_plugin_set is shared_set
+    assert len(planner.driver.observability._subscribers) == len(shared_set.plugins)
 
 
 def test_scoped_instance_not_double_subscribed_by_shared_set(tmp_path) -> None:
