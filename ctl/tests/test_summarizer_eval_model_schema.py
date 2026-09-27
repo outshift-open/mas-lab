@@ -68,13 +68,11 @@ def test_experiment_schema_accepts_evaluation_model() -> None:
     doc = {
         "experiment": {
             "name": "topology-ablation",
-            "applications": [{"manifest": "./mas.yaml"}],
+            "application": {"manifest": "./mas.yaml"},
             "evaluation": {"method": "llm_judge", "model": "gpt-4o-mini"},
-            "application": {
-                "post": [
-                    {"type": "eval_mce", "config": {"model": "gpt-4o"}},
-                ]
-            },
+            "post": [
+                {"type": "eval_mce", "config": {"model": "gpt-4o"}},
+            ],
         }
     }
     errors = list(Draft7Validator(schema).iter_errors(doc))
@@ -86,7 +84,7 @@ def test_experiment_schema_accepts_models_slot_map() -> None:
     doc = {
         "experiment": {
             "name": "slot-map",
-            "applications": [{"manifest": "./mas.yaml"}],
+            "application": {"manifest": "./mas.yaml"},
             "model": "gpt-4o",
             "models": {
                 "main": "gpt-4o",

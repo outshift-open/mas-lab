@@ -29,9 +29,9 @@ experiment:
     ToolContract scenarios with no extra instrumentation.
 
   default_flavour: local
-  applications:
-    - app: trip-planner
-      configs_dir: "./overlays"
+  application:
+    app: trip-planner
+    configs_dir: "./overlays"
 
   scenarios:
     - id: with-letta-factrecall
@@ -80,49 +80,47 @@ experiment:
 
   run:
     n_runs: 1
-  pipeline_bind: experiment/post
 
-  application:
-    post:
-      - name: extract-trace-stats
-        type: extract_trace_stats
-        config:
-          output: "{output_dir}/results/trace_stats.csv"
+  post:
+    - name: extract-trace-stats
+      type: extract_trace_stats
+      config:
+        output: "{output_dir}/results/trace_stats.csv"
 
-      - name: eval-fact-recall
-        type: lib.steps.eval_fact_recall:EvalFactRecallStep
-        depends_on: [extract-trace-stats]
-        config:
-          runs_dir: "{output_dir}"
-          dataset: ./datasets/fact-recall-smoke.yaml
-          output_runs: "{output_dir}/results/fact_recall_runs.csv"
-          output_summary: "{output_dir}/results/fact_recall_summary.csv"
-          letta_scenarios: [with-letta-factrecall]
-          n_seeded_facts: 100
+    - name: eval-fact-recall
+      type: lib.steps.eval_fact_recall:EvalFactRecallStep
+      depends_on: [extract-trace-stats]
+      config:
+        runs_dir: "{output_dir}"
+        dataset: ./datasets/fact-recall-smoke.yaml
+        output_runs: "{output_dir}/results/fact_recall_runs.csv"
+        output_summary: "{output_dir}/results/fact_recall_summary.csv"
+        letta_scenarios: [with-letta-factrecall]
+        n_seeded_facts: 100
 
-      - name: figure-recall-summary
-        type: lib.steps.figure_recall_summary:FigureRecallSummaryStep
-        depends_on: [eval-fact-recall]
-        config:
-          summary_csv: "{output_dir}/results/fact_recall_summary.csv"
-          output:      "{output_dir}/results/fig_recall_summary.png"
-          dpi: 150
+    - name: figure-recall-summary
+      type: lib.steps.figure_recall_summary:FigureRecallSummaryStep
+      depends_on: [eval-fact-recall]
+      config:
+        summary_csv: "{output_dir}/results/fact_recall_summary.csv"
+        output:      "{output_dir}/results/fig_recall_summary.png"
+        dpi: 150
 
-      - name: figure-evidence
-        type: lib.steps.figure_smoke_evidence:FigureSmokeEvidenceStep
-        depends_on: [eval-fact-recall]
-        config:
-          runs_csv:          "{output_dir}/results/fact_recall_runs.csv"
-          results_csv:       "{output_dir}/results.csv"
-          output_provenance: "{output_dir}/results/fig_smoke_provenance.png"
-          output_calls:      "{output_dir}/results/fig_smoke_calls.png"
-          dpi: 150
+    - name: figure-evidence
+      type: lib.steps.figure_smoke_evidence:FigureSmokeEvidenceStep
+      depends_on: [eval-fact-recall]
+      config:
+        runs_csv:          "{output_dir}/results/fact_recall_runs.csv"
+        results_csv:       "{output_dir}/results.csv"
+        output_provenance: "{output_dir}/results/fig_smoke_provenance.png"
+        output_calls:      "{output_dir}/results/fig_smoke_calls.png"
+        dpi: 150
 
-      - name: figure-provenance-record
-        type: lib.steps.figure_provenance_record:FigureProvenanceRecordStep
-        depends_on: [eval-fact-recall]
-        config:
-          results_csv: "{output_dir}/results.csv"
-          item_id: k1_q04
-          output: "{output_dir}/results/fig_provenance_record.png"
-          dpi: 150
+    - name: figure-provenance-record
+      type: lib.steps.figure_provenance_record:FigureProvenanceRecordStep
+      depends_on: [eval-fact-recall]
+      config:
+        results_csv: "{output_dir}/results.csv"
+        item_id: k1_q04
+        output: "{output_dir}/results/fig_provenance_record.png"
+        dpi: 150

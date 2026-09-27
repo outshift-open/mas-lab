@@ -13,11 +13,11 @@ seeds, and HITL fixtures. Each **experiment** pairs a dataset with **scenarios**
 **Terms:** [glossary.md](../glossary.md) · **Experiment wiring:** [experiment.md](experiment.md)
 
 ```text
-run = (mas_config, flavour, memory_state, user_query, turns)
+run = (application, flavour, memory_state, user_query, turns)
 ```
 
 The dataset declares `memory_state`, `user_query`, and `turns` per item.
-`mas_config` and `flavour` come from the experiment YAML.
+`application` and `default_flavour` come from the experiment YAML.
 
 ## Table of contents
 

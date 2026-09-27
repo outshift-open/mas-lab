@@ -4,9 +4,9 @@ experiment:
   name: cache-rerun-extensions
   description: Single-run extensions smoke for trace-cache invalidation tests
   default_flavour: local
-  applications:
-    - app: trip-planner
-      configs_dir: ../../../labs/extensions.lab/overlays
+  application:
+    app: trip-planner
+    configs_dir: ../../../labs/extensions.lab/overlays
   scenarios:
     - id: vector-baseline
       overlays:
@@ -22,9 +22,8 @@ experiment:
         cache: content-addressed
   run:
     n_runs: 1
-  application:
-    post:
-      - name: trace-stats
-        type: extract_trace_stats
-        config:
-          output: "{output_dir}/results/trace_stats.csv"
+  post:
+    - name: trace-stats
+      type: extract_trace_stats
+      config:
+        output: "{output_dir}/results/trace_stats.csv"

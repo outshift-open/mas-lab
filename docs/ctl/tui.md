@@ -11,7 +11,7 @@ Terms: [glossary.md](../glossary.md).
 
 Use the TUI for long interactive sessions. Use `mas-ctl chat` for scripts and
 `--trace` (exchange log). Use the [web UI](../ui/index.md) to browse **benchmark**
-history. Use `mas-lab benchmark run` for **experiments** with an **embedded pipeline**.
+history. Use `mas-lab benchmark run` for **experiments** with level hooks.
 
 You need an **agent** or **MAS** manifest first
 ([Tutorial 1](../tutorials/01-building-an-agent/README.md)).
@@ -65,7 +65,7 @@ Governance **overlays** that require human approval work in the TUI like in chat
 | `mas-ctl chat` | Scripts, **exchange log**, CI smoke |
 | `mas-ctl tui` | Interactive terminal, HITL |
 | Web UI | **Run** history, plots, demos |
-| `mas-lab benchmark run` | **Scenarios**, **dataset**, **embedded pipeline** |
+| `mas-lab benchmark run` | **Scenarios**, **dataset**, level hooks |
 
 ## Related
 

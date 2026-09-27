@@ -6,9 +6,9 @@ experiment:
     CI smoke for design-space.lab Exp 1.2 — one run, level-scoped
     eval/gather pipeline, isolated trace cache (cache disabled).
   default_flavour: local
-  applications:
-    - app: trip-planner
-      configs_dir: ../../../labs/design-space.lab/02-topologies/overlays
+  application:
+    app: trip-planner
+    configs_dir: ../../../labs/design-space.lab/02-topologies/overlays
   scenarios:
     - id: topo-linear-pipeline
       overlays:
@@ -48,7 +48,7 @@ experiment:
         in: metrics
         out: df
         depends_on: [eval-quality]
-  test:
+  item:
     artifacts:
       df:
         type: dataframe
@@ -74,27 +74,26 @@ experiment:
         depends_on: [gather-test]
         config:
           output: data.csv
-  application:
-    artifacts:
-      df:
-        type: dataframe
-        path: "{level_dir}/data.csv"
-    post:
-      - name: gather-experiment
-        type: gather_level
-        in: df
-        out: df
-        depends_on: [gather-scenario]
-        config:
-          output: data.csv
-      - name: compute-ci
-        type: compute_ci
-        depends_on: [gather-experiment]
-        config:
-          data: "@gather-experiment"
-          groupby: [scenario, metric]
-          metrics: [answer_relevancy, goal_success_rate]
-          extra_cols: [latency_s]
-          ci_method: t
-          ci_level: 0.95
-          output: "{output_dir}/results/ci_summary.csv"
+  artifacts:
+    df:
+      type: dataframe
+      path: "{level_dir}/data.csv"
+  post:
+    - name: gather-experiment
+      type: gather_level
+      in: df
+      out: df
+      depends_on: [gather-scenario]
+      config:
+        output: data.csv
+    - name: compute-ci
+      type: compute_ci
+      depends_on: [gather-experiment]
+      config:
+        data: "@gather-experiment"
+        groupby: [scenario, metric]
+        metrics: [answer_relevancy, goal_success_rate]
+        extra_cols: [latency_s]
+        ci_method: t
+        ci_level: 0.95
+        output: "{output_dir}/results/ci_summary.csv"

@@ -322,9 +322,9 @@ Overlays are referenced by their `metadata.id` in experiment scenarios:
 # experiment.yaml
 scenarios:
   - id: single-agent
-    overlays: [single-agent]       # ← references the overlay by id
+    overlays: {logic: [single-agent], control: [], infra: []}
   - id: linear
-    overlays: [linear]
+    overlays: {logic: [linear], control: [], infra: []}
 ```
 
 Overlays only touch the **agents list and workflow** — each agent's

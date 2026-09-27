@@ -74,7 +74,7 @@ def test_missing_ref_fails_validation(tmp_path: Path) -> None:
 
     exp = tmp_path / "experiment.yaml"
     exp.write_text(
-        "experiment:\n  name: x\n  applications:\n    - manifest: ./no-such-mas.yaml\n",
+        "experiment:\n  name: x\n  application:\n    manifest: ./no-such-mas.yaml\n",
         encoding="utf-8",
     )
     data = yaml.safe_load(exp.read_text()) or {}
@@ -125,8 +125,8 @@ def test_bad_overlay_id_blocks_composition(tmp_path: Path) -> None:
     )
     exp = tmp_path / "experiment.yaml"
     exp.write_text(
-        "experiment:\n  name: x\n  applications:\n    - manifest: ./app/mas.yaml\n"
-        "      configs_dir: ./app/overlays\n  scenarios:\n    - id: bad\n"
+        "experiment:\n  name: x\n  application:\n    manifest: ./app/mas.yaml\n"
+        "    configs_dir: ./app/overlays\n  scenarios:\n    - id: bad\n"
         "      overlays:\n        logic:\n          - nonexistent-overlay\n",
         encoding="utf-8",
     )
@@ -145,7 +145,7 @@ def test_bad_overlay_id_blocks_composition(tmp_path: Path) -> None:
 def test_unknown_library_name_path_ref_is_rejected(tmp_path: Path) -> None:
     from mas.lab.manifests.ref_checks import check_recursive_refs
 
-    payload = {"applications": [{"manifest": "no-such-lib:x.yaml"}]}
+    payload = {"application": {"manifest": "no-such-lib:x.yaml"}}
     with pytest.raises(LookupError, match="unknown library 'no-such-lib'"):
         check_recursive_refs(payload, tmp_path, source=str(tmp_path))
 

@@ -43,9 +43,9 @@ def _write_experiment(tmp_path: Path, dataset_block: str, extra: str = "") -> Pa
         "  name: test-experiment\n"
         '  description: "Unit test"\n'
         "\n"
-        "  applications:\n"
-        "    - manifest: ./mas.yaml\n"
-        "      configs_dir: ./overlays\n"
+        "  application:\n"
+        "    manifest: ./mas.yaml\n"
+        "    configs_dir: ./overlays\n"
         "\n"
         f"{dataset_indented}\n"
         f"{extra_section}\n"
@@ -146,6 +146,17 @@ def test_plots_key_rejected(tmp_path):
         MASExperimentConfig.from_yaml(exp_yaml)
 
 
+def test_pipeline_bind_key_rejected(tmp_path):
+    """pipeline_bind is removed; hooks live under run/item/scenario/post."""
+    exp_yaml = _write_experiment(
+        tmp_path,
+        "",
+        extra="pipeline_bind: run",
+    )
+    with pytest.raises(ValueError, match="pipeline_bind"):
+        MASExperimentConfig.from_yaml(exp_yaml)
+
+
 # ---------------------------------------------------------------------------
 # No dataset (optional)
 # ---------------------------------------------------------------------------
@@ -159,12 +170,89 @@ def test_no_dataset_is_valid(tmp_path):
         experiment:
           name: no-dataset
           description: "No dataset — scenarios only"
-          applications:
-            - manifest: ./mas.yaml
-              configs_dir: ./overlays
+          application:
+            manifest: ./mas.yaml
+            configs_dir: ./overlays
     """))
     cfg = MASExperimentConfig.from_yaml(exp_yaml)
     assert cfg.dataset is None
+
+
+def test_canonicalize_deprecated_aliases(tmp_path):
+    """applications:/application.post/test: still load, mapped to CLI names."""
+    mas_yaml = tmp_path / "mas.yaml"
+    mas_yaml.write_text("apiVersion: mas/v1\nkind: MAS\nmetadata:\n  name: test\n")
+    exp_yaml = tmp_path / "experiment.yaml"
+    exp_yaml.write_text(textwrap.dedent("""\
+        experiment:
+          name: deprecated-aliases
+          applications:
+            - manifest: ./mas.yaml
+              configs_dir: ./overlays
+          dataset:
+            path: ./datasets/my-queries.yaml
+          test:
+            artifacts:
+              df: dataframe
+          application:
+            post:
+              - name: gather-experiment
+                type: gather_level
+    """))
+    _make_dataset_file(tmp_path, "my-queries.yaml")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        cfg = MASExperimentConfig.from_yaml(exp_yaml)
+    messages = " ".join(str(w.message) for w in caught)
+    assert "applications:" in messages or "deprecated" in messages.lower()
+    assert "item" in cfg.levels
+    assert "experiment" in cfg.levels
+    assert cfg.mas is not None
+
+
+def test_canonical_application_and_item_keys(tmp_path):
+    """Preferred vocabulary: application: + item: + post:."""
+    mas_yaml = tmp_path / "mas.yaml"
+    mas_yaml.write_text("apiVersion: mas/v1\nkind: MAS\nmetadata:\n  name: test\n")
+    exp_yaml = tmp_path / "experiment.yaml"
+    exp_yaml.write_text(textwrap.dedent("""\
+        experiment:
+          name: canonical
+          application:
+            manifest: ./mas.yaml
+            configs_dir: ./overlays
+          item:
+            artifacts:
+              df: dataframe
+          post:
+            - name: gather-experiment
+              type: gather_level
+    """))
+    cfg = MASExperimentConfig.from_yaml(exp_yaml)
+    assert cfg.mas is not None
+    assert "item" in cfg.levels
+    assert "experiment" in cfg.levels
+    assert cfg.output_schema == {}
+
+
+def test_output_schema_loaded(tmp_path):
+    mas_yaml = tmp_path / "mas.yaml"
+    mas_yaml.write_text("apiVersion: mas/v1\nkind: MAS\nmetadata:\n  name: test\n")
+    exp_yaml = tmp_path / "experiment.yaml"
+    exp_yaml.write_text(textwrap.dedent("""\
+        experiment:
+          name: with-schema
+          application:
+            manifest: ./mas.yaml
+          output_schema:
+            required_files:
+              - results/ci_summary.csv
+            required_columns:
+              results/ci_summary.csv: [scenario, mean]
+    """))
+    cfg = MASExperimentConfig.from_yaml(exp_yaml)
+    assert cfg.output_schema["required_files"] == ["results/ci_summary.csv"]
+    assert cfg.output_schema["required_columns"]["results/ci_summary.csv"] == ["scenario", "mean"]
 
 
 # ---------------------------------------------------------------------------

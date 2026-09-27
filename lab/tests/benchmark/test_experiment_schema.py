@@ -1,0 +1,101 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+"""experiment.yaml schema: canonical keys pass, removed keys fail, deprecated keys warn."""
+
+from __future__ import annotations
+
+import pytest
+import yaml
+
+from mas.ctl.validate.deprecations import collect_experiment_deprecations
+from mas.ctl.validate.schemas import load_schema
+from mas.lab.manifests.validator import ManifestValidationError, validate_manifest
+
+
+def _canonical() -> dict:
+    return yaml.safe_load(
+        """
+experiment:
+  name: canonical
+  application:
+    app: trip-planner
+    configs_dir: ./overlays
+  scenarios:
+    - id: baseline
+  dataset:
+    name: queries
+  run:
+    n_runs: 1
+  item:
+    post:
+      - name: gather-item
+        type: gather_level
+  post:
+    - name: gather-experiment
+      type: gather_level
+"""
+    )
+
+
+def test_canonical_experiment_validates_without_deprecations() -> None:
+    warnings = validate_manifest(
+        _canonical(),
+        source="experiment.yaml",
+        kind="experiment",
+        strict=True,
+        resolve_refs=False,
+    )
+    assert warnings == []
+
+
+@pytest.mark.parametrize(
+    "removed_key,payload",
+    [
+        ("pipeline_bind", "run"),
+        ("pipeline", []),
+        ("plots", {}),
+        ("flavours", []),
+        ("output_dir", "./out"),
+        ("mas", {}),
+    ],
+)
+def test_removed_experiment_keys_fail_schema(removed_key: str, payload) -> None:
+    data = _canonical()
+    data["experiment"][removed_key] = payload
+    with pytest.raises(ManifestValidationError, match=removed_key) as exc:
+        validate_manifest(
+            data,
+            source="experiment.yaml",
+            kind="experiment",
+            strict=True,
+            resolve_refs=False,
+        )
+    joined = " ".join(exc.value.violations)
+    assert "not a valid property" in joined or "removed" in joined
+
+
+def test_deprecated_applications_and_test_warn_but_validate() -> None:
+    data = _canonical()
+    exp = data["experiment"]
+    exp["applications"] = [exp.pop("application")]
+    exp["test"] = exp.pop("item")
+    warnings = validate_manifest(
+        data,
+        source="experiment.yaml",
+        kind="experiment",
+        strict=True,
+        resolve_refs=False,
+    )
+    joined = " ".join(warnings)
+    assert "applications" in joined
+    assert "test" in joined
+
+
+def test_application_as_pipeline_level_is_spotted() -> None:
+    data = _canonical()
+    data["experiment"]["application"] = {
+        "post": [{"name": "gather-experiment", "type": "gather_level"}]
+    }
+    schema = load_schema("experiment")
+    warnings = collect_experiment_deprecations(data, schema)
+    assert any("pipeline level" in msg for msg in warnings)

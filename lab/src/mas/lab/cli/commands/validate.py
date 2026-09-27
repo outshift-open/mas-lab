@@ -57,7 +57,11 @@ def validate_cmd(
 
     \b
       1. JSON Schema (Draft-07) — unknown fields, wrong types, missing required keys.
-      2. Reference availability — mas.manifest, dataset.path, pipeline step paths,
+         Removed experiment keys (pipeline_bind, pipeline, plots, flavours,
+         output_dir, mas) fail validation.
+      2. Deprecated keys — still valid so old files load, printed as warnings
+         (applications:, test:, application used as a pipeline level).
+      3. Reference availability — mas.manifest, dataset.path, pipeline step paths,
                                    etc. must exist on disk (disable with --no-resolve-refs).
 
     Environment variables (overridden by the flags above for a single run):
@@ -115,15 +119,23 @@ def validate_cmd(
         effective_base_dir = base_dir or manifest_path.parent
 
         try:
-            validate_manifest(
+            deprecations = validate_manifest(
                 data,
                 source=str(manifest_path),
                 kind=effective_kind,
                 strict=strict,
                 base_dir=effective_base_dir,
                 resolve_refs=resolve_refs,
-            )
-            click.echo(f"OK     {manifest_path_str}  [{effective_kind}]")
+            ) or []
+            if deprecations:
+                click.echo(
+                    f"OK     {manifest_path_str}  [{effective_kind}]  "
+                    f"({len(deprecations)} deprecated)"
+                )
+                for warning in deprecations:
+                    click.echo(f"       deprecated: {warning}")
+            else:
+                click.echo(f"OK     {manifest_path_str}  [{effective_kind}]")
         except ManifestValidationError as exc:
             click.echo(f"FAIL   {manifest_path_str}  [{effective_kind}]", err=True)
             for violation in exc.violations:

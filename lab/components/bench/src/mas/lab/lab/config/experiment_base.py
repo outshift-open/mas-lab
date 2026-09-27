@@ -2,6 +2,8 @@
 #  SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
+import logging
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -16,12 +18,91 @@ from .scenario import MASScenarioSpec, MASSpec
 from .scenario_loading import discover_scenario_stems
 
 _DEPRECATED_EXPERIMENT_KEYS = {
-    "mas": "use applications: [{app|manifest, configs_dir}]",
-    "pipeline": "use application: { post: [...] }",
+    "pipeline_bind": "declare hooks under run/item/scenario/post",
+    "mas": "use application: {app|manifest, configs_dir}",
+    "pipeline": "use run/item/scenario/post hooks (CLI --depth exp|scenario|item|run)",
     "output_dir": "remove; output paths are derived from lab layout",
     "flavours": "use default_flavour (library-standard flavours)",
-    "plots": "declare plot steps in application.post / scenario.post pipelines",
+    "plots": "declare plot steps in experiment-level post: or scenario.post",
 }
+
+_logger = logging.getLogger(__name__)
+
+_LEVEL_SECTION_KEYS = frozenset({"pre", "post", "artifacts", "n_runs"})
+_MAS_BINDING_KEYS = frozenset({"app", "manifest", "configs_dir", "base_scenario"})
+
+
+def _warn_deprecated(path: Optional[Path], message: str) -> None:
+    label = str(path) if path else "experiment"
+    warnings.warn(f"{label}: {message}", DeprecationWarning, stacklevel=3)
+    _logger.warning("%s: %s", label, message)
+
+
+def _is_mas_binding(value: Any) -> bool:
+    return isinstance(value, dict) and bool(_MAS_BINDING_KEYS.intersection(value))
+
+
+def _is_level_section(value: Any) -> bool:
+    return isinstance(value, dict) and bool(_LEVEL_SECTION_KEYS.intersection(value)) and not _is_mas_binding(value)
+
+
+def canonicalize_experiment_dict(
+    data: Dict[str, Any],
+    *,
+    path: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """Rewrite deprecated experiment keys in place to the CLI vocabulary.
+
+    Canonical hierarchy (matches ``mas-lab benchmark show --depth``)::
+
+        experiment → scenario → item → run
+
+    Deprecated (still accepted, warned):
+      - ``applications:`` list → ``application:`` object
+      - ``application.post`` (pipeline level) → experiment-level ``post:``
+      - ``test:`` → ``item:``
+    """
+    app = data.get("application")
+    if _is_level_section(app):
+        _warn_deprecated(
+            path,
+            "application.post is deprecated; use experiment-level post: "
+            "(matches CLI --depth exp)",
+        )
+        for phase in ("pre", "post"):
+            incoming = list(app.get(phase) or [])
+            if incoming:
+                existing = data.get(phase)
+                if isinstance(existing, list):
+                    data[phase] = list(existing) + incoming
+                else:
+                    data[phase] = incoming
+        if app.get("artifacts") and "artifacts" not in data:
+            data["artifacts"] = app["artifacts"]
+        del data["application"]
+        app = None
+
+    apps = data.get("applications")
+    if apps and not _is_mas_binding(data.get("application")):
+        _warn_deprecated(
+            path,
+            "applications: is deprecated; use application: {app|manifest, configs_dir}",
+        )
+        if isinstance(apps, list) and apps:
+            data["application"] = apps[0]
+
+    if "test" in data:
+        _warn_deprecated(path, "test: is deprecated; use item: (matches CLI --item)")
+        item = data.get("item")
+        test = data["test"]
+        if item and test:
+            raise ValueError(
+                f"{path or 'experiment'}: declare item: or test:, not both"
+            )
+        data["item"] = test
+        del data["test"]
+
+    return data
 
 
 def _reject_deprecated_experiment_keys(data: Dict[str, Any], *, path: Optional[Path]) -> None:
@@ -125,18 +206,24 @@ class MASRunBase:
     """App bundle pipeline pointer: ``{app: name, name: pipeline.yaml}``."""
 
     levels: Dict[str, "LevelSpec"] = field(default_factory=dict)
-    """(v2) Level sections: ``run``, ``test``, ``scenario``.
+    """Level sections keyed by CLI depth: ``run``, ``item``, ``scenario``, ``experiment``.
 
-    Each level declares its own artifacts and pipeline.  The experiment-level
-    pipeline and artifacts live directly in ``pipeline`` / ``artifacts`` fields
-    on the parent config (not in a separate level).
+    Each level declares its own artifacts and hooks.  Experiment-level
+    ``pre:`` / ``post:`` / ``artifacts:`` are stored as ``levels['experiment']``.
+    Deprecated aliases ``test`` and ``application`` are rewritten at load time.
     """
 
     artifacts: List["ArtifactSpec"] = field(default_factory=list)
-    """(v2) Experiment-level artifact declarations.
+    """Experiment-level artifact declarations.
 
     Short form: ``metrics: metrics``.
     Long form: ``trajectory: {type: plot, path: "..."}``.
+    """
+
+    output_schema: Dict[str, Any] = field(default_factory=dict)
+    """Optional paper-output contract (required files/columns).
+
+    Validated warn-only after the experiment-level ``post:`` pipeline.
     """
 
     pipeline_resources: List[Dict[str, Any]] = field(default_factory=list)
@@ -150,7 +237,7 @@ class MASRunBase:
         pipeline_resources:
           - name: shared-metrics
             type: metrics
-            scope: test      # persists across runs within a test
+            scope: item      # persists across runs within a dataset item
     """
 
     # Keep a reference to the source file for relative-path resolution.
@@ -159,11 +246,6 @@ class MASRunBase:
     # ------------------------------------------------------------------
     # Shared accessors
     # ------------------------------------------------------------------
-
-    @property
-    def is_v2(self) -> bool:
-        """Detect v2 level-based format (any of run:/test:/scenario:/experiment: present)."""
-        return bool(self.levels)
 
     def all_artifacts(self) -> Dict[str, "ArtifactSpec"]:
         """Return all artifacts across all levels + experiment, keyed by name."""
@@ -179,12 +261,12 @@ class MASRunBase:
         """Return ``(level, spec)`` for every artifact declared on this experiment.
 
         Level is ``experiment`` for the top-level ``artifacts:`` map, otherwise
-        the section name (``run``, ``test``, ``scenario``, ``application``).
+        the section name (``run``, ``item``, ``scenario``).
         """
         rows: List[tuple[str, ArtifactSpec]] = [
             ("experiment", art) for art in self.artifacts
         ]
-        for level_name in ("run", "test", "scenario", "application"):
+        for level_name in ("run", "item", "scenario"):
             if level_name in self.levels:
                 rows.extend(
                     (level_name, art) for art in self.levels[level_name].artifacts
@@ -194,14 +276,14 @@ class MASRunBase:
     def all_pipeline_steps(self) -> List["PipelineStepSpec"]:
         """Return all pipeline steps from all levels + experiment.
 
-        Steps from inner levels come first (run, test, scenario) then
+        Steps from inner levels come first (run, item, scenario) then
         experiment-level.  Each step has its ``scope`` set.
 
         Both level ``pre``/``post`` hooks and the flat ``pipeline`` field on
         :class:`MASRunBase` are combined (level hooks first).
         """
         steps: List[PipelineStepSpec] = []
-        for level_name in ("run", "test", "scenario", "application"):
+        for level_name in ("run", "item", "scenario", "experiment"):
             if level_name in self.levels:
                 steps.extend(self.levels[level_name].pipeline)
         steps.extend(self.pipeline)
@@ -256,10 +338,13 @@ class MASRunBase:
         from mas.lab import paths as _paths
 
         _reject_deprecated_experiment_keys(data, path=yaml_path)
+        canonicalize_experiment_dict(data, path=yaml_path)
 
         mas: Optional[MASSpec] = None
-        if "applications" in data:
-            # applications: [{app: trip-planner}]  →  mas: {app: trip-planner}
+        mas_binding = data.get("application")
+        if _is_mas_binding(mas_binding):
+            mas = MASSpec.from_dict(mas_binding, base_dir)
+        elif "applications" in data:
             apps_list = data["applications"]
             if isinstance(apps_list, list) and apps_list:
                 mas = MASSpec.from_dict(apps_list[0], base_dir)
@@ -334,23 +419,35 @@ class MASRunBase:
         pipeline_resources: List[Dict[str, Any]] = data.get("pipeline_resources", [])
 
         levels: Dict[str, LevelSpec] = {}
-        for level_name in ("run", "test", "scenario", "application"):
+        for level_name in ("run", "item", "scenario"):
             if level_name in data:
-                levels[level_name] = LevelSpec.from_dict(
-                    level_name, data[level_name], base_dir=base_dir
+                canonical = "item" if level_name == "test" else level_name
+                levels[canonical] = LevelSpec.from_dict(
+                    canonical, data[level_name], base_dir=base_dir
                 )
 
-        # v2 experiment-level artifacts
+        # Experiment-level hooks live on the experiment object (CLI --depth exp).
+        if data.get("pre") or data.get("post"):
+            levels["experiment"] = LevelSpec.from_dict(
+                "experiment",
+                {
+                    "pre": data.get("pre") or [],
+                    "post": data.get("post") or [],
+                    "artifacts": data.get("artifacts") or {},
+                },
+                base_dir=base_dir,
+            )
+
+        # Experiment-level artifacts (when not already consumed as level artifacts)
         artifacts: List[ArtifactSpec] = [
             ArtifactSpec.from_entry(name, value)
             for name, value in data.get("artifacts", {}).items()
         ]
 
-        # Stamp application-level steps when loaded from application.post.
-        if "application" in levels:
-            for step in levels["application"].pipeline:
+        if "experiment" in levels:
+            for step in levels["experiment"].pipeline:
                 if not step.scope:
-                    step.scope = "application"
+                    step.scope = "experiment"
 
         raw_models = data.get("models") if isinstance(data.get("models"), dict) else {}
         authored_models = {
@@ -390,6 +487,7 @@ class MASRunBase:
             pipeline_resources=pipeline_resources,
             levels=levels,
             artifacts=artifacts,
+            output_schema=dict(data.get("output_schema") or {}),
         )
 
 

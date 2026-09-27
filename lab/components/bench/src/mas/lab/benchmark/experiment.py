@@ -408,15 +408,21 @@ class ExperimentConfig:
         if "scenarios" in exp_data:
             scenarios_data = exp_data["scenarios"]
             if isinstance(scenarios_data, list):
-                # New format: applications + [{id, overlays, ...}, ...]
-                # Resolve app manifest: mas.manifest > applications[0].app > agent.yaml
+                # Resolve app manifest: mas.manifest > application.manifest
+                # > application.app > applications[0] > agent.yaml
                 mas_config = exp_data.get("mas", {})
+                app = exp_data.get("application")
                 apps = exp_data.get("applications", [])
-                app_name = apps[0].get("app") if apps else None
+                binding = app if isinstance(app, dict) else {}
+                if not binding.get("app") and not binding.get("manifest"):
+                    binding = apps[0] if apps else {}
+                app_name = binding.get("app")
                 
                 if mas_config.get("manifest"):
                     # Explicit manifest path in mas.manifest
                     app_manifest = base_dir / mas_config["manifest"]
+                elif binding.get("manifest"):
+                    app_manifest = (base_dir / binding["manifest"]).resolve()
                 elif app_name:
                     try:
                         from mas.apps import get_app, resolve_app_manifest

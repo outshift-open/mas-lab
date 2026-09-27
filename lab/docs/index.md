@@ -13,7 +13,7 @@ Docs for **benchmarks**, **pipelines**, and validation.
 
 | Page | Contents |
 |------|----------|
-| [labs-quickstart.md](labs-quickstart.md) | Run a **lab**; **embedded pipeline** figures |
+| [labs-quickstart.md](labs-quickstart.md) | Run a **lab**; level-hook figures |
 | [labs-going-further.md](labs-going-further.md) | Custom **pipeline steps**, **scenarios** |
 | [labs-and-libraries.md](../../docs/labs-and-libraries.md) | Lab vs library vs local plugin |
 | [benchmark.md](benchmark.md) | `mas-lab benchmark` |

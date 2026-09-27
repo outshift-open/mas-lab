@@ -9,7 +9,7 @@ from typing import Optional
 from mas.lab.manifests import load_experiment_data
 
 from .execution import MASExecutionSpec
-from .experiment_base import MASRunBase
+from .experiment_base import MASRunBase, _is_mas_binding, canonicalize_experiment_dict
 
 @dataclass
 class MASExperimentConfig(MASRunBase):
@@ -41,9 +41,12 @@ class MASExperimentConfig(MASRunBase):
         exp_data = data.get("experiment", data)
         base_dir = path.parent
 
-        if "applications" not in exp_data:
+        canonicalize_experiment_dict(exp_data, path=path)
+        if not _is_mas_binding(exp_data.get("application")) and "applications" not in exp_data:
             raise ValueError(
-                f"{path}: experiment must declare applications: [{{manifest|app, configs_dir}}]"
+                f"{path}: experiment must declare application: "
+                f"{{app|manifest, configs_dir}} "
+                f"(applications: is deprecated)"
             )
 
         base = cls._load_base_fields(exp_data, base_dir, yaml_path=path)

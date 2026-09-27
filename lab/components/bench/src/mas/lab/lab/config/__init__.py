@@ -57,9 +57,9 @@ MASExperimentConfig YAML structure::
       description: "Batch evaluation of trip-planner scenarios"
       default_flavour: local
 
-      applications:
-        - app: trip-planner
-          configs_dir: "./overlays"
+      application:
+        app: trip-planner
+        configs_dir: "./overlays"
 
       scenarios:
         - id: "baseline"

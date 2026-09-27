@@ -14,7 +14,7 @@ Workspace install: [docs/user-guide.md](../../docs/user-guide.md). Terms:
 
 | Command | What it does |
 |---------|--------------|
-| `mas-lab benchmark run experiment.yaml` | All **scenarios** × **dataset** × **runs** + **embedded pipeline** |
+| `mas-lab benchmark run experiment.yaml` | All **scenarios** × **dataset** × **runs** + level hooks |
 | `mas-lab benchmark show last` | Latest `output_dir` |
 | `mas-lab check …` | Validate **agent** / **MAS** manifest |
 | `mas-lab telemetry show …` | Print **`events.jsonl`** |

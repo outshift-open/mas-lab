@@ -57,9 +57,9 @@ experiment:
   default_flavour: local
   models:
     main: gpt-4o
-  applications:
-    - app: trip-planner
-      configs_dir: "./overlays"
+  application:
+    app: trip-planner
+    configs_dir: "./overlays"
 
   # ------------------------------------------------------------------
   # Scenarios
@@ -167,159 +167,157 @@ experiment:
             - response_completeness
             - answer_relevancy
             - groundedness
-  pipeline_bind: experiment/post
 
-  application:
-    post:
-      - name: collect-metrics
-        type: collect_metrics
-        config:
-          output_dir: "{output_dir}"
-          dataset: ./datasets/extensions-queries.yaml
-        depends_on: [eval-quality]
+  post:
+    - name: collect-metrics
+      type: collect_metrics
+      config:
+        output_dir: "{output_dir}"
+        dataset: ./datasets/extensions-queries.yaml
+      depends_on: [eval-quality]
 
-      # Pure data-transform: tidy rows → CI summary DataFrame (in-memory).
-      # CSV written for paper tables / manual inspection.
-      - name: compute-ci
-        type: compute_ci
-        config:
-          data: "@collect-metrics"
-          metrics:
-            - goal_success_rate
-            - response_completeness
-            - answer_relevancy
-          groupby: [scenario, group, metric]
-          ci_method: t
-          ci_level: 0.95
-          output: "{output_dir}/results/ci_summary.csv"
-        depends_on: [collect-metrics]
+    # Pure data-transform: tidy rows → CI summary DataFrame (in-memory).
+    # CSV written for paper tables / manual inspection.
+    - name: compute-ci
+      type: compute_ci
+      config:
+        data: "@collect-metrics"
+        metrics:
+          - goal_success_rate
+          - response_completeness
+          - answer_relevancy
+        groupby: [scenario, group, metric]
+        ci_method: t
+        ci_level: 0.95
+        output: "{output_dir}/results/ci_summary.csv"
+      depends_on: [collect-metrics]
 
-      # Paper figure: quality improvement by memory model and query group.
-      # ymin/ymax present in mapping → geom_errorbar added automatically.
-      - name: ci-figure
-        type: plotnine
-        config:
-          data: "@compute-ci"
-          mapping:
-            x: scenario
-            y: mean
-            fill: scenario
-            ymin: ci_low
-            ymax: ci_high
-          geom: col
-          facet: "metric ~ group"
-          labels:
-            title: "Memory extension — quality improvement and reproducibility"
-            subtitle: "Mean ± 95% CI (Student's t, n=3) | baseline / active-retrieval / passive-injection"
-            x: ""
-            y: "MCE score"
-          output: "{output_dir}/results/figure-3-memory-extension.png"
-        depends_on: [compute-ci]
+    # Paper figure: quality improvement by memory model and query group.
+    # ymin/ymax present in mapping → geom_errorbar added automatically.
+    - name: ci-figure
+      type: plotnine
+      config:
+        data: "@compute-ci"
+        mapping:
+          x: scenario
+          y: mean
+          fill: scenario
+          ymin: ci_low
+          ymax: ci_high
+        geom: col
+        facet: "metric ~ group"
+        labels:
+          title: "Memory extension — quality improvement and reproducibility"
+          subtitle: "Mean ± 95% CI (Student's t, n=3) | baseline / active-retrieval / passive-injection"
+          x: ""
+          y: "MCE score"
+        output: "{output_dir}/results/figure-3-memory-extension.png"
+      depends_on: [compute-ci]
 
-      - name: extract-trace-stats
-        type: extract_trace_stats
-        config:
-          output: "{output_dir}/results/trace_stats.csv"
+    - name: extract-trace-stats
+      type: extract_trace_stats
+      config:
+        output: "{output_dir}/results/trace_stats.csv"
 
-      # Fig 3b: reproducibility — mean run duration per scenario × query group
-      - name: figure-reproducibility
-        type: plotnine
-        depends_on: [extract-trace-stats]
-        config:
-          data: "@extract-trace-stats"
-          filter:
-            scenario: [baseline, with-vector-memory, with-letta-memory]
-            item_group: [recall, combination, nominal]
-          mapping: { x: scenario, y: duration_s, fill: scenario }
-          geom: col
-          stat: summary
-          facet: "~ item_group"
-          labels:
-            title: "Extension reproducibility \u2014 mean run duration"
-            subtitle: "Mean duration (s) across query groups and runs"
-            x: ""
-            y: "Duration (s)"
-          output: "{output_dir}/results/fig_extensions_reproducibility.png"
-          width: 6.0
-          height: 3.5
-          hide_x_labels: true
-          rename_values:
-            scenario:
-              baseline: "Baseline"
-              with-vector-memory: "Vector Memory"
-              with-letta-memory: "Letta Memory"
-            item_group:
-              recall: "Recall"
-              combination: "Combination"
-              nominal: "Nominal"
+    # Fig 3b: reproducibility — mean run duration per scenario × query group
+    - name: figure-reproducibility
+      type: plotnine
+      depends_on: [extract-trace-stats]
+      config:
+        data: "@extract-trace-stats"
+        filter:
+          scenario: [baseline, with-vector-memory, with-letta-memory]
+          item_group: [recall, combination, nominal]
+        mapping: { x: scenario, y: duration_s, fill: scenario }
+        geom: col
+        stat: summary
+        facet: "~ item_group"
+        labels:
+          title: "Extension reproducibility \u2014 mean run duration"
+          subtitle: "Mean duration (s) across query groups and runs"
+          x: ""
+          y: "Duration (s)"
+        output: "{output_dir}/results/fig_extensions_reproducibility.png"
+        width: 6.0
+        height: 3.5
+        hide_x_labels: true
+        rename_values:
+          scenario:
+            baseline: "Baseline"
+            with-vector-memory: "Vector Memory"
+            with-letta-memory: "Letta Memory"
+          item_group:
+            recall: "Recall"
+            combination: "Combination"
+            nominal: "Nominal"
 
-      # Fig 3c: LLM call count per scenario \u2014 memory does not add LLM overhead
-      - name: figure-llm-calls
-        type: plotnine
-        depends_on: [extract-trace-stats]
-        config:
-          data: "@extract-trace-stats"
-          filter:
-            scenario:
-              [
-                baseline,
-                with-vector-memory,
-                with-letta-memory,
-                with-vector-memory-guardrail,
-              ]
-            item_group: [recall, combination, neutral]
-          mapping: { x: scenario, y: n_llm_calls, fill: scenario }
-          geom: col
-          stat: summary
-          facet: "~ item_group"
-          labels:
-            title: "LLM calls per run \u2014 trace structure comparison"
-            subtitle: "Mean llm_call_start events across query groups"
-            x: ""
-            y: "LLM calls / run"
-          output: "{output_dir}/results/fig_extensions_llm_calls.png"
-          width: 6.0
-          height: 3.5
-          hide_x_labels: true
-          rename_values:
-            scenario:
-              baseline: "Baseline"
-              with-vector-memory: "Vector Memory"
-              with-letta-memory: "Letta Memory"
-              with-vector-memory-guardrail: "+Guardrail"
-            item_group:
-              recall: "Recall"
-              combination: "Combination"
-              neutral: "Neutral"
+    # Fig 3c: LLM call count per scenario \u2014 memory does not add LLM overhead
+    - name: figure-llm-calls
+      type: plotnine
+      depends_on: [extract-trace-stats]
+      config:
+        data: "@extract-trace-stats"
+        filter:
+          scenario:
+            [
+              baseline,
+              with-vector-memory,
+              with-letta-memory,
+              with-vector-memory-guardrail,
+            ]
+          item_group: [recall, combination, neutral]
+        mapping: { x: scenario, y: n_llm_calls, fill: scenario }
+        geom: col
+        stat: summary
+        facet: "~ item_group"
+        labels:
+          title: "LLM calls per run \u2014 trace structure comparison"
+          subtitle: "Mean llm_call_start events across query groups"
+          x: ""
+          y: "LLM calls / run"
+        output: "{output_dir}/results/fig_extensions_llm_calls.png"
+        width: 6.0
+        height: 3.5
+        hide_x_labels: true
+        rename_values:
+          scenario:
+            baseline: "Baseline"
+            with-vector-memory: "Vector Memory"
+            with-letta-memory: "Letta Memory"
+            with-vector-memory-guardrail: "+Guardrail"
+          item_group:
+            recall: "Recall"
+            combination: "Combination"
+            neutral: "Neutral"
 
-      # Fig 3d: governance fires on g1 in guardrail scenario
-      - name: figure-governance-detection
-        type: plotnine
-        depends_on: [extract-trace-stats]
-        config:
-          data: "@extract-trace-stats"
-          filter:
-            item_group: [guardrail]
-          mapping: { x: scenario, y: n_governance_fired, fill: scenario }
-          geom: col
-          stat: summary
-          labels:
-            title: "Governance detection on guardrail item"
-            subtitle: "governance_policy fired events \u2014 g1 (forbidden destination)"
-            x: ""
-            y: "Fired events"
-          output: "{output_dir}/results/fig_extensions_governance.png"
-          width: 4.5
-          height: 3.0
-          hide_x_labels: true
+    # Fig 3d: governance fires on g1 in guardrail scenario
+    - name: figure-governance-detection
+      type: plotnine
+      depends_on: [extract-trace-stats]
+      config:
+        data: "@extract-trace-stats"
+        filter:
+          item_group: [guardrail]
+        mapping: { x: scenario, y: n_governance_fired, fill: scenario }
+        geom: col
+        stat: summary
+        labels:
+          title: "Governance detection on guardrail item"
+          subtitle: "governance_policy fired events \u2014 g1 (forbidden destination)"
+          x: ""
+          y: "Fired events"
+        output: "{output_dir}/results/fig_extensions_governance.png"
+        width: 4.5
+        height: 3.0
+        hide_x_labels: true
 
-      # NOTE: extract-trajectories and trajectory-plots steps removed.
-      # plot_multilevel_trajectory_batch is not a built-in step type.
-      # Trajectory visualisations can be added later via a custom step.
+    # NOTE: extract-trajectories and trajectory-plots steps removed.
+    # plot_multilevel_trajectory_batch is not a built-in step type.
+    # Trajectory visualisations can be added later via a custom step.
 
-      # NOTE: attribution_flow, sankey_flow, extract_sys_stats, governance_overhead
-      # are not built-in step types. Removed pending custom step implementation.
+    # NOTE: attribution_flow, sankey_flow, extract_sys_stats, governance_overhead
+    # are not built-in step types. Removed pending custom step implementation.
 
-    # ------------------------------------------------------------------
-    # Flavours
-    # ------------------------------------------------------------------
+  # ------------------------------------------------------------------
+  # Flavours
+  # ------------------------------------------------------------------

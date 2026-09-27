@@ -1,7 +1,7 @@
 experiment:
   name: moderator-design-patterns
-  applications:
-    - manifest: apps/trip-planner/mas.yaml
+  application:
+    manifest: apps/trip-planner/mas.yaml
   scenarios:
     - id: react
       tags: []

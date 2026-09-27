@@ -4,9 +4,9 @@ experiment:
   name: cache-rerun-lifecycle-control
   description: Single-run lifecycle smoke for trace-cache invalidation tests
   default_flavour: local
-  applications:
-    - app: trip-planner
-      configs_dir: ../../../labs/lifecycle-control.lab/overlays
+  application:
+    app: trip-planner
+    configs_dir: ../../../labs/lifecycle-control.lab/overlays
   scenarios:
     - id: baseline
       overlays:
@@ -22,9 +22,8 @@ experiment:
         cache: content-addressed
   run:
     n_runs: 1
-  application:
-    post:
-      - name: trace-stats
-        type: extract_trace_stats
-        config:
-          output: "{output_dir}/results/trace_stats.csv"
+  post:
+    - name: trace-stats
+      type: extract_trace_stats
+      config:
+        output: "{output_dir}/results/trace_stats.csv"

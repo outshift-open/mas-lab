@@ -20,15 +20,18 @@ mas-lab benchmark run experiment.yaml --limit-scenarios 1 --max-runs 1 --progres
 
 ## Scenario matrix
 
-Each **scenario** is one column: a setup `id` and which **overlays** apply:
+Each **scenario** is one column: a setup `id` and layered **overlays**:
 
 ```yaml
 experiment:
   scenarios:
     - id: baseline
-      overlays: [baseline]
+      overlays: {logic: [], control: [], infra: []}
     - id: with-guardrail
-      overlays: [baseline, guardrail]
+      overlays:
+        logic: []
+        control: [with-guardrail]
+        infra: []
 ```
 
 Hold **dataset** and `n_runs` constant across scenarios.
@@ -44,12 +47,18 @@ Details: [multi-scenario-format.md](multi-scenario-format.md).
 
 Use `n_runs > 1` when **pipeline steps** report confidence intervals.
 
-## Embedded pipeline for figures
+## Level hooks for figures
 
-Declare every figure under `pipeline:` in `experiment.yaml`:
+Declare figures on experiment-level `post:` (CLI `--depth exp`), not a
+`pipeline:` key:
 
-```bash
-mas-lab benchmark run path/to/experiment.yaml --progress
+```yaml
+  post:
+    - name: figure-overhead-quality
+      type: plotnine
+      depends_on: [gather-experiment, compute-ci]
+      config:
+        output: '{output_dir}/results/figure-02-overhead-quality.png'
 ```
 
 ## Example labs

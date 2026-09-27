@@ -10,7 +10,7 @@
 [glossary.md](../docs/glossary.md) · [cli/observability.md](../docs/cli/observability.md).
 
 `mas-lab` runs **benchmark** **experiments** via `mas-ctl`, writes **`events.jsonl`**
-per **run**, and runs the **embedded pipeline** to produce CSV/PNG results.
+per **run**, and runs level hooks (`run` / `item` / `scenario` / `post`) to produce CSV/PNG results.
 
 Stack position:
 
@@ -39,7 +39,7 @@ Dependencies: [`mas-runtime`](../runtime/) and [`mas-ctl`](../ctl/).
 | Command | Component | Intent |
 | ------- | --------- | ------ |
 | [`check`](components/core/README.md#check) | core | Validate a MAS specification |
-| [`benchmark`](components/bench/README.md#benchmark-run) | bench | Run experiments + embedded pipeline |
+| [`benchmark`](components/bench/README.md#benchmark-run) | bench | Run experiments + level hooks |
 | [`plot`](components/bench/README.md#plot--trace-visualisations) | bench | Trajectory / communication plots |
 | [`telemetry`](components/core/README.md#telemetry) | core | Inspect or push traces |
 

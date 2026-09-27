@@ -45,7 +45,7 @@ def test_sample_injects_evaluation_model_and_keeps_step_override() -> None:
     loaded = MASRunBase._load_base_fields(
         exp, SAMPLE, yaml_path=SAMPLE / "experiment.yaml"
     )
-    steps = [s for s in loaded["levels"]["application"].pipeline if s.type == "eval_mce"]
+    steps = [s for s in loaded["levels"]["experiment"].pipeline if s.type == "eval_mce"]
     assert len(steps) == 2
     inherited = next(s for s in steps if s.name != "eval_mce_strict")
     strict = next(s for s in steps if s.name == "eval_mce_strict")

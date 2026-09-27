@@ -8,7 +8,8 @@
 
 A **pipeline** is an ordered list of **pipeline steps** (e.g. `extract_trace_stats`,
 `plotnine`) that read **run** artifacts such as **`events.jsonl`** and write CSV/PNG under
-`results/`. An **embedded pipeline** lives in `experiment.yaml`; a standalone file is run with
+`results/`. Level hooks live in `experiment.yaml` (`run.post`, `item.post`,
+`scenario.post`, experiment `post:`). A standalone `pipeline:` file is run with
 `mas-lab benchmark pipeline run`.
 
 **Terms:** [glossary.md](../glossary.md) · Hands-on: [Tutorial 3](../tutorials/03-experiments-and-analysis/README.md).

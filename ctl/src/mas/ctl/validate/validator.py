@@ -87,6 +87,12 @@ def validate_data(
         level = "error" if strict else "warning"
         result.issues.append(ValidationIssue(level, humanize_schema_error(err), path=path))
 
+    if resolved_kind == "experiment":
+        from mas.ctl.validate.deprecations import collect_experiment_deprecations
+
+        for msg in collect_experiment_deprecations(data, schema):
+            result.issues.append(ValidationIssue("warning", msg, path="experiment"))
+
     if any(i.level == "error" for i in result.issues):
         result.ok = False
 

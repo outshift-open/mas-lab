@@ -13,16 +13,22 @@ Defines **benchmark** metadata, execution modes, lifecycle levels, and **pipelin
 
 ---
 
-## Four layers
+## Four layers (matches CLI `--depth exp|scenario|item|run`)
 
-| Level | Scope | Typical pre | Typical post |
-|-------|-------|-------------|--------------|
-| `application` | Whole experiment | `service_start`, allocate infra | Aggregate metrics, publish report |
-| `scenario` | One overlay column | — | Scenario-level plots |
-| `test` | One dataset item (all runs) | — | Per-item analysis |
-| `run` | Single run index | — | `extract_trajectories`, trace export |
+There is **no** `pipelines:` key. Hooks live on the same objects the CLI
+already names:
 
-Each level supports `pre:` and `post:` as **lists of pipelines** (0..N).
+| YAML | CLI | Scope | Typical post |
+|------|-----|-------|--------------|
+| `post:` (experiment root) | `--depth exp` | Whole experiment | `gather_level`, CI, plots |
+| `scenario:` | `--scenario` / `--depth scenario` | One overlay column | Gather item frames |
+| `item:` | `--item` / `--depth item` | One dataset item (all runs) | Gather run frames |
+| `run:` | `--depth run` | Single run index | `eval_mce`, `metrics_to_dataframe`, `extract_trace_stats` |
+
+`application:` is the **MAS binding** (`app` / `manifest` / `configs_dir`), not a pipeline level.
+Deprecated aliases still load with a warning: `applications:`, `application.post`, `test:`.
+
+Each level supports `pre:` and `post:` as **lists of steps** (0..N).
 
 ---
 
@@ -34,24 +40,50 @@ experiment:
   model: any                    # shorthand for models.main; omit ≡ any
   models:                       # optional slot map (main / summarizer / judge)
     main: any
-  applications:
-    - manifest: ./mas.yaml
-      configs_dir: ./overlays
+
+  # ── Application ── MAS + experiment-level post (gather → CI → figure)
+  application:
+    app: trip-planner
+    configs_dir: ./overlays
+  artifacts: {df: dataframe}
+  post:
+    - {name: gather-experiment, type: gather_level, in: df, out: df, depends_on: [gather-scenario]}
+
+  # ── Scenario ── overlay columns + gather
   scenarios:
     - id: linear
-      overlays:
-        logic: [linear]
-        control: []
-        infra: []
+      overlays: {logic: [linear], control: [], infra: []}
+  scenario:
+    artifacts: {df: dataframe}
+    post:
+      - {name: gather-scenario, type: gather_level, in: df, out: df, depends_on: [gather-item]}
+
+  # ── Test ── dataset items + gather
   dataset:
-    name: arborian-network
+    name: trip-planner-benchmark-100
+    locator: samples
+  item:
+    artifacts: {df: dataframe}
+    post:
+      - {name: gather-item, type: gather_level, in: df, out: df, depends_on: [extract-trace-stats]}
+
+  # ── Run ── one MAS execution; n_runs lives here
   run:
     n_runs: 5
-    pre: []
+    artifacts:
+      trace: trace
+      df: dataframe
     post:
-      - id: analysis          # library pipeline in lab/pipelines/
-  evaluation:
-    method: trace_only
+      - name: extract-trace-stats
+        type: extract_trace_stats
+        in: trace
+        out: df
+
+  # ── Execution ── batch orchestration only (last)
+  execution:
+    parallel_scenarios: 4
+    timeout: 300
+    strategy: coverage
 ```
 
 ---
@@ -192,11 +224,16 @@ runs. It is **not** the removed `spec.execution` field from `kind: Agent` manife
 | Whole-run trace skip/replay (content-addressed lab cache) | `experiment.execution.emulation.runtime.cache` (`content-addressed` \| `disabled` \| `forced`) |
 | Live vs replay for LLM, tools, memory during a benchmark | `experiment.execution.emulation.infra.*` |
 
-Example (smoke run — disable trace cache, keep infra live):
+Example (smoke run — disable trace cache, keep infra live). Put `execution:` last:
 
 ```yaml
 experiment:
   name: my-bench
+  application:
+    app: trip-planner
+    configs_dir: ./overlays
+  run:
+    n_runs: 1
   execution:
     emulation:
       runtime:

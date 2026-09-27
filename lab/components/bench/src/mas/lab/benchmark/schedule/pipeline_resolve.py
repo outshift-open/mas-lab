@@ -21,7 +21,7 @@ def resolve_pipeline_specs(exp: Any, experiment_yaml: Path) -> list:
 
     Resolution order (first non-empty wins):
 
-    1. Experiment manifest — ``all_pipeline_steps()`` (v2 levels + flat ``pipeline:``)
+    1. Experiment manifest — ``all_pipeline_steps()`` (level hooks)
     2. External ref — ``pipeline_ref`` or ``pipeline: path/to.yaml`` (string)
     3. App bundle — ``pipeline_app`` (``{app: name, name: pipeline}``)
     4. Sibling file — ``pipeline.yaml`` next to the experiment file
