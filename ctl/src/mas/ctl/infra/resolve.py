@@ -464,6 +464,7 @@ def _from_dict(data: dict[str, Any]) -> InfraManifest:
             mappings=dict(models_raw.get("mappings") or {}),
         ),
         model_access=dict(spec.get("model_access") or {}),
+        protocol=str(spec.get("protocol") or "").strip(),
         tool_servers=[dict(item) for item in (spec.get("tool_servers") or []) if isinstance(item, dict)],
         raw=data,
     )
@@ -483,6 +484,7 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
     default_llm: str | None = None
     default_embed: str | None = None
     model_access: dict[str, Any] = {}
+    protocol = ""
     pipeline: list[dict[str, Any]] = []
     runtime_engine: dict[str, Any] = {}
     tool_servers_by_id: dict[str, dict[str, Any]] = {}
@@ -509,6 +511,8 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
         if m.models.default_embed:
             default_embed = m.models.default_embed
         model_access.update(m.model_access)
+        if m.protocol:
+            protocol = m.protocol
         for server in m.tool_servers:
             sid = str(server.get("id") or "").strip()
             if not sid:
@@ -529,6 +533,7 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
             mappings=mappings,
         ),
         model_access=model_access,
+        protocol=protocol,
         pipeline=pipeline,
         runtime_engine=runtime_engine,
         tool_servers=[tool_servers_by_id[sid] for sid in tool_server_order],

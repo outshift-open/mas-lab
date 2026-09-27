@@ -11,6 +11,7 @@ metadata:
     Use for development when proxy is unavailable.
 
 spec:
+  protocol: openai
   proxy:
     api_base: https://api.openai.com/v1
     api_key_env: OPENAI_API_KEY

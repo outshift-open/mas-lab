@@ -48,6 +48,16 @@ properties:
     $ref: "../agent.schema.yaml#/properties/spec/properties/assembler"
   llm:
     $ref: "../agent.schema.yaml#/properties/spec/properties/llm"
+  models:
+    $ref: "./overlay-collection-ops-models.schema.yaml"
+  description:
+    $ref: "../agent.schema.yaml#/properties/spec/properties/description"
+  tools_ref:
+    $ref: "../agent.schema.yaml#/properties/spec/properties/tools_ref"
+  behavior:
+    $ref: "../agent.schema.yaml#/properties/spec/properties/behavior"
+  context_sources:
+    $ref: "../agent.schema.yaml#/properties/spec/properties/context_sources"
   memory_seed:
     $ref: "./overlay-collection-ops-memory-seed.schema.yaml"
   tools:

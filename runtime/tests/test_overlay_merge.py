@@ -651,7 +651,72 @@ def test_runtime_semantics_registry_covers_non_trivial_agent_fields() -> None:
     ):
         assert field in agent
     assert agent["providers"] == "named_list_union(identity=name)"
+    assert agent["models"] == "named_list_merge(identity=id)"
+    assert agent["description"] == "replace"
+    assert agent["tools_ref"] == "replace"
+    assert agent["behavior"] == "mapping_merge_or_ops"
     assert "Infra" in semantics
+
+
+def test_merge_models_reasoning_deep_merges_by_id() -> None:
+    base = {"spec": {"models": [{"id": "main", "model": "gpt-5-mini", "temperature": 0.2}]}}
+    merged = merge_overlay(
+        base,
+        _overlay({"models": [{"id": "main", "reasoning": {"effort": "low", "think": True, "mode": "standard"}}]}),
+    )
+    row = merged["spec"]["models"][0]
+    assert row["model"] == "gpt-5-mini"
+    assert row["temperature"] == 0.2
+    assert row["reasoning"]["effort"] == "low"
+    assert row["reasoning"]["think"] is True
+    assert row["reasoning"]["mode"] == "standard"
+
+
+def test_merge_models_sampling_and_extra_by_id() -> None:
+    base = {"spec": {"models": [{"id": "main", "model": "gpt-5-mini", "temperature": 0.7, "extra": {"a": 1}}]}}
+    merged = merge_overlay(
+        base,
+        _overlay(
+            {
+                "models": [
+                    {
+                        "id": "main",
+                        "temperature": 0.2,
+                        "top_p": 0.9,
+                        "extra": {"b": 2},
+                    }
+                ]
+            }
+        ),
+    )
+    row = merged["spec"]["models"][0]
+    assert row["model"] == "gpt-5-mini"
+    assert row["temperature"] == 0.2
+    assert row["top_p"] == 0.9
+    assert row["extra"] == {"a": 1, "b": 2}
+
+
+def test_merge_agent_overlay_patches_description_tools_ref_behavior() -> None:
+    base = {
+        "spec": {
+            "description": "base",
+            "tools_ref": "sre-tools",
+            "behavior": {"share_reasoning": False},
+        }
+    }
+    merged = merge_overlay(
+        base,
+        _overlay(
+            {
+                "description": "patched",
+                "tools_ref": "backend-tools",
+                "behavior": {"share_reasoning": True},
+            }
+        ),
+    )
+    assert merged["spec"]["description"] == "patched"
+    assert merged["spec"]["tools_ref"] == "backend-tools"
+    assert merged["spec"]["behavior"]["share_reasoning"] is True
 
 
 def test_merge_infra_overlay_json_merge_patch_semantics() -> None:

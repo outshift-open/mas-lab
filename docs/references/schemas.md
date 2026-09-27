@@ -33,6 +33,7 @@ Top-level kinds (see [manifest reference](../manifests/README.md)):
 | Schema | `kind` / role |
 | --- | --- |
 | [`runtime/agent.schema.yaml`](../schemas/runtime/agent.schema.yaml) | `Agent` |
+| [`runtime/llm-model-catalog.schema.yaml`](../schemas/runtime/llm-model-catalog.schema.yaml) | Curated per-model context/settings — [llm-model-catalog.md](../manifests/llm-model-catalog.md) |
 | [`runtime/mas.schema.yaml`](../schemas/runtime/mas.schema.yaml) | `MAS` |
 | [`runtime/workflow.schema.yaml`](../schemas/runtime/workflow.schema.yaml) | `Workflow` |
 | [`runtime/overlay.schema.yaml`](../schemas/runtime/overlay.schema.yaml) | `Overlay` |
@@ -79,6 +80,8 @@ bindings, workflow nodes/edges, policy rules, design-pattern config, etc.
 Sample overlays and bindings under [`schemas/examples/`](../schemas/examples/):
 
 - [`overlays/live-llm.yaml`](../schemas/examples/overlays/live-llm.yaml)
+- [`overlays/llm-reasoning.yaml`](../schemas/examples/overlays/llm-reasoning.yaml)
+- [`overlays/llm-sampling.yaml`](../schemas/examples/overlays/llm-sampling.yaml)
 - [`overlays/mcp-localhost.yaml`](../schemas/examples/overlays/mcp-localhost.yaml)
 - [`infra/mcp-localhost.yaml`](../schemas/examples/infra/mcp-localhost.yaml)
 - [`tools/annotated.tool.yaml`](../schemas/examples/tools/annotated.tool.yaml)

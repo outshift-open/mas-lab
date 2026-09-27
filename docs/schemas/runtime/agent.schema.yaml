@@ -85,6 +85,8 @@ properties:
       description:
         type: string
         minLength: 1
+        x-merge:
+          strategy: replace
         description: >
           Routing-facing one-liner for delegation tools, AgentCard, and registry
           discovery. Not injected into the LLM system prompt — use spec.context.*
@@ -93,54 +95,20 @@ properties:
       models:
         type: array
         description: >
-          Preferred model(s) for this agent. Structural intent only —
-          the active flavour selects the actual provider at runtime.
-          Do NOT put api_base or api_key_env here.
+          Preferred model(s) for this agent. ``kind`` selects the wire-protocol
+          plugin (routing, same idea as ``spec.providers[]`` for tools).
+          Connection fields (api_base, api_key_env) belong on infra, not here.
+          Static sampling/reasoning live on each row; per-call dynamic fields
+          are LLMProvider.chat_completion kwargs. Capabilities:
+          docs/manifests/llm-model-catalog.md.
         default: []
+        x-merge:
+          strategy: named_list_merge
+          identity: id
         items:
-          type: object
-          required: [model]
-          additionalProperties: false
-          properties:
-            id:
-              type: string
-              description: "Logical model ID within this agent. Use 'main' for the primary model."
-              default: "main"
-            model:
-              type: string
-              description: >
-                LiteLLM-style model string, e.g. gpt-4o, or `any`. `any`
-                (and omitted, which compile writes as any) means this
-                spec does not pin a provider id — inherit MAS / experiment
-                models.<id> (models.main / experiment.model for id main),
-                then local config.yaml defaults.model.
-            temperature:
-              type: number
-              minimum: 0.0
-              maximum: 2.0
-              default: 0.7
-            max_tokens:
-              type: integer
-              minimum: 1
-              default: 2000
-              description: >
-                Completion budget (reserved from the input window when sizing
-                conversation history). Not the model context size. Also used as
-                the bound on internal reasoning for models that bill thinking
-                against max_tokens (e.g. Gemini 2.5, o-series).
-            context_window:
-              type: integer
-              minimum: 1
-              default: 128000
-              description: >
-                Model input context size in tokens. History is sized as
-                context_window minus completion reserve (max_tokens) and any
-                spec.context_manager.params.trimmer.reserve_tokens override.
-            reasoning_effort:
-              type: string
-              description: >
-                Optional bound on internal reasoning for models that bill thinking
-                against max_tokens (e.g. Gemini 2.5, o-series).
+          allOf:
+            - $ref: "./fragments/llm-model-entry.schema.yaml"
+            - required: [model]
 
       design_pattern:
         description: >
@@ -651,6 +619,8 @@ properties:
 
       tools_ref:
         type: [string, "null"]
+        x-merge:
+          strategy: replace
         description: >
           Logical tool-set name resolved by the infra manifest ToolRegistry.
           No file paths, no extensions — a simple identifier only.
@@ -883,6 +853,8 @@ properties:
 
       behavior:
         type: object
+        x-merge:
+          strategy: mapping_merge_or_ops
         description: >
           Per-agent runtime behavior configuration.
           These settings are structural/semantic — they affect what system tools and

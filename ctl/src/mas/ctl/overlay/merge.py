@@ -314,6 +314,8 @@ def _merge_value_by_meta(existing: Any, incoming: Any, meta: dict[str, Any]) -> 
 
         def _item_key(item: Any) -> str:
             if isinstance(item, dict):
+                if identity == "id":
+                    return str(item.get("id") or item.get("model") or "main")
                 return str(item.get(identity) or "")
             return str(item)
 
@@ -333,6 +335,65 @@ def _merge_value_by_meta(existing: Any, incoming: Any, meta: dict[str, Any]) -> 
             key = _item_key(copied)
             if key and key in index_by_key:
                 result[index_by_key[key]] = copied
+            else:
+                result.append(copied)
+                if key:
+                    index_by_key[key] = len(result) - 1
+        return result
+
+    if strategy == "named_list_merge":
+        identity = str(meta.get("identity") or "id")
+        existing_list = list(existing or []) if isinstance(existing, list) else []
+
+        def _merge_key(item: Any) -> str:
+            if isinstance(item, dict):
+                if identity == "id":
+                    return str(item.get("id") or item.get("model") or "main")
+                return str(item.get(identity) or item.get("id") or item.get("model") or "")
+            return str(item)
+
+        def _has_explicit_identity(item: Any) -> bool:
+            if not isinstance(item, dict):
+                return False
+            key = "id" if identity == "id" else identity
+            return bool(item.get(key))
+
+        if _ops_dict(incoming) is not None:
+            try:
+                return _merge_list_ops(existing_list, incoming, dedupe_key=_merge_key)
+            except ValueError as exc:
+                raise OverlayTargetError(str(exc)) from exc
+        if not isinstance(incoming, list):
+            raise OverlayTargetError(
+                "named_list_merge patch must be a raw list or use '$op' (replace/add/remove/clear)"
+            )
+        result = [deepcopy(item) for item in existing_list]
+        index_by_key = {_merge_key(item): i for i, item in enumerate(result) if _merge_key(item)}
+        for pos, item in enumerate(incoming):
+            copied = deepcopy(item)
+            key = _merge_key(copied)
+            target_index = index_by_key.get(key) if key else None
+            if (
+                target_index is None
+                and not _has_explicit_identity(copied)
+                and pos < len(result)
+                and len(existing_list) == 1
+            ):
+                # No explicit identity on the patch item and exactly one base
+                # row — fall back to matching that row instead of appending a
+                # duplicate (the derived key, e.g. from "model", may not match
+                # the base row's own identity, such as a custom "id"). With 2+
+                # base rows position carries no meaning, so an unmatched key
+                # is treated as a genuine new addition instead of a guess.
+                target_index = pos
+            if target_index is not None:
+                current = result[target_index]
+                if isinstance(current, dict) and isinstance(copied, dict):
+                    result[target_index] = apply_merge_patch(deepcopy(current), copied)
+                else:
+                    result[target_index] = copied
+                if key:
+                    index_by_key[key] = target_index
             else:
                 result.append(copied)
                 if key:

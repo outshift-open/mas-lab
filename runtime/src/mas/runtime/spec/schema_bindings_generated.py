@@ -6,10 +6,37 @@ from __future__ import annotations
 
 LLM_BINDING_KEYS = frozenset(
     {
+    'extra',
+    'frequency_penalty',
+    'logit_bias',
+    'logprobs',
+    'max_completion_tokens',
     'max_tokens',
+    'metadata',
+    'min_p',
+    'min_tokens',
+    'modalities',
     'model',
+    'n',
+    'parallel_tool_calls',
+    'prediction',
+    'presence_penalty',
+    'prompt_cache_key',
     'provider',
+    'reasoning',
+    'reasoning_effort',
+    'repetition_penalty',
+    'response_format',
+    'seed',
+    'service_tier',
+    'stop',
+    'store',
     'temperature',
+    'top_k',
+    'top_logprobs',
+    'top_p',
+    'user',
+    'verbosity',
     }
 )
 

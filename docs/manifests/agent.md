@@ -115,7 +115,7 @@ spec:
 | Prompt assembly | `assembler` | default `assembler` (ContextAssemblerPlugin) — [context-assembly.md](context-assembly.md) · [plugin-bindings.md](plugin-bindings.md) |
 | Context window | `context_manager` | default `summarising` (last `keep_turns` verbatim; `summarizer: llm` or `drop`; optional cheaper summary model) / sliding-window / stack — [summarization.md](summarization.md) · [context-assembly.md](context-assembly.md) |
 | Prompt / role | `description`, `context` | `description` → delegation tools; `context.*` → system prompt |
-| Models | `models[]` | LLM routing (ids, temperature, max_tokens completion, context_window). Unbound ids inherit MAS / `experiment.models.<id>`. Summarizer/judge slots default the summary and MCE calls — [summarization.md](summarization.md) |
+| Models | `models[]` | LLM routing (ids, temperature, max_tokens completion, context_window, [reasoning / thinking](llm-reasoning.md)). Unbound ids inherit MAS / `experiment.models.<id>`. Summarizer/judge slots default the summary and MCE calls — [summarization.md](summarization.md) |
 | Tools | `tools`, `tools_ref`, `providers` | [ToolContract](../references/tool-contract.md) · [tool.md](tool.md) · [ToolServerRegistry](../references/tool-server-registry.md) |
 | Skills | `skills` | Context facet (catalog) + `activate_skill`/`read_skill_file` tools |
 | Memory | `memory`, `memory_seed` | Stores + startup seeds |
@@ -217,6 +217,33 @@ working_memory:
 
 Full thresholds, model, prompt, and logs: [summarization.md](summarization.md).
 Example: [summarizer-override](../../library-standard/examples/context/summarizer-override/).
+
+---
+
+## Model providers
+
+`spec.models[]` claims **which** wire-protocol plugin owns **which** model
+name — the same procedure as `spec.providers[]` for tools. `kind` is the
+protocol (`openai` now; `bedrock` later). Connection `api_base` / `api_key_env`
+belong on infra (`LLMProxy` / `spec.protocol`). With no `kind`, the library
+default (`openai`) or infra `spec.protocol` owns every model.
+
+Cache is a wrapper around the routed protocol plugin, not a `kind`. Offline
+turns replay a recorded live provider through `llm_cache` (`raise_on_miss`).
+
+```yaml
+models:
+  - id: main
+    model: gpt-4o-mini
+    kind: openai
+    reasoning:
+      effort: low
+      exclude: true          # default — CoT does not enter working memory
+```
+
+Thinking depth, thinking-token budget, hiding chain-of-thought, and the
+portable sampling overset: [llm-reasoning.md](llm-reasoning.md). Per-model
+maxima and allowed settings: [llm-model-catalog.md](llm-model-catalog.md).
 
 ---
 

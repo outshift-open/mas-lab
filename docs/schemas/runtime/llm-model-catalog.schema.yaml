@@ -1,0 +1,102 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "https://outshift-open.github.io/mas-lab/schemas/runtime/llm-model-catalog.schema.yaml"
+title: LlmModelCatalog
+description: >
+  Versioned per-model capability table (context window, max output, defaults,
+  allowed settings). Curated subset — not a dump of LiteLLM/OpenRouter.
+  See docs/manifests/llm-model-catalog.md.
+type: object
+required: [apiVersion, kind, metadata, spec]
+additionalProperties: false
+properties:
+  apiVersion:
+    type: string
+    const: mas/v1
+  kind:
+    type: string
+    const: LlmModelCatalog
+  metadata:
+    type: object
+    required: [name, version]
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+      version:
+        type: string
+        description: Catalog revision (calver or semver), independent of MAS package version.
+      description:
+        type: string
+  spec:
+    type: object
+    additionalProperties: false
+    properties:
+      sources:
+        type: array
+        items:
+          type: object
+          required: [id]
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+            title:
+              type: string
+            url:
+              type: string
+            note:
+              type: string
+            reusable:
+              type: boolean
+              default: false
+      models:
+        type: object
+        additionalProperties:
+          $ref: "#/definitions/modelInfo"
+definitions:
+  setting:
+    type: object
+    additionalProperties: false
+    properties:
+      supported:
+        type: boolean
+        default: true
+      min:
+        type: number
+      max:
+        type: number
+      default:
+        description: Default value for this setting when the spec omits it.
+      enum:
+        type: array
+  modelInfo:
+    type: object
+    additionalProperties: false
+    properties:
+      aliases:
+        type: array
+        items:
+          type: string
+      context_window:
+        type: integer
+        minimum: 1
+      max_output_tokens:
+        type: integer
+        minimum: 1
+      max_thinking_tokens:
+        type: integer
+        minimum: 0
+      apis:
+        type: array
+        items:
+          type: string
+          enum: [chat_completions, responses, ollama, vllm, anthropic, gemini]
+      defaults:
+        type: object
+        additionalProperties: true
+      settings:
+        type: object
+        additionalProperties:
+          $ref: "#/definitions/setting"

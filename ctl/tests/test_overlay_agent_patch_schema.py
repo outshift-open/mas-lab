@@ -128,3 +128,63 @@ def test_explicit_mcp_tools_list_validates_without_a_server(tmp_path: Path):
         kind="overlay",
     )
     assert result.ok, result.issues
+
+
+def test_llm_reasoning_patch_validates(tmp_path: Path):
+    result = validate_file(
+        _write(
+            tmp_path,
+            {"llm": {"reasoning": {"effort": "low", "budget_tokens": 64, "exclude": True}}},
+        ),
+        kind="overlay",
+    )
+    assert result.ok, result.issues
+
+
+def test_models_reasoning_patch_validates(tmp_path: Path):
+    result = validate_file(
+        _write(
+            tmp_path,
+            {
+                "models": [
+                    {
+                        "id": "main",
+                        "reasoning": {"effort": "low", "budget_tokens": 64, "exclude": True, "think": True},
+                    }
+                ]
+            },
+        ),
+        kind="overlay",
+    )
+    assert result.ok, result.issues
+
+
+def test_models_sampling_extra_patch_validates(tmp_path: Path):
+    result = validate_file(
+        _write(
+            tmp_path,
+            {
+                "models": [
+                    {
+                        "id": "main",
+                        "temperature": 0.2,
+                        "min_p": 0.05,
+                        "extra": {"chat_template_kwargs": {"enable_thinking": True}},
+                    }
+                ]
+            },
+        ),
+        kind="overlay",
+    )
+    assert result.ok, result.issues
+
+
+def test_llm_reasoning_unknown_field_is_rejected(tmp_path: Path):
+    result = validate_file(
+        _write(
+            tmp_path,
+            {"llm": {"reasoning": {"effort": "low", "turbo": True}}},
+        ),
+        kind="overlay",
+    )
+    assert not result.ok

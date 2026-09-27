@@ -1,23 +1,38 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
 $schema: "https://json-schema.org/draft-07/schema#"
-$id: "mas/v1#llm-binding"
-title: LlmBinding
+$id: "mas/v1#llm-model-entry"
+title: LlmModelEntry
 description: >
-  Deprecated compat shim for model id and sampling params on kind: Agent.
-  Prefer spec.models[]. Retained for overlay patches (provider, sampling,
-  reasoning).
+  One spec.models[] row. Identity + static sampling/reasoning. Connection
+  (api_base, api_key_env) belongs on infra, not here. Per-call dynamic
+  fields belong on LLMProvider.chat_completion.
 type: object
 additionalProperties: false
 properties:
+  id:
+    type: string
+    description: "Logical model ID within this agent. Use 'main' for the primary model."
+    default: "main"
   model:
     type: string
-  provider:
+    description: >
+      LiteLLM-style model string, e.g. gpt-4o, or `any`. `any`
+      (and omitted, which compile writes as any) means this
+      spec does not pin a provider id — inherit MAS / experiment
+      models.<id> (models.main / experiment.model for id main),
+      then local config.yaml defaults.model.
+  kind:
     type: string
-    description: "Engine provider hint (openai, azure, …)."
+    description: >
+      LLM wire-protocol plugin (openai now; bedrock later). Same role as
+      spec.providers[].kind for tools. Not cache.
   extra:
     type: object
     additionalProperties: true
+    description: >
+      Protocol-specific static fields forwarded on the Chat Completions body
+      (and merged with per-call extra_body). Escape hatch for the overset.
   reasoning_effort:
     type: string
     enum: [none, disable, minimal, low, medium, high, xhigh, max]
@@ -28,6 +43,14 @@ properties:
     $ref: "./llm-sampling.schema.yaml#/properties/temperature"
   max_tokens:
     $ref: "./llm-sampling.schema.yaml#/properties/max_tokens"
+  context_window:
+    type: integer
+    minimum: 1
+    default: 128000
+    description: >
+      Model input context size in tokens. History is sized as
+      context_window minus completion reserve (max_tokens) and any
+      spec.context_manager.params.trimmer.reserve_tokens override.
   max_completion_tokens:
     $ref: "./llm-sampling.schema.yaml#/properties/max_completion_tokens"
   min_tokens:
