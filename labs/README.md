@@ -5,8 +5,9 @@
 # Labs
 
 **Labs** (`*.lab/`) hold **experiment** manifests for paper §5. Each
-`experiment.yaml` lists **scenarios**, a **dataset**, and an **embedded pipeline**
-that builds figures from **`events.jsonl`** logs.
+`experiment.yaml` lists **scenarios**, a **dataset**, and **level hooks**
+(`run` / `item` / `scenario` / experiment `post:`) that build figures from
+**`events.jsonl`** logs.
 
 Terms: [glossary.md](../docs/glossary.md). Lab vs library:
 [labs-and-libraries.md](../docs/labs-and-libraries.md).

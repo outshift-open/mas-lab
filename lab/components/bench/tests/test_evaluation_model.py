@@ -37,18 +37,16 @@ def test_experiment_injects_eval_mce_model(tmp_path) -> None:
     data = {
         "name": "judge-override",
         "evaluation": {"method": "llm_judge", "model": "gpt-4o-mini"},
-        "application": {
-            "post": [
-                {"type": "extract_trajectories"},
-                {"type": "eval_mce", "depends_on": ["extract_trajectories"]},
-                {"type": "eval_mce", "name": "strict", "config": {"model": "gpt-4o"}},
-            ]
-        },
+        "post": [
+            {"type": "extract_trajectories"},
+            {"type": "eval_mce", "depends_on": ["extract_trajectories"]},
+            {"type": "eval_mce", "name": "strict", "config": {"model": "gpt-4o"}},
+        ],
     }
     loaded = MASRunBase._load_base_fields(
         data, tmp_path, yaml_path=tmp_path / "experiment.yaml"
     )
-    steps = loaded["levels"]["application"].pipeline
+    steps = loaded["levels"]["experiment"].pipeline
     mce = [s for s in steps if s.type == "eval_mce"]
     assert len(mce) == 2
     inherited = next(s for s in mce if s.name != "strict")
@@ -62,12 +60,12 @@ def test_experiment_model_defaults_judge(tmp_path) -> None:
     data = {
         "name": "pinned",
         "model": "gpt-4o",
-        "application": {"post": [{"type": "eval_mce"}]},
+        "post": [{"type": "eval_mce"}],
     }
     loaded = MASRunBase._load_base_fields(
         data, tmp_path, yaml_path=tmp_path / "experiment.yaml"
     )
-    step = loaded["levels"]["application"].pipeline[0]
+    step = loaded["levels"]["experiment"].pipeline[0]
     assert step.config["model"] == "gpt-4o"
     assert step.config["model_source"] == "experiment.model"
 
@@ -77,14 +75,14 @@ def test_experiment_models_judge_defaults_eval_mce(tmp_path) -> None:
         "name": "slots",
         "model": "gpt-4o",
         "models": {"judge": "gpt-4o-mini", "summarizer": "haiku"},
-        "application": {"post": [{"type": "eval_mce"}]},
+        "post": [{"type": "eval_mce"}],
     }
     loaded = MASRunBase._load_base_fields(
         data, tmp_path, yaml_path=tmp_path / "experiment.yaml"
     )
     assert loaded["model"] == "gpt-4o"
     assert loaded["models"]["judge"] == "gpt-4o-mini"
-    step = loaded["levels"]["application"].pipeline[0]
+    step = loaded["levels"]["experiment"].pipeline[0]
     assert step.config["model"] == "gpt-4o-mini"
     assert step.config["model_source"] == "experiment.models.judge"
 
@@ -94,26 +92,26 @@ def test_experiment_models_main_wins_over_scalar(tmp_path) -> None:
         "name": "both",
         "model": "gpt-4o",
         "models": {"main": "gpt-4o-mini"},
-        "application": {"post": [{"type": "eval_mce"}]},
+        "post": [{"type": "eval_mce"}],
     }
     loaded = MASRunBase._load_base_fields(
         data, tmp_path, yaml_path=tmp_path / "experiment.yaml"
     )
     assert loaded["model"] == "gpt-4o-mini"
-    step = loaded["levels"]["application"].pipeline[0]
+    step = loaded["levels"]["experiment"].pipeline[0]
     assert step.config["model"] == "gpt-4o-mini"
 
 
 def test_experiment_omitted_model_is_any(tmp_path) -> None:
     data = {
         "name": "unpinned",
-        "application": {"post": [{"type": "eval_mce"}]},
+        "post": [{"type": "eval_mce"}],
     }
     loaded = MASRunBase._load_base_fields(
         data, tmp_path, yaml_path=tmp_path / "experiment.yaml"
     )
     assert loaded["model"] == "any"
-    step = loaded["levels"]["application"].pipeline[0]
+    step = loaded["levels"]["experiment"].pipeline[0]
     assert "model" not in step.config
 
 
@@ -121,12 +119,12 @@ def test_experiment_any_does_not_pin_judge(tmp_path) -> None:
     data = {
         "name": "unpinned",
         "model": "any",
-        "application": {"post": [{"type": "eval_mce"}]},
+        "post": [{"type": "eval_mce"}],
     }
     loaded = MASRunBase._load_base_fields(
         data, tmp_path, yaml_path=tmp_path / "experiment.yaml"
     )
-    step = loaded["levels"]["application"].pipeline[0]
+    step = loaded["levels"]["experiment"].pipeline[0]
     assert "model" not in step.config
 
 
@@ -134,12 +132,12 @@ def test_experiment_metadata_model_name_defaults_judge(tmp_path) -> None:
     data = {
         "name": "same-model",
         "metadata": {"model_name": "gpt-4o"},
-        "application": {"post": [{"type": "eval_mce"}]},
+        "post": [{"type": "eval_mce"}],
     }
     loaded = MASRunBase._load_base_fields(
         data, tmp_path, yaml_path=tmp_path / "experiment.yaml"
     )
-    step = loaded["levels"]["application"].pipeline[0]
+    step = loaded["levels"]["experiment"].pipeline[0]
     assert step.config["model"] == "gpt-4o"
     assert step.config["model_source"] == "experiment.metadata.model_name"
 
@@ -153,13 +151,13 @@ def test_experiment_reads_application_agent_models(tmp_path) -> None:
     )
     data = {
         "name": "from-agent",
-        "applications": [{"manifest": str(agent)}],
-        "application": {"post": [{"type": "eval_mce"}]},
+        "application": {"manifest": str(agent)},
+        "post": [{"type": "eval_mce"}],
     }
     loaded = MASRunBase._load_base_fields(
         data, tmp_path, yaml_path=tmp_path / "experiment.yaml"
     )
-    step = loaded["levels"]["application"].pipeline[0]
+    step = loaded["levels"]["experiment"].pipeline[0]
     assert step.config["model"] == "gpt-4o"
     assert step.config["model_source"] == "application.spec.models"
 
@@ -186,11 +184,11 @@ def test_experiment_does_not_guess_when_agents_disagree(tmp_path) -> None:
     )
     data = {
         "name": "mixed",
-        "applications": [{"manifest": str(mas)}],
-        "application": {"post": [{"type": "eval_mce"}]},
+        "application": {"manifest": str(mas)},
+        "post": [{"type": "eval_mce"}],
     }
     loaded = MASRunBase._load_base_fields(
         data, tmp_path, yaml_path=tmp_path / "experiment.yaml"
     )
-    step = loaded["levels"]["application"].pipeline[0]
+    step = loaded["levels"]["experiment"].pipeline[0]
     assert "model" not in step.config

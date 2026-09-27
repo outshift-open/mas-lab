@@ -8,6 +8,13 @@ description: >
   Top-level key must be 'experiment:'.  All relative paths are resolved from
   the directory containing this file.
 
+  CLI vocabulary (canonical): application (MAS binding), scenarios, dataset,
+  run, item, scenario, post (experiment-level, --depth exp).
+
+  Properties marked deprecated: true still validate so old files load;
+  mas-lab validate warns on them. Removed keys (pipeline_bind, pipeline,
+  plots, flavours, output_dir, mas) are rejected by additionalProperties: false.
+
 type: object
 required: [experiment]
 additionalProperties: false
@@ -37,7 +44,11 @@ properties:
       output_schema:
         type: object
         additionalProperties: false
-        description: "Optional post-run output validation (required files/columns)."
+        deprecated: true
+        x-replaced-by: "plotnine/config.df_schema (and compute_ci output paths)"
+        description: >
+          DEPRECATED. Prefer plot-step df_schema and the files those steps write.
+          Still accepted as a warn-only post-run checklist.
         properties:
           required_files:
             type: array
@@ -81,37 +92,29 @@ properties:
         type: string
         description: "Default infra bundle name for service/codec pipeline steps."
 
-      pipeline_bind:
-        type: string
-        description: "Library pipeline binding id (e.g. experiment/post)."
+      # ── MAS under test (CLI has no --application depth; this is the MAS binding) ─
+      application:
+        description: >
+          The MAS or agent under test ({app|manifest, configs_dir}).
+          Using this key as a pipeline level (pre/post without app/manifest) is
+          deprecated; use experiment-level post: (CLI --depth exp).
+        oneOf:
+          - $ref: "#/$defs/mas_binding"
+          - allOf:
+              - $ref: "#/$defs/level_section"
+              - deprecated: true
+                description: "DEPRECATED. Use experiment-level post: (CLI --depth exp)."
 
-      # ── MAS applications ──────────────────────────────────────────────────
       applications:
         type: array
         minItems: 1
-        description: "One or more MAS use-cases targeted by this experiment."
+        deprecated: true
+        x-replaced-by: "application: {app|manifest, configs_dir}"
+        description: >
+          DEPRECATED. Use application: {app|manifest, configs_dir}.
+          Still accepted as a one-item list so existing files load.
         items:
-          type: object
-          additionalProperties: false
-          description: "Pointer to a MAS use-case (manifest path, app name, or configs directory)."
-          properties:
-            manifest:
-              type: string
-              description: "Path to mas.yaml or agent.yaml."
-            app:
-              type: string
-              description: >
-                Registered app name (mas.apps registry → mas.yaml).
-            configs_dir:
-              type: string
-              description: "Path to the overlays directory."
-            base_scenario:
-              type: string
-              default: "baseline"
-              description: "Default scenario used as reference/baseline."
-          anyOf:
-            - required: [manifest]
-            - required: [app]
+          $ref: "#/$defs/mas_binding"
 
       # ── Scenarios ─────────────────────────────────────────────────────────
       scenarios:
@@ -297,7 +300,7 @@ properties:
             default: native
             description: >
               Lab adapter id (mas.lab.runners entry point). Optional override —
-              when omitted, inferred from applications[].app / mas.manifest
+              when omitted, inferred from application.app / mas.manifest
               spec.framework.default_adapter or agent spec.framework_adapter.
           reset_state:
             type: boolean
@@ -332,30 +335,33 @@ properties:
       artifacts:
         $ref: "#/$defs/artifact_declarations"
 
-      # ── Level hooks ────────────────────────────────────────────────────────────
-      # Each level has a pre: and post: phase:
-      #   run        → once per (scenario × item × run)  — also declares n_runs
-      #   test       → once per (scenario × item), after all runs
-      #   scenario   → once per scenario, after all tests
-      #
-      # ── Per-level pipeline hooks ──────────────────────────────────────────
-      # Each level (application, scenario, test, run) has pre: and post: hooks.
-      # pre: fires before the level's execution, post: after.
-      # Each hook accepts a LIST of pipelines; each pipeline is inline steps (list),
-      # a file ref (string), the long form {steps: [...]} / {ref: "path"}, or
-      # a library pipeline reference {id: "pipeline-name"}.
-      application:
-        $ref: "#/$defs/level_section"
-        description: >-
-          Experiment-level lifecycle hooks.
-          pre: runs before execution starts (setup, infra allocation).
-          post: runs after all scenarios complete (eval, aggregation, plots).
+      # ── Pipeline hooks (CLI --depth exp|scenario|item|run) ──────────────
       run:
         $ref: "#/$defs/run_level_section"
+      item:
+        $ref: "#/$defs/level_section"
+        description: >
+          Hooks for one dataset item after all its runs (CLI --item / --depth item).
       test:
         $ref: "#/$defs/level_section"
+        deprecated: true
+        x-replaced-by: "item:"
+        description: "DEPRECATED. Use item: (matches CLI --item)."
       scenario:
         $ref: "#/$defs/level_section"
+        description: "Hooks after all items in a scenario (CLI --scenario)."
+      pre:
+        type: array
+        description: "Experiment-level pre hooks (CLI --depth exp)."
+        items:
+          $ref: "#/$defs/level_pipeline_entry"
+      post:
+        type: array
+        description: >
+          Experiment-level post hooks after every scenario completes
+          (CLI --depth exp). Preferred over the deprecated application.post.
+        items:
+          $ref: "#/$defs/level_pipeline_entry"
 
       ui:
         type: object
@@ -388,10 +394,35 @@ properties:
                   type: number
             description: "Per-agent canvas coordinates {agent_id: {x, y}}."
 
-    required: [name, applications]
+    required: [name]
+    anyOf:
+      - required: [application]
+      - required: [applications]
 
 # ── Shared definitions ────────────────────────────────────────────────────────
 $defs:
+  mas_binding:
+    type: object
+    additionalProperties: false
+    description: "Pointer to a MAS use-case (manifest path, app name, or configs directory)."
+    properties:
+      manifest:
+        type: string
+        description: "Path to mas.yaml or agent.yaml."
+      app:
+        type: string
+        description: Registered app name (mas.apps registry → mas.yaml).
+      configs_dir:
+        type: string
+        description: "Path to the overlays directory."
+      base_scenario:
+        type: string
+        default: "baseline"
+        description: "Default scenario used as reference/baseline."
+    anyOf:
+      - required: [manifest]
+      - required: [app]
+
   # ── Artifact declarations ─────────────────────────────────────────────────
   artifact_declarations:
     type: object
@@ -422,7 +453,7 @@ $defs:
               default: false
               description: "Validate artifact schema after creation."
 
-  # ── Level section (application / test / scenario) ──────────────────────
+  # ── Level section (item / scenario / experiment-level hooks) ──────────
   level_section:
     type: object
     additionalProperties: false

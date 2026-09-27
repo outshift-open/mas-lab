@@ -8,22 +8,21 @@ experiment:
   models:
     main: gpt-4o
     judge: gpt-4o-mini
-  applications:
-    - manifest: ./mas.yaml
+  application:
+    manifest: ./mas.yaml
   evaluation:
     method: llm_judge
-  application:
-    post:
-      - type: extract_trajectories
-      - type: eval_mce
-        depends_on: [extract_trajectories]
-      - type: eval_mce
-        name: eval_mce_strict
-        depends_on: [extract_trajectories]
-        config:
-          model: gpt-4o
-          max_workers: 2
-          fail_threshold: 0.5
-          metrics:
-            - goal_success_rate
-            - answer_relevancy
+  post:
+    - type: extract_trajectories
+    - type: eval_mce
+      depends_on: [extract_trajectories]
+    - type: eval_mce
+      name: eval_mce_strict
+      depends_on: [extract_trajectories]
+      config:
+        model: gpt-4o
+        max_workers: 2
+        fail_threshold: 0.5
+        metrics:
+          - goal_success_rate
+          - answer_relevancy

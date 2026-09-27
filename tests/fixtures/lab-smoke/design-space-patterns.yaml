@@ -6,9 +6,9 @@ experiment:
     CI smoke for design-space.lab Exp 1.1 — one run, eval_mce pipeline,
     isolated trace cache (cache disabled).
   default_flavour: local
-  applications:
-    - manifest: ../../../labs/design-space.lab/apps/qa-agent/agents/qa-agent.yaml
-      configs_dir: ../../../labs/design-space.lab/01-design-patterns/overlays
+  application:
+    manifest: ../../../labs/design-space.lab/apps/qa-agent/agents/qa-agent.yaml
+    configs_dir: ../../../labs/design-space.lab/01-design-patterns/overlays
   scenarios:
     - id: pattern-cot
       overlays:
@@ -33,21 +33,20 @@ experiment:
           metrics:
             - goal_success_rate
             - answer_relevancy
-  application:
-    post:
-      - name: collect-metrics
-        type: collect_metrics
-        depends_on: [eval-quality]
-        config:
-          scenarios: [pattern-cot]
-      - name: compute-ci
-        type: compute_ci
-        depends_on: [collect-metrics]
-        config:
-          data: "@collect-metrics"
-          groupby: [scenario, metric]
-          metrics: [answer_relevancy, goal_success_rate]
-          extra_cols: [latency_s]
-          ci_method: t
-          ci_level: 0.95
-          output: "{output_dir}/results/ci_summary.csv"
+  post:
+    - name: collect-metrics
+      type: collect_metrics
+      depends_on: [eval-quality]
+      config:
+        scenarios: [pattern-cot]
+    - name: compute-ci
+      type: compute_ci
+      depends_on: [collect-metrics]
+      config:
+        data: "@collect-metrics"
+        groupby: [scenario, metric]
+        metrics: [answer_relevancy, goal_success_rate]
+        extra_cols: [latency_s]
+        ci_method: t
+        ci_level: 0.95
+        output: "{output_dir}/results/ci_summary.csv"

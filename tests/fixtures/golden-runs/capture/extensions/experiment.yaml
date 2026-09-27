@@ -4,8 +4,8 @@ experiment:
   name: golden-extensions
   description: Golden capture — trip-planner run (extensions lab fingerprint)
   default_flavour: local
-  applications:
-    - app: trip-planner
+  application:
+    app: trip-planner
   scenarios:
     - id: golden
       overlays:

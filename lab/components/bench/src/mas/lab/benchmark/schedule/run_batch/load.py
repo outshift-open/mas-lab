@@ -269,26 +269,19 @@ def print_dry_run(loaded: LoadedExperiment) -> None:
     print(f"configs_dir: {loaded.configs_dir}")
     print(f"Scenarios  : {loaded.scenario_ids}")
     print(f"Dataset    : {len(loaded.dataset_items)} items")
-    print(f"Runs/test  : {loaded.n_runs}")
+    print(f"Runs/item  : {loaded.n_runs}")
     print(f"Total      : {total} executions")
     _pipeline_specs = loaded.pipeline_specs
-    if exp.is_v2:
-        _all_steps = _pipeline_specs
+    if _pipeline_specs:
         _by_scope: dict = {}
-        for s in _all_steps:
+        for s in _pipeline_specs:
             _by_scope.setdefault(s.scope, []).append(s)
         _parts = []
-        for scope in ("run", "test", "scenario", "application", "experiment"):
+        for scope in ("run", "item", "scenario", "experiment"):
             count = len(_by_scope.get(scope, []))
             if count:
                 _parts.append(f"{count} {scope}")
-        print(f"Pipeline   : {len(_all_steps)} steps ({', '.join(_parts)})")
-    elif _pipeline_specs:
-        _pipe = _pipeline_specs
-        _ps_count = sum(1 for s in _pipe if getattr(s, "per_scenario", False))
-        _scalar_count = len(_pipe) - _ps_count
-        print(f"Pipeline   : {len(_pipe)} steps "
-              f"({_ps_count} per-scenario × {len(loaded.scenario_ids)} = "
-              f"{_ps_count * len(loaded.scenario_ids)} + {_scalar_count} scalar)")
+        extra = f" ({', '.join(_parts)})" if _parts else ""
+        print(f"Pipeline   : {len(_pipeline_specs)} steps{extra}")
     print("=" * 70)
     print("\n✓ Configuration valid — ready to run")

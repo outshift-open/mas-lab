@@ -11,8 +11,8 @@ experiment:
   default_flavour: local
   models:
     main: azure/gpt-4o
-  applications:
-    - manifest: ../demo_lab/apps/trip-planner/mas.yaml
+  application:
+    manifest: ../demo_lab/apps/trip-planner/mas.yaml
   scenarios:
     - id: cot
       description: Chain-of-thought moderator reasoning

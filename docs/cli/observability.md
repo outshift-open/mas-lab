@@ -159,7 +159,8 @@ is configured through:
 2. **Overlays** on **scenarios** or the app
 3. App defaults in the bundled MAS
 
-The **embedded pipeline** in `experiment.yaml` runs after execution:
+The **level hooks** in `experiment.yaml` (`run.post`, `item.post`,
+`scenario.post`, experiment `post:`) run after execution:
 
 ```bash
 mas-lab benchmark run labs/lifecycle-control.lab/experiment.yaml --progress

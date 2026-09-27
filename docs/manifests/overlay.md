@@ -119,9 +119,9 @@ directory `--output` keeps `mas.yaml` plus `agents/*.yaml`. See
 ```yaml
 scenarios:
   - id: baseline
-    overlays: [baseline]      # resolves to overlays/baseline.yaml
+    overlays: {logic: [baseline], control: [], infra: []}
   - id: cot
-    overlays: [cot, no-tools] # stack order matters
+    overlays: {logic: [cot, no-tools], control: [], infra: []}
 ```
 
 `patch.providers` claims remote or local tool plugins (`kind` + `tools`).

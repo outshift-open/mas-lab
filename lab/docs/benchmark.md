@@ -5,7 +5,7 @@
 # Benchmark guide
 
 `mas-lab benchmark` runs an **experiment**: all **scenarios** × **dataset** items ×
-**runs**, then the **embedded pipeline** (if declared in `experiment.yaml`).
+**runs**, then the level hooks declared in `experiment.yaml`.
 
 Full CLI reference: [components/bench/README.md](../components/bench/README.md).
 Terms: [glossary.md](../../docs/glossary.md).
@@ -23,7 +23,7 @@ steps** when step fingerprints change.
 ## Essential commands
 
 ```bash
-mas-lab benchmark run experiment.yaml --progress    # execution + embedded pipeline
+mas-lab benchmark run experiment.yaml --progress    # execution + level hooks
 mas-lab benchmark run experiment.yaml --dry-run       # JSON Schema validate + execution plan
 mas-lab benchmark show last                         # inspect latest output_dir
 mas-lab benchmark pipeline run pipeline.yaml -o DIR # pipeline only

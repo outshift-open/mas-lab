@@ -4,8 +4,8 @@ experiment:
   name: golden-lifecycle-control
   description: Golden capture — trip-planner run (lifecycle-control lab fingerprint)
   default_flavour: local
-  applications:
-    - app: trip-planner
+  application:
+    app: trip-planner
   scenarios:
     - id: golden
       overlays:

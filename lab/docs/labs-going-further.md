@@ -33,16 +33,15 @@ Register that folder in `lab-config.yaml` and give it `library.yaml`:
    version: "0.1.0"
    ```
 
-3. Add a step to `application.post` in `experiment.yaml`:
+3. Add a step to experiment-level `post:` in `experiment.yaml` (CLI `--depth exp`):
 
    ```yaml
-   application:
-     post:
-       - name: my-step
-         type: lib.steps.my_step:MyStep
-         depends_on: [extract-trace-stats]
-         config:
-           output: "{output_dir}/results/my-figure.png"
+   post:
+     - name: my-step
+       type: lib.steps.my_step:MyStep
+       depends_on: [gather-experiment]
+       config:
+         output: "{output_dir}/results/my-figure.png"
    ```
 
 Do not create a separate top-level plugins folder. Pipeline steps and

@@ -4,7 +4,7 @@
 
 An experiment overlay is a YAML file that amends an ``experiment.yaml`` without
 modifying it.  It uses the same deep-merge semantics as agent/MAS overlays, with
-one addition: **pipeline hook lists** (``run.post``, ``application.post``, …)
+one addition: **pipeline hook lists** (``run.post``, ``item.post``, ``post:``, …)
 default to *append* rather than replace, so an overlay can add evaluation
 pipelines without removing the ones declared in the base experiment.
 
@@ -25,9 +25,8 @@ Overlay format
       run:
         post:
           - ref: pipelines/my-eval.yaml   # appended to base run.post list
-      application:
-        post:
-          - ref: pipelines/my-plots.yaml  # appended to base application.post
+      post:
+        - ref: pipelines/my-plots.yaml  # appended to experiment-level post:
 
 To *replace* a pipeline list instead of appending, set ``$replace: true``
 at the level block::

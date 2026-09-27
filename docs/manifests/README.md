@@ -24,7 +24,7 @@ experiment.yaml          ← what to run (scenarios × dataset × n_runs + pipel
     ├── applications[]   → mas.yaml / registered app
     ├── scenarios[]    → overlay stacks per variant
     ├── dataset        → prompts, turns, memory seeds
-    └── application.post / scenario.post / …  → pipeline steps (metrics, plots)
+    └── post: / scenario.post / item.post / run.post  → pipeline steps (metrics, plots)
 
 mas.yaml                 ← team topology, workflow, transport
     └── agents/*.yaml    ← design pattern, tools, skills, observability

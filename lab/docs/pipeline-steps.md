@@ -4,8 +4,8 @@
 -->
 # Pipeline step types
 
-Built-in **pipeline step** types for the **embedded pipeline** in
-`experiment.yaml`. Labs add more under `lib/steps/`.
+Built-in **pipeline step** types for level hooks in `experiment.yaml`.
+Labs add more under `lib/steps/`.
 
 How **pipelines** work: [pipeline.md](pipeline.md). **Benchmark** command:
 [benchmark.md](benchmark.md). Full OSS catalog: see the [Directory](#directory)

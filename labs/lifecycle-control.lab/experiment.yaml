@@ -21,9 +21,9 @@ experiment:
   default_flavour: local
   models:
     main: gpt-4o
-  applications:
-    - app: trip-planner
-      configs_dir: "./overlays"
+  application:
+    app: trip-planner
+    configs_dir: "./overlays"
 
   # ------------------------------------------------------------------
   # Scenarios
@@ -112,203 +112,202 @@ experiment:
 
   run:
     n_runs: 1
-  application:
-    post:
-      - name: extract-trace-stats
-        type: extract_trace_stats
-        config:
-          output: "{output_dir}/results/trace_stats.csv"
+  post:
+    - name: extract-trace-stats
+      type: extract_trace_stats
+      config:
+        output: "{output_dir}/results/trace_stats.csv"
 
-      - name: extract-mealy-stats
-        type: extract_mealy_stats
-        config:
-          output: "{output_dir}/results/mealy_stats.csv"
+    - name: extract-mealy-stats
+      type: extract_mealy_stats
+      config:
+        output: "{output_dir}/results/mealy_stats.csv"
 
-      # --- Fig 2a: per-call latency across governance escalation stack ---
-      # Claim: governance adds negligible per-call overhead; raw duration
-      # differences are due to varying call counts, not slower calls.
-      - name: figure-overhead
-        type: plotnine
-        depends_on: [extract-trace-stats]
-        config:
-          data: "@extract-trace-stats"
-          filter:
-            scenario: [baseline, with-budget, with-guardrail, production-like]
-            item_group: [nominal]
-          transform:
-            duration_per_call: "duration_s / n_llm_calls"
-          mapping: { x: scenario, y: duration_per_call, fill: scenario }
-          geom: col
-          stat: summary
-          labels:
-            title: "Per-call latency is stable across governance levels"
-            subtitle: "Mean wall-clock seconds per LLM call (nominal items, n1-n6)"
-            x: ""
-            y: "Duration per call (s)"
-          output: "{output_dir}/results/fig-moodbar.png"
-          width: 5.5
-          height: 3.0
-          hide_x_labels: true
-          factor_levels:
-            scenario: ["Baseline", "+Budget", "+Guardrail", "+Production"]
-          rename_values:
-            scenario:
-              baseline: "Baseline"
-              with-budget: "+Budget"
-              with-guardrail: "+Guardrail"
-              production-like: "+Production"
+    # --- Fig 2a: per-call latency across governance escalation stack ---
+    # Claim: governance adds negligible per-call overhead; raw duration
+    # differences are due to varying call counts, not slower calls.
+    - name: figure-overhead
+      type: plotnine
+      depends_on: [extract-trace-stats]
+      config:
+        data: "@extract-trace-stats"
+        filter:
+          scenario: [baseline, with-budget, with-guardrail, production-like]
+          item_group: [nominal]
+        transform:
+          duration_per_call: "duration_s / n_llm_calls"
+        mapping: { x: scenario, y: duration_per_call, fill: scenario }
+        geom: col
+        stat: summary
+        labels:
+          title: "Per-call latency is stable across governance levels"
+          subtitle: "Mean wall-clock seconds per LLM call (nominal items, n1-n6)"
+          x: ""
+          y: "Duration per call (s)"
+        output: "{output_dir}/results/fig-moodbar.png"
+        width: 5.5
+        height: 3.0
+        hide_x_labels: true
+        factor_levels:
+          scenario: ["Baseline", "+Budget", "+Guardrail", "+Production"]
+        rename_values:
+          scenario:
+            baseline: "Baseline"
+            with-budget: "+Budget"
+            with-guardrail: "+Guardrail"
+            production-like: "+Production"
 
-      # --- Fig 2b: policy evaluation density across governance escalation ---
-      # Claim: each governance layer adds policies evaluated per hook point.
-      # n_checks_passed = sum of checks_passed per governance_event: 1 policy
-      # evaluation for baseline, 2 for +Budget (budget-cap added), etc.
-      # This is a cleaner signal than checks/call which counts hook invocations.
-      - name: figure-checks
-        type: plotnine
-        depends_on: [extract-trace-stats]
-        config:
-          data: "@extract-trace-stats"
-          filter:
-            scenario: [baseline, with-budget, with-guardrail, production-like]
-            item_group: [nominal]
-          transform:
-            policy_evals_per_call: "n_checks_passed / n_llm_calls"
-          mapping: { x: scenario, y: policy_evals_per_call, fill: scenario }
-          geom: col
-          stat: summary
-          labels:
-            title: "Policy evaluation density increases with governance level"
-            subtitle: "Mean policy evaluations per LLM call (nominal items, n1-n6)"
-            x: ""
-            y: "Policy evals per LLM call"
-          output: "{output_dir}/results/fig-stacking.png"
-          width: 5.5
-          height: 3.0
-          hide_x_labels: true
-          factor_levels:
-            scenario: ["Baseline", "+Budget", "+Guardrail", "+Production"]
-          rename_values:
-            scenario:
-              baseline: "Baseline"
-              with-budget: "+Budget"
-              with-guardrail: "+Guardrail"
-              production-like: "+Production"
+    # --- Fig 2b: policy evaluation density across governance escalation ---
+    # Claim: each governance layer adds policies evaluated per hook point.
+    # n_checks_passed = sum of checks_passed per governance_event: 1 policy
+    # evaluation for baseline, 2 for +Budget (budget-cap added), etc.
+    # This is a cleaner signal than checks/call which counts hook invocations.
+    - name: figure-checks
+      type: plotnine
+      depends_on: [extract-trace-stats]
+      config:
+        data: "@extract-trace-stats"
+        filter:
+          scenario: [baseline, with-budget, with-guardrail, production-like]
+          item_group: [nominal]
+        transform:
+          policy_evals_per_call: "n_checks_passed / n_llm_calls"
+        mapping: { x: scenario, y: policy_evals_per_call, fill: scenario }
+        geom: col
+        stat: summary
+        labels:
+          title: "Policy evaluation density increases with governance level"
+          subtitle: "Mean policy evaluations per LLM call (nominal items, n1-n6)"
+          x: ""
+          y: "Policy evals per LLM call"
+        output: "{output_dir}/results/fig-stacking.png"
+        width: 5.5
+        height: 3.0
+        hide_x_labels: true
+        factor_levels:
+          scenario: ["Baseline", "+Budget", "+Guardrail", "+Production"]
+        rename_values:
+          scenario:
+            baseline: "Baseline"
+            with-budget: "+Budget"
+            with-guardrail: "+Guardrail"
+            production-like: "+Production"
 
-      # --- Fig 2c: binary detection heatmap (item × scenario matrix) ---
-      # Claim: governance correctly fires on the injected fault that matches
-      # the active policy (100% detection), never on nominal items (0% FP).
-      # detected = 1 if n_governance_fired > 0 else 0.
-      # Three fault types demonstrated:
-      #   - forbidden-destination guardrail (content filter)
-      #   - budget-cap-low (per-call cost threshold, terminates on first hit)
-      #   - circuit-break-schedule-lookup (streak of 2 tool failures opens circuit)
-      - name: figure-detection
-        type: plotnine
-        depends_on: [extract-trace-stats]
-        config:
-          data: "@extract-trace-stats"
-          filter:
-            scenario:
-              [
-                baseline,
-                with-guardrail,
-                with-guardrail-fault,
-                with-budget-low,
-                production-circuit-fault,
-              ]
-            item_group: [nominal, fault]
-          transform:
-            detected: "(n_governance_fired > 0) * 1"
-          mapping: { x: item, y: scenario, fill: detected }
-          geom: tile
-          labels:
-            title: "All three governance policies detect their target faults (0% FP on nominal)"
-            subtitle: "Green = policy fired, Grey = not fired"
-            x: ""
-            y: ""
-          palette: ["#dddddd", "#1a9850"]
-          output: "{output_dir}/results/fig-precision-recall.png"
-          width: 9.0
-          height: 3.2
-          factor_levels:
-            scenario:
-              - "Baseline (no policy)"
-              - "+Guardrail (nominal)"
-              - "+Guardrail (fault injected)"
-              - "+Budget-low (fault injected)"
-              - "+Circuit-fault (fault injected)"
-            detected: ["Not detected", "Detected"]
-          rename_values:
-            scenario:
-              baseline: "Baseline (no policy)"
-              with-guardrail: "+Guardrail (nominal)"
-              with-guardrail-fault: "+Guardrail (fault injected)"
-              with-budget-low: "+Budget-low (fault injected)"
-              production-circuit-fault: "+Circuit-fault (fault injected)"
-            item:
-              itemf-guardrail: "Forbidden content"
-              itemf-budget: "Over-budget"
-              itemf-circuit: "Tool failure"
-              itemn1: "n1"
-              itemn2: "n2"
-              itemn3: "n3"
-              itemn4: "n4"
-              itemn5: "n5"
-              itemn6: "n6"
-            detected:
-              0: "Not detected"
-              1: "Detected"
+    # --- Fig 2c: binary detection heatmap (item × scenario matrix) ---
+    # Claim: governance correctly fires on the injected fault that matches
+    # the active policy (100% detection), never on nominal items (0% FP).
+    # detected = 1 if n_governance_fired > 0 else 0.
+    # Three fault types demonstrated:
+    #   - forbidden-destination guardrail (content filter)
+    #   - budget-cap-low (per-call cost threshold, terminates on first hit)
+    #   - circuit-break-schedule-lookup (streak of 2 tool failures opens circuit)
+    - name: figure-detection
+      type: plotnine
+      depends_on: [extract-trace-stats]
+      config:
+        data: "@extract-trace-stats"
+        filter:
+          scenario:
+            [
+              baseline,
+              with-guardrail,
+              with-guardrail-fault,
+              with-budget-low,
+              production-circuit-fault,
+            ]
+          item_group: [nominal, fault]
+        transform:
+          detected: "(n_governance_fired > 0) * 1"
+        mapping: { x: item, y: scenario, fill: detected }
+        geom: tile
+        labels:
+          title: "All three governance policies detect their target faults (0% FP on nominal)"
+          subtitle: "Green = policy fired, Grey = not fired"
+          x: ""
+          y: ""
+        palette: ["#dddddd", "#1a9850"]
+        output: "{output_dir}/results/fig-precision-recall.png"
+        width: 9.0
+        height: 3.2
+        factor_levels:
+          scenario:
+            - "Baseline (no policy)"
+            - "+Guardrail (nominal)"
+            - "+Guardrail (fault injected)"
+            - "+Budget-low (fault injected)"
+            - "+Circuit-fault (fault injected)"
+          detected: ["Not detected", "Detected"]
+        rename_values:
+          scenario:
+            baseline: "Baseline (no policy)"
+            with-guardrail: "+Guardrail (nominal)"
+            with-guardrail-fault: "+Guardrail (fault injected)"
+            with-budget-low: "+Budget-low (fault injected)"
+            production-circuit-fault: "+Circuit-fault (fault injected)"
+          item:
+            itemf-guardrail: "Forbidden content"
+            itemf-budget: "Over-budget"
+            itemf-circuit: "Tool failure"
+            itemn1: "n1"
+            itemn2: "n2"
+            itemn3: "n3"
+            itemn4: "n4"
+            itemn5: "n5"
+            itemn6: "n6"
+          detected:
+            0: "Not detected"
+            1: "Detected"
 
-      # --- Paper / detail figures (matplotlib; migrated from lab scripts) ---
-      - name: figure-call-counts
-        type: lib.steps.figure_call_counts:FigureCallCountsStep
-        depends_on: [extract-trace-stats]
-        config:
-          trace_stats: "{output_dir}/results/trace_stats.csv"
-          output: "{output_dir}/results/fig-call-counts.png"
+    # --- Paper / detail figures (matplotlib; migrated from lab scripts) ---
+    - name: figure-call-counts
+      type: lib.steps.figure_call_counts:FigureCallCountsStep
+      depends_on: [extract-trace-stats]
+      config:
+        trace_stats: "{output_dir}/results/trace_stats.csv"
+        output: "{output_dir}/results/fig-call-counts.png"
 
-      - name: figure-governance-overhead-detail
-        type: lib.steps.figure_governance_overhead:FigureGovernanceOverheadStep
-        depends_on: [extract-trace-stats]
-        config:
-          trace_stats: "{output_dir}/results/trace_stats.csv"
-          output: "{output_dir}/results/fig-governance-overhead-percall.png"
+    - name: figure-governance-overhead-detail
+      type: lib.steps.figure_governance_overhead:FigureGovernanceOverheadStep
+      depends_on: [extract-trace-stats]
+      config:
+        trace_stats: "{output_dir}/results/trace_stats.csv"
+        output: "{output_dir}/results/fig-governance-overhead-percall.png"
 
-      - name: figure-precision-recall-detail
-        type: lib.steps.figure_precision_recall_detail:FigurePrecisionRecallDetailStep
-        depends_on: [extract-trace-stats]
-        config:
-          trace_stats: "{output_dir}/results/trace_stats.csv"
-          output: "{output_dir}/results/fig-precision-recall-detail.png"
+    - name: figure-precision-recall-detail
+      type: lib.steps.figure_precision_recall_detail:FigurePrecisionRecallDetailStep
+      depends_on: [extract-trace-stats]
+      config:
+        trace_stats: "{output_dir}/results/trace_stats.csv"
+        output: "{output_dir}/results/fig-precision-recall-detail.png"
 
-      - name: figure-moodbar-detail
-        type: lib.steps.figure_moodbar_detail:FigureMoodbarDetailStep
-        depends_on: [extract-mealy-stats]
-        config:
-          mealy_stats: "{output_dir}/results/mealy_stats.csv"
-          output: "{output_dir}/results/fig-moodbar-detail.png"
+    - name: figure-moodbar-detail
+      type: lib.steps.figure_moodbar_detail:FigureMoodbarDetailStep
+      depends_on: [extract-mealy-stats]
+      config:
+        mealy_stats: "{output_dir}/results/mealy_stats.csv"
+        output: "{output_dir}/results/fig-moodbar-detail.png"
 
-      - name: figure-stacking-detail
-        type: lib.steps.figure_stacking_detail:FigureStackingDetailStep
-        depends_on: [extract-mealy-stats]
-        config:
-          mealy_stats: "{output_dir}/results/mealy_stats.csv"
-          output: "{output_dir}/results/fig-stacking-detail.png"
+    - name: figure-stacking-detail
+      type: lib.steps.figure_stacking_detail:FigureStackingDetailStep
+      depends_on: [extract-mealy-stats]
+      config:
+        mealy_stats: "{output_dir}/results/mealy_stats.csv"
+        output: "{output_dir}/results/fig-stacking-detail.png"
 
-      - name: figure-per-call
-        type: lib.steps.figure_per_call:FigurePerCallStep
-        depends_on: [extract-mealy-stats]
-        config:
-          mealy_stats: "{output_dir}/results/mealy_stats.csv"
-          output: "{output_dir}/results/fig-per-call.png"
+    - name: figure-per-call
+      type: lib.steps.figure_per_call:FigurePerCallStep
+      depends_on: [extract-mealy-stats]
+      config:
+        mealy_stats: "{output_dir}/results/mealy_stats.csv"
+        output: "{output_dir}/results/fig-per-call.png"
 
-      - name: figure-nonllm
-        type: lib.steps.figure_nonllm:FigureNonllmStep
-        depends_on: [extract-mealy-stats]
-        config:
-          mealy_stats: "{output_dir}/results/mealy_stats.csv"
-          output: "{output_dir}/results/fig-nonllm.png"
+    - name: figure-nonllm
+      type: lib.steps.figure_nonllm:FigureNonllmStep
+      depends_on: [extract-mealy-stats]
+      config:
+        mealy_stats: "{output_dir}/results/mealy_stats.csv"
+        output: "{output_dir}/results/fig-nonllm.png"
 
-    # ------------------------------------------------------------------
-    # Flavours
-    # ------------------------------------------------------------------
+  # ------------------------------------------------------------------
+  # Flavours
+  # ------------------------------------------------------------------

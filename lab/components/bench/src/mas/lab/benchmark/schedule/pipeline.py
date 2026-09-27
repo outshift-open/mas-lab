@@ -47,11 +47,9 @@ def _base_step_name(spec: Any) -> str:
 def _effective_scope(spec: Any) -> str:
     """Resolve a spec's materialization scope.
 
-    An explicit ``scope:`` (set by the level block a v2 spec was declared
-    under, or written directly) always wins. The v1 ``per_run``/``per_scenario``
-    booleans are a fallback for specs with no ``scope:`` at all — checked only
-    when ``scope`` is unset, so a v2 spec's explicit scope can never be
-    silently overridden by a stray legacy flag.
+    An explicit ``scope:`` (set by the level block a spec was declared
+    under, or written directly) always wins. The ``per_run``/``per_scenario``
+    booleans are a fallback for specs with no ``scope:`` at all.
     """
     scope = str(getattr(spec, "scope", "") or "").strip()
     if scope:
@@ -144,7 +142,7 @@ def _expand_deps(
     expanded: list[str] = []
     for dep in depends_on or []:
         child_scope = name_scope.get(dep)
-        if not child_scope or child_scope == "application":
+        if not child_scope or child_scope in ("application", "experiment"):
             expanded.append(dep)
             continue
         for child in nodes.get(child_scope, []):
@@ -155,7 +153,13 @@ def _expand_deps(
 
 
 #: The level one step down the hierarchy — whose artifacts a node fans in from.
-_CHILD_LEVEL = {"application": "scenario", "experiment": "scenario", "scenario": "test", "test": "run"}
+_CHILD_LEVEL = {
+    "application": "scenario",
+    "experiment": "scenario",
+    "scenario": "test",
+    "item": "run",
+    "test": "run",
+}
 
 
 def _child_artifact_filename(
@@ -298,6 +302,8 @@ def materialize_step_dicts(
         scope: _nodes_for_scope(scope, output_dir, ids)
         for scope in ("run", "test", "scenario", "application")
     }
+    nodes["item"] = nodes["test"]
+    nodes["experiment"] = nodes["application"]
     name_scope = {
         _base_step_name(spec): _effective_scope(spec) for spec in phase_specs
     }

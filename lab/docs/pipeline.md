@@ -11,18 +11,41 @@ Terms: [glossary.md](../../docs/glossary.md).
 
 ## Embedded vs standalone
 
-**Embedded pipeline** — `application.post` inside `experiment.yaml`; runs automatically
-when you `mas-lab benchmark run`:
+**Embedded pipeline** — level hooks inside `experiment.yaml`; runs automatically
+when you `mas-lab benchmark run`. There is no `pipelines:` attribute.
 
 ```yaml
 experiment:
   application:
+    app: trip-planner
+    configs_dir: ./overlays
+  run:
+    artifacts:
+      trace: trace
+      df: dataframe
     post:
       - name: extract-trace-stats
         type: extract_trace_stats
-        config:
-          output: "{output_dir}/results/trace_stats.csv"
+        in: trace
+        out: df
+  item:
+    artifacts: {df: dataframe}
+    post:
+      - {name: gather-item, type: gather_level, in: df, out: df, depends_on: [extract-trace-stats]}
+  scenario:
+    artifacts: {df: dataframe}
+    post:
+      - {name: gather-scenario, type: gather_level, in: df, out: df, depends_on: [gather-item]}
+  post:
+    - name: gather-experiment
+      type: gather_level
+      in: df
+      out: df
+      depends_on: [gather-scenario]
 ```
+
+CLI `--depth exp|scenario|item|run` selects which of these hooks to inspect.
+Deprecated: `application.post` (use experiment-level `post:`) and `test:` (use `item:`).
 
 **Standalone pipeline** — separate YAML; use when **runs** already exist:
 

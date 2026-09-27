@@ -33,7 +33,7 @@ from mas.lab.lab.config.mas_experiment import MASExperimentConfig
 _MINIMAL_EXPERIMENT = {
     "experiment": {
         "name": "test-exp",
-        "applications": [{"manifest": "mas.yaml"}],
+        "application": {"manifest": "mas.yaml"},
     }
 }
 
@@ -180,7 +180,7 @@ def test_from_data_sees_inline_level_pipeline_steps():
     data = {
         "experiment": {
             "name": "test-exp",
-            "applications": [{"manifest": "mas.yaml"}],
+            "application": {"manifest": "mas.yaml"},
             "run": {"post": [{"type": "extract_trace_stats", "name": "stats"}]},
             "scenario": {"pre": [{"type": "service_start", "name": "start"}]},
         }

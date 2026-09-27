@@ -8,7 +8,7 @@ execution logic.
 
 Separation of concerns
 ----------------------
-* ``engine.py``   — routes experiments with ``applications`` to MAS benchmark runner
+* ``engine.py``   — routes experiments with ``application`` to MAS benchmark runner
 * ``schedule/run_batch.py`` — MAS scheduler: plan runs, cache, post-pipeline
 * ``engine.py`` — routes all experiments to MAS benchmark path
 * ``cli/commands/benchmark.py`` — *CLI shell*: Click → controller daemon

@@ -4,9 +4,9 @@ experiment:
   name: cache-rerun-design-space-topologies
   description: Single-run topology smoke for trace-cache invalidation tests
   default_flavour: local
-  applications:
-    - app: trip-planner
-      configs_dir: ../../../labs/design-space.lab/02-topologies/overlays
+  application:
+    app: trip-planner
+    configs_dir: ../../../labs/design-space.lab/02-topologies/overlays
   scenarios:
     - id: topo-linear-pipeline
       overlays:
@@ -22,9 +22,8 @@ experiment:
         cache: content-addressed
   run:
     n_runs: 1
-  application:
-    post:
-      - name: trace-stats
-        type: extract_trace_stats
-        config:
-          output: "{output_dir}/results/trace_stats.csv"
+  post:
+    - name: trace-stats
+      type: extract_trace_stats
+      config:
+        output: "{output_dir}/results/trace_stats.csv"

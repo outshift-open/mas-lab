@@ -176,16 +176,10 @@ When a lab needs to run an app, use one of these three patterns.
 ### 1. Library app via `app:` or `samples:` scheme (recommended)
 
 ```yaml
-mas:
-  app: trip-planner
-  base_scenario: baseline
-```
-
-Or an explicit manifest library path:
-
-```yaml
-applications:
-  - manifest: samples:apps/trip-planner/mas.yaml
+experiment:
+  application:
+    app: trip-planner
+    configs_dir: ./overlays
 ```
 
 ### 2. Absolute path inside the current workspace

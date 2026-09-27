@@ -171,7 +171,7 @@ df.columns
 
 ### 5. Pipeline plots (`plotnine` / `plot` steps)
 
-Paper figures use **`type: plotnine`** in `experiment.yaml` `application.post`.
+Paper figures use **`type: plotnine`** in `experiment.yaml` experiment-level `post:`.
 Ad-hoc charts from step data use **`type: plot`** with **`config.spec`** (plot library).
 
 See [pipeline-steps.md](../../../../../../docs/pipeline-steps.md) and `labs/*/experiment.yaml` for examples.
@@ -210,7 +210,7 @@ async def main():
     df = analyzer.consolidate_results(dataset.name)
     stats = analyzer.compute_statistics(df)
     print(stats)
-    # Plots: declare plotnine / plot steps in experiment.yaml application.post
+    # Plots: declare plotnine / plot steps in experiment.yaml post:
 
 asyncio.run(main())
 ```
@@ -278,7 +278,7 @@ def _extract_event_metrics(self, events_file: Path) -> Dict[str, Any]:
 
 ### Custom Plots
 
-Add a `plotnine` step in `application.post` or a plot-library YAML under
+Add a `plotnine` step in experiment-level `post:` or a plot-library YAML under
 `pipeline/steps/plot_library/`. See `labs/design-space.lab/01-design-patterns/experiment.yaml`.
 
 ### Parallel Execution

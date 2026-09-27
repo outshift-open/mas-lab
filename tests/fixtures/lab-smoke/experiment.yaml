@@ -6,9 +6,9 @@ experiment:
 
     '
   default_flavour: local
-  applications:
-    - manifest: ../../../docs/tutorials/01-building-an-agent/agent.yaml
-      configs_dir: ../../../docs/tutorials/01-building-an-agent/overlays
+  application:
+    manifest: ../../../docs/tutorials/01-building-an-agent/agent.yaml
+    configs_dir: ../../../docs/tutorials/01-building-an-agent/overlays
   scenarios:
     - id: tools
       overlays:
@@ -25,9 +25,8 @@ experiment:
         cache: disabled
   run:
     n_runs: 1
-  application:
-    post:
-      - name: trace-stats
-        type: extract_trace_stats
-        config:
-          output: '{output_dir}/results/trace_stats.csv'
+  post:
+    - name: trace-stats
+      type: extract_trace_stats
+      config:
+        output: '{output_dir}/results/trace_stats.csv'
