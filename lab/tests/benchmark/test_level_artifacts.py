@@ -173,9 +173,18 @@ def test_application_gather_fans_in_scenario_dfs(tmp_path: Path) -> None:
     )
     by_name = {s["name"]: s for s in steps}
     gather = by_name["gather-experiment"]
-    assert set(gather["depends_on"]) == {
-        "gather-scenario-topo-parallel",
-        "gather-scenario-topo-linear-pipeline",
+    batched = by_name["gather-scenario"]
+    assert batched["config"].get("_batch_instances")
+    assert len(batched["config"]["_batch_instances"]) == 2
+    assert gather["depends_on"] == ["gather-scenario"]
+    instance_paths = {
+        path
+        for inst in batched["config"]["_batch_instances"]
+        for path in inst["config"].get("artifact_paths") or []
+    }
+    assert instance_paths == {
+        str(tmp_path / "topo-parallel" / "item1" / "data.csv"),
+        str(tmp_path / "topo-linear-pipeline" / "item1" / "data.csv"),
     }
     assert set(gather["config"]["artifact_paths"]) == {
         str(tmp_path / "topo-parallel" / "data.csv"),
@@ -254,6 +263,155 @@ async def test_gather_level_concatenates_child_csv(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_gather_level_prefers_in_memory_child_frames(tmp_path: Path) -> None:
+    from mas.lab.benchmark.pipeline.models import StepOutput
+
+    stale = tmp_path / "r1" / "data.csv"
+    stale.parent.mkdir(parents=True)
+    pd.DataFrame([{"metric": "gsr", "value": 0.0}]).to_csv(stale, index=False)
+
+    step = GatherLevelStep(
+        name="gather-test",
+        depends_on=["run-df-r1"],
+        config={
+            "output_dir": str(tmp_path),
+            "output": "data.csv",
+            "artifact_paths": [str(stale)],
+        },
+    )
+
+    class _Ctx:
+        output_dir = tmp_path
+        step_outputs = {
+            "run-df-r1": StepOutput(data={"df": pd.DataFrame([{"metric": "gsr", "value": 1.0}])}),
+        }
+        pipeline = None
+        scope_context = None
+
+    out = await step.execute(_Ctx())  # type: ignore[arg-type]
+    assert list(out.data["df"]["value"]) == [1.0]
+
+
+def test_run_df_batches_sibling_runs(tmp_path: Path) -> None:
+    for run in ("r1", "r2"):
+        d = tmp_path / "topo-parallel" / "item1" / run
+        d.mkdir(parents=True)
+        (d / "metrics.json").write_text("{}", encoding="utf-8")
+    specs = [
+        PipelineStepSpec(
+            type="metrics_to_dataframe",
+            name="run-df",
+            phase="post",
+            scope="run",
+            outputs=["df"],
+        )
+    ]
+    steps = materialize_step_dicts(
+        specs,
+        phase="post",
+        scenario_ids=["topo-parallel"],
+        infra_name=None,
+        step_overrides={},
+        template_vars={"output_dir": str(tmp_path)},
+    )
+    assert len(steps) == 1
+    assert steps[0]["name"] == "run-df"
+    assert len(steps[0]["config"]["_batch_instances"]) == 2
+
+
+def test_eval_mce_batches_sibling_runs(tmp_path: Path) -> None:
+    for run in ("r1", "r2"):
+        d = tmp_path / "topo-parallel" / "item1" / run
+        d.mkdir(parents=True)
+        (d / "metrics.json").write_text("{}", encoding="utf-8")
+    specs = [
+        PipelineStepSpec(
+            type="eval_mce",
+            name="eval-quality",
+            phase="post",
+            scope="run",
+        )
+    ]
+    steps = materialize_step_dicts(
+        specs,
+        phase="post",
+        scenario_ids=["topo-parallel"],
+        infra_name=None,
+        step_overrides={},
+        template_vars={"output_dir": str(tmp_path)},
+    )
+    assert len(steps) == 1
+    assert steps[0]["name"] == "eval-quality"
+    assert len(steps[0]["config"]["_batch_instances"]) == 2
+
+
+def test_batched_run_df_depends_on_batched_eval(tmp_path: Path) -> None:
+    for run in ("r1", "r2"):
+        d = tmp_path / "topo-parallel" / "item1" / run
+        d.mkdir(parents=True)
+        (d / "metrics.json").write_text("{}", encoding="utf-8")
+    specs = [
+        PipelineStepSpec(
+            type="eval_mce",
+            name="eval-quality",
+            phase="post",
+            scope="run",
+        ),
+        PipelineStepSpec(
+            type="metrics_to_dataframe",
+            name="run-df",
+            phase="post",
+            scope="run",
+            outputs=["df"],
+            depends_on=["eval-quality"],
+        ),
+    ]
+    steps = materialize_step_dicts(
+        specs,
+        phase="post",
+        scenario_ids=["topo-parallel"],
+        infra_name=None,
+        step_overrides={},
+        template_vars={"output_dir": str(tmp_path)},
+    )
+    by_name = {s["name"]: s for s in steps}
+    assert set(by_name) == {"eval-quality", "run-df"}
+    assert by_name["run-df"]["depends_on"] == ["eval-quality"]
+
+
+@pytest.mark.asyncio
+async def test_gather_level_filters_batched_child_frame(tmp_path: Path) -> None:
+    from mas.lab.benchmark.pipeline.models import StepOutput
+
+    combined = pd.DataFrame(
+        [
+            {"scenario": "a", "item_id": "1", "value": 1.0},
+            {"scenario": "b", "item_id": "1", "value": 2.0},
+        ]
+    )
+    step = GatherLevelStep(
+        name="gather-scenario-a",
+        depends_on=["gather-item"],
+        config={
+            "output_dir": str(tmp_path / "a"),
+            "output": "data.csv",
+            "scenario": "a",
+        },
+    )
+    (tmp_path / "a").mkdir()
+
+    class _Ctx:
+        output_dir = tmp_path
+        step_outputs = {"gather-item": StepOutput(data={"df": combined})}
+        pipeline = None
+        scope_context = None
+
+    out = await step.execute(_Ctx())  # type: ignore[arg-type]
+    assert list(out.data["df"]["scenario"]) == ["a"]
+    assert list(out.data["df"]["value"]) == [1.0]
+
+
+@pytest.mark.asyncio
 async def test_eval_mce_skips_using_run_dir_metrics_not_cache(tmp_path: Path) -> None:
     """metrics.json lives in the run folder; resolved cache events must not re-judge."""
     from mas.library.lab.steps.eval.mce import EvalMceStep
@@ -294,6 +452,7 @@ async def test_eval_mce_skips_using_run_dir_metrics_not_cache(tmp_path: Path) ->
     out = await step.execute(_Ctx())  # type: ignore[arg-type]
     assert out.data["skipped"] == 1
     assert out.data["computed"] == 0
+    assert out.files == [run_dir / "metrics.json"]
 
 
 @pytest.mark.asyncio

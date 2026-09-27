@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from mas.lab.benchmark.pipeline.executor import ExecutionContext
@@ -63,6 +64,44 @@ def test_resolve_run_events_via_run_ref(tmp_path: Path, monkeypatch: pytest.Monk
     ctx = _ctx(tmp_path / "bench")
     resolved = resolve_run_events(ctx, {"run_dir": str(run_dir)})
     assert resolved == events
+
+
+def test_run_input_stream_empty_without_run_dir(tmp_path: Path) -> None:
+    """Experiment/item gathers must not inherit leftover run identity."""
+    ctx = _ctx(tmp_path / "bench")
+    assert run_input_stream(ctx, {"output": "data.csv"}) == {}
+
+
+@pytest.mark.asyncio
+async def test_gather_experiment_keeps_all_scenarios_after_batch(tmp_path: Path) -> None:
+    from mas.lab.benchmark.pipeline.models import StepOutput
+    from mas.library.lab.steps.data.gather_level import GatherLevelStep
+
+    combined = pd.DataFrame(
+        [
+            {"scenario": "topo-parallel", "item_id": "1", "value": 1.0},
+            {"scenario": "topo-verifier", "item_id": "99", "value": 0.2},
+        ]
+    )
+    step = GatherLevelStep(
+        name="gather-experiment",
+        depends_on=["gather-scenario"],
+        config={"output_dir": str(tmp_path), "output": "data.csv"},
+    )
+
+    class _Ctx:
+        output_dir = tmp_path
+        step_outputs = {"gather-scenario": StepOutput(data={"df": combined})}
+        pipeline = None
+        scope_context = ScopeContext(
+            experiment="exp",
+            scenario="topo-verifier",
+            test="item99",
+            run="r1",
+        )
+
+    out = await step.execute(_Ctx())  # type: ignore[arg-type]
+    assert set(out.data["df"]["scenario"]) == {"topo-parallel", "topo-verifier"}
 
 
 def test_run_input_stream_includes_run_and_trace(tmp_path: Path) -> None:

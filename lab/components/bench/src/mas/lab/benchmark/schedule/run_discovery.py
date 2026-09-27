@@ -148,7 +148,7 @@ def list_child_artifact_paths(
     base = Path(output_dir)
     if scope in ("application", "experiment"):
         children = [ref.path for ref in discover_benchmark_scenarios(base)]
-    elif scope == "test":
+    elif scope in ("test", "item"):
         children = _immediate_dirs(base / scenario / test, "r")
     elif scope == "scenario":
         children = _immediate_dirs(base / scenario, "item")

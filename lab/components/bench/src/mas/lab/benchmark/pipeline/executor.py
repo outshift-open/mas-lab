@@ -11,8 +11,10 @@ import json
 import logging
 import os
 import re
+import sys
+import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 
 try:
@@ -65,6 +67,103 @@ def compact_step_names(
         key = key_of(name)
         counts[key] = counts.get(key, 0) + 1
     return ", ".join(f"{k}×{n}" for k, n in counts.items())
+
+
+def _format_step_duration(ms: float) -> str:
+    if ms < 1000:
+        return f"{ms:.0f}ms"
+    return f"{ms / 1000:.1f}s"
+
+
+def _artifact_counts(files: List[Path]) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for path in files:
+        name = Path(path).name
+        if name:
+            counts[name] = counts.get(name, 0) + 1
+    return counts
+
+
+def _format_artifact_counts(counts: Dict[str, int]) -> str:
+    return ", ".join(f"{name} ×{n}" for name, n in counts.items())
+
+
+class _LineProgress:
+    """Rewrite one stdout line on a TTY; print only completed lines otherwise."""
+
+    def __init__(self, enabled: bool) -> None:
+        self.enabled = enabled
+        self._tty = bool(enabled and hasattr(sys.stdout, "isatty") and sys.stdout.isatty())
+
+    def update(self, text: str) -> None:
+        if not self.enabled or not self._tty:
+            return
+        sys.stdout.write(f"\r\033[K  {text}")
+        sys.stdout.flush()
+
+    def finish(self, text: str) -> None:
+        if not self.enabled:
+            return
+        if self._tty:
+            sys.stdout.write(f"\r\033[K  {text}\n")
+        else:
+            sys.stdout.write(f"  {text}\n")
+        sys.stdout.flush()
+
+
+class _TypeProgress:
+    """Group live progress by step type: rewrite ``eval_mce  200/500``, then log artefacts."""
+
+    def __init__(self, enabled: bool, totals: Dict[str, int]) -> None:
+        self.line = _LineProgress(enabled)
+        self.totals = totals
+        self.done: Dict[str, int] = {}
+        self.current: Optional[str] = None
+        self._t0 = 0.0
+        self._files: List[Path] = []
+        self.timings: List[Tuple[str, float, int]] = []
+        self.artifacts: Dict[str, int] = {}
+
+    def begin(self, step_type: str) -> None:
+        if self.current == step_type:
+            return
+        self.close()
+        self.current = step_type
+        self._t0 = time.perf_counter()
+        self._files = []
+
+    def tick(
+        self,
+        step_type: str,
+        *,
+        n: int = 1,
+        files: Optional[List[Path]] = None,
+    ) -> None:
+        self.begin(step_type)
+        self.done[step_type] = self.done.get(step_type, 0) + n
+        if files:
+            self._files.extend(files)
+        done = self.done[step_type]
+        total = self.totals.get(step_type, done)
+        self.line.update(f"{step_type}  {done}/{total}")
+
+    def close(self) -> None:
+        if not self.current:
+            return
+        ms = (time.perf_counter() - self._t0) * 1000
+        n = self.done.get(self.current, 0)
+        total = self.totals.get(self.current, n)
+        counts = _artifact_counts(self._files)
+        for name, count in counts.items():
+            self.artifacts[name] = self.artifacts.get(name, 0) + count
+        extra = _format_artifact_counts(counts)
+        suffix = f"   {extra}" if extra else ""
+        self.line.finish(
+            f"{self.current}  {n}/{total}   {_format_step_duration(ms)}{suffix}"
+        )
+        self.timings.append((self.current, ms, n))
+        self.current = None
+        self._files = []
 
 
 @dataclass
@@ -230,6 +329,12 @@ class ExecutionResult:
     
     duration_ms: float
     """Total execution time in milliseconds."""
+
+    step_timings: List[Tuple[str, float, int]] = field(default_factory=list)
+    """Per-type wall time: ``(step_type, duration_ms, instance_count)``."""
+
+    artifacts: Dict[str, int] = field(default_factory=dict)
+    """Produced artefact basenames → instance counts (``data.csv`` × 500)."""
     
     def summary(self) -> str:
         """Human-readable summary."""
@@ -243,6 +348,15 @@ class ExecutionResult:
         
         if self.failed_steps:
             lines.append(f"  Failed steps: {', '.join(self.failed_steps)}")
+
+        if self.step_timings:
+            lines.append("  Time:")
+            for step_type, ms, n in sorted(self.step_timings, key=lambda row: -row[1]):
+                inst = f" ×{n}" if n > 1 else ""
+                lines.append(f"    {step_type}{inst}  {_format_step_duration(ms)}")
+        if self.artifacts:
+            lines.append("  Artifacts:")
+            lines.append(f"    {_format_artifact_counts(self.artifacts)}")
         
         return "\n".join(lines)
 
@@ -482,6 +596,15 @@ class PipelineExecutor:
                 )
                 logger.info("Step '%s' restored from %d artifact(s)", step_name, len(artifacts))
 
+        type_totals: Dict[str, int] = {}
+        for step_name in steps_to_rerun:
+            step = self.pipeline.get_step(step_name)
+            if step is None:
+                continue
+            n_inst = len((step.config or {}).get("_batch_instances") or []) or 1
+            type_totals[step.type] = type_totals.get(step.type, 0) + n_inst
+        type_progress = _TypeProgress(self.progress, type_totals)
+
         if parallel:
             # Execute by layers (parallel within layer)
             for layer in execution_layers:
@@ -503,6 +626,14 @@ class PipelineExecutor:
                         failed_steps.append(step_name)
                     else:
                         executed_steps.append(step_name)
+                        step = self.pipeline.get_step(step_name)
+                        out = ctx.step_outputs.get(step_name)
+                        n_inst = len((step.config or {}).get("_batch_instances") or []) or 1
+                        type_progress.tick(
+                            step.type if step else step_name,
+                            n=n_inst,
+                            files=list(out.files or []) if out else [],
+                        )
         else:
             # Sequential execution — continue past independent failures
             for step_name in execution_order:
@@ -524,7 +655,7 @@ class PipelineExecutor:
                     continue
                 
                 try:
-                    await self._execute_step(step_name, ctx)
+                    await self._execute_step(step_name, ctx, progress=type_progress)
                     executed_steps.append(step_name)
                 except Exception as e:
                     # Fatal errors (missing API key, authentication failure) must
@@ -543,6 +674,7 @@ class PipelineExecutor:
                     failed_steps.append(step_name)
         
         duration_ms = (datetime.now() - start_time).total_seconds() * 1000
+        type_progress.close()
         
         result = ExecutionResult(
             success=len(failed_steps) == 0,
@@ -550,36 +682,105 @@ class PipelineExecutor:
             failed_steps=failed_steps,
             step_outputs=ctx.step_outputs,
             duration_ms=duration_ms,
+            step_timings=list(type_progress.timings),
+            artifacts=dict(type_progress.artifacts),
         )
         
         logger.info(result.summary())
         
         return result
+
+    async def _execute_batched(
+        self,
+        step,
+        ctx: ExecutionContext,
+        instances: list,
+        progress: Optional[_TypeProgress] = None,
+    ) -> StepOutput:
+        """Run sibling instances on one step object; keep per-instance aliases."""
+        orig_name = step.name
+        orig_cfg = step.config
+        orig_deps = list(step.depends_on or [])
+        shared = {k: v for k, v in (orig_cfg or {}).items() if k != "_batch_instances"}
+        frames = []
+        files: list = []
+        try:
+            for inst in instances:
+                inst_cfg = dict(shared)
+                inst_cfg.update(inst.get("config") or {})
+                step.name = str(inst.get("name") or orig_name)
+                step.config = inst_cfg
+                step.depends_on = list(inst.get("depends_on") or orig_deps)
+                if inst_cfg.get("scenario") or inst_cfg.get("test") or inst_cfg.get("run"):
+                    ctx.scope_context = ScopeContext(
+                        experiment=ctx.scope_context.experiment,
+                        scenario=str(inst_cfg.get("scenario", "")),
+                        test=str(inst_cfg.get("test", "")),
+                        run=str(inst_cfg.get("run", "")),
+                    )
+                out = await step.execute(ctx)
+                ctx.step_outputs[step.name] = out
+                files.extend(out.files or [])
+                data = out.data if isinstance(out.data, dict) else {}
+                df = data.get("df")
+                if df is not None:
+                    frames.append(df)
+                if progress is not None:
+                    progress.tick(step.type, n=1, files=list(out.files or []))
+        finally:
+            step.name = orig_name
+            step.config = orig_cfg
+            step.depends_on = orig_deps
+
+        n = len(instances)
+        if frames:
+            import pandas as pd
+
+            df = pd.concat(frames, ignore_index=True)
+        else:
+            df = None
+        data_out: Dict[str, Any] = {"rows": 0 if df is None else len(df), "instances": n}
+        if df is not None:
+            data_out["df"] = df
+        return StepOutput(
+            data=data_out,
+            files=files,
+            metadata={"batched": n, "rows": data_out["rows"]},
+        )
     
     async def _execute_step(
         self,
         step_name: str,
         ctx: ExecutionContext,
+        progress: Optional[_TypeProgress] = None,
     ):
         """Execute a single step."""
         step = self.pipeline.get_step(step_name)
         logger.info(f"Executing step: {step_name} (type: {step.type})")
+        if progress is not None:
+            progress.begin(step.type)
         
         compact = len(self.pipeline.steps) > COMPACT_STEP_LIST_THRESHOLD
-        if self.progress and not compact:
-            print(f"  ▶ {step_name} ({step.type}) ...", end="", flush=True)
+        instances = (step.config or {}).get("_batch_instances") or []
+        if self.progress and not compact and progress is None:
+            if instances:
+                print(
+                    f"  ▶ {step_name} ({step.type} × {len(instances)}) ...",
+                    end="",
+                    flush=True,
+                )
+            else:
+                print(f"  ▶ {step_name} ({step.type}) ...", end="", flush=True)
         
         step_start = datetime.now()
         
-        # Resolve @resource:xxx references in step config before execution
         if ctx.resource_registry is not None:
-            step.config = ctx.resolve_config(step.config)
-        # Resolve {output_dir} and user template_vars in step config
-        step.config = self._resolve_config_templates(step.config, ctx)
+            step.config = ctx.resolve_config(step.config or {})
+        step.config = self._resolve_config_templates(step.config or {}, ctx)
 
-        # Align scope context with per-run step config so Artifact.resolve_path works.
         cfg = step.config or {}
-        if cfg.get("scenario") or cfg.get("test") or cfg.get("run"):
+        instances = cfg.get("_batch_instances") or []
+        if not instances and (cfg.get("scenario") or cfg.get("test") or cfg.get("run")):
             ctx.scope_context = ScopeContext(
                 experiment=ctx.scope_context.experiment,
                 scenario=str(cfg.get("scenario", "")),
@@ -588,29 +789,39 @@ class PipelineExecutor:
             )
 
         schema_base_dir = self.pipeline.config_path.parent if self.pipeline.config_path else Path.cwd()
-        input_stream = {
-            dep: ctx.step_outputs[dep].data
-            for dep in step.depends_on
-            if dep in ctx.step_outputs
-        }
-        from mas.lab.benchmark.pipeline.run_artifacts import run_input_stream
+        batched_ticked = False
+        orig_scope = ctx.scope_context
+        try:
+            if instances:
+                output = await self._execute_batched(
+                    step, ctx, instances, progress=progress
+                )
+                batched_ticked = progress is not None
+            else:
+                input_stream = {
+                    dep: ctx.step_outputs[dep].data
+                    for dep in step.depends_on
+                    if dep in ctx.step_outputs
+                }
+                from mas.lab.benchmark.pipeline.run_artifacts import run_input_stream
 
-        run_payload = run_input_stream(ctx, step.config)
-        if run_payload:
-            input_stream["_run"] = run_payload
-            step.config.setdefault("run_dir", run_payload.get("run_dir", ""))
-            for key in ("scenario", "test", "run", "events_path", "trace_path"):
-                if run_payload.get(key) and not step.config.get(key):
-                    step.config[key] = run_payload[key]
-        validate_payload(
-            input_stream,
-            step.config.get("input_schema"),
-            label=f"Step '{step_name}' input stream",
-            base_dir=schema_base_dir,
-        )
-
-        # Execute
-        output = await step.execute(ctx)
+                run_payload = run_input_stream(ctx, step.config)
+                if run_payload:
+                    input_stream["_run"] = run_payload
+                    step.config.setdefault("run_dir", run_payload.get("run_dir", ""))
+                    for key in ("scenario", "test", "run", "events_path", "trace_path"):
+                        if run_payload.get(key) and not step.config.get(key):
+                            step.config[key] = run_payload[key]
+                validate_payload(
+                    input_stream,
+                    step.config.get("input_schema"),
+                    label=f"Step '{step_name}' input stream",
+                    base_dir=schema_base_dir,
+                )
+                output = await step.execute(ctx)
+        finally:
+            if instances:
+                ctx.scope_context = orig_scope
 
         validate_payload(
             output.data,
@@ -633,8 +844,13 @@ class PipelineExecutor:
         }
         fingerprint = self.cache_manager.compute_fingerprint(step, dep_outputs)
         self.cache_manager.save_fingerprint(step_name, fingerprint)
-        
-        if self.progress and not compact:
+
+        if progress is not None and not batched_ticked:
+            n_inst = len(instances) or 1
+            progress.tick(step.type, n=n_inst, files=list(output.files or []))
+        elif self.progress and not compact:
+            arts = _format_artifact_counts(_artifact_counts(list(output.files or [])))
+            extra = f"   {arts}" if arts else ""
             _data_summary = ""
             if "rows" in output.data:
                 _data_summary = f" [{output.data['rows']} rows]"
@@ -642,9 +858,9 @@ class PipelineExecutor:
                 _mc = output.data["metrics_computed"]
                 _cc = output.data.get("metrics_cached", 0)
                 _data_summary = f" [computed={_mc}, cached={_cc}]"
-            print(f" ✓ {step_duration:.0f}ms{_data_summary}")
+            print(f" ✓ {_format_step_duration(step_duration)}{_data_summary}{extra}")
         
-        logger.info(f"✓ Step '{step_name}' completed in {step_duration:.0f}ms")
+        logger.debug("✓ Step '%s' completed in %.0fms", step_name, step_duration)
 
     @staticmethod
     def _resolve_config_templates(

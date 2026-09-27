@@ -101,14 +101,16 @@ class CacheManager:
         return hashlib.sha256(json_str.encode()).hexdigest()
     
     def _hash_file(self, path: Path) -> str:
-        """Compute SHA256 of file."""
-        sha256 = hashlib.sha256()
-        
-        with open(path, "rb") as f:
-            while chunk := f.read(8192):
-                sha256.update(chunk)
-        
-        return sha256.hexdigest()
+        """Fingerprint a file without reading its bytes.
+
+        Size + mtime is enough to detect reruns; hashing hundreds of CSV
+        artifacts on every step dominated large level-scoped pipelines.
+        """
+        try:
+            st = path.stat()
+        except OSError:
+            return "missing"
+        return f"{st.st_size}:{st.st_mtime_ns}"
     
     def get_cached_fingerprint(self, step_name: str) -> Optional[str]:
         """Get cached fingerprint for step."""

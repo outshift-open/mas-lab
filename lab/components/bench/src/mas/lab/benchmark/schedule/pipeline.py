@@ -25,6 +25,18 @@ _INFRA_STEP_TYPES = frozenset(
     {"service_start", "service_stop", "serialize", "deserialize"}
 )
 
+# Same type at run/item/scenario is one PipelineStep, not N objects.
+_BATCHABLE_TYPES = frozenset(
+    {
+        "gather_level",
+        "metrics_to_dataframe",
+        "extract_trace_stats",
+        "extract_mealy_stats",
+        "eval_mce",
+    }
+)
+_BATCHABLE_SCOPES = frozenset({"run", "item", "test", "scenario"})
+
 
 def substitute_template_vars(obj: Any, template_vars: dict[str, str]) -> Any:
     """Replace ``{key}`` placeholders in nested config structures."""
@@ -137,10 +149,14 @@ def _expand_deps(
     node: _Node,
     name_scope: dict[str, str],
     nodes: dict[str, list[_Node]],
+    batched: set[str],
 ) -> list[str]:
     """Rewrite each dependency to the child instances under *node*."""
     expanded: list[str] = []
     for dep in depends_on or []:
+        if dep in batched:
+            expanded.append(dep)
+            continue
         child_scope = name_scope.get(dep)
         if not child_scope or child_scope in ("application", "experiment"):
             expanded.append(dep)
@@ -269,6 +285,36 @@ def _step_dict(spec: Any, name: str, cfg: dict[str, Any], deps: list[str]) -> di
     }
 
 
+def _emit_instances(
+    spec: Any,
+    base_name: str,
+    instances: list[tuple[str, dict[str, Any], list[str]]],
+) -> list[dict]:
+    """One PipelineStep when siblings share a batchable type; else one dict each."""
+    if not instances:
+        return []
+    if (
+        spec.type not in _BATCHABLE_TYPES
+        or _effective_scope(spec) not in _BATCHABLE_SCOPES
+        or len(instances) == 1
+    ):
+        return [_step_dict(spec, name, cfg, deps) for name, cfg, deps in instances]
+    payload = [
+        {"name": name, "config": cfg, "depends_on": deps}
+        for name, cfg, deps in instances
+    ]
+    deps: list[str] = []
+    seen: set[str] = set()
+    for _name, _cfg, inst_deps in instances:
+        for dep in inst_deps:
+            if dep not in seen:
+                seen.add(dep)
+                deps.append(dep)
+    shared = copy.deepcopy(spec.config or {})
+    shared["_batch_instances"] = payload
+    return [_step_dict(spec, base_name, shared, deps)]
+
+
 def materialize_step_dicts(
     specs: list,
     *,
@@ -307,12 +353,20 @@ def materialize_step_dicts(
     name_scope = {
         _base_step_name(spec): _effective_scope(spec) for spec in phase_specs
     }
+    batched = {
+        _base_step_name(spec)
+        for spec in phase_specs
+        if spec.type in _BATCHABLE_TYPES
+        and _effective_scope(spec) in _BATCHABLE_SCOPES
+        and len(nodes[_effective_scope(spec)]) > 1
+    }
     level_arts = level_artifacts or {}
 
     step_dicts: list[dict] = []
     for spec in phase_specs:
         base_name = _base_step_name(spec)
         scope = _effective_scope(spec)
+        instances: list[tuple[str, dict[str, Any], list[str]]] = []
         for node in nodes[scope]:
             cfg = _finalize_cfg(
                 spec,
@@ -324,9 +378,10 @@ def materialize_step_dicts(
             suffix = node.suffix()
             name = f"{base_name}-{suffix}" if suffix else base_name
             deps = _expand_deps(
-                list(spec.depends_on or []), node, name_scope, nodes
+                list(spec.depends_on or []), node, name_scope, nodes, batched
             )
-            step_dicts.append(_step_dict(spec, name, cfg, deps))
+            instances.append((name, cfg, deps))
+        step_dicts.extend(_emit_instances(spec, base_name, instances))
     return step_dicts
 
 
