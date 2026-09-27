@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,15 @@ from mas.ctl.validate.refs import check_refs, resolve_refs_enabled
 from mas.ctl.validate.schema_errors import humanize_schema_error
 from mas.ctl.validate.schemas import declared_kind, load_schema, schema_path_for_kind
 from mas.ctl.validate.separation import check_separation
+
+
+def _path_sort_key(path: Iterable[str | int]) -> tuple[tuple[int, str | int], ...]:
+    """Stable sort key for JSON Schema error paths with mixed string and int segments.
+
+    ``jsonschema`` exposes list indexes as integers and mapping keys as strings,
+    which cannot be compared directly in Python 3.
+    """
+    return tuple((0, segment) if isinstance(segment, str) else (1, segment) for segment in path)
 
 
 @dataclass
@@ -82,7 +92,7 @@ def validate_data(
 
     schema = load_schema(resolved_kind)
     validator = jsonschema.Draft7Validator(schema)
-    for err in sorted(validator.iter_errors(data), key=lambda e: list(e.path)):
+    for err in sorted(validator.iter_errors(data), key=lambda e: _path_sort_key(e.path)):
         path = ".".join(str(p) for p in err.path) or "(root)"
         level = "error" if strict else "warning"
         result.issues.append(ValidationIssue(level, humanize_schema_error(err), path=path))
