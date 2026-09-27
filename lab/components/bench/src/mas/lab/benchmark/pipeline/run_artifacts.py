@@ -127,12 +127,19 @@ def resolve_run_events(ctx: Any, config: Optional[Dict[str, Any]] = None) -> Opt
 
 
 def run_input_stream(ctx: Any, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Build the standard per-run input payload injected into step input streams."""
+    """Build the standard per-run input payload injected into step input streams.
+
+    Only run-scoped steps (config has ``run_dir`` or ``run``) receive identity.
+    Leftover ``scope_context`` from a batched sibling must not leak into
+    item/scenario/experiment gathers.
+    """
     cfg = config or {}
-    payload: Dict[str, Any] = {}
+    if not (cfg.get("run_dir") or cfg.get("run")):
+        return {}
     run_dir = run_dir_from_ctx(ctx, cfg)
-    if run_dir is not None:
-        payload["run_dir"] = str(run_dir)
+    if run_dir is None:
+        return {}
+    payload: Dict[str, Any] = {"run_dir": str(run_dir)}
     sc = getattr(ctx, "scope_context", None)
     if sc:
         if sc.scenario:

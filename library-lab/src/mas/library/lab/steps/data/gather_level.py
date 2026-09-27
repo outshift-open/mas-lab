@@ -12,6 +12,48 @@ from mas.lab.benchmark.pipeline import PipelineStep, StepOutput
 logger = logging.getLogger(__name__)
 
 
+def _filter_identity(df: Any, config: Dict[str, Any]) -> Any:
+    """Keep rows for this instance when a batched parent leaked the full frame."""
+    if df is None or getattr(df, "empty", True):
+        return df
+    scenario = str(config.get("scenario") or "")
+    test = str(config.get("test") or "")
+    run = str(config.get("run") or "")
+    out = df
+    if scenario:
+        for col in ("scenario", "scenario_id"):
+            if col in out.columns:
+                out = out[out[col].astype(str) == scenario]
+                break
+    if test:
+        item_id = test[4:] if test.startswith("item") else test
+        for col, want in (("test", test), ("item", test), ("item_id", item_id)):
+            if col in out.columns:
+                out = out[out[col].astype(str) == str(want)]
+                break
+    if run:
+        run_idx = run[1:] if run.startswith("r") else run
+        for col, want in (("run", run), ("run_id", run), ("run_idx", run_idx)):
+            if col in out.columns:
+                out = out[out[col].astype(str) == str(want)]
+                break
+    return out.reset_index(drop=True) if out is not df else out
+
+
+def _frames_from_deps(step: "GatherLevelStep", ctx: Any) -> List[Any]:
+    frames: List[Any] = []
+    for dep_name in step.depends_on or []:
+        dep_out = ctx.step_outputs.get(dep_name)
+        if dep_out is None:
+            continue
+        data = dep_out.data if isinstance(dep_out.data, dict) else {}
+        df = data.get("df")
+        if df is None or getattr(df, "empty", True):
+            continue
+        frames.append(df)
+    return frames
+
+
 class GatherLevelStep(PipelineStep):
     """Concat CSV/parquet files listed in ``config["artifact_paths"]``."""
 
@@ -21,25 +63,22 @@ class GatherLevelStep(PipelineStep):
         import pandas as pd
 
         config = self.config
-        paths = [Path(str(p)) for p in (config.get("artifact_paths") or [])]
         annotate: Dict[str, Any] = config.get("annotate") or {}
         fmt: str = config.get("format", "csv")
 
-        frames: List["pd.DataFrame"] = []
-        for path in paths:
-            if not path.exists():
-                logger.warning("gather_level '%s': missing %s", self.name, path)
-                continue
-            df_part = (
-                pd.read_parquet(path) if path.suffix == ".parquet" else pd.read_csv(path)
-            )
-            if df_part is None or df_part.empty:
-                continue
-            if annotate:
-                df_part = df_part.copy()
-                for col, val in annotate.items():
-                    df_part[col] = val
-            frames.append(df_part)
+        frames = _frames_from_deps(self, ctx)
+        paths = [Path(str(p)) for p in (config.get("artifact_paths") or [])]
+        if not frames:
+            for path in paths:
+                if not path.exists():
+                    logger.warning("gather_level '%s': missing %s", self.name, path)
+                    continue
+                df_part = (
+                    pd.read_parquet(path) if path.suffix == ".parquet" else pd.read_csv(path)
+                )
+                if df_part is None or df_part.empty:
+                    continue
+                frames.append(df_part)
 
         if not frames:
             if paths:
@@ -49,7 +88,7 @@ class GatherLevelStep(PipelineStep):
                 )
             else:
                 detail = (
-                    "config[\"artifact_paths\"] was empty — no child folders were "
+                    'config["artifact_paths"] was empty — no child folders were '
                     "found for this level, or the `in:` artifact name didn't "
                     "resolve to anything the level below declares"
                 )
@@ -57,7 +96,13 @@ class GatherLevelStep(PipelineStep):
                 f"gather_level '{self.name}': {detail} — fan-in produced nothing to concatenate."
             )
 
-        df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+        df = pd.concat(frames, ignore_index=True)
+        df = _filter_identity(df, config)
+        if annotate:
+            df = df.copy()
+            for col, val in annotate.items():
+                if col not in df.columns:
+                    df[col] = val
 
         output_dir = Path(config["output_dir"]) if config.get("output_dir") else ctx.output_dir
         output_path = Path(config.get("output", f"data.{fmt}"))

@@ -133,7 +133,7 @@ class EvalMceStep(PipelineStep):
         if metrics_file.exists() and not overwrite:
             return StepOutput(
                 data={"total": 1, "computed": 0, "skipped": 1, "errors": 0},
-                files=[],
+                files=[metrics_file],
                 metadata={"skipped": True},
             )
 
