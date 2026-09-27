@@ -170,8 +170,9 @@ the prefix is always a **library name**. Lab-local libraries are searched
 first, then workspace `manifest_libraries:`, then installed libraries.
 
 List local library dirs in `lab-config.yaml` `lab.libraries` (and put
-`library.yaml` in that dir). Map shared checkout libraries in workspace
-`config.yaml` `manifest_libraries:`.
+`library.yaml` in that dir). List extra checkouts in workspace
+`config.yaml` `manifest_libraries:` (a list of paths; the name is the
+directory stem).
 
 User guide: [labs-and-libraries.md](labs-and-libraries.md). Search order and
 `LookupError`: [library-discovery.md](library-discovery.md).

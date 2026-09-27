@@ -115,13 +115,19 @@ content-addressed cache indirection.
 
 ## Step caching
 
-Fingerprints live in `<output_dir>/.cache/`. Force one step:
+Each step writes a fingerprint under `<output_dir>/.cache/<step>.fingerprint`.
+A later `mas-lab benchmark run` (or `benchmark pipeline run`) skips a step
+when its type, config, and upstream fingerprints are unchanged. Downstream
+steps rerun when an upstream fingerprint changes.
 
 ```bash
-mas-lab benchmark step restart <benchmark-id> <step-id>
+mas-lab benchmark step restart <benchmark-id> <step-id>   # one step
+mas-lab benchmark pipeline run pipeline.yaml -o DIR --force STEP
 ```
 
-See [benchmark CLI](../src/mas/lab/cli/commands/benchmark/).
+See [benchmark CLI](../src/mas/lab/cli/commands/benchmark/) and
+[benchmark-state-architecture.md](benchmark-state-architecture.md) for
+how this relates to the run-level trace cache.
 
 ## Custom steps
 

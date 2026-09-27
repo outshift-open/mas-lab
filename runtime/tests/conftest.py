@@ -8,6 +8,29 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def _clear_library_discovery_caches():
+    """Reset the lru_cache-memoized library/catalog discovery helpers.
+
+    ``mas.library_roots``/``mas.library_catalog`` memoize ``library.yaml``
+    parses and app/dataset indices keyed by resolved root path (see
+    ``clear_library_discovery_cache`` / ``clear_catalog_discovery_cache``).
+    Different tests normally use distinct ``tmp_path`` roots so this would
+    not matter, but a test that writes a library dir, resolves it, then
+    rewrites the same path and resolves again must still see the change —
+    clear before and after every test so no run starts or ends with a
+    stale entry.
+    """
+    from mas.library_catalog import clear_catalog_discovery_cache
+    from mas.library_roots import clear_library_discovery_cache
+
+    clear_catalog_discovery_cache()
+    clear_library_discovery_cache()
+    yield
+    clear_catalog_discovery_cache()
+    clear_library_discovery_cache()
+
+
+@pytest.fixture(autouse=True)
 def _isolate_workspace_root(monkeypatch: pytest.MonkeyPatch) -> None:
     """Clear ``MAS_WORKSPACE_ROOT`` so ``RuntimeWorkspaceConfig.load(start=...)``
     resolves the ``start`` a test passed instead of silently deferring to

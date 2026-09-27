@@ -16,7 +16,8 @@ experiment:
         control: []
         infra: []
   dataset:
-    path: ../../../labs/extensions.lab/datasets/fact-recall-smoke.yaml
+    name: trip-planner-benchmark
+    locator: samples
     limit: 1
   execution:
     emulation:
@@ -37,7 +38,10 @@ experiment:
       depends_on: [eval-quality]
       config:
         output_dir: "{output_dir}"
-        dataset: ../../../labs/extensions.lab/datasets/fact-recall-smoke.yaml
+        dataset:
+          name: trip-planner-benchmark
+          locator: samples
+          columns: [group]
     - name: compute-ci
       type: compute_ci
       depends_on: [collect-metrics]

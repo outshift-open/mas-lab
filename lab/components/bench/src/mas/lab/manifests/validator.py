@@ -159,7 +159,9 @@ def _validate_against_schema(data: Dict[str, Any], kind: str) -> List[str]:
 
     from mas.ctl.validate.schema_errors import humanize_schema_error
 
-    validator = jsonschema.Draft7Validator(schema)
+    from mas.lab.schemas.validate import lab_schema_registry
+
+    validator = jsonschema.Draft7Validator(schema, registry=lab_schema_registry())
     violations: List[str] = []
     for error in sorted(validator.iter_errors(data), key=lambda e: list(e.absolute_path)):
         violations.append(humanize_schema_error(error))

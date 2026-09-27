@@ -12,8 +12,9 @@ description: >
   run, item, scenario, post (experiment-level, --depth exp).
 
   Properties marked deprecated: true still validate so old files load;
-  mas-lab validate warns on them. Removed keys (pipeline_bind, pipeline,
-  plots, flavours, output_dir, mas) are rejected by additionalProperties: false.
+  mas-lab validate warns on them (applications, mas). Removed keys
+  (pipeline_bind, pipeline, plots, flavours, output_dir) are rejected by
+  additionalProperties: false.
 
 type: object
 required: [experiment]
@@ -114,7 +115,55 @@ properties:
           DEPRECATED. Use application: {app|manifest, configs_dir}.
           Still accepted as a one-item list so existing files load.
         items:
-          $ref: "#/$defs/mas_binding"
+          oneOf:
+            - type: string
+              minLength: 1
+              description: >
+                Library + app identifier. The applications: attribute implies
+                kind MAS (or a standalone Agent app). Example:
+                library-ioc:sre-triage@v2. Slash after LIBRARY: is a path,
+                not an id (library-ioc:apps/sre-triage/v2).
+              pattern: "^[a-z0-9][a-z0-9-]*:[^\\s]+$"
+            - type: object
+              additionalProperties: false
+              description: "Pointer to a MAS use-case (manifest path, app name, or configs directory)."
+              properties:
+                manifest:
+                  type: string
+                  description: >
+                    Path or library:app identifier resolving to mas.yaml
+                    (e.g. library-ioc:sre-triage@v2).
+                app:
+                  type: string
+                  description: >
+                    Application catalog id, optionally library-qualified
+                    (library-ioc:sre-triage@v2 or sre-triage@v2).
+                configs_dir:
+                  type: string
+                  description: "Path to the overlays directory."
+                base_scenario:
+                  type: string
+                  default: "baseline"
+                  description: "Default scenario used as reference/baseline."
+              anyOf:
+                - required: [manifest]
+                - required: [app]
+
+      mas:
+        deprecated: true
+        description: >
+          DEPRECATED. Alias of application: {app|manifest, configs_dir}.
+          Loaders still accept mas: {manifest|app, configs_dir} (and
+          lab.mas in lab-config.yaml) and emit a one-shot warning.
+          Replace with application: {app|manifest, configs_dir}.
+          See https://outshift-open.github.io/mas-lab/manifests/experiment/#applications
+        oneOf:
+          - type: object
+            additionalProperties: true
+          - type: array
+            minItems: 1
+          - type: string
+            minLength: 1
 
       # ── Scenarios ─────────────────────────────────────────────────────────
       scenarios:
@@ -205,8 +254,10 @@ properties:
           app:
             type: string
             description: >-
-              App name (from mas.apps registry).  When present, the dataset is
-              resolved as {app_root}/datasets/{name}.yaml.  Requires 'name'.
+              Legacy filesystem hint: look under that app for datasets/<name>.
+              App-specific datasets now live at apps/<app>/vN/datasets/<name>/
+              and declare spec.app on the Dataset itself. Prefer dataset.name
+              as a catalog id.
           path:
             type: string
             description: >-
@@ -224,7 +275,37 @@ properties:
           limit:
             type: integer
             minimum: 1
-            description: "Cap number of dataset items processed (smoke runs)."
+            description: >
+              Use the first N items of the Dataset. Prefer this over shipping
+              a reduced copy (for example a ``-100`` sidecar). Smoke and CI
+              set a small limit; full lab runs omit it.
+          source:
+            type: object
+            additionalProperties: false
+            description: >
+              Optional external-dataset pointer (same shape as Dataset
+              spec.source). Merged over the Dataset manifest's spec.source
+              at load time (e.g. a tighter limit or different split).
+            properties:
+              kind:
+                type: string
+                enum: [huggingface, jsonl, csv, glob, pickle]
+              id:
+                type: string
+              split:
+                type: string
+              path:
+                type: string
+              map:
+                type: object
+                additionalProperties: true
+              config:
+                type: string
+              name:
+                type: string
+              limit:
+                type: integer
+                minimum: 1
 
       # ── Evaluation ────────────────────────────────────────────────────────
       evaluation:
@@ -398,6 +479,7 @@ properties:
     anyOf:
       - required: [application]
       - required: [applications]
+      - required: [mas]
 
 # ── Shared definitions ────────────────────────────────────────────────────────
 $defs:

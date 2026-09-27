@@ -45,6 +45,9 @@ experiment:
   application:
     app: trip-planner
     configs_dir: ./overlays
+    # Preferred for shared apps — library identifier + versioned app id:
+    # app: library-ioc:sre-triage@v2
+    # manifest: library-ioc:apps/sre-triage/v2/mas.yaml
   artifacts: {df: dataframe}
   post:
     - {name: gather-experiment, type: gather_level, in: df, out: df, depends_on: [gather-scenario]}
@@ -60,8 +63,9 @@ experiment:
 
   # ── Test ── dataset items + gather
   dataset:
-    name: trip-planner-benchmark-100
+    name: trip-planner-benchmark
     locator: samples
+    # limit: 10   # optional: first N items; omit to run the full Dataset
   item:
     artifacts: {df: dataframe}
     post:
@@ -136,6 +140,35 @@ experiment:
 See [summarization.md](summarization.md#mce-judge-model) for resolution order
 and logs. Feature example (not a sample app):
 [library-eval/examples/mce/judge-override/](../../library-eval/examples/mce/judge-override/).
+
+---
+
+## Applications
+
+`experiment.applications` is the MAS pointer (`app:` catalog id or `manifest:` path).
+
+```yaml
+applications:
+  - app: library-ioc:sre-triage@v1
+    configs_dir: ./overlays
+```
+
+`experiment.mas` (and `lab.mas` in `lab-config.yaml`) is a **deprecated** alias of
+`applications[0]`. Loaders still accept it and emit a warning. Rewrite:
+
+```yaml
+# before
+mas:
+  manifest: ../../apps/sre-triage/mas.yaml
+  configs_dir: overlays
+
+# after
+applications:
+  - app: library-ioc:sre-triage@v1
+    configs_dir: overlays
+```
+
+Relative `manifest:` paths still work; prefer `app: library:id@version`.
 
 ---
 
@@ -241,6 +274,24 @@ experiment:
 ```
 
 Implementation types: `mas.lab.lab.config.execution` (`MASExecutionSpec`, `EmulationSpec`).
+
+---
+
+## Dataset
+
+`experiment.dataset.name` is a catalog id (`locator: samples`) or a lab-local
+`datasets/<name>.yaml`. Nested experiments (`01-foo/experiment.yaml`) resolve
+the lab root `datasets/` automatically.
+
+`dataset.limit` takes the first N items. Use that for smoke and CI. Do not
+check in a reduced copy of the same pack (`*-100.yaml`).
+
+```yaml
+dataset:
+  name: trip-planner-benchmark
+  locator: samples
+  limit: 5
+```
 
 ---
 

@@ -85,7 +85,7 @@ def _is_mas_experiment_yaml(experiment_yaml: Path) -> bool:
     if isinstance(apps, list) and apps:
         return True
     if exp.get("mas") is not None or data.get("mas") is not None:
-        return False
+        return True
     kind = str(data.get("kind", "") or exp.get("kind", "")).lower()
     return kind in {"mas-experiment", "mas.experiment"}
 

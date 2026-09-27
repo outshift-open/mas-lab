@@ -14,7 +14,7 @@ from mas.ctl.executor.run_mas import execute_run_mas
 
 
 @click.command("run-mas")
-@click.argument("manifest", required=False, type=click.Path())
+@click.argument("manifest", required=False)
 @click.option("-p", "--prompt", default=None)
 @click.option("-q", "--query", "queries", multiple=True, help="Single or multi-turn query")
 @click.option("-o", "--overlay", "overlays", multiple=True, type=click.Path())

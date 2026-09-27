@@ -17,7 +17,7 @@ shared by :func:`resolve_named_library_root` and
    only (no library name). A listed name that is already a known library
    (``samples``) keeps resolve-by-name behaviour via later steps.
 2. **Workspace config** — ``config.yaml`` ``manifest_libraries:``
-   (library name → path, relative to the workspace root).
+   (search folders: a library root, or a parent of sibling libraries).
 3. **Installed libraries** — libraries registered in the environment.
 4. **Known local paths** — ``MAS_LIBRARY_PATHS`` (``os.pathsep``-
    separated): each entry is a library root or a parent of sibling
@@ -44,6 +44,7 @@ import importlib.resources
 import importlib.util
 import json
 import os
+from functools import lru_cache
 from pathlib import Path
 
 import yaml
@@ -211,31 +212,52 @@ def _installed_library_roots() -> list[Path]:
     return list(_installed_named_libraries().values())
 
 
+def iter_libraries_in_search_path(base: Path) -> list[Path]:
+    """Find library roots in *base*.
+
+    A search path is a folder we look in, not a name we assign:
+
+    - If *base* itself has ``library.yaml``, it is one library.
+    - Otherwise scan **immediate** children for ``library.yaml``.
+
+    The library name is the found directory stem. ``library.yaml`` then
+    fills the catalog (apps, datasets, tools). Same rule as
+    ``MAS_LIBRARY_PATHS``, ``lab.libraries``, and workspace
+    ``manifest_libraries``.
+    """
+    if not base.is_dir():
+        return []
+    resolved = base.resolve()
+    if (resolved / LIBRARY_MANIFEST_FILENAME).is_file():
+        return [resolved]
+    roots: list[Path] = []
+    try:
+        children = sorted(resolved.iterdir())
+    except OSError:
+        return []
+    for child in children:
+        if child.is_dir() and (child / LIBRARY_MANIFEST_FILENAME).is_file():
+            roots.append(child.resolve())
+    return roots
+
+
 def _known_library_paths() -> list[Path]:
     """Return roots from the ``MAS_LIBRARY_PATHS`` environment variable.
 
-    For libraries that are not installed as Python packages at all --
-    just a folder with a ``library.yaml`` on disk. Each ``os.pathsep``
-    -separated entry is either a library root itself, or a parent
-    directory containing one or more sibling library folders (e.g.
-    pointing at a monorepo checkout root that has ``library-a/``,
-    ``library-b/``, ... as immediate subdirectories).
+    Each ``os.pathsep``-separated entry is a **search path** (a library
+    root, or a parent of sibling library folders).
     """
     raw = os.environ.get("MAS_LIBRARY_PATHS", "")
     roots: list[Path] = []
+    seen: set[Path] = set()
     for entry in raw.split(os.pathsep):
         entry = entry.strip()
         if not entry:
             continue
-        base = Path(entry).expanduser()
-        if not base.is_dir():
-            continue
-        if (base / LIBRARY_MANIFEST_FILENAME).is_file():
-            roots.append(base.resolve())
-            continue
-        for child in sorted(base.iterdir()):
-            if child.is_dir() and (child / LIBRARY_MANIFEST_FILENAME).is_file():
-                roots.append(child.resolve())
+        for root in iter_libraries_in_search_path(Path(entry).expanduser()):
+            if root not in seen:
+                seen.add(root)
+                roots.append(root)
     return roots
 
 
@@ -290,8 +312,12 @@ def _lab_local_named_libraries(lab_dir: Path) -> dict[str, Path]:
     for entry in _lab_library_entries(lab_dir):
         raw = Path(entry).expanduser()
         candidate = raw if raw.is_absolute() else (lab_dir / entry)
-        if candidate.is_dir() and (candidate / LIBRARY_MANIFEST_FILENAME).is_file():
+        found = iter_libraries_in_search_path(candidate)
+        if len(found) == 1 and found[0] == candidate.resolve():
             _add(_scheme_from_listed_entry(entry), candidate)
+        else:
+            for lib in found:
+                _add(lib.name, lib)
 
     try:
         children = sorted(lab_dir.iterdir())
@@ -304,20 +330,39 @@ def _lab_local_named_libraries(lab_dir: Path) -> dict[str, Path]:
     return named
 
 
-def _workspace_named_libraries() -> dict[str, Path]:
-    """Workspace ``manifest_libraries:`` name → root."""
-    named: dict[str, Path] = {}
-    from mas.runtime.workspace_config import RuntimeWorkspaceConfig
+def _workspace_search_paths() -> list[Path]:
+    """Workspace ``manifest_libraries:`` entries as search folders."""
+    from mas.runtime.workspace_config import RuntimeWorkspaceConfig, library_search_paths
 
     ws = RuntimeWorkspaceConfig.load()
-    if ws.found and ws.root is not None:
-        for scheme, rel in ws.manifest_libraries.items():
-            if isinstance(rel, str) and rel.strip():
-                path = Path(rel).expanduser()
-                root = path if path.is_absolute() else (ws.root / rel)
-                resolved = root.resolve()
-                if resolved.exists():
-                    named[str(scheme)] = resolved
+    if not (getattr(ws, "found", False) and getattr(ws, "root", None) is not None):
+        return []
+    if hasattr(ws, "raw_manifest_libraries"):
+        # Preferred: the public accessor (real RuntimeWorkspaceConfig instances).
+        raw = ws.raw_manifest_libraries
+    else:
+        # Fallback for duck-typed workspace stand-ins (e.g. tests) that don't
+        # carry the accessor.
+        data = getattr(ws, "_data", None)
+        raw = data.get("manifest_libraries") if isinstance(data, dict) else None
+        if raw is None:
+            raw = getattr(ws, "manifest_libraries", None)
+    out: list[Path] = []
+    for rel in library_search_paths(raw):
+        path = Path(rel).expanduser()
+        root = path if path.is_absolute() else (ws.root / rel)
+        if root.exists():
+            out.append(root)
+    return out
+
+
+def _workspace_named_libraries() -> dict[str, Path]:
+    """Libraries found by scanning workspace ``manifest_libraries:`` search paths."""
+    named: dict[str, Path] = {}
+    for search in _workspace_search_paths():
+        for root in iter_libraries_in_search_path(search):
+            if root.name and root.name not in named:
+                named[root.name] = root
     return named
 
 
@@ -397,6 +442,11 @@ def iter_named_library_roots(*anchors: Path | None) -> list[tuple[str, Path]]:
                 continue
             seen_names.add(name)
             ordered.append((name, resolved))
+            for alias, alias_root in _scheme_aliases_for_root(resolved, primary=name).items():
+                if not alias or alias in seen_names:
+                    continue
+                seen_names.add(alias)
+                ordered.append((alias, alias_root))
 
     seen_labs: set[Path] = set()
     for start in _search_starts(*anchors):
@@ -410,6 +460,56 @@ def iter_named_library_roots(*anchors: Path | None) -> list[tuple[str, Path]]:
     _merge(_env_named_libraries())
     _merge(_ancestor_named_libraries(*_search_starts(*anchors)))
     return ordered
+
+
+@lru_cache(maxsize=None)
+def _read_library_manifest_silently(root: Path) -> dict:
+    """``library.yaml`` for *root*, or ``{}`` if missing/unparseable.
+
+    Memoized by resolved root: :func:`_scheme_aliases_for_root` used to
+    re-read and re-parse this file on every :func:`iter_named_library_roots`
+    call (itself invoked on every ref resolution), independently of
+    :func:`mas.library_catalog._load_library_manifest`, which parses the
+    same file for the same root elsewhere in the same overall resolution.
+    This does not call that fail-loud loader directly — a malformed
+    ``library.yaml`` must stay a silently-skipped alias source here, not an
+    exception that breaks root discovery for every other library — but
+    caching it here still avoids the repeat disk read within this module.
+    """
+    lib_yaml = root / LIBRARY_MANIFEST_FILENAME
+    if not lib_yaml.is_file():
+        return {}
+    try:
+        data = yaml.safe_load(lib_yaml.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _scheme_aliases_for_root(root: Path, *, primary: str) -> dict[str, Path]:
+    """Extra scheme names for a library root (directory stem, library.yaml name/aliases)."""
+    aliases: dict[str, Path] = {}
+    if root.name and root.name != primary:
+        aliases[root.name] = root
+    data = _read_library_manifest_silently(root)
+    if not data:
+        return aliases
+    pkg_name = data.get("name")
+    if isinstance(pkg_name, str):
+        text = pkg_name.strip()
+        if text and text != primary:
+            aliases.setdefault(text, root)
+    # schemes: is the library-identifier list. aliases: as a list is accepted
+    # too; a mapping is the plugin role→URN catalog and is ignored here.
+    for key in ("schemes", "aliases"):
+        raw = data.get(key) or []
+        if not isinstance(raw, list):
+            continue
+        for item in raw:
+            text = str(item).strip()
+            if text and text != primary:
+                aliases.setdefault(text, root)
+    return aliases
 
 
 def resolve_named_library_root(scheme: str, *anchors: Path | None) -> Path | None:
@@ -442,3 +542,20 @@ def discover_library_roots(*anchors: Path | None) -> list[Path]:
         _add(path)
 
     return roots
+
+
+def clear_library_discovery_cache() -> None:
+    """Drop this module's memoized ``library.yaml`` reads.
+
+    :func:`_read_library_manifest_silently` is ``lru_cache``-memoized by
+    resolved root. Call this (together with
+    :func:`mas.library_catalog.clear_catalog_discovery_cache`) after a
+    library's on-disk contents change — e.g. a temp library directory
+    rewritten mid-test — so the next resolution re-reads them. Discovery
+    functions that only orchestrate roots (``discover_library_roots``,
+    ``iter_named_library_roots``, ``resolve_named_library_root``) are
+    intentionally left uncached: they are the entry points tests and
+    callers monkeypatch/re-configure (workspace config, env vars, installed
+    libraries) expecting the very next call to reflect it.
+    """
+    _read_library_manifest_silently.cache_clear()

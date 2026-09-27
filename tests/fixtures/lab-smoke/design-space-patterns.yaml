@@ -16,7 +16,7 @@ experiment:
         control: []
         infra: []
   dataset:
-    name: qa-reasoning-queries-100
+    name: trip-planner-benchmark
     locator: samples
     limit: 1
   execution:

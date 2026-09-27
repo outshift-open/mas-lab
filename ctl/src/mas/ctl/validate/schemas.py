@@ -136,6 +136,13 @@ def load_schema(kind: str) -> dict:
     return _resolve_local_refs(raw, path.parent)
 
 
+def lab_schema_registry():
+    """Registry of ``$id`` documents under docs/schemas (lab fragments + runtime)."""
+    from mas.lab.schemas.validate import schema_registry_from_dir
+
+    return schema_registry_from_dir(_SCHEMA_ROOT)
+
+
 def _resolve_json_pointer(doc: Any, pointer: str, *, ref: str, source: Path) -> Any:
     target = doc
     for segment in pointer.strip("/").split("/"):

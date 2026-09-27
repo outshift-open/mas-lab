@@ -2,13 +2,12 @@
 #  SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
-import logging
-import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from mas.lab.benchmark.experiment import EvaluationSpec
+from mas.lab.deprecations import warn_deprecated
 from mas.runtime.spec.model_ref import ANY_MODEL, normalize_model_slots
 from mas.runtime.spec.source import resolve_path as resolve_path_ref
 
@@ -19,23 +18,14 @@ from .scenario_loading import discover_scenario_stems
 
 _DEPRECATED_EXPERIMENT_KEYS = {
     "pipeline_bind": "declare hooks under run/item/scenario/post",
-    "mas": "use application: {app|manifest, configs_dir}",
     "pipeline": "use run/item/scenario/post hooks (CLI --depth exp|scenario|item|run)",
     "output_dir": "remove; output paths are derived from lab layout",
     "flavours": "use default_flavour (library-standard flavours)",
     "plots": "declare plot steps in experiment-level post: or scenario.post",
 }
 
-_logger = logging.getLogger(__name__)
-
 _LEVEL_SECTION_KEYS = frozenset({"pre", "post", "artifacts", "n_runs"})
 _MAS_BINDING_KEYS = frozenset({"app", "manifest", "configs_dir", "base_scenario"})
-
-
-def _warn_deprecated(path: Optional[Path], message: str) -> None:
-    label = str(path) if path else "experiment"
-    warnings.warn(f"{label}: {message}", DeprecationWarning, stacklevel=3)
-    _logger.warning("%s: %s", label, message)
 
 
 def _is_mas_binding(value: Any) -> bool:
@@ -62,13 +52,10 @@ def canonicalize_experiment_dict(
       - ``application.post`` (pipeline level) → experiment-level ``post:``
       - ``test:`` → ``item:``
     """
+    where = str(path) if path else "experiment"
     app = data.get("application")
     if _is_level_section(app):
-        _warn_deprecated(
-            path,
-            "application.post is deprecated; use experiment-level post: "
-            "(matches CLI --depth exp)",
-        )
+        warn_deprecated("experiment.application_post", where=where)
         for phase in ("pre", "post"):
             incoming = list(app.get(phase) or [])
             if incoming:
@@ -84,15 +71,12 @@ def canonicalize_experiment_dict(
 
     apps = data.get("applications")
     if apps and not _is_mas_binding(data.get("application")):
-        _warn_deprecated(
-            path,
-            "applications: is deprecated; use application: {app|manifest, configs_dir}",
-        )
+        warn_deprecated("experiment.applications", where=where)
         if isinstance(apps, list) and apps:
             data["application"] = apps[0]
 
     if "test" in data:
-        _warn_deprecated(path, "test: is deprecated; use item: (matches CLI --item)")
+        warn_deprecated("experiment.test_key", where=where)
         item = data.get("item")
         test = data["test"]
         if item and test:
@@ -179,6 +163,9 @@ class MASRunBase:
 
     dataset_limit: Optional[int] = None
     """Maximum number of dataset items to use (applied after filtering)."""
+
+    dataset_source: Optional[Dict[str, Any]] = None
+    """Optional ``spec.source`` overlay (same shape as Dataset spec.source)."""
 
     evaluation: Optional[EvaluationSpec] = None
     """Evaluation spec — reused verbatim from ExperimentConfig conventions."""
@@ -345,9 +332,25 @@ class MASRunBase:
         if _is_mas_binding(mas_binding):
             mas = MASSpec.from_dict(mas_binding, base_dir)
         elif "applications" in data:
+            # applications: [{app: library-ioc:sre-triage@v2}] or "library-ioc:sre-triage@v2"
             apps_list = data["applications"]
             if isinstance(apps_list, list) and apps_list:
                 mas = MASSpec.from_dict(apps_list[0], base_dir)
+        elif data.get("mas"):
+            # Pre-applications alias: mas: {manifest|app, configs_dir}
+            from mas.lab.deprecations import warn_deprecated
+
+            code = (
+                "lab.mas"
+                if yaml_path is not None and yaml_path.name == "lab-config.yaml"
+                else "experiment.mas"
+            )
+            warn_deprecated(code, where=str(yaml_path or "experiment"))
+            mas_raw = data["mas"]
+            if isinstance(mas_raw, list) and mas_raw:
+                mas = MASSpec.from_dict(mas_raw[0], base_dir)
+            else:
+                mas = MASSpec.from_dict(mas_raw, base_dir)
 
         scenarios = [
             MASScenarioSpec.from_dict(s, base_dir)
@@ -357,14 +360,27 @@ class MASRunBase:
         dataset: Optional[Path] = None
         dataset_filter: Dict[str, Any] = {}
         dataset_limit: Optional[int] = None
+        dataset_source: Optional[Dict[str, Any]] = None
         if "dataset" in data:
             ds = data["dataset"]
             if "app" in ds:
-                # app: trip-planner  →  apps/trip-planner/datasets/<name>.yaml (legacy)
-                # Prefer registry: dataset.name: trip-planner-benchmark
+                # Legacy: {app_root}/datasets/<name>.yaml. App-specific datasets
+                # live at apps/<app>/vN/datasets/<name>/. Prefer dataset.name as a
+                # catalog id; this field is only a filesystem hint.
                 from mas.apps import get_app
+                from mas.library_catalog import _dataset_file_in_dir, resolve_catalog_id
+
                 _dataset_name = ds.get("name", "benchmark")
-                dataset = (get_app(ds["app"]) / "datasets" / f"{_dataset_name}.yaml").resolve()
+                app_root = get_app(ds["app"])
+                legacy = (app_root / "datasets" / f"{_dataset_name}.yaml").resolve()
+                if legacy.is_file():
+                    dataset = legacy
+                else:
+                    versioned_dir = app_root / "datasets" / str(_dataset_name)
+                    found = _dataset_file_in_dir(versioned_dir)
+                    dataset = found or resolve_catalog_id(str(_dataset_name), kind="dataset")
+                    if dataset is None:
+                        dataset = legacy
             elif "name" in ds:
                 locator = ds.get("locator")
                 if locator:
@@ -393,6 +409,17 @@ class MASRunBase:
                 dataset_filter.update(ds["filter"])
             if "limit" in ds:
                 dataset_limit = int(ds["limit"])
+            if isinstance(ds.get("source"), dict):
+                dataset_source = dict(ds["source"])
+            if (
+                dataset is not None
+                and mas is not None
+                and mas.manifest is not None
+                and Path(dataset).is_file()
+            ):
+                from mas.library_catalog import ensure_dataset_supports_app
+
+                ensure_dataset_supports_app(Path(dataset), mas.manifest.parent)
 
         evaluation: Optional[EvaluationSpec] = None
         if "evaluation" in data:
@@ -478,6 +505,7 @@ class MASRunBase:
             dataset=dataset,
             dataset_filter=dataset_filter,
             dataset_limit=dataset_limit,
+            dataset_source=dataset_source,
             evaluation=evaluation,
             output_dir=output_dir,
             trace_cache_dir=trace_cache_dir,

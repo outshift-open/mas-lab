@@ -16,7 +16,8 @@ experiment:
         control: []
         infra: []
   dataset:
-    path: ../../../labs/lifecycle-control.lab/datasets/lifecycle-queries.yaml
+    name: trip-planner-benchmark
+    locator: samples
     limit: 1
   evaluation:
     method: trace_only

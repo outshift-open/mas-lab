@@ -33,8 +33,10 @@ mas_lab:
 #   - standard:runtime-default
 #   - runtime/local.yaml
 
-# Optional extra libraries (name → path relative to the workspace root).
-# Lab-local libraries listed in lab-config.yaml are searched first.
-# See docs/labs-and-libraries.md.
+# Optional extra library search paths (folders, not an alias table).
+# Each entry is a library root or a parent of sibling library folders.
+# library.yaml in those folders fills the catalog. Same idea as lab.libraries
+# and MAS_LIBRARY_PATHS. Install remains the other door (entry point).
 # manifest_libraries:
-#   acme: ./libraries/acme
+#   - .
+#   - ./libraries

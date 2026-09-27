@@ -12,13 +12,20 @@ from __future__ import annotations
 from typing import Any
 
 # Keys that used to appear on experiment: and are now schema-rejected.
+#
+# NOTE: "mas" is deliberately NOT included here. Unlike these keys, `mas:` is
+# a soft-deprecated alias of `application:` for one more release — it stays
+# schema-accepted (see docs/schemas/lab/experiment.schema.yaml's `mas:` def,
+# which is `deprecated: true` but not additionalProperties-rejected) and the
+# loader warns via NOTICES["experiment.mas"] rather than raising. Listing it
+# here would contradict the schema's own removed-keys list (see that file's
+# top-level description) and the loader's intentional soft-acceptance.
 REMOVED_EXPERIMENT_KEYS = {
     "pipeline_bind": "declare hooks under run/item/scenario/post",
     "pipeline": "use run/item/scenario/post hooks (CLI --depth exp|scenario|item|run)",
     "output_dir": "remove; output paths are derived from lab layout",
     "flavours": "use default_flavour (library-standard flavours)",
     "plots": "declare plot steps in experiment-level post: or scenario.post",
-    "mas": "use application: {app|manifest, configs_dir}",
 }
 
 _LEVEL_SECTION_KEYS = frozenset({"pre", "post", "artifacts", "n_runs"})

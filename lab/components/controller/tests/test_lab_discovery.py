@@ -297,8 +297,8 @@ def test_manifest_store_config_files_nested(nested_lab: Path):
     assert any(k.startswith("02-topologies/flavours/") for k in flavour_keys)
 
 
-def test_design_space_datasets_symlinks():
-    """Design-space lab exposes benchmark datasets via datasets/ symlinks."""
+def test_design_space_lab_datasets():
+    """Design-space lab owns its QA / MAS-necessity Datasets under datasets/."""
     repo_root = Path(__file__).resolve().parents[4]
     lab_path = repo_root / "labs" / "design-space.lab"
     if not lab_path.is_dir():
@@ -309,8 +309,9 @@ def test_design_space_datasets_symlinks():
     reg._libraries = {"design-space": lab_path}
     datasets = reg.list_datasets("design-space")
     names = {d["name"] for d in datasets}
-    assert "qa-reasoning-queries-100.yaml" in names
-    assert "trip-planner-benchmark-100.yaml" in names
+    assert "qa-reasoning-queries.yaml" in names
+    assert "mas-necessity.yaml" in names
+    assert "trip-planner-benchmark-100.yaml" not in names
     reset_lab_registry()
 
 

@@ -171,8 +171,10 @@ class MASSpec:
         return None
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any], base_dir: Path) -> "MASSpec":
-        # ── app: <name>  (preferred — resolves from mas.apps registry) ──────
+    def from_dict(cls, data: Dict[str, Any] | str, base_dir: Path) -> "MASSpec":
+        if isinstance(data, str):
+            data = {"app": data.strip()}
+        # ── app: <library:app>  (preferred — catalog id, type inferred) ──────
         if "app" in data:
             from mas.apps import get_app, resolve_app_manifest
 
@@ -186,9 +188,20 @@ class MASSpec:
                 configs_dir=configs_dir,
                 base_scenario=data.get("base_scenario", "baseline"),
             )
-        # ── manifest: path/to/mas.yaml  (explicit path) ──────────────────────
+        # ── manifest: path or library:app ────────────────────────────────────
         if "manifest" in data:
-            manifest = resolve_path_ref(str(data["manifest"]), base_dir)
+            ref = str(data["manifest"])
+            manifest = resolve_path_ref(ref, base_dir)
+            if not manifest.is_file():
+                from mas.apps import get_app, resolve_app_manifest
+
+                if manifest.is_dir():
+                    manifest = resolve_app_manifest(manifest)
+                else:
+                    try:
+                        manifest = resolve_app_manifest(get_app(ref))
+                    except Exception:
+                        pass
             configs_dir = None
             if "configs_dir" in data:
                 configs_dir = resolve_path_ref(str(data["configs_dir"]), base_dir)

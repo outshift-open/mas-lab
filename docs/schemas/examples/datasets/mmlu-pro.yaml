@@ -1,0 +1,22 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Meta-dataset: how to use TIGER-Lab/MMLU-Pro. Does not vendor the rows.
+apiVersion: lab/v1
+kind: Dataset
+metadata:
+  name: mmlu-pro
+  version: v1
+  description: >
+    Maps HuggingFace TIGER-Lab/MMLU-Pro onto the run-input envelope.
+    Requires the optional 'datasets' package at load time.
+spec:
+  source:
+    kind: huggingface
+    id: TIGER-Lab/MMLU-Pro
+    split: validation
+    limit: 50
+    map:
+      id: question_id
+      inputs.user: "{question}\n{options_text}"
+      expectations.ground_truth: answer_index
+      category: category

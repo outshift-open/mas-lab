@@ -37,4 +37,5 @@ Docs for **benchmarks**, **pipelines**, and validation.
 
 | Page | Contents |
 |------|----------|
+| [pipeline.md](pipeline.md) | Executor DAG, fingerprints, `depends_on` |
 | [bench README](../components/bench/README.md) | Full benchmark CLI |
