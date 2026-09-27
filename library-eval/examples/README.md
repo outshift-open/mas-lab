@@ -15,4 +15,4 @@ Tests load these as fixtures. `mas-ctl validate` works from the repo root.
 
 | Category | Example | Kind | What it shows |
 |----------|---------|------|----------------|
-| [mce](mce/) | [judge-override](mce/judge-override/) | Experiment | `eval_mce` judge model vs agent model |
+| [mce](mce/) | [judge-override](mce/judge-override/) | Experiment | `experiment.models` judge vs main + per-step `config.model` |

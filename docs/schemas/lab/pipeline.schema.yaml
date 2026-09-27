@@ -147,7 +147,10 @@ properties:
 #   validate: bool                 (default: true)
 #   max_workers: int               (default: 2 — process-wide cap on judge calls)
 #   model: str                     (judge; default: experiment.evaluation.model,
-#                                    then metadata.model_name, then infra)
+#                                    then experiment.models.judge, then
+#                                    experiment.model / models.main, then
+#                                    application spec.models[]; `any` uses
+#                                    local config.yaml defaults.model)
 #   response_agent: str            (agent_id whose last execution_end is the answer)
 #
 # metrics_to_dataframe config (one run's metrics.json → data.csv — scope: run):

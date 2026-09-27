@@ -261,6 +261,12 @@ EXPERIMENT ─── the top-level unit of work
 
 **Total executions = M × D × N**
 
+Pin LLMs on the experiment, not in overlays. `experiment.models` is a
+**slot map**: `main` (turns), `summarizer` (history summary), `judge`
+(MCE). Scalar `experiment.model` is shorthand for `models.main`. Agents
+that say `model: any` inherit these slots. See
+[experiment.md](../../manifests/experiment.md#model-slots-models--model).
+
 The output directory mirrors this structure:
 
 ```
@@ -591,15 +597,12 @@ experiment:
   dataset:
     path: "dataset-topology.yaml"
 
+  models:
+    main: gpt-4o
+    judge: gpt-4o
+
   evaluation:
-    method: "mce_v1"
-    config:
-      metrics:
-        - AnswerRelevancyMetric
-      metric_kwargs:
-        model: "gpt-4o"
-        threshold: 0.5
-        api_key_env: "OPENAI_API_KEY"
+    method: llm_judge
 
   execution:
     n_runs: 3

@@ -299,6 +299,12 @@ class MasBenchRunner:
         _overlays_dir = overlays_dir
         _overlay_base = overlay_base_dir
 
+        experiment_default_model = kwargs.get("experiment_default_model")
+        experiment_model_slots = kwargs.get("experiment_model_slots")
+        if not experiment_default_model and isinstance(experiment_model_slots, dict):
+            from mas.runtime.spec.model_ref import SLOT_MAIN, slot_model
+
+            experiment_default_model = slot_model(experiment_model_slots, SLOT_MAIN)
         resolved = self._resolve_target(
             config=config,
             spec_path=spec_path,
@@ -315,6 +321,8 @@ class MasBenchRunner:
             output_dir=output_dir,
             run_seed=run_seed,
             flavour=flavour,
+            experiment_default_model=experiment_default_model,
+            experiment_model_slots=experiment_model_slots if isinstance(experiment_model_slots, dict) else None,
         )
         if isinstance(resolved, RunResult):
             return self._with_bench_metadata(resolved, run_seed=run_seed)
@@ -372,6 +380,8 @@ class MasBenchRunner:
         output_dir: Path,
         run_seed: int,
         flavour: Any = None,
+        experiment_default_model: str | None = None,
+        experiment_model_slots: dict[str, str] | None = None,
     ) -> RunResult | _ControllerTarget:
         entry_manifest = config
         entry_manifest_path = spec_path
@@ -405,6 +415,8 @@ class MasBenchRunner:
                 infra_refs=infra_refs,
                 checkpoint_path=checkpoint_path,
                 checkpoint_dir=checkpoint_dir,
+                experiment_default_model=experiment_default_model,
+                experiment_model_slots=experiment_model_slots,
             )
 
         overlay_paths = _ensure_observability_overlay(
@@ -428,6 +440,8 @@ class MasBenchRunner:
             entry_manifest = merge_stacked_entry_agent_manifest(entry_manifest, config)
 
         bind = compose.bind
+        bind.experiment_default_model = experiment_default_model
+        bind.experiment_model_slots = experiment_model_slots
         entry = entry_agent_id(compose.mas_config)
 
         if len(bind.agents) <= 1:
@@ -444,6 +458,8 @@ class MasBenchRunner:
                     checkpoint_path=checkpoint_path,
                     checkpoint_dir=checkpoint_dir,
                     pattern_plugin_id=pattern_plugin_id,
+                    experiment_default_model=experiment_default_model,
+                    experiment_model_slots=experiment_model_slots,
                 ),
             )
             return _ControllerTarget(instance, store, entry_manifest, entry_manifest_path)
@@ -525,6 +541,8 @@ class MasBenchRunner:
         infra_refs: list[str],
         checkpoint_path: Path | None,
         checkpoint_dir: Path | None,
+        experiment_default_model: str | None = None,
+        experiment_model_slots: dict[str, str] | None = None,
     ) -> _ControllerTarget:
         workspace = WorkspaceConfig.load(entry_manifest_path.parent)
         user = UserConfig.load()
@@ -551,6 +569,8 @@ class MasBenchRunner:
                 checkpoint_path=checkpoint_path,
                 checkpoint_dir=checkpoint_dir,
                 pattern_plugin_id=pattern_plugin_id,
+                experiment_default_model=experiment_default_model,
+                experiment_model_slots=experiment_model_slots,
             ),
         )
         return _ControllerTarget(instance, store, entry_manifest, entry_manifest_path)

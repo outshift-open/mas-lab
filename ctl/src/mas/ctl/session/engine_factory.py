@@ -15,6 +15,7 @@ from mas.ctl.infra.resolve import api_key_for_infra, resolution_anchor, resolve_
 from mas.ctl.session.manifest_config import engine_use_tool_loop, kernel_config_from_manifest
 from mas.ctl.workspace.config import UserConfig, WorkspaceConfig, merge_infra_refs
 from mas.runtime.agent_defaults import default_pattern_plugin_id, resolve_default_model
+from mas.runtime.spec.model_ref import concrete_model, first_concrete, primary_model_binding
 from mas.runtime.driver.mocks import AutoCtxAssembler
 from mas.runtime.engine.llm_cache import resolve_cache_path
 from mas.runtime.engine.llm_live import LiveLlmEngine
@@ -26,10 +27,8 @@ _LLM_SPEC_DEPRECATION = "spec.llm is deprecated; declare model settings under sp
 
 
 def _primary_model_entry(spec: dict[str, Any]) -> dict[str, Any] | None:
-    models = spec.get("models") or []
-    if isinstance(models, list) and models and isinstance(models[0], dict):
-        return models[0]
-    return None
+    entry = primary_model_binding({"spec": spec} if spec else {})
+    return entry or None
 
 
 def _warn_llm_spec_fallback(field: str) -> None:
@@ -63,7 +62,15 @@ def resolve_model_name(
     *,
     workspace_default: str | None = None,
     forced: str | None = None,
+    parent_default: str | None = None,
+    experiment_default: str | None = None,
 ) -> str:
+    """Resolve the turn-model LiteLLM id.
+
+    Precedence: CLI / ``MAS_CTL_MODEL`` → Agent ``spec.models[id=main]`` →
+    MAS default → ``experiment.models.main`` / ``experiment.model`` →
+    ``config.yaml`` ``defaults.model`` → package ``defaults.yaml``.
+    """
     llm_proxy = (infra.llm_proxy if infra else {}) or {}
     forced = (forced or "").strip() or (
         os.environ.get("MAS_CTL_MODEL", "").strip() or os.environ.get("MAS_LLM_MODEL", "").strip()
@@ -73,23 +80,24 @@ def resolve_model_name(
     else:
         spec = (manifest or {}).get("spec") or {}
         entry = _primary_model_entry(spec)
-        model = entry.get("model") if entry else None
-        if not model:
-            model = spec.get("model")
-        if not model:
+        declared = concrete_model(entry.get("model") if entry else None)
+        if not declared:
             llm = spec.get("llm") or {}
             if llm.get("model"):
                 _warn_llm_spec_fallback("model")
-                model = llm.get("model")
-        if isinstance(model, str) and model.strip():
-            raw = model.strip()
-        elif workspace_default:
-            raw = workspace_default
-        else:
+                declared = concrete_model(llm.get("model"))
+        raw, _source = first_concrete(
+            (declared, "spec.models"),
+            (parent_default, "mas.spec.models"),
+            (experiment_default, "experiment.model"),
+            (workspace_default, "config.defaults.model"),
+            (resolve_default_model(), "defaults.model"),
+        )
+        if not raw:
             raw = resolve_default_model()
-        if not model and not workspace_default:
+        if not declared and not parent_default and not experiment_default and not workspace_default:
             default = llm_proxy.get("default_model")
-            if default:
+            if default and concrete_model(default):
                 raw = str(default)
     mappings = llm_proxy.get("mappings") or {}
     return str(mappings.get(raw, raw))
@@ -157,6 +165,8 @@ def build_engine(
     *,
     pattern_plugin_id: str | None = None,
     workspace_default_model: str | None = None,
+    parent_default_model: str | None = None,
+    experiment_default_model: str | None = None,
     anchor: Path | None = None,
     workspace: WorkspaceConfig | None = None,
     kernel_config: KernelConfig | None = None,
@@ -212,6 +222,8 @@ def build_engine(
         resolved,
         workspace_default=workspace_default_model,
         forced=model_override,
+        parent_default=parent_default_model,
+        experiment_default=experiment_default_model,
     )
     cache_raw = llm_proxy.get("cache_path")
     runtime_engine = dict(resolved.runtime_engine or {})

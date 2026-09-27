@@ -347,6 +347,10 @@ async def execute_batch(
                         infra_refs=_infra_refs,
                         session_id=_run_input.session_id,
                         emulation_plugins=_emulation_plugins,
+                        extra={
+                            "experiment_default_model": getattr(exp, "model", None),
+                            "experiment_model_slots": getattr(exp, "model_slots", None),
+                        },
                     )
                     result = invoke_runner(ctx)
                     return {

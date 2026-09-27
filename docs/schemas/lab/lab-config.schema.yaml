@@ -139,6 +139,20 @@ properties:
             type: object
             additionalProperties: true
 
+      model:
+        type: string
+        description: >
+          Shorthand for models.main. Same meaning as experiment.model.
+          evaluation.model overrides the judge only.
+
+      models:
+        type: object
+        additionalProperties:
+          type: string
+        description: >
+          Slot map matching spec.models[].id plus judge. Same meaning as
+          experiment.models.
+
       # ── Evaluation ────────────────────────────────────────────────────────
       evaluation:
         type: object
@@ -151,8 +165,9 @@ properties:
           model:
             type: string
             description: >
-              LLM-as-judge model for demo eval_mce. Default: the same model
-              as the lab agent. Per-step eval_mce config.model still wins.
+              LLM-as-judge override for demo eval_mce. Omit to inherit
+              lab.models.judge / lab.model / application spec.models
+              (`any` uses local config).
           config:
             type: object
             additionalProperties: true

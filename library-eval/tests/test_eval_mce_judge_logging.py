@@ -95,6 +95,46 @@ async def test_eval_mce_defaults_judge_when_model_omitted(tmp_path, monkeypatch)
 
 
 @pytest.mark.asyncio
+async def test_eval_mce_template_vars_beat_backfilled_application(
+    tmp_path, monkeypatch
+) -> None:
+    events = _run_with_events(tmp_path)
+    _stub_scoring(monkeypatch)
+    seen: dict[str, object] = {}
+
+    def _install(model_override=None, **kwargs):
+        seen["model_override"] = model_override
+        seen.update(kwargs)
+        return model_override or "gpt-4o"
+
+    monkeypatch.setattr(
+        "mas.library.eval.mce.runner.install_openai_llm_service",
+        _install,
+    )
+
+    step = EvalMceStep(
+        name="eval_mce",
+        config={
+            "run_dir": str(events.parent.parent),
+            "events_path": str(events),
+            "model": "gpt-4o",
+            "model_source": "application.spec.models",
+            "validate": False,
+        },
+    )
+    ctx = SimpleNamespace(
+        output_dir=tmp_path,
+        pipeline=SimpleNamespace(config_path=None),
+        template_vars={"eval_model": "tmpl-judge"},
+        scope_context=None,
+    )
+    out = await step.execute(ctx)
+    assert seen.get("model_override") == "tmpl-judge"
+    assert out.metadata["judge_model"] == "tmpl-judge"
+    assert out.metadata["judge_model_source"] == "template_vars.eval_model"
+
+
+@pytest.mark.asyncio
 async def test_eval_mce_template_vars_beat_backfilled_metadata(
     tmp_path, monkeypatch
 ) -> None:

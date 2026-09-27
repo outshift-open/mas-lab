@@ -19,7 +19,15 @@ from typing import Any
 
 from mas.runtime.contracts.context_manager_contract import ContextManagerContract
 from mas.runtime.registry import get_registry
-from mas.runtime.spec.model_ref import resolve_model_ref
+from mas.runtime.spec.model_ref import (
+    SLOT_SUMMARIZER,
+    concrete_model,
+    is_any,
+    model_binding_by_id,
+    resolve_model_ref,
+    resolve_slot,
+    slot_model,
+)
 from mas.runtime.spec.plugin_binding import (
     normalize_plugin_binding_lenient,
     plugin_binding_id,
@@ -62,6 +70,8 @@ def _instantiate_summarizer(
     engine: Any | None,
     *,
     manifest: dict[str, Any] | None = None,
+    model_slots: dict[str, str] | None = None,
+    parent_spec: dict[str, Any] | None = None,
 ) -> Any:
     """Create a ``summarizer`` registry plugin and bind the live engine if needed."""
     field = "spec.context_manager.params.summarizer"
@@ -78,11 +88,29 @@ def _instantiate_summarizer(
     bind_engine = getattr(plugin, "bind_engine", None)
     if callable(bind_engine):
         engine_model = getattr(engine, "model", None)
-        resolved, source = resolve_model_ref(
-            manifest or getattr(engine, "manifest", None),
-            model_ref,
-            engine_model=str(engine_model) if engine_model else None,
-        )
+        engine_model_s = str(engine_model) if engine_model else None
+        spec = manifest or getattr(engine, "manifest", None)
+        slots = model_slots if model_slots is not None else getattr(engine, "model_slots", None)
+        parent = parent_spec if parent_spec is not None else getattr(engine, "parent_spec", None)
+        if model_ref and not is_any(model_ref):
+            resolved, source = resolve_model_ref(spec, model_ref, engine_model=engine_model_s)
+            if source == "agent":
+                parent_val = concrete_model(
+                    model_binding_by_id(parent, model_ref).get("model")
+                )
+                exp_val = slot_model(slots, model_ref)
+                if parent_val:
+                    resolved, source = parent_val, f"mas.spec.models[id={model_ref}]"
+                elif exp_val:
+                    resolved, source = exp_val, f"experiment.models.{model_ref}"
+        else:
+            resolved, source = resolve_slot(
+                SLOT_SUMMARIZER,
+                agent_spec=spec if isinstance(spec, dict) else None,
+                parent_spec=parent if isinstance(parent, dict) else None,
+                model_slots=slots if isinstance(slots, dict) else None,
+                engine_model=engine_model_s,
+            )
         bind_kwargs: dict[str, Any] = {}
         if _accepts_kwargs(bind_engine, "model"):
             bind_kwargs["model"] = resolved

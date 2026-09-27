@@ -199,6 +199,30 @@ def test_llm_summarizer_resolves_models_id() -> None:
     assert "spec.models[id=summarizer]" in cm._summarizer.model_source
 
 
+def test_llm_summarizer_uses_experiment_summarizer_slot() -> None:
+    engine = _EngineWithModel()
+    engine.model_slots = {"summarizer": "gpt-4o-mini"}
+    cm = CMFactory.create(
+        spec={"type": "summarising", "params": {"keep_turns": 1, "summarizer": "llm"}},
+        engine=engine,
+    )
+    assert cm._summarizer.model == "gpt-4o-mini"
+    assert cm._summarizer.model_source == "experiment.models.summarizer"
+
+
+def test_llm_summarizer_params_model_beats_experiment_slot() -> None:
+    engine = _EngineWithModel()
+    engine.model_slots = {"summarizer": "gpt-4o-mini"}
+    cm = CMFactory.create(
+        spec={
+            "type": "summarising",
+            "params": {"summarizer": {"type": "llm", "params": {"model": "haiku"}}},
+        },
+        engine=engine,
+    )
+    assert cm._summarizer.model == "haiku"
+
+
 def test_compaction_logs_threshold_and_model(caplog: pytest.LogCaptureFixture) -> None:
     engine = _EngineWithModel()
     cm = CMFactory.create(

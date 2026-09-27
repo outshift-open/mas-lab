@@ -7,6 +7,8 @@ experiment:
 
     '
   default_flavour: local
+  models:
+    main: gpt-4o-mini
   applications:
     - manifest: ./mas.yaml
       configs_dir: ./topologies

@@ -1,17 +1,17 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-# Feature example for eval_mce config.model and experiment.evaluation.model.
+# Feature example for experiment.models slots and eval_mce config.model.
 # Not a sample app. validate-only unless you point applications at a real MAS.
 experiment:
   name: judge-override
-  description: "Pin an MCE judge independently of the agent model."
-  metadata:
-    model_name: gpt-4o
+  description: "Pin turn vs judge via experiment.models; per-step config.model still wins."
+  models:
+    main: gpt-4o
+    judge: gpt-4o-mini
   applications:
     - manifest: ./mas.yaml
   evaluation:
     method: llm_judge
-    model: gpt-4o-mini
   application:
     post:
       - type: extract_trajectories

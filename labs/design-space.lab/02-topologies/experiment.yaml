@@ -23,6 +23,8 @@ experiment:
     linear-pipeline, parallel, moderator-broker, supervised, verifier.
 
   default_flavour: local
+  models:
+    main: gpt-4o
   metadata:
     model_name: "gpt-4o"
     model_endpoint: "https://api.openai.com/v1"
@@ -30,7 +32,7 @@ experiment:
     notes: >
       Baseline: MAS Framework main branch. Each topology is evaluated on the same
       100-item trip-planner dataset. Model sensitivity analysis can be run by
-      updating model_name and re-running eval_mce + compute_ci steps only.
+      updating experiment.models.main (or models.judge) and re-running eval_mce + compute_ci steps only.
 
   output_schema:
     required_files:

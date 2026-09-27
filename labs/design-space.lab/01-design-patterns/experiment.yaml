@@ -7,11 +7,13 @@ experiment:
 
     '
   default_flavour: local
+  models:
+    main: gpt-4o
   metadata:
     model_name: gpt-4o
     model_endpoint: https://api.openai.com/v1
     dataset_version: qa-reasoning-queries-100 v1.0
-    notes: 'Baseline: MAS Framework main branch. Update model_name to test cross-model sensitivity of pattern choice.'
+    notes: 'Baseline: MAS Framework main branch. Update experiment.models.main to test cross-model sensitivity of pattern choice.'
   output_schema:
     required_files:
     - results/ci_summary.csv

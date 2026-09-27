@@ -81,6 +81,41 @@ def test_experiment_schema_accepts_evaluation_model() -> None:
     assert errors == []
 
 
+def test_experiment_schema_accepts_models_slot_map() -> None:
+    schema = load_schema("experiment")
+    doc = {
+        "experiment": {
+            "name": "slot-map",
+            "applications": [{"manifest": "./mas.yaml"}],
+            "model": "gpt-4o",
+            "models": {
+                "main": "gpt-4o",
+                "summarizer": "gpt-4o-mini",
+                "judge": "haiku",
+            },
+            "evaluation": {"method": "llm_judge"},
+        }
+    }
+    errors = list(Draft7Validator(schema).iter_errors(doc))
+    assert errors == []
+
+
+def test_lab_config_schema_accepts_models_slot_map() -> None:
+    schema = load_schema("lab-config")
+    doc = {
+        "lab": {
+            "name": "demo",
+            "models": {
+                "main": "gpt-4o",
+                "summarizer": "gpt-4o-mini",
+                "judge": "haiku",
+            },
+        }
+    }
+    errors = list(Draft7Validator(schema).iter_errors(doc))
+    assert errors == []
+
+
 def test_agent_schema_accepts_summarizer_instructions() -> None:
     schema = load_schema("agent")
     doc = {

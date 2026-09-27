@@ -9,6 +9,8 @@ experiment:
     swaps in the semantic-memory MAS via a full-manifest overlay ref.
 
   default_flavour: local
+  models:
+    main: gpt-4o
   applications:
     - manifest: "letta-native/mas.yaml"
       configs_dir: "letta-native/overlays"

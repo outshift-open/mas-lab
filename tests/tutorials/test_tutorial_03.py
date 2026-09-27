@@ -68,6 +68,7 @@ class TestExperimentConfig:
         assert scenario_ids == {"react", "cot", "reflection"}
         assert e["run"]["n_runs"] >= 1
         assert e.get("run", {}).get("pipeline", []) == []
+        assert e.get("models", {}).get("main")
 
     def test_topology_experiment(self):
         exp = load_yaml(T03 / "experiment-topology.yaml")
@@ -80,6 +81,7 @@ class TestExperimentConfig:
         # v2 experiments use run/scenario/application pipeline slots (may be empty)
         assert "run" in e
         assert e.get("run", {}).get("pipeline", []) == []
+        assert e.get("models", {}).get("main")
 
     def test_topology_experiment_levels(self):
         """Verify pipeline levels are present and release-safe."""

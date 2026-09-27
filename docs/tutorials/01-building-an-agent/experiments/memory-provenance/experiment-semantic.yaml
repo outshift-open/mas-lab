@@ -8,6 +8,8 @@ experiment:
     runs, empty memory each time. Sequential conversational dataset.
 
   default_flavour: local
+  models:
+    main: gpt-4o
   applications:
     - manifest: "semantic-memory/mas.yaml"
       configs_dir: "semantic-memory/overlays"

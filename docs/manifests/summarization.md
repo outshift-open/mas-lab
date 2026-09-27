@@ -6,12 +6,18 @@
 
 How mas-lab compresses long conversation history, which LLM it uses, where
 the token thresholds come from, and how to override the **summarizer** and
-**MCE judge** independently. Default for both is the **same model the agent
-uses for turns**.
+**MCE judge** independently.
+
+Committed specs pin a model or say **`any`**. There is no silent global
+model in `config.yaml`: that file only fills `any` on the local machine.
+The experiment (or lab) pin is a **slot map** (`experiment.models`); scalar
+`experiment.model` is shorthand for `models.main`. Summarizer and `eval_mce`
+overrides apply on top of those slots.
 
 **Schemas:** `agent.schema.yaml` (`spec.models[]`, `spec.context_manager`,
 `spec.working_memory.compaction`) · `experiment.schema.yaml`
-(`experiment.evaluation.model`) · **Bindings:** [plugin-bindings.md](plugin-bindings.md)
+(`experiment.models`, `experiment.model`, `experiment.evaluation.model`) ·
+**Bindings:** [plugin-bindings.md](plugin-bindings.md)
 
 ---
 
@@ -99,7 +105,7 @@ Runnable pin: [library-standard/examples/context/summarizer-override/](../../lib
 
 | Param | Default | Meaning |
 |-------|---------|---------|
-| `model` | agent primary model | LiteLLM id or `spec.models[].id` |
+| `model` | summarizer slot, else this agent's resolved turn model | LiteLLM id or `spec.models[].id` |
 | `instructions` | package constant above | System prompt for the summary call |
 
 `drop` has no params. Context-manager knobs (already on `summarising`):
@@ -138,7 +144,7 @@ spec:
     params:
       keep_turns: 10
       hysteresis_ratio: 0.2
-      summarizer: llm           # agent's primary model
+      summarizer: llm           # summarizer slot, else turn model
       # summary_threshold: 126000  # compile: context_window − max_tokens
       trimmer:
         max_tokens: 128000
@@ -162,10 +168,25 @@ spec:
 
 ## Which model writes the summary?
 
-**Default: the agent's primary model** (`spec.models[]` with `id: main`, or
-`models[0]`). The live engine's `model` is bound onto `LlmSummarizer` at
-instantiation. Same proxy, same API key; only the `model` field on the
-chat-completions payload changes if you override.
+**Default: the summarizer slot, else this agent's resolved turn model.**
+
+Turn model (`id: main`):
+
+1. Agent `spec.models[id=main]` if concrete
+2. else MAS `spec.models[id=main]` if concrete
+3. else `experiment.models.main` / `experiment.model` if concrete
+4. else `any` → local `config.yaml` `defaults.model`, then package `defaults.yaml`
+
+Summary call, when `summarizer.params.model` is omitted or `any`:
+
+1. Agent `spec.models[id=summarizer]` if concrete
+2. else MAS `spec.models[id=summarizer]` if concrete
+3. else `experiment.models.summarizer` if concrete
+4. else the resolved turn model (`source=agent`)
+
+`summarizer.params.model` overrides that default (a `spec.models[].id` or a
+LiteLLM string). `model: any` on the summarizer means inherit the slot chain
+above.
 
 ### Override on the summarizer sub-plugin (canonical)
 
@@ -173,9 +194,12 @@ chat-completions payload changes if you override.
 Resolution lives in the kernel (`mas.runtime.spec.model_ref`) so
 `CMFactory` does not import `library-standard`:
 
-1. empty / omitted → the agent's live engine model (`source=agent`)
+1. empty / omitted / `any` → summarizer slot (Agent → MAS →
+   `experiment.models.summarizer`), else this agent's live engine
+   (`source=agent`)
 2. matching `spec.models[].id` → that entry's `model` string
-   (`source=spec.models[id=…]`)
+   (`source=spec.models[id=…]`); if the slot is `any`, inherit MAS /
+   `experiment.models.<id>`
 3. same string as the engine model → `source=agent`
 4. anything else → sent as a LiteLLM id (`source=override`)
 
@@ -211,7 +235,7 @@ params:
     model: gpt-4o-mini          # raw LiteLLM id
 ```
 
-String `summarizer: llm` keeps the agent model. `summarizer: drop` never
+String `summarizer: llm` keeps **this agent's** turn model. `summarizer: drop` never
 calls an LLM.
 
 ### Override on `working_memory.compaction` (sugar)
@@ -264,7 +288,8 @@ Set log level to **INFO** (`mas-ctl -v` / the lab runner) to see the models.
 
 `source` is the spec field that won (`agent`, `spec.models[id=summarizer]`,
 `override`, `experiment.evaluation.model`, `eval_mce.config.model`,
-`experiment.metadata.model_name`, `infra`, …).
+`application.spec.models`, `experiment.metadata.model_name`,
+`defaults.model`, …).
 
 Compaction also stores `model`, `model_source`, `estimated_tokens`, and
 `threshold` on `last_compaction_metadata` (forwarded on the assembler hook as
@@ -275,22 +300,24 @@ Compaction also stores `model`, `model_source`, `estimated_tokens`, and
 
 ## MCE judge model {#mce-judge-model}
 
-`eval_mce` is LLM-as-judge. **Default is the same model as the agent**
-(experiment `metadata.model_name`, then workspace infra `default_model`).
-Override on the lab spec so every `eval_mce` step inherits it; a per-step
-`config.model` still wins.
+`eval_mce` is LLM-as-judge. Default is **`experiment.models.judge`**, then the
+resolved turn model (`models.main` / `experiment.model` → MAS → agent). Pin a
+different judge with `experiment.evaluation.model` or `eval_mce.config.model`.
 
 ```yaml
 experiment:
   name: topology-ablation
-  metadata:
-    model_name: gpt-4o          # agent model; also the default judge
+  models:
+    main: gpt-4o                # turn default
+    judge: gpt-4o-mini          # MCE default
+  applications:
+    - manifest: ./mas.yaml      # spec.models[] if models.main is any
   evaluation:
     method: llm_judge
-    model: gpt-4o-mini          # cheaper / independent judge
+    # model: gpt-4o             # optional judge override (wins over models.judge)
   application:
     post:
-      - type: eval_mce          # inherits evaluation.model
+      - type: eval_mce          # inherits models.judge
         depends_on: [extract_trajectories]
       - type: eval_mce
         name: eval_mce_strict
@@ -299,24 +326,22 @@ experiment:
 ```
 
 Alias: `evaluation.config.model` (the top-level `evaluation.model` wins when
-both are set). Interactive labs use the same field on `lab-config.yaml`.
+both are set). Interactive labs use the same fields on `lab-config.yaml`.
 
 ### Resolution order
 
 1. `eval_mce` step `config.model` (or `config.judge_model`)
-2. `experiment.evaluation.model`
+2. `experiment.evaluation.model` (judge override)
 3. `experiment.evaluation.config.model`
 4. pipeline template vars `eval_model` / `judge_model`
-5. `experiment.metadata.model_name` / `metadata.model`
-6. workspace infra `default_model` (same fallback the agent uses)
+5. `experiment.models.judge`
+6. `experiment.model` / `experiment.models.main` (`any` skipped)
+7. application MAS/Agent unique concrete `spec.models[]`
+8. `experiment.metadata.model_name` (legacy annotation)
+9. local `config.yaml` `defaults.model` / package `defaults.yaml` (only for `any`)
 
 Metric *prompts* are owned by MCE (`mce_metrics_plugin`); mas-lab does not
 override them. Only the **model id** is a step/lab field.
-
-Runnable pin: [library-eval/examples/mce/judge-override/](../../library-eval/examples/mce/judge-override/).
-
-MCE **metric prompts** are owned by `mce_metrics_plugin`. This repo does not
-override them — only the judge **model**.
 
 Runnable pin: [library-eval/examples/mce/judge-override/](../../library-eval/examples/mce/judge-override/).
 
@@ -326,7 +351,7 @@ Runnable pin: [library-eval/examples/mce/judge-override/](../../library-eval/exa
 
 | Harness | Trigger | Summarizer model | Recency |
 |---------|---------|------------------|---------|
-| **mas-lab** | `context_window − max_tokens` (overridable) | Agent model; `summarizer.params.model` override | `keep_turns` (10) + hysteresis 0.2 |
+| **mas-lab** | `context_window − max_tokens` (overridable) | This agent's `spec.models[]`; `summarizer.params.model` override | `keep_turns` (10) + hysteresis 0.2 |
 | LangGraph | `max_tokens` on `ConversationSummaryBufferMemory` / `SummarizationNode` | Often a cheaper bound LLM | keep recent messages |
 | Claude Code / Cursor | Near the model window | Often a cheaper compact model | keep recent turns |
 | AutoGen | `TokenLimitedChatCompletionContext` | Optional transform model | token cap |

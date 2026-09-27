@@ -106,7 +106,7 @@ class EvaluationSpec:
     """
 
     model: Optional[str] = None
-    """LLM-as-judge model for eval_mce. Default: the experiment agent model."""
+    """LLM-as-judge override for eval_mce. Default: experiment.models.judge, then experiment.model / models.main, then application spec.models[]."""
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> EvaluationSpec:

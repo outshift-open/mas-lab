@@ -87,3 +87,5 @@ class EffectiveBindManifest:
     composed_application: ComposedApplication | None = None
     resolved_infra: ResolvedInfra | None = None
     mas_base_dir: Path | None = None
+    experiment_default_model: str | None = None
+    experiment_model_slots: dict[str, str] | None = None

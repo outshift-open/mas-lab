@@ -19,6 +19,7 @@ also explains them in context; this page is the single reference list.
 | **Package** | A published wheel (`mas-runtime`, `mas-ctl`, `mas-lab`, …). See [packages reference](packages-reference.md). |
 | **Component** | One of the four lab sub-wheels under `lab/components/` (`mas-lab-core`, `mas-lab-bench`, `mas-lab-controller`, `mas-lab-content`). The interactive tutorial runner (`mas-lab-tutorial`) is internal-only — see `mas-lab-internal`. Distinct from the internal `mas.lab.*` runtime modules — see [ADR 0001](references/adr-0001-lab-terminology.md). |
 | **Experiment** | The `experiment:` block (usually in `experiment.yaml`): what to run, how many times, and which pipeline builds results. |
+| **Model slots** | `experiment.models` (and `lab.models`): named LLM pins matching Agent/MAS `spec.models[].id`, plus `judge`. Scalar `experiment.model` = `models.main`. `any` inherits the next layer; local `config.yaml` `defaults.model` fills remaining `any` at engine time. |
 | **Scenario** | One column in an experiment matrix — a named setup (`id`) and which overlays apply. Declared under `scenarios:`. |
 | **Dataset** | Input items (prompts, expected fields) the experiment iterates over. Referenced as `dataset:` in `experiment.yaml`. |
 | **Run** | One execution of the agent/MAS for a given (scenario, dataset item, repeat index). Produces `traces/events.jsonl`. |

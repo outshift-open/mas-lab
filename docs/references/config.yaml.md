@@ -106,7 +106,7 @@ See [mas-ctl.md](../cli/mas-ctl.md#exchange-log) and
 
 | Key | Purpose |
 |-----|---------|
-| `model` | Default model id when a manifest omits one |
+| `model` | Fill-in for remaining Agent/MAS/experiment `any` after `experiment.models` (not written into committed specs) |
 | `design_pattern` | Default plugin id for `spec.design_pattern` |
 | `context_manager` | Default plugin id for `spec.context_manager` |
 | `assembler` | Default plugin id for `spec.assembler` |

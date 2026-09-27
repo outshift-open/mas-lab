@@ -99,6 +99,42 @@ def test_resolve_model_name_prefers_spec_models(monkeypatch):
     assert resolve_model_name(manifest, None) == "vertex_ai/gemini-2.5-pro"
 
 
+def test_resolve_model_name_any_uses_workspace_then_package(monkeypatch):
+    monkeypatch.delenv("MAS_CTL_MODEL", raising=False)
+    monkeypatch.delenv("MAS_LLM_MODEL", raising=False)
+    manifest = {"spec": {"models": [{"model": "any"}]}}
+    assert resolve_model_name(manifest, None, workspace_default="gpt-local") == "gpt-local"
+    from mas.runtime.agent_defaults import default_model
+
+    assert resolve_model_name(manifest, None) == default_model()
+
+
+def test_resolve_model_name_parent_mas_default(monkeypatch):
+    monkeypatch.delenv("MAS_CTL_MODEL", raising=False)
+    monkeypatch.delenv("MAS_LLM_MODEL", raising=False)
+    manifest = {"spec": {"models": [{"model": "any"}]}}
+    assert (
+        resolve_model_name(manifest, None, parent_default="gpt-4o", workspace_default="gpt-local")
+        == "gpt-4o"
+    )
+
+
+def test_resolve_model_name_experiment_default(monkeypatch):
+    monkeypatch.delenv("MAS_CTL_MODEL", raising=False)
+    monkeypatch.delenv("MAS_LLM_MODEL", raising=False)
+    manifest = {"spec": {"models": [{"model": "any"}]}}
+    assert (
+        resolve_model_name(
+            manifest,
+            None,
+            parent_default="any",
+            experiment_default="gpt-4o",
+            workspace_default="gpt-local",
+        )
+        == "gpt-4o"
+    )
+
+
 def test_resolve_model_name_cli_override_beats_spec(monkeypatch):
     monkeypatch.delenv("MAS_CTL_MODEL", raising=False)
     monkeypatch.delenv("MAS_LLM_MODEL", raising=False)

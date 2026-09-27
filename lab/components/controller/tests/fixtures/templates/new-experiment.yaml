@@ -9,6 +9,8 @@ experiment:
     dataset_version: "1.0"
     notes: Created via mas-lab UI experiment builder.
   default_flavour: local
+  models:
+    main: azure/gpt-4o
   applications:
     - manifest: ../demo_lab/apps/trip-planner/mas.yaml
   scenarios:

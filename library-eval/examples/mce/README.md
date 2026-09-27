@@ -8,4 +8,4 @@ Runnable experiment snippets for `eval_mce` (LLM-as-judge). Not sample apps.
 
 | Example | Kind | What it shows |
 |---------|------|----------------|
-| [judge-override](judge-override/) | Experiment | `experiment.evaluation.model` + per-step `config.model` |
+| [judge-override](judge-override/) | Experiment | `experiment.models` (main vs judge) + per-step `config.model` |

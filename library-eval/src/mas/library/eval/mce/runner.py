@@ -185,8 +185,11 @@ def install_openai_llm_service(
     route through our openai client (no litellm required).  Idempotent.
 
     Configuration resolution order:
-      1. *model_override* argument (eval_mce / experiment.evaluation.model)
-      2. ``config.yaml`` → InfraManifest (same default as the agent)
+      1. *model_override* argument (eval_mce / experiment.evaluation.model /
+         experiment.models.judge / experiment.model / models.main /
+         application spec.models[])
+      2. local ``config.yaml`` / package ``defaults.model`` (only when the
+         spec said ``any``)
       3. Hard-coded fallback: ``gpt-4o``
 
     Returns the effective model id. Logs at INFO so the judge is visible
@@ -265,7 +268,7 @@ def install_openai_llm_service(
 
     _jury_patched = True
     _effective_model = str(effective_model)
-    source = model_source or ("override" if model_override else "infra")
+    source = model_source or ("override" if model_override else "defaults.model")
     logger.info(
         "MCE Jury configured (model=%s, source=%s, base_url=%s, deepeval=%s)",
         effective_model, source, effective_api_base, "ok" if _deepeval_model else "unavailable",

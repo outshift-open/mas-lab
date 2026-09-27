@@ -23,7 +23,7 @@ system prompt is the payload of that call, not the trigger.
 
 | Attribute | Default | Meaning |
 |-----------|---------|---------|
-| `model` | agent primary model | `spec.models[].id` or LiteLLM string; resolved by `mas.runtime.spec.model_ref` |
+| `model` | summarizer slot, else this agent's resolved turn model | `spec.models[].id` or LiteLLM string; resolved by `mas.runtime.spec.model_ref`. Slot chain: Agent → MAS → `experiment.models.summarizer` → turn model. |
 | `instructions` | package constant (facts, decisions, identifiers; plain prose) | System prompt wrapping the JSON of older turns |
 
 `drop` has no params: older turns are discarded, last `keep_turns` kept.

@@ -51,11 +51,12 @@ properties:
   summarizer:
     description: >
       Sub-plugin of the summarising context manager. Compresses older turns.
-      `llm` (default): this agent's primary model. `drop`: discard older turns,
-      keep keep_turns verbatim. String shorthand (`summarizer: llm`) ≡ `{type: llm}`.
-      Override the summary LLM with `params.model` (a spec.models[].id or a
-      LiteLLM model string). Default is the same model the agent uses for
-      turns. See docs/manifests/summarization.md.
+      `llm` (default): spec.models[id=summarizer] if concrete, else
+      experiment.models.summarizer, else this agent's resolved turn model.
+      `drop`: discard older turns, keep keep_turns verbatim. String
+      shorthand (`summarizer: llm`) ≡ `{type: llm}`. Override with
+      `params.model` (a spec.models[].id or a LiteLLM string). See
+      docs/manifests/summarization.md.
     oneOf:
       - type: string
         enum: [llm, drop]
@@ -69,7 +70,8 @@ properties:
             type: string
             description: >
               Shorthand for params.model — spec.models[].id or a LiteLLM
-              model string. Default: this agent's primary model.
+              model string. Default: summarizer slot, else this agent's
+              resolved turn model.
           params:
             type: object
             additionalProperties: false
@@ -79,7 +81,8 @@ properties:
                 description: >
                   Model for the summary call. A spec.models[].id (e.g.
                   summarizer) or a LiteLLM model string. Default: the
-                  agent's primary model (same as the turn).
+                  summarizer slot (Agent → MAS → experiment.models.summarizer),
+                  else the agent's resolved turn model.
               instructions:
                 type: string
                 description: >
