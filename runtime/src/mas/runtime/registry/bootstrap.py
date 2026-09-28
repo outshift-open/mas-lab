@@ -45,6 +45,8 @@ def _variant_info_from_data(vdata: dict[str, Any]) -> VariantInfo:
         class_name=str(vdata.get("class") or vdata.get("class_name") or ""),
         version=str(vdata.get("version") or ""),
         description=str(vdata.get("description") or ""),
+        requires=[str(r) for r in (vdata.get("requires") or [])],
+        extra=str(vdata.get("extra") or ""),
     )
 
 
@@ -132,7 +134,7 @@ def _candidate_from_manifest_item(item: dict[str, Any]) -> _ManifestPluginCandid
         module = item.get("module")
         class_name = item.get("class") or item.get("class_name")
         if module and class_name:
-            variants["builtin"] = VariantInfo(module=str(module), class_name=str(class_name))
+            variants["builtin"] = _variant_info_from_data(item)
     if not variants:
         return None
 
