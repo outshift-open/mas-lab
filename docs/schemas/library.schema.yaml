@@ -34,6 +34,15 @@ properties:
     pattern: "^[a-z0-9][a-z0-9-]*$"
     description: "Library package name, e.g. mas-library-lab."
 
+  schemes:
+    type: array
+    items:
+      type: string
+      pattern: "^[a-z0-9][a-z0-9-]*$"
+    description: >
+      Alternate library identifiers (rarely needed). Prefer one name: the
+      directory stem and the install entry point. Do not add aliases.
+
   description:
     type: string
     default: ""
@@ -56,15 +65,24 @@ properties:
 
   apps:
     type: object
-    description: "Explicit app-name -> relative-path catalog. Falls back to a apps/<name>/ scan if omitted."
+    description: >
+      Explicit catalog id -> relative path. Keys are `name` or `name@version`
+      (same grammar as plugin ids). A value may be a family directory
+      (`sre-triage: apps/sre-triage` with `v*` children) or a single app
+      directory (`coding-agent-md: apps/coding-agent-md`). Falls back to an
+      `apps/<name>/v*` scan if omitted. Slash is a filesystem path, not an id.
     additionalProperties:
       type: string
 
   datasets:
     type: object
-    description: "Explicit dataset-name -> relative-path catalog. Falls back to a datasets/**/*.yaml scan if omitted."
-    additionalProperties:
-      type: string
+    description: >
+      Explicit dataset id -> relative path. Keys are `name` or `name@version`
+      (same version tag as the app they sit under). A value may be a dataset
+      directory (`sre-triage-scenarios@v1: apps/sre-triage/v1/datasets/scenarios`
+      containing `dataset.yaml`) or a file. App-specific datasets live under
+      `apps/<app>/v<N>/datasets/`; general-purpose datasets live under
+      library-root `datasets/`. Falls back to scanning both if omitted.
 
   tools:
     type: object

@@ -272,6 +272,10 @@ class MasBenchRunner:
         tool_fixtures = ri.tool_fixtures if ri else None
 
         write_tool_fixtures_sidecar(spec_path, tool_fixtures)
+        if tool_fixtures is None:
+            from mas.lab.benchmark.cache.trace_store import write_runtime_params_sidecar
+
+            write_runtime_params_sidecar(config, spec_path)
 
         checkpoint_path = _checkpoint_path(checkpoint_load, spec_path.parent)
         checkpoint_dir = output_dir / "checkpoints" if checkpoint_save else None

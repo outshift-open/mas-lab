@@ -12,6 +12,7 @@ in YAML, run them with `mas-ctl` and `mas-lab`, and analyze results through
 reusable benchmark pipelines.
 
 **Related:** [Labs vs libraries](labs-and-libraries.md) ·
+[How to write manifests](manifests/writing-manifests.md) ·
 [CLI](cli/index.md) · [mas-ctl options](cli/mas-ctl.md) ·
 [config.yaml](references/config.yaml.md) ·
 [References](references/index.md) · [Web UI](ui/index.md) ·
@@ -78,7 +79,9 @@ Benchmarking is always **`mas-lab`**, not `mas-ctl`. Full map: [cli/index.md](cl
 
 A lab is an experiment pack; a library is reusable code and YAML. When to
 create each, including a local library inside a lab:
-[labs-and-libraries.md](labs-and-libraries.md).
+[labs-and-libraries.md](labs-and-libraries.md). How to reference manifests
+(inline, file, `LIBRARY:` id, `name@version`):
+[writing-manifests.md](manifests/writing-manifests.md).
 
 Full package map: [libraries.md](libraries.md).
 

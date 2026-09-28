@@ -40,7 +40,7 @@ spec:
         tools: { "$op": { remove: [web-search] } }
     workflow: { ... }   # topology: entry + directed delegation links
     params:
-      incident_fixture: datasets/fixtures/timeout.yaml
+      incident_fixture: library-ioc:sre-triage-incidents@v2/tool_fixtures/payment-async-timeout.yaml
   tools: []            # inject tools (scenario level)
 ```
 
@@ -98,6 +98,10 @@ patch:
         #   - "Whole new role text."
         # clear: true
 ```
+
+Document-level ``x-*`` keys on the overlay (and under ``spec.patch``) are copied
+onto the **target document root**, not into ``spec``. Runtime merge of spec
+fields ignores these keys. Later overlays win; nested dicts are RFC 7396-merged.
 
 ---
 

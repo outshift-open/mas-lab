@@ -519,6 +519,38 @@ def apply_merge_patch(target: Any, patch: Any) -> Any:
     return target
 
 
+def _is_extension_key(key: Any) -> bool:
+    return str(key).startswith("x-")
+
+
+def _extension_fields(doc: Any) -> dict[str, Any]:
+    if not isinstance(doc, dict):
+        return {}
+    return {k: deepcopy(v) for k, v in doc.items() if _is_extension_key(k)}
+
+
+def apply_document_extensions(target: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    """Copy overlay document-level ``x-*`` fields onto the composed target root.
+
+    Extension keys live on the overlay document root (and may also appear under
+    ``spec.patch``). Runtime merge of spec fields ignores these keys; they must
+    land on the target document root so they match MAS/Agent schemas, not
+    ``spec``. Later overlays win; nested dicts are RFC 7396-merged. A null
+    value deletes the key.
+    """
+    patch = (overlay.get("spec") or {}).get("patch") if isinstance(overlay.get("spec"), dict) else None
+    for src in (_extension_fields(overlay), _extension_fields(patch)):
+        for key, value in src.items():
+            existing = target.get(key)
+            if value is None:
+                target.pop(key, None)
+            elif isinstance(existing, dict) and isinstance(value, dict):
+                target[key] = apply_merge_patch(deepcopy(existing), deepcopy(value))
+            else:
+                target[key] = deepcopy(value)
+    return target
+
+
 class OverlayTargetError(ValueError):
     """Overlay target kind, name, or patch field does not match the base document."""
 
@@ -569,7 +601,7 @@ def merge_flavour_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict
         overlay_spec = overlay_spec["patch"]
 
     allowed_flavour_keys = _schema_property_keys("Flavour")
-    unknown = set(overlay_spec) - allowed_flavour_keys
+    unknown = {k for k in overlay_spec if not _is_extension_key(k)} - allowed_flavour_keys
     if unknown:
         raise OverlayTargetError(
             f"overlay patch for target.kind: Flavour contains non-deployment-posture "
@@ -580,6 +612,8 @@ def merge_flavour_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict
     flavour_meta = _overlay_merge_meta("Flavour")
 
     for key, ov_val in overlay_spec.items():
+        if _is_extension_key(key):
+            continue
         meta = flavour_meta.get(key)
         if meta is None:
             base_spec[key] = deepcopy(ov_val)
@@ -601,6 +635,8 @@ def merge_agent_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[s
     agent_meta = _overlay_merge_meta("Agent")
 
     for key, incoming in overlay_spec.items():
+        if _is_extension_key(key):
+            continue
         meta = agent_meta.get(key)
         if meta is not None:
             base_spec[key] = _merge_value_by_meta(base_spec.get(key), incoming, meta)
@@ -629,7 +665,7 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
 
     special_keys = {"agents", "agents_add", "agents_remove"}
     for key, value in patch.items():
-        if key in special_keys:
+        if key in special_keys or _is_extension_key(key):
             continue
         meta = mas_meta.get(key)
         if meta is not None:
@@ -836,10 +872,12 @@ def merge_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, An
     if "spec" not in overlay:
         base_kind = str(base.get("kind", "")).lower()
         if base_kind in ("mas", "app", "workflow"):
-            return merge_mas_overlay(base, overlay)
-        if base_kind == "flavour":
-            return merge_flavour_overlay(base, overlay)
-        return merge_agent_overlay(base, overlay)
+            merged = merge_mas_overlay(base, overlay)
+        elif base_kind == "flavour":
+            merged = merge_flavour_overlay(base, overlay)
+        else:
+            merged = merge_agent_overlay(base, overlay)
+        return apply_document_extensions(merged, overlay)
 
     spec = overlay.get("spec") or {}
     canonical = (
@@ -857,19 +895,21 @@ def merge_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, An
 
     target_kind = str((overlay.get("spec") or {}).get("target", {}).get("kind", "")).lower()
     if target_kind in ("mas", "app", "workflow"):
-        return merge_mas_overlay(base, overlay)
-    if target_kind == "flavour":
-        return merge_flavour_overlay(base, overlay)
-    if target_kind == "infra":
+        merged = merge_mas_overlay(base, overlay)
+    elif target_kind == "flavour":
+        merged = merge_flavour_overlay(base, overlay)
+    elif target_kind == "infra":
         merged = deepcopy(base)
         patch = deepcopy((overlay.get("spec") or {}).get("patch") or {})
         if isinstance(patch, dict):
+            patch = {k: v for k, v in patch.items() if not _is_extension_key(k)}
             merged_spec = apply_merge_patch(deepcopy(merged.get("spec") or {}), patch)
             merged["spec"] = merged_spec
-            return merged
-        return merged
-    if target_kind == "agent":
+    elif target_kind == "agent":
         if _base_is_mas(base):
-            return fanout_agent_overlay(base, overlay)
-        return merge_agent_overlay(base, overlay)
-    raise OverlayTargetError("overlay spec.target.kind must be one of Agent, MAS, Flavour, Infra")
+            merged = fanout_agent_overlay(base, overlay)
+        else:
+            merged = merge_agent_overlay(base, overlay)
+    else:
+        raise OverlayTargetError("overlay spec.target.kind must be one of Agent, MAS, Flavour, Infra")
+    return apply_document_extensions(merged, overlay)

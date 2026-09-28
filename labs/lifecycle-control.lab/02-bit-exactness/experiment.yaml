@@ -37,7 +37,6 @@ experiment:
       infra: []
   dataset:
     name: trip-planner-queries
-    locator: samples
   run:
     n_runs: 3
   post:

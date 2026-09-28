@@ -104,9 +104,14 @@ UI may emit `x-canvas-positions` (stripped before execution).
 
 - **DAG:** `depends_on` with cycle detection (controller + executor).
 - **Step types:** registered processors (`extract_trajectories`, `extract_trace_stats`,
-  `eval_mce`, `plot_*`, …). Full catalog: [pipeline steps](https://github.com/outshift-open/mas-lab/blob/main/lab/docs/pipeline-steps.md).
+  `eval_mce`, `plot_*`, …). Catalog: [pipeline steps](../../lab/docs/pipeline-steps.md).
 - **Artifacts:** typed values passed between steps — in-process during execution; serializable
   to files or infra sinks when a step writes `outputs` paths.
+- **Cache:** each step fingerprints its type, config, and upstream steps under
+  `<output_dir>/.cache/`. Unchanged steps are skipped; a fingerprint change
+  reruns that step and everything that `depends_on` it. Force with
+  `mas-lab benchmark pipeline run … --force STEP` or
+  `mas-lab benchmark step restart`.
 
 ---
 
@@ -115,3 +120,4 @@ UI may emit `x-canvas-positions` (stripped before execution).
 - [experiment.md](experiment.md)
 - [lab.md](lab.md)
 - [summarization.md](summarization.md) — `eval_mce` judge model
+- [Pipeline guide](../../lab/docs/pipeline.md)

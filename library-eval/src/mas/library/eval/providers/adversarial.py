@@ -34,33 +34,10 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import yaml
-
 from mas.library.eval.evaluator import EvalProvider, MetricScore
+from mas.runtime.spec.source import load_dataset_items_file as _load_dataset_file
 
 logger = logging.getLogger(__name__)
-
-
-def _load_dataset_file(path: Path) -> Dict:
-    """Load a dataset file (.yaml or .json) and normalise to ``{items: [...]}``.
-
-    Supports:
-    - Dataset manifest (``apiVersion: lab/v1, kind: Dataset``) → extracts ``spec.items``
-    - Plain dict with ``items`` key
-    - Plain list of items
-    """
-    with path.open(encoding="utf-8") as fh:
-        if path.suffix in (".yaml", ".yml"):
-            data = yaml.safe_load(fh)
-        else:
-            data = json.load(fh)
-
-    # Normalise Dataset manifest format
-    if isinstance(data, dict) and data.get("kind") == "Dataset":
-        spec = data.get("spec", {})
-        return {"items": spec.get("items", [])}
-
-    return data
 
 
 class AdversarialProvider(EvalProvider):
@@ -71,7 +48,7 @@ class AdversarialProvider(EvalProvider):
     Parameters
     ----------
     dataset_path : Path
-        Path to the dataset JSON file containing ground truth and item IDs.
+        Path to the Dataset YAML containing ground truth and item IDs.
     llm_model : str
         LLM model for judge (e.g., "gpt-4o", "gpt-4o-mini")
     api_key_env : str
@@ -90,7 +67,7 @@ class AdversarialProvider(EvalProvider):
         """Initialize provider with dataset path and LLM config.
 
         Args:
-            dataset_path: Path to dataset YAML (or JSON for legacy). If None, will be auto-detected.
+            dataset_path: Path to Dataset YAML. If None, will be auto-detected.
             llm_model: LLM model for judge evaluation
             api_key_env: Environment variable name for API key
             api_base: API base URL (if None, uses OpenAI default or OPENAI_API_BASE env var)
@@ -609,7 +586,7 @@ Score 0.0 — No errors caught:
         return "unknown"
 
     def _load_dataset(self, kg_path: Path) -> Dict:
-        """Load dataset from cache or disk (YAML preferred, JSON legacy)."""
+        """Load dataset from cache or disk."""
         if self._dataset_cache:
             return self._dataset_cache
 
@@ -622,12 +599,10 @@ Score 0.0 — No errors caught:
 
             # Try ../../../datasets/mas-necessity.yaml (standard structure)
             for _ in range(5):  # Search up to 5 levels
-                for name in ("mas-necessity.yaml", "mas-necessity.json"):
-                    candidate = current / "datasets" / name
-                    if candidate.exists():
-                        dataset_path = candidate
-                        break
-                    candidate = current / name
+                for candidate in (
+                    current / "datasets" / "mas-necessity.yaml",
+                    current / "mas-necessity.yaml",
+                ):
                     if candidate.exists():
                         dataset_path = candidate
                         break

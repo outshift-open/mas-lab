@@ -192,7 +192,7 @@ async def my_agent_factory(pattern_name, pattern_config):
 
 async def main():
     # 1. Load dataset
-    dataset = Dataset.from_json("dataset.json")
+    dataset = Dataset.from_yaml("dataset.yaml")
     
     # 2. Setup storage
     storage = ResultStorage("./results")

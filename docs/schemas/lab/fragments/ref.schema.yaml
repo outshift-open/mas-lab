@@ -1,0 +1,25 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "http://json-schema.org/draft-07/schema#"
+$id: "urn:mas-lab:fragments:ref:v1"
+title: File ref
+description: >
+  Canonical pointer to a sibling file. ``file.yaml#id`` selects an entry
+  by id. ``id:`` (catalog) is reserved and not resolved yet.
+  A bare string is NOT this type — on ``user`` a string is prompt text;
+  on ``tool_fixtures`` / ``memory_seeds`` a bare string is shorthand for
+  this object.
+type: object
+additionalProperties: false
+properties:
+  ref:
+    type: string
+    minLength: 1
+    description: Path relative to the dataset folder (optional #fragment).
+  id:
+    type: string
+    minLength: 1
+    description: Reserved catalog id (not resolved yet).
+anyOf:
+  - required: [ref]
+  - required: [id]

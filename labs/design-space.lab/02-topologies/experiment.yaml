@@ -18,8 +18,9 @@ experiment:
   name: "lab1-exp1.2-topologies-trip-planner"
   description: >
     Exp 02 of Lab 1 (§5.1). Sweeps 5 collaboration topologies on the 4-agent
-    trip-planner MAS across the 100-item trip-planner-benchmark-100 dataset.
-    Topology is a declarative overlay — agent code is unchanged. Topologies:
+    trip-planner MAS across the trip-planner-benchmark Dataset
+    (the complete pack in library-samples). Topology is a declarative overlay —
+    agent code is unchanged. Topologies:
     linear-pipeline, parallel, moderator-broker, supervised, verifier.
 
   default_flavour: local
@@ -28,10 +29,10 @@ experiment:
   metadata:
     model_name: "gpt-4o"
     model_endpoint: "https://api.openai.com/v1"
-    dataset_version: "trip-planner-benchmark-100 v1.0"
+    dataset_version: "trip-planner-benchmark v1.0"
     notes: >
       Baseline: MAS Framework main branch. Each topology is evaluated on the same
-      100-item trip-planner dataset. Model sensitivity analysis can be run by
+      complete trip-planner Dataset. Model sensitivity analysis can be run by
       updating experiment.models.main (or models.judge) and re-running eval_mce + compute_ci steps only.
 
   output_schema:
@@ -83,9 +84,8 @@ experiment:
         infra: []
 
   dataset:
-    name: trip-planner-benchmark-100
+    name: trip-planner-benchmark
     locator: samples
-    limit: 100
 
   execution:
     parallel_scenarios: 4

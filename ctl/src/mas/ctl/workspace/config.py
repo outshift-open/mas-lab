@@ -10,7 +10,12 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from mas.runtime.workspace_config import _user_config_path, find_workspace_file, resolve_config_relative
+from mas.runtime.workspace_config import (
+    _user_config_path,
+    find_workspace_file,
+    normalize_manifest_libraries,
+    resolve_config_relative,
+)
 from mas.runtime.xdg import mas_cache_root
 
 _ENV_INFRA_REFS = "MAS_INFRA_REFS"
@@ -153,8 +158,19 @@ class WorkspaceConfig:
 
     @property
     def manifest_libraries(self) -> dict[str, str]:
-        raw = self._data.get("manifest_libraries") or {}
-        return dict(raw) if isinstance(raw, dict) else {}
+        return normalize_manifest_libraries(self._data.get("manifest_libraries"))
+
+    @property
+    def raw_manifest_libraries(self) -> Any:
+        """The ``manifest_libraries`` YAML value, unmodified.
+
+        Unlike :attr:`manifest_libraries` (which, for a list input, keys the
+        result by trailing directory name and so collapses two search-path
+        entries that share one), this never loses an entry. Pass it to
+        :func:`mas.runtime.workspace_config.library_search_paths` to get
+        every search-path entry back.
+        """
+        return self._data.get("manifest_libraries")
 
     @property
     def default_model(self) -> str | None:

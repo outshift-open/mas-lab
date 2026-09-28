@@ -50,7 +50,7 @@ For `mas_ctl.trace*` (and the rest of the `mas_ctl` map used by chat / run-mas):
 | `infra_refs` | string or list | Infra bundles (left-to-right). Override: `MAS_INFRA_REFS`, CLI `--infra-ref` |
 | `runtime_refs` | string or list | `RuntimeEngine` refs. Omit for package defaults. Override: `MAS_RUNTIME_REFS`, `--runtime-ref` |
 | `infra_interceptors` | string or list | Optional interceptor bundle refs |
-| `manifest_libraries` | map name → path | Extra libraries relative to the workspace root |
+| `manifest_libraries` | list of paths | Extra library checkouts (name = directory stem). Legacy name→path map still accepted. |
 | `aliases` | map | Runtime plugin alias → canonical URN |
 | `defaults` | object | Overrides for runtime `defaults.yaml` (`model`, `design_pattern`, `context_manager`, `assembler`) |
 | `paths` | object | `labs_dir`, `cache_dir`, `runs_dir` (else XDG / `MAS_*`) |

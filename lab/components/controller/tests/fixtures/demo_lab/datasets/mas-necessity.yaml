@@ -1,5 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
+
 apiVersion: lab/v1
 kind: Dataset
 metadata:
@@ -14,12 +15,9 @@ spec:
   items:
   - id: mn1
     inputs:
-      user:
-      - role: user
-        content: Alice is in Celestia, Bob is in Verdantia, and Charlie is in Luminos. They want to meet in ONE city for a
-          shared day trip. Find the meeting point that minimises the total combined transport cost for all three. Show the
-          cost of each leg, the total, and recommend 2 activities everyone can enjoy together within a $30 per-person activity
-          budget.
+      user: Alice is in Celestia, Bob is in Verdantia, and Charlie is in Luminos. They want to meet in ONE city for a shared
+        day trip. Find the meeting point that minimises the total combined transport cost for all three. Show the cost of
+        each leg, the total, and recommend 2 activities everyone can enjoy together within a $30 per-person activity budget.
     expectations:
       ground_truth:
         optimal_meeting_city: Verdantia
@@ -38,11 +36,9 @@ spec:
     group: mas-necessity
   - id: mn2
     inputs:
-      user:
-      - role: user
-        content: 'Plan TWO completely independent trips at the same time and compare them: (A) Celestia → Verdantia → Luminos,
-          and (B) Luminos → Fortuna → Pannonia. For each trip: total rail transport cost, estimated travel time, and one highlight
-          attraction per city. Which trip is cheaper? Can either be done for under $60 in transport costs?'
+      user: 'Plan TWO completely independent trips at the same time and compare them: (A) Celestia → Verdantia → Luminos,
+        and (B) Luminos → Fortuna → Pannonia. For each trip: total rail transport cost, estimated travel time, and one highlight
+        attraction per city. Which trip is cheaper? Can either be done for under $60 in transport costs?'
     expectations:
       ground_truth:
         trip_a_total_cost_usd: 50
@@ -60,12 +56,10 @@ spec:
     group: mas-necessity
   - id: mn3
     inputs:
-      user:
-      - role: user
-        content: 'A travel blogger claims: ''You can do Celestia → Verdantia → Luminos → Celestia (via air) in one day for
-          under $150 total transport, using morning departures only.'' Verify this claim step by step: check each leg''s schedule,
-          fare, and timing. If the claim is wrong, identify exactly which constraint is violated and provide the corrected
-          feasible itinerary.'
+      user: 'A travel blogger claims: ''You can do Celestia → Verdantia → Luminos → Celestia (via air) in one day for under
+        $150 total transport, using morning departures only.'' Verify this claim step by step: check each leg''s schedule,
+        fare, and timing. If the claim is wrong, identify exactly which constraint is violated and provide the corrected feasible
+        itinerary.'
     expectations:
       ground_truth:
         claim_is_correct: false
@@ -85,12 +79,10 @@ spec:
     group: mas-necessity
   - id: mn4
     inputs:
-      user:
-      - role: user
-        content: 'Find a round-trip circuit starting and ending in Celestia that satisfies ALL of the following hard constraints:
-          (1) visits exactly 3 intermediate cities, (2) total transport cost under $120, (3) at least one city must be in
-          the forest_belt region, (4) all train departures before noon, (5) return to Celestia within 3 days. List all feasible
-          circuits you find, ranked by total cost. If none exist, explain which constraint eliminates each candidate.'
+      user: 'Find a round-trip circuit starting and ending in Celestia that satisfies ALL of the following hard constraints:
+        (1) visits exactly 3 intermediate cities, (2) total transport cost under $120, (3) at least one city must be in the
+        forest_belt region, (4) all train departures before noon, (5) return to Celestia within 3 days. List all feasible
+        circuits you find, ranked by total cost. If none exist, explain which constraint eliminates each candidate.'
     expectations:
       ground_truth:
         best_circuit:
@@ -111,24 +103,20 @@ spec:
     group: mas-necessity
   - id: mn5
     inputs:
-      user:
-      - role: user
-        content: 'Alice (prefers outdoor and eco-tourism, personal activity budget $80) and Bob (prefers cultural sites and
-          museums, personal activity budget $60) are travelling together from Celestia. They share a transport budget of $100
-          for the entire trip. Find the 2-city itinerary that best satisfies BOTH of their preferences — at least 2 suitable
-          activities per person in each city. Show the trade-offs: what does each person have to compromise on, and what is
-          the total cost breakdown?'
+      user: 'Alice (prefers outdoor and eco-tourism, personal activity budget $80) and Bob (prefers cultural sites and museums,
+        personal activity budget $60) are travelling together from Celestia. They share a transport budget of $100 for the
+        entire trip. Find the 2-city itinerary that best satisfies BOTH of their preferences — at least 2 suitable activities
+        per person in each city. Show the trade-offs: what does each person have to compromise on, and what is the total cost
+        breakdown?'
     group: mas-necessity
   - id: mn10
     inputs:
-      user:
-      - role: user
-        content: 'You have exactly $65 for train transport (Standard class only — no flights, no Express). Starting from Celestia,
-          plan a one-way trip that visits exactly ONE city in the forest_belt region AND ONE city in the plains region (in
-          any order). List every valid route you find with its exact total Standard-class fare. For the cheapest valid route:
-          state the total cost and how much of your $65 budget remains.
+      user: 'You have exactly $65 for train transport (Standard class only — no flights, no Express). Starting from Celestia,
+        plan a one-way trip that visits exactly ONE city in the forest_belt region AND ONE city in the plains region (in any
+        order). List every valid route you find with its exact total Standard-class fare. For the cheapest valid route: state
+        the total cost and how much of your $65 budget remains.
 
-          '
+        '
     expectations:
       ground_truth:
         cheapest_route:
@@ -149,14 +137,12 @@ spec:
     group: mas-necessity
   - id: mn11
     inputs:
-      user:
-      - role: user
-        content: 'You need to travel from Celestia to Luminos by train on a weekday (Standard class only — no flights, no
-          Express). You must depart Celestia before 09:00. What is the earliest feasible Standard-class departure from Celestia?
-          Which city do you connect through, what time is the onward Standard connection from that city, and what is the exact
-          total Standard-class fare for the full journey?
+      user: 'You need to travel from Celestia to Luminos by train on a weekday (Standard class only — no flights, no Express).
+        You must depart Celestia before 09:00. What is the earliest feasible Standard-class departure from Celestia? Which
+        city do you connect through, what time is the onward Standard connection from that city, and what is the exact total
+        Standard-class fare for the full journey?
 
-          '
+        '
     expectations:
       ground_truth:
         departure_from_celestia: 08:30
@@ -176,12 +162,10 @@ spec:
     group: mas-necessity
   - id: mn12
     inputs:
-      user:
-      - role: user
-        content: "An online booking site shows the following itinerary:\n\n  Celestia → Verdantia   Standard train   $35\n\
-          \  Verdantia → Luminos    Standard train   $25\n  Total: $60\n\nIs this pricing correct? Check each leg individually\
-          \ against the Arborian Network fare tables. For any leg where the shown price is wrong, state the correct Standard\
-          \ fare. What is the correct total for this itinerary?\n"
+      user: "An online booking site shows the following itinerary:\n\n  Celestia → Verdantia   Standard train   $35\n  Verdantia\
+        \ → Luminos    Standard train   $25\n  Total: $60\n\nIs this pricing correct? Check each leg individually against\
+        \ the Arborian Network fare tables. For any leg where the shown price is wrong, state the correct Standard fare. What\
+        \ is the correct total for this itinerary?\n"
     expectations:
       ground_truth:
         celestia_verdantia_correct_fare: 28

@@ -47,25 +47,48 @@ properties:
         minItems: 1
         description: "MAS use-case pointer(s) for the demo."
         items:
-          type: object
-          additionalProperties: false
-          properties:
-            manifest:
-              type: string
-              description: "Path to mas.yaml."
-            app:
-              type: string
-              description: "Registered app name (mas.apps registry)."
-            configs_dir:
-              type: string
-              description: "Path to the scenario overlay YAML directory."
-            base_scenario:
-              type: string
-              default: "baseline"
-              description: "Scenario loaded on demo startup."
-          anyOf:
-            - required: [manifest]
-            - required: [app]
+          oneOf:
+            - type: string
+              minLength: 1
+              description: "Library + app identifier, e.g. library-ioc:sre-triage@v2."
+              pattern: "^[a-z0-9][a-z0-9-]*:[^\\s]+$"
+            - type: object
+              additionalProperties: false
+              properties:
+                manifest:
+                  type: string
+                  description: >
+                    Path or library:app identifier resolving to mas.yaml
+                    (e.g. library-ioc:sre-triage@v2).
+                app:
+                  type: string
+                  description: >
+                    Application catalog id, optionally library-qualified
+                    (library-ioc:sre-triage@v2 or sre-triage@v2).
+                configs_dir:
+                  type: string
+                  description: "Path to the scenario overlay YAML directory."
+                base_scenario:
+                  type: string
+                  default: "baseline"
+                  description: "Scenario loaded on demo startup."
+              anyOf:
+                - required: [manifest]
+                - required: [app]
+
+      mas:
+        deprecated: true
+        description: >
+          DEPRECATED. Alias of applications[0]. Loaders still accept
+          lab.mas and emit a warning. Replace with lab.applications.
+          See https://outshift-open.github.io/mas-lab/manifests/experiment/#applications
+        oneOf:
+          - type: object
+            additionalProperties: true
+          - type: array
+            minItems: 1
+          - type: string
+            minLength: 1
 
       # ── Scenarios ─────────────────────────────────────────────────────────
       scenarios:
@@ -138,6 +161,31 @@ properties:
           filter:
             type: object
             additionalProperties: true
+          source:
+            type: object
+            additionalProperties: false
+            description: >
+              Optional Dataset spec.source overlay (same shape as experiment.dataset.source).
+            properties:
+              kind:
+                type: string
+                enum: [huggingface, jsonl, csv, glob, pickle]
+              id:
+                type: string
+              split:
+                type: string
+              path:
+                type: string
+              map:
+                type: object
+                additionalProperties: true
+              config:
+                type: string
+              name:
+                type: string
+              limit:
+                type: integer
+                minimum: 1
 
       model:
         type: string

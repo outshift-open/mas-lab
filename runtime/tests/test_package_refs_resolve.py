@@ -83,6 +83,7 @@ def test_resolve_path_ref_uses_workspace_registered_scheme(tmp_path: Path, monke
     target = lib_root / "tools" / "calc.tool.yaml"
     target.parent.mkdir(parents=True)
     target.write_text("x", encoding="utf-8")
+    (lib_root / "library.yaml").write_text("name: mylib\n", encoding="utf-8")
 
     class _FakeWS:
         found = True

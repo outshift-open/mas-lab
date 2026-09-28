@@ -14,6 +14,10 @@ overlay, pipeline, run, flavour).
 (agent) → [Tutorial 2](../tutorials/02-creating-a-mas/README.md) (MAS) →
 [Tutorial 3](../tutorials/03-experiments-and-analysis/README.md) (experiments).
 
+**Writing YAML:** [How to write manifests](writing-manifests.md) — inline vs
+file vs catalog id, `LIBRARY:` prefix, `name@version`, and file-name
+conventions (`mas.yaml`, `*.tool.yaml`, `experiment.yaml`, …).
+
 ---
 
 ## How manifests fit together
@@ -50,14 +54,21 @@ Runtime execution manifests (`Agent`, `MAS`, overlays, infra) are documented und
 
 ---
 
-## Resolution: `ref` vs `id`
+## Resolution: inline vs file vs id
+
+See [writing-manifests.md](writing-manifests.md) for the full convention.
+Short form:
 
 | Form | Example | Meaning |
 |------|---------|---------|
-| **File path** | `ref: ./agents/broker.yaml` | Relative to the referring manifest |
-| **Catalog name** | `dataset.name: arborian-network` | Resolved under the lab or library |
-| **Library ref** | `standard:openai` | Bundled infra from `library-standard` |
+| **Inline object** | `design_pattern: { type: react }` | Embedded in the parent YAML |
+| **File path** | `ref: ./agents/broker.yaml` | Relative, absolute, or `library:path` |
+| **Catalog id** | `app: library-ioc:sre-triage@v2` | `[library:]name@version` for versioned families |
+| **Library path** | `samples:apps/trip-planner/mas.yaml` | Slash after `LIBRARY:` is a path, not an id |
 | **CLI override** | `--infra-ref`, `-o overlay.yaml` | One-shot for `mas-ctl` |
+
+Do not write `../../apps/foo/mas.yaml`. Do not use `sre-triage-v2` or
+`sre-triage/v2` as catalog ids.
 
 ---
 
@@ -80,10 +91,10 @@ Both forms are valid in `experiment.applications[]`:
 
 | Style | Example | When to use |
 | --- | --- | --- |
-| **Inline manifest** | `manifest: ./agent.yaml` + optional `configs_dir` | Tutorials, self-contained experiments |
-| **Registered app** | `app: trip-planner` + `configs_dir: overlays/` | Paper labs, shared apps under `library-samples/apps/` |
+| **Inline / local file** | `manifest: ./agent.yaml` + optional `configs_dir` | Tutorials, self-contained experiments |
+| **Registered app** | `app: library-ioc:sre-triage@v2` | Shared apps; prefer this over `../../apps/...` |
 
-Scenarios reference overlay **ids** from `configs_dir` (e.g. tutorial `cot` vs lab `pattern-cot`). Dataset: `path: ./dataset.yaml` (tutorial) or `name` + `locator: samples` (catalogued benchmarks).
+Scenarios reference overlay **ids** from `configs_dir`. Dataset: `path: ./dataset.yaml` (tutorial) or `name` + optional `locator` (catalogued benchmarks).
 
 See [topology-and-workflow.md](topology-and-workflow.md) for workflow vs routing overlays.
 

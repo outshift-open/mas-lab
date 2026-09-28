@@ -94,12 +94,13 @@ def test_discover_from_workspace(tmp_path):
 
     class _Ws:
         _path = tmp_path
-        _data = {"manifest_libraries": {"ext": "labs/custom.lab"}}
+        _data = {"manifest_libraries": ["labs/ext"]}
 
-    lab = tmp_path / "labs" / "custom.lab"
-    lab.mkdir(parents=True)
+    lib = tmp_path / "labs" / "ext"
+    lib.mkdir(parents=True)
+    (lib / "library.yaml").write_text("name: ext\n", encoding="utf-8")
     found = LabRegistry(_Ws()).library_paths()
-    assert found["ext"] == lab.resolve()
+    assert found["ext"] == lib.resolve()
     reset_lab_registry()
 
 

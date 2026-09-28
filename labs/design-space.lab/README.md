@@ -96,11 +96,12 @@ The experiments are fully self-contained: `experiment.yaml` declares everything 
 └── overlays/                # One YAML per topology
 ```
 
-Datasets resolve from the **`samples`** library locator (see `library.yaml` ids):
+Datasets:
 
-- `qa-reasoning-queries-100` (Exp 1.1)
-- `trip-planner-benchmark-100` — Dataset A (Exp 1.2)
-- `trip-planner-benchmark` — Dataset B (trip-planner benchmark, released in library-samples)
+- `qa-reasoning-queries` — lab-local complete QA pack (Exp 1.1)
+- `trip-planner-benchmark` — complete trip-planner pack in `library-samples` (`locator: samples`, Exp 1.2)
+
+To run fewer items, set `dataset.limit` on the experiment. Do not keep a `-100` copy of the same pack.
 
 MAS apps resolve via **`mas.app`** registry (`library.yaml` → `app:` in experiment):
 

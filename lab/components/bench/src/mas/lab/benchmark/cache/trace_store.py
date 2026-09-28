@@ -192,7 +192,18 @@ def materialize_config(config: dict, base_path: "Path | None") -> dict:
 
     def _resolve(ref: str, anchor: "Path") -> "Path":
         p = Path(ref)
-        return p if p.is_absolute() else (anchor / p).resolve()
+        if p.is_absolute():
+            return p
+        if ":" in ref:
+            try:
+                from mas.runtime.package_refs import resolve_path_ref
+
+                resolved = resolve_path_ref(ref, anchor)
+                if resolved.exists():
+                    return resolved
+            except Exception:
+                pass
+        return (anchor / p).resolve()
 
     base_dir: "Path" = (
         (base_path.parent if base_path.is_file() else base_path)
@@ -262,14 +273,12 @@ def materialize_config(config: dict, base_path: "Path | None") -> dict:
 
 
 def write_runtime_params_sidecar(config: dict, spec_path: Path) -> None:
-    """Write overlay params for tool modules that resolve incident fixtures via sidecar.
+    """For overlay-only runs (no dataset item), copy ``params.incident_fixture``.
 
-    Tools may resolve ``incident_fixture`` from
-    ``<use-case>/artifacts/scene.yaml`` at import time. Benchmarks must write
-    that sidecar before each run so scenario-specific fixtures are visible to
-    tool implementations.
+    Experiments that pin a dataset should set tool fixtures on the dataset
+    item instead. This path exists so UI/demo overlays still work.
     """
-    params = config.get("params") or {}
+    params = dict(config.get("params") or {})
     if not params:
         return
 
@@ -278,9 +287,26 @@ def write_runtime_params_sidecar(config: dict, spec_path: Path) -> None:
 
     import yaml as _yaml
 
+    payload: dict = dict(params)
+    fixture_ref = payload.pop("incident_fixture", None)
+    if fixture_ref:
+        try:
+            from mas.runtime.package_refs import resolve_path_ref
+            from mas.runtime.spec.source import load_yaml_file
+
+            path = resolve_path_ref(str(fixture_ref), spec_path.parent)
+            if path.is_file():
+                env = load_yaml_file(path)
+                if isinstance(env, dict):
+                    for key in ("correct_action", "source_evidence"):
+                        env.pop(key, None)
+                    payload = {**payload, **env}
+        except Exception:
+            payload["incident_fixture"] = fixture_ref
+
     sidecar_path = sidecar_dir / "scene.yaml"
     with open(sidecar_path, "w", encoding="utf-8") as fh:
-        _yaml.safe_dump(params, fh, default_flow_style=False, allow_unicode=True)
+        _yaml.safe_dump(payload, fh, default_flow_style=False, allow_unicode=True)
 
 
 def compute_run_hash(
@@ -385,6 +411,21 @@ def link_trace_to_cache_entry(
     (run_output_dir / ".run_ref").write_text(run_hash + "\n")
 
 
+def _first_user_prompt_text(user: Any) -> str:
+    """Extract the lead prompt string from a run-input ``inputs.user`` value.
+
+    ``user`` is a string, a list of strings (sequential user messages), or
+    absent — never the legacy ``[{role, content}]`` shape (see
+    ``run_input_to_dict``).
+    """
+    if isinstance(user, str):
+        return user
+    if isinstance(user, list) and user:
+        first = user[0]
+        return first if isinstance(first, str) else str(first)
+    return ""
+
+
 def write_cache_inputs(
     global_run_dir: Path,
     run_hash: str,
@@ -413,11 +454,7 @@ def write_cache_inputs(
         "run_idx": run_idx,
         "model": _llm.get("model", ""),
         "api_base": _llm.get("api_base", flavour_info.get("api_base", "")),
-        "prompt": (
-            run_input.get("inputs", {}).get("user", [{}])[0].get("content", "")
-            if run_input.get("inputs", {}).get("user")
-            else ""
-        ),
+        "prompt": _first_user_prompt_text(run_input.get("inputs", {}).get("user")),
     }
     prov_path.write_text(json.dumps(prov, indent=2))
     inputs_path = global_run_dir / "inputs.json"

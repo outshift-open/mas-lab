@@ -42,7 +42,11 @@ class MASExperimentConfig(MASRunBase):
         base_dir = path.parent
 
         canonicalize_experiment_dict(exp_data, path=path)
-        if not _is_mas_binding(exp_data.get("application")) and "applications" not in exp_data:
+        if (
+            not _is_mas_binding(exp_data.get("application"))
+            and "applications" not in exp_data
+            and not exp_data.get("mas")
+        ):
             raise ValueError(
                 f"{path}: experiment must declare application: "
                 f"{{app|manifest, configs_dir}} "

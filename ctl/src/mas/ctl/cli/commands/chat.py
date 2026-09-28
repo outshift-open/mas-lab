@@ -27,7 +27,7 @@ from mas.ctl.ui.stdout import StdoutConversationDisplay
 
 
 @click.command("chat", epilog=CHAT_EPILOG)
-@click.argument("manifest", required=False, type=click.Path())
+@click.argument("manifest", required=False)
 @click.option("--prompt", "-p", default=None)
 @click.option("--query", "-q", "queries", multiple=True)
 @click.option(

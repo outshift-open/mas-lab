@@ -15,7 +15,7 @@ from mas.ctl.overlay.normalize import normalize_overlay
 from mas.ctl.validate.providers import check_provider_tool_claims
 from mas.ctl.validate.refs import check_refs, resolve_refs_enabled
 from mas.ctl.validate.schema_errors import humanize_schema_error
-from mas.ctl.validate.schemas import declared_kind, load_schema, schema_path_for_kind
+from mas.ctl.validate.schemas import declared_kind, lab_schema_registry, load_schema, schema_path_for_kind
 from mas.ctl.validate.separation import check_separation
 
 
@@ -272,7 +272,7 @@ def validate_data(
         return result
 
     schema = load_schema(resolved_kind)
-    validator = jsonschema.Draft7Validator(schema)
+    validator = jsonschema.Draft7Validator(schema, registry=lab_schema_registry())
     for err in sorted(validator.iter_errors(data), key=lambda e: _path_sort_key(e.path)):
         path = ".".join(str(p) for p in err.path) or "(root)"
         level = "error" if strict else "warning"

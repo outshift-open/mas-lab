@@ -21,7 +21,7 @@ from mas.ctl.paths import manifest_cwd
 
 
 @click.command("compile", epilog=COMPILE_EPILOG)
-@click.argument("manifest", type=click.Path())
+@click.argument("manifest")
 @click.option("-o", "--overlay", "overlays", multiple=True, type=click.Path())
 @click.option(
     "--output",

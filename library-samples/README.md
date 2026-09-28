@@ -15,7 +15,7 @@ each: [docs/labs-and-libraries.md](../docs/labs-and-libraries.md).
 | Kind | Examples |
 |------|----------|
 | **apps** | `apps/trip-planner/` (real use-case MAS: agents, local tools/skills) |
-| **datasets** | `datasets/trip-planner/`, `datasets/mas-necessity.yaml`, … |
+| **datasets** | `datasets/trip-planner/benchmark.yaml` — complete pack for the app, tutorials, and CI |
 | **tools** | `tools/calc.py`, `tools/*.tool.yaml` |
 | **skills** | (under app trees or top-level when shared) |
 | **overlays** | `overlays/cot-moderator.yaml`, `overlays/hitl-on-tool.yaml`, … |
@@ -41,8 +41,9 @@ mas:
   configs_dir: ./overlays
 
 dataset:
-  name: qa-reasoning-queries-100
+  name: trip-planner-benchmark
   locator: samples   # mas.runtime.manifest_libraries scheme
+  # limit: 5         # optional: first N items (smoke / CI)
 ```
 
 Install `mas-library-samples` (or `-e library-samples`) so the `samples` locator resolves via entry point.

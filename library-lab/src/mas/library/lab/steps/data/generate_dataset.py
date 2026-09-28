@@ -264,8 +264,19 @@ class GenerateDatasetStep(PipelineStep):
         logger.info("GenerateDatasetStep: generated %d questions", len(questions))
 
         # ── Write output ───────────────────────────────────────────────────
-        items = [{"id": i + 1, "prompt": q} for i, q in enumerate(questions)]
-        dataset = {"items": items}
+        items = [
+            {
+                "id": i + 1,
+                "inputs": {"user": q},
+            }
+            for i, q in enumerate(questions)
+        ]
+        dataset = {
+            "apiVersion": "lab/v1",
+            "kind": "Dataset",
+            "metadata": {"name": Path(output_filename).stem, "version": "v1"},
+            "spec": {"items": items},
+        }
 
         out_path: Path = ctx.output_dir / output_filename
         out_path.parent.mkdir(parents=True, exist_ok=True)

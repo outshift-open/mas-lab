@@ -16,7 +16,7 @@ from mas.ctl.ui.curses_app import build_curses_controller, run_curses_session
 
 
 @click.command("tui")
-@click.argument("manifest", required=False, type=click.Path())
+@click.argument("manifest", required=False)
 @click.option("-o", "--overlay", "overlays", multiple=True, type=click.Path())
 @click.option("--pattern", default=None)
 @click.option(

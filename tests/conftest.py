@@ -39,6 +39,24 @@ os.environ["XDG_CACHE_HOME"] = str(_XDG_CACHE)
 os.environ["XDG_STATE_HOME"] = str(_XDG_STATE)
 
 
+@pytest.fixture(autouse=True)
+def _clear_library_discovery_caches():
+    """Reset the lru_cache-memoized library/catalog discovery helpers.
+
+    These caches (``mas.library_roots`` / ``mas.library_catalog``) are keyed
+    by resolved root path, so a test that writes a library dir, resolves it,
+    then rewrites the same path must still see the change.
+    """
+    from mas.library_catalog import clear_catalog_discovery_cache
+    from mas.library_roots import clear_library_discovery_cache
+
+    clear_catalog_discovery_cache()
+    clear_library_discovery_cache()
+    yield
+    clear_catalog_discovery_cache()
+    clear_library_discovery_cache()
+
+
 @pytest.fixture(scope="session")
 def mas_controller_home() -> Path:
     """Isolated MAS_HOME for the test session (daemon socket + pid)."""

@@ -8,6 +8,14 @@ A **lab** is an experiment pack. A **library** is reusable code and YAML.
 Do not turn a lab into a library, and do not create a library when you only
 need an experiment.
 
+**Datasets.** `library-samples` publishes the complete reusable pack for the
+reference app (`trip-planner-benchmark`). CI, unit tests, and functional
+tests pin that catalog (`locator: samples`) and cap rows with
+`dataset.limit`. They must not `path:` into `labs/` — paper labs are not
+shipped with the packages. Experiment-specific packs (QA reasoning, MAS
+necessity, lifecycle queries, extensions) live under that lab’s `datasets/`
+and are referenced only from the lab itself.
+
 Developer discovery contract: [library-discovery.md](library-discovery.md).
 
 ---
@@ -30,8 +38,15 @@ such as `lib`). It is never a filesystem path. Unknown names fail.
 
 Shipped libraries in this repo include `library-samples/`,
 `library-standard/`, `library-lab/`, `library-skills/`, and `library-ioa/`.
-The name you write in YAML is the short library name (`samples`), not the
-package name (`mas-library-samples`).
+The name you write in YAML is a **library scheme** (`samples`, `library-ioc`),
+not necessarily the Python package name (`mas-library-samples`). Additional
+names can be listed as `aliases:` in `library.yaml`; the directory basename
+and `name:` field are also accepted. Labs then pin a MAS with
+`library:app` (for example `library-ioc:sre-triage@v2`). Versioning uses
+`name@version` (bare name is `@latest`). Slash is a path
+(`library-ioc:apps/sre-triage/v2`), not an id alias.
+
+How to write those refs: [writing-manifests.md](manifests/writing-manifests.md).
 
 A library **may live inside a lab**. That does not make the lab itself a
 library — do not put `library.yaml` on the lab root.
@@ -46,7 +61,7 @@ invent a third top-level “plugins folder” beside lab vs library.
 | --- | --- |
 | One-off bench/pipeline step for this experiment | That lab’s local library (catalogued in `library.yaml`) |
 | Agent/runtime plugin (design pattern, memory, tool provider, …) | Declared in that library’s `library.yaml` so discovery finds it |
-| Experiment pack (scenarios, overlays, datasets) | The lab, not a library |
+| Experiment pack (scenarios, overlays, lab-owned datasets) | The lab, not a library |
 
 A pipeline step is still a plugin of type `step`. The lab is the experiment
 surface; the library is what registers the step.
@@ -109,25 +124,28 @@ not leave an in-repo lab in that state.
 tools:
   - samples:tools/calc.tool.yaml
 
-applications:
-  - manifest: samples:apps/trip-planner/mas.yaml
+application:
+  app: library-ioc:sre-triage@v2
+  # or: manifest: samples:apps/trip-planner/mas.yaml
 
-# Workspace config.yaml — share a checkout with every lab in the project
+# Workspace config.yaml — search folders (library root or parent of libraries)
 manifest_libraries:
-  acme: ./libraries/acme
+  - .
+  - ./libraries
 ```
 
 Lab-local names win over the same name in workspace config or an installed
 library. First-seen name wins.
 
-Workspace `manifest_libraries:` is a name → path map (paths relative to the
-workspace root). Lab `lab.libraries` is a list of directories (or already-known
-names such as `samples`).
+`lab.libraries`, workspace `manifest_libraries`, and `MAS_LIBRARY_PATHS` are
+the same scan. Install (entry point) is the other door. `library.yaml`
+fills the catalog. Do not declare aliases (`ioc` for `library-ioc`).
 
 ---
 
 ## See also
 
+- [How to write manifests](manifests/writing-manifests.md) — inline vs file vs `LIBRARY:` id
 - [User configuration](user-config.md) — workspace `config.yaml` and path vars
 - [Lab manifests](manifests/lab.md) — `lab-config.yaml` fields
 - [Tutorial 1](tutorials/01-building-an-agent/README.md) — overlay `name:path` refs
