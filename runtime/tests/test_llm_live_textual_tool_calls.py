@@ -198,3 +198,32 @@ def test_multiline_bare_json_call_is_unaffected_by_positional_arg_handling() -> 
     args = json.loads(tool_calls[0]["function"]["arguments"])
     assert args == {"skill": "demo", "args": ["record", "item-1"]}
     assert cleaned == ""
+
+
+def test_xml_named_tool_tags_recover_delegate_calls() -> None:
+    content = """I'm ready.
+
+<delegate_to_finance>
+ROUND=1;TARGET=finance;
+
+User message:
+hello
+</delegate_to_finance>
+
+<delegate_to_customer_success>
+ROUND=1;TARGET=customer_success;
+task two
+</delegate_to_customer_success>
+"""
+    tool_calls, leftover = recover_tool_calls_from_content(
+        content,
+        known_tool_names={"delegate_to_finance", "delegate_to_customer_success"},
+    )
+
+    assert [c["function"]["name"] for c in tool_calls] == [
+        "delegate_to_finance",
+        "delegate_to_customer_success",
+    ]
+    first_args = json.loads(tool_calls[0]["function"]["arguments"])
+    assert first_args["task"].startswith("ROUND=1;TARGET=finance;")
+    assert "delegate_to_finance" not in leftover
