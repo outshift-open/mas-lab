@@ -677,6 +677,14 @@ class ObservabilityOperator:
                 _logger.debug("observability plugin failed", exc_info=True)
 
     def _dispatch_transition(self, transition) -> None:
+        try:
+            from mas.runtime.boundary.obs.event_stream import publish_event
+
+            payload = transition.to_dict() if hasattr(transition, "to_dict") else {}
+            payload.setdefault("source", "transition")
+            publish_event(payload)
+        except Exception:
+            _logger.debug("event stream publish failed", exc_info=True)
         if not self._subscribers:
             return
         if self._async_plugins:

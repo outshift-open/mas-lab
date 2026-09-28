@@ -21,6 +21,7 @@ _STEP_KNOWN_KEYS: frozenset = frozenset({
     "in",
     "out",
     "scope",
+    "streaming",
 })
 
 #: Keys accepted at the pipeline-config level.

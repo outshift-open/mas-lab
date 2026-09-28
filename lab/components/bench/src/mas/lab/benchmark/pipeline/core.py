@@ -168,6 +168,7 @@ class PipelineStep(ABC):
 
     type: str = "base"
     persistent: bool = False
+    streaming: bool = False
     PARAMS: ClassVar[List[ConfigParam]] = []
 
     def __init__(
@@ -178,6 +179,7 @@ class PipelineStep(ABC):
         phase: str = "post",
         per_scenario: bool = False,
         per_run: bool = False,
+        streaming: bool | None = None,
     ):
         self.name = name
         self.config = config
@@ -185,12 +187,22 @@ class PipelineStep(ABC):
         self.phase = phase
         self.per_scenario = per_scenario
         self.per_run = per_run
+        if streaming is not None:
+            self.streaming = bool(streaming)
 
     def is_persistent(self) -> bool:
         cfg_val = self.config.get("persist")
         if cfg_val is not None:
             return bool(cfg_val)
         return getattr(self.__class__, "persistent", True)
+
+    def on_event(self, event: Dict[str, Any], ctx: "ExecutionContext") -> None:
+        """Live telemetry hook. Default is a no-op.
+
+        Steps with ``streaming: true`` receive events as the MAS run emits
+        them. ``execute`` still runs afterward to write artefacts.
+        """
+        return None
 
     @abstractmethod
     async def execute(self, ctx: "ExecutionContext") -> StepOutput:
@@ -222,6 +234,7 @@ class PipelineStep(ABC):
 
         per_scenario = bool(data.get("per_scenario", False))
         per_run = bool(data.get("per_run", False))
+        streaming = bool(data.get("streaming", False))
         try:
             step = step_class(
                 name=data["name"],
@@ -230,6 +243,7 @@ class PipelineStep(ABC):
                 phase=data.get("phase", "post"),
                 per_scenario=per_scenario,
                 per_run=per_run,
+                streaming=streaming,
             )
         except TypeError:
             step = step_class(
@@ -240,6 +254,7 @@ class PipelineStep(ABC):
             )
             step.per_scenario = per_scenario
             step.per_run = per_run
+            step.streaming = streaming or bool(getattr(step, "streaming", False))
         return step
 
     @classmethod

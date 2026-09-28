@@ -112,6 +112,10 @@ UI may emit `x-canvas-positions` (stripped before execution).
   reruns that step and everything that `depends_on` it. Force with
   `mas-lab benchmark pipeline run … --force STEP` or
   `mas-lab benchmark step restart`.
+- **Streaming:** set `streaming: true` on a step. During a MAS run the runtime
+  publishes transition dicts on `mas.runtime.boundary.obs.event_stream.EventStream`.
+  The step's `on_event` is called for each; `execute` still writes artefacts
+  afterward. Demo UIs subscribe to the same stream.
 
 ---
 
