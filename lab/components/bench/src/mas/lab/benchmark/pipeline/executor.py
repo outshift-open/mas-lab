@@ -492,203 +492,224 @@ class PipelineExecutor:
             template_vars=dict(template_vars or {}),
             progress_sink=progress_sink,
         )
-        
-        # Determine which steps need to rerun
-        steps_to_rerun = []
-        steps_cached = []
-        
-        for step_name in execution_order:
-            step = self.pipeline.get_step(step_name)
-            
-            # Get dependency outputs
-            dep_outputs = {
-                dep: ctx.step_outputs[dep]
-                for dep in step.depends_on
-                if dep in ctx.step_outputs
-            }
-            
-            # Check cache
-            should_rerun = (
-                step_name in force_rerun
-                or self.cache_manager.should_rerun(step, dep_outputs, self.output_dir)
-            )
-            
-            if should_rerun:
-                steps_to_rerun.append(step_name)
-            else:
-                steps_cached.append(step_name)
-        
-        # Build execution plan
-        execution_layers = self.resolver.get_execution_layers(steps)
-        
-        plan = ExecutionPlan(
-            execution_order=execution_order,
-            steps_to_rerun=steps_to_rerun,
-            steps_cached=steps_cached,
-            execution_layers=execution_layers,
-        )
-        
-        # Log plan
-        logger.info(plan.summary())
-        
-        if self.progress:
-            n_total = len(execution_order)
-            n_run = len(steps_to_rerun)
-            n_cached = len(steps_cached)
-            print(f"\nPipeline: {n_total} steps ({n_run} to run, {n_cached} cached)")
-            if steps_cached:
-                print(f"  cached: {compact_step_names(steps_cached)}")
-            if steps_to_rerun:
-                print(f"  to run: {compact_step_names(steps_to_rerun)}")
-            print()
-        
-        if dry_run:
-            # Propagate dry_run flag into every step's config so each step
-            # performs safe/stdout-only output instead of real I/O.
-            for step in self.pipeline.steps:
-                step.config["dry_run"] = True
-            logger.info("[dry-run] Injected dry_run=True into all %d step configs", len(self.pipeline.steps))
-        
-        # Execute steps
-        executed_steps = []
-        failed_steps = []
 
-        # Restore cached steps: iterate the step's declared output_artifacts and
-        # load each one from disk.  Steps that produced no serialized artifacts
-        # (output_artifacts == []) cannot be resumed and are demoted to rerun.
-        for step_name in list(steps_cached):
-            step = self.pipeline.get_step(step_name)
-            if step is None:
-                continue
-            artifacts = step.output_artifacts
-            if not artifacts:
-                logger.info("Step '%s' declares no output_artifacts — will re-run", step_name)
-                steps_cached.remove(step_name)
-                steps_to_rerun.append(step_name)
-                continue
-            data: dict = {}
-            files: list = []
-            failed = False
-            for data_key, artifact in artifacts:
-                # Prefer a pre-resolved path attached by the step; fall back to
-                # ctx-based resolution so the step doesn't need to know output_dir.
-                path = getattr(artifact, "_resolved_path", None)
-                if path is None:
-                    path = artifact.resolve_path(ctx)
-                value = artifact.load(path)
-                if value is None:
-                    logger.info(
-                        "Step '%s': artifact '%s' not found at %s — will re-run",
-                        step_name, data_key, path,
-                    )
-                    failed = True
-                    break
-                data[data_key] = value
-                if path.exists():
-                    files.append(path)
-            if failed:
-                steps_cached.remove(step_name)
-                steps_to_rerun.append(step_name)
-            else:
-                from mas.lab.benchmark.pipeline import StepOutput as _SO
-                ctx.step_outputs[step_name] = _SO(
-                    data=data, files=files, metadata={"cached": True}
-                )
-                logger.info("Step '%s' restored from %d artifact(s)", step_name, len(artifacts))
+        listeners: list[Callable[[], None]] = []
+        try:
+            from mas.runtime.boundary.obs.event_stream import get_event_stream
 
-        type_totals: Dict[str, int] = {}
-        for step_name in steps_to_rerun:
-            step = self.pipeline.get_step(step_name)
-            if step is None:
-                continue
-            n_inst = len((step.config or {}).get("_batch_instances") or []) or 1
-            type_totals[step.type] = type_totals.get(step.type, 0) + n_inst
-        type_progress = _TypeProgress(self.progress, type_totals)
-
-        if parallel:
-            # Execute by layers (parallel within layer)
-            for layer in execution_layers:
-                layer_steps = [s for s in layer if s in steps_to_rerun]
-                if not layer_steps:
-                    continue
-                
-                # Execute layer in parallel
-                tasks = [
-                    self._execute_step(step_name, ctx)
-                    for step_name in layer_steps
-                ]
-                
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                
-                for step_name, result in zip(layer_steps, results):
-                    if isinstance(result, Exception):
-                        logger.error(f"Step '{step_name}' failed: {result}")
-                        failed_steps.append(step_name)
-                    else:
-                        executed_steps.append(step_name)
-                        step = self.pipeline.get_step(step_name)
-                        out = ctx.step_outputs.get(step_name)
-                        n_inst = len((step.config or {}).get("_batch_instances") or []) or 1
-                        type_progress.tick(
-                            step.type if step else step_name,
-                            n=n_inst,
-                            files=list(out.files or []) if out else [],
-                        )
-        else:
-            # Sequential execution — continue past independent failures
+            stream = get_event_stream()
+        except Exception:
+            stream = None
+        if stream is not None:
             for step_name in execution_order:
-                if step_name not in steps_to_rerun:
-                    continue
-                
-                # Skip only if a direct dependency already failed
-                _step = self.pipeline.get_step(step_name)
-                _dep_failed = _step is not None and any(
-                    dep in failed_steps for dep in (_step.depends_on or [])
-                )
-                if _dep_failed:
-                    _failed_deps = [d for d in _step.depends_on if d in failed_steps]
-                    logger.warning(
-                        "Skipping '%s': dependency failed (%s)",
-                        step_name, _failed_deps,
+                step = self.pipeline.get_step(step_name)
+                if getattr(step, "streaming", False):
+                    listeners.append(
+                        stream.subscribe(lambda ev, s=step, c=ctx: s.on_event(ev, c))
                     )
-                    failed_steps.append(step_name)
+
+        try:
+            # Determine which steps need to rerun
+            steps_to_rerun = []
+            steps_cached = []
+
+            for step_name in execution_order:
+                step = self.pipeline.get_step(step_name)
+
+                # Get dependency outputs
+                dep_outputs = {
+                    dep: ctx.step_outputs[dep]
+                    for dep in step.depends_on
+                    if dep in ctx.step_outputs
+                }
+
+                # Check cache
+                should_rerun = (
+                    step_name in force_rerun
+                    or self.cache_manager.should_rerun(step, dep_outputs, self.output_dir)
+                )
+
+                if should_rerun:
+                    steps_to_rerun.append(step_name)
+                else:
+                    steps_cached.append(step_name)
+
+            # Build execution plan
+            execution_layers = self.resolver.get_execution_layers(steps)
+
+            plan = ExecutionPlan(
+                execution_order=execution_order,
+                steps_to_rerun=steps_to_rerun,
+                steps_cached=steps_cached,
+                execution_layers=execution_layers,
+            )
+
+            # Log plan
+            logger.info(plan.summary())
+
+            if self.progress:
+                n_total = len(execution_order)
+                n_run = len(steps_to_rerun)
+                n_cached = len(steps_cached)
+                print(f"\nPipeline: {n_total} steps ({n_run} to run, {n_cached} cached)")
+                if steps_cached:
+                    print(f"  cached: {compact_step_names(steps_cached)}")
+                if steps_to_rerun:
+                    print(f"  to run: {compact_step_names(steps_to_rerun)}")
+                print()
+
+            if dry_run:
+                # Propagate dry_run flag into every step's config so each step
+                # performs safe/stdout-only output instead of real I/O.
+                for step in self.pipeline.steps:
+                    step.config["dry_run"] = True
+                logger.info("[dry-run] Injected dry_run=True into all %d step configs", len(self.pipeline.steps))
+
+            # Execute steps
+            executed_steps = []
+            failed_steps = []
+
+            # Restore cached steps: iterate the step's declared output_artifacts and
+            # load each one from disk.  Steps that produced no serialized artifacts
+            # (output_artifacts == []) cannot be resumed and are demoted to rerun.
+            for step_name in list(steps_cached):
+                step = self.pipeline.get_step(step_name)
+                if step is None:
                     continue
-                
+                artifacts = step.output_artifacts
+                if not artifacts:
+                    logger.info("Step '%s' declares no output_artifacts — will re-run", step_name)
+                    steps_cached.remove(step_name)
+                    steps_to_rerun.append(step_name)
+                    continue
+                data: dict = {}
+                files: list = []
+                failed = False
+                for data_key, artifact in artifacts:
+                    # Prefer a pre-resolved path attached by the step; fall back to
+                    # ctx-based resolution so the step doesn't need to know output_dir.
+                    path = getattr(artifact, "_resolved_path", None)
+                    if path is None:
+                        path = artifact.resolve_path(ctx)
+                    value = artifact.load(path)
+                    if value is None:
+                        logger.info(
+                            "Step '%s': artifact '%s' not found at %s — will re-run",
+                            step_name, data_key, path,
+                        )
+                        failed = True
+                        break
+                    data[data_key] = value
+                    if path.exists():
+                        files.append(path)
+                if failed:
+                    steps_cached.remove(step_name)
+                    steps_to_rerun.append(step_name)
+                else:
+                    from mas.lab.benchmark.pipeline import StepOutput as _SO
+                    ctx.step_outputs[step_name] = _SO(
+                        data=data, files=files, metadata={"cached": True}
+                    )
+                    logger.info("Step '%s' restored from %d artifact(s)", step_name, len(artifacts))
+
+            type_totals: Dict[str, int] = {}
+            for step_name in steps_to_rerun:
+                step = self.pipeline.get_step(step_name)
+                if step is None:
+                    continue
+                n_inst = len((step.config or {}).get("_batch_instances") or []) or 1
+                type_totals[step.type] = type_totals.get(step.type, 0) + n_inst
+            type_progress = _TypeProgress(self.progress, type_totals)
+
+            if parallel:
+                # Execute by layers (parallel within layer)
+                for layer in execution_layers:
+                    layer_steps = [s for s in layer if s in steps_to_rerun]
+                    if not layer_steps:
+                        continue
+
+                    # Execute layer in parallel
+                    tasks = [
+                        self._execute_step(step_name, ctx)
+                        for step_name in layer_steps
+                    ]
+
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                    for step_name, result in zip(layer_steps, results):
+                        if isinstance(result, Exception):
+                            logger.error(f"Step '{step_name}' failed: {result}")
+                            failed_steps.append(step_name)
+                        else:
+                            executed_steps.append(step_name)
+                            step = self.pipeline.get_step(step_name)
+                            out = ctx.step_outputs.get(step_name)
+                            n_inst = len((step.config or {}).get("_batch_instances") or []) or 1
+                            type_progress.tick(
+                                step.type if step else step_name,
+                                n=n_inst,
+                                files=list(out.files or []) if out else [],
+                            )
+            else:
+                # Sequential execution — continue past independent failures
+                for step_name in execution_order:
+                    if step_name not in steps_to_rerun:
+                        continue
+
+                    # Skip only if a direct dependency already failed
+                    _step = self.pipeline.get_step(step_name)
+                    _dep_failed = _step is not None and any(
+                        dep in failed_steps for dep in (_step.depends_on or [])
+                    )
+                    if _dep_failed:
+                        _failed_deps = [d for d in _step.depends_on if d in failed_steps]
+                        logger.warning(
+                            "Skipping '%s': dependency failed (%s)",
+                            step_name, _failed_deps,
+                        )
+                        failed_steps.append(step_name)
+                        continue
+
+                    try:
+                        await self._execute_step(step_name, ctx, progress=type_progress)
+                        executed_steps.append(step_name)
+                    except Exception as e:
+                        # Fatal errors (missing API key, authentication failure) must
+                        # propagate immediately rather than being recorded as a soft
+                        # step failure.
+                        _err = str(e)
+                        if (
+                            "AuthenticationError" in type(e).__name__
+                            or "Incorrect API key" in _err
+                            or "invalid_api_key" in _err
+                            or "is not set" in _err
+                            or ("401" in _err and "api" in _err.lower())
+                        ):
+                            raise
+                        logger.error(f"Step '{step_name}' failed: {e}")
+                        failed_steps.append(step_name)
+
+            duration_ms = (datetime.now() - start_time).total_seconds() * 1000
+            type_progress.close()
+
+            result = ExecutionResult(
+                success=len(failed_steps) == 0,
+                executed_steps=executed_steps,
+                failed_steps=failed_steps,
+                step_outputs=ctx.step_outputs,
+                duration_ms=duration_ms,
+                step_timings=list(type_progress.timings),
+                artifacts=dict(type_progress.artifacts),
+            )
+
+            logger.info(result.summary())
+            return result
+        finally:
+            for unsubscribe in listeners:
                 try:
-                    await self._execute_step(step_name, ctx, progress=type_progress)
-                    executed_steps.append(step_name)
-                except Exception as e:
-                    # Fatal errors (missing API key, authentication failure) must
-                    # propagate immediately rather than being recorded as a soft
-                    # step failure.
-                    _err = str(e)
-                    if (
-                        "AuthenticationError" in type(e).__name__
-                        or "Incorrect API key" in _err
-                        or "invalid_api_key" in _err
-                        or "is not set" in _err
-                        or ("401" in _err and "api" in _err.lower())
-                    ):
-                        raise
-                    logger.error(f"Step '{step_name}' failed: {e}")
-                    failed_steps.append(step_name)
-        
-        duration_ms = (datetime.now() - start_time).total_seconds() * 1000
-        type_progress.close()
-        
-        result = ExecutionResult(
-            success=len(failed_steps) == 0,
-            executed_steps=executed_steps,
-            failed_steps=failed_steps,
-            step_outputs=ctx.step_outputs,
-            duration_ms=duration_ms,
-            step_timings=list(type_progress.timings),
-            artifacts=dict(type_progress.artifacts),
-        )
-        
-        logger.info(result.summary())
-        
-        return result
+                    unsubscribe()
+                except Exception:
+                    logger.warning("pipeline listener unsubscribe failed", exc_info=True)
 
     async def _execute_batched(
         self,

@@ -692,6 +692,10 @@ $defs:
         items:
           type: string
         description: "Names of upstream steps that must complete first."
+      streaming:
+        type: boolean
+        default: false
+        description: "If true, call on_event for live MAS telemetry; execute still finalizes artefacts."
       config:
         type: object
         additionalProperties: true

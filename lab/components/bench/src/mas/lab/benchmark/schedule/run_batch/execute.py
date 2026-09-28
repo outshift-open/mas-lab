@@ -315,6 +315,14 @@ async def execute_batch(
             try:
                 def _do_mas_run() -> dict:
                     from mas.lab.runners.infer import infer_runner_id
+                    from mas.runtime.boundary.obs.event_stream import (
+                        EventStream,
+                        reset_event_stream,
+                        set_event_stream,
+                    )
+
+                    _stream = EventStream()
+                    _token = set_event_stream(_stream)
 
                     _runner_id = infer_runner_id(
                         execution_runner=(
@@ -352,13 +360,16 @@ async def execute_batch(
                             "experiment_model_slots": getattr(exp, "model_slots", None),
                         },
                     )
-                    result = invoke_runner(ctx)
-                    return {
-                        "content": result.content,
-                        "status": result.status,
-                        "usage": result.metadata.get("usage", {}),
-                        "agent_id": result.metadata.get("agent_id", ""),
-                    }
+                    try:
+                        result = invoke_runner(ctx)
+                        return {
+                            "content": result.content,
+                            "status": result.status,
+                            "usage": result.metadata.get("usage", {}),
+                            "agent_id": result.metadata.get("agent_id", ""),
+                        }
+                    finally:
+                        reset_event_stream(_token)
 
                 result_dict = await asyncio.to_thread(_do_mas_run)
                 output = result_dict.get("content", str(result_dict))
