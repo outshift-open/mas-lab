@@ -127,6 +127,7 @@ class ObsEnvelopeMachine:
                             usage=ev.usage,
                             finish_reason=ev.finish_reason,
                             tools=getattr(ev, "offered_tools", None),
+                            model=getattr(ev, "model", "") or "",
                         )
         elif symbol == EnvelopeSymbol.CONTRACT_EXECUTE:
             payload["tool_name"] = str(ctx.tool_name or ctx.scheduled_op or ctx.operation or "tool")
