@@ -76,6 +76,10 @@ class ExchangeRecord:
     tools_note: str = ""
     engine_raw: str = ""
     policy_name: str | None = None
+    # Set on user_in/user_out when this exchange is actually a delegated turn
+    # (a peer agent, not the human user, is the real other end) -- see
+    # KernelDriver.caller_agent_id. None means the plain USER/AGENT boundary.
+    caller_agent_id: str | None = None
 
 
 def engine_model_id(engine: Any) -> str:
@@ -253,6 +257,10 @@ class KernelDriver:
     coordination: ChokepointCoordinator | None = field(default_factory=ChokepointCoordinator)
     max_auto_steps: int = DEFAULT_MAX_AUTO_STEPS
     agent_id: str = "agent"
+    # When this driver is running a delegated turn, the specialist's final
+    # text goes back to this caller — not to the user. Empty means this
+    # agent is the MAS entry and EmitClientResponse is AGENT->USER.
+    caller_agent_id: str = ""
     # Read-only, additive subscribers for the driver's own display-oriented
     # exchange log (see ExchangeRecord/ExchangePlugin) — mirrors
     # ObservabilityOperator._subscribers: subscribe_exchange()/
@@ -351,7 +359,12 @@ class KernelDriver:
                         upstream_correlation_id=self._upstream_correlation_id,
                     )
                 if self.ctx is not None:
+                    # Emit USER->AGENT exchange for trace visibility -- unless
+                    # this is a delegated turn, in which case it is really
+                    # from the caller agent, not the user.
                     ts_mono, ts_wall = _exchange_timestamp()
+                    caller = str(self.caller_agent_id or "").strip()
+                    is_delegated = bool(caller) and caller != str(self.agent_id or "").strip()
                     self._emit_exchange(
                         trace,
                         ExchangeRecord(
@@ -360,6 +373,7 @@ class KernelDriver:
                             ts_mono=ts_mono,
                             ts_wall=ts_wall,
                             agent_id=self.agent_id,
+                            caller_agent_id=caller if is_delegated else None,
                         ),
                     )
                     note = getattr(self.ctx, "note_user_input", None)
@@ -461,6 +475,8 @@ class KernelDriver:
         if sym.kind == EgressKind.EMIT_CLIENT_RESPONSE:
             assert isinstance(sym, EmitClientResponse)
             ts_mono, ts_wall = _exchange_timestamp()
+            caller = str(self.caller_agent_id or "").strip()
+            is_delegated = bool(caller) and caller != str(self.agent_id or "").strip()
             self._emit_exchange(
                 trace,
                 ExchangeRecord(
@@ -470,6 +486,7 @@ class KernelDriver:
                     ts_mono=ts_mono,
                     ts_wall=ts_wall,
                     agent_id=self.agent_id,
+                    caller_agent_id=caller if is_delegated else None,
                 ),
             )
             trace.client_responses.append(sym)

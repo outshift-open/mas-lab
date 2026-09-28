@@ -23,17 +23,16 @@ def _apply_overlay_workflow(overlay_spec: dict, config: dict) -> None:
 
 def _resolved_overlay_agents(overlay_spec: dict, config: dict) -> dict:
     """Resolve ``patch.agents.$entry`` against the merged workflow entry."""
-    from mas.ctl.overlay.merge import _ENTRY_AGENT_KEY, _resolve_mas_agent_patches
+    from mas.ctl.overlay.merge import _resolve_mas_agent_patches
 
     raw = overlay_spec.get("agents")
     if not isinstance(raw, dict) or raw.get("$op") is not None:
         return raw if isinstance(raw, dict) else {}
-    if _ENTRY_AGENT_KEY not in raw:
-        return raw
-    entry = str((config.get("workflow") or {}).get("entry") or "").strip()
-    if not entry:
-        entry = str((config.get("mas") or {}).get("entry_agent") or "").strip()
-    return _resolve_mas_agent_patches(raw, entry=entry)
+    workflow = dict(config.get("workflow") or {})
+    if not workflow.get("entry"):
+        workflow["entry"] = str((config.get("mas") or {}).get("entry_agent") or "").strip()
+    spec = {"workflow": workflow, "agency": {"agents": config.get("agents") or []}}
+    return _resolve_mas_agent_patches(raw, spec)
 
 
 def _apply_overlay_plugin_list(

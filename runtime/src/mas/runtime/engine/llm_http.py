@@ -8,6 +8,7 @@ import logging
 import os
 import ssl
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -118,35 +119,21 @@ def classify_llm_http_error(exc: BaseException) -> str:
     """Map transport/HTTP failures to a short, actionable operator message."""
     import httpx
 
-    def _is_ssl_failure(err: BaseException) -> bool:
-        if isinstance(err, ssl.SSLCertVerificationError):
-            return True
-        if isinstance(err, ssl.SSLError):
-            return True
-        text = str(err)
-        return any(
-            m in text
-            for m in (
-                "CERTIFICATE_VERIFY_FAILED",
-                "certificate verify failed",
-                "SSL: CERTIFICATE",
-            )
-        )
-
-    if _is_ssl_failure(exc):
-        is_ssl = True
-    elif isinstance(exc, httpx.ConnectError) and exc.__cause__ is not None:
-        is_ssl = _is_ssl_failure(exc.__cause__)
-    else:
-        is_ssl = False
-
-    if is_ssl:
+    if is_tls_verify_failure(exc):
         return (
             "LLM request failed: TLS certificate verification failed. "
             "Use the repo .venv (`task install-dev`, `direnv allow`). "
             "For corporate proxies set SSL_CERT_FILE or spec.infra llm_proxy.ca_bundle. "
             f"On macOS CPython you may also { _macos_install_certificates_hint()}. "
             "Dev-only escape hatch: MAS_LLM_VERIFY_SSL=0."
+        )
+
+    if isinstance(exc, ssl.SSLError) or any(
+        marker in str(exc) for marker in _TRANSIENT_MARKERS
+    ):
+        return (
+            "LLM request failed: TLS/connection dropped "
+            f"({exc}). This is a transient socket error, not a certificate failure."
         )
 
     if isinstance(exc, httpx.ConnectError):
@@ -184,3 +171,116 @@ def classify_llm_http_error(exc: BaseException) -> str:
         return f"LLM request failed: HTTP {status}{detail_hint}"
 
     return f"LLM request failed: {exc}"
+
+
+_RETRYABLE_STATUS = frozenset({429, 502, 503, 504})
+_TRANSIENT_MARKERS = (
+    "UNEXPECTED_EOF",
+    "UNEXPECTED_EOF_WHILE_READING",
+    "Connection reset",
+    "Connection aborted",
+    "ECONNRESET",
+    "Server disconnected",
+    "Remote end closed connection",
+    "broken pipe",
+)
+
+
+def _iter_exception_chain(exc: BaseException) -> list[BaseException]:
+    seen: list[BaseException] = []
+    current: BaseException | None = exc
+    while current is not None and current not in seen:
+        seen.append(current)
+        current = current.__cause__ or current.__context__
+    return seen
+
+
+def is_tls_verify_failure(exc: BaseException) -> bool:
+    """True only for certificate verification failures, not dropped TLS sockets."""
+    for err in _iter_exception_chain(exc):
+        if isinstance(err, ssl.SSLCertVerificationError):
+            return True
+        text = str(err)
+        if any(
+            marker in text
+            for marker in (
+                "CERTIFICATE_VERIFY_FAILED",
+                "certificate verify failed",
+                "SSL: CERTIFICATE",
+            )
+        ):
+            return True
+    return False
+
+
+def is_retryable_llm_http_error(exc: BaseException) -> bool:
+    """Transient transport / overload errors that a second POST can recover from.
+
+    Certificate verification failures are never retried — they will not heal
+    without a config change.
+    """
+    import httpx
+
+    if is_tls_verify_failure(exc):
+        return False
+    if isinstance(
+        exc,
+        (
+            httpx.ConnectError,
+            httpx.TimeoutException,
+            httpx.RemoteProtocolError,
+            httpx.ReadError,
+            httpx.WriteError,
+            httpx.PoolTimeout,
+        ),
+    ):
+        return True
+    if isinstance(exc, ssl.SSLError):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in _RETRYABLE_STATUS
+    text = str(exc)
+    return any(marker in text for marker in _TRANSIENT_MARKERS)
+
+
+def _retry_budget() -> tuple[int, float]:
+    retries = int(os.environ.get("MAS_LLM_HTTP_RETRIES", "3") or "3")
+    backoff = float(os.environ.get("MAS_LLM_HTTP_RETRY_BACKOFF", "0.5") or "0.5")
+    return max(0, retries), max(0.05, backoff)
+
+
+def request_with_retries(client: Any, method: str, url: str, **kwargs: Any) -> Any:
+    """POST/GET with retries on dropped TLS sockets, timeouts, and 429/5xx."""
+    retries, backoff = _retry_budget()
+    last_exc: BaseException | None = None
+    for attempt in range(retries + 1):
+        try:
+            resp = client.request(method, url, **kwargs)
+            if resp.status_code in _RETRYABLE_STATUS and attempt < retries:
+                logger.warning(
+                    "LLM HTTP %s %s → %s; retry %s/%s",
+                    method,
+                    url,
+                    resp.status_code,
+                    attempt + 1,
+                    retries,
+                )
+                time.sleep(backoff * (2**attempt))
+                continue
+            return resp
+        except Exception as exc:
+            last_exc = exc
+            if attempt >= retries or not is_retryable_llm_http_error(exc):
+                raise
+            logger.warning(
+                "LLM HTTP %s %s failed (%s); retry %s/%s",
+                method,
+                url,
+                exc,
+                attempt + 1,
+                retries,
+            )
+            time.sleep(backoff * (2**attempt))
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("LLM HTTP retry exhausted")

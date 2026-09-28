@@ -184,6 +184,7 @@ class NativeSkillPlugin(SkillPlugin):
         args: list[str] | None = None,
         timeout: int = 30,
         env_extra: dict[str, str] | None = None,
+        stdin: str = "",
     ) -> dict[str, Any]:
         """Execute a script via sandbox.run_script() (POSIX rlimit)."""
         entry = self._entry(skill_name)
@@ -200,6 +201,12 @@ class NativeSkillPlugin(SkillPlugin):
             cwd=self.get_working_dir(),  # session-scoped; state files persist across calls
             timeout=timeout,
             env_extra=env_extra or {},
+            # Always pass stdin through, even "" -- sandbox.run_script feeds
+            # it as subprocess.run's input=, closing stdin with an immediate
+            # EOF. Passing None here instead would let the child inherit this
+            # process's own stdin, which never produces data or EOF and would
+            # hang any script that reads stdin until the timeout.
+            stdin=stdin,
         )
         return {
             "exit_code": result.exit_code,

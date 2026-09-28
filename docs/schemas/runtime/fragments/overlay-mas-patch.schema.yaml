@@ -44,6 +44,16 @@ properties:
               workflow patch) without hardcoding the agency id. Specialists are
               untouched.
             $ref: "./agent-patch.schema.yaml"
+          $all:
+            description: Patch every agent in spec.agency.agents.
+            $ref: "./agent-patch.schema.yaml"
+          $not-entry:
+            description: Patch every agency agent except spec.workflow.entry.
+            $ref: "./agent-patch.schema.yaml"
+          $delegates:
+            description: >
+              Patch agents listed on workflow.nodes[entry].delegates_to.
+            $ref: "./agent-patch.schema.yaml"
         additionalProperties:
           oneOf:
             # A MAS overlay may patch an agent through its wrapped `spec`

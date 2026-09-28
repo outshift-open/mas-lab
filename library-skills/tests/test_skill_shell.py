@@ -56,6 +56,22 @@ def test_run_python_script_success(tmp_path: Path):
     assert "hello" in result["stdout"]
 
 
+def test_run_python_script_with_stdin(tmp_path: Path):
+    reg = _registry_with_scripts(tmp_path)
+    scripts_dir = tmp_path / "my-skill" / "scripts"
+    (scripts_dir / "echo_stdin.py").write_text(
+        "import sys\nprint(sys.stdin.read(), end='')\n", encoding="utf-8"
+    )
+    plugin = RunSkillScriptPlugin()
+    result = plugin.on_execute_tool(
+        "run_skill_script",
+        {"skill": "my-skill", "script": "echo_stdin.py", "stdin": "raw_reject: 15\n"},
+        ctx=_FakeCtx(reg),
+    )
+    assert result["ok"] is True
+    assert "raw_reject: 15" in result["stdout"]
+
+
 def test_run_python_script_with_args(tmp_path: Path):
     reg = _registry_with_scripts(tmp_path)
     plugin = RunSkillScriptPlugin()
@@ -250,6 +266,7 @@ def test_list_tools_schema():
     assert "args" in params["properties"]
     assert "timeout" in params["properties"]
     assert "env" in params["properties"]   # extra env support
+    assert "stdin" in params["properties"]
     assert set(params["required"]) == {"skill", "script"}
     assert tools[0]["semantics"] == {
         "concept": "skill",

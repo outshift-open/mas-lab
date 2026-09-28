@@ -244,14 +244,11 @@ def _fake_materialized_for_send(agent_ids: list[str]) -> SimpleNamespace:
 
 def test_send_gives_each_delegation_invocation_a_unique_turn_id():
     """Regression: repeated delegation to the SAME agent within one turn used
-    to always resolve to turn_id="u1" (a fresh SessionController is created on
-    every send() call, so its internal turn counter always starts at 0),
-    making RuntimeInstance.run_user_text mint the IDENTICAL exec_id
-    f"{agent_id}-u1-exec" for every invocation — so two calls to
-    schedule_agent could never be told apart from their own children's
-    parent_call_id alone. caller_call_id (already a real, globally-unique id
-    per delegation invocation) must now be reused as turn_id, making exec_id
-    unique per call."""
+    to always resolve to turn_id="u1" when turn_id was omitted. caller_call_id
+    (already a real, globally-unique id per delegation invocation) is reused
+    as turn_id, making exec_id unique per call even when the SessionController
+    is reused so trace plugins do not stack.
+    """
     materialized = _fake_materialized_for_send(["moderator", "schedule_agent"])
     captured_turn_ids: list[str] = []
 
@@ -273,6 +270,43 @@ def test_send_gives_each_delegation_invocation_a_unique_turn_id():
     assert len(captured_turn_ids) == 3
     assert len(set(captured_turn_ids)) == 3, captured_turn_ids
     assert captured_turn_ids == ["deleg-call-aaa", "deleg-call-bbb", "deleg-call-ccc"]
+
+
+def test_send_reuses_session_controller_so_trace_plugins_do_not_stack():
+    """A new SessionController per send() subscribed a fresh CliTrace plugin
+    on the reused specialist driver. Later replies printed N times with
+    different +offsets from stale turn_start_mono baselines."""
+    materialized = _fake_materialized_for_send(["moderator", "revenue_ops"])
+    constructed: list[object] = []
+    orig_init = None
+
+    from mas.ctl.session.controller import SessionController as RealController
+
+    orig_init = RealController.__init__
+
+    def _counting_init(self, *args, **kwargs):
+        constructed.append(self)
+        return orig_init(self, *args, **kwargs)
+
+    class _FakeResult:
+        text = "ok"
+        awaiting_hitl = False
+
+    def _fake_run_turn(self, prompt, *, turn_id=None, parent_call_id="", auto_hitl=True):
+        return _FakeResult()
+
+    with patch.object(RealController, "__init__", _counting_init):
+        with patch("mas.ctl.executor.mas_session.SessionController.run_turn", _fake_run_turn):
+            with patch("mas.ctl.executor.mas_session.turn_failed", return_value=False):
+                send = make_workflow_send(
+                    materialized, display=None, verbose=0, from_agent="moderator"
+                )
+                send("revenue_ops", "turn 1", caller_call_id="c1")
+                send("revenue_ops", "turn 2", caller_call_id="c2")
+                send("revenue_ops", "turn 3", caller_call_id="c3")
+
+    assert len(constructed) == 1
+    assert constructed[0].caller_agent_id == "moderator"
 
 
 def test_send_sequential_workflow_calls_without_caller_call_id_still_get_unique_turn_ids():

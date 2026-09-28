@@ -311,7 +311,11 @@ def _header_with_identities(
         if entity == "AGENT":
             label = "AGENT" if agent_name == "n/a" else f"AGENT[{agent_name}]"
         elif entity == "USER":
-            label = "USER"
+            # A delegated turn's "USER" edge is really the calling agent, not
+            # the human user (see KernelDriver.caller_agent_id) -- label it
+            # accordingly so a multi-agent trace does not misreport a peer
+            # hand-off as user input/output.
+            label = f"AGENT[{ex.caller_agent_id}]" if ex.caller_agent_id else "USER"
         elif entity == "LLM":
             label = f"LLM[{llm_name}]" if llm_name else "LLM"
         elif entity == "TOOL":

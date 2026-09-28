@@ -115,11 +115,12 @@ class SessionController:
     # a new one — session_id is global to the MAS, unlike each turn's own
     # task_id, which stays local to whichever agent runs it.
     session_id: str = ""
+    # When set, this controller is running a delegated turn. The specialist's
+    # final EmitClientResponse is logged as AGENT->AGENT[caller], not AGENT->USER.
+    caller_agent_id: str = ""
     # Overrides session_id as the WorkingMemoryRegistry key for this
-    # controller's own agent (see _working_memory_key). Empty (the default,
-    # every direct/chat controller) means "use session_id" — set explicitly
-    # by make_workflow_send for a delegated call whose LLM-supplied
-    # context_id should pick an independent bucket from the session default.
+    # controller's own agent (see _working_memory_key). Empty means use
+    # session_id. Set by make_workflow_send when a delegate supplies context_id.
     working_memory_key: str = ""
     _turn: int = 0
     _trace_turn_start: float = 0.0
@@ -361,6 +362,8 @@ class SessionController:
         )
         self._turn += 1
         tid = turn_id or f"u{self._turn}"
+        if hasattr(self.instance, "driver") and hasattr(self.instance.driver, "caller_agent_id"):
+            self.instance.driver.caller_agent_id = self.caller_agent_id
         if self.display is not None:
             self.display.on_user(text, turn_id=tid)
         on_working = getattr(self.display, "on_working", None)

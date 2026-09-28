@@ -32,7 +32,7 @@ class InformUserTool(ToolContract):
     - The tool execution layer catches the signal and routes it to a side
       channel (an external `UserIOContract`, or the shared HITL resolver
       registry as a fallback)
-    - External systems (e.g. the Webex bot) poll/consume this side channel and
+    - External clients poll/consume this side channel and
       post the message, without any user response flowing back
     - Works across delegation boundaries, same as `request_human_input`
 

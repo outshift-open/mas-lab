@@ -84,25 +84,25 @@ class DelegationResult:
 
 This allows:
 - The caller (moderator) to know a sub-agent is blocked
-- External systems (Webex bot) to detect and resolve pending HITL
+- External clients to detect and resolve pending HITL
 - The resolution to flow back via `submit_hitl()` on the correct agent
 
-### 4. Webex Bot Integration
+### 4. External Client Integration
 
-The Webex bot becomes the HITL resolver:
+An external client can act as the HITL resolver:
 
 ```python
-# In webex bot _handle_room_text:
+# In an external client message handler:
 result = session.ask(text)
 if result.awaiting_hitl and result.hitl_request:
-    # Post question via the correct agent bot
+    # Post the question through the client UI
     agent_key = extract_agent_from_context(result.hitl_request)
     agent_bot = self._agent_identities[agent_key]
-    agent_bot.post_adaptive_card(room_id, build_hitl_card(result.hitl_request))
-    # Wait for user response via attachment action
-    # (handled in _handle_attachment_action)
+    client.post_interactive_prompt(room_id, build_hitl_prompt(result.hitl_request))
+    # Wait for the user's response through the client UI
+    # (handled in the client's action handler)
 
-# In _handle_attachment_action:
+# In the client's action handler:
 choice = inputs["hitl_choice"]
 steering = inputs.get("hitl_steering", "")
 result = session.resolve_hitl(choice, steering)
@@ -116,7 +116,7 @@ result = session.resolve_hitl(choice, steering)
 3. Wire system tool into `ManifestToolProvider` or equivalent
 4. Modify `mas_session.py::send()` to handle `awaiting_hitl` return
 5. Add shared `HitlResolver` registry for cross-agent HITL
-6. Update Webex bot to use side-channel resolution
+6. Update the external client to use side-channel resolution
 7. Test: finance_agent calls `request_human_input` during delegation
 
 ## Benefits

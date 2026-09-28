@@ -587,7 +587,17 @@ class _SystemToolHitlWrapper(_SystemToolWrapperBase):
                     f"(session={session_id}, correlation_id={correlation_id}): "
                     f"question={signal.question!r} choice={self._auto_resolve_decision!r}"
                 )
-                return {"choice": self._auto_resolve_decision, "steering": ""}
+                # Shape must match RegistryHitlContract.request_approval()'s
+                # return exactly: this dict is returned verbatim as the tool's
+                # result and embedded in conversation history, so any
+                # difference changes the llm_cache key for every subsequent
+                # LLM_CALL.
+                return {
+                    "choice": self._auto_resolve_decision,
+                    "steering": "",
+                    "question": signal.question,
+                    "resolved": True,
+                }
 
             timeout_seconds = signal.timeout if signal.timeout is not None else self._default_timeout_seconds
             logger.info(
