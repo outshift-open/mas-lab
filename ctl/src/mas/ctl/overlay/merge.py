@@ -724,22 +724,11 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
                         f"patch.agents.$entry resolved to {agent_id!r}, which is not in spec.agency.agents"
                     )
                 continue
-            # A ref-based agency entry (the common case: {id, ref}, no inline
-            # spec) has no real agent content here yet -- that only exists in
-            # the file `ref` points to, loaded later by _load_mas_agents /
-            # apply_agency_entry_overlay (mas_agent_merge.py). Fully resolving
-            # context.$op (e.g. $op.add) against this entry's empty spec would
-            # consume the $op wrapper against nothing, so by the time the real
-            # base is loaded there's nothing left to append onto -- the base
-            # context is silently dropped. apply_agency_entry_overlay already
-            # merges `context` correctly against the real loaded spec via
-            # merge_context_map, so for ref-based entries hand it the raw,
-            # unresolved context patch instead of pre-merging it here.
-            # Check "ref" presence, not spec-dict emptiness: a ref-based entry
-            # accumulates a populated `spec` dict here across successive
-            # overlay applications (this function runs once per overlay), so
-            # "spec already has content" is not a reliable inline-vs-ref
-            # signal once more than one overlay has touched this agent.
+            # Ref-based entries have no real content here yet (it lives in the
+            # ref'd file, loaded later by apply_agency_entry_overlay) -- hand
+            # context through raw rather than pre-merging $op.add against an
+            # empty spec, or the base gets silently dropped. Check "ref", not
+            # spec emptiness: spec fills in here after the first overlay.
             is_ref_based = "ref" in target and str(target.get("kind") or "").lower() != "agent"
             if "ref" in per_agent:
                 target["ref"] = deepcopy(per_agent["ref"])
