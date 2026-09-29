@@ -90,6 +90,8 @@ class EngineIoReturn(BaseModel):
     # Names sent as the OpenAI ``tools`` array for this LLM call.
     # None means the engine did not record them (budget stop, non-LLM return).
     offered_tools: list[str] | None = None
+    # Resolved LiteLLM id actually dispatched. Empty for non-LLM returns.
+    model: str = ""
 
 
 class CtxAssemblyComplete(BaseModel):

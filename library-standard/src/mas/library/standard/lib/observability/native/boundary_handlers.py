@@ -117,6 +117,9 @@ def _boundary_engine_io_return(
         finish_reason = payload.get("finish_reason")
         if finish_reason:
             rec["finish_reason"] = finish_reason
+        model = payload.get("model")
+        if model:
+            rec["model"] = model
         if isinstance(payload.get("tools"), list):
             rec["tools"] = list(payload["tools"])
         out.append(_with_parent(rec, record, ctx))
