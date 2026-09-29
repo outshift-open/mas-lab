@@ -724,13 +724,27 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
                         f"patch.agents.$entry resolved to {agent_id!r}, which is not in spec.agency.agents"
                     )
                 continue
+            # Ref-based entries have no real content here yet (it lives in the
+            # ref'd file, loaded later by apply_agency_entry_overlay) -- hand
+            # context through raw rather than pre-merging $op.add against an
+            # empty spec, or the base gets silently dropped. Check "ref", not
+            # spec emptiness: spec fills in here after the first overlay.
+            is_ref_based = "ref" in target and str(target.get("kind") or "").lower() != "agent"
             if "ref" in per_agent:
                 target["ref"] = deepcopy(per_agent["ref"])
             agent_spec = target.setdefault("spec", {})
-            per_agent_overlay = {"spec": {"patch": deepcopy(per_agent)}}
+            raw_context = per_agent.get("context") if is_ref_based else None
+            per_agent_for_merge = (
+                {k: v for k, v in per_agent.items() if k != "context"}
+                if raw_context is not None
+                else per_agent
+            )
+            per_agent_overlay = {"spec": {"patch": deepcopy(per_agent_for_merge)}}
             merged_agent = merge_agent_overlay({"spec": deepcopy(agent_spec)}, per_agent_overlay)
             agent_spec.clear()
             agent_spec.update(merged_agent.get("spec", {}))
+            if raw_context is not None:
+                agent_spec["context"] = deepcopy(raw_context)
 
     if patch.get("agents_remove"):
         rm_values = _merge_value_by_meta(
