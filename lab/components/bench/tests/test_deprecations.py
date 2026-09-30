@@ -76,6 +76,24 @@ def test_incident_fixture_warns(tmp_path: Path, caplog) -> None:
     assert "dataset.incident_fixture" in caplog.text
 
 
+def test_incident_fixture_retains_source_reference(tmp_path: Path) -> None:
+    (tmp_path / "scene.yaml").write_text("services: {}\n", encoding="utf-8")
+
+    run = load_run_input(
+        {
+            "id": "x",
+            "inputs": {
+                "user": "Q",
+                "tool_fixtures": {"incident_fixture": "scene.yaml"},
+            },
+        },
+        base_path=tmp_path,
+    )
+
+    assert run.tool_fixtures == {"services": {}}
+    assert run.tool_fixture_ref == "scene.yaml"
+
+
 def test_bare_list_dataset_warns(tmp_path: Path, caplog) -> None:
     path = tmp_path / "queries.yaml"
     yaml.dump([{"id": "q1", "prompt": "Q1"}], path.open("w"))

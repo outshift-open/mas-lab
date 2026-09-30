@@ -45,8 +45,8 @@ field does. **Equivalent** is the object `mas-ctl compile` writes. Bindings:
 | `working_memory.compaction` | *(unset)* | Sugar for `context_manager` (LLM view + stored-log cap). Ignored if `context_manager` is set. |
 | `memory` | flavour | Shorthand `semantic` or full `types` / `persistence` / `search` object. |
 | `memory_seed` | `[]` | Documents indexed at startup. |
-| `skills` | `[]` | Skill names or `@library/name`. |
-| `tools` | `[]` | Semantic name, `{ref}`, `{kind: system, name}`, or inline `module_path`. |
+| `skills` | `[]` | Skill names or `@library/name`. Implies `activate_skill` (and `run_skill_script` if a skill ships `scripts/`). |
+| `tools` | `[]` | Semantic name, `{ref}`, `{kind: system, name}`, or inline `module_path`. See [System tools](system-tools.md). |
 | `tools_ref` | `null` | Logical tool-set name for infra ToolRegistry. |
 | `providers` | `[]` | Tool-provider claims. Empty → local plugin owns `spec.tools`. |
 | `behavior.share_reasoning` | `false` | Optional `reasoning_context` on send_to_caller. |

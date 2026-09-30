@@ -15,8 +15,8 @@ Design incorporates the best ideas from the ADK and deepagents wrappers:
   agentskills' char-iteration bug.
 
 - **Keeps what no other implementation has**:
-  - Ancestor-dir walk via ``agentskills.Discovery`` (project → git root →
-    the user's ``.mas-lab/skills/`` directory).
+  - Ancestor-dir walk via ``agentskills.Discovery`` (project → parent
+    ``skills/`` dirs → the user's ``.mas-lab/skills/`` directory).
   - POSIX ``rlimit`` sandboxing via ``sandbox.run_script()``.
 """
 

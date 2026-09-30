@@ -332,7 +332,7 @@ class MASRunBase:
         if _is_mas_binding(mas_binding):
             mas = MASSpec.from_dict(mas_binding, base_dir)
         elif "applications" in data:
-            # applications: [{app: library-ioc:sre-triage@v2}] or "library-ioc:sre-triage@v2"
+            # applications: [{app: example-library:example-app@v2}] or "example-library:example-app@v2"
             apps_list = data["applications"]
             if isinstance(apps_list, list) and apps_list:
                 mas = MASSpec.from_dict(apps_list[0], base_dir)

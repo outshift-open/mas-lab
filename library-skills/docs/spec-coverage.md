@@ -25,7 +25,7 @@ Legend: ✅ Implemented · ⚠️ Partial · ❌ Not yet · 🔲 Out of scope
 | User-level `~/.agents/skills/` | ✅ | Included in search roots |
 | MAS Lab user-level `~/.mas/skills/` | ✅ | Included in search roots |
 | Client-specific `~/.<client>/skills/` | ❌ | Not implemented; use `.agents/skills/` |
-| Ancestor dirs up to git root (monorepo) | ✅ | `agentskills.discovery.Discovery._walk_ancestors()` walks up to and including the git root's own `skills/` dir |
+| Ancestor dirs (monorepo) | ✅ | `agentskills.discovery.Discovery._walk_ancestors()` walks parent `skills/` dirs (nearest first) up to, not including, `~`; no git required |
 | XDG config directory scan | ❌ | Not implemented |
 | Scan depth / directory bounds | ❌ | No max-depth guard (not yet needed at manifest-ref scale) |
 | Skip `.git`, `node_modules` | ❌ | Not needed at manifest-ref scale |

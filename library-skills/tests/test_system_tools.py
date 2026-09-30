@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 from mas.library.skills.plugins.system_tools import (
     should_inject_activate_skill,
@@ -92,3 +93,33 @@ def test_run_skill_script_auto_inject_flag(tmp_path: Path) -> None:
         )
         is True
     )
+
+
+def _advertised(tools_spec: list, skills: list[str], base: Path) -> set[str]:
+    from mas.library.skills.lib.registry import SkillRecord, SkillRegistry
+    from mas.runtime.engine.manifest_tool_provider import build_manifest_tool_provider
+
+    provider = build_manifest_tool_provider(tools_spec, base, skills_spec=skills, skills_dir=base)
+    registry = SkillRegistry()
+    for name in skills:
+        registry.register(SkillRecord(name=name, description="d", path=base / "skills" / name / "SKILL.md"))
+    ctx = SimpleNamespace(skill_registry=registry)
+    return {t["name"] for t in provider.list_tools(ctx=ctx)}
+
+
+def test_provider_exposes_activate_skill_without_host_opt_in(tmp_path: Path) -> None:
+    """Regression: skill tools were gated behind the user-IO system-tool opt-in."""
+    _skill(tmp_path, "plain")
+    names = _advertised([], ["plain"], tmp_path)
+    assert "activate_skill" in names
+    assert "run_skill_script" not in names
+    assert "request_human_input" not in names
+
+
+def test_provider_exposes_run_skill_script_when_skill_ships_scripts(tmp_path: Path) -> None:
+    _skill(tmp_path, "with-scripts", scripts=True)
+    assert {"activate_skill", "run_skill_script"} <= _advertised([], ["with-scripts"], tmp_path)
+
+
+def test_provider_exposes_nothing_from_skills_without_skills(tmp_path: Path) -> None:
+    assert _advertised([], [], tmp_path) == set()

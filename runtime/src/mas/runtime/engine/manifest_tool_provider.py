@@ -9,6 +9,7 @@ from ``spec.providers[]``, then dispatch by name. It does not execute tools.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Optional
 
@@ -113,7 +114,7 @@ def build_manifest_tool_provider(
     manifest_dir: Path,
     *,
     app_root: Path | None = None,
-    include_system_tools: bool = False,
+    system_tools: Iterable[str] = (),
     hitl_contract: HITLContract | None = None,
     user_io_contract: UserIOContract | None = None,
     overlay_providers: Optional[list[ToolProvider]] = None,
@@ -131,7 +132,7 @@ def build_manifest_tool_provider(
             tools_spec,
             manifest_dir,
             app_root=app_root,
-            include_system_tools=include_system_tools,
+            system_tools=system_tools,
             hitl_contract=hitl_contract,
             user_io_contract=user_io_contract,
             **containment_kw,
