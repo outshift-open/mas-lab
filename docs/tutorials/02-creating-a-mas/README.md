@@ -503,7 +503,7 @@ mas-ctl serve agent.yaml --protocol a2a --host 127.0.0.1 --port 9005
 
 Use the official `a2a-cli` or another A2A SDK client to query the card and send
 messages. The complete live walkthrough is maintained in
-`sandbox/agntcon/DEMO-A2A.org`.
+the [A2A documentation](../../a2a/README.md).
 
 ---
 

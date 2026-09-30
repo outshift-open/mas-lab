@@ -17,13 +17,21 @@ prototypes to engineered agentic systems — with explicit specifications, runti
 contracts, reproducible experiments, and built-in observability.
 
 - **Documentation site:** [outshift-open.github.io/mas-lab](https://outshift-open.github.io/mas-lab/)
+- **Release process:** [RELEASE-PROCESS.md](RELEASE-PROCESS.md)
 - **Release overview:** [blog post](docs/blog/posts/2026-06-17-v0-1-release/)
 
 ## Get started
 
+<!-- TEMPORARY: remove this note after the first successful public PyPI upload. -->
+> **PyPI publication pending:** the package names and installation path are
+> prepared, but the public packages are not uploaded yet. Use the Docker or
+> developer workspace paths below until the first PyPI release is complete.
+
 ```bash
-# 1 — Install (Docker or developer path — see Tutorial 0)
-pip install mas-lab mas-library-standard mas-library-samples
+# 1 — Install the published packages
+uv venv
+uv pip install mas-lab mas-library-standard mas-library-samples
+export PATH="$PWD/.venv/bin:$PATH"
 
 # 2 — Configure LLM access (interactive, writes ~/.config/mas/config.yaml)
 mas-lab init
@@ -53,6 +61,14 @@ Then continue with:
 
 Full install instructions: **[Tutorial 0 — Environment setup](docs/tutorials/00-environment-setup/README.md)**.
 Full site content mirrors [`docs/`](docs/) — see [docs/index.md](docs/index.md) for the full introduction.
+
+Choose the installation mode that matches the job:
+
+| Mode | Use it for | Validation entry point |
+| --- | --- | --- |
+| **PyPI + uv venv** | Running a published release | `mas-ctl validate` / `mas-ctl chat` |
+| **Docker** | Running without a local Python environment | `docker compose --profile tools run --rm cli mas-ctl validate ...` |
+| **Developer workspace** | Editing MAS-Lab itself | `uv run pytest`, `task verify-unit`, or `task ci` |
 
 ## The problem
 
@@ -119,7 +135,7 @@ The headline packages:
 | `mas-library-standard` | Flavours, overlays, infra bundles                              |
 
 `mas-lab` is a meta-package that installs the lab components (`mas-lab-core`,
-`mas-lab-bench`, `mas-lab-controller`, `mas-lab-content`).
+`mas-lab-bench`, and `mas-lab-controller`).
 Additional libraries ship alongside it (`mas-library-eval`, `mas-library-lab`,
 `mas-library-samples`).
 

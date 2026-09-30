@@ -25,7 +25,6 @@ NAMESPACE_PACKAGE_SRCS = [
     "lab/components/core/src",
     "lab/components/bench/src",
     "lab/components/controller/src",
-    "lab/components/content/src",
 ]
 
 

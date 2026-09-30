@@ -1,3 +1,7 @@
+# Library discovery
+
+> Examples use a synthetic `example-library` fixture to demonstrate discovery
+> syntax. It is not an installed MAS-Lab package.
 <!--
   Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
   SPDX-License-Identifier: Apache-2.0
@@ -27,11 +31,11 @@ Do not put `library.yaml` on the lab root. `mas-ctl` must not depend on
 Two doors, one outcome: a folder with `library.yaml` is found, and that
 manifest fills the catalog (apps, datasets, tools).
 
-1. **Install** — `uv pip install -e library-ioc` registers scheme
-   `library-ioc` on the `mas.runtime.manifest_libraries` entry point.
+1. **Install** — `uv pip install -e example-library` registers scheme
+   `example-library` on the `mas.runtime.manifest_libraries` entry point.
 2. **Search paths** — a list of folders to look in. Each entry is a library
    root, or a parent of sibling library folders. The name is the found
-   directory stem. Do not invent aliases (`ioc` for `library-ioc`).
+   directory stem. Do not invent aliases (`ioc` for `example-library`).
 
 The search lists already exist and use the same scan
 (`iter_libraries_in_search_path`):
@@ -46,10 +50,10 @@ The search lists already exist and use the same scan
 lab:
   libraries:
     - lib/
-    - ../../../library-ioc
+    - ../../../example-library
 
 manifest_libraries:
-  - .                     # this workspace: library-ioc/, library-kg/, …
+  - .                     # this workspace: example-library/, library-kg/, …
   - ../other-libraries
 ```
 
@@ -115,11 +119,11 @@ Same separator as plugins (`react@v1`): **`[library:]name[@version]`**.
 - Bare `name` is `@latest` (highest `v*` folder) for lookup
   (`get_app`, `mas-ctl check`, and experiment `app:` / `dataset.name`).
   Pin `@version` when you need a specific major.
-- After `LIBRARY:`, no slash means an id (`library-ioc:sre-triage@v2`).
+- After `LIBRARY:`, no slash means an id (`example-library:sre-triage@v2`).
   A slash after `name@version` is a path **inside** that catalog object
-  (`library-ioc:sre-triage-incidents@v2/tool_fixtures/routing-policy-rollback.yaml`).
+  (`example-library:sre-triage-incidents@v2/tool_fixtures/routing-policy-rollback.yaml`).
   A slash after a folder is a path from the library root
-  (`library-ioc:apps/sre-triage/v1/datasets/scenarios/tool_fixtures/routing-policy-rollback.yaml`).
+  (`example-library:apps/sre-triage/v1/datasets/scenarios/tool_fixtures/routing-policy-rollback.yaml`).
 - `sre-triage-v2` and `sre-triage/v2` are **not** id aliases.
 
 **Datasets** use the same `name@version` grammar. App-specific datasets live

@@ -316,10 +316,11 @@ def generate_packages_reference(packages: list[Package]) -> str:
         # Install snippet
         if p.extras:
             extras_str = "all" if "all" in p.extras else ",".join(p.extras)
-            lines.append(f"```bash\nuv pip install -e {p.path}  # core\n")
-            lines.append(f'uv pip install -e "{p.path}[{extras_str}]"  # with all extras\n```\n\n')
+            lines.append(f"```bash\nuv pip install -e {p.path}  # source\n")
+            lines.append(f'uv pip install "{p.name}[{extras_str}]"  # PyPI, all extras\n```\n\n')
         else:
-            lines.append(f"```bash\nuv pip install -e {p.path}\n```\n\n")
+            lines.append(f"```bash\nuv pip install -e {p.path}  # source\n")
+            lines.append(f"uv pip install {p.name}  # PyPI\n```\n\n")
 
         # MAS deps
         mas_deps = _deps_clean(p.deps)
@@ -487,11 +488,8 @@ PACKAGE_REGISTRY: list[tuple[str, str, str]] = [
     ("lab/components/core/pyproject.toml", "lab/components/core", "Lab framework"),
     ("lab/components/bench/pyproject.toml", "lab/components/bench", "Lab framework"),
     ("lab/components/controller/pyproject.toml", "lab/components/controller", "Lab framework"),
-    ("lab/components/content/pyproject.toml", "lab/components/content", "Lab framework"),
     ("library-standard/pyproject.toml", "library-standard", "Libraries"),
     ("library-skills/pyproject.toml", "library-skills", "Libraries"),
-    ("library-skills/agentskills/pyproject.toml", "library-skills/agentskills", "Libraries"),
-    ("library-skills/skill-sandbox/pyproject.toml", "library-skills/skill-sandbox", "Libraries"),
     ("library-eval/pyproject.toml", "library-eval", "Libraries"),
     ("library-lab/pyproject.toml", "library-lab", "Libraries"),
     ("library-samples/pyproject.toml", "library-samples", "Libraries"),

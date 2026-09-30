@@ -21,22 +21,19 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "agentskills",
-    "library-ioa",
     "mas-ctl",
     "mas-lab",
     "mas-lab-bench",
-    "mas-lab-content",
     "mas-lab-controller",
     "mas-lab-core",
     "mas-lab-workspace",
     "mas-library-eval",
+    "mas-library-ioa",
     "mas-library-lab",
     "mas-library-samples",
     "mas-library-skills",
     "mas-library-standard",
     "mas-runtime",
-    "skill-sandbox",
 ]
 
 [[package]]
@@ -65,21 +62,6 @@ http-server = [
 ]
 sqlite = [
     { name = "sqlalchemy", extra = ["aiosqlite", "asyncio"] },
-]
-
-[[package]]
-name = "agentskills"
-version = "0.1.0"
-source = { editable = "library-skills/agentskills" }
-dependencies = [
-    { name = "python-frontmatter" },
-    { name = "pyyaml" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "python-frontmatter", specifier = ">=1.0.0" },
-    { name = "pyyaml", specifier = ">=6.0" },
 ]
 
 [[package]]
@@ -2292,36 +2274,6 @@ wheels = [
 ]
 
 [[package]]
-name = "library-ioa"
-version = "0.1.0"
-source = { editable = "library-ioa" }
-dependencies = [
-    { name = "a2a-sdk", extra = ["http-server", "sqlite"] },
-    { name = "mas-runtime" },
-    { name = "mcp" },
-    { name = "uvicorn" },
-]
-
-[package.optional-dependencies]
-all = [
-    { name = "mcp", extra = ["cli"] },
-]
-cli = [
-    { name = "mcp", extra = ["cli"] },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "a2a-sdk", extras = ["http-server", "sqlite"], specifier = ">=1.1.5" },
-    { name = "mas-runtime", editable = "runtime" },
-    { name = "mcp", specifier = ">=2.2" },
-    { name = "mcp", extras = ["cli"], marker = "extra == 'all'" },
-    { name = "mcp", extras = ["cli"], marker = "extra == 'cli'" },
-    { name = "uvicorn", specifier = ">=0.30" },
-]
-provides-extras = ["cli", "all"]
-
-[[package]]
 name = "librt"
 version = "0.11.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2705,11 +2657,6 @@ requires-dist = [
 ]
 
 [[package]]
-name = "mas-lab-content"
-version = "0.1.0"
-source = { editable = "lab/components/content" }
-
-[[package]]
 name = "mas-lab-controller"
 version = "0.1.0"
 source = { editable = "lab/components/controller" }
@@ -2773,11 +2720,11 @@ name = "mas-lab-workspace"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "library-ioa", extra = ["cli"] },
     { name = "mas-ctl" },
     { name = "mas-lab" },
     { name = "mas-lab-controller" },
     { name = "mas-library-eval" },
+    { name = "mas-library-ioa", extra = ["cli"] },
     { name = "mas-library-lab" },
     { name = "mas-library-samples" },
     { name = "mas-library-skills" },
@@ -2802,11 +2749,11 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "library-ioa", extras = ["cli"], editable = "library-ioa" },
     { name = "mas-ctl", editable = "ctl" },
     { name = "mas-lab", editable = "lab" },
     { name = "mas-lab-controller", editable = "lab/components/controller" },
     { name = "mas-library-eval", editable = "library-eval" },
+    { name = "mas-library-ioa", extras = ["cli"], editable = "library-ioa" },
     { name = "mas-library-lab", editable = "library-lab" },
     { name = "mas-library-samples", editable = "library-samples" },
     { name = "mas-library-skills", editable = "library-skills" },
@@ -2866,6 +2813,36 @@ requires-dist = [
 provides-extras = ["dev"]
 
 [[package]]
+name = "mas-library-ioa"
+version = "0.1.0"
+source = { editable = "library-ioa" }
+dependencies = [
+    { name = "a2a-sdk", extra = ["http-server", "sqlite"] },
+    { name = "mas-runtime" },
+    { name = "mcp" },
+    { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+all = [
+    { name = "mcp", extra = ["cli"] },
+]
+cli = [
+    { name = "mcp", extra = ["cli"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "a2a-sdk", extras = ["http-server", "sqlite"], specifier = ">=1.1.5" },
+    { name = "mas-runtime", editable = "runtime" },
+    { name = "mcp", specifier = ">=2.2" },
+    { name = "mcp", extras = ["cli"], marker = "extra == 'all'" },
+    { name = "mcp", extras = ["cli"], marker = "extra == 'cli'" },
+    { name = "uvicorn", specifier = ">=0.30" },
+]
+provides-extras = ["cli", "all"]
+
+[[package]]
 name = "mas-library-lab"
 version = "0.1.0"
 source = { editable = "library-lab" }
@@ -2886,9 +2863,9 @@ name = "mas-library-skills"
 version = "0.1.0"
 source = { editable = "library-skills" }
 dependencies = [
-    { name = "agentskills" },
     { name = "mas-runtime" },
-    { name = "skill-sandbox" },
+    { name = "python-frontmatter" },
+    { name = "pyyaml" },
 ]
 
 [package.optional-dependencies]
@@ -2905,13 +2882,13 @@ langchain = [
 
 [package.metadata]
 requires-dist = [
-    { name = "agentskills", editable = "library-skills/agentskills" },
     { name = "deepagents", marker = "extra == 'all'", specifier = ">=0.7.0,<1.0.0" },
     { name = "deepagents", marker = "extra == 'langchain'", specifier = ">=0.7.0,<1.0.0" },
     { name = "google-adk", marker = "extra == 'adk'", specifier = ">=1.0.0,<3.0.0" },
     { name = "google-adk", marker = "extra == 'all'", specifier = ">=1.0.0,<3.0.0" },
     { name = "mas-runtime", editable = "runtime" },
-    { name = "skill-sandbox", editable = "library-skills/skill-sandbox" },
+    { name = "python-frontmatter", specifier = ">=1.0.0,<2.0.0" },
+    { name = "pyyaml", specifier = ">=6.0,<7.0" },
 ]
 provides-extras = ["adk", "langchain", "all"]
 
@@ -5156,11 +5133,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
 ]
-
-[[package]]
-name = "skill-sandbox"
-version = "0.1.0"
-source = { editable = "library-skills/skill-sandbox" }
 
 [[package]]
 name = "sniffio"

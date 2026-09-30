@@ -13,14 +13,13 @@ requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 dependencies = [
     "mas-runtime",
-    "agentskills",
-    "skill-sandbox",
+    "pyyaml>=6.0,<7.0",
+    "python-frontmatter>=1.0.0,<2.0.0",
 ]
 
 [project.optional-dependencies]
-# The default "native" engine needs nothing beyond the base dependencies
-# (agentskills + skill-sandbox). The adk and langchain engines wrap third-party
-# frameworks and are opt-in.
+# The default "native" engine uses the bundled agentskills.io parser and skill
+# sandbox. The adk and langchain engines wrap third-party frameworks and are opt-in.
 #
 # Upper bounds are deliberate: these frameworks float their own transitive pins
 # (google-adk 2.7 moved opentelemetry-sdk to >=1.39) and a new major silently
@@ -46,12 +45,13 @@ skills = "mas.library.skills"
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/mas"]
+packages = [
+    "src/mas",
+    "src/agentskills",
+    "src/sandbox",
+]
 
 [tool.hatch.build.targets.wheel.force-include]
-
-"library.yaml" = "src/mas/library/skills/library.yaml"
-"tools/skill-access.tool.yaml" = "src/mas/library/skills/tools/skill-access.tool.yaml"
-"tools/run-skill-script.tool.yaml" = "src/mas/library/skills/tools/run-skill-script.tool.yaml"
-"overlays/skills.yaml" = "src/mas/library/skills/overlays/skills.yaml"
-"overlays/skills-shell.yaml" = "src/mas/library/skills/overlays/skills-shell.yaml"
+"library.yaml" = "mas/library/skills/library.yaml"
+"overlays/skills.yaml" = "mas/library/skills/overlays/skills.yaml"
+"overlays/skills-shell.yaml" = "mas/library/skills/overlays/skills-shell.yaml"

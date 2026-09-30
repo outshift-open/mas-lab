@@ -17,7 +17,7 @@ also explains them in context; this page is the single reference list.
 | **Lab (definition)** | A folder `*.lab/` (under `labs/`) with `experiment.yaml`, datasets, overlays, and optional custom pipeline steps. Experiment surface — not a library. See [labs-and-libraries.md](labs-and-libraries.md). |
 | **Library** | A folder with `library.yaml`. Reusable apps, tools, plugins, and code. `name:path` always uses a library name. May live inside a lab. |
 | **Package** | A published wheel (`mas-runtime`, `mas-ctl`, `mas-lab`, …). See [packages reference](packages-reference.md). |
-| **Component** | One of the four lab sub-wheels under `lab/components/` (`mas-lab-core`, `mas-lab-bench`, `mas-lab-controller`, `mas-lab-content`). The interactive tutorial runner (`mas-lab-tutorial`) is internal-only — see `mas-lab-internal`. Distinct from the internal `mas.lab.*` runtime modules — see [ADR 0001](references/adr-0001-lab-terminology.md). |
+| **Component** | One of the three lab sub-wheels under `lab/components/` (`mas-lab-core`, `mas-lab-bench`, `mas-lab-controller`). Distinct from the internal `mas.lab.*` runtime modules — see [ADR 0001](references/adr-0001-lab-terminology.md). |
 | **Experiment** | The `experiment:` block (usually in `experiment.yaml`): what to run, how many times, and which pipeline builds results. |
 | **Model slots** | `experiment.models` (and `lab.models`): named LLM pins matching Agent/MAS `spec.models[].id`, plus `judge`. Scalar `experiment.model` = `models.main`. `any` inherits the next layer; local `config.yaml` `defaults.model` fills remaining `any` at engine time. |
 | **Scenario** | One column in an experiment matrix — a named setup (`id`) and layered overlays (`logic` / `control` / `infra`). Declared under `scenarios:`. |

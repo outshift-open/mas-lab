@@ -31,6 +31,7 @@ services:
     volumes:
       - ${MAS_WORKSPACE_MOUNT:-..}:/workspace
       - ${MAS_DATA_MOUNT:-./data}:/data
+      - ${MAS_XDG_CONFIG_MOUNT:-${HOME}/.config/mas}:/root/.config/mas:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/api/health')"]
       interval: 15s
@@ -66,4 +67,5 @@ services:
     volumes:
       - ${MAS_WORKSPACE_MOUNT:-..}:/workspace
       - ${MAS_DATA_MOUNT:-./data}:/data
+      - ${MAS_XDG_CONFIG_MOUNT:-${HOME}/.config/mas}:/root/.config/mas:ro
     entrypoint: ["/usr/local/bin/mas-lab-entrypoint"]

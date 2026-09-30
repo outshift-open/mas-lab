@@ -5,7 +5,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "library-ioa"
+name = "mas-library-ioa"
 version = "0.1.0"
 description = "MCP client/server bridge for MAS Lab"
 readme = "README.md"

@@ -29,15 +29,15 @@ spec:
       - id: telemetry
         ref: agents/telemetry.yaml          # relative to this mas.yaml
       - id: backend
-        ref: library-ioc:apps/sre-triage/v1/agents/backend.yaml
+        ref: example-library:apps/sre-triage/v1/agents/backend.yaml
 
 # Id — catalog name, optionally versioned and library-qualified
 experiment:
   application:
-    app: library-ioc:sre-triage@v1        # id, not a path
+    app: example-library:sre-triage@v1        # id, not a path
   dataset:
     name: sre-triage-scenarios@v1
-    locator: library-ioc
+    locator: example-library
 ```
 
 The dataset item is the run setup (`inputs.user` as a prompt string,
@@ -48,7 +48,7 @@ optional `hitl`, `memory_seeds`, `tool_fixtures`). File pointers use
 |------|-------------|---------|
 | **Inline** | Small fragments, one-off agent blocks, overlay `patch:` | `design_pattern: { type: cot }` |
 | **File path** | A real document on disk | `./mas.yaml`, `samples:apps/trip-planner/mas.yaml` |
-| **Catalog id** | A named app, dataset, or tool in a library | `library-ioc:sre-triage@v2`, `trip-planner` |
+| **Catalog id** | A named app, dataset, or tool in a library | `example-library:sre-triage@v2`, `trip-planner` |
 
 Do not encode version in the **name** (`sre-triage-v2`) or with a **slash**
 (`sre-triage/v2`). Slash is a filesystem path. `@` is the version separator
@@ -61,14 +61,14 @@ version they evaluate: `apps/<app>/v<N>/datasets/<name>/`, with catalog id
 
 ## 2. `LIBRARY:` prefix
 
-`name:path` always starts with a **library scheme** (`samples`, `library-ioc`,
+`name:path` always starts with a **library scheme** (`samples`, `example-library`,
 `standard`, a lab-local `lib`, …). After the colon, write either:
 
-- a **catalog id** — no slash: `library-ioc:sre-triage@v2`
+- a **catalog id** — no slash: `example-library:sre-triage@v2`
 - a **path inside a catalog object** — id, then slash:
-  `library-ioc:sre-triage-incidents@v2/tool_fixtures/payment-async-timeout.yaml`
+  `example-library:sre-triage-incidents@v2/tool_fixtures/payment-async-timeout.yaml`
 - a **library-relative path** — slash after a folder:
-  `library-ioc:apps/sre-triage/v2/mas.yaml`
+  `example-library:apps/sre-triage/v2/mas.yaml`
 
 A slash after `name@version` is not a second copy of the file. It is a path
 under that app or Dataset folder. Do not invent a sibling tree or a symlink
@@ -76,14 +76,14 @@ so overlays can `../` out of `mas.yaml`.
 
 ```yaml
 # Prefer these
-- app: library-ioc:sre-triage@v2
+- app: example-library:sre-triage@v2
 - manifest: samples:apps/trip-planner/mas.yaml
 - ref: samples:tools/calc.tool.yaml
-- incident_fixture: library-ioc:sre-triage-incidents@v2/tool_fixtures/payment-async-timeout.yaml
+- incident_fixture: example-library:sre-triage-incidents@v2/tool_fixtures/payment-async-timeout.yaml
 
 # Avoid climbing out of the lab
 - manifest: ../../apps/sre-triage/mas.yaml      # don't
-- ref: ../../../library-ioc/apps/sre-triage/v1/agents/sre.yaml
+- ref: ../../../example-library/apps/sre-triage/v1/agents/sre.yaml
 ```
 
 Unknown library names raise `LookupError`; they are never treated as relative
@@ -107,8 +107,8 @@ specific major.
 | `sre-triage@v2` | Folder `apps/sre-triage/v2/` |
 | `sre-triage` / `sre-triage@latest` | Highest `v*` folder |
 | `coding-agent-md` | Unversioned family — the name **is** the pin |
-| `library-ioc:apps/sre-triage/v2` | Path under the library (directory) |
-| `library-ioc:sre-triage-incidents@v2/tool_fixtures/foo.yaml` | File inside that Dataset folder |
+| `example-library:apps/sre-triage/v2` | Path under the library (directory) |
+| `example-library:sre-triage-incidents@v2/tool_fixtures/foo.yaml` | File inside that Dataset folder |
 
 On disk the version **is** the folder name: `apps/<name>/v<N>/`.
 `library.yaml` may list the family (`sre-triage: apps/sre-triage`) or one
@@ -152,10 +152,10 @@ path or overlay id.
 experiment:
   name: foo
   application:
-    app: library-ioc:sre-triage@v1
+    app: example-library:sre-triage@v1
   dataset:
     name: sre-triage-scenarios@v1
-    locator: library-ioc
+    locator: example-library
   scenarios:
     - id: baseline
       overlays: []

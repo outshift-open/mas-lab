@@ -27,6 +27,7 @@ Two host folders are mounted into every backend/cli container:
 |----------------|---------------------|---------|
 | `/workspace` | `MAS_WORKSPACE_MOUNT` (default: `..`) | `labs/`, `infra/`, project `.env` (optional `config.yaml`) |
 | `/data` | `MAS_DATA_MOUNT` (default: `./data`) | Trace cache, benchmark outputs, run artifacts |
+| `/root/.config/mas` | `MAS_XDG_CONFIG_MOUNT` (default: `$HOME/.config/mas`) | Read-only user config and infra fallback |
 
 Example `.env` for a custom project:
 
@@ -68,20 +69,23 @@ You can drop several experiments' `labs/<name>/` folders side by side under the 
 ### Workspace config priority
 
 Inside the container, `MAS_WORKSPACE_ROOT=/workspace` is set. The runtime loads
-`config.yaml` from the mounted workspace when present; otherwise the
-entrypoint falls back to the baked copy from
+`config.yaml` from the mounted workspace when present; otherwise it falls back
+to the read-only mounted `$XDG_CONFIG_HOME/mas/config.yaml`, and then to the
+baked copy from
 [`library-samples/sample-workspace/config.yaml`](../library-samples/sample-workspace/config.yaml)
 at `/opt/mas-lab/config.yaml`. Project config wins over `$XDG_CONFIG_HOME/mas/config.yaml` fallback.
 
-To also use a host user config, bind-mount the XDG config tree:
+To use a different host user config, override `MAS_XDG_CONFIG_MOUNT` in
+`docker/.env`. The default mount already exposes the host XDG config tree:
 
-```yaml
-# compose override
-services:
-  backend:
-    volumes:
-      - ${XDG_CONFIG_HOME:-~/.config}/mas:/root/.config/mas
+```bash
+MAS_XDG_CONFIG_MOUNT=/path/to/mas-config
 ```
+
+Run `mas-lab init` on the host to update this shared user config. For a
+self-contained project, run `mas-lab init --local` from the project root; it
+writes `config.yaml` and `infra/<name>.yaml` into the mounted workspace, which
+then takes precedence in Docker.
 
 ## Environment variables
 
@@ -119,22 +123,22 @@ explicit command — both share the same image and mounts):
 
 ```bash
 # Show effective config / paths
-docker compose run --rm cli mas-lab config
+docker compose --profile tools run --rm cli mas-lab config
 
 # Benchmark (batch experiment)
-docker compose run --rm cli mas-lab benchmark run \
+docker compose --profile tools run --rm cli mas-lab benchmark run \
   labs/design-space.lab/01-design-patterns/experiment.yaml --progress
 
 # Single agent conversation
-docker compose run --rm cli mas-ctl chat \
+docker compose --profile tools run --rm cli mas-ctl chat \
   library-samples/apps/qa-mas/agents/qa-agent.yaml -q "Hello"
 
 # MAS orchestration
-docker compose run --rm cli mas-ctl run-mas \
+docker compose --profile tools run --rm cli mas-ctl run-mas \
   library-samples/apps/qa-mas/mas.yaml -q "Hello"
 
 # Validate manifests
-docker compose run --rm cli mas-ctl validate \
+docker compose --profile tools run --rm cli mas-ctl validate \
   library-samples/apps/qa-mas/mas.yaml
 ```
 

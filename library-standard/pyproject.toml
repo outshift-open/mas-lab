@@ -37,9 +37,8 @@ include = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/mas"]
 
-[tool.hatch.build.targets.wheel.force-include]
+[tool.hatch.build.targets.sdist.force-include]
 "library.yaml" = "src/mas/library/standard/library.yaml"
-"src/mas/library/standard/overlays" = "src/mas/library/standard/overlays"
 
 [tool.uv.sources]
 mas-runtime = { workspace = true }

@@ -26,6 +26,25 @@ def test_init_yes_creates_config_and_default_infra(monkeypatch, tmp_path: Path):
     assert "How to proceed:" in result.output
 
 
+def test_init_local_creates_self_contained_project_config(tmp_path: Path):
+    runner = CliRunner()
+
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        result = runner.invoke(app, ["init", "--local", "--yes"])
+
+        assert result.exit_code == 0, result.output
+        cfg = Path("config.yaml")
+        infra = Path("infra/llmprovider.yaml")
+        cfg_text = cfg.read_text(encoding="utf-8")
+
+        assert cfg.exists()
+        assert infra.exists()
+        assert "infra/llmprovider.yaml" in cfg_text
+        assert "~/.config/mas/infra" not in cfg_text
+        assert "OPENAI_API_KEY" in infra.read_text(encoding="utf-8")
+        assert "Initialized MAS project configuration." in result.output
+
+
 def test_init_interactive_skip_infra(monkeypatch, tmp_path: Path):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     runner = CliRunner()

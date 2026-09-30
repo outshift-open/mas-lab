@@ -18,8 +18,8 @@ Agent Skills support for MAS Lab — progressive disclosure via `ContextContract
 uv add mas-library-skills
 ```
 
-The base install gives you the native implementation only (`agentskills` +
-`skill-sandbox`, both plain local dependencies — no extra to opt into). The
+The base install includes the bundled agentskills.io parser and skill sandbox;
+no separate PyPI package is required. The
 ADK and LangChain implementations wrap real, optional third-party
 frameworks; pull in one or both:
 
@@ -95,9 +95,18 @@ execution:
 
 | Engine | Framework wrapped | Sandboxing | Notes |
 |--------|--------------------|------------|-------|
-| **native** (default) | `agentskills` + `skill-sandbox` | POSIX rlimits (CPU, memory, wall clock) | Zero glue code — the right default for MAS Lab. |
+| **native** (default) | bundled `agentskills` + script runner | Best-effort environment filtering, timeout, and POSIX rlimits | Useful for cooperative local scripts; not a security sandbox. |
 | **adk** | `google.adk.skills` (`google-adk`) | none (delegated to ADK) | Richest native delegation — resources loaded eagerly in-memory. |
 | **langchain** | `deepagents` (LangGraph agent harness) | none (delegated to deepagents) | ~70 lines of adapter glue, since deepagents is tool-call-oriented rather than exposing a plain "give me the skill body" API. |
+
+### Security boundary
+
+The native script runner is not a security boundary. It runs a local subprocess
+with a filtered environment, a timeout, and best-effort CPU/address-space limits.
+It does not provide filesystem isolation, network isolation, a container boundary,
+or a complete syscall policy. Do not execute untrusted skill code with it. A
+real sandboxed backend is planned for a future implementation; until then, use
+Docker or another externally enforced isolation boundary for untrusted scripts.
 
 `SkillPluginRegistry(impl="native" | "adk" | "langchain")` selects the
 engine and dynamically imports the matching `plugin_skills_*.py` module —

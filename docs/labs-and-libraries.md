@@ -1,3 +1,7 @@
+# Labs vs libraries
+
+> The `example-library` names in the examples below are synthetic documentation
+> fixtures. MAS-Lab does not ship an `example-library` or an `ioc` library.
 <!--
   Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
   SPDX-License-Identifier: Apache-2.0
@@ -38,13 +42,13 @@ such as `lib`). It is never a filesystem path. Unknown names fail.
 
 Shipped libraries in this repo include `library-samples/`,
 `library-standard/`, `library-lab/`, `library-skills/`, and `library-ioa/`.
-The name you write in YAML is a **library scheme** (`samples`, `library-ioc`),
+The name you write in YAML is a **library scheme** (`samples`, `example-library`),
 not necessarily the Python package name (`mas-library-samples`). Additional
 names can be listed as `aliases:` in `library.yaml`; the directory basename
 and `name:` field are also accepted. Labs then pin a MAS with
-`library:app` (for example `library-ioc:sre-triage@v2`). Versioning uses
+`library:app` (for example `example-library:sre-triage@v2`). Versioning uses
 `name@version` (bare name is `@latest`). Slash is a path
-(`library-ioc:apps/sre-triage/v2`), not an id alias.
+(`example-library:apps/sre-triage/v2`), not an id alias.
 
 How to write those refs: [writing-manifests.md](manifests/writing-manifests.md).
 
@@ -125,7 +129,7 @@ tools:
   - samples:tools/calc.tool.yaml
 
 application:
-  app: library-ioc:sre-triage@v2
+  app: example-library:sre-triage@v2
   # or: manifest: samples:apps/trip-planner/mas.yaml
 
 # Workspace config.yaml — search folders (library root or parent of libraries)
@@ -139,7 +143,7 @@ library. First-seen name wins.
 
 `lab.libraries`, workspace `manifest_libraries`, and `MAS_LIBRARY_PATHS` are
 the same scan. Install (entry point) is the other door. `library.yaml`
-fills the catalog. Do not declare aliases (`ioc` for `library-ioc`).
+fills the catalog. Do not declare aliases (`ioc` for `example-library`).
 
 ---
 

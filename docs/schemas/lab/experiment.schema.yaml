@@ -121,8 +121,8 @@ properties:
               description: >
                 Library + app identifier. The applications: attribute implies
                 kind MAS (or a standalone Agent app). Example:
-                library-ioc:sre-triage@v2. Slash after LIBRARY: is a path,
-                not an id (library-ioc:apps/sre-triage/v2).
+                example-library:sre-triage@v2. Slash after LIBRARY: is a path,
+                not an id (example-library:apps/sre-triage/v2).
               pattern: "^[a-z0-9][a-z0-9-]*:[^\\s]+$"
             - type: object
               additionalProperties: false
@@ -132,12 +132,12 @@ properties:
                   type: string
                   description: >
                     Path or library:app identifier resolving to mas.yaml
-                    (e.g. library-ioc:sre-triage@v2).
+                    (e.g. example-library:sre-triage@v2).
                 app:
                   type: string
                   description: >
                     Application catalog id, optionally library-qualified
-                    (library-ioc:sre-triage@v2 or sre-triage@v2).
+                    (example-library:sre-triage@v2 or sre-triage@v2).
                 configs_dir:
                   type: string
                   description: "Path to the overlays directory."
