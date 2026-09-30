@@ -1,10 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Tests for the chat/tui/run-mas flavour selector (mas.ctl.session.flavour).
-
-Flavours are validate-only for now: resolve + schema-validate the selected
-flavour manifest, apply nothing (see BRANCHES.md FT4).
-"""
+"""Tests for chat/tui/run-mas flavour selection."""
 
 from __future__ import annotations
 
@@ -65,6 +61,10 @@ class TestResolveFlavour:
         spec = resolve_flavour("local")
         assert isinstance(spec, dict)
         assert spec.get("observability") == ["native"]
+
+    def test_mcp_flavour_selects_exposure_protocol(self) -> None:
+        spec = resolve_flavour("mcp")
+        assert spec["tools"]["exposure_protocol"] == "mcp"
 
     def test_missing_library_returns_empty_dict(self, monkeypatch) -> None:
         monkeypatch.setattr(flavour_mod, "_load_bundled_flavour", lambda name: {})

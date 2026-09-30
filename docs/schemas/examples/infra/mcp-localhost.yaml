@@ -8,13 +8,6 @@ metadata:
 spec:
   tool_servers:
     - id: localhost-mcp-tools
-      name: localhost-mcp-tools
-      transport: streamable-http
+      protocol: mcp
+      usage: use
       url: http://127.0.0.1:9001/mcp
-      timeout: 30
-      follow_pagination: true
-      cache_scope: private
-      description: MCP server exposing library-samples web-search.
-      # cache_ttl_ms omitted: cache tools/list until invalidate. 0 disables.
-      # headers:                          # optional secret; unset omits the header
-      #   Authorization: "env:MCP_AUTH_HEADER"

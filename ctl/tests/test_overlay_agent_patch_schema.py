@@ -70,7 +70,7 @@ def test_tools_op_remove_wrapper_still_validates(tmp_path: Path):
     assert result.ok, result.issues
 
 
-def test_providers_mcp_patch_validates(tmp_path: Path):
+def test_provider_connection_patch_is_rejected(tmp_path: Path):
     result = validate_file(
         _write(
             tmp_path,
@@ -88,19 +88,7 @@ def test_providers_mcp_patch_validates(tmp_path: Path):
         ),
         kind="overlay",
     )
-    assert result.ok, result.issues
-
-
-def test_samples_mcp_localhost_overlay_validates():
-    path = Path(__file__).resolve().parents[2] / "library-samples/overlays/mcp-localhost.yaml"
-    result = validate_file(path, kind="overlay")
-    assert result.ok, result.issues
-
-
-def test_samples_local_in_process_overlay_validates():
-    path = Path(__file__).resolve().parents[2] / "library-samples/overlays/local-in-process.yaml"
-    result = validate_file(path, kind="overlay")
-    assert result.ok, result.issues
+    assert not result.ok
 
 
 def test_tools_remove_is_rejected_as_a_removed_field(tmp_path: Path):
@@ -108,8 +96,7 @@ def test_tools_remove_is_rejected_as_a_removed_field(tmp_path: Path):
     assert not result.ok
 
 
-def test_explicit_mcp_tools_list_validates_without_a_server(tmp_path: Path):
-    """Star and explicit MCP lists both pass overlay validate — no live query."""
+def test_provider_claim_patch_is_rejected(tmp_path: Path):
     result = validate_file(
         _write(
             tmp_path,
@@ -127,7 +114,7 @@ def test_explicit_mcp_tools_list_validates_without_a_server(tmp_path: Path):
         ),
         kind="overlay",
     )
-    assert result.ok, result.issues
+    assert not result.ok
 
 
 def test_llm_reasoning_patch_validates(tmp_path: Path):

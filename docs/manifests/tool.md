@@ -85,7 +85,7 @@ Connection and list-transport policy are **infra**, not the tool:
 | Concern | Manifest |
 |---------|----------|
 | URL, SSE vs stdio, HTTP headers, call timeout for a remote server | `infra/v1` `kind: ToolServerRegistry` |
-| Which names this agent claims (`*` vs `[web-search]`) | `Agent` / Overlay `spec.providers[]` |
+| Remote endpoint and protocol | `infra/v1` `ToolServerRegistry` |
 | Implementation class | `spec.impl` on this document |
 
 See [infra.md — ToolServerRegistry](infra.md#toolserverregistry).

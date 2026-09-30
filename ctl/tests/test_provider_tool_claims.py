@@ -1,162 +1,72 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Verification: ``tools: "*"`` always passes; explicit local lists are checked."""
+"""Tool-provider connection policy is infra-only."""
 
 from __future__ import annotations
 
-from mas.ctl.validate.validator import validate_data
+from pathlib import Path
+
+from mas.ctl.validate.providers import check_provider_tool_claims
+from mas.ctl.validate.validator import validate_data, validate_file
 
 
-def _agent(**spec):
-    return {
+def test_agent_rejects_provider_connection_configuration():
+    agent = {
         "apiVersion": "mas/v1",
         "kind": "Agent",
-        "metadata": {"name": "t"},
-        "spec": {"description": "t", **spec},
-    }
-
-
-def test_star_mcp_provider_always_passes_validate():
-    result = validate_data(
-        _agent(
-            providers=[
+        "metadata": {"name": "test-agent"},
+        "spec": {
+            "description": "test",
+            "providers": [
                 {
-                    "name": "mcp",
+                    "name": "mcp-tools",
                     "kind": "mcp",
                     "url": "http://127.0.0.1:9001/mcp",
-                    "tools": "*",
-                }
-            ]
-        ),
-        kind="agent",
-        resolve_refs=False,
-    )
-    assert result.ok, result.issues
-
-
-def test_star_local_provider_always_passes_validate():
-    result = validate_data(
-        _agent(providers=[{"name": "in-process", "kind": "local", "tools": "*"}]),
-        kind="agent",
-        resolve_refs=False,
-    )
-    assert result.ok, result.issues
-
-
-def test_explicit_local_unknown_name_fails_validate():
-    result = validate_data(
-        _agent(
-            tools=["calc"],
-            providers=[{"name": "in-process", "kind": "local", "tools": ["no-such-tool"]}],
-        ),
-        kind="agent",
-        resolve_refs=False,
-    )
-    assert not result.ok
-    messages = [i.message for i in result.issues if i.level == "error"]
-    assert any("no-such-tool" in m for m in messages)
-
-
-def test_explicit_local_known_name_passes_validate():
-    result = validate_data(
-        _agent(
-            tools=["calc"],
-            providers=[{"name": "in-process", "kind": "local", "tools": ["calc"]}],
-        ),
-        kind="agent",
-        resolve_refs=False,
-    )
-    assert result.ok, result.issues
-
-
-def test_explicit_mcp_unknown_name_fails_validate():
-    result = validate_data(
-        _agent(
-            tools=["web-search"],
-            providers=[
-                {
-                    "name": "mcp",
-                    "kind": "mcp",
-                    "url": "http://127.0.0.1:9001/mcp",
-                    "tools": ["no-such-tool"],
+                    "transport": "streamable-http",
                 }
             ],
-        ),
-        kind="agent",
-        resolve_refs=False,
-    )
-    assert not result.ok
-    messages = [i.message for i in result.issues if i.level == "error"]
-    assert any("no-such-tool" in m for m in messages)
-
-
-def test_explicit_mcp_known_name_passes_validate():
-    result = validate_data(
-        _agent(
-            tools=["web-search"],
-            providers=[
-                {
-                    "name": "mcp",
-                    "kind": "mcp",
-                    "url": "http://127.0.0.1:9001/mcp",
-                    "tools": ["web-search"],
-                }
-            ],
-        ),
-        kind="agent",
-        resolve_refs=False,
-    )
-    assert result.ok, result.issues
-
-
-def test_overlay_explicit_local_checked_against_patch_tools():
-    overlay = {
-        "apiVersion": "mas/v1",
-        "kind": "Overlay",
-        "metadata": {"name": "t"},
-        "spec": {
-            "target": {"kind": "Agent"},
-            "patch": {
-                "tools": ["calc"],
-                "providers": [{"name": "in-process", "kind": "local", "tools": ["no-such-tool"]}],
-            },
         },
     }
-    result = validate_data(overlay, kind="overlay", resolve_refs=False)
+    result = validate_data(agent, kind="agent", resolve_refs=False)
     assert not result.ok
-    messages = [i.message for i in result.issues if i.level == "error"]
-    assert any("no-such-tool" in m for m in messages)
 
 
-def test_overlay_providers_only_skips_catalogue_check():
-    overlay = {
+def test_agent_rejects_infra_registry_fields():
+    agent = {
         "apiVersion": "mas/v1",
-        "kind": "Overlay",
-        "metadata": {"name": "t"},
+        "kind": "Agent",
+        "metadata": {"name": "test-agent"},
         "spec": {
-            "target": {"kind": "Agent"},
-            "patch": {
-                "providers": [
-                    {
-                        "name": "mcp",
-                        "kind": "mcp",
-                        "url": "http://127.0.0.1:9001/mcp",
-                        "tools": ["web-search"],
-                    }
-                ]
-            },
+            "description": "test",
+            "tool_servers": [{"id": "mcp-tools", "protocol": "mcp"}],
         },
     }
-    result = validate_data(overlay, kind="overlay", resolve_refs=False)
-    assert result.ok, result.issues
+    result = validate_data(agent, kind="agent", resolve_refs=False)
+    assert not result.ok
 
 
-def test_explicit_local_system_tool_passes_validate():
-    result = validate_data(
-        _agent(
-            providers=[{"name": "in-process", "kind": "local", "tools": ["request_human_input"]}],
-        ),
-        kind="agent",
-        resolve_refs=False,
-    )
-    assert result.ok, result.issues
+def test_mcp_tool_server_registry_is_valid_in_infra():
+    repo = Path(__file__).resolve().parents[2]
+    for sample in (
+        repo / "library-samples/infra/mcp-localhost.yaml",
+        repo / "library-samples/infra/mcp-localhost-deploy.yaml",
+        repo / "docs/schemas/examples/infra/mcp-localhost.yaml",
+        repo / "library-standard/src/mas/library/standard/libs/standard/local-tools.yaml",
+    ):
+        result = validate_file(sample, kind="infra")
+        assert result.ok, (sample, result.issues)
+
+
+def test_check_provider_tool_claims_rejects_unknown_explicit_name():
+    agent = {"spec": {"tools": [{"name": "known"}], "providers": [{"tools": ["missing"]}]}}
+
+    violations = check_provider_tool_claims(agent, "agent", None)
+
+    assert len(violations) == 1
+    assert "missing" in violations[0]
+
+
+def test_check_provider_tool_claims_accepts_star_claim():
+    agent = {"spec": {"tools": [], "providers": [{"tools": "*"}]}}
+
+    assert check_provider_tool_claims(agent, "agent", None) == []

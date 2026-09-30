@@ -2,11 +2,15 @@
 #  SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from fixtures.mcp_conformance_server import build_server
 from library_ioa.plugins.mcp.server import MCPToolServerFactory, _python_type_for_schema
+from mcp.server.mcpserver import Context
+from mcp.types import CallToolResult, InputRequiredResult
 
 
 def _write_tool(tmp_path: Path, *, extra_spec: str = "", class_body: str | None = None) -> Path:
@@ -76,9 +80,123 @@ def test_factory_prefers_call_tool_over_execute(tmp_path: Path) -> None:
     assert factory._tools[0]["fn"](a=2, b=3) == {"tool": "sample-tool", "sum": 5}
 
 
+def test_factory_converts_existing_tool_result_envelope(tmp_path: Path) -> None:
+    factory = MCPToolServerFactory.from_manifest(
+        _write_tool(
+            tmp_path,
+            class_body=(
+                "from mas.runtime.contracts.tool_contract import ToolResultEnvelope\n"
+                "class SampleTool:\n"
+                "    def execute(self, **kwargs):\n"
+                "        return ToolResultEnvelope(content=[{'type': 'text', 'text': 'converted'}])\n"
+            ),
+        )
+    )
+
+    result = factory._tools[0]["fn"](a=2, b=3)
+
+    assert isinstance(result, CallToolResult)
+    assert result.content[0].text == "converted"
+
+
+def test_factory_converts_inline_tool_result_envelope(tmp_path: Path) -> None:
+    factory = MCPToolServerFactory.from_manifest(
+        _write_tool(
+            tmp_path,
+            class_body=(
+                "from mas.runtime.contracts.tool_contract import ToolResultEnvelope\n"
+                "class SampleTool:\n"
+                "    def execute(self, **kwargs):\n"
+                "        return ToolResultEnvelope.inline({'answer': kwargs['a'] + kwargs['b']})\n"
+            ),
+        ),
+        server_name="public-tools",
+    )
+
+    result = factory._tools[0]["fn"](a=2, b=3)
+
+    assert factory.server_name == "public-tools"
+    assert isinstance(result, CallToolResult)
+    assert result.content[0].text == '{\n  "answer": 5\n}'
+
+
+def test_factory_injects_sdk_context_only_when_declared(tmp_path: Path) -> None:
+    factory = MCPToolServerFactory.from_manifest(
+        _write_tool(
+            tmp_path,
+            class_body=(
+                "class SampleTool:\n"
+                "    def call_tool(self, tool_name, arguments, *, ctx=None):\n"
+                "        return {'has_context': ctx is not None}\n"
+            ),
+        )
+    )
+    wrapped = factory._tools[0]["fn"]
+    context = MagicMock(spec=Context)
+
+    assert "ctx" in wrapped.__signature__.parameters
+    assert factory._server._tool_manager.get_tool("sample-tool").context_kwarg == "ctx"
+    assert wrapped(a=2, b=3, ctx=context) == {"has_context": True}
+
+
 def test_factory_optional_parameter_and_unknown_type() -> None:
     assert _python_type_for_schema("integer") is int
     assert _python_type_for_schema("unknown") is not int
+
+
+def test_factory_preserves_explicit_mcp_input_schema() -> None:
+    schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "$defs": {"label": {"type": "string"}},
+        "properties": {"label": {"$ref": "#/$defs/label", "x-mcp-header": "Label"}},
+    }
+    factory = MCPToolServerFactory()
+    factory.add_tool(
+        {
+            "name": "schema-tool",
+            "description": "Tests explicit schema preservation",
+            "fn": lambda label=None: label,
+            "mcp": {"inputSchema": schema},
+        }
+    )
+
+    registered = factory._server._tool_manager.get_tool("schema-tool")
+    assert registered.parameters == schema
+
+
+def test_factory_registers_non_tool_capabilities() -> None:
+    factory = MCPToolServerFactory(server_name="capability-server")
+
+    def resource_handler() -> str:
+        return "resource content"
+
+    def prompt_handler(topic: str = "default") -> str:
+        return f"prompt: {topic}"
+
+    async def completion_handler(ref, argument, context):
+        return {"values": [argument.get("value", "")]}
+
+    factory.add_resource(
+        "test://resource",
+        resource_handler,
+        name="resource",
+        description="A production resource",
+        mime_type="text/plain",
+    )
+    factory.add_resource(
+        "test://template/{item}",
+        lambda item: item,
+        name="template",
+        description="A production resource template",
+        mime_type="text/plain",
+    )
+    factory.add_prompt(prompt_handler, name="prompt", description="A production prompt")
+    factory.add_completion(completion_handler)
+
+    assert [resource.name for resource in factory._server._resource_manager.list_resources()] == ["resource"]
+    assert [template.name for template in factory._server._resource_manager.list_templates()] == ["template"]
+    assert [prompt.name for prompt in factory._server._prompt_manager.list_prompts()] == ["prompt"]
 
 
 def test_from_manifest_errors(tmp_path: Path) -> None:
@@ -136,3 +254,50 @@ def test_run_stdio_and_http_and_rejects_unknown() -> None:
     factory._server.run.assert_called_with(transport="sse", host="127.0.0.1", port=9001)
     with pytest.raises(ValueError, match="Unsupported MCP transport"):
         factory.run(transport="grpc")
+
+
+def test_conformance_fixture_registers_2025_legacy_methods() -> None:
+    server = build_server()._server._lowlevel_server
+
+    assert server.get_request_handler("logging/setLevel") is not None
+    assert server.get_request_handler("resources/subscribe") is not None
+    assert server.get_request_handler("resources/unsubscribe") is not None
+
+
+def test_conformance_fixture_preserves_extended_tool_schemas() -> None:
+    server = build_server()._server
+    manager = server._tool_manager
+
+    json_schema = manager.get_tool("json_schema_2020_12_tool").parameters
+    assert json_schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+    assert json_schema["$defs"]["address"]["$anchor"] == "addressDef"
+    assert json_schema["additionalProperties"] is False
+    assert json_schema["allOf"][0]["anyOf"]
+    assert all(keyword in json_schema for keyword in ("if", "then", "else"))
+
+    header_schema = manager.get_tool("custom_header_tool").parameters
+    assert header_schema["properties"]["header_value"]["x-mcp-header"] == "Test-Value"
+
+    tools = {tool.name: tool for tool in asyncio.run(server.list_tools())}
+    assert tools["slow_compute"].execution.task_support == "optional"
+    assert tools["test_tool_with_task"].execution.task_support == "required"
+
+    for method in ("tasks/get", "tasks/update", "tasks/cancel"):
+        assert server._lowlevel_server.get_request_handler(method) is not None
+
+
+def test_2026_interactive_fixtures_use_input_required_result() -> None:
+    factory = build_server()
+    fixtures = {tool["name"]: tool["fn"] for tool in factory._tools}
+    context = MagicMock(spec=Context)
+    context.request_context.session.protocol_version = "2026-07-28"
+    context.input_responses = {}
+
+    for name, arguments in (
+        ("test_sampling", {"prompt": "Continue?", "ctx": context}),
+        ("test_elicitation", {"message": "Continue?", "ctx": context}),
+        ("test_elicitation_sep1034_defaults", {"ctx": context}),
+        ("test_elicitation_sep1330_enums", {"ctx": context}),
+    ):
+        result = asyncio.run(fixtures[name](**arguments))
+        assert isinstance(result, InputRequiredResult), name

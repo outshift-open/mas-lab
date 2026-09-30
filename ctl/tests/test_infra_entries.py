@@ -14,6 +14,7 @@ from mas.ctl.infra.resolve import (
     bidirectional_pipeline_for,
     resolve_infra_refs,
 )
+from mas.ctl.validate import validate_file
 from mas.ctl.workspace.config import WorkspaceConfig
 
 
@@ -227,8 +228,31 @@ def test_tool_server_registry_resolves_connection_defaults():
         pytest.skip("library-samples/infra/mcp-localhost.yaml not in workspace")
     infra = resolve_infra_refs([str(sample)], anchor=repo)
     server = infra.tool_server_registry["localhost-mcp-tools"]
+    assert server["protocol"] == "mcp"
     assert server["url"] == "http://127.0.0.1:9001/mcp"
-    assert server["transport"] == "streamable-http"
-    assert server["timeout"] == 30
-    assert server["follow_pagination"] is True
-    assert server["cache_scope"] == "private"
+    assert "transport" not in server
+    local = infra.tool_server_registry["local"]
+    assert local["protocol"] == "local"
+    assert local["tools_dir"] == "tools"
+    assert local["skills_dir"] == "skills"
+
+
+def test_explicit_local_tool_registry_overrides_implicit_defaults(tmp_path: Path):
+    manifest = tmp_path / "local-tools.yaml"
+    manifest.write_text(
+        "apiVersion: infra/v1\n"
+        "kind: ToolServerRegistry\n"
+        "metadata:\n  name: local-tools\n"
+        "spec:\n  tool_servers:\n"
+        "    - id: local\n"
+        "      protocol: local\n"
+        "      tools_dir: app-tools\n"
+        "      skills_dir: knowledge\n",
+        encoding="utf-8",
+    )
+    validation = validate_file(manifest, kind="infra")
+    assert validation.ok, validation.issues
+    infra = resolve_infra_refs([str(manifest)], anchor=tmp_path)
+    local = infra.tool_server_registry["local"]
+    assert local["tools_dir"] == "app-tools"
+    assert local["skills_dir"] == "knowledge"

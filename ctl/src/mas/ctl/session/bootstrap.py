@@ -44,11 +44,11 @@ def _overlay_providers_from_manifest(
     manifest: dict | None,
     resolved_infra: ResolvedInfra | None = None,
 ) -> list[Any]:
-    """Instantiate provider plugins (local default, plus MCP when declared).
+    """Instantiate providers from infra dependencies.
 
-    Infra ``ToolServerRegistry`` fills unset connection fields (url, headers,
-    timeout, pagination). When both overlay and infra set a key, the overlay
-    value is used.
+    MCP ``usage: use`` servers are client providers; ``usage: deploy`` entries
+    are endpoints for the server command and are not connected here. An
+    explicit local ToolServerRegistry claim re-adds the local provider beside MCP.
     """
     from mas.runtime.registry.tool_provider_registry import providers_from_manifest
 
@@ -115,12 +115,19 @@ def instantiate_runtime(
         store.memory_seeds = [{"key": s.key, "content": s.content} for s in seeds]
 
     ctx = AutoCtxAssembler(pattern_plugin_id=options.pattern_plugin_id)
-    # Resolve skills relative to the agent manifest directory first.
-    # app_root can be '.' for some compose flows and would break relative refs.
-    skill_base = options.manifest_dir or options.app_root
+    # Resolve local resource paths relative to the app root, not the process CWD.
+    skill_base = options.manifest_dir or options.app_root or Path.cwd()
+    tool_servers = (options.resolved_infra.tool_server_registry if options.resolved_infra else {}) or {}
+    local_source = next(
+        (server for server in tool_servers.values() if str(server.get("protocol") or "").lower() == "local"),
+        {},
+    )
+    tools_dir = _resolve_local_resource_dir(local_source.get("tools_dir", "tools"), skill_base)
+    skills_dir = _resolve_local_resource_dir(local_source.get("skills_dir", "skills"), skill_base)
     skill_cfg = _resolve_skill_plugin_config(
         options.agent_manifest,
-        default_base_dir=skill_base or Path.cwd(),
+        default_base_dir=skills_dir,
+        relative_base_dir=skill_base,
     )
     _apply_manifest_context(
         ctx,
@@ -257,6 +264,8 @@ def instantiate_runtime(
             hitl_contract=options.hitl_contract,
             user_io_contract=options.user_io_contract,
             auto_inject_scripts=skill_cfg.auto_inject_scripts,
+            tools_dir=tools_dir,
+            skills_dir=skill_cfg.base_dir or skills_dir,
             overlay_providers=_overlay_providers_from_manifest(
                 options.agent_manifest,
                 options.resolved_infra,
@@ -279,10 +288,16 @@ def _apply_manifest_context(
     ctx.injected_context.extend(context_chunks_from_spec(spec, base_dir=base))
 
 
+def _resolve_local_resource_dir(value: Any, app_root: Path) -> Path:
+    path = Path(str(value or ".")).expanduser()
+    return path.resolve() if path.is_absolute() else (app_root / path).resolve()
+
+
 def _resolve_skill_plugin_config(
     manifest: dict[str, Any] | None,
     *,
     default_base_dir: Path,
+    relative_base_dir: Path | None = None,
 ) -> _SkillPluginConfig:
     """Resolve skill plugin implementation from overlay/manifest/env settings.
 
@@ -335,7 +350,7 @@ def _resolve_skill_plugin_config(
     resolved_base = default_base_dir
     if rel_base:
         p = Path(rel_base)
-        resolved_base = p.resolve() if p.is_absolute() else (default_base_dir / p).resolve()
+        resolved_base = p.resolve() if p.is_absolute() else ((relative_base_dir or default_base_dir) / p).resolve()
 
     return _SkillPluginConfig(impl=impl, base_dir=resolved_base, auto_inject_scripts=auto_inject_scripts)
 

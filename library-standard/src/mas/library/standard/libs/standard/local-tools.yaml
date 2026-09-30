@@ -1,0 +1,13 @@
+apiVersion: infra/v1
+kind: ToolServerRegistry
+
+metadata:
+  name: local-tools
+  description: Default app-local tool and skill paths.
+
+spec:
+  tool_servers:
+    - id: local
+      protocol: local
+      tools_dir: tools
+      skills_dir: skills

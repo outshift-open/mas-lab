@@ -169,4 +169,5 @@ Flavour YAML files shipped inside library packages.
 | ----------------- | --------------------------------------------------------------------------------- | ---------------------- |
 | `local`           | Default local development flavour. Infra bundles are resolved via workspace refs… | `mas-library-standard` |
 | `local-benchmark` | Benchmark flavour for mas-lab batch runs. Uses file telemetry and native observa… | `mas-library-standard` |
+| `mcp`             | Expose local tools through the MCP protocol.                                      | `mas-library-standard` |
 

@@ -80,7 +80,9 @@ def resolve_infra_refs(
 
     merged = InfraManifest(name="merged")
     errors: list[tuple[str, Exception]] = []
-    for ref in effective:
+    implicit_refs = ["standard:local-tools"]
+    refs_to_load = implicit_refs + [ref for ref in effective if ref not in implicit_refs]
+    for ref in refs_to_load:
         try:
             part = _load_ref(ref, anchor=root, workspace=ws)
             merged = _merge(merged, part)

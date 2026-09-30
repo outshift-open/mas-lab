@@ -1,10 +1,10 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Map ``spec.providers[]`` (kind: mcp) onto an MCP client configuration.
+"""Map an infra ``ToolServerRegistry`` entry onto MCP client configuration.
 
-Every field declared on the agent/overlay provider item is read here. Unknown
-``params`` keys are kept so a later SDK version can consume them without a
-runtime code change.
+Connection fields are resolved from infra before this adapter is constructed.
+Unknown ``params`` keys are kept so a later SDK version can consume them without
+a runtime code change.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ def _expand_str_map(raw: dict[str, Any]) -> dict[str, str]:
 
 @dataclass(frozen=True)
 class MCPProviderSpec:
-    """Normalized MCP provider binding from a MAS manifest entry."""
+    """Normalized MCP provider binding from an infra server entry."""
 
     name: str
     transport: str

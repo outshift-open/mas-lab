@@ -94,5 +94,3 @@ properties:
     oneOf:
       - type: "null"
       - $ref: "./overlay-collection-ops-observability.schema.yaml"
-  providers:
-    $ref: "../agent.schema.yaml#/properties/spec/properties/providers"

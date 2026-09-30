@@ -4,11 +4,10 @@ apiVersion: infra/v1
 kind: ToolServerRegistry
 
 metadata:
-  name: mcp-localhost
+  name: local-tools
 
 spec:
   tool_servers:
-    - id: localhost-mcp-tools
-      protocol: mcp
-      usage: use
-      url: http://127.0.0.1:9001/mcp
+    - id: local
+      protocol: local
+      tools: "*"

@@ -47,7 +47,7 @@ from mas.ctl.ui.stdout import StdoutConversationDisplay
     "--flavour",
     default="local",
     show_default=True,
-    help="Deployment flavour from library-standard (only 'local' supported for now)",
+    help="Deployment flavour from library-standard (local, mcp exposure)",
 )
 @click.option(
     "--infra-ref",

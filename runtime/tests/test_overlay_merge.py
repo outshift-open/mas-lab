@@ -2,6 +2,8 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Overlay merge tests."""
 
+import pytest
+
 from mas.ctl.overlay.merge import (
     OverlayTargetError,
     apply_merge_patch,
@@ -605,36 +607,14 @@ def test_list_field_accepts_implicit_array_replace() -> None:
     assert merged["spec"]["skills"] == ["s2"]
 
 
-def test_merge_provider_overlays_union_by_name() -> None:
-    """MCP + local overlays stack; a later overlay with the same name updates."""
+def test_agent_overlay_rejects_provider_wiring() -> None:
+    """Provider connections are infra, not agent overlay patch data."""
     base = {"spec": {}}
-    merged = merge_overlay(
-        base,
-        _overlay(
-            {
-                "providers": [
-                    {
-                        "name": "localhost-mcp-tools",
-                        "kind": "mcp",
-                        "url": "http://127.0.0.1:9001/mcp",
-                    }
-                ]
-            }
-        ),
-    )
-    merged = merge_overlay(
-        merged,
-        _overlay({"providers": [{"name": "in-process", "kind": "local", "tools": "*"}]}),
-    )
-    names = [p["name"] for p in merged["spec"]["providers"]]
-    assert names == ["localhost-mcp-tools", "in-process"]
-    merged = merge_overlay(
-        merged,
-        _overlay({"providers": [{"name": "in-process", "kind": "local", "tools": ["calc"]}]}),
-    )
-    by_name = {p["name"]: p for p in merged["spec"]["providers"]}
-    assert by_name["localhost-mcp-tools"]["kind"] == "mcp"
-    assert by_name["in-process"]["tools"] == ["calc"]
+    with pytest.raises(OverlayTargetError, match="providers"):
+        merge_overlay(
+            base,
+            _overlay({"providers": [{"name": "mcp", "kind": "mcp", "url": "http://127.0.0.1:9001/mcp"}]}),
+        )
 
 
 def test_runtime_semantics_registry_covers_non_trivial_agent_fields() -> None:
@@ -647,10 +627,9 @@ def test_runtime_semantics_registry_covers_non_trivial_agent_fields() -> None:
         "observability",
         "governance",
         "control",
-        "providers",
     ):
         assert field in agent
-    assert agent["providers"] == "named_list_union(identity=name)"
+    assert "providers" not in agent
     assert agent["models"] == "named_list_merge(identity=id)"
     assert agent["description"] == "replace"
     assert agent["tools_ref"] == "replace"

@@ -5,9 +5,12 @@ from __future__ import annotations
 from library_ioa.plugins.mcp.contract import (
     as_mas_tool_result,
     as_mas_tool_spec,
+    as_mcp_tool_result,
     mas_tool_document_to_mcp,
 )
+from mas.runtime.contracts.tool_contract import ToolResultEnvelope
 from mas.runtime.manifest.schema.tool import ToolDocument
+from mcp.types import CallToolResult
 
 
 def test_as_mas_tool_spec_maps_full_mcp_tool() -> None:
@@ -185,3 +188,43 @@ def test_mas_tool_document_to_mcp_optional_spec_attributes() -> None:
     assert advertised["icons"][0]["src"] == "https://example.invalid/i.png"
     assert advertised["outputSchema"]["properties"]["answer"]["type"] == "string"
     assert advertised["_meta"] == {"vendor": "ioa"}
+
+
+def test_as_mcp_tool_result_preserves_existing_envelope_content() -> None:
+    envelope = ToolResultEnvelope(
+        content=[
+            {"type": "text", "text": "hello"},
+            {"type": "image", "data": "aW1hZ2U=", "mimeType": "image/png"},
+            {"type": "audio", "data": "YXVkaW8=", "mimeType": "audio/wav"},
+            {
+                "type": "resource",
+                "resource": {"uri": "test://resource", "mimeType": "text/plain", "text": "embedded"},
+            },
+        ],
+        structured_content={"answer": 42},
+        is_error=True,
+        meta={"source": "test"},
+    )
+
+    result = as_mcp_tool_result(envelope)
+
+    assert isinstance(result, CallToolResult)
+    assert [part.type for part in result.content] == ["text", "image", "audio", "resource"]
+    assert result.structured_content == {"answer": 42}
+    assert result.is_error is True
+    assert result.meta == {"source": "test"}
+
+
+def test_as_mcp_tool_result_preserves_inline_result() -> None:
+    result = as_mcp_tool_result(ToolResultEnvelope.inline({"answer": 42}))
+
+    assert isinstance(result, CallToolResult)
+    assert len(result.content) == 1
+    assert result.content[0].type == "text"
+    assert result.content[0].text == '{\n  "answer": 42\n}'
+
+
+def test_as_mcp_tool_result_leaves_plain_values_unchanged() -> None:
+    result = {"answer": 42}
+
+    assert as_mcp_tool_result(result) is result

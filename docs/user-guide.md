@@ -226,13 +226,12 @@ MAS Lab supports two tool deployment patterns without changing the agent-facing 
 - **local provider** — the tool runs in-process
 - **MCP provider** — the tool is exposed by a separate MCP server process
 
-The runtime resolves both through the provider registry (tool name → plugin).
-`tools: "*"` registers the provider, then queries advertised names at runtime
-initialization — verification always passes. An explicit list can be checked
-at verification (local names against `spec.tools`).
+The runtime resolves local tools by default and loads remote MCP servers from
+infra. The agent spec remains unchanged when switching a tool from local
+execution to an MCP endpoint.
 
-Serve a MAS tool manifest, then point the agent at that server using
-`library-samples/overlays/mcp-localhost.yaml` (not Tutorial 1 overlays):
+Serve a MAS tool manifest, then point the runtime at that server using an infra
+`ToolServerRegistry`:
 
 ```bash
 mas-mcp serve \
@@ -248,29 +247,19 @@ mcp version
 mas-mcp tools list --url http://127.0.0.1:9001/mcp
 ```
 
-```yaml
-providers:
-  - name: localhost-mcp-tools
-    kind: mcp
-    transport: streamable-http
-    url: http://127.0.0.1:9001/mcp
-    tools: "*"
-```
-
 ```bash
 mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
   -o docs/tutorials/01-building-an-agent/overlays/tools.yaml \
-  -o library-samples/overlays/mcp-localhost.yaml \
-  -o library-samples/overlays/local-in-process.yaml \
+  -o docs/tutorials/01-building-an-agent/overlays/skills.yaml \
+  --infra-ref ../../../library-samples/infra/mcp-localhost.yaml \
+  --infra-ref ../../../library-samples/infra/local-tools.yaml \
   -q "What is the current price of Apple stock?" \
   --trace
 ```
 
 The `mas-mcp serve` process logs `MCP tool call name=web-search` when the agent
-uses the tool. Provider `tools: "*"` is filled at runtime init (discovery),
-not at `mas-ctl validate`. Once an external plugin is present, leftover `spec.tools`
-(Tutorial 1's `calc`) need `library-samples/overlays/local-in-process.yaml`.
-Prod MCP-only setups omit that overlay and must not declare unclaimed tools.
+uses the tool. MCP tool names are discovered at runtime initialization; local
+tools such as Tutorial 1's `calc` remain in-process.
 
 This runs the tool in a dedicated process and exposes it to the MAS runtime via MCP, which is the preferred option when you want infra-owned tooling or a clean separation between the agent process and the tool implementation.
 
