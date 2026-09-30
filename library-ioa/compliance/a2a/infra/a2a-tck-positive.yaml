@@ -1,0 +1,20 @@
+apiVersion: infra/v1
+kind: Application
+metadata:
+  name: a2a-tck-positive
+  description: Positive-capability A2A TCK profile.
+spec:
+  endpoints:
+    a2a-tck-agent:
+      protocol: a2a
+      url: http://127.0.0.1:9021
+      usage: deploy
+      a2a:
+        listen:
+          host: 127.0.0.1
+          port: 9021
+        grpc_port: 9022
+        capabilities:
+          streaming: true
+          pushNotifications: true
+          extendedAgentCard: true

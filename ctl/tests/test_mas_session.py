@@ -144,7 +144,12 @@ def _mas_config_two_level_delegation() -> dict:
 
 
 def _materialized_with_agents(agent_ids: list[str], tmp_path: Path):
-    instances = {aid: SimpleNamespace(driver=SimpleNamespace(agent_id=None, engine=MagicMock())) for aid in agent_ids}
+    # `inner=None` is required, not cosmetic: leaf_engine() walks `.inner`
+    # looking for a leaf (a wrapper with no further `.inner`). A bare
+    # MagicMock() auto-vivifies a fresh child mock on every attribute access,
+    # including `.inner` — so without this, leaf_engine() never terminates
+    # and the process runs away (confirmed: unbounded memory growth).
+    instances = {aid: SimpleNamespace(driver=SimpleNamespace(agent_id=None, engine=MagicMock(inner=None))) for aid in agent_ids}
     compose = ComposeResult(
         mas_id="demo",
         mas_config=_mas_config_two_level_delegation(),

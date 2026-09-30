@@ -48,6 +48,29 @@ _LEAF_KINDS = {
 }
 _VALID_KINDS = _LEAF_KINDS | {"InfraBundle"}
 
+_APPLICATION_USAGES = {"use", "deploy", "use-and-deploy"}
+
+
+def application_endpoint_usage(endpoint: dict[str, Any]) -> str:
+    """Return the endpoint's explicit usage, preserving legacy expose behavior."""
+    usage = endpoint.get("usage")
+    if usage is None:
+        return "use-and-deploy" if endpoint.get("expose") is True else "use"
+    value = str(usage)
+    if value not in _APPLICATION_USAGES:
+        raise ValueError(
+            "Application endpoint usage must be 'use', 'deploy', or 'use-and-deploy'"
+        )
+    return value
+
+
+def application_endpoint_is_used(endpoint: dict[str, Any]) -> bool:
+    return application_endpoint_usage(endpoint) in {"use", "use-and-deploy"}
+
+
+def application_endpoint_is_deployed(endpoint: dict[str, Any]) -> bool:
+    return application_endpoint_usage(endpoint) in {"deploy", "use-and-deploy"}
+
 
 def resolve_infra_refs(
     refs: list[str],
@@ -136,6 +159,7 @@ def resolve_infra_refs(
         observability={},
         runtime_engine=dict(runtime_engine),
         runtime_refs=list(runtime_effective),
+        applications=dict(merged.applications),
     )
 
 
@@ -444,6 +468,14 @@ def _from_dict(data: dict[str, Any]) -> InfraManifest:
     meta = data.get("metadata") or {}
     spec = data.get("spec") or {}
     kind = data.get("kind", "")
+    applications: dict[str, dict[str, Any]] = {}
+    if kind == "Application":
+        raw_endpoints = spec.get("endpoints") or {}
+        if isinstance(raw_endpoints, dict):
+            applications = {
+                str(name): dict(endpoint) if isinstance(endpoint, dict) else {"url": str(endpoint)}
+                for name, endpoint in raw_endpoints.items()
+            }
     proxy_raw = spec.get("proxy") or spec.get("server") or {}
     models_raw = spec.get("models") or {}
     defaults = models_raw.get("defaults") or spec.get("defaults") or {}
@@ -469,6 +501,7 @@ def _from_dict(data: dict[str, Any]) -> InfraManifest:
         protocol=str(spec.get("protocol") or "").strip(),
         tool_servers=[dict(item) for item in (spec.get("tool_servers") or []) if isinstance(item, dict)],
         raw=data,
+        applications=applications,
     )
 
 
@@ -487,6 +520,7 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
     default_embed: str | None = None
     model_access: dict[str, Any] = {}
     protocol = ""
+    applications: dict[str, dict[str, Any]] = {}
     pipeline: list[dict[str, Any]] = []
     runtime_engine: dict[str, Any] = {}
     tool_servers_by_id: dict[str, dict[str, Any]] = {}
@@ -523,6 +557,7 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
                 tool_server_order.append(sid)
             previous = tool_servers_by_id.get(sid) or {}
             tool_servers_by_id[sid] = {**previous, **server}
+        applications.update(m.applications)
 
     return InfraManifest(
         name=name,
@@ -539,6 +574,7 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
         pipeline=pipeline,
         runtime_engine=runtime_engine,
         tool_servers=[tool_servers_by_id[sid] for sid in tool_server_order],
+        applications=applications,
     )
 
 

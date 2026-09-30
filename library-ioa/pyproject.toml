@@ -14,6 +14,8 @@ license = { text = "Apache-2.0" }
 dependencies = [
     "mcp>=2.2",
     "mas-runtime",
+    "a2a-sdk[http-server,sqlite]>=1.1.5",
+    "uvicorn>=0.30",
 ]
 
 [project.optional-dependencies]

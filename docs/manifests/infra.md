@@ -13,7 +13,7 @@ URLs, tool registries, secrets env mapping, OTel endpoints. Referenced from **MA
 **Terms:** [glossary.md](../glossary.md) · Hub: [README.md](README.md).
 
 Provides resources: LLM endpoints, tool registries, tool servers, secrets mapping, optional
-application service URLs, OTel/collector endpoints.
+application service URLs, A2A agent endpoints, and OTel/collector endpoints.
 
 **Schema:** `infra.schema.yaml`. Field reference for remote tools:
 [ToolServerRegistry](../references/tool-server-registry.md).
@@ -72,6 +72,37 @@ keeps relative infra paths tied to the application anchor when
 Relative `cache_path` / `path` values on `InfraMiddleware` `spec.params` are
 made absolute at load time relative to the **directory containing that infra
 YAML file** (not CWD). See [LLM cache reference](../references/llm-cache.md).
+
+## A2A agent endpoints
+
+An `Application` infra manifest can name external agent endpoints without putting
+deployment URLs in the MAS topology:
+
+```yaml
+apiVersion: infra/v1
+kind: Application
+metadata:
+  name: a2a-agents-local
+spec:
+  endpoints:
+    weather-oracle:
+      url: http://127.0.0.1:9005
+```
+
+Reference the endpoint from an agency entry:
+
+```yaml
+spec:
+  # Configure this file through workspace config or --infra-ref.
+  agency:
+    agents:
+      - id: weather-oracle
+        # The agency only names weather-oracle; infra matches by that name.
+        # ref is omitted because this is an external dependency.
+```
+
+The current resolver is static and manifest-based. Directory discovery and
+search/composition are intentionally separate future plugins.
 
 ---
 

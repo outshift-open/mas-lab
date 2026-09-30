@@ -4,7 +4,7 @@ The compliance runner writes one JSON report directory per MCP requirement
 revision:
 
 ```text
-compliance/results/
+library-ioa/compliance/mcp/results/
 ├── 2025-11-25/
 └── 2026-07-28/
 ```
@@ -24,7 +24,7 @@ remain in the artifact and must not be silently removed. Informational results
 and warnings are evidence to review, not failures hidden by the wrapper.
 
 The directory is intentionally ignored by Git. Reports are produced by
-`compliance/mcp-conformance.sh` and uploaded by CI as:
+`library-ioa/compliance/mcp/mcp-conformance.sh` and uploaded by CI as:
 
 - `mcp-compliance-${GITHUB_SHA}` for pull requests and branch runs;
 - `mcp-compliance-${GITHUB_REF_NAME}` for version tags.

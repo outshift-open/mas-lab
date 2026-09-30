@@ -291,6 +291,7 @@ class KernelDriver:
     # and egress alike) produced while that turn runs, until the next
     # UserInputReceived replaces it. See GovTransition.task_id.
     _current_task_id: str = field(default="", repr=False)
+    _upstream_correlation_id: int | None = field(default=None, repr=False)
     _gov_exchange_seq: int = field(default=0, repr=False)
 
     def __post_init__(self) -> None:
@@ -328,6 +329,7 @@ class KernelDriver:
 
             if isinstance(ingress, UserInputReceived):
                 self._current_task_id = ingress.task_id
+                self._upstream_correlation_id = ingress.upstream_correlation_id
                 # Adopt whatever this turn's UserInputReceived carries as the
                 # session id from here on — freshly minted for a genuinely
                 # new session (nothing set one yet), or the propagated value
@@ -343,7 +345,11 @@ class KernelDriver:
                     # Same values, same source, as what governance sees on
                     # this and every subsequent transition this turn (see
                     # _notify_governance) — so observability logs match.
-                    self.observability.set_context(session_id=self.session_id, task_id=self._current_task_id)
+                    self.observability.set_context(
+                        session_id=self.session_id,
+                        task_id=self._current_task_id,
+                        upstream_correlation_id=self._upstream_correlation_id,
+                    )
                 if self.ctx is not None:
                     ts_mono, ts_wall = _exchange_timestamp()
                     self._emit_exchange(

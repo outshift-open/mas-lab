@@ -54,6 +54,18 @@ def test_operator_notifies_subscribers() -> None:
     assert cap.seen[0].parent_call_id is None
 
 
+def test_operator_exports_upstream_correlation_context() -> None:
+    op = ObservabilityOperator()
+    cap = _CapturePlugin()
+    op.subscribe(cap)
+    op.set_context(agent_id="agent-1", upstream_correlation_id=42)
+
+    op.record_engine_io(correlation_id=3, op="LLM_CALL")
+
+    assert cap.seen[-1].correlation_id == 3
+    assert cap.seen[-1].upstream_correlation_id == 42
+
+
 def test_operator_unsubscribe_stops_notifications() -> None:
     op = ObservabilityOperator()
     cap = _CapturePlugin()

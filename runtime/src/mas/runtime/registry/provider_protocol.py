@@ -5,8 +5,6 @@
 import logging
 from typing import Any, Dict, List, Protocol, runtime_checkable
 
-logger = logging.getLogger(__name__)
-
 
 class ManifestToolLoadError(RuntimeError):
     """Raised when a provider cannot load or resolve a tool implementation."""
@@ -16,9 +14,9 @@ class ManifestToolLoadError(RuntimeError):
 class ToolProvider(Protocol):
     """Protocol for tool-provider plugins in the MAS runtime.
 
-    Runtime calling is a name → provider lookup. Plugins are registered first.
+    Runtime calling is a name -> provider lookup. Plugins are registered first.
     ``discover_tools`` (optional) is the advertisement query used at runtime
-    initialization when the claim is ``tools: "*"``. Explicit ``tools: [name, …]``
+    initialization when the claim is ``tools: "*"``. Explicit ``tools: [name, ...]``
     claims skip it; their presence can be checked at verification and at init
     via ``list_tools``. ``mas-ctl validate`` never queries ``*`` providers.
     """
@@ -32,7 +30,7 @@ class ToolProvider(Protocol):
     def call_tool(
         self,
         tool_name: str,
-        arguments: Dict[str, Any],
+        arguments: dict[str, Any],
         *,
         ctx: Any = None,
         user: str = "",

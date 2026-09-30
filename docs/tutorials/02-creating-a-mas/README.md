@@ -256,7 +256,7 @@ an overlay can switch the entire topology without touching agent
 definitions. The `workflow.type` field selects the workflow strategy:
 
 | `workflow.type` | Strategy | Who decides agent order? |
-|-----------------|----------|-------------------------|
+| ----------------- | ---------- | ------------------------- |
 | `dynamic` | Moderator delegates dynamically | The moderator's LLM |
 | `single` | One agent handles everything | N/A — no delegation |
 | `sequential` | Automaton walks a fixed pipeline | Declared edge order |
@@ -384,7 +384,7 @@ changes. This is the power of overlays: swap topology without touching
 agent definitions.
 
 | Command | Topology | Agent(s) | Who decides order? |
-|---------|----------|----------|--------------------|
+| --------- | ---------- | ---------- | -------------------- |
 | (no overlay) | `dynamic` | moderator + 3 specialists | Moderator LLM |
 | `-o overlays/single-agent.yaml` | `single` | 1 generalist | N/A |
 | `-o overlays/linear.yaml` | `sequential` | 3 specialists | Fixed workflow nodes |
@@ -460,6 +460,50 @@ library-samples/apps/trip-planner/
 
 The design-space lab (`labs/design-space.lab/`) extends this app with
 pattern/topology overlays, benchmark datasets, and analysis pipelines.
+
+---
+
+## Continuation: A2A agent communication
+
+A2A is a transport plugin for agent communication, not a tool provider. The
+LLM still decides whether to call `delegate_to_<id>` through the
+`DelegationContract`; after that decision, the runtime resolves the target's
+`agent_comm` binding and dispatches through either `LocalAgentComm` or
+`A2AAgentComm`.
+
+Local agency entries omit `agent_comm` and use the in-process bus. A remote
+agency entry has no `ref` and declares its protocol explicitly:
+
+```yaml
+spec:
+  agency:
+    agents:
+      - id: moderator
+        ref: agents/moderator.yaml
+      - id: weather-oracle
+        agent_comm:
+          type: a2a
+          url: https://example.invalid/a2a
+  workflow:
+    entry: moderator
+    nodes:
+      - id: moderator
+        delegates_to: [weather-oracle]
+      - id: weather-oracle
+```
+
+The remote agent is discovered from its A2A AgentCard at
+`/.well-known/agent-card.json`. A local agent can be exposed by the independent
+`agent_expose` plugin, whose `agentCard: true` setting is enabled by default.
+The generic command is:
+
+```bash
+mas-ctl serve agent.yaml --protocol a2a --host 127.0.0.1 --port 9005
+```
+
+Use the official `a2a-cli` or another A2A SDK client to query the card and send
+messages. The complete live walkthrough is maintained in
+`sandbox/agntcon/DEMO-A2A.org`.
 
 ---
 

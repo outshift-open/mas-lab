@@ -9,8 +9,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
-from mas.runtime.schema.observability import ObservabilityEvent
-
 _SYNTHETIC_SPAN_DURATION_S = 0.001
 
 

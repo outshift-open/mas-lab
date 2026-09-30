@@ -33,7 +33,7 @@ Learn the toolkit step by step: one agent, then a multi-agent team, then a full
 benchmark experiment.
 
 | | Tutorial | What you will do |
-|---|----------|------------------|
+| --- | ---------- | ------------------ |
 | 0 | [Environment setup](tutorials/00-environment-setup/README.md) | Install and verify your environment |
 | 1 | [Build an agent](tutorials/01-building-an-agent/README.md) | Author a manifest and chat with your agent |
 | 2 | [Orchestrate your MAS](tutorials/02-creating-a-mas/README.md) | Define a team and run it end to end |
@@ -60,7 +60,7 @@ browser. Started as part of Tutorial 0 (same Docker stack).
 ## Three CLIs
 
 | CLI | Package | Use for |
-|-----|---------|---------|
+| ----- | --------- | --------- |
 | `mas-ctl` | `ctl/` | Chat, TUI, compile, compose, validate, `run-mas` — [options](cli/mas-ctl.md) |
 | `mas-runtime` | `runtime/` | Library only (no CLI) |
 | `mas-lab` | `lab/` | Benchmarks, pipelines, telemetry — [CLI overview](cli/index.md#mas-lab) |
@@ -269,6 +269,59 @@ See the MCP library docs in [../library-ioa/README.md](../library-ioa/README.md)
 [ToolContract](references/tool-contract.md), [kind: Tool](manifests/tool.md), and
 infra [`ToolServerRegistry`](references/tool-server-registry.md)
 (`library-samples/infra/mcp-localhost.yaml`).
+
+## Running tools through MCP
+
+MAS Lab supports two tool deployment patterns without changing the agent-facing contract:
+
+- **local provider** — the tool runs in-process
+- **MCP provider** — the tool is exposed by a separate MCP server process
+
+The runtime resolves both through the provider registry, so the agent still calls by tool name and arguments.
+
+```yaml
+providers:
+  - name: math-tools
+    kind: mcp
+    transport: stdio
+    command: python
+    args:
+      - -c
+      - |
+        from mcp.server import MCPServer
+        mcp = MCPServer("math-tools")
+
+        @mcp.tool()
+        def add(a: int, b: int) -> int:
+            return a + b
+
+        mcp.run("stdio")
+```
+
+This starts the tool in a dedicated process and exposes it to the MAS runtime via MCP, which is the preferred option when you want infra-owned tooling or a clean separation between the agent process and the tool implementation.
+
+A local tool provider is still the easiest debug path when the tool is part of the same process. The same logical agent interface works in both modes.
+
+See the MCP library docs in [../library-ioa/README.md](../library-ioa/README.md) and [../library-ioa/plugins/mcp/docs/quickstart/README.md](../library-ioa/plugins/mcp/docs/quickstart/README.md).
+
+## Running agents through A2A
+
+A2A is the agent-to-agent and user-to-agent protocol surface. It is independent
+from MCP tools and from the LLM's delegation decision.
+
+Expose one manifest-backed agent:
+
+```bash
+mas-ctl serve agent.yaml --protocol a2a --host 127.0.0.1 --port 9005
+a2a card get http://127.0.0.1:9005
+a2a send -a http://127.0.0.1:9005 "Hello"
+```
+
+In a MAS, `delegates_to` names the allowed target. The deployment infra
+manifest selects local bus or A2A reachability by matching the endpoint name to
+the agency agent id. Public exposure is also an infra endpoint concern.
+See [A2A quickstart and feature reference](a2a/README.md) and the developer
+[A2A architecture reference](a2a/developer.md).
 
 ---
 

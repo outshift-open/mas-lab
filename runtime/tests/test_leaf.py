@@ -7,6 +7,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 from mas.runtime.engine.leaf import leaf_engine
 
 
@@ -24,11 +26,20 @@ def test_leaf_engine_does_not_follow_mock_inner():
     assert "inner" not in engine._mock_children
 
 
-def test_leaf_engine_stops_after_unwrap_bound():
+def test_leaf_engine_unwraps_normal_stack_beyond_eight_layers():
     leaf = SimpleNamespace()
     cur: object = leaf
     chain = [leaf]
     for _ in range(10):
         cur = SimpleNamespace(inner=cur)
         chain.append(cur)
-    assert leaf_engine(chain[10]) is chain[2]
+    assert leaf_engine(chain[10]) is leaf
+
+
+def test_leaf_engine_raises_after_unwrap_bound():
+    leaf = SimpleNamespace()
+    cur: object = leaf
+    for _ in range(51):
+        cur = SimpleNamespace(inner=cur)
+    with pytest.raises(RuntimeError, match="exceeded 50 levels"):
+        leaf_engine(cur)

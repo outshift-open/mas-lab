@@ -209,7 +209,7 @@ properties:
             items:
               oneOf:
                 - type: object
-                  required: [ref]
+                  required: [id]
                   additionalProperties: false
                   properties:
                     id:

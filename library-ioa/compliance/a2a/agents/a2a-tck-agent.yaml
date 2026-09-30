@@ -1,0 +1,77 @@
+apiVersion: mas/v1
+kind: Agent
+metadata:
+  name: a2a-tck-agent
+  version: "1.0.0"
+  description: Deterministic agent for the official A2A TCK.
+spec:
+  description: Return deterministic protocol-validation responses without an external model.
+  models: []
+  design_pattern:
+    type: scripted_response
+    params:
+      rules:
+        - turn_id_prefix: tck-artifact-file-url
+          response:
+            artifacts:
+              - kind: url
+                name: output.txt
+                url: https://example.com/output.txt
+                media_type: text/plain
+                filename: output.txt
+        - turn_id_prefix: tck-artifact-file
+          response:
+            artifacts:
+              - kind: file
+                name: output.txt
+                text: tck
+                media_type: text/plain
+                filename: output.txt
+        - turn_id_prefix: tck-artifact-text
+          response:
+            artifacts:
+              - kind: text
+                name: text-artifact
+                text: Generated text content
+        - turn_id_prefix: tck-artifact-data
+          response:
+            artifacts:
+              - kind: data
+                name: data-artifact
+                data:
+                  key: value
+                  count: 42
+        - turn_id_prefix: tck-message-response
+          response:
+            text: Direct message response
+        - turn_id_prefix: tck-input-required
+          prompt: TCK history message 2
+          response:
+            text: TCK history message 2
+            task_state: input_required
+        - turn_id_prefix: tck-input-required
+          response:
+            text: Waiting for input
+            task_state: input_required
+        - turn_id_prefix: tck-complete-task
+          response:
+            text: Hello from TCK
+            task_state: completed
+        - turn_id_prefix: tck-stream-ordering-001
+          response:
+            stream_chunks:
+              - Ordered output
+        - turn_id_prefix: tck-stream-003
+          response:
+            stream_chunks:
+              - Stream task lifecycle
+        - turn_id_prefix: tck-stream-001
+          response:
+            stream_chunks:
+              - Stream hello from TCK
+        - turn_id_prefix: tck-stream-002
+          response:
+            stream_chunks:
+              - ""
+      default:
+        text: Deterministic A2A compliance response

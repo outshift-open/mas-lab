@@ -1,0 +1,16 @@
+apiVersion: infra/v1
+kind: Application
+metadata:
+  name: a2a-agents-local
+  description: Local A2A agent endpoints used by a MAS deployment.
+spec:
+  endpoints:
+    schedule_agent:
+      protocol: a2a
+      url: http://127.0.0.1:9026
+    itinerary_agent:
+      protocol: a2a
+      url: http://127.0.0.1:9027
+    concierge_agent:
+      protocol: a2a
+      url: http://127.0.0.1:9028

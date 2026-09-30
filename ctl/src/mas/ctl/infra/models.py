@@ -49,6 +49,7 @@ class InfraManifest:
     runtime_engine: dict[str, Any] = field(default_factory=dict)
     tool_servers: list[dict[str, Any]] = field(default_factory=list)
     raw: dict[str, Any] = field(default_factory=dict)
+    applications: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: Path | str) -> InfraManifest:

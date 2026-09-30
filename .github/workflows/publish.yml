@@ -79,25 +79,25 @@ jobs:
           echo "${{ runner.temp }}/bin" >> "$GITHUB_PATH"
 
       - name: Install MCP compliance dependencies
-        run: task --dir compliance install
+        run: task --dir library-ioa/compliance/mcp install
 
       - name: Validate MCP compliance configuration
-        run: task --dir compliance validate-config
+        run: task --dir library-ioa/compliance/mcp validate-config
 
-      - name: Run MCP compliance regression tests
-        run: task --dir compliance test
+      - name: Run MCP unit tests
+        run: .venv/bin/pytest library-ioa/tests/mcp -q
 
       - name: Run both MCP requirement sets
         run: |
-          MCP_CONFORMANCE_RESULTS="${{ github.workspace }}/compliance/results" \
-            ./compliance/mcp-conformance.sh
+          MCP_CONFORMANCE_RESULTS="${{ github.workspace }}/library-ioa/compliance/mcp/results" \
+            ./library-ioa/compliance/mcp/mcp-conformance.sh
 
       - name: Upload release MCP compliance report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: mcp-compliance-${{ github.ref_name }}
-          path: compliance/results/
+          path: library-ioa/compliance/mcp/results/
           if-no-files-found: warn
           retention-days: 90
 

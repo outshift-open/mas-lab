@@ -27,6 +27,7 @@ types:
   - governance
   - tool_provider
   - llm_provider
+  - agent_comm
 
 plugins:
   # Wire protocols (routed by spec.models[].kind / infra spec.protocol)
@@ -56,6 +57,11 @@ plugins:
     shortcuts:
       - local
       - in-process
+  - type: agent_comm
+    name: local
+    urn: mas.agent_comm.local
+    module: mas.runtime.boundary.agentcomm.local
+    class: LocalAgentComm
 
   # Observability plugins
   - type: observability

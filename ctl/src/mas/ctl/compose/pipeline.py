@@ -135,6 +135,10 @@ def _agents_from_mas(config: dict[str, Any]) -> list[dict[str, str]]:
             out.append({"id": f"agent-{i}"})
             continue
         aid = a.get("name") or a.get("id") or f"agent-{i}"
+        # An agency entry with only agent_comm describes a remote peer. It is
+        # discoverable for routing but must not be materialized locally.
+        if not a.get("ref") and not isinstance(a.get("spec"), dict):
+            continue
         entry: dict[str, str] = {"id": aid}
         if a.get("ref"):
             entry["manifest"] = a["ref"]

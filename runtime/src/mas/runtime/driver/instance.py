@@ -156,6 +156,7 @@ class RuntimeInstance:
         turn_id: str = "u1",
         parent_call_id: str = "",
         session_id: str = "",
+        upstream_correlation_id: int | None = None,
     ) -> DriverTrace:
         """``session_id`` empty means "no one has one yet" — a genuinely new
         MAS session — and UserInputReceived mints one itself (see its
@@ -178,7 +179,11 @@ class RuntimeInstance:
                 record_kwargs["parent_call_id"] = parent_call_id
             op.record_session("user_input", **record_kwargs)
 
-        ingress_kwargs: dict[str, Any] = {"user_turn_id": turn_id, "text": text}
+        ingress_kwargs: dict[str, Any] = {
+            "user_turn_id": turn_id,
+            "text": text,
+            "upstream_correlation_id": upstream_correlation_id,
+        }
         if session_id:
             ingress_kwargs["session_id"] = session_id
         trace = self.feed(UserInputReceived(**ingress_kwargs))

@@ -732,12 +732,19 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
             is_ref_based = "ref" in target and str(target.get("kind") or "").lower() != "agent"
             if "ref" in per_agent:
                 target["ref"] = deepcopy(per_agent["ref"])
+            legacy_transport_keys = {"agent_comm", "agent_transport", "expose"} & per_agent.keys()
+            if legacy_transport_keys:
+                raise OverlayTargetError(
+                    "MAS agency overlays cannot set transport or exposure fields "
+                    f"{sorted(legacy_transport_keys)!r}; use an infra Application endpoint "
+                    "for remote peers and `mas-ctl serve` for inbound exposure"
+                )
             agent_spec = target.setdefault("spec", {})
             raw_context = per_agent.get("context") if is_ref_based else None
             per_agent_for_merge = (
-                {k: v for k, v in per_agent.items() if k != "context"}
+                {k: v for k, v in per_agent.items() if k not in {"context", "ref"}}
                 if raw_context is not None
-                else per_agent
+                else {k: v for k, v in per_agent.items() if k != "ref"}
             )
             per_agent_overlay = {"spec": {"patch": deepcopy(per_agent_for_merge)}}
             merged_agent = merge_agent_overlay({"spec": deepcopy(agent_spec)}, per_agent_overlay)

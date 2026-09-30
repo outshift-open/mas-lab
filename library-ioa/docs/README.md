@@ -1,11 +1,12 @@
 # IOA Library Documentation
 
 ## Introduction
+
 Welcome to the IOA documentation. This section covers the architecture and usage of the IOA library and the MCP integration pattern used by MAS runtime providers.
 
 ## Quickstart
 
-- [MCP Quickstart](../plugins/mcp/docs/quickstart/README.md) — start a server and connect to it with a MAS manifest
+- [MCP Quickstart](../../docs/tutorials/01-mcp-tools/README.md) — start a server and connect to it with a MAS manifest
 
 ## User Guide
 

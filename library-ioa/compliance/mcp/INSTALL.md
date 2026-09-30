@@ -19,7 +19,7 @@ works directly after installing the Python packages with the commands below.
 From the repository root:
 
 ```bash
-task --dir compliance install
+task --dir library-ioa/compliance/mcp install
 ```
 
 The equivalent uv-only installation is:
@@ -37,20 +37,20 @@ Run both pinned MCP requirement sets and write JSON reports under
 
 ```bash
 MCP_CONFORMANCE_RESULTS="$PWD/compliance/results" \
-  ./compliance/mcp-conformance.sh
+  ./library-ioa/compliance/mcp/mcp-conformance.sh
 ```
 
 Or use the dedicated Taskfile:
 
 ```bash
-task --dir compliance run
+task --dir library-ioa/compliance/mcp run
 ```
 
 Before running the suite, validate configuration and the focused fixture tests:
 
 ```bash
-task --dir compliance validate-config
-task --dir compliance test
+task --dir library-ioa/compliance/mcp validate-config
+task --dir library-ioa/compliance/mcp test
 ```
 
 The runner starts the deterministic fixture, executes the official conformance

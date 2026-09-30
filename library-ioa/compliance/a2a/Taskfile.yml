@@ -1,0 +1,57 @@
+# Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+# SPDX-License-Identifier: Apache-2.0
+version: "3"
+
+vars:
+  ROOT_DIR: "{{.TASKFILE_DIR}}/../../.."
+  VENV: "{{.ROOT_DIR}}/.venv/bin"
+  TCK_DIR: "{{.TASKFILE_DIR}}/vendor/a2a-tck"
+  TCK_PYTHON: "{{.TASKFILE_DIR}}/vendor/a2a-tck/.venv/bin/python"
+
+tasks:
+  install:
+    desc: Install dependencies required by A2A compliance and unit tests
+    dir: "{{.ROOT_DIR}}"
+    cmds:
+      - uv venv .venv --allow-existing
+      - uv pip install -e runtime -e ctl -e library-standard -e library-ioa -e library-skills -e library-eval -e library-lab -e library-samples -e lab/components/core -e lab/components/bench -e lab/components/controller -e lab pytest pytest-asyncio
+
+  unit-tests:
+    desc: Run A2A adapter unit and contract tests
+    dir: "{{.ROOT_DIR}}"
+    cmds:
+      - "{{.VENV}}/pytest library-ioa/tests/a2a -q"
+
+  compliance-tests:
+    desc: Run the deterministic A2A compliance fixture test
+    dir: "{{.ROOT_DIR}}"
+    cmds:
+      - "MAS_LIBRARY_PATHS={{.TASKFILE_DIR}} {{.VENV}}/pytest {{.TASKFILE_DIR}}/test_scripted_response.py -q"
+
+  validate:
+    desc: Validate the deterministic A2A agent and capability profiles
+    dir: "{{.ROOT_DIR}}"
+    cmds:
+      - "{{.VENV}}/mas-ctl validate {{.TASKFILE_DIR}}/agents/a2a-tck-agent.yaml"
+      - "{{.VENV}}/mas-ctl validate {{.TASKFILE_DIR}}/infra/a2a-tck-positive.yaml"
+      - "{{.VENV}}/mas-ctl validate {{.TASKFILE_DIR}}/infra/a2a-tck-negative.yaml"
+      - "{{.VENV}}/mas-ctl validate {{.TASKFILE_DIR}}/infra/a2a-tck-required-extension.yaml"
+
+  install-tck:
+    desc: Install the official A2A TCK checkout
+    dir: "{{.TASKFILE_DIR}}"
+    cmds:
+      - "test -d vendor/a2a-tck || git clone https://github.com/a2aproject/a2a-tck.git vendor/a2a-tck"
+      - "UV_PROJECT_ENVIRONMENT={{.TCK_DIR}}/.venv uv sync --project {{.TCK_DIR}}"
+
+  tck-positive:
+    desc: Run the official A2A TCK against the deterministic positive profile
+    dir: "{{.TCK_DIR}}"
+    cmds:
+      - "{{.TCK_PYTHON}} run_tck.py --sut-host http://127.0.0.1:9021"
+
+  check:
+    desc: Install dependencies and run A2A unit and compliance checks
+    deps: [install, unit-tests, compliance-tests, validate]
+    cmds:
+      - echo "A2A unit and compliance checks passed"

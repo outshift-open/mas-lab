@@ -10,6 +10,7 @@ import threading
 import uuid
 from dataclasses import dataclass, field
 
+from mas.runtime.kernel.state import QProduct
 from mas.runtime.schema.egress import (
     EgressKind,
     EgressSymbol,
@@ -20,8 +21,7 @@ from mas.runtime.schema.egress import (
     RequestCtxAssembly,
 )
 from mas.runtime.schema.ingress import HitlResolve, IngressSymbol
-from mas.runtime.schema.observability import AuditReport, ObsEventKind, ObservabilityEvent, ObsPhase
-from mas.runtime.kernel.state import QProduct
+from mas.runtime.schema.observability import AuditReport, ObservabilityEvent, ObsEventKind, ObsPhase
 
 _logger = logging.getLogger(__name__)
 
@@ -74,6 +74,7 @@ class ObservabilityOperator:
     # sees for the same transition.
     _session_id: str = ""
     _task_id: str = ""
+    _upstream_correlation_id: int | None = None
     _subscribers: list = field(default_factory=list)
     _frames: _CallFrames = field(default_factory=_CallFrames, repr=False)
     _interval_call_ids: dict[tuple[int, str], str] = field(default_factory=dict)
@@ -103,6 +104,7 @@ class ObservabilityOperator:
         run_id: str | None = None,
         session_id: str | None = None,
         task_id: str | None = None,
+        upstream_correlation_id: int | None = None,
     ) -> None:
         if agent_id is not None:
             self._agent_id = agent_id
@@ -112,6 +114,7 @@ class ObservabilityOperator:
             self._session_id = session_id
         if task_id is not None:
             self._task_id = task_id
+        self._upstream_correlation_id = upstream_correlation_id
 
     def push_call_frame(self, call_id: str) -> None:
         """Push an open execution frame (e.g. agent turn) onto the CURRENT thread's stack."""
@@ -917,5 +920,6 @@ class ObservabilityOperator:
                 task_id=self._task_id,
                 call_id=call_id,
                 parent_call_id=parent_call_id,
+                upstream_correlation_id=self._upstream_correlation_id,
             )
         )
