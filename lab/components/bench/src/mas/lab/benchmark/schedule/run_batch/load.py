@@ -9,13 +9,14 @@ import logging
 import sys as _sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional, TypeVar
 
 from mas.lab.benchmark.execution import parse_step_overrides
 from mas.lab.benchmark.execution.pipeline_attach import merge_pipeline_attachments
 from mas.lab.benchmark.schedule.pipeline_resolve import resolve_pipeline_specs
 
 logger = logging.getLogger(__name__)
+_ItemT = TypeVar("_ItemT")
 
 
 @dataclass
@@ -41,6 +42,8 @@ def load_experiment(
     *,
     max_runs: Optional[int] = None,
     limit_scenarios: Optional[int] = None,
+    scenario_id: Optional[str] = None,
+    dataset_item: Optional[str] = None,
     single_run: bool = False,
     flavour_name: Optional[str] = None,
     infra_name: Optional[str] = None,
@@ -185,6 +188,12 @@ def load_experiment(
         dataset_filter=exp.dataset_filter,
         dataset_limit=exp.dataset_limit,
     )
+    try:
+        scenario_ids = _select_scenario_ids(scenario_ids, scenario_id)
+        dataset_items = _select_dataset_items(dataset_items, dataset_item)
+    except ValueError as exc:
+        logger.error("%s", exc)
+        return None
 
     n_runs = max_runs if max_runs is not None else exp.execution.n_runs if exp.execution else 1
     if single_run:
@@ -232,6 +241,40 @@ def _view_dataset_items(
         viewed = viewed[:dataset_limit]
         logger.info("Dataset limit: capped to %s items", dataset_limit)
     return viewed
+
+
+def _select_scenario_ids(scenario_ids: list[str], scenario_id: str | None) -> list[str]:
+    return _select_by_id(
+        scenario_ids,
+        scenario_id,
+        label="Scenario",
+        id_of=lambda value: value,
+    )
+
+
+def _select_dataset_items(items: list[dict], dataset_item: str | None) -> list[dict]:
+    return _select_by_id(
+        items,
+        dataset_item,
+        label="Dataset item",
+        id_of=lambda item: item.get("id"),
+    )
+
+
+def _select_by_id(
+    items: list[_ItemT],
+    selected_id: str | None,
+    *,
+    label: str,
+    id_of: Callable[[_ItemT], object],
+) -> list[_ItemT]:
+    """Return the requested ID while keeping selector behavior consistent."""
+    if selected_id is None:
+        return items
+    selected = [item for item in items if str(id_of(item)) == str(selected_id)]
+    if not selected:
+        raise ValueError(f"{label} ID not found: {selected_id}")
+    return selected
 
 
 def _load_dataset_items(exp: Any) -> list:

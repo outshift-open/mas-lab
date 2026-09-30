@@ -19,7 +19,10 @@ from pathlib import Path
 
 import pytest
 import yaml
-
+from mas.lab.benchmark.schedule.run_batch.load import (
+    _select_dataset_items,
+    _select_scenario_ids,
+)
 from mas.lab.lab.config import MASExperimentConfig
 
 # ---------------------------------------------------------------------------
@@ -217,6 +220,20 @@ def test_dataset_limit_slices_yaml_items(tmp_path):
         dataset_limit=cfg.dataset_limit,
     )
     assert [item["id"] for item in items] == ["1", "2"]
+
+
+def test_selectors_narrow_benchmark_to_one_scenario_and_item():
+    items = [{"id": "one"}, {"id": "two"}]
+
+    assert _select_scenario_ids(["baseline", "react"], "react") == ["react"]
+    assert _select_dataset_items(items, "two") == [{"id": "two"}]
+
+
+def test_selectors_reject_unknown_ids():
+    with pytest.raises(ValueError, match="Scenario ID not found: missing"):
+        _select_scenario_ids(["baseline"], "missing")
+    with pytest.raises(ValueError, match="Dataset item ID not found: missing"):
+        _select_dataset_items([{"id": "one"}], "missing")
 
 
 def test_load_dataset_items_raises_on_bad_source(tmp_path):

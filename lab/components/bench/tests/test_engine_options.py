@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from mas.lab.benchmark.engine import BenchmarkRunOptions, _is_mas_experiment_yaml, run_benchmark
 
 
@@ -103,6 +102,8 @@ async def test_run_benchmark_mas_route_uses_options(monkeypatch, tmp_path: Path)
         dry_run=True,
         max_runs=3,
         limit_scenarios=2,
+        scenario_id="react",
+        dataset_item="case-2",
         single_run=True,
         flavour_name="local",
         infra_name="mock",
@@ -120,6 +121,8 @@ async def test_run_benchmark_mas_route_uses_options(monkeypatch, tmp_path: Path)
     assert captured["dry_run"] is True
     assert captured["max_runs"] == 3
     assert captured["limit_scenarios"] == 2
+    assert captured["scenario_id"] == "react"
+    assert captured["dataset_item"] == "case-2"
     assert captured["single_run"] is True
     assert captured["flavour_name"] == "local"
     assert captured["infra_name"] == "mock"
