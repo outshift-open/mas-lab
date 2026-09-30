@@ -117,6 +117,7 @@ nav:
       - "ADR 0001 — lab terminology": references/adr-0001-lab-terminology.md
       - Specifications:
           - Agent: manifests/agent.md
+          - System tools: manifests/system-tools.md
           - Plugin bindings: manifests/plugin-bindings.md
           - Context assembly: manifests/context-assembly.md
           - Summarization: manifests/summarization.md
@@ -137,6 +138,7 @@ nav:
           - Manifest fields: manifests/runtime.md
           - "LLM cache (reference)": references/llm-cache.md
           - Contracts: references/contracts.md
+          - System tools: references/system-tools.md
           - Package documentation: references/runtime.md
       - Lab & benchmarks:
           - Experiment: manifests/experiment.md

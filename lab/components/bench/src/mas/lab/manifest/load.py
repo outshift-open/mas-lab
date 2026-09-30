@@ -186,6 +186,7 @@ def load_mas_config(
     *,
     overlay_paths: list[Path] | None = None,
     infra_refs: list[str] | None = None,
+    workspace_root: Path | None = None,
     validate: bool = False,
 ) -> LoadedMAS:
     """Load mas.yaml via compose; expand agency refs into runtime ``_raw`` dict."""
@@ -198,6 +199,7 @@ def load_mas_config(
     result = compose_run(
         ComposeRequest(
             manifest=mas_path,
+            workspace_root=workspace_root,
             overlay_paths=list(overlay_paths or []),
             infra_refs=list(infra_refs or []),
             validate=validate,

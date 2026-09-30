@@ -30,8 +30,10 @@ def test_compile_cli_stdout_tutorial_1() -> None:
     doc = yaml.safe_load(result.output)
     assert doc["kind"] == "Agent"
     tools = doc["spec"]["tools"]
-    refs = [t["ref"] if isinstance(t, dict) else t for t in tools]
+    refs = [t["ref"] for t in tools if isinstance(t, dict) and "ref" in t]
+    system_tools = {t["name"] for t in tools if isinstance(t, dict) and t.get("kind") == "system"}
     assert "samples:tools/web-search.tool.yaml" in refs
+    assert system_tools == {"request_human_input", "inform_user"}
 
 
 def test_compile_cli_writes_agent_file(tmp_path: Path) -> None:

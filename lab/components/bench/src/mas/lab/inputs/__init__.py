@@ -275,6 +275,7 @@ class RunInput:
     checkpoint_save: Any = False
     session_id: Optional[str] = None
     expectations: Dict[str, Any] = field(default_factory=dict)
+    tool_fixture_ref: Optional[str] = None
 
     def __post_init__(self) -> None:
         if not self.turns:
@@ -466,6 +467,12 @@ def load_run_input(
     if isinstance(memory_raw, str) or _is_ref_object(memory_raw):
         memory_raw = _resolve_file_slot(memory_raw, base_path)
     memory_seeds = _as_seeds(memory_raw) if memory_raw is not None else None
+    tool_fixture_ref = None
+    raw_tool_fixtures = inputs.get("tool_fixtures")
+    if isinstance(raw_tool_fixtures, dict) and isinstance(
+        raw_tool_fixtures.get("incident_fixture"), str
+    ):
+        tool_fixture_ref = raw_tool_fixtures["incident_fixture"]
     tool_fixtures = (
         _resolve_fixture(inputs.get("tool_fixtures"), base_path)
         if inputs.get("tool_fixtures") is not None
@@ -507,6 +514,7 @@ def load_run_input(
         checkpoint_save=checkpoint_save,
         session_id=inputs.get("session_id"),
         expectations=expectations,
+        tool_fixture_ref=tool_fixture_ref,
     )
 
 

@@ -5,7 +5,7 @@
 Discovers skills in this order:
   1. ``<base_dir>`` and subdirectories
   2. ``<base_dir>/skills/`` and ``<base_dir>/.agents/skills/``
-  3. Parent directory skills/ (monorepo walk-up to git root or depth limit)
+  3. Parent directory skills/ (walk-up, stopping below ``~`` or at depth limit)
   4. User-level: ``~/.agents/skills/``, ``~/.{client}/skills/``, ``~/.mas/skills/``
 
 Name normalization: ``foo``, ``foo-bar``, ``foo_bar`` all resolve to the same
@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from subprocess import CalledProcessError, run
 
 from .parsing import parse_skill_frontmatter
 from .registry import SkillRecord, SkillRegistry
@@ -49,7 +48,7 @@ class Discovery:
             base_dir: Root directory for skill resolution (default: current dir).
             search_additional: Extra directories to search (prepended path).
             client_name: Client identifier (e.g. "mas-lab") for user dir scan.
-            ancestor_walk_depth: Max directory levels to walk (None = git root).
+            ancestor_walk_depth: Max parent levels to walk (None = up to, not including, ``~``).
         """
         self.manifest_skills = manifest_skills or []
         self.base_dir = Path(base_dir or Path.cwd()).resolve()
@@ -197,25 +196,13 @@ class Discovery:
     def _walk_ancestors(self, start: Path, seen: dict[Path, None]) -> None:
         """Walk up the directory tree looking for skills/ directories.
 
-        Includes the git root's own skills/ dir (monorepo-shared skills live
-        there), then stops. Also stops after ancestor_walk_depth levels, if
-        set.
+        Pure filesystem walk (no VCS): nearest ``skills/`` wins. Stops before
+        the home directory (user-level dirs are handled separately), at the
+        filesystem root, or after ``ancestor_walk_depth`` levels.
         """
-        try:
-            git_root = Path(
-                run(
-                    ["git", "rev-parse", "--show-toplevel"],
-                    cwd=start,
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                ).stdout.strip()
-            ).resolve()
-        except CalledProcessError:
-            git_root = None
-
+        home = Path.home().resolve()
         for depth, parent in enumerate(start.resolve().parents):
-            if (
+            if parent == home or (
                 self.ancestor_walk_depth is not None
                 and depth > self.ancestor_walk_depth
             ):
@@ -223,13 +210,8 @@ class Discovery:
 
             p_skills = parent / "skills"
             r = p_skills.resolve()
-            if r not in seen and r.exists():
+            if r not in seen and r.is_dir():
                 seen[r] = None
-
-            # Stop after processing git root — its skills/ dir (just above)
-            # is the last stop for a monorepo walk-up.
-            if git_root and parent == git_root:
-                break
 
     def _classify_scope(self, skill_path: Path) -> str:
         """Classify skill as 'project', 'user', or 'builtin'."""

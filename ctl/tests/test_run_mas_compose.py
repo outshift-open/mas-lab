@@ -97,6 +97,72 @@ spec:
     assert {a["agent_id"] for a in agents} == {"alpha", "beta"}
 
 
+def test_compose_run_library_app_keeps_experiment_workspace_infra(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """A library-backed app must not replace the experiment's workspace config."""
+    workspace_root = tmp_path / "experiment"
+    workspace_root.mkdir()
+    (workspace_root / "config.yaml").write_text(
+        "infra_refs: [standard:openai]\n",
+        encoding="utf-8",
+    )
+
+    user_config_root = tmp_path / "user-config"
+    (user_config_root / "mas").mkdir(parents=True)
+    (user_config_root / "mas" / "config.yaml").write_text(
+        "default_infra: standard:production\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(user_config_root))
+
+    library_app = tmp_path / "example-library" / "apps" / "example-app" / "v2"
+    agent = library_app / "agents" / "example-app.yaml"
+    agent.parent.mkdir(parents=True)
+    agent.write_text(
+        """apiVersion: mas/v1
+kind: Agent
+metadata:
+  name: example-app
+spec:
+  description: test agent
+  models:
+    - model: gpt-4o-mini
+""",
+        encoding="utf-8",
+    )
+    mas_path = library_app / "mas.yaml"
+    mas_path.write_text(
+        """apiVersion: mas/v1
+kind: MAS
+metadata:
+  name: example-app
+spec:
+  agency:
+    agents:
+      - id: example-app
+        ref: agents/example-app.yaml
+  workflow:
+    type: sequential
+    entry: example-app
+    nodes:
+      - id: example-app
+        role: specialist
+""",
+        encoding="utf-8",
+    )
+
+    result = compose_run(
+        ComposeRequest(
+            manifest=mas_path,
+            workspace_root=workspace_root,
+            validate=False,
+        )
+    )
+
+    assert result.infra_refs == ["standard:openai"]
+
+
 def test_inproc_bus_transport_handoff():
     from mas.ctl.placement.bus.adapter import RuntimeCommEndpoint
     from mas.ctl.placement.bus.inproc import InProcessCommBus

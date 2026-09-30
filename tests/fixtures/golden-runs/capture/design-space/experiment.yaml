@@ -12,6 +12,7 @@ experiment:
       overlays:
         logic:
           - tools
+          - ref: ../../hitl-system-tools.yaml
         control: []
         infra: []
   dataset:

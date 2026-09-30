@@ -137,18 +137,26 @@ def preload_scenario_configs(
                     overlays_dir=configs_dir,
                     base_dir=experiment_yaml.parent,
                     infra_refs=infra_refs,
+                    workspace_root=experiment_yaml.parent,
                 )
                 _scenario_overlay_stacks[_sid] = list(_scenario_spec.overlays.flattened())
             elif (configs_dir is None or (_scenario_spec and not _scenario_spec.overlays.flattened())) and exp.mas and exp.mas.manifest:
                 from mas.lab.manifest.load import load_mas_config
                 _mas_man = load_mas_config(
-                    exp.mas.manifest, validate=False, infra_refs=infra_refs
+                    exp.mas.manifest,
+                    validate=False,
+                    infra_refs=infra_refs,
+                    workspace_root=experiment_yaml.parent,
                 )
                 _cfg, _bp = dict(_mas_man._raw), exp.mas.manifest
             else:
                 _explicit_mas = exp.mas.manifest if (exp.mas and exp.mas.manifest) else None
                 _cfg, _bp = load_scenario_config(
-                    configs_dir, _sid, mas_yaml=_explicit_mas, infra_refs=infra_refs
+                    configs_dir,
+                    _sid,
+                    mas_yaml=_explicit_mas,
+                    infra_refs=infra_refs,
+                    workspace_root=experiment_yaml.parent,
                 )
             _scenario_configs[_sid] = (_cfg, _bp)
         except FileNotFoundError:

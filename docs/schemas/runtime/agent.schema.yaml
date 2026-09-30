@@ -647,17 +647,20 @@ properties:
               - module_path: library-samples/tools/calc.py
                 class_name: CalcTool
 
-          Form D — system tools (runtime-owned; not listed → not exposed,
-          except request_human_input / inform_user which default on):
+          Form D — system tools (runtime-owned; exposed only when declared
+          here or implied by the manifest):
             tools:
               - kind: system
-                name: activate_skill
+                name: request_human_input
+                params: {timeout: 300}
               - kind: system
                 name: run_skill_script
 
-          ``activate_skill`` is also implicit when ``spec.skills`` lists at
+          ``activate_skill`` is implicit when ``spec.skills`` lists at
           least one skill. ``run_skill_script`` is implicit when a listed
-          skill has a ``scripts/`` directory.
+          skill has a ``scripts/`` directory. ``request_human_input`` and
+          ``inform_user`` are never implicit. Unknown names are rejected.
+          See docs/manifests/system-tools.md.
 
           Additive with tools_ref — both may be set simultaneously.
         default: []
