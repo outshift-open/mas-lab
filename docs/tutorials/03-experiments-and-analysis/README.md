@@ -425,161 +425,118 @@ re-executing the benchmark.
 ## Part C — Trip Planner Topology Comparison
 
 Now for a real experiment. The trip planner MAS
-(`library-samples/apps/trip-planner/`) uses a moderator + 3 specialists. But is
+([`library-samples/apps/trip-planner/`](../../library-samples/apps/trip-planner/)) uses a moderator + 3 specialists. But is
 that topology actually better? Let's compare three approaches:
 
-| Topology | `spec.workflow.type` | Description | Config |
-|----------|---------------------|-------------|--------|
-| **Single-agent** | `single` | One agent with all tools — no delegation | `topologies/single-agent.yaml` |
-| **Sequential** | `sequential` | Automaton walks agents in order, accumulating context | `topologies/linear.yaml` |
-| **Moderator** | `dynamic` | Entry agent LLM orchestrates specialists via `delegate_to_*` | `topologies/moderator.yaml` |
+| Topology | Schema-backed fields | Description | Config |
+|----------|----------------------|-------------|--------|
+| **Single-agent** | One `workflow.entry` and one node | One agent handles the request | `topologies/single-agent.yaml` |
+| **Delegation chain** | `nodes[].delegates_to` | Each node names its allowed next peer; this alone does not enforce execution order | `topologies/linear.yaml` |
+| **Moderator** | Entry node with multiple `delegates_to` targets | The entry agent chooses which peer tools to call | `topologies/moderator.yaml` |
 
-### C.1 — The three topologies
+The MAS schema has no `workflow.type` or embedded `workflow.edges` field.
+`delegates_to` declares allowed peers; it does not itself guarantee a sequence.
+Parallel fan-out is expressed with node `dispatch: parallel`; deterministic
+ordering depends on the entry agent's `design_pattern`.
 
-#### Single-agent (`spec.workflow.type: single`)
+### C.1 — Workflow shapes
 
-One agent receives all tools and handles the entire trip planning request.
-No delegation — the agent's ReAct loop does everything:
+#### Single-agent overlay
+
+The overlay replaces the participant list with one generalist and updates the
+entry node:
 
 ```yaml
 # topologies/single-agent.yaml
 apiVersion: mas/v1
-kind: MAS
+kind: Overlay
 metadata:
-  name: trip-planner-single
-
+  name: single-agent
 spec:
-  agency:
+  target: {kind: MAS}
+  patch:
     agents:
-      - id: generalist
-        ref: agents/moderator/agent.yaml
-        tools: [lookup_schedule, query_graph_database, get_fares, calc]
-        skills: [trip-orchestration, transport-schedule-lookup,
-                 route-planning, fare-and-itinerary-assembly]
-
-  workflow:
-    type: single
-    entry: generalist
-    nodes:
-      - id: generalist
+      $op:
+        remove: [moderator, schedule_agent, itinerary_agent, concierge_agent]
+        add:
+          - id: generalist
+            ref: agents/generalist/agent.yaml
+    workflow: {entry: generalist, nodes: [{id: generalist}]}
 ```
 
-#### Sequential (`spec.workflow.type: sequential`)
+#### Deterministic-linear overlay
 
-Three specialists in a fixed order. An **automaton** (not an LLM) drives
-the pipeline: schedule → itinerary → concierge. Each agent's output is
-appended to the shared context before the next agent runs:
+The overlay keeps the roster, declares its peer targets, and selects the entry
+agent's deterministic-linear design pattern:
 
 ```yaml
 # topologies/linear.yaml
 apiVersion: mas/v1
-kind: MAS
+kind: Overlay
 metadata:
-  name: trip-planner-linear
-
+  name: linear
 spec:
-  agency:
+  target: {kind: MAS}
+  patch:
+    workflow:
+      entry: moderator
+      nodes:
+        - id: moderator
+          delegates_to: [schedule_agent, itinerary_agent, concierge_agent]
+        - id: schedule_agent
+        - id: itinerary_agent
+        - id: concierge_agent
     agents:
-      - id: schedule_agent
-        ref: agents/schedule-agent/agent.yaml
-        tools: [lookup_schedule]
-        skills: [transport-schedule-lookup]
-      - id: itinerary_agent
-        ref: agents/itinerary-agent/agent.yaml
-        tools: [query_graph_database]
-        skills: [route-planning]
-      - id: concierge_agent
-        ref: agents/concierge-agent/agent.yaml
-        tools: [get_fares, calc]
-        skills: [fare-and-itinerary-assembly]
-
-  workflow:
-    type: sequential
-    entry: schedule_agent
-    edges:
-      - from: schedule_agent
-        to: [itinerary_agent]
-      - from: itinerary_agent
-        to: [concierge_agent]
-    nodes:
-      - id: schedule_agent
-      - id: itinerary_agent
-      - id: concierge_agent
+      moderator:
+        design_pattern: deterministic_linear
 ```
 
-#### Moderator (`spec.workflow.type: dynamic`)
+#### Moderator overlay
 
-The canonical moderator-based topology from `library-samples/apps/trip-planner/mas.yaml`.
-The entry agent's LLM receives `delegate_to_<peer>` tools (from `delegates_to`)
-and decides which specialist to call, in what order, and how many times:
+The moderator overlay preserves LLM-directed delegation: the embedded MAS
+workflow schema has no strategy selector. It declares the entry agent and peers
+it may call; the entry agent's LLM chooses which peer tools to invoke. See the
+current [trip-planner MAS manifest](../../library-samples/apps/trip-planner/mas.yaml)
+for the complete participant roster.
+
+### C.2 — The dataset
+
+The shipped smoke dataset uses the canonical Dataset envelope. Larger
+trip-planning datasets use the same `inputs.user` + `expectations` shape:
 
 ```yaml
-# topologies/moderator.yaml (mirrors library-samples/apps/trip-planner/mas.yaml)
+apiVersion: lab/v1
+kind: Dataset
+metadata:
+  name: trip-planner-topology
 spec:
-  agency:
-    agents:
-      - id: moderator
-        ref: agents/moderator/agent.yaml
-      - id: schedule_agent
-        ref: agents/schedule-agent/agent.yaml
-      - id: itinerary_agent
-        ref: agents/itinerary-agent/agent.yaml
-      - id: concierge_agent
-        ref: agents/concierge-agent/agent.yaml
-
-  workflow:
-    type: dynamic
-    entry: moderator
-    nodes:
-      - id: moderator
-        delegates_to: [schedule_agent, itinerary_agent, concierge_agent]
-      - id: schedule_agent
-      - id: itinerary_agent
-      - id: concierge_agent
-```
-
-### C.2 — The dataset (subset)
-
-For this tutorial we use a 15-item subset of the trip planner benchmark —
-5 items from each complexity group:
-
-```json
-{
-  "items": [
-    {"id": 1, "group": "single_agent", "prompt": "What trains go from Celestia to Verdantia?"},
-    {"id": 2, "group": "single_agent", "prompt": "How much does the ferry from Luminos to Fortuna cost?"},
-    ...
-    {"id": 6, "group": "two_agents", "prompt": "Plan a route from Celestia to Pannonia with fare estimates."},
-    ...
-    {"id": 11, "group": "all_agents", "prompt": "Plan a 3-day trip to Harmonia with budget, activities, and transport."}
-  ]
-}
+  items:
+    - id: item1
+      inputs:
+        user: Plan a weekend trip from Arborville to Coastport. Include transport options and one restaurant recommendation.
 ```
 
 ### C.3 — The experiment manifest
 
-> This is the **illustrative target** (full `evaluation`/`execution` sections
-> and the 15-item dataset). The shipped `experiment-topology.yaml` is a small
-> runnable **scaffold** (a 1-item `dataset-topology.yaml`); the full 15-item /
-> 135-execution comparison lives in `labs/design-space.lab/02-topologies/`.
+> The shipped `experiment-topology.yaml` is a runnable one-item smoke comparison
+> using the trip-planner MAS and these overlays. The larger topology experiment
+> lives in `labs/design-space.lab/02-topologies/`.
 
 ```yaml
-# experiment-topology.yaml (illustrative — see note above)
+# experiment-topology.yaml
 experiment:
   name: "t3-topology-comparison"
-  description: >
-    Compare three MAS topologies (single-agent, linear, moderator) on
-    15 trip planner prompts. 3 runs per scenario × 15 items = 135 executions.
+  description: Compare the trip-planner topology overlays on one smoke item.
 
   default_flavour: local
   application:
-    manifest: ./mas.yaml
+    app: trip-planner
     configs_dir: ./topologies
 
   scenarios:
     - id: single-agent
       description: "One agent with all tools — no delegation"
-      overlays: {logic: [], control: [], infra: []}
+      overlays: {logic: [single-agent], control: [], infra: []}
       tags: [single, baseline]
     - id: linear
       description: "Fixed chain: schedule → itinerary → concierge"
@@ -591,22 +548,10 @@ experiment:
       tags: [moderator, broker]
 
   dataset:
-    path: "dataset-topology.yaml"
-
-  models:
-    main: gpt-4o
-    judge: gpt-4o
-
-  evaluation:
-    method: llm_judge
+    path: ./dataset-topology.yaml
 
   run:
-    n_runs: 3
-
-  execution:
-    parallel_scenarios: 3
-    timeout: 300
-    pause_between_runs: 1.0
+    n_runs: 1
 ```
 
 ### C.4 — Running the experiment
@@ -614,7 +559,7 @@ experiment:
 ```bash
 T03=docs/tutorials/03-experiments-and-analysis
 
-# Validate scaffold (topology overlays optional — see design-space lab for full trip planner)
+# Run the one-item topology smoke comparison
 mas-lab benchmark run "$T03/experiment-topology.yaml" --dry-run
 
 # Full trip-planner topology sweep (larger dataset) — design-space lab:
@@ -625,21 +570,20 @@ Expected output:
 
 ```
 Running MAS benchmark 't3-topology-comparison'
-  3 scenarios × 15 items × 3 run(s) = 135 executions
+  3 scenarios × 1 item × 1 run(s) = 3 executions
 
-  ✅ [single-agent] item=1 run=1 (8234ms)
-  ✅ [single-agent] item=1 run=2 (7891ms)
-  ...
-  ✅ [moderator] item=15 run=3 (42156ms)
+  ✅ [single-agent] item=item1 run=1 (...)
+  ✅ [linear] item=item1 run=1 (...)
+  ✅ [moderator] item=item1 run=1 (...)
 
 MAS BENCHMARK COMPLETE — t3-topology-comparison
-  Total: 135   OK: 135   Errors: 0
+  Total: 3   OK: 3   Errors: 0
 ```
 
-### C.5 — MCEv1 evaluation
+### C.5 — Inspecting the smoke run
 
-After the benchmark, inspect the run summary and artifacts to compare
-topologies (status, latency, traces, and extracted trajectories):
+The smoke manifest does not run an evaluator or plotting pipeline. Inspect
+the run summary and traces:
 
 ```bash
 mas-lab benchmark show last -v
@@ -648,17 +592,10 @@ mas-lab benchmark show last -v
 Use the generated benchmark output as the source of truth for your run; values
 depend on flavour, model, and runtime conditions.
 
-### C.6 — The comparison plot
+### C.6 — Full topology experiment
 
-For the release-safe OSS profile, keep Part C focused on benchmark execution
-and artifact inspection:
-
-```bash
-mas-lab benchmark show last -v
-```
-
-Use the generated benchmark output directory to inspect per-run traces and
-status files for each topology.
+For the larger topology matrix, use the design-space lab command above; it
+includes the experiment pipelines for evaluation and plots.
 
 ```
 Answer Relevancy by Topology (MCEv1, n=3 runs)

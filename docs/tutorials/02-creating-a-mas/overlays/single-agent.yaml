@@ -13,10 +13,11 @@ spec:
   target:
     kind: MAS
   patch:
-    agency:
-      agents:
-        - id: generalist
-          ref: agents/generalist/agent.yaml
+    agents:
+      $op:
+        replace:
+          - id: generalist
+            ref: agents/generalist/agent.yaml
 
     workflow:
       entry: generalist

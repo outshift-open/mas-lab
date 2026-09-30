@@ -4,7 +4,10 @@
 -->
 # Flavour manifest (`kind: Flavour`)
 
-**Package:** `mas-runtime` · **Schema:** `flavour.schema.yaml` · **apiVersion:** `flavour/v1` (or `mas/v1`)
+**Package:** `mas-runtime` · **Schema:** [`flavour.schema.yaml`](../schemas/runtime/flavour.schema.yaml)
+
+Shipped flavours use `apiVersion: flavour/v1`. The schema currently validates
+`apiVersion` as a string without constraining it to a constant.
 
 A **flavour** is a deployment preset: **observability** export, transport, tool policy —
 not model API URLs (those live in **infra** manifests and **agent** `models`).
@@ -23,8 +26,25 @@ observability, tool policy, and RAG/skills backend.
 | **Control / observation** | `observability`, `telemetry`, `tools.exposure_protocol` | Native/OTel export; MCP exposure protocol |
 | **Protocol / comm** | `agent_comm` | `protocol: local \| grpc \| hybrid`, `mode`, `emulation` |
 
-Governance plugins that **alter trajectory** are usually declared on **Agent `plugins[]`** or
-via **Overlay**; flavour configures the **runtime plane** they attach to.
+Governance plugins that **alter trajectory** are declared through Agent
+`governance[]` (directly or via an **Overlay**). Agent control-plane plugins
+use `control`; Flavour selects deployment posture and plugin defaults.
+
+## Schema fields
+
+The schema keeps `spec` forward-compatible (`additionalProperties: true`). Its
+declared sections are:
+
+| `spec` field | Purpose |
+|--------------|---------|
+| `agent_comm` | Agent-to-agent protocol, mode, emulation, and addresses. |
+| `capabilities` | Feature flags and capability overrides. |
+| `telemetry` | Basic telemetry sink configuration. |
+| `observability` | Observability plugin selection. |
+| `control` | Control-plane plugin selection. |
+| `tools` | Tool exposure protocol, remote-tool policy, and allow-list. |
+| `config` | Free-form deployment configuration; never store secret values. |
+| `operator` | Operator/provisioner metadata. |
 
 ---
 
@@ -33,7 +53,7 @@ via **Overlay**; flavour configures the **runtime plane** they attach to.
 | Forbidden in Flavour | Belongs in |
 |---------------------|------------|
 | `model`, `api_base` | Agent `models` + infra `LLMProxy` |
-| `infra_refs` | `config.yaml`, env `MAS_INFRA_REFS`, CLI `--infra-ref` |
+| `infra_refs` | Workspace `config.yaml`, env `MAS_INFRA_REFS`, CLI `--infra-ref` |
 
 Enforced by `FlavourSeparationValidator` and `mas-lab check-config`.
 

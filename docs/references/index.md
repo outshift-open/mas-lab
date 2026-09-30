@@ -17,15 +17,11 @@ Declarative YAML kinds and how they compose.
 | Topic | Reference |
 |-------|-----------|
 | Overview & composition | [Manifest overview](../manifests/README.md) |
-| Agent | [agent.md](../manifests/agent.md) · [plugin-bindings.md](../manifests/plugin-bindings.md) · [context-assembly.md](../manifests/context-assembly.md) · [summarization.md](../manifests/summarization.md) |
-| Compiled agent defaults (worked example) | [defaults.md](defaults.md) |
-| Tool (`kind: Tool`) | [tool.md](../manifests/tool.md) · [ToolContract](tool-contract.md) |
-| ToolServerRegistry | [infra.md](../manifests/infra.md#toolserverregistry) · [reference](tool-server-registry.md) |
-| MAS & workflow | [mas.md](../manifests/mas.md), [workflow.md](../manifests/workflow.md) |
+| Agent | [agent.md](../manifests/agent.md) |
+| MAS & workflow | [mas.md](../manifests/mas.md) |
 | Overlay | [overlay.md](../manifests/overlay.md) |
 | Flavour & environment | [flavour.md](../manifests/flavour.md), [infra.md](../manifests/infra.md) |
-| LLM cache middleware | [Guide](../manifests/llm-cache.md) · [Reference](llm-cache.md) |
-| Workspace file | [user-config.md](../user-config.md) (paths), [config.yaml reference](config.yaml.md) (fields), [config.schema.yaml](../schemas/config.schema.yaml) |
+| Workspace file | [user-config.md](../user-config.md), [config.schema.yaml](../schemas/config.schema.yaml) |
 | Schemas (all) | [Schema index](schemas.md) |
 | Contracts | [Contracts](contracts.md) |
 
@@ -39,8 +35,7 @@ Execution kernel, contracts, and plugins (`mas-runtime`, `mas-ctl`).
 |-------|-----------|
 | Runtime manifests (Agent, MAS, overlay) | [Manifest fields](../manifests/runtime.md) |
 | Contracts & Mealy envelope | [Contracts](contracts.md) · [runtime package docs](runtime.md) |
-| System tools (`activate_skill`, `request_human_input`, …) | [Guide](../manifests/system-tools.md) · [Reference](system-tools.md) |
-| CLI (`mas-ctl`) | [CLI overview](../cli/index.md) · [mas-ctl options](../cli/mas-ctl.md) |
+| CLI (`mas-ctl`, `mas-runtime`) | [ctl user guide](https://github.com/outshift-open/mas-lab/blob/main/ctl/docs/user-guide.md) |
 | **Web UI** | [ui/index.md](../ui/index.md) |
 | Run logs | [Observability](../cli/observability.md) |
 
@@ -53,12 +48,9 @@ Experiments, datasets, pipelines, and analysis (`mas-lab`).
 | Topic | Reference |
 |-------|-----------|
 | Experiment manifest | [experiment.md](../manifests/experiment.md) |
-| Conversation summarization & eval models | [summarization.md](../manifests/summarization.md) |
 | Dataset | [dataset.md](../manifests/dataset.md) |
 | Pipeline steps | [pipeline.md](../manifests/pipeline.md) |
 | Interactive lab demo | [lab.md](../manifests/lab.md) |
-| Lab vs library | [labs-and-libraries.md](../labs-and-libraries.md) |
-| Library discovery | [library-discovery.md](../library-discovery.md) |
 | Bench design & steps | [Lab package docs](lab.md) |
 | Package map | [libraries.md](../libraries.md) |
 
@@ -67,8 +59,6 @@ Experiments, datasets, pipelines, and analysis (`mas-lab`).
 ## See also
 
 - [User guide](../user-guide.md) — install and day-to-day workflows
-- [CLI](../cli/index.md) · [mas-ctl options](../cli/mas-ctl.md)
-- [config.yaml](config.yaml.md) — workspace / user YAML fields
 - [Tutorials](../tutorials/index.md) — hands-on tutorials (agents → teams → experiments)
 - [Paper labs](../paper/index.md) — reproduce Section 5 of the article
 - [Web UI](../ui/index.md) — design and inspect in the browser

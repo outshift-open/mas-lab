@@ -89,7 +89,9 @@ class TestMASStructure:
         ov = load_yaml(T02 / "overlays" / "single-agent.yaml")
         assert ov["kind"] == "Overlay"
         patch = ov["spec"]["patch"]
-        assert "agency" in patch
+        assert patch["agents"]["$op"]["replace"] == [
+            {"id": "generalist", "ref": "agents/generalist/agent.yaml"}
+        ]
         assert "workflow" in patch
         assert patch["workflow"]["entry"] == "generalist"
 
@@ -98,6 +100,8 @@ class TestMASStructure:
         assert ov["kind"] == "Overlay"
         patch = ov["spec"]["patch"]
         assert "nodes" in patch["workflow"]
+        assert patch["workflow"]["entry"] == "moderator"
+        assert patch["agents"]["moderator"]["design_pattern"]["type"] == "deterministic_linear"
 
 
 # ═══════════════════════════════════════════════════════════════════════════

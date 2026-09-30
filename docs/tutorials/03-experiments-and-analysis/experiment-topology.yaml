@@ -2,37 +2,34 @@
 #  SPDX-License-Identifier: Apache-2.0
 experiment:
   name: t3-topology-comparison
-  description: 'Tutorial 03 Part C experiment: compare single-agent, linear pipeline, and moderator topologies on a fixed
-    QA dataset.
-
-    '
+  description: Tutorial 03 smoke comparison of trip-planner topology overlays.
   default_flavour: local
   models:
     main: gpt-4o-mini
   application:
-    manifest: ./mas.yaml
+    app: trip-planner
     configs_dir: ./topologies
   scenarios:
   - id: single-agent
     description: Single-agent — all tools in one agent
     overlays:
-      logic: []
+      logic: [single-agent]
       control: []
       infra: []
   - id: linear
     description: Linear pipeline — schedule then itinerary
     overlays:
-      logic: []
+      logic: [linear]
       control: []
       infra: []
   - id: moderator
     description: Moderator topology — dynamic delegation
     overlays:
-      logic: []
+      logic: [moderator]
       control: []
       infra: []
   dataset:
-    path: ./dataset.yaml
+    path: ./dataset-topology.yaml
   run:
     n_runs: 1
   post: []

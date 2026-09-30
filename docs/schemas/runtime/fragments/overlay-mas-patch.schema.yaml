@@ -105,28 +105,3 @@ properties:
               clear:
                 type: boolean
                 const: true
-  agents_add:
-    oneOf:
-      - type: array
-        items:
-          type: object
-          additionalProperties: true
-      - type: object
-        additionalProperties: false
-        required: [$op]
-        properties:
-          $op:
-            type: object
-            additionalProperties: false
-            minProperties: 1
-            properties:
-              add:
-                type: array
-                items:
-                  type: object
-                  additionalProperties: true
-              clear:
-                type: boolean
-                const: true
-  agents_remove:
-    $ref: "./overlay-collection-ops-string.schema.yaml"

@@ -15,8 +15,9 @@ without copying the whole file. **Experiments** reference overlays per **scenari
 Symmetrical partial or full override of Agent, MAS, or Flavour documents. Used as
 benchmark **scenarios**, runtime overlays, and UI overlay builder output.
 
-Contract boundaries are expressed through existing schema fields (`design_pattern`, `plugins`,
-`workflow`, `tools`, governance blocks) — there is no separate `spec.contracts` list.
+Contract boundaries are expressed through schema fields such as `design_pattern`,
+`governance`, `observability`, `workflow`, and `tools` — there is no separate
+`spec.contracts` list.
 
 ---
 
@@ -29,26 +30,29 @@ metadata:
   name: cot-ablation
 spec:
   target:
-    kind: MAS          # MAS | Agent | Flavour | any
+    kind: MAS          # MAS | Agent | Flavour | Infra
     name: optional-filter
   patch:
-    design_pattern: cot      # string shorthand ≡ {type: cot}; or {type: cot, params: {max_steps: 10}}
+    workflow:
+      entry: broker
+      nodes:
+        - id: broker
+          delegates_to: [researcher]
     agents:
       $entry:            # workflow.entry after this overlay's workflow patch
         design_pattern: { type: cot, params: { max_steps: 10 } }
       $not-entry:        # every agency agent except $entry
         skills: { "$op": { add: [l9-concord-v2-receiver] } }
-      $all:              # every agency agent (composed under more specific keys)
-        budget: { max_llm_calls: 40 }
       $delegates:        # workflow.nodes[$entry].delegates_to
         skills: { "$op": { add: [peer-note] } }
       broker:
         tools: { "$op": { remove: [web-search] } }
-    workflow: { ... }   # topology: entry + directed delegation links
     params:
       incident_fixture: example-library:sre-triage-incidents@v2/tool_fixtures/payment-async-timeout.yaml
-  tools: []            # inject tools (scenario level)
 ```
+
+`spec.tools` (outside `patch`) is a separate scenario-level tool injection field.
+`target.kind` must be `Agent`, `MAS`, `Flavour`, or `Infra`.
 
 ---
 
@@ -98,6 +102,26 @@ Merge semantics: later overlays in a scenario stack win on conflicting keys.
 Patches use RFC 7396 JSON merge; list fields such as `tools` accept an explicit
 `{"$op": {replace|add|remove|clear: [...]}}` form (handled explicitly by the
 runtime) alongside plain-list implicit replace.
+
+For MAS overlays, `patch.agents` uses the same operations to modify the MAS
+participant list at `spec.agency.agents`. `add` and `replace` entries are
+`{id, ref}` agent references, `remove` is a list of agent ids, and `clear: true`
+empties the list:
+
+```yaml
+target:
+  kind: MAS
+patch:
+  agents:
+    $op:
+      remove: [schedule_agent]
+      add:
+        - id: generalist
+          ref: ./agents/generalist.yaml
+```
+
+The former `agents_add` and `agents_remove` patch fields are not supported; use
+`patch.agents.$op` instead.
 
 `context` (prompt/role text) gets the same `$op` sugar, but per chunk name.
 Each `spec.context.<key>` value may be a plain string/`{ref}` (implicit full

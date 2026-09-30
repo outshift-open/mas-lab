@@ -12,10 +12,13 @@ via `spec.tools[].ref`. The Python class behind `impl` implements
 [`ToolContract`](../references/tool-contract.md).
 
 **Related:** [ToolContract](../references/tool-contract.md) · [Agent](agent.md) ·
-[Infra `ToolServerRegistry`](infra.md#toolserverregistry) · [ToolBundle](runtime.md#tool-family)
+[Infra `ToolServerRegistry`](infra.md#toolserverregistry) · [ToolBundle](runtime.md#tool-bundle)
 
 A Tool document that only declares `parameters` + `impl` is valid.
 Every field below **title** is optional.
+At the document level, `apiVersion`, `kind`, `metadata`, and `spec` are required;
+`metadata.name` is required. `spec.impl` is optional in the schema but is needed
+to load an executable tool. If present, `impl.module_path` is required.
 
 ---
 
@@ -60,6 +63,10 @@ Annotated example with every optional advertise field:
 | `spec.idempotent` | no (default `false`) | Retry hint |
 | `spec.timeout_seconds` | no (default `30`) | Wall-clock cap |
 | `spec.title` | no | Display name distinct from `metadata.name` |
+| `spec.impl.kind` | no (default `python`) | `python`, `remote_tool`, or `openapi` |
+| `spec.impl.module_path` | yes when loading | Hidden from the LLM |
+| `spec.impl.class_name` | no (default `null`) | Implementation class; may be auto-discovered |
+| `spec.impl.params` | no (default `{}`) | Constructor arguments passed to the implementation |
 | `spec.output_schema` | no | Full JSON Schema for the result (MCP `outputSchema`) |
 | `spec.read_only` | no | Omit = unspecified, not `false` |
 | `spec.destructive` | no | Omit = unspecified |

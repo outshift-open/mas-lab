@@ -6,28 +6,21 @@ kind: Overlay
 metadata:
   name: linear
   description: >
-    Sequential pipeline — no moderator, no dynamic routing. Specialists execute
-    in fixed order: schedule → itinerary → concierge, passing accumulated
-    context from one to the next.
+    Deterministic linear delegation through the specialists.
 
 spec:
   target:
     kind: MAS
   patch:
-    agency:
-      agents:
-        - id: schedule_agent
-          ref: agents/schedule-agent/agent.yaml
-        - id: itinerary_agent
-          ref: agents/itinerary-agent/agent.yaml
-        - id: concierge_agent
-          ref: agents/concierge-agent/agent.yaml
-
     workflow:
-      entry: schedule_agent
+      entry: moderator
       nodes:
+        - id: moderator
+          delegates_to: [ schedule_agent, itinerary_agent, concierge_agent ]
         - id: schedule_agent
-          delegates_to: [ itinerary_agent ]
         - id: itinerary_agent
-          delegates_to: [ concierge_agent ]
         - id: concierge_agent
+    agents:
+      moderator:
+        design_pattern:
+          type: deterministic_linear

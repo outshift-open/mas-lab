@@ -41,13 +41,17 @@ context.
 
 ### Level-scoped steps (`scope:` / `in:` / `out:`)
 
-A step embedded inside an experiment manifest's `run:`/`test:`/`scenario:`/`application:`
+A step embedded inside an experiment manifest's `run:`/`item:`/`scenario:`/`application:`
 block is materialized once per folder at that level; its `scope` is inferred from the
 enclosing block (explicit `scope:` is only needed on a standalone pipeline file with no
 enclosing block). `in:`/`out:` name the artifact a step reads/writes — declared in that
 level's own `artifacts:` map. A step whose `in:` names an artifact from the level *below*
 fans in every child instance (`config["artifact_paths"]`); see [experiment.md](experiment.md)
 and [multi-scenario-format.md](../../lab/docs/multi-scenario-format.md).
+
+For a standalone `pipeline:` file, the pipeline schema calls the per-item scope `test`;
+that is the internal scope name. Experiment manifests use the public level key `item:`
+(`test:` is a deprecated alias there).
 
 ```yaml
 run:
@@ -60,7 +64,7 @@ run:
       in: trace
       out: metrics
 
-test:
+item:
   artifacts:
     df: { type: dataframe, path: "{level_dir}/data.csv" }
   post:

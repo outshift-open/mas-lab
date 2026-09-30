@@ -215,7 +215,6 @@ spec:
         ref: agents/concierge-agent/agent.yaml
 
   workflow:
-    type: dynamic
     entry: moderator
     nodes:
       - id: moderator
@@ -235,9 +234,9 @@ reuse an agent without the MAS manifest. The MAS only needs to know
 
 ### The delegation graph
 
-`workflow.type: dynamic` means the **moderator's LLM** decides delegation
-order dynamically — there is no hardcoded pipeline. `delegates_to` lists the
-agents the moderator is allowed to call:
+The MAS schema declares the entry agent and its allowed delegation targets;
+it has no `workflow.type` field. The moderator's LLM decides which allowed
+specialist to call and in what order:
 
 ```
 moderator ──▶ schedule_agent
@@ -252,19 +251,21 @@ decides the order, frequency, and whether to call one or all specialists.
 ### Topology overlays
 
 Because the workflow lives in its own section and agents own their tools,
-an overlay can switch the entire topology without touching agent
-definitions. The `workflow.type` field selects the workflow strategy:
+an overlay can change participants and topology without rewriting agent
+definitions. The schema has no strategy selector: the graph declares peers,
+while the entry agent's `design_pattern` controls deterministic dispatch where used.
 
-| `workflow.type` | Strategy | Who decides agent order? |
-| ----------------- | ---------- | ------------------------- |
-| `dynamic` | Moderator delegates dynamically | The moderator's LLM |
-| `single` | One agent handles everything | N/A — no delegation |
-| `sequential` | Automaton walks a fixed pipeline | Declared edge order |
+| Topology | Schema-backed configuration | Who decides agent order? |
+|----------|-----------------------------|-------------------------|
+| LLM-directed | Entry node lists `delegates_to` | The entry agent's LLM |
+| Single-agent | One participant and one workflow node | No delegation |
+| Deterministic linear | Entry `design_pattern: deterministic_linear` plus ordered `delegates_to` | The design-pattern plugin |
 
 **Single-agent overlay** — one generalist with all tools, no delegation:
 
 ```yaml
 # overlays/single-agent.yaml
+apiVersion: mas/v1
 kind: Overlay
 metadata:
   id: single-agent                 # ← referenced by id in experiment.yaml
@@ -272,48 +273,49 @@ metadata:
     Collapse the MAS to a single generalist agent. No delegation.
 
 spec:
+  target:
+    kind: MAS
   patch:
     agents:
-      - id: generalist
-        ref: agents/generalist/agent.yaml
+      $op:
+        replace:
+          - id: generalist
+            ref: agents/generalist/agent.yaml
 
     workflow:
-      type: single
       entry: generalist
       nodes:
         - id: generalist
 ```
 
-**Sequential overlay** — automaton walks through specialists in order,
-accumulating context at each step:
+**Deterministic-linear overlay** — the moderator delegates through the listed
+specialists in order:
 
 ```yaml
 # overlays/linear.yaml
+apiVersion: mas/v1
 kind: Overlay
 metadata:
   id: linear                       # ← referenced by id in experiment.yaml
   description: >
-    Sequential pipeline: schedule → itinerary → concierge.
-    An automaton (not an LLM) drives the order.
+    Deterministic linear delegation through the specialists.
 
 spec:
+  target:
+    kind: MAS
   patch:
-    agents:
-      - id: schedule_agent
-        ref: agents/schedule-agent/agent.yaml
-      - id: itinerary_agent
-        ref: agents/itinerary-agent/agent.yaml
-      - id: concierge_agent
-        ref: agents/concierge-agent/agent.yaml
-
     workflow:
-      entry: schedule_agent
+      entry: moderator
       nodes:
+        - id: moderator
+          delegates_to: [ schedule_agent, itinerary_agent, concierge_agent ]
         - id: schedule_agent
-          delegates_to: [ itinerary_agent ]
         - id: itinerary_agent
-          delegates_to: [ concierge_agent ]
         - id: concierge_agent
+    agents:
+      moderator:
+        design_pattern:
+          type: deterministic_linear
 ```
 
 Overlays are referenced by their `metadata.id` in experiment scenarios:
@@ -327,8 +329,8 @@ scenarios:
     overlays: {logic: [linear], control: [], infra: []}
 ```
 
-Overlays only touch the **agents list and workflow** — each agent's
-tools and skills stay in its own manifest.
+Overlays change the **participants, workflow, and selected per-agent
+settings** — each agent's tools and skills stay in its own manifest.
 
 ---
 
@@ -348,7 +350,7 @@ next to its `mas.yaml` — but the trip planner works with the defaults.
 
 ## Step 5 — Running the MAS
 
-### Default topology (dynamic broker)
+### Default topology (LLM-directed broker)
 
 ```bash
 # Single query — moderator delegates to specialists dynamically
@@ -367,10 +369,10 @@ mas-ctl run-mas mas.yaml -o overlays/single-agent.yaml \
     -q "Plan a 3-day trip to Thornhaven, budget €500"
 ```
 
-### Sequential (linear) pipeline
+### Deterministic-linear delegation
 
-Specialists execute in fixed order: schedule → itinerary → concierge.
-An automaton drives the order, not an LLM:
+The entry agent dispatches to the specialists in the order declared by the
+deterministic-linear design pattern:
 
 ```bash
 mas-ctl run-mas mas.yaml -o overlays/linear.yaml \
@@ -379,15 +381,15 @@ mas-ctl run-mas mas.yaml -o overlays/linear.yaml \
 
 ### Comparing topologies
 
-All three commands use the **same agents and tools** — only the workflow
-changes. This is the power of overlays: swap topology without touching
-agent definitions.
+The default and deterministic-linear commands use the same participants;
+the single-agent overlay replaces the participant list. The workflow graph
+and entry agent's design pattern determine delegation behavior.
 
 | Command | Topology | Agent(s) | Who decides order? |
 | --------- | ---------- | ---------- | -------------------- |
-| (no overlay) | `dynamic` | moderator + 3 specialists | Moderator LLM |
-| `-o overlays/single-agent.yaml` | `single` | 1 generalist | N/A |
-| `-o overlays/linear.yaml` | `sequential` | 3 specialists | Fixed workflow nodes |
+| (no overlay) | LLM-directed | moderator + 3 specialists | Moderator LLM |
+| `-o overlays/single-agent.yaml` | Single-agent | 1 generalist | N/A |
+| `-o overlays/linear.yaml` | Deterministic linear | moderator + 3 specialists | Design-pattern plugin |
 
 Inspect the resolved MAS (folder of manifests, or `--layout bundle` for one file):
 

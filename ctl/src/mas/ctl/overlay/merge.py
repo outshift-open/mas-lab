@@ -800,7 +800,7 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
     base_spec = merged.setdefault("spec", {})
     mas_meta = _overlay_merge_meta("MAS")
 
-    special_keys = {"agents", "agents_add", "agents_remove"}
+    special_keys = {"agents"}
     for key, value in patch.items():
         if key in special_keys or _is_extension_key(key):
             continue
@@ -889,37 +889,6 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
             agent_spec.update(merged_agent.get("spec", {}))
             if raw_context is not None:
                 agent_spec["context"] = deepcopy(raw_context)
-
-    if patch.get("agents_remove"):
-        rm_values = _merge_value_by_meta(
-            [],
-            patch["agents_remove"],
-            mas_meta.get("agents_remove", {"strategy": "list_ops", "identity": "value"}),
-        )
-        rm = {str(x) for x in rm_values}
-        agency = base_spec.get("agency") or {}
-        agents_list = agency.get("agents") or []
-        agency["agents"] = [a for a in agents_list if not (isinstance(a, dict) and _agency_entry_key(a) in rm)]
-        base_spec["agency"] = agency
-
-    if patch.get("agents_add"):
-        agency = base_spec.setdefault("agency", {})
-        agents_add_ops = _ops_dict(patch["agents_add"]) if isinstance(patch["agents_add"], dict) else None
-        if isinstance(agents_add_ops, dict) and agents_add_ops.get("clear") is True:
-            agency["agents"] = []
-        existing = {
-            _agency_entry_key(a)
-            for a in agency.get("agents") or []
-            if isinstance(a, dict) and _agency_entry_key(a) is not None
-        }
-        entries = agents_add_ops.get("add") if isinstance(agents_add_ops, dict) else patch["agents_add"]
-        for entry in entries or []:
-            if not isinstance(entry, dict):
-                continue
-            key = _agency_entry_key(entry)
-            if key is not None and key not in existing:
-                agency.setdefault("agents", []).append(deepcopy(entry))
-                existing.add(key)
 
     return merged
 

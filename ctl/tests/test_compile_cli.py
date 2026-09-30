@@ -92,7 +92,7 @@ def test_compile_cli_mas_tree_and_bundle(tmp_path: Path) -> None:
     doc = yaml.safe_load(bundle.read_text(encoding="utf-8"))
     agents = doc["spec"]["agency"]["agents"]
     assert agents[0]["kind"] == "Agent"
-    assert agents[0]["metadata"]["name"] == "schedule_agent"
+    assert agents[0]["metadata"]["name"] == "moderator"
 
 
 def test_compile_cli_tree_to_yaml_file_fails() -> None:

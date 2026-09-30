@@ -21,17 +21,17 @@ spec:
     kind: MAS
   patch:
     # Remove the four base agents; the generalist replaces them all.
-    agents_remove:
-      - moderator
-      - schedule_agent
-      - itinerary_agent
-      - concierge_agent
-
-    # Add the generalist (defined in agents/generalist/agent.yaml with
-    # all tools + skills + a combined system prompt).
-    agents_add:
-      - id: generalist
-        ref: ../../../library-samples/apps/trip-planner/agents/generalist/agent.yaml
+    agents:
+      $op:
+        remove:
+          - moderator
+          - schedule_agent
+          - itinerary_agent
+          - concierge_agent
+        # Add the generalist with all tools, skills, and a combined system prompt.
+        add:
+          - id: generalist
+            ref: ../../../library-samples/apps/trip-planner/agents/generalist/agent.yaml
 
     # Wire the single-node workflow.
     workflow:

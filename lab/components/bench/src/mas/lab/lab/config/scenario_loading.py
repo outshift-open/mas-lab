@@ -35,6 +35,64 @@ def _resolved_overlay_agents(overlay_spec: dict, config: dict) -> dict:
     return _resolve_mas_agent_patches(raw, spec)
 
 
+def _apply_overlay_agent_collection_ops(overlay_spec: dict, config: dict, mas_yaml: Path) -> None:
+    """Apply the canonical ``patch.agents.$op`` operations to loaded agent configs."""
+    from mas.ctl.overlay.merge import _ops_dict
+
+    ops = _ops_dict(overlay_spec.get("agents"))
+    if ops is None:
+        return
+
+    agents = list(config.get("agents") or [])
+    if ops.get("clear") is True:
+        agents = []
+    has_replace = "replace" in ops
+    replace_entries = list(ops.get("replace") or [])
+    add_entries = list(ops.get("add") or [])
+    if has_replace:
+        agents = []
+
+    if has_replace or add_entries:
+        from mas.lab.manifest.load import load_agent_runtime_entry
+        from mas.runtime.spec.source import resolve_yaml_path
+
+        existing_ids = {str(agent.get("id") or agent.get("name")) for agent in agents}
+
+        def _append_entries(entries: list, *, skip_existing: bool) -> None:
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+                agent_id = entry.get("id") or entry.get("name")
+                agent_key = str(agent_id)
+                if skip_existing and agent_key in existing_ids:
+                    continue
+                reference = entry.get("ref")
+                if reference:
+                    path = resolve_yaml_path(str(reference), mas_yaml.parent)
+                    try:
+                        loaded = load_agent_runtime_entry(path, agent_id=agent_id)
+                    except Exception as exc:
+                        logger.warning("Overlay agent %r: failed to load ref %s: %s", agent_id, reference, exc)
+                        loaded = entry
+                else:
+                    loaded = entry
+                agents.append(loaded)
+                existing_ids.add(agent_key)
+
+        _append_entries(replace_entries, skip_existing=False)
+
+    if "remove" in ops:
+        remove_ids = {str(agent_id) for agent_id in ops.get("remove") or []}
+        agents = [agent for agent in agents if str(agent.get("id") or agent.get("name")) not in remove_ids]
+
+    if add_entries:
+        existing_ids.clear()
+        existing_ids.update(str(agent.get("id") or agent.get("name")) for agent in agents)
+        _append_entries(add_entries, skip_existing=True)
+
+    config["agents"] = agents
+
+
 def _apply_overlay_plugin_list(
     overlay: Optional[dict],
     overlay_spec: dict,
@@ -298,52 +356,7 @@ def load_scenario_config(
                     ", ".join(sorted(unresolved)),
                 )
 
-        # agents_remove: strip agents by ID.  Runs after per-agent overrides so that
-        # agents_add can re-introduce a differently-configured variant of the same ID.
-        agents_remove_ids: list = overlay_spec.get("agents_remove", []) or []
-        if agents_remove_ids and config.get("agents"):
-            _remove_set = set(agents_remove_ids)
-            config["agents"] = [a for a in config["agents"] if a.get("id") not in _remove_set]
-            logger.debug("[overlay] agents_remove: %s (scenario=%s)", agents_remove_ids, scenario_id)
-
-        # agents_add: append new agent entries.  Idempotent — entries whose id
-        # already exists in the (post-remove) list are skipped.
-        # When an entry has a ``ref`` field, load and expand via load_agent_runtime_entry.
-        agents_add_list: list = overlay_spec.get("agents_add", []) or []
-        if agents_add_list:
-            from mas.lab.manifest.load import load_agent_runtime_entry
-            from mas.runtime.spec.source import resolve_yaml_path
-
-            # mas_yaml is guaranteed to be set at this point (overlay path is used)
-            _mas_base = mas_yaml.parent  # type: ignore[union-attr]
-            _existing_ids = {a.get("id") for a in config.get("agents", [])}
-            for _new_agent in agents_add_list:
-                _aid = _new_agent.get("id")
-                if _aid in _existing_ids:
-                    continue
-                _ref = _new_agent.get("ref")
-                if _ref:
-                    # Resolve ref relative to mas.yaml parent and expand into
-                    # a fully-materialised runtime dict (context, llm_model,
-                    # spec_tools, _agent_dir, …).
-                    _ref_path = resolve_yaml_path(str(_ref), _mas_base)
-                    try:
-                        _expanded = load_agent_runtime_entry(_ref_path, agent_id=_aid)
-                        config.setdefault("agents", []).append(_expanded)
-                    except Exception as _e:
-                        logger.warning(
-                            "[overlay] agents_add '%s': failed to load ref %s: %s (scenario=%s)",
-                            _aid,
-                            _ref,
-                            _e,
-                            scenario_id,
-                        )
-                        config.setdefault("agents", []).append(_new_agent)
-                else:
-                    # Inline agent entry (no ref): append as-is.
-                    config.setdefault("agents", []).append(_new_agent)
-                _existing_ids.add(_aid)
-                logger.debug("[overlay] agents_add: %s (scenario=%s)", _aid, scenario_id)
+        _apply_overlay_agent_collection_ops(overlay_spec, config, mas_yaml)  # type: ignore[arg-type]
 
         # Global design-pattern override: spec.patch.design_pattern → set
         # pattern_framework (and optional pattern_params) on ALL agents.
@@ -515,35 +528,7 @@ def load_stacked_config(
                     existing_seed.extend(per_agent["memory_seed"] or [])
                     agent_cfg["memory_seed"] = existing_seed
 
-        # agents_remove: strip agents by ID.
-        _agents_remove: list = overlay_spec.get("agents_remove", []) or []
-        if _agents_remove and config.get("agents"):
-            _rm_set = set(_agents_remove)
-            config["agents"] = [a for a in config["agents"] if a.get("id") not in _rm_set]
-
-        # agents_add: append new agent entries (idempotent by ID, ref-expanded).
-        _agents_add: list = overlay_spec.get("agents_add", []) or []
-        if _agents_add:
-            from mas.lab.manifest.load import load_agent_runtime_entry
-            from mas.runtime.spec.source import resolve_yaml_path
-
-            _existing_ids = {a.get("id") for a in config.get("agents", [])}
-            for _new_agent in _agents_add:
-                _aid = _new_agent.get("id")
-                if _aid in _existing_ids:
-                    continue
-                _ref = _new_agent.get("ref")
-                if _ref:
-                    _ref_path = resolve_yaml_path(str(_ref), mas_yaml.parent)
-                    try:
-                        _expanded = load_agent_runtime_entry(_ref_path, agent_id=_aid)
-                        config.setdefault("agents", []).append(_expanded)
-                    except Exception as _e:
-                        logger.warning("[overlay] agents_add '%s': ref load failed: %s", _aid, _e)
-                        config.setdefault("agents", []).append(_new_agent)
-                else:
-                    config.setdefault("agents", []).append(_new_agent)
-                _existing_ids.add(_aid)
+        _apply_overlay_agent_collection_ops(overlay_spec, config, mas_yaml)
 
         # Global design-pattern override: spec.patch.design_pattern
         dp_spec = overlay_spec.get("design_pattern")

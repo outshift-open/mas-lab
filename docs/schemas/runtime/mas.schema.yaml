@@ -118,7 +118,7 @@ properties:
               minimum: 1
       agents:
         description: >
-          On a base MAS manifest: short form, a flat list of agent refs
+          On a base MAS manifest: short form, a list of agent entries
           (equivalent to agency.agents). On an Overlay patch
           (spec.patch.agents): overlay-only, either a per-agent-id override
           map (each value is an Agent-patch object applied to that
@@ -324,19 +324,3 @@ properties:
           strategy: mapping_merge_or_ops
         additionalProperties: true
         default: {}
-
-      agents_add:
-        description: >
-          Overlay-only shorthand: agent entries to append to
-          spec.agency.agents, or {"$op": {add|clear}}. Special-cased merge
-          logic (merge_mas_overlay).
-        type: object
-
-      agents_remove:
-        description: >
-          Overlay-only shorthand: agent ids to remove from
-          spec.agency.agents, or {"$op": {replace|add|remove|clear}}
-          (list_ops). Special-cased merge logic (merge_mas_overlay).
-        type: array
-        items:
-          type: string
