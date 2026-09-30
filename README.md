@@ -69,6 +69,38 @@ and **governance** through a shared specification and runtime model.
 - Observability, replay, and benchmark pipelines
 - Three reproducible [paper labs](docs/paper/index.md) (Section 5)
 
+## Protocol integrations: optional runtime adapters, not core logic
+
+MCP and A2A are not required to validate an agent's reasoning, workflow, or
+logic. They are production deployment concerns: remote tool access and remote
+agent communication.
+
+That distinction is deliberate. A team can build and test an agent with local
+contracts and local execution without any protocol wiring at all. Once the system
+needs a remote tool server or a remote peer, MAS-Lab swaps in an infra adapter
+instead of rewriting the agent logic.
+
+This matters because protocol integration is not just “another plugin.” It
+involves discovery, routing, transport compatibility, authentication, lifecycle
+semantics, compliance behavior, and ongoing maintenance as the protocol evolves.
+A good runtime treats this as a platform concern, not a business-logic concern.
+
+With the right separation, the system gains several benefits:
+
+- logic remains stable while transport and protocol choices change;
+- teams can certify protocol behavior once and reuse it across many agents;
+- new versions and compliance fixes land in the infra layer rather than in each agent;
+- local development remains lightweight: minimal agents can avoid remote protocol code entirely;
+- security, auditability, and code review happen at the integration boundary instead of scattered through agent logic.
+
+This is the design underlying the MCP and A2A tutorials:
+
+- [docs/tutorials/04-mcp-tools/README.md](docs/tutorials/04-mcp-tools/README.md) — switching local tool execution to MCP without rewriting agent logic
+- [docs/tutorials/05-a2a-agents/README.md](docs/tutorials/05-a2a-agents/README.md) — switching a delegated agent path from local to A2A without changing the MAS workflow
+- [docs/references/tool-server-registry.md](docs/references/tool-server-registry.md) — full MCP infra reference
+- [docs/a2a/developer.md](docs/a2a/developer.md) — A2A contract and routing reference
+- [docs/manifests/infra.md](docs/manifests/infra.md) — infrastructure manifest model and separation of concerns
+
 ## Who it is for
 
 - **Developers** — specs instead of glue code; [tutorials](docs/tutorials/index.md)
