@@ -52,13 +52,13 @@ def test_teardown_releases_instance_memory_and_depth():
     child_id = ctx.spawn_instance({}, template_id="worker")
     registry.put("session", child_id, WorkingMemorySnapshot())
     assert materialized.instances[child_id] is not None
-    assert ctx.depth == 1
+    assert ctx.ledger.agent_depth("session", child_id) == 1
 
     ctx.teardown_instance(child_id)
 
     assert child_id not in materialized.instances
     assert registry.get("session", child_id) is None
-    assert ctx.depth == 0
+    assert ctx.ledger.current_depth("session") == 0
 
 
 def test_engine_tool_provider_category_resolves_the_spawner():

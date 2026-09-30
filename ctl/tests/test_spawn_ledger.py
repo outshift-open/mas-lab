@@ -5,19 +5,42 @@ import pytest
 from mas.ctl.executor.spawn_ledger import SpawnLedger
 
 
-def test_spawn_ledger_enforces_session_wide_count_and_depth():
+def test_spawn_ledger_enforces_session_wide_count_and_branch_depth():
     ledger = SpawnLedger(max_depth=2, max_spawns=2)
-    assert ledger.allow_spawn("s")
-    ledger.enter("s")
+    assert ledger.allow_spawn("s", "root")
+    ledger.enter("s", child_agent_id="c1", parent_agent_id="root")
     assert ledger.current_depth("s") == 1
+    assert ledger.agent_depth("s", "c1") == 1
     assert ledger.spawn_count("s") == 1
-    assert ledger.allow_spawn("s")
-    ledger.enter("s")
-    assert not ledger.allow_spawn("s")
-    ledger.exit("s")
-    assert ledger.allow_spawn("s") is False  # spawn count remains at its cap
-    ledger.exit("s")
+
+    # A grandchild is one level deeper and still fits max_depth=2.
+    assert ledger.allow_spawn("s", "c1")
+    ledger.enter("s", child_agent_id="c2", parent_agent_id="c1")
+    assert ledger.agent_depth("s", "c2") == 2
+    assert ledger.current_depth("s") == 2
+
+    # Count cap is session-wide and outlives the branch it was spent on.
+    assert not ledger.allow_spawn("s", "root")
+    ledger.exit("s", child_agent_id="c2")
+    assert ledger.allow_spawn("s", "root") is False
+    ledger.exit("s", child_agent_id="c1")
     assert ledger.current_depth("s") == 0
+
+
+def test_concurrent_siblings_are_checked_independently():
+    """A live sibling must not make the next one look like a grandchild."""
+    ledger = SpawnLedger(max_depth=1, max_spawns=4)
+
+    ledger.enter("s", child_agent_id="root.worker.1", parent_agent_id="root")
+
+    # First sibling is still running; the second is still a child of root.
+    assert ledger.allow_spawn("s", "root")
+    ledger.enter("s", child_agent_id="root.worker.2", parent_agent_id="root")
+
+    assert ledger.agent_depth("s", "root.worker.1") == 1
+    assert ledger.agent_depth("s", "root.worker.2") == 1
+    # max_depth=1 still refuses a real grandchild.
+    assert not ledger.allow_spawn("s", "root.worker.1")
 
 
 def test_spawn_ledger_scopes_budgets_and_ids_by_parent_template():
@@ -27,9 +50,9 @@ def test_spawn_ledger_scopes_budgets_and_ids_by_parent_template():
 
     assert first_id == "root.worker.1"
     assert second_id == "root.worker.2"
-    ledger.enter("session-a")
-    assert not ledger.allow_spawn("session-a")
-    assert ledger.allow_spawn("session-b")
+    ledger.enter("session-a", child_agent_id=first_id, parent_agent_id="root")
+    assert not ledger.allow_spawn("session-a", "root")
+    assert ledger.allow_spawn("session-b", "root")
 
 
 def test_spawn_ledger_rejects_invalid_bounds_and_underflow():
@@ -37,7 +60,7 @@ def test_spawn_ledger_rejects_invalid_bounds_and_underflow():
         SpawnLedger(max_depth=0)
     ledger = SpawnLedger()
     with pytest.raises(RuntimeError, match="underflow"):
-        ledger.exit("never-entered")
+        ledger.exit("never-entered", child_agent_id="ghost")
 
 
 def test_spawn_ledger_checks_child_depth_type_and_boundary_values():

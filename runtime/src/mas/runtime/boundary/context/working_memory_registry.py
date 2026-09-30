@@ -57,7 +57,11 @@ class WorkingMemoryConfig:
 
 
 class WorkingMemoryRegistry:
-    """In-memory ``(session_id, agent_id) -> WorkingMemorySnapshot`` store."""
+    """In-memory ``(session_id, agent_id) -> WorkingMemorySnapshot`` store.
+
+    Concurrent turns never share a key, so no lock is needed — but no method
+    here may ``await``, or a compound get/modify/put would interleave.
+    """
 
     def __init__(self) -> None:
         self._store: dict[tuple[str, str], WorkingMemorySnapshot] = {}

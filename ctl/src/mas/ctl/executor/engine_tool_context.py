@@ -51,7 +51,7 @@ class MaterializedEngineToolContext:
 
     @property
     def depth(self) -> int:
-        return self.ledger.current_depth(self.session_id)
+        return self.ledger.agent_depth(self.session_id, self.parent_agent_id)
 
     def spawn_instance(
         self,
@@ -107,7 +107,7 @@ class MaterializedEngineToolContext:
                 verbose=self.verbose,
             )
 
-        self.ledger.enter(self.session_id)
+        self.ledger.enter(self.session_id, child_agent_id=child_id, parent_agent_id=self.parent_agent_id)
         self._children[child_id] = _Child(instance, shared_obs_plugin_set)
         return child_id
 
@@ -160,7 +160,7 @@ class MaterializedEngineToolContext:
         plugin_set = getattr(child.instance, "obs_plugin_set", None)
         if plugin_set is not None and plugin_set is not child.shared_obs_plugin_set:
             plugin_set.close()
-        self.ledger.exit(self.session_id)
+        self.ledger.exit(self.session_id, child_agent_id=agent_id)
 
 
 def _instantiate_child(

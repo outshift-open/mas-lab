@@ -13,7 +13,13 @@ from mas.runtime.schema.ingress import EngineIoReturn
 
 @dataclass
 class InProcessCommBus:
-    """Zero-copy local routing between RuntimeInstance endpoints."""
+    """Zero-copy local routing between RuntimeInstance endpoints.
+
+    Safe for concurrent turns only while no method here ``await``s: routing
+    is a read plus a synchronous ``deliver()``, and registration happens
+    before concurrency starts. An ``await`` inside one would expose the
+    endpoint table mid-update.
+    """
 
     _endpoints: dict[str, CommEndpoint] = field(default_factory=dict)
 

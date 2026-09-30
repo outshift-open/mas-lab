@@ -103,14 +103,14 @@ def test_bare_engine_io_fallback_frame_does_not_leak() -> None:
 
     op.record_engine_io(correlation_id=1, op="LLM_CALL")
     op.record_engine_io_return(correlation_id=1, op="LLM_CALL", text="hi")
-    assert op._frames.stack == ["exec-001"], op._frames.stack
+    assert op._frames.stack == ("exec-001",), op._frames.stack
 
     op.record_engine_io(correlation_id=2, op="LLM_CALL")
     op.record_engine_io_return(correlation_id=2, op="LLM_CALL", text="hi2")
-    assert op._frames.stack == ["exec-001"], op._frames.stack
+    assert op._frames.stack == ("exec-001",), op._frames.stack
 
     op.pop_call_frame("exec-001")
-    assert op._frames.stack == []
+    assert op._frames.stack == ()
 
 
 def test_operator_parallel_calls_do_not_corrupt_each_others_parent() -> None:
