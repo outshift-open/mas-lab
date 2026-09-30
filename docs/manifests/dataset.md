@@ -48,7 +48,7 @@ metadata:
   version: "1.0"
   description: "Trip planning evaluation items."
 spec:
-  app: sre-triage@>=v1,<v3   # omit for general-purpose datasets
+  app: my-app@>=v1,<v3   # omit for general-purpose datasets
   items:
     - id: "001"
       inputs:
@@ -74,10 +74,10 @@ id and `spec.app` use that same version tag:
 
 ```yaml
 metadata:
-  name: sre-triage-scenarios
+  name: my-app-scenarios
   version: v1
 spec:
-  app: sre-triage@^v1    # or sre-triage@v1
+  app: my-app@^v1    # or my-app@v1
   items: [...]
 ```
 
@@ -91,7 +91,7 @@ A dataset version is a **folder** (`dataset.yaml` plus optional sibling
 files) next to that app version’s agents and tools.
 
 ```text
-apps/sre-triage/v1/datasets/scenarios/
+apps/<app>/v1/datasets/<name>/
   dataset.yaml                 # items: inputs + expectations
   tool_fixtures/*.yaml         # payloads listed from items
 ```
@@ -108,46 +108,95 @@ the same shorthand). Ground truth stays on the **same item** under
 | `inputs.memory_seeds` | Pre-loaded memory (prefer a sibling file) | via memory |
 | `inputs.tool_fixtures` | Mapping + payloads for mock tools | via tools |
 | `inputs.checkpoint` | Later: session state | via restored session |
-| `expectations` | Ground truth (`correct_action`, `ground_truth`, …) | no |
+| `expectations` | Ground truth (`ground_truth`, `metrics`, free-form `details`) | no |
 
 ```yaml
-- id: routing-policy-rollback
+- id: order-42-refund
   inputs:
     user: >
-      Edge gateway policy precedence regressed…
-    tool_fixtures: {ref: tool_fixtures/routing-policy-rollback.yaml}
+      Customer asks for a refund on order 42…
+    tool_fixtures: {ref: tool_fixtures/order-42.yaml}
   expectations:
-    correct_action:
-      service: edge-gateway
-      action: rollback
+    ground_truth: refund approved
+    details:              # owned by the app's evaluators
+      order_id: 42
+      action: refund
 ```
 
 Long prompt in a file uses the **same** ref syntax:
 
 ```yaml
 inputs:
-  user: {ref: prompts/routing-policy-rollback.txt}
-  tool_fixtures: {ref: tool_fixtures/routing-policy-rollback.yaml}
+  user: {ref: prompts/order-42-refund.txt}
+  tool_fixtures: {ref: tool_fixtures/order-42.yaml}
 ```
 
-`inputs.tool_fixtures` has two layers. Do not mix them:
+Both `inputs.tool_fixtures` and `expectations` have a generic layer that
+mas-lab reads and a free-form layer owned by the app. Do not mix them:
 
 ```yaml
-# 1. Mapping (generic): bind a payload to this item and to tools.
-tool_fixtures: tool_fixtures/routing-policy-rollback.yaml
+# tool_fixtures — generic mapping: which tool gets which payload.
+tool_fixtures: tool_fixtures/order-42.yaml      # every tool (same as {ref: …})
 tool_fixtures:
   by_tool:
-    "*": tool_fixtures/scene.yaml
+    "*": tool_fixtures/order-42.yaml            # every tool without its own entry
     query_db: tool_fixtures/db-rows.yaml
+    get_weather: {city: Paris, temp_c: 18}     # inline payload
 tool_fixtures:
   - tool: get_metrics
     ref: tool_fixtures/metrics.yaml
+# The payload (file body or inline value) is free-form: mas-lab does not
+# schema-check it, the tool does.
 
-# 2. Payload (tool-specific): the YAML body those files contain.
-#    mas-lab does not schema-check it. The tool does.
+# expectations — generic keys + free-form details.
+expectations:
+  ground_truth: …        # compared by generic metrics
+  metrics: [exact_match] # metrics this item is scored on
+  details: {…}           # app- or tool-specific ground truth
 ```
 
-Do not put `correct_action` / `ground_truth` in the tool-fixture YAML.
+An inline payload directly under `tool_fixtures` (without `by_tool`) is
+rejected. Keep ground truth out of tool-fixture payloads.
+
+Tools receive their payload through the call context, not through files or
+environment variables:
+
+```python
+from mas.runtime.contracts import ToolContract, tool_fixture
+
+class GetMetrics(ToolContract):
+    def on_execute_tool(self, tool_name, arguments, *, ctx=None, **_):
+        payload = tool_fixture(ctx, tool_name)  # by_tool[name], else by_tool["*"]
+        ...
+```
+
+Overlay `spec.patch.params` reach tools the same way, as `ctx.runtime_params`.
+
+### Optional schemas for the free-form parts
+
+mas-lab does not interpret payloads or `details`, but a Dataset can declare
+JSON Schemas for them in `spec.schemas`. Keys are dotted envelope paths, the
+same vocabulary as [`spec.source.map`](#102-map). Only free-form roots are
+allowed; the generic layer is already checked by the run-input schema.
+
+```yaml
+spec:
+  schemas:
+    expectations.details: {ref: schemas/booking-truth.schema.yaml}
+    inputs.tool_fixtures.by_tool.get_fares: {ref: my-library:tools/get_fares.fixture.schema.yaml}
+    inputs.tool_fixtures.by_tool.*.routes:            # inline schema
+      type: array
+  items: [...]
+```
+
+- A tool key checks the payload that tool receives: `by_tool[tool]`, else
+  `by_tool["*"]` (the same rule as `tool_fixture()`).
+- Items that do not provide a part are skipped. Parts without a schema are
+  not checked.
+- Violations, unknown keys, and missing schema files fail `Dataset.from_yaml`
+  and `mas-lab validate`. `spec.source` rows are checked when materialized.
+- A tool can ship its fixture schema next to its code; datasets reference it
+  by catalog path.
 
 ### External datasets (meta-dataset)
 
@@ -155,7 +204,7 @@ See [§10](#10-specsource--meta-datasets-mmlu-pro). A Dataset YAML can
 **describe how to use** a third-party corpus (`spec.source` + `map`) instead
 of repeating it. `Dataset.from_yaml` materializes that into envelope items.
 
-Bare `spec.app: sre-triage` means any version of that app. Omit `spec.app`
+Bare `spec.app: <app>` means any version of that app. Omit `spec.app`
 for generic datasets. `library-samples` ships one complete trip-planner
 Dataset (`trip-planner-benchmark`). Cap rows in the experiment with
 `dataset.limit` instead of a reduced sidecar file.
@@ -177,7 +226,8 @@ Preferred shape is the [run-input envelope](#1-manifest-format) (`inputs` +
 | `inputs.tool_fixtures` | `{ref:}`, bare path, or mapping | no | Mock-tool payloads. See §1. |
 | `inputs.session_id` | string | no | Fixed conversation identifier. See §5. |
 | `expectations.ground_truth` | any | no | Reference answer for generic metrics. |
-| `expectations.correct_action` | object | no | SRE-style action/service GT. |
+| `expectations.metrics` | string list | no | Metrics this item is scored on. |
+| `expectations.details` | object | no | Free-form app- or tool-specific ground truth. Any other top-level `expectations` key is rejected. |
 | `category` / `group` / `tags` | string / list | no | Filtering metadata. Coupled mode uses **`id` only**. |
 
 ---
@@ -537,7 +587,7 @@ where a third-party corpus lives and how each row becomes one envelope item.
 The YAML is the mapping. The corpus stays where it is (HuggingFace hub, a
 jsonl export, a pickle from another bench).
 
-After load, every item is the same shape as a hand-written SRE / trip-planner
+After load, every item is the same shape as a hand-written customer-support / trip-planner
 item: `id`, `inputs.user`, `expectations.*`. Experiments point at the Dataset
 catalog id. Apps do not know the rows came from MMLU-Pro.
 

@@ -128,7 +128,7 @@ def require_pinned_catalog_id(
 ) -> None:
     """Optional checker: reject a versioned catalog id that omits ``@version``.
 
-    Loaders do **not** call this. Unpinned ``sre-triage`` is ``@latest``
+    Loaders do **not** call this. Unpinned ``trip-planner`` is ``@latest``
     (highest ``v*`` folder), same as ``get_app`` / ``mas-ctl check``.
     """
     text = str(ref or "").strip()
@@ -202,9 +202,9 @@ def _lookup_versioned(index: dict[str, Path], object_id: str) -> Path | None:
 def _discover_apps_from_manifest(root: Path, manifest: dict[str, Any]) -> dict[str, Path]:
     """Index ``library.yaml`` ``apps:`` entries.
 
-    A catalog key may be a family (``sre-triage: apps/sre-triage``) whose
+    A catalog key may be a family (``trip-planner: apps/trip-planner``) whose
     children are ``v*`` version folders, or an explicit version
-    (``sre-triage@v2: apps/sre-triage/v2``).
+    (``trip-planner@v2: apps/trip-planner/v2``).
     """
     found: dict[str, Path] = {}
     apps = manifest.get("apps")
@@ -363,7 +363,10 @@ def _looks_like_dataset(path: Path) -> bool:
         return True
     if kind:
         return False
-    return "items" in data or "spec" in data or "metadata" in data
+    spec = data.get("spec")
+    return isinstance(data.get("items"), list) or (
+        isinstance(spec, dict) and isinstance(spec.get("items"), list)
+    )
 
 
 def _dataset_file_in_dir(path: Path) -> Path | None:
@@ -461,10 +464,6 @@ def _scan_one_datasets_dir(
             continue
         if not child.is_dir():
             continue
-        if child.name in {"fixtures", "incidents"} and _dataset_file_in_dir(child) is None:
-            # Overlay scene YAML, not a Dataset — unless it has v* Dataset dirs.
-            if not any(_dataset_file_in_dir(v) for v in _version_named_dirs(child)):
-                continue
         _index_dataset_family(
             found, _family_name_from_dataset_dir(child), child, default_version
         )
@@ -512,7 +511,7 @@ def discover_datasets() -> dict[str, Path]:
 
 
 def catalog_id_for_app_root(app_root: Path) -> str:
-    """``sre-triage@v2`` for ``apps/sre-triage/v2``, else the directory name."""
+    """``trip-planner@v2`` for ``apps/trip-planner/v2``, else the directory name."""
     if app_root.name.startswith("v"):
         return versioned_id(app_root.parent.name, app_root.name)
     return app_root.name

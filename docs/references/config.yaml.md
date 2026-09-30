@@ -47,8 +47,8 @@ For `mas_ctl.trace*` (and the rest of the `mas_ctl` map used by chat / run-mas):
 |-----|------|---------|
 | `mas_ctl` | object | Defaults for `mas-ctl chat` / `run-mas` / validate |
 | `mas_lab` | object | Defaults for `mas-lab` benchmark / demo |
-| `infra_refs` | string or list | Infra bundles (left-to-right). Override: `MAS_INFRA_REFS`, CLI `--infra-ref` |
-| `runtime_refs` | string or list | `RuntimeEngine` refs. Omit for package defaults. Override: `MAS_RUNTIME_REFS`, `--runtime-ref` |
+| `infra_refs` | string or list | Infra bundles (left-to-right). Per-run override: CLI `--infra-ref` |
+| `runtime_refs` | string or list | `RuntimeEngine` refs. Omit for package defaults. Per-run override: `--runtime-ref` |
 | `infra_interceptors` | string or list | Optional interceptor bundle refs |
 | `manifest_libraries` | list of paths | Extra library checkouts (name = directory stem). Legacy name→path map still accepted. |
 | `aliases` | map | Runtime plugin alias → canonical URN |
@@ -162,4 +162,4 @@ mas_lab:
 ```
 
 Offline CI pairs `standard:openai` with `tests/fixtures/llm-cache/ci-replay.yaml`
-via `--infra-ref` / `MAS_INFRA_REFS` — still no secrets in YAML.
+via `--infra-ref` — still no secrets in YAML.

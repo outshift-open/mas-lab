@@ -58,7 +58,7 @@ def test_catalog_plugin_missing_ref_raises(tmp_path):
 
 
 def test_catalog_plugin_injects_catalog_only(tmp_path):
-    app = tmp_path / "sre-triage"
+    app = tmp_path / "trip-planner"
     skill_dir = app / "skills" / "triage-protocol"
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text(

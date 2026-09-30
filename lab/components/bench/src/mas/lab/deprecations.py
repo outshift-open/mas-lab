@@ -50,10 +50,6 @@ NOTICES: Dict[str, Tuple[str, str]] = {
         "manifests/dataset.md#1-manifest-format",
         "wrap items in apiVersion/kind: Dataset and spec.items",
     ),
-    "dataset.incident_fixture": (
-        "manifests/dataset-migration.md",
-        "use inputs.tool_fixtures with {ref:} or by_tool, not incident_fixture",
-    ),
 }
 
 _emitted: set[tuple[str, str]] = set()

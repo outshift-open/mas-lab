@@ -15,7 +15,7 @@ runnable **Agent** or **MAS** that pins one failure mode.
 Tests load these as fixtures. `mas-ctl validate` / `mas-ctl chat` (or
 `run-mas`) work from the repo root.
 
-**Not here:** real use-case MAS (trip planner, SRE triage, …). Those live
+**Not here:** real use-case MAS (e.g. the trip planner). Those live
 in `library-samples/apps/` and are registered in that library's
 `library.yaml`. Do not catalog plugin examples as apps.
 

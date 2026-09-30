@@ -662,3 +662,19 @@ class ToolContract(CapabilityContract):
             Modified context with potentially modified result
         """
         return context
+
+
+def tool_fixture(ctx: Any, tool_name: str) -> Any:
+    """Fixture payload the run harness supplied for *tool_name*, or ``None``.
+
+    Harnesses set ``ctx.tool_fixtures`` to ``{"by_tool": {name | "*": payload}}``
+    resolved from the dataset item's ``inputs.tool_fixtures``. The payload is
+    free-form and owned by the tool.
+    """
+    fixtures = getattr(ctx, "tool_fixtures", None)
+    if fixtures is None:
+        return None
+    by_tool = fixtures.get("by_tool") if isinstance(fixtures, dict) else None
+    if not isinstance(by_tool, dict):
+        raise TypeError('ctx.tool_fixtures must be {"by_tool": {...}}')
+    return by_tool[tool_name] if tool_name in by_tool else by_tool.get("*")

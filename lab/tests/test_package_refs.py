@@ -35,27 +35,27 @@ def test_masspec_from_dict_supports_app_locator() -> None:
 
 
 def test_masspec_from_dict_library_app_string(tmp_path: Path, monkeypatch) -> None:
-    root = tmp_path / "library-ioc"
-    app = root / "apps" / "sre-triage" / "v2"
+    root = tmp_path / "example-library"
+    app = root / "apps" / "trip-planner" / "v2"
     app.mkdir(parents=True)
     (root / "library.yaml").write_text(
-        "apiVersion: mas/v1\nkind: Library\nname: mas-library-ioc\n"
-        "apps:\n  sre-triage: apps/sre-triage\n",
+        "apiVersion: mas/v1\nkind: Library\nname: mas-example-library\n"
+        "apps:\n  trip-planner: apps/trip-planner\n",
         encoding="utf-8",
     )
     (app / "mas.yaml").write_text(
-        "apiVersion: mas/v1\nkind: MAS\nmetadata:\n  name: sre-triage\n",
+        "apiVersion: mas/v1\nkind: MAS\nmetadata:\n  name: trip-planner\n",
         encoding="utf-8",
     )
     monkeypatch.setenv("MAS_LIBRARY_PATHS", str(root))
 
-    spec = MASSpec.from_dict("library-ioc:sre-triage@v2", tmp_path)
+    spec = MASSpec.from_dict("example-library:trip-planner@v2", tmp_path)
     assert spec.manifest is not None
     assert spec.manifest.is_file()
     assert spec.manifest.parent.name == "v2"
 
     via_path = MASSpec.from_dict(
-        {"manifest": "library-ioc:apps/sre-triage/v2"},
+        {"manifest": "example-library:apps/trip-planner/v2"},
         tmp_path,
     )
     assert via_path.manifest == spec.manifest

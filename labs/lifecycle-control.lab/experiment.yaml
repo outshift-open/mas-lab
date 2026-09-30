@@ -260,49 +260,49 @@ experiment:
 
     # --- Paper / detail figures (matplotlib; migrated from lab scripts) ---
     - name: figure-call-counts
-      type: lib.steps.figure_call_counts:FigureCallCountsStep
+      type: lifecycle_control_lab.steps.figure_call_counts:FigureCallCountsStep
       depends_on: [extract-trace-stats]
       config:
         trace_stats: "{output_dir}/results/trace_stats.csv"
         output: "{output_dir}/results/fig-call-counts.png"
 
     - name: figure-governance-overhead-detail
-      type: lib.steps.figure_governance_overhead:FigureGovernanceOverheadStep
+      type: lifecycle_control_lab.steps.figure_governance_overhead:FigureGovernanceOverheadStep
       depends_on: [extract-trace-stats]
       config:
         trace_stats: "{output_dir}/results/trace_stats.csv"
         output: "{output_dir}/results/fig-governance-overhead-percall.png"
 
     - name: figure-precision-recall-detail
-      type: lib.steps.figure_precision_recall_detail:FigurePrecisionRecallDetailStep
+      type: lifecycle_control_lab.steps.figure_precision_recall_detail:FigurePrecisionRecallDetailStep
       depends_on: [extract-trace-stats]
       config:
         trace_stats: "{output_dir}/results/trace_stats.csv"
         output: "{output_dir}/results/fig-precision-recall-detail.png"
 
     - name: figure-moodbar-detail
-      type: lib.steps.figure_moodbar_detail:FigureMoodbarDetailStep
+      type: lifecycle_control_lab.steps.figure_moodbar_detail:FigureMoodbarDetailStep
       depends_on: [extract-mealy-stats]
       config:
         mealy_stats: "{output_dir}/results/mealy_stats.csv"
         output: "{output_dir}/results/fig-moodbar-detail.png"
 
     - name: figure-stacking-detail
-      type: lib.steps.figure_stacking_detail:FigureStackingDetailStep
+      type: lifecycle_control_lab.steps.figure_stacking_detail:FigureStackingDetailStep
       depends_on: [extract-mealy-stats]
       config:
         mealy_stats: "{output_dir}/results/mealy_stats.csv"
         output: "{output_dir}/results/fig-stacking-detail.png"
 
     - name: figure-per-call
-      type: lib.steps.figure_per_call:FigurePerCallStep
+      type: lifecycle_control_lab.steps.figure_per_call:FigurePerCallStep
       depends_on: [extract-mealy-stats]
       config:
         mealy_stats: "{output_dir}/results/mealy_stats.csv"
         output: "{output_dir}/results/fig-per-call.png"
 
     - name: figure-nonllm
-      type: lib.steps.figure_nonllm:FigureNonllmStep
+      type: lifecycle_control_lab.steps.figure_nonllm:FigureNonllmStep
       depends_on: [extract-mealy-stats]
       config:
         mealy_stats: "{output_dir}/results/mealy_stats.csv"

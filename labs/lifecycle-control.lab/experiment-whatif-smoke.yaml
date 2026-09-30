@@ -119,7 +119,7 @@ experiment:
             1: "Detected"
 
     - name: figure-trajectory-paper
-      type: lib.steps.figure_trajectory_paper:FigureTrajectoryPaperStep
+      type: lifecycle_control_lab.steps.figure_trajectory_paper:FigureTrajectoryPaperStep
       depends_on: [extract-trace-stats]
       config:
         trace_baseline: "{output_dir}/baseline/itemf-guardrail/r1/traces/events.jsonl"
@@ -127,7 +127,7 @@ experiment:
         output: "{output_dir}/fig_trajectory_schematic.svg"
 
     - name: figure-trajectory-automaton
-      type: lib.steps.figure_trajectory_automaton:FigureTrajectoryAutomatonStep
+      type: lifecycle_control_lab.steps.figure_trajectory_automaton:FigureTrajectoryAutomatonStep
       depends_on: [extract-trace-stats]
       config:
         trace_baseline: "{output_dir}/baseline/itemf-guardrail/r1/traces/events.jsonl"
@@ -135,7 +135,7 @@ experiment:
         output: "{output_dir}/fig_trajectory.svg"
 
     - name: figure-trajectory-swimlane
-      type: lib.steps.figure_trajectory_swimlane:FigureTrajectorySwimlaneStep
+      type: lifecycle_control_lab.steps.figure_trajectory_swimlane:FigureTrajectorySwimlaneStep
       depends_on: [extract-trace-stats]
       config:
         trace_baseline: "{output_dir}/baseline/itemf-guardrail/r1/traces/events.jsonl"
@@ -143,7 +143,7 @@ experiment:
         output: "{output_dir}/fig_trajectory_swimlane.svg"
 
     - name: figure-trajectory-compact
-      type: lib.steps.figure_trajectory_compact:FigureTrajectoryCompactStep
+      type: lifecycle_control_lab.steps.figure_trajectory_compact:FigureTrajectoryCompactStep
       depends_on: [extract-trace-stats]
       config:
         trace_baseline: "{output_dir}/baseline/itemf-guardrail/r1/traces/events.jsonl"

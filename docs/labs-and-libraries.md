@@ -46,9 +46,9 @@ The name you write in YAML is a **library scheme** (`samples`, `example-library`
 not necessarily the Python package name (`mas-library-samples`). Additional
 names can be listed as `aliases:` in `library.yaml`; the directory basename
 and `name:` field are also accepted. Labs then pin a MAS with
-`library:app` (for example `example-library:sre-triage@v2`). Versioning uses
+`library:app` (for example `example-library:my-app@v2`). Versioning uses
 `name@version` (bare name is `@latest`). Slash is a path
-(`example-library:apps/sre-triage/v2`), not an id alias.
+(`example-library:apps/my-app/v2`), not an id alias.
 
 How to write those refs: [writing-manifests.md](manifests/writing-manifests.md).
 
@@ -94,18 +94,18 @@ surface; the library is what registers the step.
 ## Lab-local library (in-repo pattern)
 
 `labs/lifecycle-control.lab` and `labs/extensions.lab` keep reusable pipeline
-code in `lib/` and list that directory:
+code in a package named after the lab and list that directory:
 
 ```yaml
 # lab-config.yaml
 lab:
   name: lifecycle-control
   libraries:
-    - lib/
+    - lifecycle_control_lab/
 ```
 
 ```yaml
-# lib/library.yaml
+# lifecycle_control_lab/library.yaml
 apiVersion: mas/v1
 kind: Library
 
@@ -114,9 +114,15 @@ description: Lab-local pipeline figure steps for this lab.
 version: "0.1.0"
 ```
 
-The library name in refs is the listed basename: `lib/` → `lib`. Immediate
-children of the lab root that contain `library.yaml` are picked up too (any
-directory name; `lib/` is not required).
+The library name in refs is the listed basename:
+`lifecycle_control_lab/` → `lifecycle_control_lab`. Immediate children of the
+lab root that contain `library.yaml` are picked up too.
+
+The directory is also the Python package (`lifecycle_control_lab.steps.…`).
+Every library's parent directory shares one `sys.path`, so package names must
+be unique across the libraries a process loads: two labs that both ship a
+`lib/` package would shadow each other. The plugin registry fails with both
+paths when it detects such a clash.
 
 A listed directory **without** `library.yaml` is Python `sys.path` only. Do
 not leave an in-repo lab in that state.
@@ -129,7 +135,7 @@ tools:
   - samples:tools/calc.tool.yaml
 
 application:
-  app: example-library:sre-triage@v2
+  app: example-library:my-app@v2
   # or: manifest: samples:apps/trip-planner/mas.yaml
 
 # Workspace config.yaml — search folders (library root or parent of libraries)

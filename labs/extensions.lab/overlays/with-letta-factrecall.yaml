@@ -24,7 +24,7 @@ spec:
   target:
     kind: Agent
   plugins:
-    - module_path: lib.memory.letta_wrapper
+    - module_path: extensions_lab.memory.letta_wrapper
       class_name: LettaCoreMemoryWrapper
       name: letta_core_memory
       priority: 55

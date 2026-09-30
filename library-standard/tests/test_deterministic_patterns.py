@@ -13,19 +13,19 @@ def test_participants_follow_configured_entry_delegates() -> None:
     assert _participants(
         {
             "workflow": {
-                "entry": "sre",
+                "entry": "planner",
                 "nodes": [
                     {
-                        "id": "sre",
-                        "delegates_to": ["telemetry", "backend", "verifier"],
+                        "id": "planner",
+                        "delegates_to": ["flights", "hotels", "verifier"],
                     },
-                    {"id": "telemetry"},
-                    {"id": "backend"},
+                    {"id": "flights"},
+                    {"id": "hotels"},
                     {"id": "verifier"},
                 ],
             }
         }
-    ) == ["telemetry", "backend", "verifier"]
+    ) == ["flights", "hotels", "verifier"]
 
 
 def test_participant_sources_exclude_configured_entry() -> None:

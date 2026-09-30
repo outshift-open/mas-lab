@@ -189,7 +189,7 @@ from mas.runtime.contracts import LocalAgentDelegate
 from mas.runtime.contracts import WorkflowContract
 
 # wf = WorkflowContract.build("dynamic")
-# result = wf.run(runtime, {"prompt": "triage this incident"})
+# result = wf.run(runtime, {"prompt": "plan a weekend trip to Celestia"})
 ```
 
 ## Messaging and orchestration call path

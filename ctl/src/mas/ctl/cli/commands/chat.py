@@ -70,13 +70,13 @@ from mas.ctl.ui.stdout import StdoutConversationDisplay
     "--cache-read/--no-cache-read",
     default=None,
     help="Look up a cached response before calling the LLM "
-    "(default: RuntimeEngine cache.read / MAS_LLM_CACHE_READ / true)",
+    "(default: RuntimeEngine cache.read, else true)",
 )
 @click.option(
     "--cache-write/--no-cache-write",
     default=None,
     help="Persist a response to the cache after calling the LLM "
-    "(default: RuntimeEngine cache.write / MAS_LLM_CACHE_WRITE / true)",
+    "(default: RuntimeEngine cache.write, else true)",
 )
 @click.option(
     "--stream/--no-stream",
@@ -99,7 +99,7 @@ from mas.ctl.ui.stdout import StdoutConversationDisplay
 @click.option(
     "--model",
     default=None,
-    help="Override spec.models for this run (same as MAS_CTL_MODEL)",
+    help="Override spec.models for this run",
 )
 @click.pass_context
 def chat_cmd(

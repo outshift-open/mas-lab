@@ -23,13 +23,13 @@ def test_apply_manifest_context_reads_context_role():
     manifest = {
         "spec": {
             "context": {
-                "role": "You are the SRE lead. Delegate before acting.",
+                "role": "You are the trip planner. Delegate before acting.",
                 "tool_usage": "Use tools carefully.",
             }
         }
     }
     _apply_manifest_context(ctx, manifest, Path("/tmp/agents"))
-    assert any("[role]" in chunk and "SRE lead" in chunk for chunk in ctx.injected_context)
+    assert any("[role]" in chunk and "trip planner" in chunk for chunk in ctx.injected_context)
     assert any("[tool_usage]" in chunk for chunk in ctx.injected_context)
 
 
@@ -54,18 +54,18 @@ def test_apply_manifest_context_reads_context_path_string(tmp_path: Path):
 
 def test_apply_manifest_context_reads_array_chunk_as_one_joined_line(tmp_path: Path):
     escalation = tmp_path / "escalation.md"
-    escalation.write_text("Escalate P1 incidents immediately.", encoding="utf-8")
+    escalation.write_text("Confirm the budget before booking.", encoding="utf-8")
     ctx = AutoCtxAssembler()
     manifest = {
         "spec": {
             "context": {
-                "role": ["You are a triage agent.", {"ref": "escalation.md"}],
+                "role": ["You are a travel planner.", {"ref": "escalation.md"}],
             }
         }
     }
     _apply_manifest_context(ctx, manifest, tmp_path)
     assert ctx.injected_context == [
-        "[role] You are a triage agent.\nEscalate P1 incidents immediately."
+        "[role] You are a travel planner.\nConfirm the budget before booking."
     ]
 
 
@@ -114,7 +114,7 @@ def test_resolve_skill_path_finds_skills_subdir_with_hyphen_slug(tmp_path: Path)
 
 
 def test_inject_skills_uses_app_root_not_agent_dir(tmp_path: Path):
-    app_root = tmp_path / "sre-triage"
+    app_root = tmp_path / "trip-planner"
     agents_dir = app_root / "agents"
     agents_dir.mkdir(parents=True)
     skill_dir = app_root / "skills" / "data-access-protocol"

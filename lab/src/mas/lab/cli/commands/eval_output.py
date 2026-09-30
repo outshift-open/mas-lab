@@ -28,7 +28,7 @@ _DEFAULT_METRICS = ["goal_success_rate"]
 @click.argument("trace", type=str, metavar="SOURCE")
 @click.option(
     "--fixture", type=Path, default=None,
-    help="Path to incident fixture YAML — provides ground truth.",
+    help="Path to a fixture YAML that provides ground truth.",
 )
 @click.option(
     "--metric", "metrics", multiple=True,

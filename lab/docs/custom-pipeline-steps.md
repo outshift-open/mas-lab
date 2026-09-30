@@ -136,14 +136,14 @@ metadata:
   name: my-post-run
 spec:
   steps:
-    - name: eval-fixture
+    - name: eval-booking
       # Path relative to experiment_yaml.parent (not the pipeline file's dir).
       type: lib/steps/my_eval.py:MyEvalStep
       per_run: true
       config:
         # Paths in config: are also resolved relative to experiment_yaml.parent.
         # Do NOT use ../datasets/... — that goes above the experiment dir.
-        fixture_path: datasets/incidents/my-incident.yaml
+        reference_path: datasets/reference/fares.yaml
 ```
 
 ```yaml
@@ -165,9 +165,9 @@ experiment:
 > | Value | Resolves to |
 > |---|---|
 > | `lib/steps/my_eval.py` | `<experiment_dir>/lib/steps/my_eval.py` ✓ |
-> | `datasets/incidents/foo.yaml` | `<experiment_dir>/datasets/incidents/foo.yaml` ✓ |
+> | `datasets/reference/fares.yaml` | `<experiment_dir>/datasets/reference/fares.yaml` ✓ |
 > | `../lib/steps/my_eval.py` | one level above the experiment dir ✗ |
-> | `../datasets/incidents/foo.yaml` | one level above the experiment dir ✗ |
+> | `../datasets/reference/fares.yaml` | one level above the experiment dir ✗ |
 
 ### Inline (no separate YAML file)
 
@@ -177,11 +177,11 @@ For a single step you can inline it directly in `experiment.yaml`:
 experiment:
   run:
     post:
-      - name: eval-fixture
+      - name: eval-booking
         type: lib/steps/my_eval.py:MyEvalStep
         per_run: true
         config:
-          fixture_path: datasets/incidents/my-incident.yaml
+          reference_path: datasets/reference/fares.yaml
 ```
 
 ---
@@ -262,40 +262,42 @@ Downstream `compute_ci` and `plotnine` steps can then reference `@collect-metric
 
 ---
 
-## Fixture evaluation pattern (deterministic, no LLM judge)
+## Deterministic evaluation pattern (no LLM judge)
 
-Deterministic fixture evaluation scores a `run_action` tool call against a
-YAML file that records the expected service, action, and version:
+Deterministic evaluation scores a structured tool call against the
+app-specific ground truth on the Dataset item (`expectations.details`), e.g.
+for the trip planner's booking tool:
 
 ```yaml
-# datasets/incidents/my-incident.yaml
-correct_action:
-  service: checkout-service
-  action: rollback
-  to_version: "3.7.1"
+# dataset.yaml item
+expectations:
+  details:
+    origin: Celestia
+    destination: Verdantia
+    fare_class: standard
 ```
 
 The step:
 
 1. Loads `events.jsonl` via `resolve_run_events(ctx, config)`.
-2. Finds `tool_call_start` events whose `tool_name == "run_action"`.
-3. Extracts `service`, `action`, `to_version` from the event arguments.
-4. Compares against the fixture with exact string matching (`str.strip().lower()`).
-5. Writes `metrics.json` with `c3_primary_action_correct: 1.0` or `0.0`.
+2. Finds `tool_call_start` events for the booking tool.
+3. Extracts `origin`, `destination`, `fare_class` from the event arguments.
+4. Compares against `expectations.details` with exact string matching (`str.strip().lower()`).
+5. Writes `metrics.json` with `booking_correct: 1.0` or `0.0`.
 
 This produces the same output format as `eval_mce` so `collect_metrics` and
 `compute_ci` work identically for both evaluation modes.
 
 **Advantages over MCE (`eval_mce`):**
 
-| | Deterministic fixture | MCE (`eval_mce`) |
+| | Deterministic evaluation | MCE (`eval_mce`) |
 |---|---|---|
 | Speed | ~1 ms / run | ~10–30 s / run (LLM call) |
 | Cost | Zero | API credits |
 | Reproducibility | 100% | Model-version dependent |
 | Coverage | Structured tool calls | Free-form text output |
 
-Use fixture evaluation when the task has an unambiguous correct answer that is
+Use deterministic evaluation when the task has an unambiguous correct answer that is
 expressed as a structured tool call.  Use `eval_mce` for free-form quality
 metrics (goal success rate, groundedness, response completeness).
 
@@ -316,7 +318,7 @@ When referencing a library tool file in an overlay:
 
 `pkg://NAME/path` calls `importlib.resources.files(NAME)` which resolves the
 **Python package name** directly.  If a local directory with that name exists
-on `sys.path` (e.g. `sre-triage/skills/`), Python treats it as a namespace
+on `sys.path` (e.g. `trip-planner/skills/`), Python treats it as a namespace
 package and `pkg://` resolves to the local directory instead of the installed
 library.
 

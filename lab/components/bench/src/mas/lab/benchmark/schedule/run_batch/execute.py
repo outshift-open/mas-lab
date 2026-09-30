@@ -127,6 +127,18 @@ async def execute_batch(
         faults_config=_faults_dict,
     )
 
+    from mas.ctl.compose.runner import infra_cache_identity, resolve_workspace_infra
+    from mas.ctl.workspace.config import WorkspaceConfig
+
+    # Runs resolve infra from the experiment workspace; the cache key must too.
+    _infra_info = infra_cache_identity(
+        resolve_workspace_infra(
+            WorkspaceConfig.load(experiment_yaml.parent),
+            anchor=experiment_yaml.parent,
+            cli_refs=list(prepared.infra_refs),
+        )
+    )
+
     async def _run_one(scenario_id: str, item: dict, run_idx: int) -> None:
         nonlocal total_ok, total_fail
         config, spec_path = prepared.scenario_configs[scenario_id]
@@ -149,7 +161,7 @@ async def execute_batch(
         prompt = _run_input.primary_prompt
         _run_input_dict = run_input_to_dict(_run_input)
         if not prompt:
-            return
+            raise ValueError(f"dataset item {item_id!r} has an empty inputs.user prompt")
         t0 = _time.monotonic()
         error: Optional[str] = None
         output = ""
@@ -170,6 +182,7 @@ async def execute_batch(
             run_idx,
             _flavour_info,
             base_path=spec_path,
+            infra_info=_infra_info,
         )
         _trace_cache = get_trace_cache_dir(explicit=trace_cache_dir)
         _global_run_dir = _trace_cache / _run_hash
@@ -358,6 +371,7 @@ async def execute_batch(
                         extra={
                             "experiment_default_model": getattr(exp, "model", None),
                             "experiment_model_slots": getattr(exp, "model_slots", None),
+                            "workspace_root": experiment_yaml.parent,
                         },
                     )
                     try:

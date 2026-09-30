@@ -56,7 +56,7 @@ spec:
     - tool-registry.yaml
 ```
 
-Referenced from workspace `config.yaml`, env `MAS_INFRA_REFS`, or CLI `--infra-ref` — not from Agent or MAS manifests.
+Referenced from workspace `config.yaml` or CLI `--infra-ref` — not from Agent or MAS manifests.
 
 ---
 

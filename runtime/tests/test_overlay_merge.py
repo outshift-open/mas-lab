@@ -777,7 +777,7 @@ def test_merge_agent_overlay_patches_description_tools_ref_behavior() -> None:
     base = {
         "spec": {
             "description": "base",
-            "tools_ref": "sre-tools",
+            "tools_ref": "travel-tools",
             "behavior": {"share_reasoning": False},
         }
     }
@@ -786,13 +786,13 @@ def test_merge_agent_overlay_patches_description_tools_ref_behavior() -> None:
         _overlay(
             {
                 "description": "patched",
-                "tools_ref": "backend-tools",
+                "tools_ref": "hotels-tools",
                 "behavior": {"share_reasoning": True},
             }
         ),
     )
     assert merged["spec"]["description"] == "patched"
-    assert merged["spec"]["tools_ref"] == "backend-tools"
+    assert merged["spec"]["tools_ref"] == "hotels-tools"
     assert merged["spec"]["behavior"]["share_reasoning"] is True
 
 

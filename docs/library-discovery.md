@@ -49,7 +49,7 @@ The search lists already exist and use the same scan
 ```yaml
 lab:
   libraries:
-    - lib/
+    - my_lab/
     - ../../../example-library
 
 manifest_libraries:
@@ -86,7 +86,7 @@ Kind `Library`, `apiVersion: mas/v1`, flat (no `metadata:` / `spec:`).
 | --- | --- |
 | `name` | Package-style identity (`mas-library-samples`, `lifecycle-control-lib`) |
 | `schemes` | Optional extra identifiers. Prefer one name: the directory stem and the install entry point. Do not add aliases. |
-| `apps` / `datasets` / `tools` | Catalogs for `library:app`, `name:path`, and `app:` lookup. App keys are `name` or `name@version`; a value may be a family dir (`apps/sre-triage`) or one version dir. |
+| `apps` / `datasets` / `tools` | Catalogs for `library:app`, `name:path`, and `app:` lookup. App keys are `name` or `name@version`; a value may be a family dir (`apps/my-app`) or one version dir. |
 | `types` / `plugins` | Plugin manifest payload (same shape as `*.plugins.yaml`) |
 | `plugin_manifests` | Extra plugin YAML files, if you split them |
 
@@ -95,7 +95,7 @@ See [plugin-registry-manifests.md](../runtime/docs/plugin-registry-manifests.md)
 
 In-repo labs that list a local dir ship `library.yaml` there so the dir is a
 real library. Pipeline YAML may still load steps by Python path
-(`lib.steps.figure_call_counts:FigureCallCountsStep`); the manifest catalogs
+(`lifecycle_control_lab.steps.figure_call_counts:FigureCallCountsStep`); the manifest catalogs
 them so root discovery and `name:path` see the library.
 
 ---
@@ -106,8 +106,9 @@ The prefix in `samples:tools/calc.tool.yaml` is the **library name**
 (`samples`), not the distribution name (`mas-library-samples`). Installed
 names in this repo: `samples`, `standard`, `lab`, `skills`, `ioa`.
 
-Lab-local listed basename `lib/` → scheme `lib` (does not collide with those
-installed names).
+A lab-local listed basename (`lifecycle_control_lab/`) is its scheme. It is
+also a Python package name, so it must not collide with another loaded
+library's package (see [labs-and-libraries.md](labs-and-libraries.md)).
 
 ---
 
@@ -119,16 +120,16 @@ Same separator as plugins (`react@v1`): **`[library:]name[@version]`**.
 - Bare `name` is `@latest` (highest `v*` folder) for lookup
   (`get_app`, `mas-ctl check`, and experiment `app:` / `dataset.name`).
   Pin `@version` when you need a specific major.
-- After `LIBRARY:`, no slash means an id (`example-library:sre-triage@v2`).
+- After `LIBRARY:`, no slash means an id (`example-library:my-app@v2`).
   A slash after `name@version` is a path **inside** that catalog object
-  (`example-library:sre-triage-incidents@v2/tool_fixtures/routing-policy-rollback.yaml`).
+  (`example-library:my-app-cases@v2/tool_fixtures/case-01.yaml`).
   A slash after a folder is a path from the library root
-  (`example-library:apps/sre-triage/v1/datasets/scenarios/tool_fixtures/routing-policy-rollback.yaml`).
-- `sre-triage-v2` and `sre-triage/v2` are **not** id aliases.
+  (`example-library:apps/my-app/v1/datasets/scenarios/tool_fixtures/case-01.yaml`).
+- `my-app-v2` and `my-app/v2` are **not** id aliases.
 
 **Datasets** use the same `name@version` grammar. App-specific datasets live
 at `apps/<app>/v<N>/datasets/<dataset>/dataset.yaml` (same version folder as
-the app) and declare `spec.app` (`sre-triage@^v1`). Generic datasets live
+the app) and declare `spec.app` (`my-app@^v1`). Generic datasets live
 under library-root `datasets/`.
 
 User-facing writing rules: [writing-manifests.md](manifests/writing-manifests.md).

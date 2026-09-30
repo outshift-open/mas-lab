@@ -47,8 +47,8 @@ spec:
         skills: { "$op": { add: [peer-note] } }
       broker:
         tools: { "$op": { remove: [web-search] } }
-    params:
-      incident_fixture: example-library:sre-triage-incidents@v2/tool_fixtures/payment-async-timeout.yaml
+    params:              # opaque; tools read ctx.runtime_params
+      region: eu-west-1
 ```
 
 `spec.tools` (outside `patch`) is a separate scenario-level tool injection field.
@@ -135,9 +135,9 @@ patch:
     role:
       $op:
         add:
-          - "Escalate P1 incidents immediately."
+          - "Confirm the budget before booking."
         # remove:
-        #   - "Escalate P1 incidents immediately."
+        #   - "Confirm the budget before booking."
         # replace:
         #   - "Whole new role text."
         # clear: true

@@ -14,12 +14,17 @@ guess which convention a `plugins:` key belongs to.
 
 from __future__ import annotations
 
+import importlib
+import sys
+
+import pytest
+
 import mas.library_catalog as library_catalog
 from mas.library_catalog import (
     _declares_plugins,
     discover_plugin_manifests,
 )
-from mas.runtime.registry import PluginRegistry
+from mas.runtime.registry import PluginRegistry, _urn_for_type_name
 from mas.runtime.registry.bootstrap import _register_library_plugins
 
 
@@ -167,3 +172,62 @@ plugins:
     assert (root / "library.yaml").resolve() in manifests
     assert scan_target.resolve() in manifests
     assert len(manifests) == len(set(manifests)), "no duplicate paths"
+
+
+def _package_library(parent, pkg: str):
+    lib = parent / pkg
+    lib.mkdir(parents=True)
+    (lib / "__init__.py").write_text("", encoding="utf-8")
+    (lib / "steps.py").write_text("class Step:\n    pass\n", encoding="utf-8")
+    (lib / "library.yaml").write_text(
+        f"""apiVersion: mas/v1
+kind: Library
+name: {pkg}-lib
+types: [step]
+plugins:
+  - type: step
+    name: {pkg}_step
+    module: {pkg}.steps
+    class: Step
+""",
+        encoding="utf-8",
+    )
+    return lib / "library.yaml"
+
+
+def test_two_libraries_with_same_package_name_fail(tmp_path, monkeypatch) -> None:
+    first = _package_library(tmp_path / "a.lab", "sharedpkg_x")
+    second = _package_library(tmp_path / "b.lab", "sharedpkg_x")
+    monkeypatch.setattr(library_catalog, "discover_plugin_manifests", lambda: [first, second])
+
+    with pytest.raises(ValueError, match="clashes with"):
+        _register_library_plugins(PluginRegistry())
+
+
+def test_library_package_already_imported_from_elsewhere_fails(tmp_path, monkeypatch) -> None:
+    other = tmp_path / "elsewhere" / "sharedpkg_y"
+    other.mkdir(parents=True)
+    (other / "__init__.py").write_text("", encoding="utf-8")
+    monkeypatch.syspath_prepend(str(other.parent))
+    monkeypatch.delitem(sys.modules, "sharedpkg_y", raising=False)
+    importlib.import_module("sharedpkg_y")
+    manifest = _package_library(tmp_path / "c.lab", "sharedpkg_y")
+    monkeypatch.setattr(library_catalog, "discover_plugin_manifests", lambda: [manifest])
+
+    try:
+        with pytest.raises(ValueError, match="clashes with"):
+            _register_library_plugins(PluginRegistry())
+    finally:
+        sys.modules.pop("sharedpkg_y", None)
+
+
+def test_unique_library_packages_register(tmp_path, monkeypatch) -> None:
+    first = _package_library(tmp_path / "d.lab", "uniquepkg_d")
+    second = _package_library(tmp_path / "e.lab", "uniquepkg_e")
+    monkeypatch.setattr(library_catalog, "discover_plugin_manifests", lambda: [first, second])
+    reg = PluginRegistry()
+
+    _register_library_plugins(reg)
+
+    assert _urn_for_type_name("step", "uniquepkg_d_step") in reg._entries
+    assert _urn_for_type_name("step", "uniquepkg_e_step") in reg._entries

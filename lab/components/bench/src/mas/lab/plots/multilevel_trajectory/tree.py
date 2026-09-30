@@ -139,7 +139,7 @@ def _align_record_boundaries(
         # so it was set to start + 1.0 s or t_final as a structural fallback)
         # must not have Rule 3 applied: snapping the last child to an inflated
         # synthetic boundary corrupts the child's real event timestamp.
-        # Classic case: the entry-agent AgentCall (e.g. "sre") never receives
+        # Classic case: the entry-agent AgentCall never receives
         # an execution_end in multi-agent delegation traces; its end_ts is
         # extended to t_final, and without this guard the last ToolCall
         # (the delegation tool) would be stretched across the entire trace.

@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from mas.runtime.boundary.hitl.registry import get_hitl_resolver_registry
+from mas.runtime.contracts.user_communication_contract import AutoResolveHitlContract
 from mas.runtime.engine.manifest_tool_provider import build_manifest_tool_provider
 from mas.runtime.system_tools.request_human_input import RequestHumanInputTool
 
@@ -29,17 +30,6 @@ HITL = ("request_human_input",)
 @pytest.fixture()
 def empty_tool_tree(tmp_path: Path) -> Path:
     return tmp_path
-
-
-@pytest.fixture(autouse=True)
-def _clean_hitl_env(monkeypatch):
-    """MAS_HITL_AUTO_RESOLVE is set via os.environ.setdefault (not monkeypatch)
-    by benchmark/batch-run code elsewhere, so it can leak into this file's
-    tests when the whole suite runs in one process (e.g. after
-    tests/test_golden_labs_run.py). Guarantee a clean baseline here; tests
-    that actually want auto-resolve set it themselves via monkeypatch."""
-    monkeypatch.delenv("MAS_HITL_AUTO_RESOLVE", raising=False)
-    monkeypatch.delenv("MAS_HITL_AUTO_RESOLVE_DECISION", raising=False)
 
 
 # ---------------------------------------------------------------------------
@@ -149,9 +139,10 @@ def test_call_time_timeout_overrides_manifest_default(empty_tool_tree: Path):
 # auto-resolve decision: defaults to "approve", configurable
 # ---------------------------------------------------------------------------
 
-def test_auto_resolve_defaults_to_approve(empty_tool_tree: Path, monkeypatch):
-    monkeypatch.setenv("MAS_HITL_AUTO_RESOLVE", "1")
-    provider = build_manifest_tool_provider([], empty_tool_tree, system_tools=HITL)
+def test_auto_resolve_defaults_to_approve(empty_tool_tree: Path):
+    provider = build_manifest_tool_provider(
+        [], empty_tool_tree, system_tools=HITL, hitl_contract=AutoResolveHitlContract()
+    )
     ctx = _FakeCtx(session_id="sess-auto-default")
 
     result = provider.call_tool(
@@ -159,28 +150,33 @@ def test_auto_resolve_defaults_to_approve(empty_tool_tree: Path, monkeypatch):
         {"question": "Approve?", "question_type": "CONFIRM", "choices": ["approve", "reject"]},
         ctx=ctx,
     )
-    assert result["choice"] == "approve"
+    assert result == {"choice": "approve", "steering": "", "question": "Approve?", "resolved": True}
 
 
-def test_auto_resolve_decision_configurable_via_env_var(empty_tool_tree: Path, monkeypatch):
+def test_auto_resolve_ignores_process_environment(empty_tool_tree: Path, monkeypatch):
     monkeypatch.setenv("MAS_HITL_AUTO_RESOLVE", "1")
     monkeypatch.setenv("MAS_HITL_AUTO_RESOLVE_DECISION", "reject")
     provider = build_manifest_tool_provider([], empty_tool_tree, system_tools=HITL)
     ctx = _FakeCtx(session_id="sess-auto-env")
 
-    result = provider.call_tool(
-        "request_human_input",
-        {"question": "Approve?", "question_type": "CONFIRM", "choices": ["approve", "reject"]},
-        ctx=ctx,
-    )
-    assert result["choice"] == "reject"
+    with pytest.raises(TimeoutError):
+        provider.call_tool(
+            "request_human_input",
+            {
+                "question": "Approve?",
+                "question_type": "CONFIRM",
+                "choices": ["approve", "reject"],
+                "timeout": 0.05,
+            },
+            ctx=ctx,
+        )
 
 
-def test_auto_resolve_decision_configurable_via_manifest_params(empty_tool_tree: Path, monkeypatch):
-    monkeypatch.setenv("MAS_HITL_AUTO_RESOLVE", "1")
+def test_auto_resolve_decision_configurable_via_manifest_params(empty_tool_tree: Path):
     provider = build_manifest_tool_provider(
         [{"kind": "system", "name": "request_human_input", "params": {"auto_resolve_decision": "reject"}}],
         empty_tool_tree,
+        hitl_contract=AutoResolveHitlContract(),
     )
     ctx = _FakeCtx(session_id="sess-auto-manifest")
 
@@ -238,12 +234,11 @@ def test_advertised_schema_reflects_configured_max_question_length():
     assert schema["properties"]["question"]["maxLength"] == 8000
 
 
-def test_manifest_auto_resolve_decision_wins_over_env_var(empty_tool_tree: Path, monkeypatch):
-    monkeypatch.setenv("MAS_HITL_AUTO_RESOLVE", "1")
-    monkeypatch.setenv("MAS_HITL_AUTO_RESOLVE_DECISION", "reject")
+def test_manifest_auto_resolve_decision_wins_over_host_default(empty_tool_tree: Path):
     provider = build_manifest_tool_provider(
         [{"kind": "system", "name": "request_human_input", "params": {"auto_resolve_decision": "escalate"}}],
         empty_tool_tree,
+        hitl_contract=AutoResolveHitlContract("reject"),
     )
     ctx = _FakeCtx(session_id="sess-auto-precedence")
 

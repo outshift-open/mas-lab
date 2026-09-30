@@ -241,16 +241,52 @@ def _register_library_plugins(reg: PluginRegistry) -> None:
     """
     from mas.library_catalog import discover_plugin_manifests
 
+    claimed: dict[str, Path] = {}
     for manifest_path in discover_plugin_manifests():
         library_parent = str(manifest_path.parent.parent)
         if library_parent not in sys.path:
             sys.path.append(library_parent)
         try:
-            register_manifest_file(reg, manifest_path)
+            data = _load_yaml(manifest_path)
+            _claim_library_package(manifest_path.parent, data, claimed)
+            register_manifest_data(reg, data)
         except Exception as exc:
             raise ValueError(
                 f"Failed to register plugin manifest {manifest_path}: {exc}"
             ) from exc
+
+
+def _manifest_modules(data: dict[str, Any]) -> list[str]:
+    modules: list[str] = []
+    for item in data.get("plugins") or []:
+        if not isinstance(item, dict):
+            continue
+        modules.append(str(item.get("module") or ""))
+        for variant in (item.get("variants") or {}).values():
+            if isinstance(variant, dict):
+                modules.append(str(variant.get("module") or ""))
+    return modules
+
+
+def _claim_library_package(library_dir: Path, data: dict[str, Any], claimed: dict[str, Path]) -> None:
+    """A library directory that is its own plugin package must own that top-level name.
+
+    Library parents share one ``sys.path``: two libraries both shipping a
+    ``lib`` package would silently load each other's modules.
+    """
+    name = library_dir.name
+    if not any(m == name or m.startswith(name + ".") for m in _manifest_modules(data)):
+        return
+    here = library_dir.resolve()
+    owner = claimed.setdefault(name, here)
+    loaded = sys.modules.get(name)
+    loaded_dirs = [Path(p).resolve() for p in getattr(loaded, "__path__", [])] if loaded else []
+    other = owner if owner != here else next((d for d in loaded_dirs if d != here), None)
+    if other is not None:
+        raise ValueError(
+            f"plugin package {name!r} at {here} clashes with {other}; "
+            "give each library a unique package name"
+        )
 
 
 def register_plugin(

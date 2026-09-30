@@ -111,7 +111,7 @@ mas-ctl chat agent.yaml -i --trace --trace-color
 Headers keep the raw hop (`TOOL[activate_skill]`) and, when the tool
 advertised `spec.semantics` / `list_tools().semantics`, an interpretation
 (`SKILL[answer-formatting]`, `MEMORY[write]`). The model id is the engine's
-resolved model (`spec.models`, `--model` / `MAS_CTL_MODEL`), never a
+resolved model (`spec.models`, `--model`), never a
 label-only fallback.
 
 ---

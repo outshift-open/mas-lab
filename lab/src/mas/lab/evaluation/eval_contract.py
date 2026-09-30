@@ -9,7 +9,7 @@ EvalContract is a CapabilityContract, orthogonal to the runtime.
 Design principles
 ------------------
 - App-agnostic interface (this file); app-specific logic in the app's
-  ``evaluations/`` directory (e.g. ``labs/extensions.lab/lib/steps/eval_fact_recall.py``).
+  ``evaluations/`` directory (e.g. ``labs/extensions.lab/extensions_lab/steps/eval_fact_recall.py``).
 - Metrics not scores: plugins return named metric values (rates, counts,
   coverage fractions).  Aggregation into a scalar score is optional and done
   by the caller.
@@ -29,7 +29,7 @@ ObservabilityPlugin emits:
 
     {"kind": "execution_start", "agent_id": "db", "timestamp": 1234.5}
 
-    {"kind": "audit", "payload": {"agent_id": "sre",
+    {"kind": "audit", "payload": {"agent_id": "planner",
      "task": {"prompt": "..."}}, "timestamp": 1234.5}
 
 See ``mas.runtime.plugins.observability_plugin`` for the full event catalogue.

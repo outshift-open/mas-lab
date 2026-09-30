@@ -29,6 +29,44 @@ from mas.ctl.workspace.config import (
 )
 
 
+def resolve_workspace_infra(
+    workspace: WorkspaceConfig,
+    *,
+    anchor: Path,
+    cli_refs: list[str],
+    runtime_refs: list[str] | None = None,
+) -> ResolvedInfra:
+    """Merge workspace, user-default and CLI infra refs, then resolve them."""
+    user = UserConfig.load()
+    merged_refs = merge_infra_refs(
+        workspace_refs=workspace.effective_infra_refs,
+        user_refs=[user.default_infra] if user.default_infra else [],
+        cli_refs=list(cli_refs),
+        workspace_found=workspace.found,
+    )
+    return resolve_infra_refs(
+        merged_refs,
+        anchor=anchor,
+        workspace=workspace,
+        user=user,
+        interceptors=merge_infra_interceptors(
+            workspace_interceptors=workspace.infra_interceptors,
+            cli_interceptors=[],
+        ),
+        runtime_refs=list(runtime_refs or []),
+    )
+
+
+def infra_cache_identity(resolved: ResolvedInfra) -> dict[str, Any]:
+    """Non-secret part of the resolved infra that changes what a run does."""
+    llm_proxy = {k: v for k, v in resolved.llm_proxy.items() if k != "api_key_env"}
+    return {
+        "refs": list(resolved.refs),
+        "llm_proxy": llm_proxy,
+        "runtime_engine": dict(resolved.runtime_engine),
+    }
+
+
 @dataclass
 class ComposeRequest:
     manifest: Path
@@ -104,22 +142,10 @@ def compose_run(req: ComposeRequest) -> ComposeResult:
     mas_id = mas.get("metadata", {}).get("name") or req.manifest.stem
 
     workspace = WorkspaceConfig.load(req.workspace_root or req.manifest.parent)
-    user = UserConfig.load()
-    merged_refs = merge_infra_refs(
-        workspace_refs=workspace.effective_infra_refs,
-        user_refs=[user.default_infra] if user.default_infra else [],
-        cli_refs=list(req.infra_refs),
-        workspace_found=workspace.found,
-    )
-    resolved = resolve_infra_refs(
-        merged_refs,
+    resolved = resolve_workspace_infra(
+        workspace,
         anchor=req.manifest.parent,
-        workspace=workspace,
-        user=user,
-        interceptors=merge_infra_interceptors(
-            workspace_interceptors=workspace.infra_interceptors,
-            cli_interceptors=[],
-        ),
+        cli_refs=list(req.infra_refs),
         runtime_refs=list(req.runtime_refs),
     )
 
@@ -162,7 +188,7 @@ def compose_run(req: ComposeRequest) -> ComposeResult:
             deployment_name=deployment.get("metadata", {}).get("name", "local-inproc"),
         ),
         deployment=deployment,
-        infra_refs=merged_refs,
+        infra_refs=list(resolved.refs),
         resolved_infra=resolved,
         bind=bind,
         plan=plan,

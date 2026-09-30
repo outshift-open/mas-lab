@@ -178,7 +178,7 @@ def run_cmd(experiment_yaml: Path, force: bool, resume: bool, benchmark_id: str 
     }
 
     client = ControllerClient()
-    client.ensure_running()
+    client.ensure_running(restart_stale=True)
     result = client.call("submit_benchmark", spec)
     worker_id = result["worker_id"]
 

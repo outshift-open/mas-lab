@@ -50,7 +50,7 @@ properties:
           oneOf:
             - type: string
               minLength: 1
-              description: "Library + app identifier, e.g. example-library:sre-triage@v2."
+              description: "Library + app identifier, e.g. example-library:my-app@v2."
               pattern: "^[a-z0-9][a-z0-9-]*:[^\\s]+$"
             - type: object
               additionalProperties: false
@@ -59,12 +59,12 @@ properties:
                   type: string
                   description: >
                     Path or library:app identifier resolving to mas.yaml
-                    (e.g. example-library:sre-triage@v2).
+                    (e.g. example-library:my-app@v2).
                 app:
                   type: string
                   description: >
                     Application catalog id, optionally library-qualified
-                    (example-library:sre-triage@v2 or sre-triage@v2).
+                    (example-library:my-app@v2 or my-app@v2).
                 configs_dir:
                   type: string
                   description: "Path to the scenario overlay YAML directory."

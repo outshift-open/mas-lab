@@ -41,27 +41,27 @@ def test_iter_experiment_files_supports_lab_layout(tmp_path: Path):
 def test_collect_mas_resources_versioned_app(tmp_path: Path):
     from mas.lab.controller.lab_registry import LabRegistry
 
-    lib = tmp_path / "library-ioc"
-    app = lib / "apps" / "sre-triage" / "v2"
+    lib = tmp_path / "example-library"
+    app = lib / "apps" / "trip-planner" / "v2"
     agents = app / "agents"
     agents.mkdir(parents=True)
     (lib / "library.yaml").write_text(
-        "apiVersion: mas/v1\nkind: Library\nname: mas-library-ioc\n"
-        "apps:\n  sre-triage: apps/sre-triage\n",
+        "apiVersion: mas/v1\nkind: Library\nname: mas-example-library\n"
+        "apps:\n  trip-planner: apps/trip-planner\n",
         encoding="utf-8",
     )
-    (agents / "sre.yaml").write_text("metadata:\n  name: sre\nspec: {}\n", encoding="utf-8")
+    (agents / "planner.yaml").write_text("metadata:\n  name: planner\nspec: {}\n", encoding="utf-8")
     (app / "mas.yaml").write_text(
-        "apiVersion: mas/v1\nkind: MAS\nmetadata:\n  name: sre-triage\n"
-        "spec:\n  agency:\n    agents:\n      - id: sre\n        ref: agents/sre.yaml\n",
+        "apiVersion: mas/v1\nkind: MAS\nmetadata:\n  name: trip-planner\n"
+        "spec:\n  agency:\n    agents:\n      - id: planner\n        ref: agents/planner.yaml\n",
         encoding="utf-8",
     )
 
     reg = LabRegistry()
     resources = reg._collect_mas_resources(lib)
-    assert "sre-triage@v2" in resources
-    assert resources["sre-triage@v2"]["path"] == "apps/sre-triage/v2/mas.yaml"
-    assert "sre" in resources["sre-triage@v2"]["agents"]
+    assert "trip-planner@v2" in resources
+    assert resources["trip-planner@v2"]["path"] == "apps/trip-planner/v2/mas.yaml"
+    assert "planner" in resources["trip-planner@v2"]["agents"]
 
 
 def test_collect_mas_resources_from_app_root(tmp_path: Path):

@@ -47,8 +47,8 @@ LabConfig YAML structure::
         mode: "interactive"          # "interactive" | "automated"
         layout: "dag"
         node_positions:
-          sre:       {x: 400, y: 100}
-          telemetry: {x: 200, y: 250}
+          planner:   {x: 400, y: 100}
+          search:    {x: 200, y: 250}
 
 MASExperimentConfig YAML structure::
 

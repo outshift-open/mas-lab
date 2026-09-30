@@ -60,30 +60,30 @@ def test_discover_library_roots_includes_workspace_manifest_libraries(tmp_path: 
 def test_discover_library_roots_workspace_path_list(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.delenv("MAS_LIBRARY_PATHS", raising=False)
     ws_root = tmp_path / "ws"
-    lib = ws_root / "library-ioc"
+    lib = ws_root / "example-library"
     lib.mkdir(parents=True)
-    (lib / "library.yaml").write_text("name: mas-library-ioc\n", encoding="utf-8")
+    (lib / "library.yaml").write_text("name: mas-example-library\n", encoding="utf-8")
 
     class _FakeWS:
         found = True
         root = ws_root
         # list of paths — name is the directory stem
-        manifest_libraries = {"library-ioc": "library-ioc"}
+        manifest_libraries = {"example-library": "example-library"}
 
     from mas.runtime.workspace_config import RuntimeWorkspaceConfig
 
     monkeypatch.setattr(RuntimeWorkspaceConfig, "load", classmethod(lambda cls: _FakeWS()))
     from mas.library_roots import resolve_named_library_root
 
-    assert resolve_named_library_root("library-ioc") == lib.resolve()
+    assert resolve_named_library_root("example-library") == lib.resolve()
 
 
 def test_workspace_search_path_scans_children(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.delenv("MAS_LIBRARY_PATHS", raising=False)
     ws_root = tmp_path / "ws"
-    lib = ws_root / "library-ioc"
+    lib = ws_root / "example-library"
     lib.mkdir(parents=True)
-    (lib / "library.yaml").write_text("name: mas-library-ioc\n", encoding="utf-8")
+    (lib / "library.yaml").write_text("name: mas-example-library\n", encoding="utf-8")
 
     class _FakeWS:
         found = True
@@ -94,18 +94,18 @@ def test_workspace_search_path_scans_children(tmp_path: Path, monkeypatch) -> No
     from mas.library_roots import resolve_named_library_root
 
     monkeypatch.setattr(RuntimeWorkspaceConfig, "load", classmethod(lambda cls: _FakeWS()))
-    assert resolve_named_library_root("library-ioc") == lib.resolve()
+    assert resolve_named_library_root("example-library") == lib.resolve()
     assert resolve_named_library_root("ws") is None
 
 
 def test_workspace_config_list_form_uses_directory_stem() -> None:
     from mas.runtime.workspace_config import RuntimeWorkspaceConfig, normalize_manifest_libraries
 
-    assert normalize_manifest_libraries(["./libraries/library-ioc", "lib/"]) == {
-        "library-ioc": "./libraries/library-ioc",
+    assert normalize_manifest_libraries(["./libraries/example-library", "lib/"]) == {
+        "example-library": "./libraries/example-library",
         "lib": "lib/",
     }
-    cfg = RuntimeWorkspaceConfig({"manifest_libraries": ["library-ioc"]})
-    assert cfg.manifest_libraries == {"library-ioc": "library-ioc"}
+    cfg = RuntimeWorkspaceConfig({"manifest_libraries": ["example-library"]})
+    assert cfg.manifest_libraries == {"example-library": "example-library"}
     legacy = RuntimeWorkspaceConfig({"manifest_libraries": {"eti-apps": "apps"}})
     assert legacy.manifest_libraries == {"eti-apps": "apps"}

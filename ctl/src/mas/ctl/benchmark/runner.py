@@ -24,7 +24,7 @@ from mas.ctl.executor.mas_session import (
     wire_peer_delegation,
 )
 from mas.ctl.infra.resolve import resolve_infra_refs
-from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
+from mas.ctl.session.bootstrap import InstantiationOptions, hitl_contract_for_mode, instantiate_runtime
 from mas.ctl.session.controller import ConversationConfig, SessionController, close_observability
 from mas.ctl.workspace.config import UserConfig, WorkspaceConfig, merge_infra_refs
 from mas.lab.manifest.load import (
@@ -57,6 +57,18 @@ class _ControllerTarget:
 def _resolve_ref(ref: str | Path, anchor: Path) -> Path:
     p = Path(ref)
     return p if p.is_absolute() else (anchor / p).resolve()
+
+
+def _attach_tool_fixtures(instances: Any, tool_fixtures: Any, params: dict[str, Any] | None = None) -> None:
+    """Expose the run's dataset fixtures (``ctx.tool_fixtures``) and overlay params (``ctx.runtime_params``)."""
+    for instance in instances:
+        ctx = getattr(getattr(instance, "driver", None), "ctx", None)
+        if ctx is None:
+            continue
+        if tool_fixtures is not None:
+            ctx.tool_fixtures = tool_fixtures
+        if params:
+            ctx.runtime_params = dict(params)
 
 
 def _checkpoint_path(checkpoint_load: Any, anchor: Path) -> Path | None:
@@ -249,16 +261,7 @@ class MasBenchRunner:
         flavour: Any = None,
         **kwargs: Any,
     ) -> RunResult:
-        import os
-
-        from mas.lab.benchmark.runners.fixtures import write_tool_fixtures_sidecar
         from mas.lab.inputs import RunInput
-
-        # Bench/lab runs are non-interactive by nature — no human is present to
-        # resolve agent-initiated HITL requests, so auto-resolve them instead of
-        # blocking for up to 60s per request (see execute_run_mas for the CLI
-        # equivalent).
-        os.environ.setdefault("MAS_HITL_AUTO_RESOLVE", "1")
 
         ri: RunInput | None = run_input if isinstance(run_input, RunInput) else None
 
@@ -270,16 +273,7 @@ class MasBenchRunner:
         checkpoint_load = ri.checkpoint_load if ri else None
         checkpoint_save = bool(ri.checkpoint_save) if ri else False
         tool_fixtures = ri.tool_fixtures if ri else None
-
-        write_tool_fixtures_sidecar(
-            spec_path,
-            tool_fixtures,
-            source_ref=ri.tool_fixture_ref if ri else None,
-        )
-        if tool_fixtures is None:
-            from mas.lab.benchmark.cache.trace_store import write_runtime_params_sidecar
-
-            write_runtime_params_sidecar(config, spec_path)
+        run_params = config.get("params") if isinstance(config.get("params"), dict) else None
 
         checkpoint_path = _checkpoint_path(checkpoint_load, spec_path.parent)
         checkpoint_dir = output_dir / "checkpoints" if checkpoint_save else None
@@ -313,6 +307,9 @@ class MasBenchRunner:
             flavour=flavour,
             experiment_default_model=experiment_default_model,
             experiment_model_slots=experiment_model_slots if isinstance(experiment_model_slots, dict) else None,
+            workspace_root=kwargs.get("workspace_root"),
+            tool_fixtures=tool_fixtures,
+            run_params=run_params,
         )
         if isinstance(resolved, RunResult):
             return self._with_bench_metadata(resolved, run_seed=run_seed)
@@ -372,6 +369,9 @@ class MasBenchRunner:
         flavour: Any = None,
         experiment_default_model: str | None = None,
         experiment_model_slots: dict[str, str] | None = None,
+        workspace_root: Path | None = None,
+        tool_fixtures: Any = None,
+        run_params: dict[str, Any] | None = None,
     ) -> RunResult | _ControllerTarget:
         entry_manifest = config
         entry_manifest_path = spec_path
@@ -407,6 +407,9 @@ class MasBenchRunner:
                 checkpoint_dir=checkpoint_dir,
                 experiment_default_model=experiment_default_model,
                 experiment_model_slots=experiment_model_slots,
+                workspace_root=workspace_root,
+                tool_fixtures=tool_fixtures,
+                run_params=run_params,
             )
 
         # Do not prepend observability-native. That overlay is target.kind:
@@ -423,6 +426,7 @@ class MasBenchRunner:
         compose = compose_run(
             ComposeRequest(
                 manifest=resolved_mas_path,
+                workspace_root=workspace_root,
                 overlay_paths=overlay_paths,
                 infra_refs=infra_refs,
                 validate=False,
@@ -435,6 +439,8 @@ class MasBenchRunner:
         bind = compose.bind
         bind.experiment_default_model = experiment_default_model
         bind.experiment_model_slots = experiment_model_slots
+        # Bench runs are unattended: nobody can answer request_human_input.
+        bind.hitl_mode = "auto"
         entry = entry_agent_id(compose.mas_config)
 
         if len(bind.agents) <= 1:
@@ -446,15 +452,17 @@ class MasBenchRunner:
                     agent_manifest=entry_manifest,
                     manifest_dir=entry_manifest_path.parent,
                     resolved_infra=compose.resolved_infra or ResolvedInfra(),
-                    workspace=WorkspaceConfig.load(resolved_mas_path.parent),
+                    workspace=WorkspaceConfig.load(workspace_root or resolved_mas_path.parent),
                     validate_manifests=False,
                     checkpoint_path=checkpoint_path,
                     checkpoint_dir=checkpoint_dir,
                     pattern_plugin_id=pattern_plugin_id,
                     experiment_default_model=experiment_default_model,
                     experiment_model_slots=experiment_model_slots,
+                    hitl_contract=hitl_contract_for_mode("auto"),
                 ),
             )
+            _attach_tool_fixtures([instance], tool_fixtures, run_params)
             return _ControllerTarget(instance, store, entry_manifest, entry_manifest_path)
 
         materialized = materialize_mas_compose(compose, mas_base_dir=resolved_mas_path.parent)
@@ -507,6 +515,7 @@ class MasBenchRunner:
         from mas.ctl.session.observability import setup_run_observability
 
         instances = dict(materialized.materialized.instances)
+        _attach_tool_fixtures(instances.values(), tool_fixtures, run_params)
         shared_pipeline, scoped_recorders = setup_run_observability(
             instances, obs_cfg, base_dir=output_dir, entry_agent_id=entry,
         )
@@ -536,8 +545,11 @@ class MasBenchRunner:
         checkpoint_dir: Path | None,
         experiment_default_model: str | None = None,
         experiment_model_slots: dict[str, str] | None = None,
+        workspace_root: Path | None = None,
+        tool_fixtures: Any = None,
+        run_params: dict[str, Any] | None = None,
     ) -> _ControllerTarget:
-        workspace = WorkspaceConfig.load(entry_manifest_path.parent)
+        workspace = WorkspaceConfig.load(workspace_root or entry_manifest_path.parent)
         user = UserConfig.load()
         merged = merge_infra_refs(
             workspace_refs=workspace.effective_infra_refs,
@@ -564,8 +576,10 @@ class MasBenchRunner:
                 pattern_plugin_id=pattern_plugin_id,
                 experiment_default_model=experiment_default_model,
                 experiment_model_slots=experiment_model_slots,
+                hitl_contract=hitl_contract_for_mode("auto"),
             ),
         )
+        _attach_tool_fixtures([instance], tool_fixtures, run_params)
         return _ControllerTarget(instance, store, entry_manifest, entry_manifest_path)
 
     @staticmethod

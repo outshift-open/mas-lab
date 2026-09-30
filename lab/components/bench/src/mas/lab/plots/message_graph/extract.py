@@ -70,11 +70,10 @@ def _assign_iterations(
     All other LLM calls inherit the iteration of the most recent root LLM call
     that began at or before their own ``startTime``.
 
-    For SRE triage (root = sre, 8 sre calls):
-    - Iter 0: sre#1 + telemetry#1-4
-    - Iter 1: sre#2 + backend#1-4
-    - Iter 2: sre#3 + db#1-2
-    - etc.
+    Example (root = planner, 3 planner calls):
+    - Iter 0: planner#1 + search#1-4
+    - Iter 1: planner#2 + booking#1-4
+    - Iter 2: planner#3 + review#1-2
     """
     if not root_agent_id or not llm_calls:
         return [0] * len(llm_calls)

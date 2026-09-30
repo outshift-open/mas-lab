@@ -49,7 +49,7 @@ def test_build_observability_plugin_set_builds_real_plugins(tmp_path) -> None:
         plugins=["native"],
         plugin_configs={"native": {"path": "events.jsonl"}},
     )
-    plugin_set = build_observability_plugin_set(binding, base_dir=tmp_path, agent_id="sre")
+    plugin_set = build_observability_plugin_set(binding, base_dir=tmp_path, agent_id="planner")
     assert isinstance(plugin_set, ObsPluginSet)
     assert len(plugin_set.plugins) == 1
 
@@ -59,10 +59,10 @@ def test_attach_observability_plugin_set_subscribes_and_begins_run(tmp_path) -> 
         plugins=["native"],
         plugin_configs={"native": {"path": "events.jsonl"}},
     )
-    plugin_set = build_observability_plugin_set(binding, base_dir=tmp_path, agent_id="sre")
+    plugin_set = build_observability_plugin_set(binding, base_dir=tmp_path, agent_id="planner")
     instance = _FakeInstance()
 
-    attach_observability_plugin_set(plugin_set, instance, agent_id="sre")
+    attach_observability_plugin_set(plugin_set, instance, agent_id="planner")
 
     assert instance.obs_plugin_set is plugin_set
     assert plugin_set._run_started
@@ -93,10 +93,10 @@ def test_attach_observability_plugin_set_respects_explicit_disablement(tmp_path)
     off for this instance; attaching must record the set for bookkeeping but
     never fabricate an operator to re-enable it."""
     binding = ObservabilityBinding(plugins=["native"], plugin_configs={"native": {"path": "events.jsonl"}})
-    plugin_set = build_observability_plugin_set(binding, base_dir=tmp_path, agent_id="sre")
+    plugin_set = build_observability_plugin_set(binding, base_dir=tmp_path, agent_id="planner")
     instance = _FakeInstance(driver=_FakeDriver(observability=None))
 
-    attach_observability_plugin_set(plugin_set, instance, agent_id="sre")
+    attach_observability_plugin_set(plugin_set, instance, agent_id="planner")
 
     assert instance.obs_plugin_set is plugin_set
     assert plugin_set._all_operators == []

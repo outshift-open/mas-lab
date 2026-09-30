@@ -32,17 +32,6 @@ def empty_tool_tree(tmp_path: Path) -> Path:
     return tmp_path
 
 
-@pytest.fixture(autouse=True)
-def _clean_hitl_env(monkeypatch):
-    """MAS_HITL_AUTO_RESOLVE is set via os.environ.setdefault (not monkeypatch)
-    by benchmark/batch-run code elsewhere, so it can leak into this file's
-    tests when the whole suite runs in one process. Guarantee a clean
-    baseline here (see test_system_tools_request_human_input.py, which has
-    the same fixture for the same reason)."""
-    monkeypatch.delenv("MAS_HITL_AUTO_RESOLVE", raising=False)
-    monkeypatch.delenv("MAS_HITL_AUTO_RESOLVE_DECISION", raising=False)
-
-
 # ---------------------------------------------------------------------------
 # RegistryHitlContract / RegistryUserIOContract in isolation
 # ---------------------------------------------------------------------------

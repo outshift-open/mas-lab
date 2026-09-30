@@ -302,7 +302,7 @@ This starts the tool in a dedicated process and exposes it to the MAS runtime vi
 
 A local tool provider is still the easiest debug path when the tool is part of the same process. The same logical agent interface works in both modes.
 
-See the MCP library docs in [../library-ioa/README.md](../library-ioa/README.md) and [../library-ioa/plugins/mcp/docs/quickstart/README.md](../library-ioa/plugins/mcp/docs/quickstart/README.md).
+See the MCP library docs in [../library-ioa/README.md](../library-ioa/README.md) and [../library-ioa/docs/tutorials/01-mcp-tools/README.md](../library-ioa/docs/tutorials/01-mcp-tools/README.md).
 
 ## Running agents through A2A
 

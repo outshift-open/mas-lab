@@ -36,12 +36,10 @@ Usage::
     mas-lab validate experiment.yaml
     mas-lab validate pipeline.yaml --no-resolve-refs
 
-Environment variables:
-  ``MAS_LAB_MANIFEST_VALIDATE=0``      — disable all validation (tests / CI only).
-  ``MAS_LAB_MANIFEST_STRICT=0``        — demote schema violations to warnings instead of errors.
-                                         Default is strict-on.
+Last-resort environment overrides (prefer the CLI flags above):
+  ``MAS_LAB_MANIFEST_VALIDATE=0``      — disable all validation (tests only).
+  ``MAS_LAB_MANIFEST_STRICT=0``        — demote schema violations to warnings.
   ``MAS_LAB_MANIFEST_RESOLVE_REFS=0``  — skip reference availability checks (step 2).
-                                         Useful for template manifests or CI without a full repo.
 """
 
 
@@ -83,9 +81,9 @@ _KIND_SCHEMA: Dict[str, str] = {
 # Environment-variable gates
 # ---------------------------------------------------------------------------
 
-_DISABLED = os.environ.get("MAS_LAB_MANIFEST_VALIDATE", "1").strip() in ("0", "false", "no")
-_STRICT_MODE = os.environ.get("MAS_LAB_MANIFEST_STRICT", "1").strip() not in ("0", "false", "no")
-_RESOLVE_REFS = os.environ.get("MAS_LAB_MANIFEST_RESOLVE_REFS", "1").strip() not in ("0", "false", "no")
+# Read per call: a long-lived process (controller daemon) must not freeze them.
+def _env_off(name: str) -> bool:
+    return os.environ.get(name, "1").strip() in ("0", "false", "no")
 
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -173,7 +171,24 @@ def _validate_against_schema(data: Dict[str, Any], kind: str) -> List[str]:
 # ---------------------------------------------------------------------------
 
 
-def _check_refs(data: Dict[str, Any], kind: str, base_dir: Path) -> List[str]:
+def _check_dataset_items(data: Dict[str, Any], source: str) -> List[str]:
+    """Resolve item refs and check free-form parts against optional ``spec.schemas``."""
+    path = Path(source)
+    if not path.is_file():
+        return []
+    if (data.get("spec") or {}).get("source"):
+        logger.info("[manifest][dataset] %s: spec.source rows are checked when materialized", source)
+        return []
+    from mas.lab.benchmark.dataset import Dataset
+
+    try:
+        Dataset.from_yaml(path)
+    except (ValueError, TypeError, FileNotFoundError) as exc:
+        return [str(exc)]
+    return []
+
+
+def _check_refs(data: Dict[str, Any], kind: str, base_dir: Path, source: str) -> List[str]:
     """Resolve references and composed MAS; return violation messages."""
     from mas.lab.manifests.ref_checks import check_lab_manifest_refs
 
@@ -186,8 +201,10 @@ def _check_refs(data: Dict[str, Any], kind: str, base_dir: Path) -> List[str]:
         payload = data.get("pipeline", data)
     elif kind in ("lab-config", "lab"):
         payload = data.get("lab", data)
+    elif kind == "dataset":
+        return _check_dataset_items(data, source)
     else:
-        return {}
+        return []
 
     return check_lab_manifest_refs(payload, base_dir, source=str(base_dir), kind=kind)
 
@@ -237,20 +254,21 @@ def validate_manifest(
     ManifestValidationError
         When *strict* is ``True`` and violations are found.
     """
-    if _DISABLED:
+    if _env_off("MAS_LAB_MANIFEST_VALIDATE"):
         return []
+    strict_mode = not _env_off("MAS_LAB_MANIFEST_STRICT")
 
     # Auto-detect kind
     if kind is None:
         kind = detect_kind(data)
     if kind is None:
         msg = f"Cannot detect manifest kind from top-level keys in '{source}'. Expected one of: experiment, pipeline, lab."
-        if strict and _STRICT_MODE:
+        if strict and strict_mode:
             raise ManifestValidationError(source, [msg])
         logger.warning("[manifest] %s", msg)
         return []
 
-    effective_strict = strict and _STRICT_MODE
+    effective_strict = strict and strict_mode
 
     # Resolve base_dir from source path when not given explicitly
     _base_dir: Optional[Path] = base_dir
@@ -259,7 +277,7 @@ def validate_manifest(
         if candidate.is_file():
             _base_dir = candidate.parent
 
-    _do_resolve = _RESOLVE_REFS if resolve_refs is None else resolve_refs
+    _do_resolve = not _env_off("MAS_LAB_MANIFEST_RESOLVE_REFS") if resolve_refs is None else resolve_refs
 
     # ── Step 1: JSON Schema ────────────────────────────────────────────────
     schema_violations = _validate_against_schema(data, kind)
@@ -281,7 +299,7 @@ def validate_manifest(
 
     # ── Step 2: Compose + validate resolved MAS (default on) ───────────────
     if _do_resolve and _base_dir is not None:
-        ref_violations = _check_refs(data, kind, _base_dir)
+        ref_violations = _check_refs(data, kind, _base_dir, source)
         if ref_violations:
             if effective_strict:
                 raise ManifestValidationError(source, ref_violations)

@@ -21,7 +21,7 @@ is the writing convention: how to point at those documents without
 spec:
   agency:
     agents:
-      - id: sre
+      - id: lead
         description: Orchestrator
         design_pattern: { type: react }
 
@@ -29,14 +29,14 @@ spec:
       - id: telemetry
         ref: agents/telemetry.yaml          # relative to this mas.yaml
       - id: backend
-        ref: example-library:apps/sre-triage/v1/agents/backend.yaml
+        ref: example-library:apps/my-app/v1/agents/backend.yaml
 
 # Id — catalog name, optionally versioned and library-qualified
 experiment:
   application:
-    app: example-library:sre-triage@v1        # id, not a path
+    app: example-library:my-app@v1        # id, not a path
   dataset:
-    name: sre-triage-scenarios@v1
+    name: my-app-scenarios@v1
     locator: example-library
 ```
 
@@ -48,10 +48,10 @@ optional `hitl`, `memory_seeds`, `tool_fixtures`). File pointers use
 |------|-------------|---------|
 | **Inline** | Small fragments, one-off agent blocks, overlay `patch:` | `design_pattern: { type: cot }` |
 | **File path** | A real document on disk | `./mas.yaml`, `samples:apps/trip-planner/mas.yaml` |
-| **Catalog id** | A named app, dataset, or tool in a library | `example-library:sre-triage@v2`, `trip-planner` |
+| **Catalog id** | A named app, dataset, or tool in a library | `example-library:my-app@v2`, `trip-planner` |
 
-Do not encode version in the **name** (`sre-triage-v2`) or with a **slash**
-(`sre-triage/v2`). Slash is a filesystem path. `@` is the version separator
+Do not encode version in the **name** (`my-app-v2`) or with a **slash**
+(`my-app/v2`). Slash is a filesystem path. `@` is the version separator
 (same as plugins: `react@v1`). App-specific datasets live under the app
 version they evaluate: `apps/<app>/v<N>/datasets/<name>/`, with catalog id
 `<dataset>@vN` and `spec.app: <app>@^vN`. Generic ones under library-root
@@ -64,11 +64,11 @@ version they evaluate: `apps/<app>/v<N>/datasets/<name>/`, with catalog id
 `name:path` always starts with a **library scheme** (`samples`, `example-library`,
 `standard`, a lab-local `lib`, …). After the colon, write either:
 
-- a **catalog id** — no slash: `example-library:sre-triage@v2`
+- a **catalog id** — no slash: `example-library:my-app@v2`
 - a **path inside a catalog object** — id, then slash:
-  `example-library:sre-triage-incidents@v2/tool_fixtures/payment-async-timeout.yaml`
+  `example-library:my-app-cases@v2/tool_fixtures/case-01.yaml`
 - a **library-relative path** — slash after a folder:
-  `example-library:apps/sre-triage/v2/mas.yaml`
+  `example-library:apps/my-app/v2/mas.yaml`
 
 A slash after `name@version` is not a second copy of the file. It is a path
 under that app or Dataset folder. Do not invent a sibling tree or a symlink
@@ -76,18 +76,18 @@ so overlays can `../` out of `mas.yaml`.
 
 ```yaml
 # Prefer these
-- app: example-library:sre-triage@v2
+- app: example-library:my-app@v2
 - manifest: samples:apps/trip-planner/mas.yaml
 - ref: samples:tools/calc.tool.yaml
-- incident_fixture: example-library:sre-triage-incidents@v2/tool_fixtures/payment-async-timeout.yaml
+- tool_fixtures: {ref: example-library:my-app-cases@v2/tool_fixtures/case-01.yaml}
 
 # Avoid climbing out of the lab
-- manifest: ../../apps/sre-triage/mas.yaml      # don't
-- ref: ../../../example-library/apps/sre-triage/v1/agents/sre.yaml
+- manifest: ../../apps/my-app/mas.yaml      # don't
+- ref: ../../../example-library/apps/my-app/v1/agents/lead.yaml
 ```
 
 Unknown library names raise `LookupError`; they are never treated as relative
-paths. Bare ids (`sre-triage@v2`, `trip-planner`) are looked up in the global
+paths. Bare ids (`my-app@v2`, `trip-planner`) are looked up in the global
 catalog before the filesystem.
 
 `pkg://` remains a package-resource URI (`pkg://mas.library.samples/apps/...`).
@@ -98,21 +98,21 @@ catalog before the filesystem.
 
 Canonical id: **`[library:]name[@version]`**.
 
-A spec **may** pin `@version`. Unpinned `sre-triage` is `@latest` (highest
+A spec **may** pin `@version`. Unpinned `my-app` is `@latest` (highest
 `v*` folder), the same as `get_app` / `mas-ctl check`. Pin when you need a
 specific major.
 
 | Written | Resolves to |
 |---------|-------------|
-| `sre-triage@v2` | Folder `apps/sre-triage/v2/` |
-| `sre-triage` / `sre-triage@latest` | Highest `v*` folder |
+| `my-app@v2` | Folder `apps/my-app/v2/` |
+| `my-app` / `my-app@latest` | Highest `v*` folder |
 | `coding-agent-md` | Unversioned family — the name **is** the pin |
-| `example-library:apps/sre-triage/v2` | Path under the library (directory) |
-| `example-library:sre-triage-incidents@v2/tool_fixtures/foo.yaml` | File inside that Dataset folder |
+| `example-library:apps/my-app/v2` | Path under the library (directory) |
+| `example-library:my-app-cases@v2/tool_fixtures/foo.yaml` | File inside that Dataset folder |
 
 On disk the version **is** the folder name: `apps/<name>/v<N>/`.
-`library.yaml` may list the family (`sre-triage: apps/sre-triage`) or one
-version (`sre-triage@v2: apps/sre-triage/v2`).
+`library.yaml` may list the family (`my-app: apps/my-app`) or one
+version (`my-app@v2: apps/my-app/v2`).
 
 ---
 
@@ -152,9 +152,9 @@ path or overlay id.
 experiment:
   name: foo
   application:
-    app: example-library:sre-triage@v1
+    app: example-library:my-app@v1
   dataset:
-    name: sre-triage-scenarios@v1
+    name: my-app-scenarios@v1
     locator: example-library
   scenarios:
     - id: baseline
@@ -173,16 +173,16 @@ experiment:
 ### MAS with mixed inline and files
 
 ```yaml
-# apps/sre-triage/v2/mas.yaml
+# apps/my-app/v2/mas.yaml
 apiVersion: mas/v1
 kind: MAS
 metadata:
-  name: sre-triage
+  name: my-app
 spec:
   agency:
     agents:
-      - id: sre
-        ref: agents/sre.yaml          # file next to this manifest
+      - id: lead
+        ref: agents/lead.yaml          # file next to this manifest
       - id: risk_assessment
         ref: agents/risk_assessment.yaml
 ```

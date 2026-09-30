@@ -25,7 +25,7 @@ class _FakeInstance:
 
 def test_boundary_passthrough_forwards_session_records() -> None:
     transform = BoundaryPassthroughTransform()
-    ctx = TransformContext(agent_id="sre")
+    ctx = TransformContext(agent_id="planner")
     session = {"_source": "session", "session_kind": "turn_start", "turn_id": "t1"}
     assert transform.transform(session, ctx=ctx) == [session]
 
@@ -35,10 +35,10 @@ def test_plugin_set_subscribes_and_records_via_operator(tmp_path) -> None:
         plugins=["native"],
         plugin_configs={"native": {"path": "events.jsonl"}},
     )
-    plugins = build_observability_plugins(binding, base_dir=tmp_path, agent_id="sre")
+    plugins = build_observability_plugins(binding, base_dir=tmp_path, agent_id="planner")
     plugin_set = ObsPluginSet(plugins=plugins)
     op = ObservabilityOperator()
-    plugin_set.subscribe_to(op, agent_id="sre")
+    plugin_set.subscribe_to(op, agent_id="planner")
     assert len(op._subscribers) == 1
 
     op.record_session("user_input", text="hello", call_id="t1-exec", turn_id="u1")

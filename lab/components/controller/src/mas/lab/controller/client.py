@@ -87,10 +87,29 @@ class ControllerClient:
         finally:
             sock.close()
 
-    def ensure_running(self, *, port: int = DEFAULT_HTTP_PORT, auto_start: bool = True) -> None:
+    def ensure_running(
+        self,
+        *,
+        port: int = DEFAULT_HTTP_PORT,
+        auto_start: bool = True,
+        restart_stale: bool = False,
+    ) -> None:
+        """Connect to the daemon, starting it if needed.
+
+        A daemon started from other ``mas.*`` sources or another environment
+        than this process is reported. With *restart_stale* an idle one is
+        restarted so new work runs with the caller's code and environment.
+        """
         if self.is_running():
-            _register_process_session(self)
-            return
+            drift = self.drift()
+            if not drift:
+                _register_process_session(self)
+                return
+            if not restart_stale:
+                logger.warning(drift_message(drift))
+                _register_process_session(self)
+                return
+            self._stop_stale(drift)
         if not auto_start:
             raise RuntimeError(
                 f"Controller daemon is not running (socket {self.socket_path}). "
@@ -103,6 +122,50 @@ class ControllerClient:
                 return
             time.sleep(0.25)
         raise RuntimeError("Controller daemon failed to start")
+
+    def drift(self) -> list[str]:
+        """Differences between the running daemon and this process (empty when in sync)."""
+        info = self.call("ping") or {}
+        issues: list[str] = []
+        if info.get("code") != cfg.code_fingerprint():
+            issues.append("it runs another mas-lab installation or older sources")
+        theirs = info.get("env")
+        if isinstance(theirs, dict):
+            ours = cfg.env_fingerprint()
+            changed = sorted(k for k in set(theirs) | set(ours) if theirs.get(k) != ours.get(k))
+            if changed:
+                issues.append("its environment differs for " + ", ".join(changed))
+        return issues
+
+    def _stop_stale(self, drift: list[str]) -> None:
+        running = (self.call("status") or {}).get("running", 0)
+        if running:
+            raise RuntimeError(
+                f"{drift_message(drift)} It has {running} running worker(s); wait for "
+                "them to finish, then run: mas-lab control stop"
+            )
+        logger.warning("Restarting controller daemon: %s.", "; ".join(drift))
+        pid_file = cfg.pid_path()
+        pid = pid_file.read_text(encoding="utf-8").strip() if pid_file.exists() else ""
+        stop_daemon()
+        # The old daemon unlinks the socket and pid file on exit; wait so it
+        # cannot remove the ones the new daemon creates.
+        if pid.isdigit():
+            for _ in range(40):
+                try:
+                    os.kill(int(pid), 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.25)
+
+
+def drift_message(drift: list[str]) -> str:
+    return (
+        f"The controller daemon ({cfg.socket_path()}) does not match this shell: "
+        + "; ".join(drift)
+        + ". Work it runs may behave differently from what you expect. "
+        "Run `mas-lab control stop`; the next command starts a fresh daemon from this shell."
+    )
 
 
 def controller_session(*, port: int = DEFAULT_HTTP_PORT) -> ControllerClient:

@@ -4,21 +4,21 @@ from mas.version_spec import app_satisfies, parse_app_dependency, version_satisf
 
 
 def test_parse_app_dependency_forms() -> None:
-    dep = parse_app_dependency("sre-triage@>=v1,<v3")
+    dep = parse_app_dependency("trip-planner@>=v1,<v3")
     assert dep is not None
-    assert dep.name == "sre-triage"
+    assert dep.name == "trip-planner"
     assert dep.spec == ">=v1,<v3"
     assert dep.library is None
-    qualified = parse_app_dependency("library-ioc:sre-triage@^v1")
+    qualified = parse_app_dependency("example-library:trip-planner@^v1")
     assert qualified is not None
-    assert qualified.library == "library-ioc"
+    assert qualified.library == "example-library"
     assert qualified.spec == "^v1"
-    bare = parse_app_dependency("sre-triage")
+    bare = parse_app_dependency("trip-planner")
     assert bare is not None
     assert bare.spec is None
-    structured = parse_app_dependency({"name": "sre-triage", "version": ">=v1,<v3"})
+    structured = parse_app_dependency({"name": "trip-planner", "version": ">=v1,<v3"})
     assert structured is not None
-    assert structured.name == "sre-triage"
+    assert structured.name == "trip-planner"
     assert structured.spec == ">=v1,<v3"
 
 
@@ -34,9 +34,9 @@ def test_version_satisfies_exact_and_range() -> None:
 
 
 def test_app_satisfies_dataset_dependency() -> None:
-    assert app_satisfies("sre-triage@v1", "sre-triage@>=v1,<v3")
-    assert app_satisfies("library-ioc:sre-triage@v2", "sre-triage@>=v1,<v3")
-    assert not app_satisfies("sre-triage@v2", "sre-triage@v1")
-    assert not app_satisfies("coding-agent@v1", "sre-triage@>=v1,<v3")
-    assert app_satisfies("sre-triage@v1", "sre-triage")
-    assert app_satisfies("sre-triage@v9", None)
+    assert app_satisfies("trip-planner@v1", "trip-planner@>=v1,<v3")
+    assert app_satisfies("example-library:trip-planner@v2", "trip-planner@>=v1,<v3")
+    assert not app_satisfies("trip-planner@v2", "trip-planner@v1")
+    assert not app_satisfies("coding-agent@v1", "trip-planner@>=v1,<v3")
+    assert app_satisfies("trip-planner@v1", "trip-planner")
+    assert app_satisfies("trip-planner@v9", None)

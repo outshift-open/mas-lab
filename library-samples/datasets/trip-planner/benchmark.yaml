@@ -17,12 +17,6 @@ metadata:
   - arborian-network
   - benchmark
 spec:
-  item_schema:
-    id: integer
-    prompt: string
-    scenario: string
-    group: string
-    target_agents: list[string]
   items:
   - id: '1'
     inputs:

@@ -4,8 +4,27 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+_warned_overrides: set[tuple[str, str]] = set()
+
+
+def warn_env_override(name: str, value: str, *, replaces: str) -> None:
+    """Log once per value when an environment variable supersedes declared configuration."""
+    if (name, value) in _warned_overrides:
+        return
+    _warned_overrides.add((name, value))
+    logger.warning(
+        "Environment override %s=%s replaces %s. Declare it in the manifest or "
+        "workspace config.yaml, or pass the CLI flag, to keep runs reproducible.",
+        name,
+        value,
+        replaces,
+    )
 
 
 def load_dotenv(

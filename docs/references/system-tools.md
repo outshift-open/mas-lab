@@ -84,7 +84,7 @@ the HITL resolver registry if no contract is provided.
 | Manifest `params` | Default | Notes |
 | --- | --- | --- |
 | `timeout` | none (wait indefinitely) | Default timeout for each call, in seconds |
-| `auto_resolve_decision` | `approve` | Answer used when `MAS_HITL_AUTO_RESOLVE=1`. Takes precedence over `MAS_HITL_AUTO_RESOLVE_DECISION`. |
+| `auto_resolve_decision` | `approve` | Answer used when the host runs unattended (`mas-ctl run-mas` with auto-HITL, benchmarks). |
 | `max_question_length` | 20000 | Also sets the schema advertised to the model |
 
 Implementation: `mas.runtime.system_tools.RequestHumanInputTool`.

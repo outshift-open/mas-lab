@@ -716,7 +716,7 @@ class KGView:
 
             view.query("LLMCall")
             view.query("AgentCall", parent_call_id=None)
-            view.query("ToolCall", agent_id="sre")
+            view.query("ToolCall", agent_id="planner")
         """
         records = self._by_type.get(call_type, [])
         if not field_filters:

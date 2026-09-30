@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 _shutdown = threading.Event()
 _api: ControllerAPI | None = None
 _sessions = SessionRegistry()
+_code_fingerprint: str | None = None
+_env_fingerprint: dict[str, str] | None = None
 
 
 def _serve_http(*, host: str, port: int) -> None:
@@ -41,7 +43,7 @@ def _handle_request(payload: dict) -> dict:
     params = payload.get("params") or {}
 
     dispatch = {
-        "ping": lambda _p: {"status": "ok"},
+        "ping": lambda _p: {"status": "ok", "code": _code_fingerprint, "env": _env_fingerprint},
         "status": lambda _p: _api.status(),
         "shutdown": lambda _p: _shutdown.set() or {"status": "stopping"},
         "acquire_session": lambda p: _sessions.acquire(p["session_id"]) or {"ok": True},
@@ -116,7 +118,9 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     ensure_mas_dirs()
 
-    global _api
+    global _api, _code_fingerprint, _env_fingerprint
+    _code_fingerprint = cfg.code_fingerprint()
+    _env_fingerprint = cfg.env_fingerprint()
     try:
         from mas.lab.workspace import WorkspaceConfig
 

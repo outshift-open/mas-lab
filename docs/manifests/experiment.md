@@ -46,8 +46,8 @@ experiment:
     app: trip-planner
     configs_dir: ./overlays
     # Preferred for shared apps — library identifier + versioned app id:
-    # app: example-library:sre-triage@v2
-    # manifest: example-library:apps/sre-triage/v2/mas.yaml
+    # app: example-library:my-app@v2
+    # manifest: example-library:apps/my-app/v2/mas.yaml
   artifacts: {df: dataframe}
   post:
     - {name: gather-experiment, type: gather_level, in: df, out: df, depends_on: [gather-scenario]}
@@ -149,7 +149,7 @@ and logs. Feature example (not a sample app):
 
 ```yaml
 applications:
-  - app: example-library:sre-triage@v1
+  - app: example-library:my-app@v1
     configs_dir: ./overlays
 ```
 
@@ -159,12 +159,12 @@ applications:
 ```yaml
 # before
 mas:
-  manifest: ../../apps/sre-triage/mas.yaml
+  manifest: ../../apps/my-app/mas.yaml
   configs_dir: overlays
 
 # after
 applications:
-  - app: example-library:sre-triage@v1
+  - app: example-library:my-app@v1
     configs_dir: overlays
 ```
 
@@ -251,7 +251,7 @@ runs. It is **not** the removed `spec.execution` field from `kind: Agent` manife
 
 | Concern | Where it lives |
 | --- | --- |
-| LLM endpoints, cache middleware | Workspace `infra_refs`, `MAS_INFRA_REFS`, `--infra-ref`, optional `mas-lab benchmark --infra <name>` (local `infra/<name>.yaml`) |
+| LLM endpoints, cache middleware | Workspace `infra_refs`, `--infra-ref`, optional `mas-lab benchmark --infra <name>` (local `infra/<name>.yaml`) |
 | Per-turn engine tuning (queue depth, LLM response cache read/write, stream, parallel tools) | `kind: RuntimeEngine` via `runtime_refs` / `--runtime-ref` — see [runtime-engine.md](runtime-engine.md) |
 | How many MAS runs run in parallel, timeouts, ordering | `experiment.execution.parallel_scenarios`, `timeout`, `strategy`, … |
 | Whole-run trace skip/replay (content-addressed lab cache) | `experiment.execution.emulation.runtime.cache` (`content-addressed` \| `disabled` \| `forced`) |

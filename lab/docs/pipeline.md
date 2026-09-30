@@ -66,11 +66,11 @@ step that needs per-run access:
 # pipelines/post-run.yaml
 spec:
   steps:
-    - name: eval-fixture
+    - name: eval-booking
       type: lib/steps/my_eval.py:MyEvalStep   # path relative to experiment dir
       per_run: true
       config:
-        fixture_path: datasets/incidents/my-incident.yaml
+        reference_path: datasets/reference/fares.yaml
 ```
 
 **Hook levels** (outermost → innermost):

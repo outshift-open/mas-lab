@@ -36,19 +36,19 @@ def test_stamp_envelope_fields_session_id_explicit_wins_over_run_id_fallback() -
 
 def test_native_plugin_emits_tool_call_with_parent(tmp_path) -> None:
     events_path = tmp_path / "events.jsonl"
-    ctx = TransformContext(agent_id="sre", run_id="run-deleg", mas_call_id="mas-1", exec_call_id="exec-1")
+    ctx = TransformContext(agent_id="planner", run_id="run-deleg", mas_call_id="mas-1", exec_call_id="exec-1")
     plugin = NativeObservabilityPlugin(
         transforms=[NativeObservabilityTransform()],
         emitters=[JsonlFileEmitter(events_path)],
         context=ctx,
-        mas_id="sre-triage",
+        mas_id="trip-planner",
     )
     plugin.on_transition(
         TransitionEvent(
             contract_id="tool",
             mealy_symbol="TOOL_CALL",
             phase="start",
-            agent_id="sre",
+            agent_id="planner",
             run_id="run-deleg",
             correlation_id=9,
             call_id="tool-uuid-9",
@@ -56,7 +56,7 @@ def test_native_plugin_emits_tool_call_with_parent(tmp_path) -> None:
             boundary_kind="engine.io",
             attributes={
                 "op": "TOOL_CALL",
-                "tool_name": "delegate_to_telemetry",
+                "tool_name": "delegate_to_flights",
                 "tool_arguments": {"task": "check"},
             },
         )
@@ -72,7 +72,7 @@ def test_native_plugin_emits_session_id_and_task_id_from_the_transition_event(tm
     _current_task_id) — not from NativeObservabilityPlugin.session_id, which
     is an override-only field nothing sets by default."""
     events_path = tmp_path / "events.jsonl"
-    ctx = TransformContext(agent_id="sre", run_id="run-1")
+    ctx = TransformContext(agent_id="planner", run_id="run-1")
     plugin = NativeObservabilityPlugin(
         transforms=[NativeObservabilityTransform()],
         emitters=[JsonlFileEmitter(events_path)],
@@ -83,7 +83,7 @@ def test_native_plugin_emits_session_id_and_task_id_from_the_transition_event(tm
             contract_id="tool",
             mealy_symbol="TOOL_CALL",
             phase="start",
-            agent_id="sre",
+            agent_id="planner",
             run_id="run-1",
             session_id="live-session-id",
             task_id="live-task-id",
@@ -102,7 +102,7 @@ def test_native_plugin_override_field_only_used_when_event_carries_none(tmp_path
     plugin = NativeObservabilityPlugin(
         transforms=[NativeObservabilityTransform()],
         emitters=[JsonlFileEmitter(events_path)],
-        context=TransformContext(agent_id="sre", run_id="run-1"),
+        context=TransformContext(agent_id="planner", run_id="run-1"),
         session_id="override-session-id",
     )
     plugin.on_transition(
@@ -110,7 +110,7 @@ def test_native_plugin_override_field_only_used_when_event_carries_none(tmp_path
             contract_id="tool",
             mealy_symbol="TOOL_CALL",
             phase="start",
-            agent_id="sre",
+            agent_id="planner",
             run_id="run-1",
             correlation_id=1,
             boundary_kind="engine.io",
@@ -123,7 +123,7 @@ def test_native_plugin_override_field_only_used_when_event_carries_none(tmp_path
 
 def test_session_execution_start_parents_to_mas_call(tmp_path) -> None:
     events_path = tmp_path / "events.jsonl"
-    ctx = TransformContext(agent_id="sre", run_id="run-1", turn_id="t1", mas_call_id="mas-root")
+    ctx = TransformContext(agent_id="planner", run_id="run-1", turn_id="t1", mas_call_id="mas-root")
     plugin = NativeObservabilityPlugin(
         transforms=[NativeObservabilityTransform()],
         emitters=[JsonlFileEmitter(events_path)],
@@ -134,7 +134,7 @@ def test_session_execution_start_parents_to_mas_call(tmp_path) -> None:
             contract_id="orchestrator",
             mealy_symbol="user_input",
             phase="event",
-            agent_id="sre",
+            agent_id="planner",
             run_id="run-1",
             boundary_kind="session",
             attributes={"text": "hello", "call_id": f"{ctx.turn_id}-exec"},
@@ -150,26 +150,26 @@ def test_native_plugin_emits_tool_call(tmp_path) -> None:
     plugin = NativeObservabilityPlugin(
         transforms=[NativeObservabilityTransform()],
         emitters=[JsonlFileEmitter(events_path)],
-        context=TransformContext(agent_id="sre", run_id="run-1"),
-        mas_id="sre-triage",
+        context=TransformContext(agent_id="planner", run_id="run-1"),
+        mas_id="trip-planner",
     )
     plugin.on_transition(
         TransitionEvent(
             contract_id="tool",
             mealy_symbol="TOOL_CALL",
             phase="start",
-            agent_id="sre",
+            agent_id="planner",
             run_id="run-1",
             correlation_id=3,
             boundary_kind="engine.io",
             attributes={
                 "op": "TOOL_CALL",
-                "tool_name": "delegate_to_telemetry",
+                "tool_name": "delegate_to_flights",
                 "tool_arguments": {"task": "check"},
             },
         )
     )
     event = json.loads(events_path.read_text().strip())
     assert event["kind"] == "tool_call_start"
-    assert event["tool_name"] == "delegate_to_telemetry"
-    assert event["mas_id"] == "sre-triage"
+    assert event["tool_name"] == "delegate_to_flights"
+    assert event["mas_id"] == "trip-planner"

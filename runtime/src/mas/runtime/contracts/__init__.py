@@ -37,6 +37,7 @@ from mas.runtime.contracts.tool_contract import (
     ToolResultEnvelope,
     invoke_call_tool,
     overlay_tool_advertise,
+    tool_fixture,
 )
 
 __all__ = [
@@ -68,4 +69,5 @@ __all__ = [
     "ToolResultEnvelope",
     "invoke_call_tool",
     "overlay_tool_advertise",
+    "tool_fixture",
 ]

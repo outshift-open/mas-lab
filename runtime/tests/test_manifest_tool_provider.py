@@ -613,9 +613,9 @@ def test_duplicate_tool_names_rejected(calculator_tool_tree: Path):
 def test_dotted_module_path_imports_installed_package(tmp_path: Path, monkeypatch):
     """Third-party dotted module_path works when the package is on sys.path."""
     pkg_root = tmp_path / "site-packages"
-    pkg_dir = pkg_root / "myorg" / "sre" / "tools"
+    pkg_dir = pkg_root / "myorg" / "travel" / "tools"
     pkg_dir.mkdir(parents=True)
-    for part in (pkg_root / "myorg", pkg_root / "myorg" / "sre", pkg_dir):
+    for part in (pkg_root / "myorg", pkg_root / "myorg" / "travel", pkg_dir):
         (part / "__init__.py").write_text("", encoding="utf-8")
     (pkg_dir / "checker.py").write_text(
         """
@@ -629,7 +629,7 @@ class CheckerTool:
     )
     monkeypatch.syspath_prepend(str(pkg_root))
     provider = build_manifest_tool_provider(
-        [{"module_path": "myorg.sre.tools.checker", "class_name": "CheckerTool"}],
+        [{"module_path": "myorg.travel.tools.checker", "class_name": "CheckerTool"}],
         tmp_path,
     )
     assert provider.call_tool("check", {}) == {"ok": True}

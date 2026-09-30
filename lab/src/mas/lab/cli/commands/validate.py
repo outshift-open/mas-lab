@@ -64,13 +64,6 @@ def validate_cmd(
       3. Reference availability — mas.manifest, dataset.path, pipeline step paths,
                                    etc. must exist on disk (disable with --no-resolve-refs).
 
-    Environment variables (overridden by the flags above for a single run):
-
-    \b
-      MAS_LAB_MANIFEST_STRICT=0       warn instead of error (default: strict)
-      MAS_LAB_MANIFEST_RESOLVE_REFS=0 skip reference checks (default: on)
-      MAS_LAB_MANIFEST_VALIDATE=0     disable all validation (tests/CI only)
-
     Examples:
 
     \b

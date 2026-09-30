@@ -12,5 +12,5 @@ plugins:
   - type: design_pattern
     name: scripted_response
     urn: mas.dp.scripted_response
-    module: lib.a2a_compliance
+    module: a2a_compliance_lib.a2a_compliance
     class: ScriptedResponsePlugin

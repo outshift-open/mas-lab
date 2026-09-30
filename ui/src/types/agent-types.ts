@@ -447,7 +447,7 @@ export interface AgentManifest {
      *
      *   # @library/name — explicit library source:
      *   skills:
-     *     - "@sre-skills/triage-protocol"
+     *     - "@web-skills/search-protocol"
      *     - "@mas.library.samples/web-search-skill"
      *
      * No file paths, no directory references.  Resolution order: 1. App-local skills/ directory (if present). 2. Libraries declared under 'libraries:' in config.yaml. 3. Installed Python packages.
@@ -455,7 +455,7 @@ export interface AgentManifest {
      */
     skills?: string[];
     /**
-     * Logical tool-set name resolved by the infra manifest ToolRegistry. No file paths, no extensions — a simple identifier only. The infra ToolRegistry maps this name to the actual JSON tool-index file path. E.g. sre-tools, backend-tools, verifier-tools.
+     * Logical tool-set name resolved by the infra manifest ToolRegistry. No file paths, no extensions — a simple identifier only. The infra ToolRegistry maps this name to the actual JSON tool-index file path. E.g. web-tools, backend-tools, verifier-tools.
      *
      */
     tools_ref?: string | null;
@@ -464,7 +464,7 @@ export interface AgentManifest {
      * Form A — ref to a kind: Tool manifest (recommended):
      *   tools:
      *     - ref: ./tools/calculator.tool.yaml
-     *     - ref: bundle://sre-tools/check-health   # ToolBundle entry
+     *     - ref: bundle://web-tools/fetch-page   # ToolBundle entry
      *
      * Form B — inline anonymous (backward-compatible):
      *   tools:
@@ -478,7 +478,7 @@ export interface AgentManifest {
       | string
       | {
           /**
-           * Path to a kind: Tool manifest (./tools/calculator.tool.yaml) or a ToolBundle entry reference (bundle://sre-tools/check-health).
+           * Path to a kind: Tool manifest (./tools/calculator.tool.yaml) or a ToolBundle entry reference (bundle://web-tools/fetch-page).
            *
            */
           ref: string;

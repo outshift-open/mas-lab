@@ -18,8 +18,14 @@ def test_handle_request_all_methods(temp_mas_home, sample_lab, monkeypatch):
     monkeypatch.setattr(api.manifests, "refresh", lambda: None)
     api.manifests._libraries = {"demo": sample_lab}
     daemon_mod._api = api
+    monkeypatch.setattr(daemon_mod, "_code_fingerprint", "abc")
+    monkeypatch.setattr(daemon_mod, "_env_fingerprint", {"MAS_INFRA_REFS": "h"})
 
-    assert _handle_request({"method": "ping"})["result"]["status"] == "ok"
+    assert _handle_request({"method": "ping"})["result"] == {
+        "status": "ok",
+        "code": "abc",
+        "env": {"MAS_INFRA_REFS": "h"},
+    }
     assert _handle_request({"method": "status"})["result"]["workers"] == 0
     assert "error" in _handle_request({"method": "unknown"})
 

@@ -124,8 +124,7 @@ def classify_llm_http_error(exc: BaseException) -> str:
             "LLM request failed: TLS certificate verification failed. "
             "Use the repo .venv (`task install-dev`, `direnv allow`). "
             "For corporate proxies set SSL_CERT_FILE or spec.infra llm_proxy.ca_bundle. "
-            f"On macOS CPython you may also { _macos_install_certificates_hint()}. "
-            "Dev-only escape hatch: MAS_LLM_VERIFY_SSL=0."
+            f"On macOS CPython you may also { _macos_install_certificates_hint() }."
         )
 
     if isinstance(exc, ssl.SSLError) or any(
