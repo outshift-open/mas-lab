@@ -1,0 +1,41 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mas-library-ioc-motivation"
+version = "0.1.0"
+description = "IoC (Internet of Cognition) cognitive-challenge reproduction experiments on sre-triage."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+authors = [{name = "MAS Framework Contributors"}]
+dependencies = []
+
+[project.entry-points."mas.runtime.manifest_libraries"]
+ioc_motivation = "mas.library.ioc_motivation"
+
+# Flat checkout layout (apps/, datasets/, experiments/, library.yaml at the library
+# root).  Hatch remaps those directories into the Python package only when building
+# the wheel; editable installs keep the flat layout and package_root() walks up to it.
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "apps",
+  "datasets",
+  "experiments",
+  "library.yaml",
+  "src/mas",
+  "README.md",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mas"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"apps" = "src/mas/library/ioc_motivation/apps"
+"datasets" = "src/mas/library/ioc_motivation/datasets"
+"experiments" = "src/mas/library/ioc_motivation/experiments"
+"library.yaml" = "src/mas/library/ioc_motivation/library.yaml"

@@ -1,0 +1,92 @@
+id: signup-flow-enable-debug-logging
+description: >
+  Signup-service shows intermittent token validation failures, but current signals
+  do not separate issuer mismatch, stale cache, or nonce-replay false positives.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: signup-service
+  action: enable_debug_logging
+  reasoning: >
+    The failure mode is ambiguous and existing telemetry lacks the per-request
+    token lineage needed to choose safely among rollback, restart, or cache purge.
+    Enable targeted debug logging first.
+source_evidence:
+  - source: auth0_refresh_tokens
+    url: https://auth0.com/blog/refresh-tokens-what-are-they-and-when-to-use-them/
+    facts:
+      - Token metadata ambiguity requires request-level diagnostics to classify rotation, issuer, and session-state faults.
+  - source: owasp_authentication_cheatsheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html
+    facts:
+      - Security-sensitive remediation should prefer better evidence when disruptive actions are not yet justified.
+observed_symptoms:
+  - Some failures show stale kid references, others show nonce reuse alarms, and others show audience mismatch.
+  - Error clusters shift between pods without a stable deploy or traffic pattern.
+  - Current logs omit token kid, issuer, invite policy version, and replay-decision metadata.
+services:
+  signup-service:
+    aliases: [signup_service, auth-signup]
+    metrics:
+      latency_ms: { p50: 460.0, p95: 1490.0, p99: 2420.0 }
+      error_rate: 0.087
+      requests_per_second: 241.0
+      named:
+        ambiguous_validation_failures:
+          value: 0.66
+          unit: ratio
+          status: critical
+        token_lineage_logged:
+          value: 0
+          unit: boolean
+          status: critical
+        replay_signal_confidence:
+          value: 0.34
+          unit: ratio
+          status: warning
+    health:
+      status: degraded
+      uptime_percent: 99.8
+      error_rate_percent: 8.7
+      dependencies:
+        identity-provider: healthy
+        jwks-cache: degraded
+    deployments:
+      - version: "4.9.1"
+        status: success
+        deployed_hours_before_incident: 14
+        deployed_by: ci/cd-pipeline
+        commit_sha: 54cd821
+        commit_message: "feat(signup): tighten issuer and audience validation for onboarding tokens"
+        duration_seconds: 93
+        overlap_with_incident: false
+      - version: "4.9.0"
+        status: success
+        deployed_days_before_incident: 4
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(signup): stabilize onboarding token refresh flow"
+        duration_seconds: 88
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[signup-service] Validation failed: token lineage metadata missing for failure classification"
+      - level: WARN
+        message: "[signup-service] Replay detector flagged 3 requests without storing nonce provenance"
+      - level: INFO
+        message: "[signup-service] Need request-level kid, issuer, audience, and invite-policy version in debug output"
+    rollback:
+      from_version: "4.9.1"
+      to_version: "4.9.0"
+      message: "Rollback exists, but current evidence is too ambiguous to justify a disruptive action."
+
+  identity-provider:
+    aliases: [identity_provider, auth-service]
+    metrics:
+      latency_ms: { p50: 71.0, p95: 176.0, p99: 288.0 }
+      error_rate: 0.003
+      requests_per_second: 296.0
+    health:
+      status: healthy
+      uptime_percent: 99.99
+      error_rate_percent: 0.3
+      dependencies: {}

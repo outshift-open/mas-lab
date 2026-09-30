@@ -1,16 +1,18 @@
 //  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 //  SPDX-License-Identifier: Apache-2.0
 import { Handle, Position, NodeResizer, type NodeProps } from "@xyflow/react";
-import { useCallback, type ChangeEvent } from "react";
+import { useCallback, useMemo, type ChangeEvent } from "react";
+import { useDesignPatterns } from "@/api/apiCalls";
 import type { OverlayDesignPatternNodeType } from "../types";
-
-const PATTERN_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "react", label: "ReAct" },
-  { value: "cot", label: "Chain of Thought" },
-  { value: "reflection", label: "Reflection" },
-];
+import { buildPatternGroups } from "@/utils/designPatternOptions";
 
 export function OverlayDesignPatternNode({ data, id, selected }: NodeProps<OverlayDesignPatternNodeType>) {
+  const { data: patternData } = useDesignPatterns();
+  const groups = useMemo(
+    () => buildPatternGroups(patternData?.patterns),
+    [patternData],
+  );
+
   const handleChange = useCallback(
     (field: string) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       data.onChange?.(
@@ -44,10 +46,14 @@ export function OverlayDesignPatternNode({ data, id, selected }: NodeProps<Overl
             onChange={handleChange("type")}
           >
             <option value="">Select pattern...</option>
-            {PATTERN_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
+            {groups.map((group) => (
+              <optgroup key={group.label} label={group.label}>
+                {group.options.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </label>

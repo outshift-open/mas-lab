@@ -18,7 +18,7 @@
     {
       "type": "extract_trajectories",
       "label": "Extract Trajectories",
-      "description": "Parse benchmark run traces into a structured trajectories.jsonl file. Extracts the input prompt, final output, per-agent messages, and session metadata from each run's events.jsonl. This is typically the first step in a pipeline — downstream steps like plot_multilevel_trajectory and annotate_metrics consume its output.",
+      "description": "Parse benchmark run traces into a structured trajectories.jsonl file. Extracts the input prompt, final output, per-agent messages, and session metadata from each run's events.jsonl. This is typically the first step in a pipeline \u2014 downstream steps like plot_multilevel_trajectory and annotate_metrics consume its output.",
       "phase": "post",
       "category": "extraction",
       "config": {
@@ -42,7 +42,7 @@
     {
       "type": "extract_trace_stats",
       "label": "Extract Trace Stats",
-      "description": "Compute structural metrics from raw trace files — counts LLM calls, tool invocations, governance events, and measures total duration per run. Outputs a tidy CSV (one row per run) for cost analysis and efficiency comparisons across scenarios. Reads events.jsonl directly from the benchmark output directory.",
+      "description": "Compute structural metrics from raw trace files \u2014 counts LLM calls, tool invocations, governance events, and measures total duration per run. Outputs a tidy CSV (one row per run) for cost analysis and efficiency comparisons across scenarios. Reads events.jsonl directly from the benchmark output directory.",
       "phase": "post",
       "category": "extraction",
       "config": {
@@ -100,7 +100,9 @@
         },
         "metric_kwargs": {
           "type": "object",
-          "default": {"model": "azure/gpt-4o"},
+          "default": {
+            "model": "azure/gpt-4o"
+          },
           "description": "Kwargs passed to metric constructor (model, threshold, etc.)"
         },
         "level": {
@@ -224,14 +226,14 @@
           "description": "Plot parameters"
         },
         "spec": {
-          "type": "object",
-          "default": null,
-          "description": "Declarative plot spec (alternative to type)"
-        },
-        "data_key": {
           "type": "string",
           "default": null,
-          "description": "Key in dependency data for declarative mode"
+          "description": "Plot spec: a spec name from the plot library (e.g. \"ioc_reproduction_heatmap\"), or an inline spec object."
+        },
+        "data": {
+          "type": "string",
+          "default": null,
+          "description": "Dependency data binding for declarative mode, e.g. \"@delta\" to read the upstream delta step's output."
         },
         "filename": {
           "type": "string",
@@ -492,7 +494,7 @@
         "output": {
           "type": "string",
           "default": "metrics_results.csv",
-          "description": "Output CSV path (avoid 'results.csv' — reserved by benchmark engine)"
+          "description": "Output CSV path (avoid 'results.csv' \u2014 reserved by benchmark engine)"
         },
         "run_glob": {
           "type": "string",
@@ -546,13 +548,20 @@
         },
         "groupby": {
           "type": "array",
-          "default": ["scenario", "metric"],
+          "default": [
+            "scenario",
+            "metric"
+          ],
           "description": "Grouping columns for CI computation"
         },
         "ci_method": {
           "type": "string",
           "default": "t",
-          "enum": ["t", "bootstrap", "normal"],
+          "enum": [
+            "t",
+            "bootstrap",
+            "normal"
+          ],
           "description": "CI method: t (default, for n<30), bootstrap, or normal"
         },
         "ci_level": {
@@ -575,7 +584,7 @@
     {
       "type": "eval_mce",
       "label": "Eval MCE",
-      "description": "Run LLM-as-judge evaluation on every benchmark run using MCE (Metrics Computation Engine). Computes session-level quality metrics — goal success, answer relevancy, groundedness, response completeness, and more — by prompting a judge LLM to score each run's conversation. Writes a metrics.json file next to each run's traces. Expensive (one LLM call per metric per run); use max_workers to control concurrency.",
+      "description": "Run LLM-as-judge evaluation on every benchmark run using MCE (Metrics Computation Engine). Computes session-level quality metrics \u2014 goal success, answer relevancy, groundedness, response completeness, and more \u2014 by prompting a judge LLM to score each run's conversation. Writes a metrics.json file next to each run's traces. Expensive (one LLM call per metric per run); use max_workers to control concurrency.",
       "phase": "post",
       "category": "evaluation",
       "config": {
@@ -647,19 +656,39 @@
         "mapping": {
           "type": "object",
           "required": true,
-          "default": {"x": "scenario", "y": "mean", "fill": "scenario", "ymin": "ci_low", "ymax": "ci_high"},
+          "default": {
+            "x": "scenario",
+            "y": "mean",
+            "fill": "scenario",
+            "ymin": "ci_low",
+            "ymax": "ci_high"
+          },
           "description": "aes() mapping: {x, y, fill, color, ymin, ymax, ...}. ymin+ymax auto-trigger error bars."
         },
         "geom": {
           "type": "string",
           "default": "crossbar",
-          "enum": ["bar", "col", "crossbar", "point", "boxplot", "jitter", "line", "tile"],
+          "enum": [
+            "bar",
+            "col",
+            "crossbar",
+            "point",
+            "boxplot",
+            "jitter",
+            "line",
+            "tile"
+          ],
           "description": "Geometry type (crossbar draws CI rectangles from ymin to ymax; col draws bars from 0 to y)"
         },
         "stat": {
           "type": "string",
           "default": "",
-          "enum": ["", "summary", "mean", "sum"],
+          "enum": [
+            "",
+            "summary",
+            "mean",
+            "sum"
+          ],
           "description": "Stat summary function (omit for pre-aggregated data)"
         },
         "facet": {
@@ -669,7 +698,11 @@
         },
         "labels": {
           "type": "object",
-          "default": {"title": "Scenario Comparison by Metric (95% CI)", "x": "Scenario", "y": "MCE Score (mean ± 95% CI)"},
+          "default": {
+            "title": "Scenario Comparison by Metric (95% CI)",
+            "x": "Scenario",
+            "y": "MCE Score (mean \u00b1 95% CI)"
+          },
           "description": "Plot labels: {title, subtitle, x, y, fill, ...}"
         },
         "width": {
@@ -715,6 +748,144 @@
           "type": "integer",
           "default": 0,
           "description": "Max sessions (0 = unlimited)"
+        }
+      }
+    },
+    {
+      "type": "ioc_cognitive_eval",
+      "label": "IoC Cognitive Eval",
+      "description": "Run the IoC 13-metric cognitive judge (claris paper_v2) over an experiment's traces. Adapter that shells out to ioc-core's eval scripts: reshapes each run into an eval bundle and scores it, producing results/metrics_long.csv. Expensive (one judge LLM call per metric per run).",
+      "phase": "post",
+      "category": "evaluation",
+      "config": {
+        "service_name": {
+          "type": "string",
+          "required": true,
+          "description": "Domain token for bundle naming / --service-name (e.g. 'sre-triage', 'trip-planner')"
+        },
+        "ioc_repo": {
+          "type": "string",
+          "default": "",
+          "description": "ioc-core-mas-lab checkout containing eval/ (defaults to env IOC_REPO)"
+        },
+        "mas_lab_oss": {
+          "type": "string",
+          "default": "",
+          "description": "OSS mas-lab checkout, for the venv python the span converter needs (defaults to env MAS_LAB_OSS)"
+        },
+        "claris_lib": {
+          "type": "string",
+          "default": "",
+          "description": "claris-lib checkout with the paper_v2 judge (defaults to env CLARIS_LIB)"
+        },
+        "evaluator_env": {
+          "type": "string",
+          "default": "",
+          "description": "Judge credentials env file (defaults to env EVALUATOR_ENV or <ioc_repo>/.env.evaluator)"
+        },
+        "runs_dir": {
+          "type": "string",
+          "default": "",
+          "description": "Experiment trace root (defaults to the pipeline output_dir)"
+        },
+        "suite": {
+          "type": "string",
+          "default": "paper_v2",
+          "description": "claris eval suite"
+        },
+        "shards": {
+          "type": "integer",
+          "default": 4,
+          "description": "Number of judge shards"
+        }
+      }
+    },
+    {
+      "type": "ioc_delta",
+      "label": "IoC Delta",
+      "description": "Compute the baseline-vs-overlay failure-rate delta, per-challenge verdict/footprint, and the challenge x metric ablation matrix from the judge's metrics_long.csv. Adapter over ioc-core's delta_report.py; outputs report.json and ablation_matrix.json (consumed by the heatmap plot step).",
+      "phase": "post",
+      "category": "analysis",
+      "config": {
+        "metrics_long": {
+          "type": "string",
+          "default": "",
+          "description": "Path to metrics_long.csv (defaults to the upstream ioc_cognitive_eval step output)"
+        },
+        "ioc_repo": {
+          "type": "string",
+          "default": "",
+          "description": "ioc-core-mas-lab checkout containing eval/delta_report.py (defaults to env IOC_REPO)"
+        },
+        "metrics_filter_out": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "Communication Efficiency",
+            "Delegation Accuracy",
+            "Instruction Following"
+          ],
+          "description": "Metric names to drop from the heatmap only (verdicts keep them). Blog's non-diagnostic set by default; pass [] to keep all."
+        }
+      }
+    },
+    {
+      "type": "ioc_impact",
+      "label": "IoC Impact Eval",
+      "description": "App-level outcome (impact) eval: an LLM-as-judge answers YES/NO outcome questions per run and aggregates them per scenario. Adapter over ioc-core's eval_impact.py; works off raw traces (events.jsonl, no reshape needed). Outputs impact/impact_plot.pdf + impact_agg.csv. Expensive (one judge LLM call per question per run).",
+      "phase": "post",
+      "category": "evaluation",
+      "config": {
+        "questions_yaml": {
+          "type": "string",
+          "required": true,
+          "description": "Outcome-questions YAML (e.g. apps/sre-triage/impact/sre_impact.yaml); library-root-relative when not absolute"
+        },
+        "focus_agents_scenario": {
+          "type": "string",
+          "default": "centralized",
+          "enum": [
+            "centralized",
+            "debate"
+          ],
+          "description": "Fallback focus agents for questions that omit their own agents list"
+        },
+        "model": {
+          "type": "string",
+          "default": "onprem/gemma4",
+          "description": "Judge model string, passed verbatim to the OpenAI-compatible endpoint"
+        },
+        "workers": {
+          "type": "integer",
+          "default": 6,
+          "description": "Concurrent judge workers (thread pool over runs). 1 = serial; lower from 6 if the judge proxy returns 429s."
+        },
+        "ioc_repo": {
+          "type": "string",
+          "default": "",
+          "description": "ioc-core-mas-lab checkout containing eval/eval_impact.py (defaults to env IOC_REPO)"
+        },
+        "claris_lib": {
+          "type": "string",
+          "default": "",
+          "description": "claris-lib checkout; its .venv/bin/python runs eval_impact.py (defaults to env CLARIS_LIB)"
+        },
+        "python": {
+          "type": "string",
+          "default": "",
+          "description": "Interpreter for eval_impact.py (default <claris_lib>/.venv/bin/python; needs openai, seaborn, pandas, python-dotenv, pyyaml)"
+        },
+        "evaluator_env": {
+          "type": "string",
+          "default": "",
+          "description": "Judge credentials env file; LLM_BASE_MODEL_URL/LLM_API_KEY are mapped to OPENAI_BASE_URL/OPENAI_API_KEY (defaults to env EVALUATOR_ENV or <ioc_repo>/.env.evaluator)"
+        },
+        "runs_dir": {
+          "type": "string",
+          "default": "",
+          "description": "Experiment trace root (defaults to the pipeline output_dir)"
         }
       }
     }

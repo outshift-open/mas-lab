@@ -1,0 +1,49 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Overlay: staged debate (decentralized) pattern for SRE-Triage
+#
+# Implements the decentralized collaboration scheme (Du et al. 2023,
+# arXiv:2305.14325) applied to incident triage:
+#
+#   Round 1   All specialists answer the incident independently in parallel.
+#   Round 2   Each specialist receives all peer answers from round 1 and
+#             revises their diagnosis/recommendation.
+#   Final     Majority vote selects the winning answer.
+#
+# Control is deterministic at the workflow level; each specialist LLM
+# decides how to revise or defend its analysis.  No central moderator.
+# Note: majority vote on a free-text RCA is experimental — use this pattern
+# primarily to surface divergent specialist opinions for human review.
+#
+# No sre role prompt changes are required (sre is bypassed in this mode).
+# Specialist prompts are unchanged and appropriate.
+#
+# Usage:
+#   mas-ctl run-mas thirdparty/mas-lab-internal/apps/sre-triage/mas.yaml \
+#     --overlay thirdparty/mas-lab-internal/apps/sre-triage/pattern-overlays/staged-debate-sre.yaml \
+#     -q "Checkout latency spiked 10× since 14:00 UTC" --single-turn
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: staged-debate-sre
+  # Specialist prompts must carry the debate-revision clause.
+  # sre coordinator is bypassed (deterministic orchestration).
+  x-compatible-prompt-versions:
+    telemetry: ["1.1.0"]
+    backend: ["1.2.0"]
+    db: ["1.1.0"]
+    comms: ["1.1.0"]
+    verifier: ["1.1.0"]
+spec:
+  target:
+    kind: MAS
+  patch:
+    workflow:
+      type: staged_debate
+      max_rounds: 3
+      participants:
+        - telemetry
+        - backend
+        - db
+        - comms
+        - verifier

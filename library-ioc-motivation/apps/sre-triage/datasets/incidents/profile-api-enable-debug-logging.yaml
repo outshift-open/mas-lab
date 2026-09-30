@@ -1,0 +1,135 @@
+id: profile-api-enable-debug-logging
+description: >
+  Profile API shows intermittent duplicate refresh ownership and mixed stale/origin
+  responses, but evidence is not yet sufficient to choose rollback, restart, or purge.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: profile-service
+  action: enable_debug_logging
+  reasoning: >
+    The incident shows low-frequency lock-renewal anomalies, occasional stale
+    payload reuse, and no single dominant failure mode. Additional debug logging
+    on lock token ownership, cache key lineage, and refresh timing is needed
+    before taking a more disruptive remediation.
+source_evidence:
+  - source: redis_distributed_locks
+    url: https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/
+    facts:
+      - TTL-based locking is sensitive to elapsed acquisition time and clock behavior.
+      - Redis warns that non-monotonic clock behavior and missing fencing can compromise exclusivity.
+      - Safe release depends on verifying the unique lock owner token.
+  - source: nginx_thundering_herd
+    url: https://blog.nginx.org/blog/mitigating-thundering-herd-problem-pbs-nginx
+    facts:
+      - Stale responses can make users look healthy while masking origin faults.
+      - Request windows and repopulation timing are important when diagnosing herd behavior.
+observed_symptoms:
+  - Two pods occasionally report successful refresh of the same hot profile within one TTL window.
+  - User-visible errors are rare, but profile freshness is inconsistent across requests.
+  - Existing logs do not include lock token IDs, TTL at acquisition, or cache-key lineage.
+services:
+  profile-service:
+    aliases: [profile_service, profile-api]
+    metrics:
+      latency_ms: { p50: 390.0, p95: 1310.0, p99: 2140.0 }
+      error_rate: 0.019
+      requests_per_second: 237.0
+      named:
+        duplicate_refresh_suspicions_last_hour:
+          value: 9
+          unit: incidents
+          status: warning
+        stale_profile_age_p99_s:
+          value: 611
+          unit: seconds
+          status: warning
+        lock_owner_token_logged:
+          value: 0
+          unit: boolean
+          status: critical
+        debug_trace_coverage:
+          value: 0.04
+          unit: ratio
+          status: critical
+    health:
+      status: degraded
+      uptime_percent: 99.9
+      error_rate_percent: 1.9
+      dependencies:
+        profile-cache: degraded
+        user-db: healthy
+        edge-cache: healthy
+    deployments:
+      - version: "5.2.4"
+        status: success
+        deployed_hours_before_incident: 23
+        deployed_by: ci/cd-pipeline
+        commit_sha: a17c90d
+        commit_message: "feat(profile): namespace cache keys by schema version"
+        duration_seconds: 96
+        overlap_with_incident: false
+      - version: "5.2.3"
+        status: success
+        deployed_days_before_incident: 4
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(profile): stabilize cache hydration"
+        duration_seconds: 89
+        overlap_with_incident: false
+    logs:
+      - level: WARN
+        message: "[profile-service] Suspected duplicate refresh for profile:user:8821; owner token not logged"
+      - level: WARN
+        message: "[profile-service] Profile freshness diverged between pod-a3f and pod-b91 for same cache key"
+      - level: INFO
+        message: "[profile-service] Existing request logs omit cache generation and lock TTL metadata"
+    feature_flags:
+      profile_refresh_debug:
+        enabled: false
+        rollout_percent: 0
+        enabled_since_hours_before_incident: null
+        changed_by: no-change
+      edge_stale_profiles:
+        enabled: true
+        rollout_percent: 100
+        enabled_since_days_before_incident: 14
+        changed_by: sre-team
+    config_changes:
+      - key: profile_refresh_debug_sample_rate
+        old_value: 0.0
+        new_value: 0.0
+        changed_by: no-change
+        changed_hours_before_incident: null
+      - key: profile_lock_fencing_enabled
+        old_value: false
+        new_value: false
+        changed_by: no-change
+        changed_hours_before_incident: null
+    rollback:
+      from_version: "5.2.4"
+      to_version: "5.2.3"
+      message: "Rollback available, but evidence is insufficient to justify it yet."
+
+  profile-cache:
+    aliases: [profile_cache, redis-profile]
+    metrics:
+      latency_ms: { p50: 2.9, p95: 9.3, p99: 23.7 }
+      error_rate: 0.0014
+      requests_per_second: 4220.0
+      named:
+        ttl_expiry_jitter_ms:
+          value: 37
+          unit: ms
+          status: warning
+        lock_reacquire_failures_last_hour:
+          value: 14
+          unit: attempts
+          status: warning
+    health:
+      status: degraded
+      uptime_percent: 99.99
+      error_rate_percent: 0.14
+      dependencies: {}
+    logs:
+      - level: WARN
+        message: "[profile-cache] Lock reacquire failed after expiry on refresh:profile:user:8821; owner token unavailable"

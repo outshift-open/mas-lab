@@ -241,7 +241,9 @@ class ControllerAPI:
         root = self.manifests.library_root(library)
         agents_dir = root / "agents"
         agents_dir.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile("w", suffix=".yaml", dir=agents_dir, delete=False) as fh:
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".yaml", prefix=".mas-run-", dir=agents_dir, delete=False
+        ) as fh:
             fh.write(body.get("manifest_yaml") or "")
             spec_path = fh.name
         spec = {
@@ -257,7 +259,9 @@ class ControllerAPI:
         root = self.manifests.library_root(library)
         mas_dir = root / "apps"
         mas_dir.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile("w", suffix=".yaml", dir=mas_dir, delete=False) as fh:
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".yaml", prefix=".mas-run-", dir=mas_dir, delete=False
+        ) as fh:
             fh.write(body.get("manifest_yaml") or "")
             spec_path = fh.name
         spec = {
@@ -274,7 +278,9 @@ class ControllerAPI:
         root = self.manifests.library_root(library)
         exp_dir = root / "experiments"
         exp_dir.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile("w", suffix=".yaml", dir=exp_dir, delete=False) as fh:
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".yaml", prefix=".mas-run-", dir=exp_dir, delete=False
+        ) as fh:
             fh.write(content)
             experiment_yaml = fh.name
         spec = {
@@ -291,7 +297,9 @@ class ControllerAPI:
         root = self.manifests.library_root(library)
         pipe_dir = root / "pipelines"
         pipe_dir.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile("w", suffix=".yaml", dir=pipe_dir, delete=False) as fh:
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".yaml", prefix=".mas-run-", dir=pipe_dir, delete=False
+        ) as fh:
             fh.write(body.get("pipeline_yaml") or "")
             pipeline_yaml = fh.name
         spec = {

@@ -1,0 +1,151 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+id: webhook-worker-crashloop
+description: >
+  A webhook worker version crashes on unexpected empty 500 responses from an
+  upstream datastore, causing intermittent webhook API failures.
+timestamp: "2025-06-02T01:08:00"
+provenance:
+  source_type: hybrid
+  source_name: GitHub status incident class + public log patterns
+  source_url:
+    - https://www.githubstatus.com/history
+    - https://github.com/logpai/loghub
+  license: mixed-public
+  accessed_at: "2026-07-15"
+  extraction_method: manual-plus-synthetic
+  transformations:
+    - transformed service degradation summary into fixture metrics/logs/deployments
+    - synthesized crashloop signatures and recovery profile
+  synthetic_fraction: 0.68
+  reviewer: pending
+  review_date: null
+  confidence: medium
+correct_action:
+  service: webhook-service
+  action: rollback
+  to_version: "4.9.1"
+  reasoning: >
+    Version 4.9.2 fails to handle empty-body 500 responses and repeatedly crashes
+    the primary worker pod. Rolling back to 4.9.1 restores stable webhook processing.
+services:
+  webhook-service:
+    aliases: [webhook_service, hooks-api]
+    metrics:
+      latency_ms: { p50: 96.3, p95: 301.2, p99: 611.5 }
+      error_rate: 0.043
+      requests_per_second: 208.7
+      named:
+        crashloop_restarts_last_15m:
+          value: 23
+          unit: count
+          status: critical
+    health:
+      status: degraded
+      uptime_percent: 99.87
+      error_rate_percent: 4.3
+      dependencies:
+        events-store: degraded
+        auth-service: healthy
+    deployments:
+      - version: "4.9.2"
+        status: success
+        deployed_minutes_before_incident: 11
+        deployed_by: platform-ci
+        commit_sha: 29bc114
+        commit_message: "perf(webhooks): optimize response decoder"
+        duration_seconds: 71
+        overlap_with_incident: true
+      - version: "4.9.1"
+        status: success
+        deployed_days_before_incident: 4
+        deployed_by: platform-ci
+        commit_sha: 88d5bf1
+        commit_message: "stable webhook parser"
+        duration_seconds: 68
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[webhook-service] panic: nil pointer in response parser"
+      - level: ERROR
+        message: "[webhook-service] upstream datastore returned 500 with empty body"
+      - level: WARN
+        message: "[webhook-service] pod entered CrashLoopBackOff"
+      - level: INFO
+        message: "[webhook-service] unaffected replicas continue partial traffic"
+    rollback:
+      from_version: "4.9.2"
+      to_version: "4.9.1"
+      message: >
+        Rollback of webhook-service initiated: 4.9.2 -> 4.9.1.
+        Expected crashloop stop within 90 seconds.
+
+  events-store:
+    aliases: [events_store, event-database]
+    metrics:
+      latency_ms: { p50: 12.4, p95: 41.8, p99: 77.3 }
+      error_rate: 0.006
+      requests_per_second: 622.3
+      named:
+        lock_wait_count:
+          value: 1
+          unit: count/min
+          status: normal
+        deadlock_count:
+          value: 0
+          unit: count/15min
+          status: normal
+        active_connections:
+          value: 67
+          unit: connections
+          capacity: 140
+          status: normal
+    health:
+      status: degraded
+      uptime_percent: 99.96
+      error_rate_percent: 0.6
+      dependencies: {}
+    pg_stat_activity:
+      total_connections: 67
+      max_connections: 140
+      active_queries: 14
+      idle_connections: 53
+      waiting_queries: 0
+      blocking_queries: []
+      longest_running_query_seconds: 0.9
+      max_lock_wait_ms: 15.2
+    blocking:
+      blocking_pids: []
+      blocked_pids: []
+      deadlocks_last_hour: 0
+      lock_wait_count_last_hour: 1
+    connection_pool:
+      pool_size: 140
+      active: 67
+      idle: 73
+      waiting: 0
+      utilisation_pct: 47.9
+      status: healthy
+    deployments: []
+    logs:
+      - level: WARN
+        message: "[events-store] sporadic upstream 500 responses with empty payload"
+      - level: INFO
+        message: "[events-store] no storage saturation detected"
+
+  auth-service:
+    aliases: [auth_service]
+    metrics:
+      latency_ms: { p50: 14.9, p95: 31.4, p99: 48.6 }
+      error_rate: 0.0008
+      requests_per_second: 918.1
+    health:
+      status: healthy
+      uptime_percent: 99.99
+      error_rate_percent: 0.08
+      dependencies:
+        auth-db: healthy
+    deployments: []
+    logs:
+      - level: INFO
+        message: "[auth-service] healthy during webhook incident window"

@@ -1,0 +1,136 @@
+apiVersion: mas/v1
+kind: MAS
+metadata:
+  name: sre-triage
+  description: I triage production incidents. Describe an outage, latency spike,
+    or error-rate anomaly and I will coordinate specialist agents to produce a
+    root-cause analysis and a verified remediation plan.
+spec:
+  agency:
+    agents:
+      - id: backend
+        ref: agents/backend.yaml
+      - id: comms
+        ref: agents/comms.yaml
+      - id: db
+        ref: agents/db.yaml
+      - id: sre
+        ref: agents/sre.yaml
+      - id: telemetry
+        ref: agents/telemetry.yaml
+      - id: verifier
+        ref: agents/verifier.yaml
+  workflow:
+    entry: sre
+    nodes:
+      - id: backend
+        role: specialist
+      - id: comms
+        role: specialist
+      - id: db
+        role: specialist
+      - id: sre
+        role: specialist
+        delegates_to:
+          - telemetry
+          - backend
+          - db
+          - comms
+          - verifier
+      - id: telemetry
+        role: specialist
+      - id: verifier
+        role: specialist
+x-canvas-positions:
+  backend:
+    x: 700
+    y: -1440
+  node_2916e6a3:
+    x: 380
+    y: -1635
+  node_df9782fc:
+    x: 380
+    y: -1345
+  node_2c188454:
+    x: 380
+    y: -1105
+  node_10c4897e:
+    x: 380
+    y: -805
+  comms:
+    x: 700
+    y: 1190
+  node_ccbd52c1:
+    x: 380
+    y: 1145
+  node_3d93a0dd:
+    x: 380
+    y: 1435
+  node_91e08db1:
+    x: 380
+    y: 1675
+  db:
+    x: 700
+    y: -50
+  node_9ee794ce:
+    x: 380
+    y: -245
+  node_d99fe160:
+    x: 380
+    y: 45
+  node_354a17a6:
+    x: 380
+    y: 285
+  node_69b497ef:
+    x: 380
+    y: 585
+  sre:
+    x: 0
+    y: -350
+  node_7bed42d7:
+    x: -320
+    y: -545
+  node_0d43e31f:
+    x: -320
+    y: -255
+  node_c154e792:
+    x: -320
+    y: -15
+  node_7ed100a3:
+    x: -320
+    y: 285
+  node_68ac23ff:
+    x: -352
+    y: 640
+  telemetry:
+    x: 700
+    y: -2830
+  node_bb36e003:
+    x: 380
+    y: -3025
+  node_40c18cac:
+    x: 380
+    y: -2735
+  node_a70d031e:
+    x: 380
+    y: -2495
+  node_9b2a5b6e:
+    x: 380
+    y: -2195
+  verifier:
+    x: 700
+    y: 2280
+  node_cc048ba4:
+    x: 380
+    y: 2235
+  node_6319e78f:
+    x: 380
+    y: 2525
+  node_b9ac7dc9:
+    x: 380
+    y: 2765
+intent:
+  summary: I triage production incidents. Describe an ongoing outage, latency
+    spike, or error-rate anomaly and I will delegate to specialist agents
+    (telemetry, backend, DB, comms, verifier), synthesise a root-cause analysis,
+    and propose a verified remediation action.

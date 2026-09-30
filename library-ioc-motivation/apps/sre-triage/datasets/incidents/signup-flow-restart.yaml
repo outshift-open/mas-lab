@@ -1,0 +1,92 @@
+id: signup-flow-restart
+description: >
+  Signup-service workers stopped refreshing JWKS validation state after an identity
+  provider timeout burst, leaving token validators wedged in memory.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: signup-service
+  action: restart
+  reasoning: >
+    The incident is driven by stuck validator workers and stale in-memory key state,
+    not a bad deployment. Restarting signup-service clears the wedged JWKS refresh
+    loop and reloads fresh validator state.
+source_evidence:
+  - source: auth0_refresh_tokens
+    url: https://auth0.com/blog/refresh-tokens-what-are-they-and-when-to-use-them/
+    facts:
+      - Token lifecycle and key rotation failures can manifest as stale in-memory validation state.
+  - source: owasp_authentication_cheatsheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html
+    facts:
+      - Authentication systems should fail predictably when key state is stale rather than inferring compromise.
+observed_symptoms:
+  - Incident began hours after the last deployment, immediately following a short identity-provider timeout storm.
+  - Affected pods show stalled JWKS refresh loops and rising validation queue age.
+  - Restarting one unhealthy pod restored token acceptance without config change.
+services:
+  signup-service:
+    aliases: [signup_service, auth-signup]
+    metrics:
+      latency_ms: { p50: 640.0, p95: 1980.0, p99: 3180.0 }
+      error_rate: 0.093
+      requests_per_second: 226.0
+      named:
+        jwks_refresh_stall_s:
+          value: 411
+          unit: seconds
+          status: critical
+        validator_queue_age_s:
+          value: 128
+          unit: seconds
+          status: critical
+        token_verifier_threads_blocked:
+          value: 11
+          unit: threads
+          status: warning
+    health:
+      status: critical
+      uptime_percent: 99.6
+      error_rate_percent: 9.3
+      dependencies:
+        identity-provider: degraded
+        jwks-cache: degraded
+    deployments:
+      - version: "4.9.1"
+        status: success
+        deployed_hours_before_incident: 8
+        deployed_by: ci/cd-pipeline
+        commit_sha: 54cd821
+        commit_message: "feat(signup): tighten issuer and audience validation for onboarding tokens"
+        duration_seconds: 93
+        overlap_with_incident: false
+      - version: "4.9.0"
+        status: success
+        deployed_days_before_incident: 2
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(signup): stabilize onboarding token refresh flow"
+        duration_seconds: 88
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[signup-service] JWKS refresher stalled waiting on expired future for 411s"
+      - level: WARN
+        message: "[signup-service] Validator queue age exceeded 120s on pod signup-service-74dd5ccbd9-mjv6t"
+      - level: INFO
+        message: "[signup-service] Pod restart restored JWKS refresh and reduced token failures to baseline"
+    rollback:
+      from_version: "4.9.1"
+      to_version: "4.9.0"
+      message: "Rollback remains available, but evidence indicates wedged runtime state rather than bad rollout content."
+
+  identity-provider:
+    aliases: [identity_provider, auth-service]
+    metrics:
+      latency_ms: { p50: 89.0, p95: 280.0, p99: 470.0 }
+      error_rate: 0.017
+      requests_per_second: 312.0
+    health:
+      status: degraded
+      uptime_percent: 99.95
+      error_rate_percent: 1.7
+      dependencies: {}

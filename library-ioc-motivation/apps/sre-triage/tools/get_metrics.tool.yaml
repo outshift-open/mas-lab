@@ -1,0 +1,44 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Tool
+
+metadata:
+  name: get_metrics
+  description: "Retrieve performance metrics for a microservice."
+  version: "1.0.0"
+  tags: [sre, metrics, monitoring]
+
+spec:
+  description: >
+    Fetch performance metrics (CPU, memory, request rate, error rate, latency p50/p95/p99)
+    for a given microservice over a time window.
+    Use to diagnose performance degradation or identify resource bottlenecks.
+
+  parameters:
+    - name: service
+      type: string
+      description: "Name of the microservice to inspect."
+      required: true
+      examples: ["payment-api", "auth-service", "order-processor"]
+
+    - name: window
+      type: string
+      description: "Time window over which to aggregate metrics."
+      required: false
+      enum: ["1m", "5m", "15m", "1h"]
+      examples: ["5m", "15m"]
+
+    - name: metric
+      type: string
+      description: >
+        Optional specific metric name to fetch (e.g. a database-specific metric).
+        When omitted, returns the standard set of metrics.
+      required: false
+
+  impl:
+    kind: python
+    module_path: ./get_metrics.py
+    class_name: GetMetricsTool
+    params:
+      fixture_path: null  # null = résolution via sidecar artifacts/scene.yaml

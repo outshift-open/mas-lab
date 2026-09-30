@@ -92,7 +92,21 @@ async def lifespan(app: FastAPI):
         logger.info("MAS Lab API startup discovery: %s", report)
     except Exception as exc:
         logger.warning("Startup discovery report failed: %s", exc)
+
+    from mas.lab.controller.jobs import load_jobs_from_store, reconcile_jobs
+    try:
+        load_jobs_from_store()
+        reconcile_jobs()
+    except Exception as exc:
+        logger.warning("Job store startup failed: %s", exc)
+
     yield
+
+    from mas.lab.controller.job_store import get_job_store
+    try:
+        get_job_store().close()
+    except Exception:
+        pass
 
 
 def create_app() -> FastAPI:

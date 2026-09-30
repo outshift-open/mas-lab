@@ -1,0 +1,92 @@
+id: webhook-worker-enable-debug-logging
+description: >
+  Webhook-worker shows partner-specific delivery failures, but current telemetry
+  cannot separate stale metadata, downstream timeouts, or signature-validation drift.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: webhook-worker
+  action: enable_debug_logging
+  reasoning: >
+    Delivery failures are ambiguous and current logs do not include per-attempt
+    endpoint, signature version, retry lineage, or partner classification. Enable
+    targeted debug logging before taking a disruptive remediation action.
+source_evidence:
+  - source: idempotent_receiver
+    url: https://martinfowler.com/articles/patterns-of-distributed-systems/idempotent-receiver.html
+    facts:
+      - Correct diagnosis of duplicate and retry behavior depends on event lineage and partner-specific context.
+  - source: aws_retry_limits
+    url: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_limit_retries.html
+    facts:
+      - Retry storms and downstream faults should be distinguished before remediating the producer side.
+observed_symptoms:
+  - Some partner failures show signature mismatches, others show 5xx retries, and others show stale endpoint lookups.
+  - Error clusters rotate across partner tenants without a stable deployment or queue pattern.
+  - Current logs omit partner endpoint version, signature key ID, and retry-attempt lineage.
+services:
+  webhook-worker:
+    aliases: [webhook_worker, webhook-consumer]
+    metrics:
+      latency_ms: { p50: 410.0, p95: 1380.0, p99: 2290.0 }
+      error_rate: 0.094
+      requests_per_second: 274.0
+      named:
+        ambiguous_delivery_failures:
+          value: 0.69
+          unit: ratio
+          status: critical
+        partner_lineage_logged:
+          value: 0
+          unit: boolean
+          status: critical
+        signature_key_logged:
+          value: 0
+          unit: boolean
+          status: critical
+    health:
+      status: degraded
+      uptime_percent: 99.8
+      error_rate_percent: 9.4
+      dependencies:
+        event-broker: healthy
+        webhook-endpoint-cache: degraded
+    deployments:
+      - version: "1.33.7"
+        status: success
+        deployed_hours_before_incident: 12
+        deployed_by: ci/cd-pipeline
+        commit_sha: 7de61af
+        commit_message: "feat(webhook): refactor consumer ack pipeline and idempotency bookkeeping"
+        duration_seconds: 99
+        overlap_with_incident: false
+      - version: "1.33.6"
+        status: success
+        deployed_days_before_incident: 5
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(webhook): stabilize queue ack ordering"
+        duration_seconds: 87
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[webhook-worker] Delivery classification missing partner endpoint version and signature key id"
+      - level: WARN
+        message: "[webhook-worker] Retry attempt lineage not emitted for partner failure clusters"
+      - level: INFO
+        message: "[webhook-worker] Need debug output for endpoint metadata, signature key, and per-attempt downstream response"
+    rollback:
+      from_version: "1.33.7"
+      to_version: "1.33.6"
+      message: "Rollback exists, but evidence is too ambiguous to justify it yet."
+
+  event-broker:
+    aliases: [event_broker, queue-broker]
+    metrics:
+      latency_ms: { p50: 12.0, p95: 33.0, p99: 61.0 }
+      error_rate: 0.001
+      requests_per_second: 1010.0
+    health:
+      status: healthy
+      uptime_percent: 99.99
+      error_rate_percent: 0.1
+      dependencies: {}

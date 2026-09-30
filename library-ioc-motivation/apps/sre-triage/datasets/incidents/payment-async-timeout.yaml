@@ -1,0 +1,551 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Incident fixture: payment-async-timeout
+#
+# Fully parameterizes all mock tool responses for this incident.
+# Selected declaratively via `spec.params.incident_fixture:` in an overlay.
+#
+# Root cause: v3.7.2 introduced an async HTTP client with a 2000ms socket-read
+# timeout. The legacy payment-gateway occasionally pauses >2s, triggering
+# retries → pool exhaustion → cascade 504 errors. DB is a red herring.
+# Correct action: rollback payment-service to v3.7.1.
+#
+# Secondary issue (minor, independent): notification-service heap at 91.4%,
+# above the 90% liveness-probe restart threshold. Manual restart clears it
+# with ~5s downtime and no message loss. Liveness probe would auto-restart
+# within ~2 min anyway — proactive restart is cleaner. Correct action: restart.
+#
+# Red herrings (designed to mislead a symptom-fixation backend agent):
+#   1. payment_retry_on_timeout feature flag (enabled 3min after v3.7.2 deploy, 19min before incident):
+#      Enabled shortly after v3.7.2 went live as a reactive resilience measure.
+#      Amplifies pool exhaustion visibly. "Disable retries" looks like a fix
+#      but only reduces retry amplification — timeout failures still occur.
+#   2. max_http_worker_threads reduced 200→150 (3min after v3.7.2 deploy, 19min before incident):
+#      Changed by on-call engineer right after the deploy landed.
+#      "Raise it back to 200" looks like an obvious fix — but demand >>
+#      any pool size while the 2000ms socket-read timeout persists.
+#
+# Minor signals (not root cause, but should be reported):
+#   - payment-service GC pause P99=487ms (baseline 45ms) due to async client
+#     heap allocation pressure — tracked as PAY-2291.
+#   - payment-service open socket leak: 2341 CLOSE_WAIT connections to payment-gateway
+#     (OS fd ulimit: 4096). Async client does not close sockets on ReadTimeout;
+#     connections accumulate since v3.7.2 deploy. At current rate (~47/min),
+#     fd exhaustion in ~37 min → java.net.SocketException: Too many open files.
+#     Rollback stops the leak; existing CLOSE_WAIT sockets drain within ~4 min.
+#
+# Benign noise services (healthy, irrelevant to incident):
+#   - auth-service:            healthy, minor +8% auth calls (checkout retries)
+#   - api-gateway:             healthy, propagating payment-service 504s only
+#   - inventory-service:       healthy, P99 elevated by scheduled batch job
+#   - payment-gateway-cache:   healthy, transient AOF rewrite spike at 14:08
+
+id: payment-async-timeout
+description: >
+  Async HTTP client timeout in payment-service v3.7.2 cascades to 504 errors.
+  DB connection pool elevated but not root cause.
+timestamp: "2025-01-15T14:30:00" # ISO-8601, time the SRE was paged
+provenance:
+  source_type: synthetic
+  source_name: mas-lab-internal fixture authoring
+  source_url: null
+  license: Apache-2.0
+  accessed_at: "2026-07-15"
+  extraction_method: manual
+  transformations:
+    - normalized to incident fixture schema
+    - injected realistic red herrings and secondary independent issue
+  synthetic_fraction: 1.0
+  reviewer: unreviewed
+  review_date: null
+  confidence: high
+correct_action:
+  service: payment-service
+  action: rollback
+  to_version: "3.7.1"
+  reasoning: >
+    v3.7.2 introduced async PaymentGatewayClient with 2000ms socket-read timeout.
+    Legacy gateway occasionally pauses >2s → retry storm → pool exhaustion.
+    Additionally, the async client does not close sockets on ReadTimeout → CLOSE_WAIT
+    leak (2341 open, +47/min, fd ulimit 4096 — exhaustion in ~37 min).
+    Rollback resolves both the timeout cascade and the socket leak in a single action.
+  secondary_action:
+    service: notification-service
+    action: restart
+    severity: minor
+    reasoning: >
+      Heap at 91.4% (1.83 GB / 2 GB), exceeding the 90% liveness threshold.
+      Manual restart clears the leak immediately with ~5s downtime and no
+      message loss. Not critical — liveness probe will auto-restart within
+      2 minutes — but proactive restart is the cleaner resolution.
+      Completely independent of the payment-service incident.
+
+# ---------------------------------------------------------------------------
+# Services — each key is canonical; aliases are alternate names the tools accept
+# ---------------------------------------------------------------------------
+services:
+  payment-service:
+    aliases: [payment_service]
+
+    metrics:
+      latency_ms: { p50: 1823.4, p95: 4087.1, p99: 4212.8 }
+      error_rate: 0.2318
+      requests_per_second: 312.4
+      named:
+        gc_pause_p99_ms:
+          value: 487.3
+          unit: ms
+          status: warning
+          # note: >
+          #   Elevated since v3.7.2 deployment. The new async
+          #   PaymentGatewayClient allocates ~18x more heap objects per
+          #   request (futures, completion handlers, response buffers) than
+          #   the sync client it replaced. Causes occasional GC stop-the-world
+          #   pauses that add 200-500ms to response time on affected threads.
+          #   Not the root cause of the 504 cascade — but should be addressed
+          #   in the follow-up async client refactor (tracked in PAY-2291).
+        open_sockets_to_gateway:
+          value: 2341
+          unit: connections
+          capacity: 4096
+          status: critical
+          # note: >
+          #   AsyncPaymentGatewayClient does not invoke socket.close() when a
+          #   ReadTimeout is raised. The underlying TCP socket enters CLOSE_WAIT
+          #   and is only reaped when the GC eventually collects the client
+          #   object — which at current GC pressure takes several minutes.
+          #   Leak rate: ~47 CLOSE_WAIT sockets/min since v3.7.2 deploy.
+          #   At this rate the OS fd ulimit (4096) will be reached in ~37 min,
+          #   after which all outbound connections fail with
+          #   "Too many open files" regardless of pool headroom.
+          #   Rollback to v3.7.1 stops the leak immediately; existing
+          #   CLOSE_WAIT entries drain via TCP timeout within ~4 min.
+          #   Independent of the GC pressure issue (PAY-2291).
+      status: critical
+      uptime_percent: 99.71
+      error_rate_percent: 23.2
+      dependencies:
+        payment-gateway: critical
+        payment_db: degraded
+        auth-service: healthy
+        api-gateway: healthy
+      # note: >
+      #   payment-gateway is timing out on all requests (504).
+      #   payment_db is elevated (87% connection pool) but not blocking.
+      #   Incident started ~22 min after v3.7.2 deployment.
+
+    deployments:
+      - version: "3.7.2"
+        status: success
+        deployed_minutes_before_incident: 22
+        deployed_by: ci/cd-pipeline
+        commit_sha: a3f9c14
+        commit_message: "chore: payment service performance improvements"
+        duration_seconds: 94
+        overlap_with_incident: true
+        # note: "Deploy landed 22 min before P99 spike. Async refactor changes timeout behaviour."
+      - version: "3.7.1"
+        status: success
+        deployed_hours_before_incident: 18
+        deployed_by: ci/cd-pipeline
+        commit_sha: b1d4e07
+        commit_message: "chore: bump dependencies, no logic changes"
+        duration_seconds: 81
+        overlap_with_incident: false
+      - version: "3.7.0"
+        status: rollback
+        deployed_days_before_incident: 3
+        deployed_by: on-call-engineer
+        commit_sha: c8a2f31
+        commit_message: "feat(auth): token refresh redesign"
+        duration_seconds: 210
+        overlap_with_incident: false
+
+    logs:
+      - level: ERROR
+        message: "[payment-service] Payment gateway call to upstream timed out (attempt 1/2)"
+      - level: ERROR
+        message: "[payment-service] Payment gateway call to upstream timed out (attempt 2/2) — retry exhausted"
+      - level: ERROR
+        message: "[payment-service] POST /v1/charge → 504 Gateway Timeout (upstream: payment-gateway:443)"
+      - level: WARN
+        message: "[payment-service] P99 latency crossed 4000ms threshold — SLO breach imminent"
+      - level: WARN
+        message: "[payment-service] HTTP connection pool 78% utilised (156/200 threads waiting)"
+      - level: ERROR
+        message: "[payment-service] Checkout flow error: PaymentGatewayException: Read timed out"
+      - level: ERROR
+        message: "[payment-service] 5xx error rate: 23.2% (baseline <0.5%)"
+      - level: INFO
+        message: "[payment-service] Circuit breaker for payment-gateway: CLOSED (monitoring)"
+
+    feature_flags:
+      payment_retry_on_timeout:
+        enabled: true
+        rollout_percent: 100
+        enabled_since_minutes_before_incident: 19
+        changed_by: backend-team
+        value:
+          max_retries: 2
+          retry_delay_ms: 100
+          retry_on: [ReadTimeout, ConnectTimeout]
+        # note: >
+        #   Enabled 3 minutes after the v3.7.2 rollout (19 min before incident)
+        #   as a reactive resilience measure once the first timeout logs appeared.
+        #   With the 2000ms socket-read timeout introduced by v3.7.2, every
+        #   timed-out request now fires 2 retries → triples thread consumption
+        #   per failed checkout. Disabling reduces pool pressure visibly but
+        #   does NOT fix the underlying socket timeout — individual charges
+        #   still fail.
+      async_checkout_v2:
+        enabled: true
+        rollout_percent: 100
+        enabled_since_hours_before_incident: 22
+        changed_by: ci/cd-pipeline
+        # note: >
+        #   Activated by v3.7.2 deployment. Switches checkout path to
+        #   async PaymentGatewayClient. This is where the 2000ms timeout lives.
+
+    config_changes:
+      - key: max_http_worker_threads
+        old_value: 200
+        new_value: 150
+        changed_by: on-call-engineer (jsmith)
+        changed_minutes_before_incident: 19
+        reason: "Manual capacity trim 3 min after v3.7.2 deploy — pool spiked to 78%, reduced to free memory for new async workers"
+        # note: >
+        #   Pool reduced 3 minutes after the v3.7.2 deploy (19 min before
+        #   incident) as an immediate operational response to the pool spike.
+        #   Under incident load the pool hits 78% (117/150). Raising it back
+        #   to 200 looks like an obvious quick fix — but with 312 req/s and
+        #   2s timeout per request the demand is ~624 thread-seconds/s,
+        #   exceeding any pool size. NOT the root cause.
+      - key: payment_gateway_connect_timeout_ms
+        old_value: 5000
+        new_value: 5000
+        changed_by: no-change
+        changed_hours_before_incident: null
+        # note: >
+        #   Connect timeout unchanged at 5000ms. The socket READ timeout
+        #   is controlled by AsyncPaymentGatewayClient (introduced in v3.7.2)
+        #   and is hardcoded to 2000ms — not exposed as a config key yet.
+
+    logs:
+      - level: ERROR
+        message: "[payment-service] Payment gateway call to upstream timed out (attempt 1/2)"
+      - level: ERROR
+        message: "[payment-service] Payment gateway call to upstream timed out (attempt 2/2) — retry exhausted"
+      - level: ERROR
+        message: "[payment-service] POST /v1/charge → 504 Gateway Timeout (upstream: payment-gateway:443)"
+      - level: WARN
+        message: "[payment-service] P99 latency crossed 4000ms threshold — SLO breach imminent"
+      - level: WARN
+        message: "[payment-service] HTTP connection pool 78% utilised (117/150 threads waiting)"
+      - level: ERROR
+        message: "[payment-service] Checkout flow error: PaymentGatewayException: Read timed out"
+      - level: ERROR
+        message: "[payment-service] 5xx error rate: 23.2% (baseline <0.5%)"
+      - level: INFO
+        message: "[payment-service] Circuit breaker for payment-gateway: CLOSED (monitoring)"
+      - level: WARN
+        message: "[payment-service] retry_policy=payment_retry_on_timeout triggered 624 retries in last 60s"
+      - level: WARN
+        message: "[payment-service] Worker thread saturation: 117/150 threads occupied (max seen: 144/150)"
+      - level: INFO
+        message: "[payment-service] Feature flag payment_retry_on_timeout=enabled (rollout: 100%)"
+      - level: WARN
+        message: "[payment-service] JVM GC pause P99=487ms (baseline: 45ms)"
+
+    rollback:
+      from_version: "3.7.2"
+      to_version: "3.7.1"
+      message: >
+        Rollback of payment-service initiated: v3.7.2 → v3.7.1.
+        Expected recovery time: ~90s. Async client removed.
+
+  payment_db:
+    aliases: [payment-db, payments_db]
+
+    metrics:
+      latency_ms: { p50: 8.2, p95: 18.7, p99: 14.2 }
+      error_rate: 0.0002
+      requests_per_second: 2341.0
+      named:
+        lock_wait_count:
+          value: 2
+          unit: count/min
+          status: normal
+        deadlock_count:
+          value: 0
+          unit: count/15min
+          status: normal
+        active_connections:
+          value: 87
+          unit: connections
+          capacity: 100
+          status: warning
+        query_latency_p99:
+          value: 14.2
+          unit: ms
+          status: normal
+        replication_lag_ms:
+          value: 3.1
+          unit: ms
+          status: normal
+        cache_hit_ratio:
+          value: 0.9941
+          unit: ratio
+          status: normal
+
+    health:
+      status: degraded
+      uptime_percent: 100.0
+      error_rate_percent: 0.02
+      dependencies: {}
+      # note: >
+      #   Connection pool at 87% — elevated but not exhausted.
+      #   No blocking queries. DB is not root cause.
+
+    pg_stat_activity:
+      total_connections: 87
+      max_connections: 100
+      active_queries: 12
+      idle_connections: 71
+      waiting_queries: 0
+      blocking_queries: []
+      longest_running_query_seconds: 0.8
+      max_lock_wait_ms: 12.4
+      # conclusion: >
+      #   No blocking queries detected. All waits are I/O or client latency.
+      #   Database is not the root cause of the incident.
+
+    blocking:
+      blocking_pids: []
+      blocked_pids: []
+      deadlocks_last_hour: 0
+      lock_wait_count_last_hour: 2
+      # conclusion: "No blocking chain detected. 2 transient lock waits recorded — within normal range."
+
+    connection_pool:
+      pool_size: 100
+      active: 87
+      idle: 13
+      waiting: 0
+      utilisation_pct: 87.0
+      status: warning
+      # note: "Connection pool at 87% — elevated but not exhausted. Not a root cause."
+
+    deployments: []
+    logs:
+      - level: INFO
+        message: "[payment_db] All queries completing within normal latency bounds"
+      - level: WARN
+        message: "[payment_db] Connection pool utilisation at 87% — monitor closely"
+
+  # ---------------------------------------------------------------------------
+  # Benign services — healthy, included to simulate realistic SRE noise
+  # ---------------------------------------------------------------------------
+
+  auth-service:
+    aliases: [auth_service, authentication-service]
+
+    metrics:
+      latency_ms: { p50: 12.1, p95: 34.7, p99: 41.2 }
+      error_rate: 0.0003
+      requests_per_second: 1847.3
+
+    health:
+      status: healthy
+      uptime_percent: 100.0
+      error_rate_percent: 0.03
+      dependencies:
+        user-db: healthy
+        token-cache: healthy
+      # note: >
+      #   Operating normally. Slight increase in token validation calls (+8%)
+      #   consistent with payment checkout retries generating re-auth requests.
+      #   Not a contributing factor.
+
+    deployments:
+      - version: "2.1.0"
+        status: success
+        deployed_days_before_incident: 3
+        deployed_by: ci/cd-pipeline
+        commit_sha: f4d1a22
+        commit_message: "feat(auth): refresh token rotation hardening"
+        overlap_with_incident: false
+
+    logs:
+      - level: INFO
+        message: "[auth-service] Token validation latency p99=41ms — within SLO"
+      - level: INFO
+        message: "[auth-service] Session cache hit rate: 97.4%"
+      - level: INFO
+        message: "[auth-service] No authentication errors in last 10 minutes"
+
+  api-gateway:
+    aliases: [gateway, ingress]
+
+    metrics:
+      latency_ms: { p50: 4.3, p95: 9.1, p99: 11.8 }
+      error_rate: 0.231
+      requests_per_second: 4823.0
+
+    health:
+      status: degraded
+      uptime_percent: 100.0
+      error_rate_percent: 23.1
+      dependencies:
+        payment-service: critical
+        auth-service: healthy
+        inventory-service: healthy
+      # note: >
+      #   Gateway itself is healthy. The 23.1% error rate is entirely composed
+      #   of 504s forwarded from payment-service — not an independent failure.
+      #   All other upstream services respond normally.
+
+    deployments:
+      - version: "5.3.1"
+        status: success
+        deployed_days_before_incident: 7
+        deployed_by: ci/cd-pipeline
+        commit_sha: e9b3c55
+        commit_message: "chore: update TLS certificates, no routing changes"
+        overlap_with_incident: false
+
+    logs:
+      - level: ERROR
+        message: "[api-gateway] Upstream payment-service returned 504 — forwarding to client"
+      - level: INFO
+        message: "[api-gateway] Route /api/checkout → payment-service: 23.1% error rate (upstream issue)"
+      - level: INFO
+        message: "[api-gateway] All other routes nominal — auth, inventory, catalog healthy"
+      - level: INFO
+        message: "[api-gateway] Circuit breaker for payment-service: CLOSED (threshold not yet reached)"
+
+  inventory-service:
+    aliases: [inventory, catalog-inventory]
+
+    metrics:
+      latency_ms: { p50: 28.4, p95: 87.3, p99: 134.6 }
+      error_rate: 0.0008
+      requests_per_second: 612.1
+
+    health:
+      status: healthy
+      uptime_percent: 99.98
+      error_rate_percent: 0.08
+      dependencies:
+        inventory-db: healthy
+      # note: >
+      #   Slightly elevated P99 latency (134ms vs baseline 90ms) due to a
+      #   scheduled batch re-index job running since 14:15. Job completes
+      #   at 14:45. No customer impact. Completely unrelated to payment incident.
+
+    deployments:
+      - version: "1.9.4"
+        status: success
+        deployed_days_before_incident: 12
+        deployed_by: ci/cd-pipeline
+        commit_sha: d7e2b91
+        commit_message: "perf: lazy-load product images in listing API"
+        overlap_with_incident: false
+
+    logs:
+      - level: WARN
+        message: "[inventory-service] Batch re-index job in progress — P99 latency elevated to 134ms (expected)"
+      - level: INFO
+        message: "[inventory-service] Re-index ETA: 14:45 — 28 minutes remaining"
+      - level: INFO
+        message: "[inventory-service] No errors. All product queries completing successfully."
+
+  notification-service:
+    aliases: [notifications, notif-service]
+
+    metrics:
+      latency_ms: { p50: 43.2, p95: 180.4, p99: 312.7 }
+      error_rate: 0.0011
+      requests_per_second: 88.3
+      named:
+        heap_used_pct:
+          value: 91.4
+          unit: percent
+          status: warning
+          # note: >
+          #   Heap at 91.4% (1.83 GB / 2.0 GB limit). Exceeds the automatic
+          #   liveness-probe restart threshold of 90%. Pod should have restarted
+          #   already — restart is being delayed because the probe grace period
+          #   is 5 minutes and the threshold was crossed only 3 minutes ago.
+          #   A manual restart would clear the heap immediately with ~5s
+          #   downtime and no message loss (queue-backed delivery).
+
+    health:
+      status: healthy
+      uptime_percent: 99.95
+      error_rate_percent: 0.11
+      dependencies:
+        smtp-relay: healthy
+        sms-provider: healthy
+      # note: >
+      #   Memory usage critical at 91.4% (1.83 GB / 2 GB limit). The slow
+      #   heap leak tracked in INFRA-4821 (open since January 10) has
+      #   accelerated slightly due to higher notification volume from payment
+      #   checkout retries. Pod is within 2 minutes of an automatic liveness
+      #   restart — a manual restart now would be less disruptive.
+      #   Service is otherwise functional: delivery rates normal.
+      #   Completely unrelated to the payment-service incident.
+
+    logs:
+      - level: WARN
+        message: "[notification-service] JVM heap utilisation: 91.4% (1.83 GB / 2.0 GB) — approaching liveness restart threshold (INFRA-4821)"
+      - level: WARN
+        message: "[notification-service] Heap growth rate: +4.2 MB/min over last 30 min — leak accelerating (baseline: +1.1 MB/min)"
+      - level: INFO
+        message: "[notification-service] Liveness probe: heap threshold=90%, current=91.4% — restart pending (grace_period=5min, elapsed=3min)"
+      - level: INFO
+        message: "[notification-service] Email delivery: 99.2% success rate over last hour"
+      - level: INFO
+        message: "[notification-service] SMS queue depth: 12 (normal)"
+
+    deployments:
+      - version: "3.2.1"
+        status: success
+        deployed_days_before_incident: 8
+        deployed_by: ci/cd-pipeline
+        commit_sha: a1c9d44
+        commit_message: "feat(notif): add retry receipts for failed SMS delivery"
+        overlap_with_incident: false
+
+    rollback:
+      from_version: "3.2.1"
+      to_version: "3.2.1"
+      message: >
+        Restart of notification-service initiated (no version change).
+        Expected recovery time: ~5s. Heap cleared on pod restart.
+        No message loss — delivery queue is persistent.
+
+  payment-gateway-cache:
+    aliases: [gateway-cache, pgw-redis]
+
+    metrics:
+      latency_ms: { p50: 0.9, p95: 8.4, p99: 11.2 }
+      hit_rate: 0.987
+      requests_per_second: 941.0
+
+    health:
+      status: healthy
+      uptime_percent: 100.0
+      # note: >
+      #   Redis cache for payment-gateway rate-limit counters. P95 latency
+      #   briefly spiked to 8ms (from baseline 1ms) at 14:08 due to a
+      #   periodic AOF rewrite (every 6h). Spike lasted 4 seconds. Fully
+      #   resolved. This is normal operational behaviour and predates the
+      #   incident by 22 minutes — not a contributing factor.
+
+    logs:
+      - level: INFO
+        message: "[payment-gateway-cache] AOF rewrite completed in 3.8s — latency spike was transient"
+      - level: INFO
+        message: "[payment-gateway-cache] Cache hit rate: 98.7% — all rate-limit lookups nominal"
+      - level: INFO
+        message: "[payment-gateway-cache] Memory utilisation: 41% (410 MB / 1 GB)"

@@ -1,0 +1,97 @@
+id: routing-policy-scale-up
+description: >
+  Edge gateway is overloaded during a regional traffic surge; policy evaluation
+  is correct but current replica count cannot sustain route computation demand.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: edge-gateway
+  action: scale_up
+  reasoning: >
+    CPU saturation, worker backlog, and request growth point to a capacity event.
+    Policy behavior is logically correct and no recent rollout correlates with
+    onset, so scaling up edge-gateway is the right immediate mitigation.
+source_evidence:
+  - source: envoy_circuit_breaking
+    url: https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/circuit_breaking
+    facts:
+      - Edge proxies under sustained load need capacity headroom to keep request classification stable.
+      - Overload should be handled by capacity or load-shedding, not by reverting healthy config.
+  - source: kubernetes_observability
+    url: https://kubernetes.io/blog/2018/08/03/out-of-the-clouds-into-the-ground-how-to-make-your-kubernetes-cluster-observable/
+    facts:
+      - CPU, queue depth, and per-pod saturation signals differentiate overload from misconfiguration.
+observed_symptoms:
+  - Requests surged 8x during a partner failover event and remained elevated for 18 minutes.
+  - Route selection remains correct in successful requests, but p95 latency climbs as edge-gateway queues build.
+  - No new deploy or control-plane diff is present during incident start.
+services:
+  edge-gateway:
+    aliases: [edge_gateway, routing-gateway]
+    metrics:
+      latency_ms: { p50: 520.0, p95: 1840.0, p99: 2970.0 }
+      error_rate: 0.063
+      requests_per_second: 1940.0
+      named:
+        cpu_utilization:
+          value: 0.97
+          unit: ratio
+          status: critical
+        active_workers:
+          value: 186
+          unit: workers
+          status: critical
+        request_queue_depth:
+          value: 744
+          unit: requests
+          status: critical
+        rule_eval_p95_us:
+          value: 18200
+          unit: microseconds
+          status: warning
+    health:
+      status: critical
+      uptime_percent: 99.8
+      error_rate_percent: 6.3
+      dependencies:
+        routing-control-plane: healthy
+        policy-cache: healthy
+    deployments:
+      - version: "2.18.3"
+        status: success
+        deployed_days_before_incident: 5
+        deployed_by: ci/cd-pipeline
+        commit_sha: 6ab4c91
+        commit_message: "feat(edge): reorder route precedence evaluation for tenant policy bundles"
+        duration_seconds: 102
+        overlap_with_incident: false
+      - version: "2.18.2"
+        status: success
+        deployed_days_before_incident: 8
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(edge): stabilize route precedence across canary regions"
+        duration_seconds: 88
+        overlap_with_incident: false
+    logs:
+      - level: WARN
+        message: "[edge-gateway] Worker queue sustained above 700 for 11m during partner ingress burst"
+      - level: WARN
+        message: "[edge-gateway] CPU 97% on all replicas; route correctness checks still passing"
+      - level: INFO
+        message: "[edge-gateway] No config version change detected near overload onset"
+    rollback:
+      from_version: "2.18.3"
+      to_version: "2.18.2"
+      message: "Rollback available, but present signals show healthy config and insufficient capacity."
+
+  routing-control-plane:
+    aliases: [routing_control_plane]
+    metrics:
+      latency_ms: { p50: 23.0, p95: 59.0, p99: 95.0 }
+      error_rate: 0.001
+      requests_per_second: 42.0
+    health:
+      status: healthy
+      uptime_percent: 99.99
+      error_rate_percent: 0.1
+      dependencies: {}

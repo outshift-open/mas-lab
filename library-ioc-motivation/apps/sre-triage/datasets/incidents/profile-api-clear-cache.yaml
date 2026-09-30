@@ -1,0 +1,141 @@
+id: profile-api-clear-cache
+description: >
+  Profile API is serving mixed-schema cached documents after a partial cache
+  migration, while origin reads remain healthy.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: profile-service
+  action: clear_cache
+  reasoning: >
+    The failure is isolated to stale cached profile objects that were written
+    before the schema migration completed. Origin reads are healthy, deployment
+    health is stable, and clearing the cache will force repopulation with the
+    current schema without rolling back working code.
+source_evidence:
+  - source: redis_distributed_locks
+    url: https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/
+    facts:
+      - Lock ownership and TTL matter when only one refresher should rebuild a hot key.
+      - Retry/reacquire behavior affects how quickly a stale key can be repopulated under contention.
+  - source: nginx_thundering_herd
+    url: https://blog.nginx.org/blog/mitigating-thundering-herd-problem-pbs-nginx
+    facts:
+      - Stale cache can keep user-facing responses available while hiding incorrect backend state.
+      - Pre-warming or controlled repopulation helps avoid the initial burst when keys are refreshed.
+observed_symptoms:
+  - Only cached profiles fail JSON decoding; uncached profiles render correctly.
+  - Errors cluster on long-tail keys that were not repopulated since the schema change.
+  - Backend load is moderate, not consistent with a capacity or crash event.
+services:
+  profile-service:
+    aliases: [profile_service, profile-api]
+    metrics:
+      latency_ms: { p50: 340.0, p95: 1120.0, p99: 1910.0 }
+      error_rate: 0.083
+      requests_per_second: 214.0
+      named:
+        cache_hit_ratio:
+          value: 0.88
+          unit: ratio
+          status: normal
+        stale_schema_objects:
+          value: 12844
+          unit: objects
+          status: critical
+        cache_refresh_inflight:
+          value: 6
+          unit: workers
+          status: normal
+        origin_read_success_rate:
+          value: 0.998
+          unit: ratio
+          status: normal
+    health:
+      status: critical
+      uptime_percent: 99.8
+      error_rate_percent: 8.3
+      dependencies:
+        profile-cache: critical
+        user-db: healthy
+        edge-cache: degraded
+    deployments:
+      - version: "5.2.4"
+        status: success
+        deployed_hours_before_incident: 9
+        deployed_by: ci/cd-pipeline
+        commit_sha: a17c90d
+        commit_message: "feat(profile): namespace cache keys by schema version"
+        duration_seconds: 96
+        overlap_with_incident: false
+      - version: "5.2.3"
+        status: success
+        deployed_days_before_incident: 2
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(profile): stabilize cache hydration"
+        duration_seconds: 89
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[profile-service] Deserialization error for cache key profile:v3:user:18842: missing field visibility_rules"
+      - level: WARN
+        message: "[profile-service] Cached object checksum version=v2 served from stale layer for /profiles/18842"
+      - level: INFO
+        message: "[profile-service] Origin fetch for user 18842 succeeded in 42ms after cache bypass"
+      - level: INFO
+        message: "[profile-service] Cache purge dry-run estimates 12.8k stale objects with current schema mismatch"
+    feature_flags:
+      edge_stale_profiles:
+        enabled: true
+        rollout_percent: 100
+        enabled_since_days_before_incident: 14
+        changed_by: sre-team
+      profile_schema_v3_reader:
+        enabled: true
+        rollout_percent: 100
+        enabled_since_hours_before_incident: 9
+        changed_by: ci/cd-pipeline
+    config_changes:
+      - key: profile_cache_backfill_job
+        old_value: disabled
+        new_value: enabled
+        changed_by: data-platform
+        changed_minutes_before_incident: 43
+        reason: "Background backfill stopped midway, leaving mixed object versions in cache"
+      - key: profile_cache_prewarm_enabled
+        old_value: false
+        new_value: false
+        changed_by: no-change
+        changed_hours_before_incident: null
+    rollback:
+      from_version: "5.2.4"
+      to_version: "5.2.3"
+      message: "Rollback available, but cache purge addresses the currently observed fault."
+
+  profile-cache:
+    aliases: [profile_cache, redis-profile]
+    metrics:
+      latency_ms: { p50: 2.4, p95: 7.9, p99: 18.6 }
+      error_rate: 0.0011
+      requests_per_second: 3980.0
+      named:
+        keyspace_hit_ratio:
+          value: 0.91
+          unit: ratio
+          status: normal
+        stale_key_population:
+          value: 12844
+          unit: objects
+          status: critical
+        lock_wait_p95_ms:
+          value: 11
+          unit: ms
+          status: normal
+    health:
+      status: critical
+      uptime_percent: 99.99
+      error_rate_percent: 0.11
+      dependencies: {}
+    logs:
+      - level: WARN
+        message: "[profile-cache] 12.8k profile:v2 objects remain after schema migration; purge recommended before next warmup"

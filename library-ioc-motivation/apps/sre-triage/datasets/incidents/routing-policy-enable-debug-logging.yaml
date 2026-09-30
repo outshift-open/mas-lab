@@ -1,0 +1,93 @@
+id: routing-policy-enable-debug-logging
+description: >
+  Edge gateway is showing intermittent rule precedence anomalies across regions,
+  but current telemetry cannot distinguish stale cache, control snapshot lag, or
+  a tenant-specific policy-compiler defect.
+timestamp: "2026-07-22T09:00:00"
+correct_action:
+  service: edge-gateway
+  action: enable_debug_logging
+  reasoning: >
+    Signals are contradictory and no single causal path dominates. Enable targeted
+    debug logging for rule-graph IDs, policy snapshot versions, and cache-generation
+    markers before taking a disruptive action like rollback or restart.
+source_evidence:
+  - source: envoy_circuit_breaking
+    url: https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/circuit_breaking
+    facts:
+      - Ambiguous edge-policy failures require per-request decision traces to classify safely.
+  - source: kubernetes_observability
+    url: https://kubernetes.io/blog/2018/08/03/out-of-the-clouds-into-the-ground-how-to-make-your-kubernetes-cluster-observable/
+    facts:
+      - Lacking request-level provenance makes aggregate metrics insufficient for remediation choice.
+observed_symptoms:
+  - Some failed requests carry stale cache signatures while others show fresh snapshots but wrong tenant rule selection.
+  - Error clusters move between regions without a single rollout or pod pattern.
+  - Current logs do not record policy-graph node IDs or cache-generation lineage.
+services:
+  edge-gateway:
+    aliases: [edge_gateway, routing-gateway]
+    metrics:
+      latency_ms: { p50: 470.0, p95: 1510.0, p99: 2460.0 }
+      error_rate: 0.072
+      requests_per_second: 238.0
+      named:
+        ambiguous_rule_failures:
+          value: 0.61
+          unit: ratio
+          status: critical
+        request_decision_trace_enabled:
+          value: 0
+          unit: boolean
+          status: critical
+        cache_generation_logged:
+          value: 0
+          unit: boolean
+          status: critical
+    health:
+      status: degraded
+      uptime_percent: 99.8
+      error_rate_percent: 7.2
+      dependencies:
+        routing-control-plane: healthy
+        policy-cache: degraded
+    deployments:
+      - version: "2.18.3"
+        status: success
+        deployed_hours_before_incident: 11
+        deployed_by: ci/cd-pipeline
+        commit_sha: 6ab4c91
+        commit_message: "feat(edge): reorder route precedence evaluation for tenant policy bundles"
+        duration_seconds: 102
+        overlap_with_incident: false
+      - version: "2.18.2"
+        status: success
+        deployed_days_before_incident: 4
+        deployed_by: ci/cd-pipeline
+        commit_sha: b42de71
+        commit_message: "fix(edge): stabilize route precedence across canary regions"
+        duration_seconds: 88
+        overlap_with_incident: false
+    logs:
+      - level: ERROR
+        message: "[edge-gateway] Policy decision failed: missing rule graph context in error payload"
+      - level: WARN
+        message: "[edge-gateway] Snapshot version and cache generation not emitted for precedence mismatches"
+      - level: INFO
+        message: "[edge-gateway] Control-plane health stable; need request-level decision lineage"
+    rollback:
+      from_version: "2.18.3"
+      to_version: "2.18.2"
+      message: "Rollback exists, but evidence is insufficient to justify it yet."
+
+  routing-control-plane:
+    aliases: [routing_control_plane]
+    metrics:
+      latency_ms: { p50: 24.0, p95: 58.0, p99: 94.0 }
+      error_rate: 0.001
+      requests_per_second: 41.0
+    health:
+      status: healthy
+      uptime_percent: 99.99
+      error_rate_percent: 0.1
+      dependencies: {}

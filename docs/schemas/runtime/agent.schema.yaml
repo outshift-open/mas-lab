@@ -56,6 +56,9 @@ properties:
     type: object
     required: [description]
     additionalProperties: false
+    patternProperties:
+      "^x-":
+        description: "Extension properties (UI metadata, test inputs, etc.) — ignored by the runtime."
     properties:
       context:
         type: object

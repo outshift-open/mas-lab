@@ -1,0 +1,57 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# IoC challenge reproduction heatmap — correct wording + cleaner layout for the
+# ioc-motivation pipelines (the generic `ablation_heatmap` preset is labelled for a
+# different amplify/mitigate study; this one matches our baseline-vs-overlay semantics).
+plot:
+  name: ioc_reproduction_heatmap
+  type: heatmap
+  # Single-line title (the renderer draws `subtitle` on top of the title, so we fold the
+  # explanation into the title and leave subtitle empty to avoid the overlap).
+  title: "IoC reproduction — Δ failure rate (overlay − baseline), per challenge × metric"
+  subtitle: ""
+  description: >
+    Per (challenge × cognitive metric): the change in LLM-judge failure rate between the
+    challenge overlay and the no-overlay baseline. Positive (green) = the overlay fails the
+    metric MORE than baseline (the challenge reproduced a degradation); 0 (pale) = no change;
+    negative (red) = the overlay failed it LESS than baseline (noise / saturated baseline).
+
+  data:
+    key: ablation_matrix          # list[{challenge, dimension, delta}]
+    x: dimension                  # columns = cognitive metric
+    y: challenge                  # rows = challenge
+    value: delta                  # cell = overlay − baseline failure rate
+
+  marks:
+    - type: heatmap_cell
+      annotate: true
+      annotation_format: "+.0%"     # deltas are fractions of runs → show as whole percent
+      annotation_fontsize: 9
+
+  scales:
+    color:
+      type: diverging
+      palette: RdYlGn             # green = reproduced (higher failure), red = overlay improved
+      domain: [-1, 1]
+      center: 0
+    x:
+      label: "Cognitive metric"
+    y:
+      label: "Challenge"
+      sort_by: challenge_id
+
+  aesthetics:
+    linewidth: 0.6
+    linecolor: "#ffffff"
+
+  layout:
+    width:  1100                  # wide enough for the 13 rotated metric labels
+    height: 420
+    colorbar: true
+    colorbar_percent: true          # render colorbar ticks as whole percent (matches cell labels)
+    colorbar_label: "Δ failure rate, percentage points (overlay − baseline)"
+    margin: {left: 150, right: 90, top: 60, bottom: 150}
+
+  output:
+    format: svg
+    dpi: 150

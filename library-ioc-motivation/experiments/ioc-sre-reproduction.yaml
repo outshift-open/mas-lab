@@ -1,0 +1,76 @@
+experiment:
+  name: ioc-sre-reproduction
+  description: Centralized (sre-orchestrator) reproduction. baseline + CC-1/CC-3/CR-1/DR-1/DC-2/CE-1/DC-4/DE-1 overlays on
+    sre-triage over the incident seed query, N reps.
+  applications:
+    - manifest: apps/sre-triage/mas.yaml
+  scenarios:
+    - id: baseline
+      overlays:
+        logic:
+          - ref: apps/sre-triage/overlays/baseline.yaml
+        control: []
+        infra: []
+    - id: CC-1-assignment
+      overlays:
+        logic:
+          - ref: apps/sre-triage/overlays/CC-1-assignment.yaml
+        control: []
+        infra: []
+    - id: CC-3-conflict-handling
+      overlays:
+        logic:
+          - ref: apps/sre-triage/overlays/CC-3-conflict-handling.yaml
+        control: []
+        infra: []
+    - id: CR-1-divergent-goal
+      overlays:
+        logic:
+          - ref: apps/sre-triage/overlays/CR-1-divergent-goal.yaml
+        control: []
+        infra: []
+    - id: DR-1-semantic-mismatch
+      overlays:
+        logic:
+          - ref: apps/sre-triage/overlays/DR-1-semantic-mismatch.yaml
+        control: []
+        infra: []
+    - id: DC-2-UR-under-reading
+      overlays:
+        logic:
+          - ref: apps/sre-triage/overlays/DC-2-UR-under-reading.yaml
+        control: []
+        infra: []
+    - id: CE-1-missing-evidence
+      overlays:
+        logic:
+          - ref: apps/sre-triage/overlays/CE-1-missing-evidence.yaml
+        control: []
+        infra: []
+    - id: DC-4-co-withholding
+      overlays:
+        logic:
+          - ref: apps/sre-triage/overlays/DC-4-co-withholding.yaml
+        control: []
+        infra: []
+    - id: DE-1-mr-knowledge-gap-catalog
+      overlays:
+        logic:
+          - ref: apps/sre-triage/overlays/DE-1-mr-knowledge-gap-catalog.yaml
+        control: []
+        infra: []
+  dataset:
+    path: datasets/sre-queries.yaml
+  run:
+    n_runs: 25
+  execution:
+    parallel_scenarios: 3
+    timeout: 600
+    pause_between_runs: 1
+    strategy: coverage
+    emulation:
+      infra:
+        llm: live
+        tools: live
+      runtime:
+        cache: content-addressed
