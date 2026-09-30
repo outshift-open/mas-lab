@@ -104,7 +104,7 @@ For one-off overrides (CI): `docker compose --env-file /path/to/secrets.env up`.
 
 ## Run modes
 
-The backend image installs all CLIs (`mas-lab`, `mas-runtime`, `mas-ctl`).
+The backend image installs the `mas-lab` and `mas-ctl` CLIs.
 
 ### Controller + UI (default)
 
@@ -118,18 +118,28 @@ Use `docker compose run` with the `tools` profile (or `run backend` with an
 explicit command — both share the same image and mounts):
 
 ```bash
-# Benchmark
+# Show effective config / paths
 docker compose run --rm cli mas-lab config
-docker compose run --rm cli mas-lab benchmark run \
-  labs/design-space.lab/experiments/react-vs-cot.yaml --progress
 
-# Single agent
-docker compose run --rm cli mas-runtime run-agent \
-  trash/agents/simple_qa_agent.yaml -q "Hello"
+# Benchmark (batch experiment)
+docker compose run --rm cli mas-lab benchmark run \
+  labs/design-space.lab/01-design-patterns/experiment.yaml --progress
+
+# Single agent conversation
+docker compose run --rm cli mas-ctl chat \
+  library-samples/apps/qa-mas/agents/qa-agent.yaml -q "Hello"
 
 # MAS orchestration
-docker compose run --rm cli mas-ctl run-mas path/to/mas.yaml -q "Hello"
+docker compose run --rm cli mas-ctl run-mas \
+  library-samples/apps/qa-mas/mas.yaml -q "Hello"
+
+# Validate manifests
+docker compose run --rm cli mas-ctl validate \
+  library-ioc-motivation/apps/sre-triage/mas.yaml
 ```
+
+Paths are relative to the repo root (mounted at `/workspace`). Use an
+absolute `/workspace/...` path to be explicit about hitting the live mount.
 
 Equivalent without the `cli` service:
 

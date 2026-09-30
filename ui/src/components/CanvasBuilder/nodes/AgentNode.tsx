@@ -4,6 +4,20 @@ import { Handle, Position, NodeResizer, type NodeProps } from "@xyflow/react";
 import { useCallback, useState, type ChangeEvent } from "react";
 import { AGENT_OUTPUT_HANDLE, type AgentNodeType } from "../types";
 
+/**
+ * Context values are usually plain strings, but some (e.g. ``role``) are ref
+ * objects like ``{ ref: "prompts/sre/1.2.0.md" }``. Render those as their ref
+ * path instead of the default ``[object Object]`` string coercion.
+ */
+function contextValueToText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value == null) return "";
+  if (typeof value === "object" && "ref" in (value as object)) {
+    return String((value as { ref: unknown }).ref);
+  }
+  return JSON.stringify(value);
+}
+
 export function AgentNode({ data, selected }: NodeProps<AgentNodeType>) {
   const [newKey, setNewKey] = useState("");
 
@@ -114,7 +128,7 @@ export function AgentNode({ data, selected }: NodeProps<AgentNodeType>) {
               </div>
               <textarea
                 className="canvas-node__input nodrag agent-node__context-value"
-                value={value}
+                value={contextValueToText(value)}
                 onChange={(e) => handleContextValueChange(key, e.target.value)}
                 rows={2}
               />
