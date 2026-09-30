@@ -105,7 +105,7 @@ how it is invoked:
 |-------|--------|
 | `url` / `endpoint`, `transport`, `command` / `args` / `env` / `cwd` | Infra tool server |
 | HTTP `headers` (secrets: `env:VAR`; omit when unused) | Infra tool server |
-| Connection `timeout` | Infra tool server (also allowed on `providers[]`) |
+| Connection `timeout` | Infra tool server |
 | `follow_pagination` (flatten `nextCursor`; default `true`) | Infra tool server |
 | `cache_ttl_ms` / `cache_scope` (list-result cache policy) | Infra tool server |
 
@@ -116,9 +116,9 @@ Reference: [infra.md — ToolServerRegistry](../manifests/infra.md#toolserverreg
 [tool-server-registry.md](tool-server-registry.md).
 Example: [`library-samples/infra/mcp-localhost.yaml`](../../library-samples/infra/mcp-localhost.yaml).
 
-Agent `spec.providers[]` names the plugin (`kind`) and the claim
-(`tools: "*"` or an explicit list). Overlay `providers[]` may also set
-`url`; when both overlay and infra set a key, the overlay value is used.
+The agent spec does not declare tool providers. The infra tool-server entry
+declares `protocol: mcp`; the runtime discovers the tool names from the server
+unless infra supplies an explicit `tools` list.
 
 ---
 

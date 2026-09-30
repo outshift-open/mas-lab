@@ -37,6 +37,11 @@ tasks:
       - uv pip install -e "library-skills[all]"
       - uv pip install pytest pytest-asyncio pytest-cov pytest-timeout import-linter pyyaml click python-dotenv jsonschema httpx httpx2 certifi truststore pyarrow opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
 
+  mcp-conformance:
+    desc: "Compatibility alias for the standalone MCP compliance workflow"
+    cmds:
+      - task --dir compliance check
+
   install-lab:
     desc: "Install a lab's optional deps into a dedicated venv: task install-lab LAB=labs/extensions.lab"
     summary: |

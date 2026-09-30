@@ -116,7 +116,7 @@ spec:
 | Context window | `context_manager` | default `summarising` (last `keep_turns` verbatim; `summarizer: llm` or `drop`; optional cheaper summary model) / sliding-window / stack — [summarization.md](summarization.md) · [context-assembly.md](context-assembly.md) |
 | Prompt / role | `description`, `context` | `description` → delegation tools; `context.*` → system prompt |
 | Models | `models[]` | LLM routing (ids, temperature, max_tokens completion, context_window, [reasoning / thinking](llm-reasoning.md)). Unbound ids inherit MAS / `experiment.models.<id>`. Summarizer/judge slots default the summary and MCE calls — [summarization.md](summarization.md) |
-| Tools | `tools`, `tools_ref`, `providers` | [ToolContract](../references/tool-contract.md) · [tool.md](tool.md) · [ToolServerRegistry](../references/tool-server-registry.md) |
+| Tools | `tools`, `tools_ref` | [ToolContract](../references/tool-contract.md) · [tool.md](tool.md) · [ToolServerRegistry](../references/tool-server-registry.md) |
 | Skills | `skills` | Context facet (catalog) + `activate_skill`/`read_skill_file` tools |
 | Memory | `memory`, `memory_seed` | Stores + startup seeds |
 | Working memory | `working_memory.persistent` | Cross-turn buffer survives repeat delegate calls within one session (default `true`) — see below |
@@ -223,7 +223,7 @@ Example: [summarizer-override](../../library-standard/examples/context/summarize
 ## Model providers
 
 `spec.models[]` claims **which** wire-protocol plugin owns **which** model
-name — the same procedure as `spec.providers[]` for tools. `kind` is the
+name. `kind` is the
 protocol (`openai` now; `bedrock` later). Connection `api_base` / `api_key_env`
 belong on infra (`LLMProxy` / `spec.protocol`). With no `kind`, the library
 default (`openai`) or infra `spec.protocol` owns every model.
@@ -249,25 +249,32 @@ maxima and allowed settings: [llm-model-catalog.md](llm-model-catalog.md).
 
 ## Tool providers
 
-`spec.providers[]` claims **which** plugin owns **which** names. Invocation is
-[`call_tool(name, arguments)`](../references/tool-contract.md). Optional
-advertise fields live on [`kind: Tool`](tool.md).
+The preferred shape is: the agent spec stays declarative and infrastructure owns
+transport details. Remote connection policy belongs on infra
+[`ToolServerRegistry`](../references/tool-server-registry.md), not in
+`spec.providers[]`.
 
-Connection URL, transport, headers, pagination, and list-cache policy belong
-on infra [`ToolServerRegistry`](../references/tool-server-registry.md). Match
-`providers[].name` to `tool_servers[].id`. Overlay `providers[]` may set
-`url`; when both overlay and infra set a key, the overlay value is used.
+The runtime still routes on tool names and arguments via
+[`call_tool(name, arguments)`](../references/tool-contract.md), but the
+connection-specific data is resolved from infra: URL, transport, timeout,
+headers, pagination, list-cache policy, and protocol metadata such as `mcp`.
 
 ```yaml
-providers:
-  - name: localhost-mcp-tools   # matches infra tool_servers[].id
-    kind: mcp
-    tools: "*"                  # discover at runtime init
+# preferred: the agent stays stable; only infra changes
+apiVersion: infra/v1
+kind: ToolServerRegistry
+spec:
+  tool_servers:
+    - id: localhost-mcp-tools
+      protocol: mcp
+      transport: streamable-http
+      url: http://127.0.0.1:9001/mcp
 ```
 
-With no `providers`, the default local plugin owns `spec.tools`. Once any
-external plugin is present, unclaimed names are an error unless reintroduced
-with `kind: local`.
+The runtime's local provider handles local tools by default, without a provider
+patch on the agent manifest. Remote MCP endpoints are resolved from infra.
+Agent and overlay schemas reject `providers[]`; provider connection details
+belong in infra.
 
 ---
 

@@ -29,7 +29,7 @@ application service URLs, OTel/collector endpoints.
 | `LLMProxy` | OpenAI-compatible proxy URL, model catalogue, defaults |
 | `LLMLocal` | Local inference (e.g. Ollama) |
 | `ToolRegistry` | Map logical tool-set ids → JSON tool index paths |
-| `ToolServerRegistry` | Remote tool-server endpoints (URL, transport, headers, timeouts) |
+| `ToolServerRegistry` | MCP endpoint for consuming/deploying, or local tool/skill paths (`protocol: local`) |
 | `ToolProvider` | Semantic name → in-process implementation binding |
 | `PersonalSecrets` | Logical token id → env var (gitignored) |
 | `Application` | Named service endpoints |
@@ -100,10 +100,31 @@ multiple middleware refs, **first merged ref = outermost**. See
 
 ---
 
+## Local tool source
+
+`standard:local-tools` is implicitly merged into infra for every run. It
+provides `tools_dir: tools` and `skills_dir: skills`, relative to the app root.
+Override either path with another `ToolServerRegistry` entry using
+`protocol: local`. A consumed MCP `usage: use` dependency replaces the implicit
+local provider. Add an explicit local `tools` claim to keep both.
+
+```yaml
+apiVersion: infra/v1
+kind: ToolServerRegistry
+metadata:
+  name: local-tools
+spec:
+  tool_servers:
+    - id: local
+      protocol: local
+      tools_dir: tools
+      skills_dir: skills
+```
+
 ## ToolServerRegistry
 
 **Where** a remote tool process lives. Not the tool's advertise contract
-([tool.md](tool.md)) and not which names an agent claims (`spec.providers[]`).
+([tool.md](tool.md)); the agent manifest does not declare tool providers.
 
 **Full field reference:** [tool-server-registry.md](../references/tool-server-registry.md).
 Schema fragment: [`infra-tool-server.schema.yaml`](../schemas/runtime/fragments/infra-tool-server.schema.yaml).
@@ -116,6 +137,8 @@ metadata:
 spec:
   tool_servers:
     - id: localhost-mcp-tools
+      protocol: mcp
+      usage: use
       transport: streamable-http
       url: http://127.0.0.1:9001/mcp
       timeout: 30
@@ -126,27 +149,31 @@ spec:
 ```
 
 Canonical sample: [`library-samples/infra/mcp-localhost.yaml`](../../library-samples/infra/mcp-localhost.yaml)
-(defaults listed explicitly so the file is a reference, not a stub).
+(only required connection fields; runtime defaults supply optional policy).
 
 | Field | Default | Meaning |
 |-------|---------|---------|
-| `id` | required | Match overlay `providers[].name` |
+| `id` | required | Stable infra key for the remote tool server |
+| `protocol` | required | `mcp` for MCP servers |
+| `usage` | `use` | `use`, `deploy`, or `use-and-deploy` |
 | `transport` | `streamable-http` | `stdio` \| `streamable-http` \| `sse` \| `http` |
 | `url` / `endpoint` | — | HTTP/SSE URL (manifest). Optional override `env:VAR\|default` |
+| `host` / `port` | `127.0.0.1:9001` | Listener address for `usage: deploy` |
+| `tools_dir` | `tools` | Tool manifests served when deploying locally |
 | `command` / `args` / `env` / `cwd` | — | stdio process |
 | `headers` | `{}` | Omit unless auth is needed. Secrets: `env:VAR` (unset omits the header) |
 | `timeout` | `30` | Per-call timeout (seconds) |
 | `follow_pagination` | `true` | Walk MCP `nextCursor` and flatten |
 | `cache_ttl_ms` | omit | Client list-cache TTL in ms (`0` disables; omit caches until invalidate) |
 | `cache_scope` | omit | `public` \| `private` (private keys the list cache by user) |
+| `tools` | `"*"` | Discover all names, or declare an explicit list in infra |
 
 `--infra-ref` loads this document into `ResolvedInfra.tool_server_registry`.
-Unset connection keys on `providers[]` are filled from the matching `id`.
-Overlay `providers[]` may set `url`; when both overlay and infra set a key,
-the overlay value is used. Prefer infra for shared endpoints.
+`usage: use` connects to a remote endpoint; `usage: deploy` starts the local
+server; `use-and-deploy` does both. The runtime discovers names advertised by
+MCP unless `tools` is set.
 
-Pair with [`library-samples/overlays/mcp-localhost.yaml`](../../library-samples/overlays/mcp-localhost.yaml)
-(`kind: mcp`, `tools: "*"`).
+For explicit local in-process bindings, see [`library-samples/infra/tool-providers.yaml`](../../library-samples/infra/tool-providers.yaml).
 
 ---
 

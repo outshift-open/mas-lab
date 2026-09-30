@@ -2,17 +2,15 @@
 
 MCP (Model Context Protocol) client and server bridge for MAS Lab.
 
-Agents keep the same tool names and arguments. Generic runtime routing is a
-name → provider registry. Local is the default plugin. Once an
-external plugin (MCP) is present, names must be claimed (`tools: "*"`
-registers the provider then discovers names at runtime init, or an explicit
-list) or reintroduced with `kind: local`. Unclaimed names error. Explicit
-claims beat discovery. Star claims always pass `mas-ctl validate`. Two `*`
-plugins advertising the same name is an error.
+Agents keep the same tool names and arguments. MCP endpoints are discovered
+from infra `ToolServerRegistry` entries; the agent manifest does not declare
+providers. MCP `usage: use` dependencies replace the implicit local provider;
+add an explicit `protocol: local` infra claim to retain in-process tools beside
+MCP.
 
 ## Layout
 
-- `src/library_ioa/plugins/mcp/spec.py` — `spec.providers[]` → client config
+- `src/library_ioa/plugins/mcp/spec.py` — infra server entry → client config
 - `src/library_ioa/plugins/mcp/contract.py` — MCP Tool/CallToolResult ↔ MAS list_tools/call_tool
 - `src/library_ioa/plugins/mcp/client` — SDK-backed client (one session per list/call)
 - `src/library_ioa/plugins/mcp/provider.py` — `kind: mcp` tool-provider plugin
@@ -21,11 +19,7 @@ plugins advertising the same name is an error.
 - `docs/` — tutorial
 - `plugins/mcp/docs/` — MCP quickstart and contract-gap reference
 
-Reusable YAML lives in **`library-samples`**, not Tutorial 1:
-
-- `library-samples/overlays/mcp-localhost.yaml`
-- `library-samples/overlays/local-in-process.yaml`
-- `library-samples/infra/mcp-localhost.yaml`
+Reusable MCP YAML lives in `library-samples/infra/mcp-localhost.yaml`.
 
 ## Dependencies
 
@@ -61,8 +55,9 @@ mas-mcp tools call --url http://127.0.0.1:9001/mcp \
 
 mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
   -o docs/tutorials/01-building-an-agent/overlays/tools.yaml \
-  -o library-samples/overlays/mcp-localhost.yaml \
-  -o library-samples/overlays/local-in-process.yaml \
+  -o docs/tutorials/01-building-an-agent/overlays/skills.yaml \
+  --infra-ref ../../../library-samples/infra/mcp-localhost.yaml \
+  --infra-ref ../../../library-samples/infra/local-tools.yaml \
   -q "What is the current price of Apple stock?" \
   --trace
 ```
@@ -72,7 +67,7 @@ The serve terminal must log `MCP tool call name=web-search` for both `mas-mcp to
 ## Runtime wiring
 
 - `MCPClient` opens/closes streamable-HTTP in the same asyncio task (`run_sync` from the provider)
-- `LocalToolProvider` — default in-process Python `spec.tools` (`kind: local`, library-standard)
+- `LocalToolProvider` — in-process Python tools (`local` flavour / implicit `standard:local-tools` infra)
 - `MCPToolProvider` — `kind: mcp` (`library_ioa.plugins.mcp.provider`)
 
 ## Related docs

@@ -39,9 +39,7 @@ class ManifestToolProvider:
 
     def __init__(self, overlay_providers: Optional[list[ToolProvider]] = None) -> None:
         self._registry = ToolProviderRegistry()
-        providers = list(overlay_providers or [])
-        if not any(provider_origin(p) == "local" for p in providers):
-            providers.append(_default_local_provider())
+        providers = [_default_local_provider()] if overlay_providers is None else list(overlay_providers)
         for provider in providers:
             self._registry.register_provider(provider)
 
@@ -67,8 +65,7 @@ class ManifestToolProvider:
     def _add_instance(self, instance: Any, manifest_contract: dict[str, Any] | None) -> None:
         local = self._local_provider()
         if local is None:
-            local = _default_local_provider()
-            self._registry.register_provider(local)
+            raise ManifestToolLoadError("local tool provider is not selected by the active infra dependencies")
         local._add_instance(instance, manifest_contract)
         self._registry.invalidate()
 
@@ -123,7 +120,7 @@ def build_manifest_tool_provider(
     **containment_kw: Any,
 ) -> ManifestToolProvider:
     """Load ``spec.tools`` via the local plugin, then wrap with the generic router."""
-    overlay = list(overlay_providers or [])
+    overlay = [_default_local_provider()] if overlay_providers is None else list(overlay_providers)
     local = next((p for p in overlay if provider_origin(p) == "local"), None)
     if local is None:
         local = _default_local_provider()
@@ -163,12 +160,21 @@ def attach_manifest_tools(
         if manifest_dir
         else list(spec.get("tools") or [])
     )
-    overlay_providers = provider_kw.pop("overlay_providers", [])
+    overlay_providers = provider_kw.pop("overlay_providers", None)
     ctx = provider_kw.pop("ctx", None)
-    has_external = any(provider_origin(p) == "external" for p in overlay_providers)
+    active_providers = list(overlay_providers or [])
+    has_external = any(provider_origin(p) == "external" for p in active_providers)
+    has_local = overlay_providers is None or any(provider_origin(p) == "local" for p in active_providers)
+    tools_dir = provider_kw.get("tools_dir")
+    discovers_local_tools = bool(
+        has_local
+        and tools_dir
+        and Path(tools_dir).is_dir()
+        and any(Path(tools_dir).rglob("*.tool.yaml"))
+    )
     skills = list(spec.get("skills") or [])
     provider_kw.setdefault("skills_spec", skills)
-    if not tools and not has_external and not skills:
+    if not tools and not has_external and not skills and not discovers_local_tools:
         return None
 
     provider = build_manifest_tool_provider(

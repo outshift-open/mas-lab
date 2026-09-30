@@ -1,47 +1,172 @@
 # Tutorial 01 — MCP tools for MAS agents
 
-This is the MCP tutorial. It reuses Tutorial 1's `qa-agent` and tools overlay.
-The agent-facing contract is the `web-search` name, arguments, and return
-shape. The provider is `mas-mcp`, claimed through
-`library-samples/overlays/mcp-localhost.yaml`.
+This tutorial keeps the agent manifest stable and moves the remote transport
+configuration into infra. The tool contract is still the same: the agent calls a
+logical tool by name and arguments. What changes is only how the runtime reaches
+that tool.
 
-MCP overlay/infra YAML lives in `library-samples`, not in
-`docs/tutorials/01-building-an-agent/`.
+`library-samples/infra/mcp-localhost.yaml` declares an MCP server to consume.
+The agent manifest and its tool/skill overlays contain no provider wiring.
+Infra refs are dependencies: MCP `usage: use` replaces the implicit local
+provider; a second local infra claim explicitly restores local tools. Flavours
+control deployment/exposure, not consumed dependencies.
 
 ---
 
-## 1. Local provider vs MCP provider
+## 1. Keep the agent spec stable
 
-In Tutorial 1 the tool runs in-process. Here the same logical tool is an MCP server; the runtime connects through a provider.
+The agent should not carry `spec.providers[]` for a remote MCP service. That
+connection policy belongs in infra, just like A2A endpoints live in an
+`Application` infra manifest.
 
-- the agent calls a tool by name and arguments
-- **generic tool-name routing**: the runtime is a name → provider registry. Spec `providers[].kind` binds to a library plugin (`local` in library-standard, `mcp` in library-ioa). `*` providers register, then advertise names at startup; explicit lists can be checked at verification
-- local is the default plugin: with no external providers, it owns `spec.tools`
-- as soon as an external plugin (here MCP) is present, that implicit overlay is off. Unclaimed names raise an error. Reintroduce leftovers with `kind: local` (`library-samples/overlays/local-in-process.yaml`)
+The MCP model is:
+
+- logical tool contract: `kind: Tool` + `call_tool(name, arguments)`
+- `local` is materialized by default and uses implicit `tools/` and `skills/`
+  locations from `standard:local-tools` (`protocol: local`)
+- remote tool endpoint: infra `ToolServerRegistry` with `protocol: mcp`
+
+The Tutorial 1 overlays remain unchanged. `overlays/tools.yaml` adds the
+existing tool contracts, while `overlays/skills.yaml` adds the existing skill:
 
 ```yaml
-providers:
-  - name: localhost-mcp-tools
-    kind: mcp
-    transport: streamable-http
-    url: http://127.0.0.1:9001/mcp
-    tools: "*"          # discovery query: own every name this server advertises
-  - name: in-process
-    kind: local
-    tools: "*"          # remaining spec.tools (e.g. calc) stay local
-  # - name: search-only
-  #   kind: mcp
-  #   url: http://127.0.0.1:9001/mcp
-  #   tools: [web-search]   # explicit: only this name
+# docs/tutorials/01-building-an-agent/overlays/tools.yaml
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: tools
+spec:
+  target:
+    kind: Agent
+  patch:
+    context:
+      tool_usage: |
+        When you need to perform calculations, use the calc tool.
+        When you need current information from the web, use the web-search tool.
+    tools:
+      $op:
+        add:
+          - ref: samples:tools/web-search.tool.yaml
+          - ref: samples:tools/calc.tool.yaml
 ```
 
-`tools: "*"` means: register the provider, then at runtime init send a discovery query (`tools/list` on MCP) and **update the registry with the advertised set**. Verification always passes for `*`. Explicit lists skip that query, beat `*`, and can be checked at verification. Two `*` plugins advertising the same name is an error — pin the name on one of them.
+The implicit local entry has no `tools` claim. To retain local tools when MCP
+is also configured, add this local infra dependency; id-based merge keeps the
+implicit directory paths and adds the claim:
+
+```yaml
+# library-samples/infra/local-tools.yaml
+apiVersion: infra/v1
+kind: ToolServerRegistry
+metadata:
+  name: local-tools
+spec:
+  tool_servers:
+    - id: local
+      protocol: local
+      tools: "*"
+```
+
+```yaml
+# docs/tutorials/01-building-an-agent/overlays/skills.yaml
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: skills
+spec:
+  target:
+    kind: Agent
+  patch:
+    skills:
+      $op:
+        add:
+          - answer-formatting
+```
+
+The only new file needed to switch web-search to MCP is the infra manifest:
+
+```yaml
+# library-samples/infra/mcp-localhost.yaml
+apiVersion: infra/v1
+kind: ToolServerRegistry
+metadata:
+  name: mcp-localhost
+spec:
+  tool_servers:
+    - id: localhost-mcp-tools
+      protocol: mcp
+      usage: use
+      url: http://127.0.0.1:9001/mcp
+```
+
+This is the use dependency that makes the runtime consume web-search over MCP.
+The local resource manifest is also loaded implicitly; no ref is needed for the
+conventional directories:
+
+```yaml
+# library-standard/.../libs/standard/local-tools.yaml
+apiVersion: infra/v1
+kind: ToolServerRegistry
+metadata:
+  name: local-tools
+spec:
+  tool_servers:
+    - id: local
+      protocol: local
+      tools_dir: tools
+      skills_dir: skills
+```
+
+`protocol` and `id` are required. `usage: use` means the runtime consumes the
+endpoint. `url` identifies the HTTP endpoint;
+`transport` defaults to `streamable-http`. Leave `tools` unset to discover names
+from MCP `tools/list`, or set it in infra to an explicit list. `usage: use` is
+the consumer default. For a server, use a separate `usage: deploy` entry; its `host`,
+`port`, `tools_dir`, and optional `tools` list configure what `mas-mcp serve`
+exposes.
+
+```yaml
+# library-samples/infra/mcp-localhost-deploy.yaml
+apiVersion: infra/v1
+kind: ToolServerRegistry
+metadata:
+  name: mcp-localhost-deploy
+spec:
+  tool_servers:
+    - id: mcp-localhost-deploy
+      protocol: mcp
+      usage: deploy
+      transport: streamable-http
+      host: 127.0.0.1
+      port: 9001
+      tools_dir: ../tools
+      tools: [web-search]
+```
+
+The agent and overlay schemas do not accept `providers[]` or infra connection
+fields on the agent. There is no MCP provider overlay.
+
+The runtime reads the `ToolServerRegistry` from infra and initializes its MCP
+provider from that server entry. No MCP connection fields are added to the
+agent or overlays.
 
 ---
 
-## 2. Dependencies (no vendored SDK clones)
+## 2. Local vs remote tool hosting
 
-`library-ioa` depends on the PyPI package `mcp`. Do not commit `mcp-python-sdk` or `mcp-conformance` checkouts.
+The architecture is intentionally split:
+
+- local tools use the implicit `protocol: local` infra entry by default
+- an MCP `usage: use` dependency replaces that implicit local provider
+- an explicit local infra claim reselects local alongside MCP
+- Flavour affects how tools are exposed, not which third-party endpoints are consumed
+
+---
+
+## 3. Dependencies (no vendored SDK clones)
+
+`library-ioa` depends on the PyPI package `mcp`. Do not commit vendored SDK
+checkouts.
 
 ```bash
 # from mas-lab root
@@ -50,98 +175,82 @@ uv sync
 uv sync --extra cli   # or install library-ioa[all]
 ```
 
-Official protocol conformance is Node, not a Python clone:
+Official protocol conformance is Node, not a Python clone. For the reproducible
+MAS Lab fixture, install dependencies and run both pinned requirement sets with
+the [MCP compliance workflow](../../../../compliance/README.md):
 
 ```bash
-npx @modelcontextprotocol/conformance server --url http://127.0.0.1:9001/mcp
+task --dir compliance install
+task --dir compliance validate-config
+MCP_CONFORMANCE_RESULTS="$PWD/compliance/results" \
+  task --dir compliance run
 ```
 
 ---
 
-## 3. Start the tool as a localhost MCP server
+## 4. Start the tool as a localhost MCP server
 
-From the mas-lab repo root (terminal 1):
+From the mas-lab repo root (terminal 1), expose one existing Tool manifest
+without an infra manifest:
 
 ```bash
 mas-mcp serve \
   --tool-manifest library-samples/tools/web-search.tool.yaml \
-  --tool web-search \
-  --host 127.0.0.1 \
-  --port 9001 \
-  --transport streamable-http
+  --transport streamable-http \
+  --host 127.0.0.1 --port 9001
 ```
 
-HTTP serve defaults to `--json-response --stateless-http` (Inspector and `mas-mcp tools` need that). Stdio is also valid:
+Or let infra own deployment settings and discover manifests from `tools_dir`:
 
 ```bash
 mas-mcp serve \
-  --tool-manifest library-samples/tools/web-search.tool.yaml \
-  --tool web-search \
-  --transport stdio
+  --infra-ref library-samples/infra/mcp-localhost-deploy.yaml
 ```
 
-The server logs `MCP tool call name=web-search arguments=...` on each invocation.
+This starts the remote MCP server; the MAS runtime does not need a patch to the
+agent manifest to connect to it.
 
 ---
 
-## 4. Prove the server with the MCP client CLI
+## 5. Run the existing agent through MCP
 
-Same repo, another terminal — this is the SDK-backed client (`mas-mcp tools`), not curl JSON-RPC:
-
-```bash
-mcp version
-
-mas-mcp tools list --url http://127.0.0.1:9001/mcp
-
-mas-mcp tools call --url http://127.0.0.1:9001/mcp \
-  --tool web-search \
-  --arguments '{"query":"Apple stock price"}'
-```
-
-Expect `web-search` in the list, a non-error payload from `call`, and a matching `MCP tool call` line on the server terminal.
-
----
-
-## 5. Run Tutorial 1's qa-agent through MCP
-
-Canonical overlay/infra live in samples (not the tutorial tree):
-
-- `library-samples/overlays/mcp-localhost.yaml` — plugin `kind` + name claim (`tools: "*"`). Sets `url` on `providers[]`; overlay keys win over infra.
-- `library-samples/overlays/local-in-process.yaml` — leftover `spec.tools` stay local
-- `library-samples/infra/mcp-localhost.yaml` — WHERE: transport, timeout `30`, `follow_pagination: true`, `cache_scope: private`. No env vars required. Secrets, if needed, use `env:VAR`.
+MCP-only replaces the default local provider. `calc` is therefore not exposed:
 
 ```bash
-# terminal 2 — qa-agent from Tutorial 1, MCP overlay from samples
 mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
   -o docs/tutorials/01-building-an-agent/overlays/tools.yaml \
-  -o library-samples/overlays/mcp-localhost.yaml \
-  -o library-samples/overlays/local-in-process.yaml \
-  --infra-ref library-samples/infra/mcp-localhost.yaml \
+  --infra-ref ../../../library-samples/infra/mcp-localhost.yaml \
   -q "What is the current price of Apple stock?" \
   --trace
 ```
 
-`--trace` (not `-v` on `chat`) prints the human exchange log. You should see `AGENT → TOOL[web-search]` and a new `MCP tool call name=web-search` line on the **server** process.
-
-Validate the overlay on this branch:
+To keep local `calc` and local skill tools, add the explicit local infra claim:
 
 ```bash
-mas-ctl validate docs/tutorials/01-building-an-agent/agent.yaml \
+mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
   -o docs/tutorials/01-building-an-agent/overlays/tools.yaml \
-  -o library-samples/overlays/mcp-localhost.yaml \
-  -o library-samples/overlays/local-in-process.yaml
+  -o docs/tutorials/01-building-an-agent/overlays/skills.yaml \
+  --infra-ref ../../../library-samples/infra/mcp-localhost.yaml \
+  --infra-ref ../../../library-samples/infra/local-tools.yaml \
+  -q "What is the current price of Apple stock?" \
+  --trace
 ```
+
+The relative infra path is resolved from the agent manifest's directory.
+
+There is no MCP provider overlay: consumed MCP and local tools are infra
+dependencies. Agent/overlay schemas reject `providers[]`; flavours govern
+exposure.
 
 ---
 
 ## 6. Why this matters
 
-- tool manifests describe the logical interface; invocation is `call_tool(name, arguments)`
-- optional advertise fields (title, hints, `output_schema`) live on `kind: Tool`
-- provider overlays decide which plugin claims which names
-- infra `ToolServerRegistry` decides where that plugin connects
-- the same qa-agent YAML runs in-process (Tutorial 1) or over MCP (this tutorial)
-- MCP overlay/infra YAML lives in `library-samples`; Tutorial 1's tree is the in-process qa-agent
+- tool manifests describe the logical interface; invocation is still `call_tool(name, arguments)`
+- endpoint policy, protocol, headers, and transit details live in infra
+- the agent spec stays portable and implementation-agnostic
+- the same app can switch between implicit local tools and an MCP dependency by changing infra refs
+- `protocol: mcp` is explicit in the infra manifest, matching the A2A pattern for protocol-aware infra declarations
 
 ---
 

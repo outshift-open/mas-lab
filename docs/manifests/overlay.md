@@ -128,11 +128,10 @@ scenarios:
     overlays: {logic: [cot, no-tools], control: [], infra: []}
 ```
 
-`patch.providers` claims remote or local tool plugins (`kind` + `tools`).
-Connection URL, headers, timeout, pagination, and list-cache policy belong on
-infra [`ToolServerRegistry`](../references/tool-server-registry.md) when shared;
-an overlay may set `url` on `providers[]`. When both overlay and infra set a
-key, the overlay value is used. See [tool.md](tool.md).
+Tool provider and connection configuration is not patchable through agent
+overlays. Remote MCP endpoints belong on infra
+[`ToolServerRegistry`](../references/tool-server-registry.md); agent and overlay
+schemas reject `providers[]`. See [tool.md](tool.md).
 
 ---
 

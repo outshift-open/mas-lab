@@ -20,6 +20,7 @@ docs/tutorials/**/logs/
 .hypothesis/
 compliance-report.json
 COMPLIANCE_REPORT.md
+compliance/results/
 
 # MkDocs build output
 site/

@@ -9,9 +9,9 @@ only place that translates between them.
 ``call_tool(tool_name, arguments)`` is the required invocation. Optional
 protocol options and advertise/result attributes are omitted when unset.
 
-Not a ToolContract concern (provider spec / infra / SDK)
+Not a ToolContract concern (infra / SDK)
 -----------------------------------------------------------------
-- HTTP/SSE headers and auth (``spec.providers[].headers`` / infra)
+- HTTP/SSE headers and auth (infra)
 - transport choice (stdio | streamable-http | sse)
 - ListToolsResult ``ttlMs`` / ``cacheScope`` (list-response cache policy)
 - caller-visible pagination: the plugin flattens ``nextCursor`` pages;
@@ -23,6 +23,13 @@ Not a ToolContract concern (provider spec / infra / SDK)
 from __future__ import annotations
 
 from typing import Any
+
+import pydantic_core
+from mas.runtime.contracts.tool_contract import ToolResultEnvelope
+from mcp.types import CallToolResult, ContentBlock
+from pydantic import TypeAdapter
+
+_CONTENT_BLOCK_ADAPTER = TypeAdapter(ContentBlock)
 
 
 def as_mas_tool_spec(mcp_tool: dict[str, Any]) -> dict[str, Any]:
@@ -128,6 +135,29 @@ def as_mas_tool_result(payload: Any) -> dict[str, Any]:
     if meta:
         out["meta"] = meta
     return out
+
+
+def as_mcp_tool_result(payload: Any) -> Any:
+    """Translate an existing MAS result envelope into an MCP tool result."""
+    if not isinstance(payload, ToolResultEnvelope):
+        return payload
+
+    content = [_CONTENT_BLOCK_ADAPTER.validate_python(part) for part in payload.content]
+    if not content and payload.result is not None:
+        text = (
+            payload.result
+            if isinstance(payload.result, str)
+            else pydantic_core.to_json(payload.result, fallback=str, indent=2).decode()
+        )
+        content = [_CONTENT_BLOCK_ADAPTER.validate_python({"type": "text", "text": text})]
+
+    return CallToolResult(
+        content=content,
+        structuredContent=payload.structured_content,
+        isError=payload.is_error,
+        resultType=payload.result_type,
+        _meta=payload.meta or None,
+    )
 
 
 def mas_tool_document_to_mcp(tool_doc: Any, name: str) -> dict[str, Any]:

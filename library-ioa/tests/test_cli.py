@@ -54,10 +54,16 @@ def test_main_tools_call_rejects_non_object_arguments() -> None:
 
 
 def test_main_serve_stdio_and_http(tmp_path) -> None:
+    tool_manifest = tmp_path / "t.yaml"
+    tool_manifest.write_text(
+        "apiVersion: mas/v1\nkind: Tool\nmetadata:\n  name: test-tools\n",
+        encoding="utf-8",
+    )
     factory = MagicMock()
     factory._tools = [{"name": "sample-tool"}]
-    with patch("library_ioa.plugins.mcp.server.MCPToolServerFactory.from_manifest", return_value=factory):
-        assert main(["serve", "--tool-manifest", str(tmp_path / "t.yaml")]) == 0
+    with patch("library_ioa.plugins.mcp.server.MCPToolServerFactory.from_manifest", return_value=factory) as build:
+        assert main(["serve", "--tool-manifest", str(tool_manifest)]) == 0
+        build.assert_called_with(tool_manifest, tool_name=None, server_name="test-tools")
         factory.run.assert_called_with(transport="stdio")
         assert (
             main(
@@ -84,6 +90,61 @@ def test_main_serve_stdio_and_http(tmp_path) -> None:
             json_response=False,
             stateless_http=False,
         )
+
+
+def test_main_serve_tools_dir_without_infra(tmp_path) -> None:
+    tools_dir = tmp_path / "tools"
+    tools_dir.mkdir()
+    tool_manifest = tools_dir / "sample.tool.yaml"
+    tool_manifest.write_text("apiVersion: mas/v1\nkind: Tool\nmetadata:\n  name: sample-tool\n", encoding="utf-8")
+    factory = MagicMock()
+    factory._tools = [{"name": "sample-tool"}]
+    with patch("library_ioa.plugins.mcp.server.MCPToolServerFactory.from_manifest", return_value=factory) as build:
+        assert main(["serve", "--tools-dir", str(tools_dir), "--transport", "streamable-http"]) == 0
+    build.assert_called_once_with(tool_manifest.resolve(), tool_name=None, server_name="sample-tool")
+    factory.run.assert_called_with(
+        transport="streamable-http",
+        host="127.0.0.1",
+        port=9001,
+        json_response=True,
+        stateless_http=True,
+    )
+
+
+def test_main_serve_uses_deploy_infra_and_tool_claim(tmp_path) -> None:
+    tools_dir = tmp_path / "tools"
+    tools_dir.mkdir()
+    tool_manifest = tools_dir / "sample.tool.yaml"
+    tool_manifest.write_text("apiVersion: mas/v1\nkind: Tool\nmetadata:\n  name: sample-tool\n", encoding="utf-8")
+    infra = tmp_path / "mcp-deploy.yaml"
+    infra.write_text(
+        "apiVersion: infra/v1\n"
+        "kind: ToolServerRegistry\n"
+        "metadata:\n  name: mcp-deploy\n"
+        "spec:\n  tool_servers:\n"
+        "    - id: local-mcp\n"
+        "      name: Public Tools\n"
+        "      protocol: MCP\n"
+        "      usage: deploy\n"
+        "      transport: streamable-http\n"
+        "      host: 0.0.0.0\n"
+        "      port: 9123\n"
+        "      tools_dir: tools\n"
+        "      tools: [sample-tool]\n",
+        encoding="utf-8",
+    )
+    factory = MagicMock()
+    factory._tools = [{"name": "sample-tool"}]
+    with patch("library_ioa.plugins.mcp.server.MCPToolServerFactory.from_manifest", return_value=factory) as build:
+        assert main(["serve", "--infra-ref", str(infra)]) == 0
+    build.assert_called_once_with(tool_manifest.resolve(), tool_name=None, server_name="Public Tools")
+    factory.run.assert_called_with(
+        transport="streamable-http",
+        host="0.0.0.0",
+        port=9123,
+        json_response=True,
+        stateless_http=True,
+    )
 
 
 def test_main_module_entrypoint_imports() -> None:

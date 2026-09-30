@@ -11,7 +11,9 @@ on:
       - "lab/**"
       - "library-standard/**"
       - "library-eval/**"
+      - "library-ioa/**"
       - "tests/**"
+      - "compliance/**"
       - "docs/**"
       - "library-samples/**"
       - "Taskfile.yml"
@@ -62,3 +64,45 @@ jobs:
             --cov-report=term-missing \
             --cov-fail-under=0 \
             -q
+
+  mcp-compliance:
+    name: MCP compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Setup Python 3.13
+        run: uv python install 3.13
+
+      - name: Install go-task
+        run: |
+          sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b "${{ runner.temp }}/bin"
+          echo "${{ runner.temp }}/bin" >> "$GITHUB_PATH"
+
+      - name: Install MCP compliance dependencies
+        run: task --dir compliance install
+
+      - name: Validate MCP compliance configuration
+        run: task --dir compliance validate-config
+
+      - name: Run MCP compliance regression tests
+        run: task --dir compliance test
+
+      - name: Run both MCP requirement sets
+        run: |
+          MCP_CONFORMANCE_RESULTS="${{ github.workspace }}/compliance/results" \
+            ./compliance/mcp-conformance.sh
+
+      - name: Upload MCP compliance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-compliance-${{ github.sha }}
+          path: compliance/results/
+          if-no-files-found: warn
+          retention-days: 30

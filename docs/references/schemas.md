@@ -82,8 +82,8 @@ Sample overlays and bindings under [`schemas/examples/`](../schemas/examples/):
 - [`overlays/live-llm.yaml`](../schemas/examples/overlays/live-llm.yaml)
 - [`overlays/llm-reasoning.yaml`](../schemas/examples/overlays/llm-reasoning.yaml)
 - [`overlays/llm-sampling.yaml`](../schemas/examples/overlays/llm-sampling.yaml)
-- [`overlays/mcp-localhost.yaml`](../schemas/examples/overlays/mcp-localhost.yaml)
 - [`infra/mcp-localhost.yaml`](../schemas/examples/infra/mcp-localhost.yaml)
+- `library-samples/infra/mcp-localhost-deploy.yaml` — MCP server deployment posture
 - [`tools/annotated.tool.yaml`](../schemas/examples/tools/annotated.tool.yaml)
 
 Plus `*.example.yaml` siblings next to deployment, placement, memory-seed, and

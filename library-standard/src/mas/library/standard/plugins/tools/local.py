@@ -35,6 +35,7 @@ def _containment_roots(
     app_root: Path | None,
     *,
     workspace_root: Path | None = None,
+    tools_dir: Path | None = None,
 ) -> tuple[Path, ...]:
     seen = {manifest_dir.resolve(): None}
     if app_root is not None:
@@ -47,6 +48,8 @@ def _containment_roots(
                     break
         else:
             seen[app] = None
+    if tools_dir is not None:
+        seen[tools_dir.resolve()] = None
     from mas.library_roots import discover_library_roots
 
     for lib_root in discover_library_roots(manifest_dir, app_root):
@@ -264,7 +267,16 @@ def load_local_tool_provider(
     local = provider or LocalToolProvider()
     skills_spec = containment_kw.pop("skills_spec", None)
     auto_inject_scripts = bool(containment_kw.pop("auto_inject_scripts", False))
+    tools_dir_raw = containment_kw.pop("tools_dir", None)
+    skills_dir = Path(containment_kw.pop("skills_dir", app_root or manifest_dir)).resolve()
     containment_kw.pop("spec_behavior", None)
+    tools_dir = Path(tools_dir_raw).resolve() if tools_dir_raw else None
+
+    if not tools_spec and tools_dir and tools_dir.is_dir():
+        tools_spec = [
+            {"ref": os.path.relpath(path, manifest_dir)}
+            for path in sorted(tools_dir.rglob("*.tool.yaml"))
+        ]
 
     if include_system_tools:
         hitl_params = _system_tool_params(tools_spec, "request_human_input")
@@ -284,13 +296,19 @@ def load_local_tool_provider(
             skills_spec=skills_spec,
             manifest_dir=manifest_dir,
             app_root=app_root,
+            skills_dir=skills_dir,
             auto_inject_scripts=auto_inject_scripts,
         )
 
     if not tools_spec:
         return local
 
-    roots = _containment_roots(manifest_dir, app_root or manifest_dir, **containment_kw)
+    roots = _containment_roots(
+        manifest_dir,
+        app_root or manifest_dir,
+        tools_dir=tools_dir,
+        **containment_kw,
+    )
     for index, raw in enumerate(tools_spec):
         if isinstance(raw, dict) and raw.get("kind") == "system":
             logger.debug(
@@ -299,7 +317,13 @@ def load_local_tool_provider(
                 raw.get("name"),
             )
             continue
-        tool_def, mdir, manifest_contract = _normalize_tool_entry(raw, manifest_dir, index, containment_roots=roots)
+        tool_def, mdir, manifest_contract = _normalize_tool_entry(
+            raw,
+            manifest_dir,
+            index,
+            containment_roots=roots,
+            tools_dir=tools_dir,
+        )
         module_path = tool_def.get("module_path")
         if not module_path:
             raise ManifestToolLoadError(f"spec.tools[{index}]: missing module_path after resolving entry {raw!r}")
@@ -374,6 +398,7 @@ def _inject_skill_system_tools(
     skills_spec: Any,
     manifest_dir: Path,
     app_root: Path | None,
+    skills_dir: Path,
     auto_inject_scripts: bool,
 ) -> None:
     """Optional skill system tools — no-op when mas-library-skills is absent."""
@@ -385,7 +410,7 @@ def _inject_skill_system_tools(
         provider,
         tools_spec=tools_spec,
         skills_spec=skills_spec,
-        base_dir=app_root or manifest_dir,
+        base_dir=skills_dir,
         auto_inject_scripts=auto_inject_scripts,
     )
 
@@ -612,18 +637,21 @@ def _normalize_tool_entry(
     index: int,
     *,
     containment_roots: tuple[Path, ...],
+    tools_dir: Path | None = None,
 ) -> tuple[dict[str, Any], Path, dict[str, Any] | None]:
     catalog_ref_path: Path | None = None
     raw_entry_params: dict[str, Any] = {}
     if isinstance(raw, str):
         from mas.library_catalog import find_tool_manifest
 
-        catalog_ref_path = find_tool_manifest(raw)
+        local_manifest = _find_tool_manifest_in_dir(raw, tools_dir)
+        catalog_ref_path = local_manifest or find_tool_manifest(raw)
         if catalog_ref_path is None:
+            local_hint = f"; checked local tools directory {tools_dir}" if tools_dir else ""
             raise ManifestToolLoadError(
                 f"spec.tools[{index}]: tool name {raw!r} not found in any library "
                 f"catalog (library.yaml tools:, tools/{raw}.tool.yaml, or "
-                f"tools/{raw}/*.tool.yaml). Declare it in a library, or use "
+                f"tools/{raw}/*.tool.yaml{local_hint}). Declare it in a library, or use "
                 "{{ref: ./path.tool.yaml}} / inline module_path."
             )
         tool_def: dict[str, Any] = {}
@@ -678,6 +706,23 @@ def _normalize_tool_entry(
         raise ManifestToolLoadError(f"spec.tools[{index}]: entry must include ref or module_path: {raw!r}")
 
     return tool_def, mdir, manifest_contract
+
+
+def _find_tool_manifest_in_dir(name: str, tools_dir: Path | None) -> Path | None:
+    if not tools_dir or not tools_dir.is_dir():
+        return None
+    root = tools_dir.resolve()
+    candidates = (
+        root / f"{name}.tool.yaml",
+        root / name / f"{name}.tool.yaml",
+    )
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved.is_relative_to(root) and resolved.is_file():
+            return resolved
+    tool_dir = (root / name).resolve()
+    matches = sorted(tool_dir.glob("*.tool.yaml")) if tool_dir.is_relative_to(root) and tool_dir.is_dir() else []
+    return matches[0].resolve() if matches else None
 
 
 def _load_tool_instance(

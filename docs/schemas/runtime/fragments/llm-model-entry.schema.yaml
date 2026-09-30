@@ -26,7 +26,7 @@ properties:
     type: string
     description: >
       LLM wire-protocol plugin (openai now; bedrock later). Same role as
-      spec.providers[].kind for tools. Not cache.
+      infra ToolServerRegistry protocol for remote tools. Not cache.
   extra:
     type: object
     additionalProperties: true

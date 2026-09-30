@@ -4,6 +4,9 @@
 
 from __future__ import annotations
 
+import shutil
+from pathlib import Path
+
 import pytest
 from mas.library.standard.plugins.tools.local import LocalToolClaim, LocalToolProvider
 from mas.runtime.registry.tool_provider_registry import (
@@ -38,6 +41,87 @@ def test_explicit_local_provider_from_spec():
     assert claim.tools_claim == ("calc",)
     assert claim.origin == "local"
     assert claim.implicit is False
+
+
+def test_mcp_provider_is_created_from_infra_without_agent_provider_fields():
+    providers = providers_from_manifest(
+        {"spec": {}},
+        tool_servers=[
+            {
+                "id": "mcp-tools",
+                "protocol": "mcp",
+                "transport": "streamable-http",
+                "url": "http://127.0.0.1:9001/mcp",
+            }
+        ],
+    )
+    assert len(providers) == 1
+    assert providers[0].kind == "mcp"
+    assert providers[0].provider_name == "mcp-tools"
+    assert providers[0].tools_claim == "*"
+
+
+def test_local_dependency_claim_explicitly_reselects_local_beside_mcp():
+    providers = providers_from_manifest(
+        {"spec": {}},
+        tool_servers=[
+            {"id": "mcp-tools", "protocol": "mcp", "url": "http://127.0.0.1:9001/mcp"},
+            {"id": "local", "protocol": "local", "tools": "*"},
+        ],
+    )
+    assert [provider.kind for provider in providers] == ["mcp", "local"]
+    assert providers[1].implicit is False
+
+
+def test_local_dependency_without_claim_preserves_spec_tools_beside_mcp():
+    providers = providers_from_manifest(
+        {"spec": {"tools": [{"name": "calc"}]}},
+        tool_servers=[
+            {"id": "local", "protocol": "local", "tools_dir": "tools"},
+            {"id": "mcp-tools", "protocol": "mcp", "url": "http://127.0.0.1:9001/mcp"},
+        ],
+    )
+
+    assert [provider.kind for provider in providers] == ["mcp", "local"]
+    assert providers[1].tools_claim == "*"
+
+
+def test_deployment_only_mcp_server_is_not_a_client_provider():
+    providers = providers_from_manifest(
+        {"spec": {}},
+        tool_servers=[
+            {
+                "id": "mcp-tools",
+                "protocol": "mcp",
+                "usage": "deploy",
+                "host": "127.0.0.1",
+                "port": 9001,
+            }
+        ],
+    )
+    assert len(providers) == 1
+    assert provider_origin(providers[0]) == "local"
+
+
+def test_local_provider_discovers_tools_from_infra_tools_dir(tmp_path: Path):
+    repo = Path(__file__).resolve().parents[2]
+    sample_tools = repo / "library-samples/tools"
+    tools_dir = tmp_path / "tools"
+    tools_dir.mkdir()
+    shutil.copyfile(sample_tools / "calc.tool.yaml", tools_dir / "calc.tool.yaml")
+    shutil.copyfile(sample_tools / "calc.py", tools_dir / "calc.py")
+
+    from mas.runtime.engine.manifest_tool_provider import build_manifest_tool_provider
+
+    provider = build_manifest_tool_provider(
+        [],
+        tmp_path,
+        overlay_providers=[LocalToolProvider()],
+        tools_dir=tools_dir,
+    )
+
+    assert "calc" in {tool["name"] for tool in provider.list_tools()}
+    assert provider.call_tool("calc", {"expression": "2 + 3"})["result"] == 5
 
 
 def test_star_claim_replaces_local_same_name_keeps_other_local():
@@ -80,16 +164,9 @@ def test_star_claim_replaces_local_same_name_keeps_other_local():
     assert provider.call_tool("calc", {}) == {"source": "local", "name": "calc"}
 
 
-def test_without_local_overlay_errors_on_unclaimed_spec_tool():
+def test_mcp_provider_does_not_fallback_to_local_without_local_selection():
     from mas.runtime.engine.manifest_tool_provider import ManifestToolProvider
     from mas.runtime.engine.tool_routing import UnclaimedToolError
-
-    class _Local:
-        def on_collect_tools(self, **_):
-            return [{"name": "calc", "description": "local-calc"}]
-
-        def on_execute_tool(self, name, args, **_):
-            return {"source": "local"}
 
     class _Remote:
         provider_name = "search-remote"
@@ -106,9 +183,9 @@ def test_without_local_overlay_errors_on_unclaimed_spec_tool():
             return {"source": "remote"}
 
     provider = ManifestToolProvider(overlay_providers=[_Remote()])
-    provider._add_instance(_Local(), {"name": "calc"})
+    assert [tool["name"] for tool in provider.list_tools()] == ["web-search"]
     with pytest.raises(UnclaimedToolError, match="calc"):
-        provider.list_tools()
+        provider.call_tool("calc", {})
 
 
 def test_explicit_tools_list_does_not_steal_unlisted_local():

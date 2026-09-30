@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""MCP tool provider — ``spec.providers[]`` binding for the MAS tool-name registry."""
+"""MCP tool provider built from an infra ``ToolServerRegistry`` entry."""
 
 from __future__ import annotations
 
@@ -86,7 +86,7 @@ class MCPToolProvider(ToolProvider):
 
     @classmethod
     def from_provider_spec(cls, spec: dict[str, Any]) -> "MCPToolProvider":
-        """Bind a ``spec.providers[]`` entry whose kind resolved to this plugin."""
+        """Build a provider from a normalized MCP infra server entry."""
         binding = MCPProviderSpec.from_dict(spec)
         client = MCPClientFactory(binding).create_client()
         return cls(

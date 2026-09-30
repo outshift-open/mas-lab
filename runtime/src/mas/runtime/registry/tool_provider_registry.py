@@ -209,32 +209,54 @@ class ToolProviderRegistry:
 
     def _provider_claims(self, local_names: list[str], *, ctx: Any = None) -> list[ProviderClaim]:
         has_external = self.has_external_providers()
-        claims: list[ProviderClaim] = []
+        external_claims: list[ProviderClaim] = []
+        local_claims: list[ProviderClaim] = []
         for provider in self._providers:
+            if provider_origin(provider) == "local":
+                continue
             name = provider_name(provider)
             claim = getattr(provider, "tools_claim", "*")
-            origin = provider_origin(provider)
-            if origin == "local" and has_external and getattr(provider, "implicit", False):
-                claim = ()
-            if origin == "local" and is_star_claim(claim):
-                advertised = tuple(n for n in local_names if n)
-            elif is_star_claim(claim):
+            if is_star_claim(claim):
                 advertised = self._discover_advertised(provider, name, ctx=ctx)
             else:
                 advertised = tuple(
                     str(n) for n in (claim if not isinstance(claim, str) else (claim,)) if n and n != "*"
                 )
                 self._verify_explicit(provider, name, advertised, ctx=ctx)
-            claims.append(
+            external_claims.append(
                 ProviderClaim(
                     name=name,
                     advertised=advertised,
                     claim=claim,
                     handler=provider,
-                    origin=origin,
+                    origin="external",
                 )
             )
-        return claims
+        externally_claimed = {name for claim in external_claims for name in claim.advertised}
+        for provider in self._providers:
+            if provider_origin(provider) != "local":
+                continue
+            name = provider_name(provider)
+            claim = getattr(provider, "tools_claim", "*")
+            if has_external and is_star_claim(claim):
+                advertised = tuple(n for n in local_names if n and n not in externally_claimed)
+                claim = advertised
+            else:
+                advertised = tuple(n for n in local_names if n) if is_star_claim(claim) else tuple(
+                    str(n) for n in (claim if not isinstance(claim, str) else (claim,)) if n and n != "*"
+                )
+                if not is_star_claim(getattr(provider, "tools_claim", "*")):
+                    self._verify_explicit(provider, name, advertised, ctx=ctx)
+            local_claims.append(
+                ProviderClaim(
+                    name=name,
+                    advertised=advertised,
+                    claim=claim,
+                    handler=provider,
+                    origin="local",
+                )
+            )
+        return external_claims + local_claims
 
     def _spec_from_handler(self, handler: Any, tool_name: str, *, ctx: Any = None) -> dict[str, Any] | None:
         try:
@@ -333,28 +355,74 @@ def providers_from_manifest(
     *,
     tool_servers: dict[str, Any] | list[Any] | None = None,
 ) -> list[Any]:
-    """Instantiate ``spec.providers[]`` via the plugin URN registry.
+    """Instantiate local/MCP providers from infra dependencies.
 
-    When the spec omits ``providers``, bind the default ``kind: local`` plugin
-    (library-standard) so ``spec.tools`` run in-process.
+    The implicit local server is the default. Any MCP ``usage: use`` server
+    replaces it. An explicit local server with a ``tools`` claim re-adds local
+    alongside MCP. Deployment-only servers are not MCP clients.
 
-    ``tool_servers`` is the infra ``ToolServerRegistry`` index (id → item).
-    Unset connection fields on each provider are filled from the matching
-    server. When both overlay and infra set a key, the overlay value is used.
+    Existing provider declarations are retained only for internal callers that
+    bypass manifest validation. ``tool_servers`` may be the resolved infra
+    index (id → item) or a ToolServerRegistry manifest.
     """
     specs = iter_provider_specs(manifest_content)
-    if not specs:
+    if specs:
+        providers: list[Any] = []
+        for spec in specs:
+            merged = apply_tool_server_defaults(spec, tool_servers)
+            kind = str(merged.get("kind") or merged.get("type") or "").strip()
+            if not kind:
+                raise ValueError("spec.providers entry is missing kind")
+            cls = tool_provider_class(kind)
+            factory = getattr(cls, "from_provider_spec", None)
+            providers.append(factory(merged) if callable(factory) else cls())
+        return providers
+
+    if isinstance(tool_servers, dict) and isinstance(tool_servers.get("tool_servers"), list):
+        server_items = list(tool_servers["tool_servers"])
+    elif isinstance(tool_servers, dict):
+        server_items = list(tool_servers.values())
+    else:
+        server_items = list(tool_servers or [])
+
+    usable_servers = [
+        server
+        for server in server_items
+        if isinstance(server, dict)
+        and str(server.get("protocol") or "").lower() == "mcp"
+        and server.get("usage", "use") in {"use", "use-and-deploy"}
+    ]
+    local_servers = [
+        server
+        for server in server_items
+        if isinstance(server, dict)
+        and str(server.get("protocol") or "").lower() == "local"
+    ]
+    providers = []
+    if usable_servers:
+        seen: set[str] = set()
+        for server in usable_servers:
+            ident = str(server.get("id") or server.get("name") or "").strip()
+            if not ident or ident in seen:
+                continue
+            seen.add(ident)
+            spec = dict(server)
+            spec.update(name=ident, kind="mcp")
+            spec.setdefault("tools", "*")
+            providers.append(tool_provider_class("mcp").from_provider_spec(spec))
+    if not usable_servers or local_servers:
+        local_class = tool_provider_class("local")
+        local_server = local_servers[-1] if local_servers else {}
+        if local_server:
+            factory = getattr(local_class, "from_provider_spec", None)
+            local_spec = {**local_server, "name": str(local_server.get("id") or "local"), "kind": "local"}
+            local_provider = factory(local_spec) if callable(factory) else local_class()
+        else:
+            local_provider = local_class(name="local", implicit=True)
+        providers.append(local_provider)
+    if not providers:
         from mas.runtime.registry import get_registry
 
         default_kind = get_registry().default_for("tool_provider") or "local"
         return [tool_provider_class(default_kind)()]
-    providers: list[Any] = []
-    for spec in specs:
-        merged = apply_tool_server_defaults(spec, tool_servers)
-        kind = str(merged.get("kind") or merged.get("type") or "").strip()
-        if not kind:
-            raise ValueError("spec.providers entry is missing kind")
-        cls = tool_provider_class(kind)
-        factory = getattr(cls, "from_provider_spec", None)
-        providers.append(factory(merged) if callable(factory) else cls())
     return providers

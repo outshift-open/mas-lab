@@ -155,8 +155,12 @@ properties:
         x-merge:
           strategy: mapping_merge_or_ops
         additionalProperties: true
-        description: "Tool-level configuration overrides."
+        description: "Tool deployment posture and provider selection."
         properties:
+          exposure_protocol:
+            type: string
+            enum: [mcp]
+            description: Protocol used to expose this app's local tools.
           remote_tools_enabled:
             type: boolean
           allowed:

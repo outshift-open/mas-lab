@@ -4,23 +4,30 @@ $schema: "https://json-schema.org/draft-07/schema#"
 $id: "infra/v1#tool-server"
 title: InfraToolServer
 description: >
-  One remote tool-server endpoint (MCP or other tool-server transport).
-  This is the WHERE of tool serving: URL, transport, headers, timeouts,
-  stdio process, list pagination. Tool advertise fields (name, parameters,
-  title, hints) live on kind: Tool. Which names an agent claims live on
-  spec.providers[].tools.
+  One tool endpoint or local tool source. MCP entries describe a remote server;
+  local entries point at app-local Tool and skill directories. Tool advertise
+  fields live on kind: Tool, never on the agent provider wiring.
 type: object
-required: [id]
+required: [id, protocol]
 additionalProperties: true
 properties:
   id:
     type: string
-    description: Stable id. Overlay providers[].name should match this id.
+    description: Stable id used by infra resolution.
   name:
     type: string
     description: Display name. Defaults to id.
   description:
     type: string
+  protocol:
+    type: string
+    enum: [mcp, local]
+    description: MCP remote server or local in-process tool source.
+  usage:
+    type: string
+    enum: [use, deploy, use-and-deploy]
+    default: use
+    description: Consume the MCP endpoint, deploy it, or do both.
   transport:
     type: string
     description: "stdio | streamable-http | sse | http"
@@ -28,6 +35,14 @@ properties:
   url:
     type: string
     description: HTTP/SSE endpoint (e.g. http://127.0.0.1:9001/mcp).
+  host:
+    type: string
+    description: Listener host for a deployed MCP server; defaults to 127.0.0.1.
+  port:
+    type: integer
+    minimum: 1
+    maximum: 65535
+    description: Listener port for a deployed MCP server; defaults to 9001.
   endpoint:
     type: string
     description: Alias for url.
@@ -73,3 +88,18 @@ properties:
     enum: [public, private]
     description: >
       public shares one list cache; private keys the cache by user.
+  tools:
+    description: >
+      Optional tool-name claim. "*" discovers tools from the MCP server at
+      runtime initialization; a list limits the provider to those names.
+    oneOf:
+      - type: string
+      - type: array
+        items:
+          type: string
+  tools_dir:
+    type: string
+    description: Local Tool manifest directory for protocol local or deployment.
+  skills_dir:
+    type: string
+    description: Local skill directory for protocol local.

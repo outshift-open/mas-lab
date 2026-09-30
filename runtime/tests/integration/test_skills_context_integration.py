@@ -74,6 +74,23 @@ def test_catalog_plugin_injects_catalog_only(tmp_path):
     assert "# Body content" not in parts[0].content
 
 
+def test_catalog_plugin_uses_custom_skills_dir(tmp_path):
+    skills_dir = tmp_path / "knowledge"
+    skill_dir = skills_dir / "answer-formatting"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: answer-formatting\ndescription: Format answers.\n---\n# Body",
+        encoding="utf-8",
+    )
+    plugin = SkillCatalogPlugin(
+        manifest={"spec": {"skills": ["answer-formatting"]}},
+        base_dir=skills_dir,
+    )
+    parts = plugin.collect_context()
+    assert len(parts) == 1
+    assert "answer-formatting" in parts[0].content
+
+
 def test_attach_populates_ctx_skill_registry(tmp_path):
     skill_dir = tmp_path / "my-skill"
     skill_dir.mkdir()
