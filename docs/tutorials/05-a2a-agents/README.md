@@ -99,8 +99,9 @@ contract.
 
 ## Producer: expose an existing agent
 
-The mixed example uses Tutorial 2's `schedule_agent`. The
-canonical [`mixed-agents.infra.yaml`](../../../library-samples/infra/mixed-agents.infra.yaml) endpoint has the same id:
+The mixed example uses Tutorial 2's `schedule_agent`. The canonical
+[`mixed-agents.infra.yaml`](https://github.com/outshift-open/mas-lab/blob/main/library-samples/infra/mixed-agents.infra.yaml)
+endpoint has the same id:
 
 ```yaml
 endpoints:

@@ -112,6 +112,8 @@ nav:
       - "1 — Build an agent": tutorials/01-building-an-agent/README.md
       - "2 — Orchestrate your MAS": tutorials/02-creating-a-mas/README.md
       - "3 — Run an experiment": tutorials/03-experiments-and-analysis/README.md
+      - "4 — MCP tools": tutorials/04-mcp-tools/README.md
+      - "5 — A2A agents": tutorials/05-a2a-agents/README.md
   - References:
       - Overview: references/index.md
       - "ADR 0001 — lab terminology": references/adr-0001-lab-terminology.md
