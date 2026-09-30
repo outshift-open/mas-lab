@@ -53,7 +53,7 @@ services:
 
   # One-off CLI runs (benchmarks, agent runtime, ctl) — same image as backend.
   #   docker compose run --rm cli mas-lab benchmark run labs/.../experiment.yaml
-  #   docker compose run --rm cli mas-runtime run-agent agents/simple.yaml -q "Hello"
+  #   docker compose run --rm cli mas-ctl chat agents/simple.yaml -q "Hello"
   cli:
     profiles: [tools]
     image: mas-lab-backend:local
