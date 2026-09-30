@@ -36,3 +36,27 @@ jobs:
       image-name: mas-lab/backend
       context: .
       dockerfile: docker/backend/Dockerfile
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-ui, build-backend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "GitHub Release $GITHUB_REF_NAME already exists"
+            exit 0
+          fi
+
+          IMAGE_TAG="${GITHUB_REF_NAME#v}-$(git rev-parse --short HEAD)"
+          NOTES=$(printf "Container images (linux/amd64):\n- UI: \`ghcr.io/%s/mas-lab/ui:%s\`\n- Backend: \`ghcr.io/%s/mas-lab/backend:%s\`\n\nPublished by the [container workflow](https://github.com/%s/actions/runs/%s). Source archives (zip and tar.gz) are available below. Python distributions are published separately to PyPI; check the package workflow status before installing.\n" \
+            "$GITHUB_REPOSITORY_OWNER" "$IMAGE_TAG" "$GITHUB_REPOSITORY_OWNER" "$IMAGE_TAG" \
+            "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes --notes "$NOTES"
