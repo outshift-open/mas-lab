@@ -11,14 +11,16 @@ spec:
   target:
     kind: MAS
   patch:
-    agents_remove:
-      - moderator
-      - schedule_agent
-      - itinerary_agent
-      - concierge_agent
-    agents_add:
-      - id: generalist
-        ref: ../../../library-samples/apps/trip-planner/agents/generalist/agent.yaml
+    agents:
+      $op:
+        remove:
+          - moderator
+          - schedule_agent
+          - itinerary_agent
+          - concierge_agent
+        add:
+          - id: generalist
+            ref: ../../../library-samples/apps/trip-planner/agents/generalist/agent.yaml
     workflow:
       entry: generalist
       nodes:

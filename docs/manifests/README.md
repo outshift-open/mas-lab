@@ -21,10 +21,10 @@ overlay, pipeline, run, flavour).
 ```text
 experiment.yaml          ← what to run (scenarios × dataset × n_runs + pipelines)
     │
-    ├── applications[]   → mas.yaml / registered app
-    ├── scenarios[]    → overlay stacks per variant
-    ├── dataset        → prompts, turns, memory seeds
-    └── application.post / scenario.post / …  → pipeline steps (metrics, plots)
+    ├── application     → mas.yaml / registered app
+    ├── scenarios[]     → overlay stacks per variant
+    ├── dataset         → run-input envelope items
+    └── run/item/scenario/post → pipeline steps (metrics, plots)
 
 mas.yaml                 ← team topology, workflow, transport
     └── agents/*.yaml    ← design pattern, tools, skills, observability
@@ -74,12 +74,13 @@ YAML schemas live under [`docs/schemas/`](../schemas/). The bench UI and
 
 ## Application binding (tutorials vs paper labs)
 
-Both forms are valid in `experiment.applications[]`:
+The canonical MAS binding is `experiment.application`. The plural
+`applications:` form is deprecated but remains accepted during migration.
 
 | Style | Example | When to use |
 | --- | --- | --- |
-| **Inline manifest** | `manifest: ./agent.yaml` + optional `configs_dir` | Tutorials, self-contained experiments |
-| **Registered app** | `app: trip-planner` + `configs_dir: overlays/` | Paper labs, shared apps under `library-samples/apps/` |
+| **Inline manifest** | `application: {manifest: ./mas.yaml, configs_dir: ./overlays}` | Tutorials, self-contained experiments |
+| **Registered app** | `application: {app: trip-planner, configs_dir: ./overlays}` | Paper labs, shared apps under `library-samples/apps/` |
 
 Scenarios reference overlay **ids** from `configs_dir` (e.g. tutorial `cot` vs lab `pattern-cot`). Dataset: `path: ./dataset.yaml` (tutorial) or `name` + `locator: samples` (catalogued benchmarks).
 

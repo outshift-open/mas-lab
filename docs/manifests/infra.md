@@ -7,8 +7,9 @@
 **Package:** `mas-runtime` · **Models:** `mas.ctl.infra.models.InfraManifest`
 
 **Infra** manifests declare resources the runtime resolves at execution time: LLM proxy
-URLs, tool registries, secrets env mapping, OTel endpoints. Referenced from **MAS**
-`infra_refs`, workspace config, or CLI `--infra-ref` — not from **overlay** business logic.
+URLs, tool registries, secrets env mapping, and OTel endpoints. Resolved from workspace
+configuration or CLI `--infra-ref`; `infra_refs` is not a field on Agent, MAS, or
+Overlay manifests.
 
 **Terms:** [glossary.md](../glossary.md) · Hub: [README.md](README.md).
 
@@ -26,6 +27,7 @@ application service URLs, A2A agent endpoints, and OTel/collector endpoints.
 |--------|---------|
 | `InfraBundle` | Compose other infra files (`spec.includes[]`); recursive merge |
 | `InfraMiddleware` | Pipeline middleware (`llm_cache`, `fault_inject`) wrapped around LLM calls |
+| `InfraInterceptor` | Cross-cutting middleware reference with explicit applicability |
 | `LLMProxy` | OpenAI-compatible proxy URL, model catalogue, defaults |
 | `LLMLocal` | Local inference (e.g. Ollama) |
 | `ToolRegistry` | Map logical tool-set ids → JSON tool index paths |
@@ -33,6 +35,9 @@ application service URLs, A2A agent endpoints, and OTel/collector endpoints.
 | `ToolProvider` | Semantic name → in-process implementation binding |
 | `PersonalSecrets` | Logical token id → env var (gitignored) |
 | `Application` | Named service endpoints |
+| `Datastore` | Named data-store connections |
+| `SecretsProvider` | Secrets backend configuration |
+| `RuntimeEngine` | Runtime execution policy; see [runtime-engine.md](runtime-engine.md) |
 | `Infrastructure` | Legacy alias |
 
 ---

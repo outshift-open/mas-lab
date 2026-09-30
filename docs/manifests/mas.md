@@ -17,7 +17,7 @@ app plus **scenario** **overlays** that change topology or governance.
 ## Top-level fields
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ------- | ------ | ---------- | ------------- |
 | `apiVersion` | `string` | yes | Must be `mas/v1`. |
 | `kind` | `string` | yes | Must be `MAS`. |
 | `metadata` | object | yes | Identity and defaults. See [`metadata` fields](#metadata-fields). |
@@ -53,7 +53,7 @@ spec:
 ## `metadata` fields
 
 | Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
+| ------- | ------ | ---------- | --------- | ------------- |
 | `name` | `string` | **yes** | — | Unique MAS identifier. Used in run output paths and agent URNs. |
 | `version` | `string` | no | `"0.1.0"` | Semver string (`major.minor.patch`). |
 | `description` | `string` | no | `""` | Human-readable description. |
@@ -69,22 +69,20 @@ Extension properties (`x-*`) are allowed and ignored by the runtime.
 No fields are required; an empty `spec: {}` is valid.
 
 | Field | Type | Default | Description |
-|-------|------|---------|-------------|
+| ------- | ------ | --------- | ------------- |
+| `models` | `ModelEntry[]` | `[]` | Default model slots inherited by agents; `model: any` resolves through experiment and workspace defaults. See [`ModelEntry`](#modelentry). |
 | `agency` | object | — | Participants and delegation targets. See [`Agency`](#agency). |
-| `agents` | array \| object | `[]` | Short-form agent list — equivalent to `agency.agents` on a base manifest. On an Overlay patch this becomes a per-agent-id override map or collection op. See [`AgentEntry`](#agententry). |
+| `agents` | array | `[]` | Short-form agent references or inline Agent definitions, equivalent to `agency.agents` on a base manifest. In a MAS overlay, `spec.patch.agents` accepts per-agent patches or `$op` collection operations. |
 | `workflow` | object | — | Entry point and delegation graph. See [`Workflow`](#workflow). |
 | `transport` | object | — | Communication protocol config. See [`Transport`](#transport). |
 | `framework` | object | — | Framework surface adapter. See [`Framework`](#framework). |
 | `tools_ref` | `string` \| null | `null` | MAS-level logical tool-set name resolved by the infra `ToolRegistry`. No paths or extensions. |
-| `infra_refs` | `string[]` | `[]` | Infra manifest paths relative to the MAS manifest directory. |
 | `memory_stores` | object | — | Named memory store artifact paths. See [`MemoryStores`](#memorystores). |
 | `telemetry` | object | — | Telemetry output config. See [`Telemetry`](#telemetry). |
 | `params` | `object` | `{}` | Free-form string key/value params for lab/benchmark tooling — not consumed by the runtime kernel directly. |
 | `capabilities` | `object` | `{}` | Free-form capability declarations read by manifest loading — not consumed by the runtime kernel directly. |
 | `intent` | object | `{}` | Overlay-patchable intent block. Prefer the top-level `intent` field when authoring a base manifest. |
 | `middleware` | — | `null` | Reserved for future use. |
-| `agents_add` | object | — | Overlay-only: agent entries to append to `agency.agents`, or `{"$op": {add\|clear}}`. |
-| `agents_remove` | `string[]` | — | Overlay-only: agent ids to remove from `agency.agents`, or a collection op. |
 
 ---
 
@@ -107,6 +105,20 @@ intent:
 
 ---
 
+### ModelEntry
+
+_Used by:_ `spec.models[]`
+
+| Field | Type | Required | Default | Description |
+| ------- | ------ | ---------- | --------- | ------------- |
+| `model` | `string` | **yes** | — | LiteLLM model id or `any` to inherit the resolved model slot. |
+| `id` | `string` | no | `main` | Model slot identifier. |
+| `temperature` | `number` | no | — | Sampling temperature, from `0` to `2`. |
+| `max_tokens` | `integer` | no | — | Completion token limit; must be at least `1`. |
+| `context_window` | `integer` | no | — | Model context-window size; must be at least `1`. |
+
+---
+
 ### Agency
 
 _Used by:_ `spec.agency`
@@ -119,20 +131,26 @@ _Used by:_ `spec.agency`
 
 ### AgentEntry
 
-_Used by:_ `spec.agency.agents[]`, `spec.agents[]`
+`spec.agency.agents[]` and the short-form `spec.agents[]` have different
+reference requirements:
 
-Two forms are accepted:
-
-#### Form A — manifest reference (recommended)
+#### Agency entry (`spec.agency.agents[]`)
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `ref` | `string` | **yes** | Path to the agent manifest, relative to the MAS manifest directory. |
-| `id` | `string` | no | Logical identifier used in workflow edges and `delegates_to` lists. Derived from `metadata.name` when omitted. |
+| `id` | `string` | **yes** | Logical agent id used by workflow nodes and delegation targets. |
+| `ref` | `string` | no | Path to an Agent manifest relative to the MAS manifest. Omit for an external agent resolved through an infra Application endpoint. |
+
+#### Short-form entry (`spec.agents[]`)
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `ref` | `string` | **yes** | Path to an Agent manifest. |
+| `id` | `string` | no | Logical agent id; derived from the referenced manifest when omitted. |
 
 #### Form B — inline agent definition
 
-A full embedded `kind: Agent` manifest (same fields as a standalone `agent.yaml`). Used by studio exports. `kind`, `metadata`, and `spec` are required; `apiVersion` is optional.
+A full embedded `kind: Agent` manifest (same fields as a standalone `agent.yaml`) is also accepted in either list. `kind`, `metadata`, and `spec` are required; `apiVersion` is optional.
 
 **Example:**
 
@@ -150,11 +168,36 @@ agency:
 
 ---
 
+### Adding or removing MAS agents with overlays
+
+For a MAS-targeted Overlay, `spec.patch.agents.$op` operates on
+`spec.agency.agents`:
+
+```yaml
+target:
+  kind: MAS
+patch:
+  agents:
+    $op:
+      remove: [schedule_agent]
+      add:
+        - id: generalist
+          ref: ./agents/generalist.yaml
+```
+
+`add` and `replace` entries require both `id` and `ref`; `remove` takes agent
+ids, and `clear: true` empties the participant list. These operations are only
+valid in an Overlay patch. `agents_add` and `agents_remove` are not schema fields.
+
+---
+
 ### Workflow
 
 _Used by:_ `spec.workflow`
 
-Declares the entry point and the delegation graph. The `workflow.type` is set per node on the entry agent's design pattern — there is no top-level `type` field here.
+Declares the entry point and delegation graph. Embedded `MAS.spec.workflow`
+supports `entry` and `nodes`; it has no `type` or `edges` field. The entry
+agent's `design_pattern` controls its reasoning and delegation behavior.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -180,12 +223,12 @@ workflow:
 _Used by:_ `spec.workflow.nodes[]`
 
 | Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
+| ------- | ------ | ---------- | --------- | ------------- |
 | `id` | `string` | **yes** | — | Node identifier — must match an `agency.agents[].id`. |
 | `delegates_to` | `string[]` | no | `[]` | IDs of agents this node may delegate to. Drives the `delegate_to_<id>` tool set exposed to the entry agent's LLM. |
 | `role` | `string` | no | — | Optional role label (informational). |
 | `agent` | `string` | no | — | Agent id override (when the node id differs from the agent id). |
-| `dispatch` | `string` | no | — | Parallel topology dispatch mode (e.g. `all`). |
+| `dispatch` | `string` | no | — | Dispatch mode (for example, `parallel`). |
 | `config` | `object` | no | `{}` | Plugin-specific parameters (pattern-dependent keys). |
 | `description` | `string` | no | `""` | Optional description for this node (informational). |
 
@@ -198,7 +241,7 @@ _Used by:_ `spec.transport`
 Controls how agents communicate within the MAS.
 
 | Field | Type | Default | Description |
-|-------|------|---------|-------------|
+| ------- | ------ | --------- | ------------- |
 | `type` | `"local"` \| `"agent-remote"` \| `"agent-local"` | `"local"` | Communication type. |
 | `mode` | `"local"` \| `"remote"` | `"local"` | High-level comm mode. |
 | `emulation` | `boolean` | `true` | When `true`, delegation uses in-process function calls (no HTTP). |
@@ -232,7 +275,7 @@ _Used by:_ `spec.memory_stores`
 Named paths to shared memory store artifacts. All fields are optional strings.
 
 | Field | Type | Default | Description |
-|-------|------|---------|-------------|
+| ------- | ------ | --------- | ------------- |
 | `episodic_ref` | `string` | `""` | Path to the episodic memory store artifact. |
 | `semantic_ref` | `string` | `""` | Path to the semantic memory store artifact. |
 | `procedural_ref` | `string` | `""` | Path to the procedural memory store artifact. |
@@ -246,7 +289,6 @@ _Used by:_ `spec.telemetry`
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `path` | `string` | `""` | Path to the event log file (JSONL), relative to `mas.yaml`. |
-
 **Example:**
 
 ```yaml
@@ -262,20 +304,21 @@ Three related ideas — often confused:
 
 | Term | What it is | Where it lives | Example |
 |------|------------|----------------|---------|
+|------|------------|----------------|---------|
 | **Topology** | Which agents exist and how they relate (team shape) | `spec.agency.agents`, overlay patches | design-space Exp 1.2 sweeps five overlays (`topo-linear-pipeline`, `topo-moderator-broker`, `topo-parallel`, `topo-supervised`, `topo-verifier`) |
-| **Workflow** | Turn order and who runs when (session choreography) | `spec.workflow` | Linear: fixed chain; moderator: one specialist at a time; parallel: all specialists per fan-out |
+| **Workflow** | Entry agent, nodes, allowed delegation targets, and optional dispatch | `spec.workflow` | Declares the delegation graph; does not define a `workflow.type` strategy |
 | **Routing logic** | Per-message decisions inside a turn (which tool/delegate next) | LLM + delegation tools, agent prompts | Moderator reads the user message and chooses `schedule_agent` vs `itinerary_agent` |
 
 **Workflow vs routing in a single user turn** — think of a trip-planning MAS answering one message:
 
-- **Workflow** is the *stage play*: who is allowed on stage, and in what order.
-  - *Linear pipeline:* schedule agent always runs first, then itinerary, then concierge — every time, regardless of the question.
-  - *Moderator-broker:* the moderator runs first, then **one specialist at a time** in an order the moderator chooses across turns.
-  - *All-parallel:* the moderator still opens the scene, but **all three specialists run in the same act** (`dispatch: parallel`); the moderator aggregates their outputs.
+- **Workflow** declares the entry agent and which delegation tools are available.
+  - _LLM-directed:_ the entry agent chooses among its declared `delegates_to` peers.
+  - _Deterministic linear:_ the entry agent's `design_pattern` dispatches to peers in a configured sequence.
+  - _Parallel:_ a node with `dispatch: parallel` fans out to its declared peers.
 
-- **Routing logic** is what happens *inside* the moderator's turn when it decides the next move: "This is mostly a transport question → delegate to `schedule_agent`." Routing is **per message / per LLM step** (tool calls, delegation targets). Workflow is the **declared graph** ctl enforces (`entry`, `delegates_to`, `dispatch: parallel`, sequential edges).
+- **Routing logic** is what happens _inside_ the moderator's turn when it decides the next move: "This is mostly a transport question → delegate to `schedule_agent`." Routing is **per message / per LLM step** (tool calls, delegation targets). Embedded MAS workflow declares `entry`, `nodes`, `delegates_to`, and `dispatch`; explicit sequential `edges` belong only to the standalone `Workflow` manifest below.
 
-You can keep the same agents and topology but change workflow overlays to switch from sequential chain to parallel fan-out without editing agent code.
+Overlays can change the graph, dispatch mode, or entry agent's design pattern without editing the base agent manifests.
 
 **Topology in paper labs** — [`labs/design-space.lab/02-topologies/`](../../labs/design-space.lab/02-topologies/) varies topology only via scenario overlays. Example (`topo-moderator-broker`):
 
@@ -293,9 +336,9 @@ spec:
 **Workflow execution in OSS:**
 
 | Pattern | ctl behaviour |
-|---------|---------------|
+| --------- | --------------- |
 | Dynamic delegation | Default multi-agent: entry agent session; LLM uses delegation tools |
-| Sequential graph | `mas-ctl run-mas` when `workflow.nodes` + `workflow.edges` are set |
+| Explicit sequential graph | Standalone `kind: Workflow` (`workflow/v1`) declares `nodes` + `edges`; embedded MAS workflow does not support `edges` |
 | Single agent | `topo-single-agent` overlay — one generalist, no inter-agent workflow |
 
 There is no `WorkflowContract.register_impl()` in OSS. Topology + workflow are **declarative** in YAML; ctl composes and runs them.
@@ -313,7 +356,7 @@ and is referenced by multiple MAS manifests, or needs explicit routing edges wit
 ### Top-level fields
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ------- | ------ | ---------- | ------------- |
 | `apiVersion` | `string` | yes | Must be `workflow/v1`. |
 | `kind` | `string` | yes | Must be `Workflow`. |
 | `metadata.name` | `string` | no | Workflow identifier. |
@@ -323,7 +366,7 @@ and is referenced by multiple MAS manifests, or needs explicit routing edges wit
 ### `spec` fields
 
 | Field | Type | Default | Description |
-|-------|------|---------|-------------|
+| ------- | ------ | --------- | ------------- |
 | `entry` | `string` | `""` | ID of the entry agent — receives the initial user prompt. |
 | `nodes` | `WorkflowNode[]` | `[]` | Agent nodes. Same shape as [`WorkflowNode`](#workflownode) but without `role`, `dispatch`, and `description`. |
 | `edges` | `WorkflowEdge[]` | `[]` | Explicit routing edges — required for deterministic sequential flows. See [`WorkflowEdge`](#workflowedge). |
@@ -334,7 +377,7 @@ and is referenced by multiple MAS manifests, or needs explicit routing edges wit
 _Used by:_ `spec.edges[]`
 
 | Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
+| ------- | ------ | ---------- | --------- | ------------- |
 | `from` | `string` | **yes** | — | Source node ID. |
 | `to` | `string` | **yes** | — | Target node ID. |
 | `condition` | `string` \| null | no | `null` | Optional routing condition (Python-like expression evaluated at runtime). |

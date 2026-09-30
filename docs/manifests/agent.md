@@ -7,7 +7,7 @@
 **Package:** `mas-runtime` · **Schema:** `agent.schema.yaml` · **apiVersion:** `mas/v1`
 
 An **agent** manifest (`agent.yaml`) declares one LLM actor: tools, skills, design
-pattern, plugins, and **observability** settings. A **MAS** manifest references one or
+pattern, governance/control, and **observability** settings. A **MAS** manifest references one or
 more agents; **overlays** patch agents without duplicating the base file.
 
 **Terms:** [glossary.md](../glossary.md) · Hub: [README.md](README.md).
@@ -19,7 +19,7 @@ more agents; **overlays** patch agents without duplicating the base file.
 Every manifest starts with four required top-level fields.
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ------- | ------ | ---------- | ------------- |
 | `apiVersion` | `string` | yes | Must be `mas/v1`. |
 | `kind` | `string` | yes | Must be `Agent`. |
 | `metadata` | object | yes | Identity and tagging. See [`metadata` fields](#metadata-fields). |
@@ -43,7 +43,7 @@ spec:
 ## `metadata` fields
 
 | Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
+| ------- | ------ | ---------- | --------- | ------------- |
 | `name` | `string` | yes | — | Agent ID — must match the workflow node id that references this agent. |
 | `description` | `string` | no | `""` | Human-readable description of this agent. |
 | `version` | `string` | no | `"0.1.0"` | Semver string (`major.minor.patch`). |
@@ -58,13 +58,14 @@ Extension properties (`x-*`) are allowed and ignored by the runtime.
 `spec.description` is the only required field.
 
 | Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
+| ------- | ------ | ---------- | --------- | ------------- |
 | `description` | `string` | **yes** | — | Routing-facing one-liner for delegation tools, AgentCard, and registry discovery. Written from the delegator's perspective. **Not** injected into the LLM system prompt — use `context.*` for prompt text. |
 | `context` | `object` | no | — | Named chunks injected into the system prompt. Keys are author-defined (`role`, `intent`, …). See [`ContextChunk`](#contextchunk). |
 | `params` | `object` | no | `{}` | Free-form string key/value params forwarded to infra middleware — not consumed by the kernel. |
 | `models` | `ModelEntry[]` | no | `[]` | Preferred models for this agent. See [`ModelEntry`](#modelentry). |
 | `design_pattern` | object \| null | no | `react` | Reasoning strategy. See [`DesignPattern`](#designpattern). |
-| `context_manager` | object | no | `stack` | Context window management. See [`ContextManager`](#contextmanager). |
+| `context_manager` | object | no | `summarising` | Context window management. See [`ContextManager`](#contextmanager). |
+| `assembler` | string \| object \| null | no | `assembler` | Builds the LLM `messages[]` from context. |
 | `memory_seed` | `MemorySeedEntry[]` | no | — | Documents to pre-index into memory at startup. See [`MemorySeedEntry`](#memoryseedentry). |
 | `memory` | string \| string[] \| object | no | — | Memory backend configuration. See [`MemoryConfig`](#memoryconfig). |
 | `working_memory` | object | no | — | Cross-turn history persistence for delegated agents. See [`WorkingMemory`](#workingmemory). |
@@ -74,15 +75,29 @@ Extension properties (`x-*`) are allowed and ignored by the runtime.
 | `behavior` | object | no | — | Runtime capability flags. See [`Behavior`](#behavior). |
 | `governance` | `GovernanceBinding` | no | `{}` | Governance plugin list. See [`GovernanceBinding`](#governancebinding). |
 | `llm` | `LlmBinding` | no | `{}` | Engine overrides (model, temperature, …). See [`LlmBinding`](#llmbinding). |
-| `execution` | `ExecutionBinding` | no | `{}` | Execution mode (mock, cache, live, …). See [`ExecutionBinding`](#executionbinding). |
 | `control` | `ControlBinding` | no | `{}` | Control-plane plugin configs. See [`ControlBinding`](#controlbinding). |
 | `observability` | `ObservabilityBinding` | no | `null` | Observability sink plugin list. See [`ObservabilityBinding`](#observabilitybinding). |
-| `infra_refs` | `string[]` | no | `[]` | Infra manifest references (LLM proxy, tool registry). Merged additively from overlays. |
-| `infra_interceptors` | `string[]` | no | `[]` | Cross-cutting infra middleware (cache, chaos, …) outer-first. |
+| `context_sources` | `ContextSourcesBinding` | no | `null` | Context source plugins, including the skill-engine backend. |
 
 ---
 
 ## Sub-schemas
+
+### Assembler
+
+_Used by:_ `spec.assembler`
+
+The schema accepts a plugin-name string, `null`, or an object with `type` or
+`ref`. Its optional `params` object is plugin-specific and currently defines
+`token_budget`, `always_reassemble`, and `emit_segments`.
+
+### ContextSourcesBinding
+
+_Used by:_ `spec.context_sources`
+
+An ordered list of context-source plugin ids (`native`, `adk`, or `langchain`).
+An entry may be a bare id or a single-key object with `base_dir` and
+`auto_inject` options. `auto_inject` defaults to `false`.
 
 ### ContextChunk
 
@@ -112,11 +127,13 @@ context:
 _Used by:_ `spec.models[]`
 
 | Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
+| ------- | ------ | ---------- | --------- | ------------- |
 | `model` | `string` | **yes** | — | LiteLLM-style model string, e.g. `vertex_ai/gemini-3-pro-preview`. |
 | `id` | `string` | no | `"main"` | Logical model ID within this agent. Use `main` for the primary model. |
 | `temperature` | `number` [0.0–2.0] | no | `0.7` | Sampling temperature. |
 | `max_tokens` | `integer` ≥ 1 | no | `2000` | Maximum output tokens. |
+| `context_window` | `integer` ≥ 1 | no | — | Input context-window size used for model-aware assembly. |
+| `context_window` | `integer` ≥ 1 | no | — | Input context-window size used for model-aware assembly. |
 
 Do **not** put `api_base` or `api_key_env` here — those belong in the flavour/infra manifest.
 
@@ -138,7 +155,7 @@ _Used by:_ `spec.design_pattern`
 Selects the agent's reasoning strategy (defaults to `react` when absent).
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ------- | ------ | ---------- | ------------- |
 | `type` | `string` | mutually exclusive with `ref` | Builtin shorthand: `react` \| `cot` \| `cot_native` \| `plan_execute` \| `tree_of_thoughts` \| `accumulator` and role aliases. |
 | `ref` | `string` | mutually exclusive with `type` | Unified plugin locator — bare name, `./local/path`, `module://pkg.Class`, or `oci://registry/img:tag`. |
 | `params` | `object` | no | Plugin-specific parameters. |
@@ -163,14 +180,13 @@ design_pattern:
 
 _Used by:_ `spec.context_manager`
 
-Controls context window management strategy (defaults to `stack` — unbounded history).
+Controls context window management strategy (defaults to `summarising`).
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ------- | ------ | ---------- | ------------- |
 | `type` | `string` | mutually exclusive with `ref` | Builtin: `stack` \| `sliding-window` \| `summarising` \| `full-history`. |
 | `ref` | `string` | mutually exclusive with `type` | Plugin locator — same forms as `design_pattern.ref`. |
 | `params` | `ContextManagerParams` | no | Strategy-specific parameters. See [`ContextManagerParams`](#contextmanagerparams). |
-| `skills` | `string[]` | no | Skills auto-injected into the system prompt via `ContextFacetProvider` (context path; complements `spec.skills` which drives the `consult_skills` tool). |
 | `memory` | `string[]` | no | Memory types whose content is auto-injected into the system prompt as context facets, e.g. `[semantic]`. |
 
 **Example:**
@@ -191,19 +207,21 @@ _Used by:_ `spec.context_manager.params`
 Constructor kwargs forwarded to the `ContextManagerPlugin`. All fields are optional.
 
 | Field | Type | Description |
-|-------|------|-------------|
-| `max_turns` | `integer` ≥ 1 | Sliding-window / summarising — max prior exchange pairs. |
-| `window_size` | `integer` ≥ 1 | Alias for `max_turns` (sliding-window). |
-| `max_messages` | `integer` ≥ 1 | Stack CM — cap on total past messages. |
-| `working_memory_messages` | `integer` ≥ 1 | Slice size for working-memory context source (default 20). |
-| `token_budget` | `integer` ≥ 1 | Max estimated input tokens after assembly. |
-| `max_tokens` | `integer` ≥ 1 | Alias for `token_budget`. |
-| `reserve_tokens` | `integer` ≥ 0 | Tokens reserved for model completion (default 512). |
-| `summary_threshold` | `integer` ≥ 1 | Summarising CM — token threshold before compression triggers. |
-| `keep_turns` | `integer` ≥ 1 | Summarising CM — recent exchange pairs kept verbatim alongside the summary. |
-| `working_memory_ref` | `string` | Registry ref for working-memory context source plugin. |
-| `trimmer_ref` | `string` | Registry ref for token-budget trimmer plugin. |
-| `token_budget_ref` | `string` | Alias for `trimmer_ref`. |
+| ------- | ------ | ------------- |
+| `max_turns` | `integer` ≥ 1 | Sliding-window — maximum prior user turns; alias for `keep_turns`. |
+| `window_size` | `integer` ≥ 1 | Sliding-window — alias for `keep_turns`. |
+| `max_messages` | `integer` ≥ 1 | Stack context manager — cap on total past messages. |
+| `summary_threshold` | `integer` ≥ 0 | Summarising — token estimate that triggers compaction; `0` uses the derived model context window. |
+| `keep_turns` | `integer` ≥ 1, default `10` | Summarising — recent user turns kept verbatim. |
+| `hysteresis_ratio` | number [0–1], default `0.2` | Summarising — extra headroom after compaction before the next summary. |
+| `summarizer` | string \| object | Sub-plugin: `llm` or `drop`; object form can set model and instructions. |
+| `working_memory_messages` | `integer` ≥ 1, default `20` | Assembly cap on in-turn working-memory messages. |
+| `max_in_turn_messages` | `integer` ≥ 1 | Alias for `working_memory_messages`. |
+| `trimmer` | object | Assembly-time token trimming; accepts `max_tokens`/`token_budget` and `reserve_tokens`. |
+| `working_memory_ref` | `string` | no | Registry ref for the working-memory context source plugin. |
+
+Nested `trimmer` and `summarizer` keys are defined in the
+[context-manager parameter schemas](../schemas/runtime/fragments/context-manager-params.schema.yaml).
 
 ---
 
@@ -214,7 +232,7 @@ _Used by:_ `spec.memory_seed[]`
 Pre-indexes a document into the memory backend at startup. Useful for demos and tests that need pre-populated memory without a persistent store.
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ------- | ------ | ---------- | ------------- |
 | `content` | `string` | **yes** | Document text to index. |
 | `key` | `string` | no | Lookup key. |
 | `source` | `string` | no | Source label / filename. |
@@ -240,7 +258,7 @@ _Used by:_ `spec.memory`
 Three forms are accepted:
 
 | Form | Example | Description |
-|------|---------|-------------|
+| ------ | --------- | ------------- |
 | String shorthand | `memory: semantic` | Resolves to the corresponding plugin bundle. |
 | Array shorthand | `memory: [semantic, episodic]` | Activates multiple named bundles. |
 | Object form | `memory: {enabled: true, types: [...]}` | Full configuration — described below. |
@@ -248,7 +266,7 @@ Three forms are accepted:
 **Object form fields:**
 
 | Field | Type | Default | Description |
-|-------|------|---------|-------------|
+| ------- | ------ | --------- | ------------- |
 | `enabled` | `boolean` | `true` | Master switch — `false` loads no memory plugins. |
 | `types` | `MemoryType[]` | `[]` | Ordered list of memory layers. See [`MemoryType`](#memorytype). |
 | `persistence` | object | — | Session transcript persistence. See [`MemoryPersistence`](#memorypersistence). |
@@ -263,7 +281,7 @@ Three forms are accepted:
 _Used by:_ `spec.memory.types[]`
 
 | Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
+| ------- | ------ | ---------- | --------- | ------------- |
 | `name` | `string` | **yes** | — | Layer name: `session` \| `episodic` \| `semantic` \| `working` \| `procedural`. |
 | `backend` | `string` | no | `"in-memory"` | Backend: `in-memory` \| `file` \| `sqlite-vec` \| `redis` \| `remote_tool`. |
 | `params` | `MemoryBackendParams` | no | `{}` | Backend constructor kwargs. See [`MemoryBackendParams`](#memorybackendparams). |
@@ -273,7 +291,7 @@ _Used by:_ `spec.memory.types[]`
 _Used by:_ `spec.memory.types[].params`
 
 | Field | Type | Description |
-|-------|------|-------------|
+| ------- | ------ | ------------- |
 | `path` | `string` | Filesystem path (file backend). |
 | `url` | `string` | Connection URL (redis, remote_tool). |
 | `collection` | `string` | Collection / table name. |
@@ -286,7 +304,7 @@ _Used by:_ `spec.memory.types[].params`
 _Used by:_ `spec.memory.persistence`
 
 | Field | Type | Default | Description |
-|-------|------|---------|-------------|
+| ------- | ------ | --------- | ------------- |
 | `backend` | `string` | `"none"` | `none` \| `file` \| `sqlite` \| `redis`. |
 | `path` | `string` | `""` | Base directory. Supports `{agent_id}` and `{session_id}` placeholders. Default: `$XDG_DATA_HOME/mas/agents/{agent_id}/sessions/`. |
 | `auto_save` | `boolean` | `true` | Persist after each turn. |
@@ -297,7 +315,7 @@ _Used by:_ `spec.memory.persistence`
 _Used by:_ `spec.memory.search`
 
 | Field | Type | Default | Description |
-|-------|------|---------|-------------|
+| ------- | ------ | --------- | ------------- |
 | `enabled` | `boolean` | `false` | Enable semantic search injection into context. |
 | `max_results` | `integer` | `6` | Maximum retrieved chunks per query. |
 | `min_score` | `number` | `0.35` | Minimum similarity score threshold. |
@@ -329,7 +347,7 @@ _Used by:_ `spec.memory.sync`
 Controls when workspace memory files (`MEMORY.md`, `memory/*.md`) are re-indexed.
 
 | Field | Type | Default | Description |
-|-------|------|---------|-------------|
+| ------- | ------ | --------- | ------------- |
 | `on_session_start` | `boolean` | `true` | Re-index when a session begins. |
 | `on_search` | `boolean` | `false` | Re-index before each search. |
 | `interval_seconds` | `integer` | `300` | Periodic re-index interval in seconds (0 = disabled). |
@@ -347,7 +365,7 @@ _Used by:_ `spec.memory.overflow_retry`
 When an LLM call fails because the context exceeds the window, automatically compact and retry.
 
 | Field | Type | Default | Description |
-|-------|------|---------|-------------|
+| ------- | ------ | --------- | ------------- |
 | `enabled` | `boolean` | `false` | Enable overflow detection and retry. |
 | `max_retries` | `integer` | `2` | Maximum compaction + retry attempts. |
 | `aggregate_timeout_seconds` | `number` | `60.0` | Maximum total time across all retries. |
@@ -360,7 +378,7 @@ _Used by:_ `spec.memory.qmd`
 Alternative search via external `qmd` binary (Qualitative Memory Database).
 
 | Field | Type | Default | Description |
-|-------|------|---------|-------------|
+| ------- | ------ | --------- | ------------- |
 | `enabled` | `boolean` | `false` | Enable QMD as a retriever backend. |
 | `binary_path` | `string` | `""` | Path to `qmd` binary (auto-detected if empty). |
 | `index_path` | `string` | `""` | Path to QMD index directory. |
@@ -390,7 +408,7 @@ Distinct from `spec.memory`: that's the `MemoryContract` retrieval-store subsyst
 _Used by:_ `spec.working_memory.compaction`
 
 | Field | Type | Default | Description |
-|-------|------|---------|-------------|
+| ------- | ------ | --------- | ------------- |
 | `strategy` | `"keep_recent"` \| `"sliding_window"` \| `"summarize"` | `"keep_recent"` | Compaction strategy (see below). |
 | `max_messages` | `integer` ≥ 1 | — | `keep_recent` — cap on total committed messages. |
 | `window_size` | `integer` ≥ 1 | — | `sliding_window` — number of recent exchange pairs to keep. |
@@ -427,16 +445,17 @@ Three forms are accepted. All are additive with `tools_ref`.
 References a `kind: Tool` manifest file or a `ToolBundle` entry.
 
 | Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
+| ------- | ------ | ---------- | --------- | ------------- |
 | `ref` | `string` | **yes** | — | Path to a `kind: Tool` manifest (`./tools/calc.tool.yaml`) or a ToolBundle entry (`bundle://sre-tools/check-health`). |
 | `priority` | `integer` | no | `100` | Registration priority (higher = loaded first). |
+| `params` | `object` | no | `{}` | Init kwargs merged into the referenced tool's `spec.impl.params`. |
 
 #### Form B — inline anonymous
 
 Inline declaration for a Python class, remote tool, or OpenAPI endpoint.
 
 | Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
+| ------- | ------ | ---------- | --------- | ------------- |
 | `module_path` | `string` | **yes** | — | Dotted Python module path or relative file path (`./tools/my_tool.py`). |
 | `kind` | `"python"` \| `"remote_tool"` \| `"openapi"` | no | `"python"` | Implementation kind. |
 | `class_name` | `string` | no | — | Class name in the module. Auto-discovered when omitted. |
@@ -445,7 +464,7 @@ Inline declaration for a Python class, remote tool, or OpenAPI endpoint.
 
 #### Form C — semantic name
 
-A bare string resolved by the flavour's `tool_providers` (e.g. `web-search`, `calculator`, `memory-search`).
+A bare string resolved by the active infra/local tool catalog (e.g. `web-search`, `calculator`, `memory-search`).
 
 **Example:**
 
@@ -496,7 +515,7 @@ _Used by:_ `spec.llm`
 `EngineContract` / `LiveLlmEngine` overrides. These complement `spec.models[]` — prefer `models` for per-agent routing and use `llm` for env-level or overlay-level adjustments.
 
 | Field | Type | Description |
-|-------|------|-------------|
+| ------- | ------ | ------------- |
 | `model` | `string` | LiteLLM-style model string override. |
 | `provider` | `string` | Engine provider hint (`mock`, `openai`, `azure`, …). |
 | `temperature` | `number` [0–2] | Sampling temperature override. |
@@ -509,32 +528,6 @@ llm:
   provider: mock
 ```
 
----
-
-### ExecutionBinding
-
-_Used by:_ `spec.execution`
-
-Controls the engine execution mode.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `mocking.enabled` | `boolean` | Enable mock engine (no real LLM calls). |
-| `cache.enabled` | `boolean` | Enable response caching. |
-| `live` | `boolean` | Force live engine (disable mock/cache). |
-| `parallel` | `boolean` | Enable parallel tool execution. |
-| `timeout` | `number` ≥ 0 | Per-call timeout in seconds. |
-
-**Example:**
-
-```yaml
-execution:
-  mocking:
-    enabled: true
-```
-
----
-
 ### ControlBinding
 
 _Used by:_ `spec.control`
@@ -542,7 +535,7 @@ _Used by:_ `spec.control`
 Control-plane plugin configs keyed by plugin id. Set a key to `null` to disable the plugin.
 
 | Key | Fields | Description |
-|-----|--------|-------------|
+| ----- | -------- | ------------- |
 | `budget` | `max_tokens: integer`, `max_cost_usd: number` | Token or cost budget enforcement. |
 | `circuit_breaker` | `failure_threshold: integer`, `reset_timeout_s: number` | Open circuit after `failure_threshold` consecutive failures; reset after `reset_timeout_s`. |
 | `rate_limiter` | `requests_per_minute: integer` | Limit LLM call rate. |

@@ -7,7 +7,7 @@ metadata:
   name: t3-topology-queries
   display_name: Tutorial 03 topology comparison queries
   version: '1.0'
-  description: 'Subset of QA prompts for topology comparison scaffold (Part C).
+  description: 'Smoke prompt for the trip-planner topology comparison (Part C).
 
     '
 spec:

@@ -257,19 +257,20 @@ def test_compile_tutorial_2_linear_overlay_rewrites_topology() -> None:
         validate=False,
     )
     assert compiled.kind == "MAS"
-    assert compiled.agent_ids == ["schedule_agent", "itinerary_agent", "concierge_agent"]
+    assert compiled.agent_ids == ["moderator", "schedule_agent", "itinerary_agent", "concierge_agent"]
     workflow = (compiled.mas or {}).get("spec", {}).get("workflow") or {}
-    assert workflow.get("entry") == "schedule_agent"
-    assert "moderator" not in compiled.agents
+    assert workflow.get("entry") == "moderator"
+    assert "moderator" in compiled.agents
+    assert compiled.agents["moderator"]["spec"]["design_pattern"]["type"] == "deterministic_linear"
     bundle = as_bundle_document(compiled)
     inlined = bundle["spec"]["agency"]["agents"]
     assert [a["metadata"]["name"] for a in inlined] == compiled.agent_ids
     assert all(a.get("kind") == "Agent" for a in inlined)
     tree_docs = compiled_documents(compiled, "tree")
-    assert set(tree_docs) >= {"mas.yaml", "agents/schedule-agent/agent.yaml"}
+    assert set(tree_docs) >= {"mas.yaml", "agents/moderator/agent.yaml"}
     tree_agents = tree_docs["mas.yaml"]["spec"]["agency"]["agents"]
     assert all(set(row) <= {"id", "ref"} for row in tree_agents)
-    assert tree_agents[0]["ref"] == "agents/schedule-agent/agent.yaml"
+    assert tree_agents[0]["ref"] == "agents/moderator/agent.yaml"
 
 
 def test_resolve_layout_auto_uses_path_shape(tmp_path: Path) -> None:
@@ -306,4 +307,4 @@ def test_write_compiled_agent_file_and_mas_tree(tmp_path: Path) -> None:
     assert "mas.yaml" in names
     assert (mas_dir / "agents/schedule-agent/agent.yaml").is_file()
     mas_doc = yaml.safe_load((mas_dir / "mas.yaml").read_text(encoding="utf-8"))
-    assert mas_doc["spec"]["agency"]["agents"][0]["ref"] == "agents/schedule-agent/agent.yaml"
+    assert mas_doc["spec"]["agency"]["agents"][0]["ref"] == "agents/moderator/agent.yaml"

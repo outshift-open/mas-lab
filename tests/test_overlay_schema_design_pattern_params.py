@@ -70,7 +70,7 @@ def test_overlay_schema_accepts_explicit_collection_ops_for_agent_target() -> No
     assert not errors, [e.message for e in errors]
 
 
-def test_overlay_schema_accepts_agents_remove_ops_for_mas_target() -> None:
+def test_overlay_schema_accepts_agent_collection_ops_for_mas_target() -> None:
     schema = load_schema("overlay")
     doc = {
         "apiVersion": "mas/v1",
@@ -79,7 +79,12 @@ def test_overlay_schema_accepts_agents_remove_ops_for_mas_target() -> None:
         "spec": {
             "target": {"kind": "MAS"},
             "patch": {
-                "agents_remove": {"$op": {"add": ["generalist"]}},
+                "agents": {
+                    "$op": {
+                        "remove": ["schedule_agent"],
+                        "add": [{"id": "generalist", "ref": "agents/generalist.yaml"}],
+                    }
+                },
                 "workflow": {"entry": "generalist"},
             },
         },
@@ -87,6 +92,41 @@ def test_overlay_schema_accepts_agents_remove_ops_for_mas_target() -> None:
 
     errors = sorted(Draft7Validator(schema).iter_errors(doc), key=lambda e: e.path)
     assert not errors, [e.message for e in errors]
+
+
+def test_overlay_schema_rejects_legacy_agent_collection_fields() -> None:
+    schema = load_schema("overlay")
+    doc = {
+        "apiVersion": "mas/v1",
+        "kind": "Overlay",
+        "metadata": {"name": "legacy-agent-ops"},
+        "spec": {
+            "target": {"kind": "MAS"},
+            "patch": {
+                "agents_add": [{"id": "generalist", "ref": "agents/generalist.yaml"}],
+                "agents_remove": ["schedule_agent"],
+            },
+        },
+    }
+
+    errors = sorted(Draft7Validator(schema).iter_errors(doc), key=lambda e: e.path)
+    assert errors
+
+
+def test_mas_schema_rejects_legacy_agent_collection_fields() -> None:
+    schema = load_schema("mas")
+    doc = {
+        "apiVersion": "mas/v1",
+        "kind": "MAS",
+        "metadata": {"name": "legacy-agent-ops"},
+        "spec": {
+            "agents_add": [{"id": "generalist", "ref": "agents/generalist.yaml"}],
+            "agents_remove": ["schedule_agent"],
+        },
+    }
+
+    errors = sorted(Draft7Validator(schema).iter_errors(doc), key=lambda e: e.path)
+    assert errors
 
 
 def test_overlay_schema_accepts_entry_agent_patch_for_mas_target() -> None:

@@ -42,14 +42,14 @@ class TestManifestValidation:
 
     @pytest.mark.parametrize("topo", ["single-agent.yaml", "linear.yaml", "moderator.yaml"])
     def test_topology_is_well_formed(self, topo):
-        """Topology overlays must be valid YAML with agents and workflow."""
+        """Topology overlays target a MAS and patch its workflow."""
         topo_path = T03 / "topologies" / topo
         if not topo_path.exists():
             pytest.skip(f"{topo} not present")
         ov = load_yaml(topo_path)
-        # Topologies are full MAS manifests or overlays with spec
-        spec = ov.get("spec", ov)
-        assert "agency" in spec or "workflow" in spec
+        assert ov.get("kind") == "Overlay"
+        assert ov["spec"]["target"]["kind"] == "MAS"
+        assert "workflow" in ov["spec"]["patch"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -77,6 +77,13 @@ class TestExperimentConfig:
         assert len(e["scenarios"]) == 3
         scenario_ids = {s["id"] for s in e["scenarios"]}
         assert scenario_ids == {"single-agent", "linear", "moderator"}
+        assert [s["overlays"]["logic"] for s in e["scenarios"]] == [
+            ["single-agent"],
+            ["linear"],
+            ["moderator"],
+        ]
+        assert e["application"]["app"] == "trip-planner"
+        assert e["dataset"]["path"] == "./dataset-topology.yaml"
         assert e["run"]["n_runs"] >= 1
         # v2 experiments use run/scenario/application pipeline slots (may be empty)
         assert "run" in e
@@ -202,8 +209,8 @@ class TestTopologyOverlays:
     """Verify topology overlay files for the Part C experiment."""
 
     @pytest.mark.parametrize("topo_file,expected_entry", [
-        ("single-agent.yaml", "planner"),
-        ("linear.yaml", "schedule_agent"),
+        ("single-agent.yaml", "generalist"),
+        ("linear.yaml", "moderator"),
         ("moderator.yaml", "moderator"),
     ])
     def test_topology_workflow_entry(self, topo_file, expected_entry):
@@ -211,8 +218,7 @@ class TestTopologyOverlays:
         if not topo_path.exists():
             pytest.skip(f"{topo_file} not present")
         ov = load_yaml(topo_path)
-        spec = ov.get("spec", ov)
-        wf = spec.get("workflow", {})
+        wf = ov["spec"]["patch"].get("workflow", {})
         assert wf.get("entry") == expected_entry
 
 

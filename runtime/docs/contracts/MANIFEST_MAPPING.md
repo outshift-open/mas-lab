@@ -12,13 +12,11 @@ How YAML manifest fields bind to runtime contracts and kernel modules.
 
 | Manifest path | Binds to |
 |---------------|----------|
-| `spec.model` | Flavour + `ModelAccessContract` |
+| `spec.models[]` | Model slots + `LLMProvider` routing |
 | `spec.tools[]` | `ToolContract` plugins |
-| `spec.plugins[]` | Registry entries (dp, cm, gov, …) |
 | `spec.design_pattern` | DP plugin id (`react`, `plan_execute`, …) |
 | `spec.context` | Context budget, facets |
-| `governance.policies` | Governance policy engine |
-| `observability` | Events file, OTel export |
+| `spec.governance[]`, `spec.observability[]`, `spec.control` | Schema-declared governance, observability, and control bindings |
 
 Resolution: `mas.ctl.runtime_cli.load_merged_agent_manifest` →
 `instantiate_runtime`.
@@ -29,9 +27,8 @@ Resolution: `mas.ctl.runtime_cli.load_merged_agent_manifest` →
 
 | Manifest path | Binds to |
 |---------------|----------|
-| `spec.agents[]` | Agent manifests + placement |
-| `spec.workflow` | `WorkflowContract` driver |
-| `spec.scenarios` | Overlay paths for bench |
+| `spec.agency.agents[]` | Agent manifest references or inline Agent documents |
+| `spec.workflow.entry`, `spec.workflow.nodes[]` | Entry point, participants, delegation targets |
 
 Resolution: `mas.ctl.compose` → `run-mas`.
 
@@ -43,8 +40,9 @@ Resolution: `mas.ctl.compose` → `run-mas`.
 |-------|----------|
 | `dataset` | Bench dataset loader |
 | `scenarios` | Overlay matrix |
-| `run` | `n_runs`, concurrency |
-| `pipeline.steps` | `mas.lab.benchmark.pipeline` step types |
+| `run` | `n_runs`, per-run artifacts and hooks |
+| `execution` | Batch concurrency, timeouts, and ordering |
+| Level `pre` / `post` steps | `mas.lab.benchmark.pipeline` step types |
 
 Entry: `mas-lab benchmark run`.
 
@@ -54,8 +52,8 @@ Entry: `mas-lab benchmark run`.
 
 | Artifact | Role |
 |----------|------|
-| `flavour/*.yaml` | Model id, infra ref, log level |
-| `infra/*.yaml` | Proxy URL, allowed models, interceptors |
+| `flavour/*.yaml` | Protocol, observability, control, and tool deployment posture |
+| `infra/*.yaml` | Provider endpoints, tool servers, middleware, and data connections |
 | `config.yaml` | `MAS_INFRA_REFS`, default flavour |
 
 Schema: [docs/schemas/config.schema.yaml](../../../docs/schemas/config.schema.yaml).

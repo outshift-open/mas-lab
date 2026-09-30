@@ -497,7 +497,7 @@ def test_merge_mas_overlay_keeps_name_only_agents():
     assert by_key["helper"]["ref"] == "agents/helper.yaml"
 
 
-def test_merge_mas_overlay_agents_remove_by_name():
+def test_merge_mas_overlay_agent_collection_remove_by_name():
     base = {
         "kind": "MAS",
         "spec": {
@@ -509,7 +509,7 @@ def test_merge_mas_overlay_agents_remove_by_name():
             }
         },
     }
-    merged = merge_overlay(base, _overlay({"agents_remove": {"$op": {"add": ["helper"]}}}, target_kind="MAS"))
+    merged = merge_overlay(base, _overlay({"agents": {"$op": {"remove": ["helper"]}}}, target_kind="MAS"))
     agents = merged["spec"]["agency"]["agents"]
     assert len(agents) == 1
     assert agents[0]["id"] == "moderator"
@@ -652,7 +652,7 @@ def test_merge_memory_seed_explicit_ops():
     ]
 
 
-def test_merge_mas_agents_remove_explicit_ops():
+def test_merge_mas_agents_collection_explicit_ops():
     base = {
         "kind": "MAS",
         "spec": {
@@ -664,8 +664,14 @@ def test_merge_mas_agents_remove_explicit_ops():
             }
         },
     }
-    merged = merge_overlay(base, _overlay({"agents_remove": {"$op": {"add": ["helper"]}}}, target_kind="MAS"))
-    assert [a["id"] for a in merged["spec"]["agency"]["agents"]] == ["moderator"]
+    merged = merge_overlay(
+        base,
+        _overlay(
+            {"agents": {"$op": {"remove": ["helper"], "add": [{"id": "generalist", "ref": "agents/generalist.yaml"}]}}},
+            target_kind="MAS",
+        ),
+    )
+    assert [a["id"] for a in merged["spec"]["agency"]["agents"]] == ["moderator", "generalist"]
 
 
 def test_composition_tools_replace_dominates_previous_add() -> None:

@@ -61,7 +61,7 @@ experiment:
     post:
       - {name: gather-scenario, type: gather_level, in: df, out: df, depends_on: [gather-item]}
 
-  # ── Test ── dataset items + gather
+  # ── Item ── dataset item + gather
   dataset:
     name: trip-planner-benchmark
     locator: samples
@@ -200,7 +200,7 @@ run:
       in: trace     # reads this level's `trace` artifact
       out: metrics  # writes this level's `metrics` artifact
 
-test:
+item:
   artifacts:
     df: { type: dataframe, path: "{level_dir}/data.csv" }
   post:

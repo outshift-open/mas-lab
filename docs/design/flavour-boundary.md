@@ -8,6 +8,9 @@ and FT7 (CLI observability flags as a flavour overlay). Written against the
 code as of this branch; file:line references are current as of writing and
 will drift — treat them as pointers, not guarantees.
 
+> This is a historical design proposal, not the current Flavour contract.
+> For supported fields and schema behavior, use the [Flavour manifest reference](../manifests/flavour.md).
+
 ## The tension
 
 `BRANCHES.md` flags four things that look alike in the code today (they all

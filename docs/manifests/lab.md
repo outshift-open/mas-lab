@@ -51,10 +51,10 @@ Each `pre:` / `post:` entry is a **list of pipelines** (inline steps, file `ref`
 
 | Lab concept | Runtime manifest |
 |-------------|------------------|
-| `applications[].manifest` | `kind: MAS` path |
+| `application.manifest` | `kind: MAS` path |
 | `scenarios[].overlays` | `kind: Overlay` stack |
 | `dataset` | `kind: Dataset` |
-| Benchmark flavour / infra | CLI flags + experiment YAML → resolve to Flavour / infra_refs |
+| Benchmark flavour / infra | CLI flags + experiment YAML → resolve to Flavour / workspace `infra_refs` |
 
 ## Bench-only infrastructure types
 
