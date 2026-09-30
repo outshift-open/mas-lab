@@ -577,6 +577,23 @@ mas-ctl validate agent-final.yaml
 
 ---
 
+## Step 6 — Serve the agent card over HTTP
+
+Expose the same agent manifest through the A2A protocol without changing the
+agent definition:
+
+```bash
+mas-ctl serve agent.yaml --protocol a2a --host 127.0.0.1 --port 9005
+```
+
+In another terminal, retrieve the card and send a test message with the official
+A2A CLI or another compatible client. Stop the server with `Ctrl-C` when done.
+
+The complete protocol walkthrough and current conformance evidence are in the
+[A2A documentation](../../a2a/README.md).
+
+---
+
 ## Scenario YAML and automated checks
 
 This tutorial ships `demo/scenario.yaml` — a structured walkthrough with
@@ -601,6 +618,7 @@ Live `mas-ctl chat` steps need `TUTORIAL_ONLINE=1` and a configured LLM (Tutoria
 6. **Memory is a resource, not a tool**: two access paths (proactive RAG injection + `memory_search` tool) share the same plugin
 7. **Flavours separate deployment from identity**: `--flavour` selects a deployment posture bundled in `mas-library-standard` (`local` today; remote tool-servers / OTel are future flavours) with zero manifest changes
 8. **CLI flags**: same manifest — `-q` for scripted queries, `-i` for interactive REPL
+9. **Protocol exposure**: `mas-ctl serve --protocol a2a` exposes an agent card without rewriting the manifest
 
 ---
 
@@ -718,7 +736,7 @@ If you present this tutorial (~20 min), a useful slide arc:
 5. Progressive enrichment — tools → skills → memory
 6. Agentic memory — Apple ambiguity example across two runs
 7. Contracts and control — kernel ingress/egress (see Mealy guide)
-8. CLI vs API — same manifest, `--serve-oasf`
+8. CLI vs protocol — same manifest, `mas-ctl serve --protocol a2a`
 9. Teaser — multiple agents (Tutorial 2)
 
 ---

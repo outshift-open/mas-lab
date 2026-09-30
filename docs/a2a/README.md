@@ -71,4 +71,4 @@ use separate ports when exposing several agents.
 - A2A `messageId` maps to one submitted turn.
 - MAS correlation and parent-call identifiers travel in A2A message metadata.
 
-See [developer.md](developer.md), the [compliance report](../../library-ioa/docs/a2a/protocol-compliance.md), and the live [AGNTCON demo](../../sandbox/agntcon/DEMO-A2A.org) outside the package tree.
+See [developer.md](developer.md) and the [compliance report](../../library-ioa/docs/a2a/protocol-compliance.md).

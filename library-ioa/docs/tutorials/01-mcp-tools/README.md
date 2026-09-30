@@ -172,7 +172,7 @@ checkouts.
 # from mas-lab root
 uv sync
 # SDK CLI (`mcp version`, `mcp dev`) via extra:
-uv sync --extra cli   # or install library-ioa[all]
+uv sync --extra cli   # or install mas-library-ioa[all]
 ```
 
 Official protocol conformance is Node, not a Python clone. For the reproducible

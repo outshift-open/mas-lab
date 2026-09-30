@@ -425,7 +425,7 @@ re-executing the benchmark.
 ## Part C — Trip Planner Topology Comparison
 
 Now for a real experiment. The trip planner MAS
-(`ctl/examples/trip-planner/`) uses a moderator + 3 specialists. But is
+(`library-samples/apps/trip-planner/`) uses a moderator + 3 specialists. But is
 that topology actually better? Let's compare three approaches:
 
 | Topology | `spec.workflow.type` | Description | Config |

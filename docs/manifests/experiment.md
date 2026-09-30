@@ -46,8 +46,8 @@ experiment:
     app: trip-planner
     configs_dir: ./overlays
     # Preferred for shared apps — library identifier + versioned app id:
-    # app: library-ioc:sre-triage@v2
-    # manifest: library-ioc:apps/sre-triage/v2/mas.yaml
+    # app: example-library:sre-triage@v2
+    # manifest: example-library:apps/sre-triage/v2/mas.yaml
   artifacts: {df: dataframe}
   post:
     - {name: gather-experiment, type: gather_level, in: df, out: df, depends_on: [gather-scenario]}
@@ -149,7 +149,7 @@ and logs. Feature example (not a sample app):
 
 ```yaml
 applications:
-  - app: library-ioc:sre-triage@v1
+  - app: example-library:sre-triage@v1
     configs_dir: ./overlays
 ```
 
@@ -164,7 +164,7 @@ mas:
 
 # after
 applications:
-  - app: library-ioc:sre-triage@v1
+  - app: example-library:sre-triage@v1
     configs_dir: overlays
 ```
 

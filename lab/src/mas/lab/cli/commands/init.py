@@ -13,6 +13,7 @@ from typing import Any
 import click
 import yaml
 
+from mas.runtime.constants import WORKSPACE_CONFIG_FILENAME
 from mas.runtime.xdg import mas_config_dir, mas_infra_dir, mas_user_config_file
 
 
@@ -43,9 +44,9 @@ def _load_infra_template(name: str) -> str:
     return (_templates_root() / "infra" / name).read_text(encoding="utf-8")
 
 
-def _read_existing_config() -> dict[str, Any]:
-    """Parse existing ~/.config/mas/config.yaml; return {} if absent or unreadable."""
-    path = mas_user_config_file()
+def _read_existing_config(path: Path | None = None) -> dict[str, Any]:
+    """Parse an existing config file; return {} if absent or unreadable."""
+    path = path or mas_user_config_file()
     if not path.exists():
         return {}
     try:
@@ -54,7 +55,7 @@ def _read_existing_config() -> dict[str, Any]:
         return {}
 
 
-def _read_existing_infra(infra_name: str) -> dict[str, Any]:
+def _read_existing_infra(infra_name: str, infra_dir: Path | None = None) -> dict[str, Any]:
     """Parse existing infra yaml; return {} if absent or unreadable.
 
     Accepts either a bare name ("llmprovider") or a full/expandable path
@@ -62,7 +63,7 @@ def _read_existing_infra(infra_name: str) -> dict[str, Any]:
     """
     candidate = Path(infra_name).expanduser()
     if not candidate.is_absolute():
-        candidate = mas_infra_dir() / f"{infra_name}.yaml"
+        candidate = (infra_dir or mas_infra_dir()) / f"{infra_name}.yaml"
     if not candidate.exists():
         return {}
     try:
@@ -100,10 +101,13 @@ def _existing_infra_defaults(infra: dict[str, Any]) -> dict[str, str]:
     }
 
 
-def _render_config_yaml(*, infra_name: str | None) -> str:
+def _render_config_yaml(*, infra_name: str | None, local: bool = False) -> str:
     rendered = _load_template("config.yaml")
     if infra_name:
-        return rendered.replace("__INFRA_NAME__", infra_name)
+        rendered = rendered.replace("__INFRA_NAME__", infra_name)
+        if local:
+            rendered = rendered.replace("~/.config/mas/infra/", "infra/")
+        return rendered
     # Strip the entire infra block (comments + infra_refs + default_infra).
     # The block starts at the sentinel comment line and ends after default_infra.
     stripped = re.sub(
@@ -149,22 +153,34 @@ def _confirm_overwrite(path: Path, *, label: str, yes: bool) -> bool:
 
 @click.command("init")
 @click.option("--yes", is_flag=True, default=False, help="Use defaults without prompts.")
-def init_cmd(yes: bool) -> None:
-    """Initialize a fresh MAS user environment under $XDG_CONFIG_HOME/mas.
+@click.option(
+    "--local",
+    "local_config",
+    is_flag=True,
+    default=False,
+    help="Write config.yaml and infra/<name>.yaml in the current project.",
+)
+def init_cmd(yes: bool, local_config: bool) -> None:
+    """Initialize MAS configuration under XDG or in the current project.
 
-    Creates:
-    - ~/.config/mas/config.yaml
-    - ~/.config/mas/infra/<name>.yaml (unless skipped)
+    By default, creates user-level files under $XDG_CONFIG_HOME/mas. With
+    ``--local``, creates ``config.yaml`` and ``infra/<name>.yaml`` in the
+    current project so the folder is self-contained and portable.
     """
 
-    cfg_dir = mas_config_dir()
-    infra_dir = mas_infra_dir()
-    config_path = mas_user_config_file()
+    project_root = Path.cwd()
+    cfg_dir = project_root if local_config else mas_config_dir()
+    infra_dir = project_root / "infra" if local_config else mas_infra_dir()
+    config_path = (
+        project_root / WORKSPACE_CONFIG_FILENAME
+        if local_config
+        else mas_user_config_file()
+    )
 
     # Load existing values to pre-fill prompts
-    existing_cfg = _read_existing_config()
+    existing_cfg = _read_existing_config(config_path)
     existing_infra_name = _existing_infra_name(existing_cfg) or _DEFAULT_INFRA_NAME
-    existing_infra = _read_existing_infra(existing_infra_name)
+    existing_infra = _read_existing_infra(existing_infra_name, infra_dir)
     existing_infra_vals = _existing_infra_defaults(existing_infra)
 
     create_infra = True
@@ -206,7 +222,7 @@ def init_cmd(yes: bool) -> None:
         )
         # Reload infra defaults if name changed
         if infra_name != existing_infra_name:
-            existing_infra = _read_existing_infra(infra_name)
+            existing_infra = _read_existing_infra(infra_name, infra_dir)
             existing_infra_vals = _existing_infra_defaults(existing_infra)
             api_base = existing_infra_vals.get("api_base") or _DEFAULT_API_BASE
             api_key_env = existing_infra_vals.get("api_key_env") or _DEFAULT_ENV_KEY
@@ -258,7 +274,10 @@ def init_cmd(yes: bool) -> None:
     cfg_dir.mkdir(parents=True, exist_ok=True)
     if should_write_config:
         config_path.write_text(
-            _render_config_yaml(infra_name=infra_name if create_infra else None),
+            _render_config_yaml(
+                infra_name=infra_name if create_infra else None,
+                local=local_config,
+            ),
             encoding="utf-8",
         )
 
@@ -276,7 +295,11 @@ def init_cmd(yes: bool) -> None:
         )
 
     click.echo()
-    click.echo("Initialized MAS user configuration.")
+    click.echo(
+        "Initialized MAS project configuration."
+        if local_config
+        else "Initialized MAS user configuration."
+    )
     click.echo(f"- config: {config_path}")
     if infra_path is not None:
         click.echo(f"- infra : {infra_path}")
@@ -292,8 +315,13 @@ def init_cmd(yes: bool) -> None:
     click.echo("3) Override infra per run with --infra when needed.")
     click.echo("4) Use model mappings in infra to keep stable model names in agent manifests.")
     click.echo("5) You can override model names globally via environment/config defaults.")
+    if not local_config:
+        click.echo("6) For a self-contained project, rerun init with --local from its root.")
     if create_infra:
-        click.echo(f"6) Current mapping from init: {model_alias} -> {target_model}")
+        click.echo(
+            f"{7 if not local_config else 6}) Current mapping from init: "
+            f"{model_alias} -> {target_model}"
+        )
 
     click.echo()
     click.echo("Try first command:")

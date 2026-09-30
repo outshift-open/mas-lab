@@ -75,6 +75,18 @@ Default data paths follow the [XDG Base Directory Specification](https://specifi
 mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/mas/infra"
 ```
 
+For a self-contained project directory, initialize project-local configuration
+instead of user-level configuration:
+
+```bash
+cd /path/to/project
+mas-lab init --local
+```
+
+This writes `config.yaml` and `infra/<name>.yaml` below the project root. The
+runtime discovers that workspace file before the XDG fallback, and Docker sees
+the same files when the project is mounted at `/workspace`.
+
 ### 2. Install a default infra manifest (optional)
 
 ```bash

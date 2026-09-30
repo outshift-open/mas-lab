@@ -23,7 +23,8 @@ Usage:
   python scripts/version_manager.py bump <type> [package] # Bump version
   python scripts/version_manager.py set <version> [package] # Set version
 
-  package: runtime | ctl | library | samples | lab | core | bench | all
+    package: runtime | ctl | library | samples | skills | eval | lab-library |
+                     ioa | lab | core | bench | controller | all
   type:    rc | patch | minor | major
 """
 from __future__ import annotations
@@ -42,9 +43,14 @@ PACKAGES: dict[str, Path] = {
     "ctl":     ROOT / "ctl" / "pyproject.toml",
     "library": ROOT / "library-standard" / "pyproject.toml",
     "samples": ROOT / "library-samples" / "pyproject.toml",
+    "skills":  ROOT / "library-skills" / "pyproject.toml",
+    "eval":    ROOT / "library-eval" / "pyproject.toml",
+    "lab-library": ROOT / "library-lab" / "pyproject.toml",
+    "ioa":     ROOT / "library-ioa" / "pyproject.toml",
     "lab":     ROOT / "lab" / "pyproject.toml",
     "core":    ROOT / "lab" / "components" / "core" / "pyproject.toml",
     "bench":   ROOT / "lab" / "components" / "bench" / "pyproject.toml",
+    "controller": ROOT / "lab" / "components" / "controller" / "pyproject.toml",
 }
 
 VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:-(rc\d+))?$")

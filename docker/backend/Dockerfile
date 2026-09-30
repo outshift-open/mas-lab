@@ -18,8 +18,6 @@ COPY runtime/pyproject.toml runtime/
 COPY ctl/pyproject.toml ctl/
 COPY library-standard/pyproject.toml library-standard/
 COPY library-skills/pyproject.toml library-skills/
-COPY library-skills/agentskills/pyproject.toml library-skills/agentskills/
-COPY library-skills/skill-sandbox/pyproject.toml library-skills/skill-sandbox/
 COPY library-samples/pyproject.toml library-samples/
 COPY library-lab/pyproject.toml library-lab/
 COPY library-eval/pyproject.toml library-eval/
@@ -28,7 +26,6 @@ COPY lab/pyproject.toml lab/
 COPY lab/components/core/pyproject.toml lab/components/core/
 COPY lab/components/bench/pyproject.toml lab/components/bench/
 COPY lab/components/controller/pyproject.toml lab/components/controller/
-COPY lab/components/content/pyproject.toml lab/components/content/
 
 # Source trees
 COPY runtime/ runtime/

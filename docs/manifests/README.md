@@ -63,7 +63,7 @@ Short form:
 |------|---------|---------|
 | **Inline object** | `design_pattern: { type: react }` | Embedded in the parent YAML |
 | **File path** | `ref: ./agents/broker.yaml` | Relative, absolute, or `library:path` |
-| **Catalog id** | `app: library-ioc:sre-triage@v2` | `[library:]name@version` for versioned families |
+| **Catalog id** | `app: example-library:sre-triage@v2` | `[library:]name@version` for versioned families |
 | **Library path** | `samples:apps/trip-planner/mas.yaml` | Slash after `LIBRARY:` is a path, not an id |
 | **CLI override** | `--infra-ref`, `-o overlay.yaml` | One-shot for `mas-ctl` |
 
@@ -92,7 +92,7 @@ Both forms are valid in `experiment.applications[]`:
 | Style | Example | When to use |
 | --- | --- | --- |
 | **Inline / local file** | `manifest: ./agent.yaml` + optional `configs_dir` | Tutorials, self-contained experiments |
-| **Registered app** | `app: library-ioc:sre-triage@v2` | Shared apps; prefer this over `../../apps/...` |
+| **Registered app** | `app: example-library:sre-triage@v2` | Shared apps; prefer this over `../../apps/...` |
 
 Scenarios reference overlay **ids** from `configs_dir`. Dataset: `path: ./dataset.yaml` (tutorial) or `name` + optional `locator` (catalogued benchmarks).
 

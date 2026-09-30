@@ -46,7 +46,7 @@ spec:
         tools: { "$op": { remove: [web-search] } }
     workflow: { ... }   # topology: entry + directed delegation links
     params:
-      incident_fixture: library-ioc:sre-triage-incidents@v2/tool_fixtures/payment-async-timeout.yaml
+      incident_fixture: example-library:sre-triage-incidents@v2/tool_fixtures/payment-async-timeout.yaml
   tools: []            # inject tools (scenario level)
 ```
 

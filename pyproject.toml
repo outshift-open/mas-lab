@@ -16,7 +16,7 @@ dependencies = [
     "mas-library-samples",
     "mas-library-lab",
     "mas-library-eval",
-    "library-ioa[cli]",
+    "mas-library-ioa[cli]",
     "pika>=1.4.1",
 ]
 
@@ -47,8 +47,6 @@ members = [
     "ctl",
     "library-standard",
     "library-skills",
-    "library-skills/agentskills",
-    "library-skills/skill-sandbox",
     "library-samples",
     "library-lab",
     "library-eval",
@@ -57,7 +55,6 @@ members = [
     "lab/components/core",
     "lab/components/bench",
     "lab/components/controller",
-    "lab/components/content",
 ]
 
 [tool.uv.sources]
@@ -68,14 +65,11 @@ mas-library-skills   = { workspace = true }
 mas-library-samples  = { workspace = true }
 mas-library-lab      = { workspace = true }
 mas-library-eval     = { workspace = true }
-library-ioa = { workspace = true }
+mas-library-ioa = { workspace = true }
 mas-lab         = { workspace = true }
 mas-lab-core    = { workspace = true }
 mas-lab-bench   = { workspace = true }
 mas-lab-controller = { workspace = true }
-mas-lab-content = { workspace = true }
-agentskills = { workspace = true }
-skill-sandbox = { workspace = true }
 [tool.ruff]
 line-length = 120
 target-version = "py311"
@@ -85,7 +79,7 @@ select = ["E", "F", "B", "I"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests", "ctl/tests", "runtime/tests", "library-ioa/tests", "lab/components/controller/tests", "lab/components/content/tests"]
+testpaths = ["tests", "ctl/tests", "runtime/tests", "library-ioa/tests", "lab/components/controller/tests"]
 markers = [
     "timeout: per-test timeout (pytest-timeout)",
 ]

@@ -57,7 +57,7 @@ that filter by `id` / `group` / `category` keep using those metadata keys.
 
 ## Labs already on the envelope
 
-- library-ioc SRE datasets (`sre-triage-scenarios@v1`, …) — `inputs.user` +
+- example-library SRE datasets (`sre-triage-scenarios@v1`, …) — `inputs.user` +
   `tool_fixtures` + `expectations.correct_action`
 - library-samples trip-planner — `inputs.user` + `expectations.ground_truth`
 - coding-agent notification-delivery — `inputs.user` + custom expectations

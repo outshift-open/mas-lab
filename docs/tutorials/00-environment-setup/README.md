@@ -4,7 +4,7 @@
 -->
 # Tutorial 0 — Environment Setup
 
-> **Packages:** `mas-runtime`, `mas-ctl`, `mas-lab` (installed for you — Docker or `task install`)
+> **Packages:** `mas-runtime`, `mas-ctl`, `mas-lab` (PyPI, Docker, or source checkout)
 > **Time:** ~10 min (Docker fast path) · ~20 min (developer path)
 > **Goal:** Install MAS Lab, configure LLM access, and run your first
 > `mas-ctl` commands before Tutorial 1.
@@ -15,9 +15,10 @@
 
 | Path | Best for | You need |
 | ------ | ---------- | ---------- |
+| **[Path 0 — PyPI packages](#path-0-pypi-packages)** | Users running a published release | Python ≥ 3.11, `uv` |
 | **[Fast path — Docker only](#fast-path-docker-only)** | Users, demos, benchmarks | Docker, git, `OPENAI_API_KEY` for live LLM runs |
-| **[Path A — Docker (full)](#path-a--docker-users)** | Same as fast path + CLI patterns, mounts, `task` helpers | Docker, optional [go-task](https://taskfile.dev/) |
-| **[Path B — Developers](#path-b--developers-uv--task)** | Patching runtime, ctl, or lab | Python ≥ 3.11, `uv`, `task`, [direnv](https://direnv.net/) recommended |
+| **[Path A — Docker (full)](#path-a-docker-users)** | Same as fast path + CLI patterns, mounts, `task` helpers | Docker, optional [go-task](https://taskfile.dev/) |
+| **[Path B — Developers](#path-b-developers-uv-task)** | Patching runtime, ctl, or lab | Python ≥ 3.11, `uv`, `task`, [direnv](https://direnv.net/) recommended |
 
 Both paths use the **same manifests and tutorials**. Developers can still use Docker
 for the UI (`task start`) while editing Python sources on the host.
@@ -25,6 +26,43 @@ for the UI (`task start`) while editing Python sources on the host.
 **Infrastructure defaults** (`standard:openai`, `standard:ollama`, bundles, trace cache)
 are documented in [§ Infrastructure](#infrastructure-llm-endpoints-and-data-paths) below —
 not in the root README, because they only matter once you are setting up a run.
+
+---
+
+## Path 0 — PyPI packages
+
+<!-- TEMPORARY: remove this note after the first successful public PyPI upload. -->
+> **PyPI publication pending:** this path documents the intended release
+> experience, but the packages are not uploaded yet. Use the Docker or developer
+> paths below until the first public PyPI release is complete.
+
+Use this path to run a published release without cloning or editing the
+MAS-Lab source tree. The packages are installed into a local venv; the console
+scripts are the same as in the source and Docker paths.
+
+### 1 — Create a venv and install the release
+
+```bash
+uv venv .venv
+uv pip install mas-lab mas-library-standard mas-library-samples
+export PATH="$PWD/.venv/bin:$PATH"
+```
+
+For a specific release, add a version constraint to each package, for example
+`mas-lab==0.2.0`. These are the public PyPI names and do not require a Cisco
+checkout or internal package index.
+
+### 2 — Configure and test the installed CLI
+
+```bash
+mas-lab init
+export OPENAI_API_KEY=<your-key>
+mas-ctl validate path/to/agent.yaml
+mas-ctl chat path/to/agent.yaml -q "What is the capital of France?"
+```
+
+Use `mas-ctl validate` for an offline schema/ref check. Use `mas-ctl chat` or
+`mas-ctl run-mas` only when the selected infra bundle has a reachable provider.
 
 ---
 
@@ -38,7 +76,7 @@ images, and run a few `mas-ctl` commands to confirm the install.
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker Engine
 - `git clone https://github.com/outshift-open/mas-lab.git && cd mas-lab`
 
-### 2 — How LLM access works (read this first)
+### 2 — Configure LLM access (read this first)
 
 Three separate concerns — never mix secrets into YAML:
 
@@ -48,20 +86,24 @@ Three separate concerns — never mix secrets into YAML:
 | **Credential** | API key or token | `docker/.env` (Docker) or gitignored `.env` (developers) |
 | **Flavour** | Runtime environment bundle (`local` = default in `library-standard`) | `mas_ctl.flavour` / `mas_lab.flavour` in workspace, or manifest |
 
-**Initialize your user config** (creates `~/.config/mas/config.yaml` and an optional infra manifest):
+For the bundled `standard:openai` or `standard:ollama` providers, no host CLI
+installation or `mas-lab init` step is required. Set the API key in the Docker
+environment file:
 
 ```bash
-mas-lab init
-# Prompts for LLM provider URL, API key env var, and model alias.
-# Skip the infra step if you use a bundled provider (standard:openai, standard:ollama).
-```
-
-Then set your API key:
-
-```bash
-cp docs/tutorials/00-environment-setup/.env.example docker/.env   # Docker path
+cp docs/tutorials/00-environment-setup/.env.example docker/.env
 # Edit docker/.env — set OPENAI_API_KEY=sk-...
 ```
+
+For a custom provider, place the project `config.yaml` on the mounted workspace
+or bind-mount a host config tree as described in the repository's Docker README.
+
+The host-side initialization choices are:
+
+- `mas-lab init` writes the shared XDG config, which Docker mounts read-only as
+  its user-config fallback.
+- `mas-lab init --local` writes `config.yaml` and `infra/<name>.yaml` in the
+  project root; Docker sees these through `/workspace`, and they take priority.
 
 The generated `~/.config/mas/config.yaml` sets:
 
@@ -98,15 +140,15 @@ These commands confirm that Docker can run `mas-ctl` and read tutorial manifests
 They do **not** call an LLM, so you can run them before adding an API key.
 
 ```bash
-docker compose -f docker/compose.yaml run --rm --no-deps cli mas-lab config
-docker compose -f docker/compose.yaml run --rm --no-deps cli mas-ctl validate \
+docker compose --profile tools run --rm --no-deps cli mas-lab config
+docker compose --profile tools run --rm --no-deps cli mas-ctl validate \
   docs/tutorials/01-building-an-agent/agent.yaml
 ```
 
 **Live LLM** (after `OPENAI_API_KEY` is in `docker/.env`):
 
 ```bash
-docker compose -f docker/compose.yaml run --rm --no-deps cli mas-ctl chat \
+docker compose --profile tools run --rm --no-deps cli mas-ctl chat \
   docs/tutorials/01-building-an-agent/agent.yaml \
   -q "What is the capital of France?"
 ```
@@ -119,7 +161,7 @@ docker compose -f docker/compose.yaml run --rm --no-deps cli mas-ctl chat \
 **Offline** (no network — validate only; chat needs a live provider or llm_cache replay):
 
 ```bash
-docker compose -f docker/compose.yaml run --rm --no-deps cli mas-ctl validate \
+docker compose --profile tools run --rm --no-deps cli mas-ctl validate \
   docs/tutorials/01-building-an-agent/agent.yaml
 ```
 
@@ -182,7 +224,7 @@ and inspect `results/` from a completed run. Guide: [Web UI](../../ui/index.md).
 ### 7 — Next
 
 → [Tutorial 1 — Building an Agent](../01-building-an-agent/) — prefix commands with
-`docker compose -f docker/compose.yaml run --rm --no-deps cli` when staying on Docker.
+`docker compose --profile tools run --rm --no-deps cli` when staying on Docker.
 
 ---
 
@@ -275,8 +317,24 @@ Use this path when you change Python sources in `runtime/`, `ctl/`, or `lab/`.
 ```bash
 git clone https://github.com/outshift-open/mas-lab.git
 cd mas-lab
-direnv allow          # optional; uses committed .envrc → ./.venv
-task install          # editable: runtime, ctl, library-standard, lab stack
+direnv allow          # recommended; uses committed .envrc → ./.venv
+uv sync               # workspace packages are installed editable by default
+```
+
+Without direnv, run `uv venv .venv` once and then `uv sync` from the repository
+root. `uv run` executes commands in the synchronized workspace environment:
+
+```bash
+uv run mas-lab --help
+uv run mas-ctl validate docs/tutorials/01-building-an-agent/agent.yaml
+uv run pytest library-skills/tests -q
+```
+
+For the explicit editable-install workflow used by CI and the Taskfile:
+
+```bash
+task install-dev      # editable packages plus test and sample dependencies
+task verify-unit      # unit and package boundary tests
 ```
 
 Verify CLIs:
@@ -304,9 +362,8 @@ never shadows another project's venv.
 Create a **gitignored** `.env` at the repo root for secrets:
 
 ```bash
-cat > .env <<'EOF'
-OPENAI_API_KEY=sk-...
-EOF
+cp docs/tutorials/00-environment-setup/.env.example .env
+# Edit .env and set OPENAI_API_KEY=sk-...
 ```
 
 `mas-lab benchmark run` and `mas-ctl chat` walk up from the cwd and load `.env`
@@ -349,7 +406,9 @@ Run `task --list` from the repo root. Common tasks:
 | Task | Purpose |
 | ------ | --------- |
 | `task install` / `install-dev` / `install-all` | Editable package installs |
+| `uv sync` / `uv run ...` | Synchronized editable workspace commands |
 | `task verify` | Pre-commit gate (unit + tutorial manifests + smoke) |
+| `task ci` | CI-parity suite, including functional and smoke gates |
 | `task verify-tutorials` | Replay tutorial `demo/scenario.yaml` commands |
 | `task reproduce` | Run all paper lab experiments |
 | `task start` / `restart` | Docker UI stack |
@@ -359,15 +418,15 @@ Run `task --list` from the repo root. Common tasks:
 ### 7 — Smoke test
 
 ```bash
-mas-ctl validate docs/tutorials/01-building-an-agent/agent.yaml
-mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
+uv run mas-ctl validate docs/tutorials/01-building-an-agent/agent.yaml
+uv run mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
   -q "What is the capital of France?"
 ```
 
 Offline (no network — validate only; chat needs a live provider or [llm_cache](../../manifests/llm-cache.md) replay):
 
 ```bash
-mas-ctl validate docs/tutorials/01-building-an-agent/agent.yaml
+uv run mas-ctl validate docs/tutorials/01-building-an-agent/agent.yaml
 ```
 
 ### 7 — Keeping up to date
