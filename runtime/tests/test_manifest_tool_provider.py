@@ -57,7 +57,6 @@ def test_build_manifest_tool_provider_from_ref(calculator_tool_tree: Path):
     provider = build_manifest_tool_provider(
         [{"ref": "tools/calculator.tool.yaml"}],
         calculator_tool_tree,
-        include_system_tools=False,
     )
     names = [t["function"]["name"] for t in provider.list_openai_tools()]
     assert names == ["calculator"]
@@ -77,7 +76,6 @@ def test_spec_tools_load_with_external_only_overlay(calculator_tool_tree: Path):
     provider = build_manifest_tool_provider(
         [{"ref": "tools/calculator.tool.yaml"}],
         calculator_tool_tree,
-        include_system_tools=False,
         overlay_providers=[external],
     )
 
@@ -86,26 +84,18 @@ def test_spec_tools_load_with_external_only_overlay(calculator_tool_tree: Path):
     assert [tool["function"]["name"] for tool in provider.list_openai_tools()] == ["calculator"]
 
 
-def test_redundant_system_tool_entry_is_skipped_not_raised(calculator_tool_tree: Path):
-    """spec.tools entries with kind: system (e.g. request_human_input) are
-    auto-injected by build_manifest_tool_provider itself when a caller opts
-    in via include_system_tools=True; an explicit manifest declaration for
-    one is then redundant and must be skipped rather than raising
-    ManifestToolLoadError (regression: this previously crashed
-    instantiate_runtime for any manifest declaring a system tool in
-    spec.tools, silently degrading agents to an empty tool/skill setup)."""
+def test_system_tool_entry_enables_the_tool_without_loading_a_module(calculator_tool_tree: Path):
+    """A ``kind: system`` entry selects a runtime-owned tool; it must not be
+    loaded as a module (regression: that crashed instantiate_runtime)."""
     provider = build_manifest_tool_provider(
         [
             {"ref": "tools/calculator.tool.yaml"},
             {"name": "request_human_input", "kind": "system"},
         ],
         calculator_tool_tree,
-        include_system_tools=True,
     )
     names = {t["function"]["name"] for t in provider.list_openai_tools()}
-    assert "calculator" in names
-    assert "request_human_input" in names
-    assert "inform_user" in names
+    assert names == {"calculator", "request_human_input"}
 
 
 def test_ref_entry_params_override_yaml_impl_params(tmp_path: Path):
@@ -161,7 +151,7 @@ class EchoImplTool:
 def test_openai_tools_uses_provider(calculator_tool_tree: Path):
     manifest = {"spec": {"tools": [{"ref": "tools/calculator.tool.yaml"}]}}
     provider = build_manifest_tool_provider(
-        manifest["spec"]["tools"], calculator_tool_tree, include_system_tools=False
+        manifest["spec"]["tools"], calculator_tool_tree
     )
     tools = openai_tools(manifest, tool_provider=provider)
     assert tools[0]["function"]["name"] == "calculator"

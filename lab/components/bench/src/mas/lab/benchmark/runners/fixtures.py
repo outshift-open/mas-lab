@@ -37,7 +37,12 @@ def shared_tool_fixture_payload(tool_fixtures: Any) -> Any:
     return data
 
 
-def write_tool_fixtures_sidecar(spec_path: Path, tool_fixtures: Any) -> None:
+def write_tool_fixtures_sidecar(
+    spec_path: Path,
+    tool_fixtures: Any,
+    *,
+    source_ref: str | None = None,
+) -> None:
     """Hand the dataset item's payload to mock tools for this run.
 
     SRE mock tools currently load ``artifacts/scene.yaml``. That is an
@@ -48,7 +53,11 @@ def write_tool_fixtures_sidecar(spec_path: Path, tool_fixtures: Any) -> None:
 
     sidecar_dir = spec_path.parent / "artifacts"
     sidecar_dir.mkdir(parents=True, exist_ok=True)
-    payload = shared_tool_fixture_payload(tool_fixtures)
+    payload = (
+        {"incident_fixture": source_ref}
+        if source_ref
+        else shared_tool_fixture_payload(tool_fixtures)
+    )
     if isinstance(tool_fixtures, dict) and isinstance(tool_fixtures.get("by_tool"), dict):
         mapping_path = sidecar_dir / "tool_fixtures.yaml"
         with open(mapping_path, "w", encoding="utf-8") as fh:

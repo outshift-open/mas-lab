@@ -140,8 +140,8 @@ tools:
       - ref: samples:tools/calc.tool.yaml
 ```
 
-The canonical [`mixed-tools.infra.yaml`](../../../library-samples/infra/mixed-tools.infra.yaml) activates two
-providers:
+The canonical [`mixed-tools.infra.yaml`](https://github.com/outshift-open/mas-lab/blob/main/library-samples/infra/mixed-tools.infra.yaml)
+activates two providers:
 
 ```yaml
 tool_servers:

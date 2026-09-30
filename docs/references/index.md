@@ -39,6 +39,7 @@ Execution kernel, contracts, and plugins (`mas-runtime`, `mas-ctl`).
 |-------|-----------|
 | Runtime manifests (Agent, MAS, overlay) | [Manifest fields](../manifests/runtime.md) |
 | Contracts & Mealy envelope | [Contracts](contracts.md) · [runtime package docs](runtime.md) |
+| System tools (`activate_skill`, `request_human_input`, …) | [Guide](../manifests/system-tools.md) · [Reference](system-tools.md) |
 | CLI (`mas-ctl`) | [CLI overview](../cli/index.md) · [mas-ctl options](../cli/mas-ctl.md) |
 | **Web UI** | [ui/index.md](../ui/index.md) |
 | Run logs | [Observability](../cli/observability.md) |

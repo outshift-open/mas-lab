@@ -32,6 +32,7 @@ from mas.ctl.workspace.config import (
 @dataclass
 class ComposeRequest:
     manifest: Path
+    workspace_root: Path | None = None
     deployment_path: Path | None = None
     overlay_ids: list[str] = field(default_factory=list)
     overlay_paths: list[Path] = field(default_factory=list)
@@ -102,7 +103,7 @@ def compose_run(req: ComposeRequest) -> ComposeResult:
         mas = merge_overlay(mas, load_yaml_mapping(ov_path))
     mas_id = mas.get("metadata", {}).get("name") or req.manifest.stem
 
-    workspace = WorkspaceConfig.load(req.manifest.parent)
+    workspace = WorkspaceConfig.load(req.workspace_root or req.manifest.parent)
     user = UserConfig.load()
     merged_refs = merge_infra_refs(
         workspace_refs=workspace.effective_infra_refs,

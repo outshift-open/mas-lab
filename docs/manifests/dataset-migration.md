@@ -34,6 +34,12 @@ A string on `user` is the prompt text. A string on `tool_fixtures` /
 `memory_seeds` is a path (shorthand for `{ref: that-string}`). Do not mix
 the two. `{ref: relative/path}` is the only file-pointer syntax on `user`.
 
+During the compatibility window, the loader resolves the deprecated
+`tool_fixtures.incident_fixture` payload for runtime consumers while retaining
+its original reference for benchmark adapters that expose a filesystem
+sidecar. New datasets should use `inputs.tool_fixtures: {ref: ...}` or a
+`by_tool` mapping.
+
 ## Couplings
 
 `execution.design.mode: coupled` binds `scenario` to dataset item **`id`**:

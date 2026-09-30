@@ -16,6 +16,7 @@ import os
 import sys
 import threading
 import types
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,9 @@ from mas.runtime.registry.provider_protocol import ManifestToolLoadError
 logger = logging.getLogger(__name__)
 
 _TOOL_MODULE_LOAD_LOCK = threading.RLock()
+
+#: User-communication system tools owned by the runtime (never implicit).
+USER_IO_SYSTEM_TOOLS: frozenset[str] = frozenset({"request_human_input", "inform_user"})
 
 
 def _containment_roots(
@@ -257,13 +261,18 @@ def load_local_tool_provider(
     manifest_dir: Path,
     *,
     app_root: Path | None = None,
-    include_system_tools: bool = False,
+    system_tools: Iterable[str] = (),
     hitl_contract: HITLContract | None = None,
     user_io_contract: UserIOContract | None = None,
     provider: LocalToolProvider | None = None,
     **containment_kw: Any,
 ) -> LocalToolProvider:
-    """Load ``spec.tools`` Python implementations into the local plugin."""
+    """Load ``spec.tools`` Python implementations into the local plugin.
+
+    Enabled system tools = ``{kind: system, name}`` entries in ``tools_spec``
+    + host-requested ``system_tools`` + implicit skill tools (``activate_skill``
+    when skills are listed, ``run_skill_script`` when one ships ``scripts/``).
+    """
     local = provider or LocalToolProvider()
     skills_spec = containment_kw.pop("skills_spec", None)
     auto_inject_scripts = bool(containment_kw.pop("auto_inject_scripts", False))
@@ -278,24 +287,18 @@ def load_local_tool_provider(
             for path in sorted(tools_dir.rglob("*.tool.yaml"))
         ]
 
-    # System tools (request_human_input, inform_user) are opt-in, not
-    # auto-injected: an agent gets them only when a caller explicitly passes
-    # include_system_tools=True. Letting a model reach for
-    # request_human_input mid-task silently substitutes a fabricated or
-    # rubber-stamped non-answer for a real one — with no way for the
-    # protocol driving the agent to tell the difference — and inform_user
-    # narration burns a turn without advancing anything. A
-    # {kind: system, name: request_human_input, params: {...}} entry in
-    # tools_spec configures the HITL wrapper (timeout, auto_resolve_decision,
-    # max_question_length) when a caller does opt in; a
-    # {kind: system, name: inform_user, params: {...}} entry configures
-    # max_message_length. Both are otherwise a redundant/documentation-only
-    # declaration (skipped below) — read before injecting.
-    if include_system_tools:
+    # request_human_input / inform_user stay opt-in: a model reaching for them
+    # unprompted substitutes a non-answer the driving protocol cannot detect.
+    host_entries = [{"kind": "system", "name": str(n)} for n in system_tools]
+    system_spec = [*(tools_spec or []), *host_entries]
+    requested = _requested_system_tools(system_spec)
+    user_io = requested & USER_IO_SYSTEM_TOOLS
+    if user_io:
         hitl_params = _system_tool_params(tools_spec, "request_human_input")
         inform_user_params = _system_tool_params(tools_spec, "inform_user")
         _inject_system_tools(
             local,
+            names=user_io,
             hitl_contract=hitl_contract,
             user_io_contract=user_io_contract,
             hitl_default_timeout_seconds=hitl_params.get("timeout"),
@@ -303,15 +306,15 @@ def load_local_tool_provider(
             max_question_length=hitl_params.get("max_question_length"),
             max_message_length=inform_user_params.get("max_message_length"),
         )
-        _inject_skill_system_tools(
-            local,
-            tools_spec=tools_spec,
-            skills_spec=skills_spec,
-            manifest_dir=manifest_dir,
-            app_root=app_root,
-            skills_dir=skills_dir,
-            auto_inject_scripts=auto_inject_scripts,
-        )
+    _inject_skill_system_tools(
+        local,
+        tools_spec=system_spec,
+        skills_spec=skills_spec,
+        manifest_dir=manifest_dir,
+        app_root=app_root,
+        skills_dir=skills_dir,
+        auto_inject_scripts=auto_inject_scripts,
+    )
 
     if not tools_spec:
         return local
@@ -353,6 +356,30 @@ def load_local_tool_provider(
     return local
 
 
+def _skill_system_tool_names() -> frozenset[str]:
+    try:
+        from mas.library.skills.plugins.system_tools import SKILL_SYSTEM_TOOL_NAMES
+    except ImportError:
+        return frozenset()
+    return SKILL_SYSTEM_TOOL_NAMES
+
+
+def _requested_system_tools(tools_spec: list[Any]) -> set[str]:
+    """Names of ``{kind: system}`` entries; unknown names are a load error."""
+    names = {
+        str(raw.get("name") or "").strip()
+        for raw in tools_spec
+        if isinstance(raw, dict) and raw.get("kind") == "system"
+    }
+    known = USER_IO_SYSTEM_TOOLS | _skill_system_tool_names()
+    unknown = sorted(names - known)
+    if unknown:
+        raise ManifestToolLoadError(
+            f"unknown system tool(s) {unknown}; available: {sorted(known)}"
+        )
+    return names
+
+
 def _system_tool_params(tools_spec: list[Any], name: str) -> dict[str, Any]:
     """Extract ``params`` from a ``{kind: system, name: <name>}`` entry in
     ``spec.tools``, if declared -- the manifest-level config for a system
@@ -367,6 +394,7 @@ def _system_tool_params(tools_spec: list[Any], name: str) -> dict[str, Any]:
 def _inject_system_tools(
     provider: LocalToolProvider,
     *,
+    names: set[str] | frozenset[str] = USER_IO_SYSTEM_TOOLS,
     hitl_contract: HITLContract | None = None,
     user_io_contract: UserIOContract | None = None,
     hitl_default_timeout_seconds: float | None = None,
@@ -389,19 +417,21 @@ def _inject_system_tools(
     if max_message_length is not None:
         inform_user_kwargs["max_message_length"] = int(max_message_length)
 
-    provider._add_instance(
-        _SystemToolHitlWrapper(
-            RequestHumanInputTool(**request_human_input_kwargs),
-            hitl_contract=hitl_contract,
-            default_timeout_seconds=hitl_default_timeout_seconds,
-            auto_resolve_decision=hitl_auto_resolve_decision,
-        ),
-        manifest_contract=None,
-    )
-    provider._add_instance(
-        _SystemToolUserUpdateWrapper(InformUserTool(**inform_user_kwargs), user_io_contract=user_io_contract),
-        manifest_contract=None,
-    )
+    if "request_human_input" in names:
+        provider._add_instance(
+            _SystemToolHitlWrapper(
+                RequestHumanInputTool(**request_human_input_kwargs),
+                hitl_contract=hitl_contract,
+                default_timeout_seconds=hitl_default_timeout_seconds,
+                auto_resolve_decision=hitl_auto_resolve_decision,
+            ),
+            manifest_contract=None,
+        )
+    if "inform_user" in names:
+        provider._add_instance(
+            _SystemToolUserUpdateWrapper(InformUserTool(**inform_user_kwargs), user_io_contract=user_io_contract),
+            manifest_contract=None,
+        )
 
 
 def _inject_skill_system_tools(

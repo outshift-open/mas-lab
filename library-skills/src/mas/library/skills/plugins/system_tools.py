@@ -41,6 +41,7 @@ SKILL_SHELL_REFS = frozenset(
 
 _ACTIVATE_NAMES = frozenset({"activate_skill", "skill-access", "skill_access"})
 _SCRIPT_NAMES = frozenset({"run_skill_script", "run-skill-script"})
+SKILL_SYSTEM_TOOL_NAMES: frozenset[str] = _ACTIVATE_NAMES | _SCRIPT_NAMES
 
 
 def skill_refs(skills_spec: Any) -> list[str]:

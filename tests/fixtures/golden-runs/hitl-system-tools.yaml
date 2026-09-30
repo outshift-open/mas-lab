@@ -1,23 +1,18 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-# Overlay: add web-search + calculator tools
+# Golden captures were recorded when request_human_input / inform_user were
+# exposed by default; declaring them keeps the replayed LLM requests identical.
 apiVersion: mas/v1
 kind: Overlay
 metadata:
-  name: tools
+  name: hitl-system-tools
 spec:
   target:
     kind: Agent
   patch:
-    context:
-      tool_usage: |
-        When you need to perform calculations, use the calc tool.
-        When you need current information from the web, use the web-search tool.
     tools:
       $op:
         add:
-          - ref: samples:tools/web-search.tool.yaml
-          - ref: samples:tools/calc.tool.yaml
           - kind: system
             name: request_human_input
           - kind: system

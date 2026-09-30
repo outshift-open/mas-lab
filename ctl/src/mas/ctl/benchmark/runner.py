@@ -271,7 +271,11 @@ class MasBenchRunner:
         checkpoint_save = bool(ri.checkpoint_save) if ri else False
         tool_fixtures = ri.tool_fixtures if ri else None
 
-        write_tool_fixtures_sidecar(spec_path, tool_fixtures)
+        write_tool_fixtures_sidecar(
+            spec_path,
+            tool_fixtures,
+            source_ref=ri.tool_fixture_ref if ri else None,
+        )
         if tool_fixtures is None:
             from mas.lab.benchmark.cache.trace_store import write_runtime_params_sidecar
 

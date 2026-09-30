@@ -34,7 +34,7 @@ def _discover_apps() -> dict[str, Path]:
 def get_app(name: str) -> Path:
     """Return the application directory for a catalog id or ``library:app`` ref.
 
-    Canonical id: ``[library:]name[@version]`` (``library-ioc:sre-triage@v2``).
+    Canonical id: ``[library:]name[@version]`` (``example-library:example-app@v2``).
     Bare ``name`` is ``@latest``. Slash is a filesystem path, not an id alias.
     """
     requested = str(name).strip()
@@ -66,7 +66,7 @@ def get_app(name: str) -> Path:
     available = ", ".join(sorted(apps)) or "(none found)"
     raise AppNotFoundError(
         f"App '{requested}' not found. Available: {available}. "
-        "Use library:app (e.g. library-ioc:sre-triage@v2) or declare the app "
+        "Use library:app (e.g. example-library:example-app@v2) or declare the app "
         "under manifest_libraries in config.yaml."
     )
 

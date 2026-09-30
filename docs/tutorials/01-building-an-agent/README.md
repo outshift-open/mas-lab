@@ -284,7 +284,8 @@ No `skills_dir` needed. That file **must start with YAML frontmatter**
 copyright comment before the frontmatter is treated as a body with no name.
 
 Listing the skill is enough: `activate_skill` is added as a system tool
-(it is **not** exposed unless at least one skill is listed). Frontmatter
+(it is **not** exposed unless at least one skill is listed; see
+[System tools](../../manifests/system-tools.md)). Frontmatter
 `description` is the when-to-use text shown in the catalog. It should also
 tell the model to `activate_skill("answer-formatting")` and follow the
 loaded body. The body is *how* to apply the skill and is not in the catalog.

@@ -122,6 +122,7 @@ def load_scenario_config(
     mas_yaml: Optional[Path] = None,
     *,
     infra_refs: list[str] | None = None,
+    workspace_root: Optional[Path] = None,
 ) -> tuple[dict, Path]:
     """Load a scenario config from *scenarios_dir*, overlay-first.
 
@@ -174,7 +175,12 @@ def load_scenario_config(
         # instead of patching a base mas.yaml.
         _overlay_kind = (overlay or {}).get("kind", "")
         if _overlay_kind in ("MAS", "Workflow"):
-            mas_manifest = load_mas_config(overlay_path, validate=False, infra_refs=infra_refs)
+            mas_manifest = load_mas_config(
+                overlay_path,
+                validate=False,
+                infra_refs=infra_refs,
+                workspace_root=workspace_root,
+            )
             config = dict(mas_manifest._raw)
             # Store raw overlay for cache key coverage even on full-manifest overlays.
             config["_overlay_hash_input"] = [overlay]
@@ -186,7 +192,12 @@ def load_scenario_config(
             raise FileNotFoundError(f"mas.yaml not found for overlay {overlay_path}: expected at {_mas_yaml}")
         mas_yaml = _mas_yaml
         # validate=False: allow single-agent Workflow manifests in lab overlay contexts.
-        mas_manifest = load_mas_config(mas_yaml, validate=False, infra_refs=infra_refs)  # type: ignore[arg-type]
+        mas_manifest = load_mas_config(
+            mas_yaml,
+            validate=False,
+            infra_refs=infra_refs,
+            workspace_root=workspace_root,
+        )  # type: ignore[arg-type]
         config = dict(mas_manifest._raw)
 
         # Inject overlay plugins into each agent in the MAS config so that
@@ -372,6 +383,7 @@ def load_stacked_config(
     *,
     base_dir: Optional[Path] = None,
     infra_refs: list[str] | None = None,
+    workspace_root: Optional[Path] = None,
 ) -> tuple[dict, Path]:
     """Stack multiple overlays in order on top of the base ``mas.yaml``.
 
@@ -414,7 +426,12 @@ def load_stacked_config(
     from mas.lab.manifest.load import load_mas_config
     from mas.runtime.spec.source import load_yaml_mapping
 
-    mas_manifest = load_mas_config(mas_yaml, validate=False, infra_refs=infra_refs)
+    mas_manifest = load_mas_config(
+        mas_yaml,
+        validate=False,
+        infra_refs=infra_refs,
+        workspace_root=workspace_root,
+    )
     config = dict(mas_manifest._raw)
 
     _overlays_dir = overlays_dir if overlays_dir is not None else mas_yaml.parent / "overlays"
@@ -431,7 +448,12 @@ def load_stacked_config(
         overlay = load_yaml_mapping(overlay_path)
         _overlay_kind = (overlay or {}).get("kind", "")
         if _overlay_kind in ("MAS", "Workflow"):
-            mas_manifest = load_mas_config(overlay_path, validate=False, infra_refs=infra_refs)
+            mas_manifest = load_mas_config(
+                overlay_path,
+                validate=False,
+                infra_refs=infra_refs,
+                workspace_root=workspace_root,
+            )
             config = dict(mas_manifest._raw)
             _applied_overlays = [overlay]
             config["_overlay_hash_input"] = _applied_overlays

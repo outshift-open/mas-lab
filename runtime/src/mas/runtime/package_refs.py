@@ -159,8 +159,8 @@ def _catalog_dir(path: Path) -> Path:
 def _resolve_catalog_relative(rel: str, *, lib_root: Path | None) -> Path | None:
     """Resolve ``name@version/path`` as a file inside a catalog object.
 
-    ``library-ioc:sre-triage-incidents@v2/tool_fixtures/foo.yaml`` is the
-    Dataset folder plus a sibling payload. ``library-ioc:sre-triage@v2/tools/…``
+    ``example-library:example-datasets@v2/tool_fixtures/foo.yaml`` is the
+    Dataset folder plus a sibling payload. ``example-library:example-app@v2/tools/…``
     is the app version folder plus a path. Slash after a *folder* name
     (``apps/…``) stays a library-root path; this only fires when the first
     segment is a catalog id.

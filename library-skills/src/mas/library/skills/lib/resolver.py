@@ -39,12 +39,14 @@ def skill_search_roots(base_dir: Path) -> list[Path]:
     # Cross-client convention: project-level .agents/skills/
     _add(base_dir / ".agents" / "skills")
 
-    # Walk up once to find a library-level skills/ shared across apps
+    # Walk parent directories without crossing into the home-level namespace.
+    home = Path.home().resolve()
     for parent in base_dir.resolve().parents:
+        if parent == home:
+            break
         p_skills = parent / "skills"
         if p_skills.is_dir() and p_skills.resolve() not in seen:
             _add(p_skills)
-            break
 
     # User-level skill directories
     home = Path.home()
