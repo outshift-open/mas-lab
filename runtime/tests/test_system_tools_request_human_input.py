@@ -55,7 +55,7 @@ def test_input_schema_defaults_timeout_to_none():
 
 
 def test_default_wrapper_has_no_timeout_when_nothing_configured(empty_tool_tree: Path):
-    provider = build_manifest_tool_provider([], empty_tool_tree)
+    provider = build_manifest_tool_provider([], empty_tool_tree, include_system_tools=True)
     wrapper = next(
         t for t in provider._tool_instances if getattr(t, "_tool", None).__class__.__name__ == "RequestHumanInputTool"
     )
@@ -66,6 +66,7 @@ def test_manifest_params_set_the_default_timeout(empty_tool_tree: Path):
     provider = build_manifest_tool_provider(
         [{"kind": "system", "name": "request_human_input", "params": {"timeout": 5}}],
         empty_tool_tree,
+        include_system_tools=True,
     )
     wrapper = next(
         t for t in provider._tool_instances if getattr(t, "_tool", None).__class__.__name__ == "RequestHumanInputTool"
@@ -78,7 +79,7 @@ def test_no_timeout_configured_blocks_until_resolved(empty_tool_tree: Path):
     must wait indefinitely for resolution -- not silently apply some other
     default. Resolved promptly from another thread here so the test itself
     doesn't hang."""
-    provider = build_manifest_tool_provider([], empty_tool_tree)
+    provider = build_manifest_tool_provider([], empty_tool_tree, include_system_tools=True)
     ctx = _FakeCtx(session_id="sess-block")
     registry = get_hitl_resolver_registry()
     result: dict = {}
@@ -102,7 +103,7 @@ def test_no_timeout_configured_blocks_until_resolved(empty_tool_tree: Path):
 
 
 def test_call_time_timeout_raises_after_configured_seconds(empty_tool_tree: Path):
-    provider = build_manifest_tool_provider([], empty_tool_tree)
+    provider = build_manifest_tool_provider([], empty_tool_tree, include_system_tools=True)
     ctx = _FakeCtx(session_id="sess-timeout")
 
     with pytest.raises(TimeoutError):
@@ -124,6 +125,7 @@ def test_call_time_timeout_overrides_manifest_default(empty_tool_tree: Path):
     provider = build_manifest_tool_provider(
         [{"kind": "system", "name": "request_human_input", "params": {"timeout": 60}}],
         empty_tool_tree,
+        include_system_tools=True,
     )
     ctx = _FakeCtx(session_id="sess-override")
 
@@ -148,7 +150,7 @@ def test_call_time_timeout_overrides_manifest_default(empty_tool_tree: Path):
 
 def test_auto_resolve_defaults_to_approve(empty_tool_tree: Path, monkeypatch):
     monkeypatch.setenv("MAS_HITL_AUTO_RESOLVE", "1")
-    provider = build_manifest_tool_provider([], empty_tool_tree)
+    provider = build_manifest_tool_provider([], empty_tool_tree, include_system_tools=True)
     ctx = _FakeCtx(session_id="sess-auto-default")
 
     result = provider.call_tool(
@@ -162,7 +164,7 @@ def test_auto_resolve_defaults_to_approve(empty_tool_tree: Path, monkeypatch):
 def test_auto_resolve_decision_configurable_via_env_var(empty_tool_tree: Path, monkeypatch):
     monkeypatch.setenv("MAS_HITL_AUTO_RESOLVE", "1")
     monkeypatch.setenv("MAS_HITL_AUTO_RESOLVE_DECISION", "reject")
-    provider = build_manifest_tool_provider([], empty_tool_tree)
+    provider = build_manifest_tool_provider([], empty_tool_tree, include_system_tools=True)
     ctx = _FakeCtx(session_id="sess-auto-env")
 
     result = provider.call_tool(
@@ -178,6 +180,7 @@ def test_auto_resolve_decision_configurable_via_manifest_params(empty_tool_tree:
     provider = build_manifest_tool_provider(
         [{"kind": "system", "name": "request_human_input", "params": {"auto_resolve_decision": "reject"}}],
         empty_tool_tree,
+        include_system_tools=True,
     )
     ctx = _FakeCtx(session_id="sess-auto-manifest")
 
@@ -202,6 +205,7 @@ def test_manifest_params_configure_max_question_length(empty_tool_tree: Path):
     provider = build_manifest_tool_provider(
         [{"kind": "system", "name": "request_human_input", "params": {"max_question_length": 8000}}],
         empty_tool_tree,
+        include_system_tools=True,
     )
     wrapper = next(
         t for t in provider._tool_instances if getattr(t, "_tool", None).__class__.__name__ == "RequestHumanInputTool"
@@ -221,6 +225,7 @@ def test_configured_max_question_length_still_rejects_beyond_it(empty_tool_tree:
     provider = build_manifest_tool_provider(
         [{"kind": "system", "name": "request_human_input", "params": {"max_question_length": 100}}],
         empty_tool_tree,
+        include_system_tools=True,
     )
     wrapper = next(
         t for t in provider._tool_instances if getattr(t, "_tool", None).__class__.__name__ == "RequestHumanInputTool"
@@ -241,6 +246,7 @@ def test_manifest_auto_resolve_decision_wins_over_env_var(empty_tool_tree: Path,
     provider = build_manifest_tool_provider(
         [{"kind": "system", "name": "request_human_input", "params": {"auto_resolve_decision": "escalate"}}],
         empty_tool_tree,
+        include_system_tools=True,
     )
     ctx = _FakeCtx(session_id="sess-auto-precedence")
 

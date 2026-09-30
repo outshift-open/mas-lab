@@ -28,8 +28,20 @@ def empty_tool_tree(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def test_default_system_tools_include_inform_user(empty_tool_tree: Path):
+def test_system_tools_excluded_by_default(empty_tool_tree: Path):
+    """request_human_input/inform_user are opt-in: an agent gets them only
+    when a caller explicitly passes include_system_tools=True. Letting a
+    model reach for request_human_input mid-task substitutes a fabricated
+    or rubber-stamped non-answer for a real one with no way for the
+    protocol driving it to tell the difference, so they must not be
+    present unless a caller has deliberately asked for them."""
     provider = build_manifest_tool_provider([], empty_tool_tree)
+    names = {t["function"]["name"] for t in provider.list_openai_tools()}
+    assert names == set()
+
+
+def test_system_tools_included_when_opted_in(empty_tool_tree: Path):
+    provider = build_manifest_tool_provider([], empty_tool_tree, include_system_tools=True)
     names = {t["function"]["name"] for t in provider.list_openai_tools()}
     assert names == {"request_human_input", "inform_user"}
 
@@ -51,7 +63,7 @@ def test_inform_user_tool_raises_signal_with_expected_fields():
 
 
 def test_inform_user_wrapper_registers_update_in_registry_fallback(empty_tool_tree: Path, monkeypatch):
-    provider = build_manifest_tool_provider([], empty_tool_tree)
+    provider = build_manifest_tool_provider([], empty_tool_tree, include_system_tools=True)
     ctx = _FakeCtx()
 
     result = provider.call_tool(
@@ -84,6 +96,7 @@ def test_inform_user_wrapper_routes_through_user_io_contract(empty_tool_tree: Pa
     provider = build_manifest_tool_provider(
         [],
         empty_tool_tree,
+        include_system_tools=True,
         user_io_contract=_FakeUserIOContract(),
     )
     ctx = _FakeCtx()
@@ -108,7 +121,7 @@ def test_request_human_input_still_auto_resolves_in_batch_mode(empty_tool_tree: 
     """Regression check: refactoring the wrapper into a shared base class must not
     change the MAS_HITL_AUTO_RESOLVE short-circuit behavior for request_human_input."""
     monkeypatch.setenv("MAS_HITL_AUTO_RESOLVE", "1")
-    provider = build_manifest_tool_provider([], empty_tool_tree)
+    provider = build_manifest_tool_provider([], empty_tool_tree, include_system_tools=True)
     ctx = _FakeCtx()
 
     result = provider.call_tool(
@@ -148,6 +161,7 @@ def test_manifest_params_configure_max_message_length(empty_tool_tree: Path):
     provider = build_manifest_tool_provider(
         [{"kind": "system", "name": "inform_user", "params": {"max_message_length": 8000}}],
         empty_tool_tree,
+        include_system_tools=True,
     )
     wrapper = next(
         t for t in provider._tool_instances if getattr(t, "_tool", None).__class__.__name__ == "InformUserTool"
@@ -161,6 +175,7 @@ def test_configured_max_message_length_still_rejects_beyond_it(empty_tool_tree: 
     provider = build_manifest_tool_provider(
         [{"kind": "system", "name": "inform_user", "params": {"max_message_length": 100}}],
         empty_tool_tree,
+        include_system_tools=True,
     )
     wrapper = next(
         t for t in provider._tool_instances if getattr(t, "_tool", None).__class__.__name__ == "InformUserTool"
