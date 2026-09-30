@@ -46,7 +46,7 @@ agent (and for `--layout bundle`). Omit it to print a bundle document on stdout.
 ## Layout: tree vs bundle vs auto
 
 | Layout | Agent | MAS | When to use |
-|--------|-------|-----|-------------|
+| -------- | ------- | ----- | ------------- |
 | **auto** (default) | file / stdout | directory → tree; `.yaml` → bundle | Usual CLI |
 | **tree** | `agent.yaml` in a folder | `mas.yaml` + original `agents/…` paths | Diff, re-validate, re-run with the same file layout |
 | **bundle** | one Agent YAML | one MAS YAML with **inlined** Agent documents | Snapshot, review, “what did the runtime see?” |
@@ -80,8 +80,9 @@ overwritten.
 ## Flags
 
 | Flag | Description |
-|------|-------------|
+| ------ | ------------- |
 | `-o / --overlay` | Overlay YAML (repeatable, later wins) |
+| `--override ROOT:PATH=VALUE` | Schema-backed path override, repeatable; applied after overlays |
 | `-O / --output` | Directory or YAML file |
 | `--layout auto\|tree\|bundle` | Output shape (see table) |
 | `--no-defaults` | Skip filling runtime defaults |
@@ -90,6 +91,20 @@ overwritten.
 
 Flavour and infra overlays are skipped (compile emits Agent/MAS specs only).
 MAS overlays cannot be applied to an Agent manifest.
+
+For a MAS, use the `mas:` root to select an agency entry or update the MAS
+document; use `agent:` for a standalone Agent manifest:
+
+```bash
+mas-ctl compile mas.yaml \
+  --override 'mas:spec.agency.agents[id=qa].spec.context.role="reviewer"'
+mas-ctl compile agent.yaml \
+  --override 'agent:spec.context.role="reviewer"'
+```
+
+See the [full override reference](overrides.md) and the [Overlay manifest
+reference](../manifests/overlay.md) for target names, patch schemas, selectors,
+wildcards, precedence, and compatibility rules.
 
 ## See also
 

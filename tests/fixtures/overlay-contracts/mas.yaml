@@ -1,0 +1,13 @@
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: mas-contract
+spec:
+  target:
+    kind: MAS
+    name: team
+  patch:
+    workflow:
+      entry: reviewer
+  overrides:
+    - "mas:spec.agency.agents[*].spec.context.environment=staging"

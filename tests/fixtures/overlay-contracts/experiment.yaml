@@ -1,0 +1,14 @@
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: experiment-contract
+spec:
+  target:
+    kind: Experiment
+    name: smoke
+  patch:
+    experiment:
+      run:
+        n_runs: 2
+  overrides:
+    - "experiment:experiment.run.n_runs=3"

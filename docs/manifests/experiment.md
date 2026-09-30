@@ -11,6 +11,19 @@ An **experiment** manifest tells `mas-lab benchmark run` what to execute: which 
 **runs** per item (`n_runs`), and which **pipeline** steps build `results/` afterward.
 Defines **benchmark** metadata, execution modes, lifecycle levels, and **pipeline** hooks.
 
+Benchmark runs accept repeatable schema-backed CLI overrides. The `experiment:`
+root is patched before validation, scenario expansion, and dataset loading:
+
+```bash
+mas-lab benchmark run experiment.yaml \
+  --override 'experiment:experiment.run.n_runs=1' \
+  --override 'experiment:experiment.dataset.limit=2'
+```
+
+Reusable selector and wildcard groups belong in an Overlay manifest under
+`spec.overrides`; see the [Overlay manifest reference](overlay.md) for the
+target, patch, precedence, and validation contract.
+
 ---
 
 ## Four layers (matches CLI `--depth exp|scenario|item|run`)
@@ -19,7 +32,7 @@ There is **no** `pipelines:` key. Hooks live on the same objects the CLI
 already names:
 
 | YAML | CLI | Scope | Typical post |
-|------|-----|-------|--------------|
+| ------ | ----- | ------- | -------------- |
 | `post:` (experiment root) | `--depth exp` | Whole experiment | `gather_level`, CI, plots |
 | `scenario:` | `--scenario` / `--depth scenario` | One overlay column | Gather item frames |
 | `item:` | `--item` / `--depth item` | One dataset item (all runs) | Gather run frames |
@@ -175,7 +188,7 @@ Relative `manifest:` paths still work; prefer `app: library:id@version`.
 ## Pipeline reference forms
 
 | Form | Example |
-|------|---------|
+| ------ | --------- |
 | Library id | `{ id: analysis }` or shorthand string in lists |
 | File ref | `./pipelines/post-run.yaml` or `{ ref: ... }` |
 | Inline steps | `{ steps: [{ name: s1, type: plot_trajectory, ... }] }` |

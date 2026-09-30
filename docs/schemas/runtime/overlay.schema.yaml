@@ -86,8 +86,8 @@ properties:
         properties:
           kind:
             type: string
-            description: "Resource kind: MAS | Flavour | Agent | Infra"
-            enum: [Agent, MAS, Flavour, Infra]
+            description: "Resource kind: MAS | Flavour | Agent | Infra | Experiment | Workspace"
+            enum: [Agent, MAS, Flavour, Infra, Experiment, Workspace]
           name:
             type: string
             description: >
@@ -102,6 +102,14 @@ properties:
           agent-patch fields, MAS overlays accept MAS-patch fields, and Flavour
           overlays accept deployment-posture fields only.
         type: object
+
+      overrides:
+        type: array
+        description: >
+          Ordered root-qualified path assignments applied after patch. Uses the
+          same selector and wildcard syntax as the CLI --override option.
+        items:
+          type: string
 
     allOf:
       - if:

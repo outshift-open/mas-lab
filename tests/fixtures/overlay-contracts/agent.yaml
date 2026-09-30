@@ -1,0 +1,13 @@
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: agent-contract
+spec:
+  target:
+    kind: Agent
+    name: qa
+  patch:
+    context:
+      role: selected
+  overrides:
+    - "agent:spec.context.environment=staging"

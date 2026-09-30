@@ -1,0 +1,400 @@
+"""Tests for schema-backed, overlay-compatible CLI overrides."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+from click.testing import CliRunner
+from jsonschema import Draft7Validator
+from mas.ctl.overrides import apply_cli_overrides, parse_override
+from mas.ctl.runtime_cli import load_merged_agent_manifest
+from mas.ctl.overlay import merge_overlay
+from mas.ctl.overlay.normalize import normalize_overlay
+from mas.ctl.validate.schemas import load_schema
+import yaml
+
+OVERLAY_CONTRACT_FIXTURES = Path(__file__).parents[2] / "tests/fixtures/overlay-contracts"
+
+
+def test_parse_root_path_and_yaml_value() -> None:
+    parsed = parse_override('agent:spec.context.role="security expert"')
+
+    assert parsed.path.root == "agent"
+    assert parsed.path.text == "agent:spec.context.role"
+    assert parsed.value == "security expert"
+
+
+def test_parse_selector_and_equals_in_value() -> None:
+    parsed = parse_override('mas:spec.agency.agents[id=qa].spec.context.note=a=b')
+
+    assert parsed.path.segments[2].selector == ("id", "qa")
+    assert parsed.value == "a=b"
+
+
+def test_parse_wildcard_and_yaml_collection() -> None:
+    parsed = parse_override('agent:spec.tools={"$op":{"add":["search"]}}')
+
+    assert parsed.path.segments[-1].name == "tools"
+    assert parsed.value == {"$op": {"add": ["search"]}}
+
+
+def test_parse_quoted_map_key_with_dots() -> None:
+    parsed = parse_override('agent:spec.context["key.with.dots"]=value')
+
+    assert parsed.path.segments[-1].map_key == "key.with.dots"
+
+
+def test_parse_rejects_invalid_root_path() -> None:
+    with pytest.raises(ValueError, match="ROOT:PATH"):
+        parse_override("spec.tools=search")
+
+
+def test_apply_nested_scalar_uses_overlay_merge() -> None:
+    document = {
+        "apiVersion": "mas/v1",
+        "kind": "Agent",
+        "spec": {"context": {"role": "operator"}},
+    }
+
+    result = apply_cli_overrides(
+        document,
+        ("agent:spec.context.role=reviewer",),
+        root="agent",
+    )
+
+    assert result["spec"]["context"]["role"] == "reviewer"
+    assert document["spec"]["context"]["role"] == "operator"
+
+
+def test_apply_list_operator_uses_existing_merge_semantics() -> None:
+    document = {
+        "apiVersion": "mas/v1",
+        "kind": "Agent",
+        "spec": {"tools": ["calculator"]},
+    }
+
+    result = apply_cli_overrides(
+        document,
+        ('agent:spec.tools={"$op":{"add":["search"]}}',),
+        root="agent",
+    )
+
+    assert result["spec"]["tools"] == ["calculator", "search"]
+
+
+def test_apply_identity_selector_replaces_selected_list_entry() -> None:
+    document = {
+        "apiVersion": "mas/v1",
+        "kind": "MAS",
+        "spec": {
+            "agency": {
+                "agents": [
+                    {"id": "planner", "spec": {"memory": "short"}},
+                    {"id": "reviewer", "spec": {"memory": "short"}},
+                ]
+            }
+        },
+    }
+
+    result = apply_cli_overrides(
+        document,
+        ("mas:spec.agency.agents[id=reviewer].spec.memory=long",),
+        root="mas",
+    )
+
+    assert result["spec"]["agency"]["agents"][0]["spec"]["memory"] == "short"
+    assert result["spec"]["agency"]["agents"][1]["spec"]["memory"] == "long"
+
+
+def test_apply_wildcard_updates_all_matching_entries() -> None:
+    document = {
+        "apiVersion": "mas/v1",
+        "kind": "MAS",
+        "spec": {
+            "agency": {
+                "agents": [
+                    {"id": "planner", "spec": {"memory": "short"}},
+                    {"id": "reviewer", "spec": {"memory": "short"}},
+                ]
+            }
+        },
+    }
+
+    result = apply_cli_overrides(
+        document,
+        ("mas:spec.agency.agents[*].spec.memory=long",),
+        root="mas",
+    )
+
+    assert [entry["spec"]["memory"] for entry in result["spec"]["agency"]["agents"]] == [
+        "long",
+        "long",
+    ]
+
+
+def test_apply_rejects_wrong_root() -> None:
+    with pytest.raises(ValueError, match="does not match"):
+        apply_cli_overrides(
+            {"apiVersion": "mas/v1", "kind": "Agent", "spec": {}},
+            ("mas:spec.memory=short",),
+            root="agent",
+        )
+
+
+def test_apply_experiment_root_uses_generic_overlay_target() -> None:
+    result = apply_cli_overrides(
+        {"experiment": {"name": "old", "metadata": {"owner": "lab"}}},
+        ("experiment:experiment.name=new",),
+        root="experiment",
+    )
+
+    assert result["experiment"]["name"] == "new"
+    assert result["experiment"]["metadata"]["owner"] == "lab"
+
+
+def test_apply_workspace_root_is_in_memory_only() -> None:
+    document = {"defaults": {"model": "any"}}
+    result = apply_cli_overrides(
+        document,
+        ("workspace:defaults.model=gpt-test",),
+        root="workspace",
+    )
+
+    assert result == {"defaults": {"model": "gpt-test"}}
+    assert document["defaults"]["model"] == "any"
+
+
+def test_apply_quoted_map_key() -> None:
+    result = apply_cli_overrides(
+        {"apiVersion": "mas/v1", "kind": "Agent", "spec": {"context": {"key.with.dots": "old"}}},
+        ('agent:spec.context["key.with.dots"]=new',),
+        root="agent",
+    )
+
+    assert result["spec"]["context"]["key.with.dots"] == "new"
+
+
+def test_apply_rejects_unknown_path_before_merge() -> None:
+    with pytest.raises(ValueError, match="does not exist"):
+        apply_cli_overrides(
+            {"apiVersion": "mas/v1", "kind": "Agent", "spec": {"context": {}}},
+            ("agent:spec.not_a_real_field=value",),
+            root="agent",
+        )
+
+
+def test_apply_honors_schema_cli_deny(monkeypatch: pytest.MonkeyPatch) -> None:
+    import importlib
+
+    apply_module = importlib.import_module("mas.ctl.overrides.apply")
+
+    monkeypatch.setattr(
+        apply_module,
+        "load_schema",
+        lambda _kind: {
+            "properties": {
+                "spec": {
+                    "properties": {
+                        "protected": {"x-cli": {"allowed": False}}
+                    }
+                }
+            }
+        },
+    )
+    with pytest.raises(ValueError, match="not allowed"):
+        apply_module._assert_schema_cli_allowed(
+            parse_override("agent:spec.protected=new").path,
+            "Agent",
+        )
+
+
+def test_override_without_manifest_builds_minimal_agent() -> None:
+    result, plugin = load_merged_agent_manifest(
+        None,
+        overrides=("agent:spec.context.role=reviewer",),
+        validate=False,
+    )
+
+    assert plugin == "react@v1"
+    assert result is not None
+    assert result["spec"]["context"]["role"] == "reviewer"
+
+
+@pytest.mark.parametrize(
+    "command_module",
+    [
+        "mas.ctl.cli.commands.chat",
+        "mas.ctl.cli.commands.compile",
+        "mas.ctl.cli.commands.compose",
+        "mas.ctl.cli.commands.run_mas",
+    ],
+)
+def test_public_commands_expose_override_option(command_module: str) -> None:
+    import importlib
+
+    module = importlib.import_module(command_module)
+    command_name = {
+        "chat": "chat_cmd",
+        "compile": "compile_cmd",
+        "compose": "compose_cmd",
+        "run_mas": "run_mas_cmd",
+    }[command_module.rsplit(".", 1)[-1]]
+    result = CliRunner().invoke(getattr(module, command_name), ["--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "--override ROOT:PATH=VALUE" in result.output
+
+
+def test_overlay_manifest_applies_selector_overrides_after_patch() -> None:
+    result = merge_overlay(
+        {
+            "apiVersion": "mas/v1",
+            "kind": "MAS",
+            "spec": {
+                "agency": {
+                    "agents": [
+                        {"id": "planner", "spec": {"memory": "short", "context": {"environment": "prod"}}},
+                        {"id": "reviewer", "spec": {"memory": "short", "context": {"environment": "prod"}}},
+                    ]
+                }
+            },
+        },
+        {
+            "apiVersion": "mas/v1",
+            "kind": "Overlay",
+            "metadata": {"name": "reviewer-memory"},
+            "spec": {
+                "target": {"kind": "MAS"},
+                "patch": {},
+                "overrides": [
+                    "mas:spec.agency.agents[id=reviewer].spec.memory=long",
+                    "mas:spec.agency.agents[*].spec.context.environment=staging",
+                ],
+            },
+        },
+    )
+
+    agents = result["spec"]["agency"]["agents"]
+    assert agents[0]["spec"]["memory"] == "short"
+    assert agents[1]["spec"]["memory"] == "long"
+    assert [agent["spec"]["context"]["environment"] for agent in agents] == [
+        "staging",
+        "staging",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("fixture_name", "base", "assertion"),
+    [
+        (
+            "agent.yaml",
+            {
+                "apiVersion": "mas/v1",
+                "kind": "Agent",
+                "metadata": {"name": "qa"},
+                "spec": {"context": {"role": "base", "environment": "prod"}},
+            },
+            lambda result: result["spec"]["context"] == {"role": "selected", "environment": "staging"},
+        ),
+        (
+            "mas.yaml",
+            {
+                "apiVersion": "mas/v1",
+                "kind": "MAS",
+                "metadata": {"name": "team"},
+                "spec": {
+                    "agency": {
+                        "agents": [
+                            {"id": "planner", "spec": {"context": {"environment": "prod"}}},
+                            {"id": "reviewer", "spec": {"context": {"environment": "prod"}}},
+                        ]
+                    },
+                    "workflow": {"entry": "planner"},
+                },
+            },
+            lambda result: (
+                result["spec"]["workflow"]["entry"] == "reviewer"
+                and all(
+                    agent["spec"]["context"]["environment"] == "staging"
+                    for agent in result["spec"]["agency"]["agents"]
+                )
+            ),
+        ),
+        (
+            "infra.yaml",
+            {"apiVersion": "mas/v1", "kind": "Infra", "spec": {"protocol": "openai"}},
+            lambda result: result["spec"]["protocol"] == "offline",
+        ),
+        (
+            "flavour.yaml",
+            {
+                "apiVersion": "mas/v1",
+                "kind": "Flavour",
+                "spec": {"tools": {"remote_tools_enabled": False}},
+            },
+            lambda result: result["spec"]["tools"]["remote_tools_enabled"] is False,
+        ),
+        (
+            "experiment.yaml",
+            {"experiment": {"run": {"n_runs": 1}}},
+            lambda result: result["experiment"]["run"]["n_runs"] == 3,
+        ),
+        (
+            "workspace.yaml",
+            {"defaults": {"model": "any"}},
+            lambda result: result["defaults"]["model"] == "overridden",
+        ),
+    ],
+)
+def test_overlay_contract_fixtures_validate_and_apply(
+    fixture_name: str, base: dict, assertion
+) -> None:
+    overlay = yaml.safe_load((OVERLAY_CONTRACT_FIXTURES / fixture_name).read_text(encoding="utf-8"))
+    errors = list(Draft7Validator(load_schema("overlay")).iter_errors(overlay))
+    assert not errors, [error.message for error in errors]
+
+    result = merge_overlay(base, normalize_overlay(overlay, name=fixture_name.removesuffix(".yaml")))
+
+    assert assertion(result)
+
+
+def test_agent_overlay_fixture_target_name_selects_one_mas_agent() -> None:
+    overlay = yaml.safe_load((OVERLAY_CONTRACT_FIXTURES / "agent.yaml").read_text(encoding="utf-8"))
+    from mas.ctl.manifest.mas_agent_merge import apply_loaded_agent_patch
+
+    base = {
+        "apiVersion": "mas/v1",
+        "kind": "MAS",
+        "spec": {
+            "agency": {
+                "agents": [
+                    {"id": "planner", "ref": "agents/planner.yaml"},
+                    {"id": "qa", "ref": "agents/qa.yaml"},
+                ]
+            }
+        },
+    }
+
+    normalized = normalize_overlay(overlay, name="agent")
+    result = merge_overlay(base, normalized)
+    from mas.ctl.overlay import loaded_agent_patches
+
+    patches = loaded_agent_patches(normalized, result)
+    assert set(patches) == {"qa"}
+    qa = apply_loaded_agent_patch(
+        {
+            "apiVersion": "mas/v1",
+            "kind": "Agent",
+            "metadata": {"name": "qa"},
+            "spec": {
+                "description": "QA agent",
+                "context": {"role": "base", "environment": "prod"},
+            },
+        },
+        agent_id="qa",
+        agent_patches=patches,
+        mas_config=result,
+    )
+
+    assert qa["spec"]["context"] == {"role": "selected", "environment": "staging"}

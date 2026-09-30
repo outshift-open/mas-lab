@@ -24,6 +24,13 @@ from mas.ctl.paths import manifest_cwd
 @click.argument("manifest")
 @click.option("-o", "--overlay", "overlays", multiple=True, type=click.Path())
 @click.option(
+    "--override",
+    "overrides",
+    multiple=True,
+    metavar="ROOT:PATH=VALUE",
+    help="Schema-validated overlay override (repeatable; applied last).",
+)
+@click.option(
     "--output",
     "-O",
     "output_path",
@@ -44,6 +51,7 @@ from mas.ctl.paths import manifest_cwd
 def compile_cmd(
     manifest: str,
     overlays: tuple[str, ...],
+    overrides: tuple[str, ...],
     output_path: str | None,
     layout: str,
     no_defaults: bool,
@@ -62,6 +70,7 @@ def compile_cmd(
             compiled = compile_manifest(
                 session.manifest,
                 list(session.overlays),
+                overrides=overrides,
                 fill_defaults=not no_defaults,
                 validate=not no_validate,
             )

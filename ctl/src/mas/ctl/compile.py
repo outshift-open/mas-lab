@@ -20,6 +20,7 @@ import yaml
 from mas.ctl.manifest.mas_agent_merge import apply_loaded_agent_patch
 from mas.ctl.overlay import accumulate_agent_patches, loaded_agent_patches, merge_overlay
 from mas.ctl.overlay.normalize import normalize_overlay
+from mas.ctl.overrides import apply_cli_overrides
 from mas.ctl.validate import validate_data, validate_file, validation_enabled
 from mas.ctl.workspace.config import WorkspaceConfig
 from mas.runtime.agent_defaults import (
@@ -137,6 +138,7 @@ def compile_manifest(
     manifest: Path,
     overlay_paths: list[Path] | None = None,
     *,
+    overrides: tuple[str, ...] = (),
     fill_defaults: bool = True,
     validate: bool = True,
     workspace: Any = None,
@@ -164,8 +166,12 @@ def compile_manifest(
         for ov_path, overlay in classified.agent:
             _check_agent_overlay_name(overlay, ov_path, agent)
             agent = merge_overlay(agent, overlay)
+        if overrides:
+            agent = apply_cli_overrides(agent, overrides, root="agent")
         if fill_defaults:
             agent = fill_agent_defaults(agent, workspace=ws)
+        if validate and overrides and validation_enabled():
+            validate_data(agent, source="CLI overrides", kind="agent").raise_if_failed()
         return CompiledManifest(
             kind="Agent",
             source=manifest,
@@ -178,8 +184,12 @@ def compile_manifest(
     for _ov_path, overlay in classified.mas:
         mas = merge_overlay(mas, overlay)
         agent_patches = accumulate_agent_patches(agent_patches, loaded_agent_patches(overlay, mas))
+    if overrides:
+        mas = apply_cli_overrides(mas, overrides, root="mas")
     if fill_defaults:
         mas = fill_mas_defaults(mas)
+    if validate and overrides and validation_enabled():
+        validate_data(mas, source="CLI overrides", kind="mas").raise_if_failed()
 
     agents, agent_ids, relpaths = _load_mas_agents(mas, mas_dir=manifest.parent)
     for aid, adoc in list(agents.items()):

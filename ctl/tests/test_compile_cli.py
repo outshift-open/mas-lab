@@ -36,6 +36,71 @@ def test_compile_cli_stdout_tutorial_1() -> None:
     assert system_tools == {"request_human_input", "inform_user"}
 
 
+def test_compile_cli_applies_override_after_file_overlay() -> None:
+    runner = CliRunner()
+    result = runner.invoke(
+        compile_cmd,
+        [
+            str(TUTORIAL_1 / "agent.yaml"),
+            "--override",
+            'agent:spec.context.role="override role"',
+            "--no-header",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    doc = yaml.safe_load(result.output)
+    assert doc["spec"]["context"]["role"] == "override role"
+
+
+def test_compile_cli_applies_mas_agent_selector_to_inlined_agent(tmp_path: Path) -> None:
+    manifest = tmp_path / "mas.yaml"
+    manifest.write_text(
+        yaml.safe_dump(
+            {
+                "apiVersion": "mas/v1",
+                "kind": "MAS",
+                "metadata": {"name": "selector-test"},
+                "spec": {
+                    "agency": {
+                        "agents": [
+                            {
+                                "apiVersion": "mas/v1",
+                                "kind": "Agent",
+                                "id": "qa",
+                                "metadata": {"name": "qa"},
+                                "spec": {
+                                    "description": "QA agent",
+                                    "context": {"role": "base"},
+                                },
+                            }
+                        ]
+                    }
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    result = CliRunner().invoke(
+        compile_cmd,
+        [
+            str(manifest),
+            "--override",
+            'mas:spec.agency.agents[id=qa].spec.context.role="selected"',
+            "--layout",
+            "bundle",
+            "--no-defaults",
+            "--no-header",
+            "--no-validate",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    doc = yaml.safe_load(result.output)
+    assert doc["spec"]["agency"]["agents"][0]["spec"]["context"]["role"] == "selected"
+
+
 def test_compile_cli_writes_agent_file(tmp_path: Path) -> None:
     runner = CliRunner()
     out = tmp_path / "compiled.yaml"

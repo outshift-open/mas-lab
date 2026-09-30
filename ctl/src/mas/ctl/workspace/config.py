@@ -126,6 +126,18 @@ class WorkspaceConfig:
             path,
         )
 
+    def with_cli_overrides(self, overrides: tuple[str, ...] | list[str]) -> WorkspaceConfig:
+        """Return an in-memory workspace view with CLI patches applied."""
+        if not overrides:
+            return self
+        from mas.ctl.overrides import apply_cli_overrides
+
+        return WorkspaceConfig(
+            apply_cli_overrides(self._data, tuple(overrides), root="workspace"),
+            self._path,
+            self._config_file,
+        )
+
     @property
     def found(self) -> bool:
         return self._path is not None

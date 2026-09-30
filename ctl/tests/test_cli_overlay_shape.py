@@ -7,7 +7,6 @@ normalize_overlay's shape check."""
 from __future__ import annotations
 
 import pytest
-
 from mas.ctl.overlay.merge import merge_overlay
 from mas.ctl.overlay.normalize import normalize_overlay
 from mas.ctl.runtime_cli import build_cli_overlay, load_merged_agent_manifest
@@ -53,6 +52,25 @@ def test_cli_overlay_merges_into_agent_manifest() -> None:
     assert merged["spec"]["memory"] == "semantic"
     assert merged["spec"]["context"]["tone"] == "terse"
     assert merged["spec"]["context"]["intent"] == "x"  # preserved
+
+
+def test_general_override_has_priority_over_legacy_inline_flags() -> None:
+    base = {
+        "apiVersion": "mas/v1",
+        "kind": "Agent",
+        "metadata": {"name": "qa"},
+        "spec": {"context": {"tone": "formal"}},
+    }
+    data, _ = load_merged_agent_manifest(
+        base,
+        memory="semantic",
+        set_values=("tone=terse",),
+        overrides=("agent:spec.context.tone=direct",),
+        validate=False,
+    )
+
+    assert data["spec"]["memory"] == "semantic"
+    assert data["spec"]["context"]["tone"] == "direct"
 
 
 def test_no_manifest_cli_only_builds_agent(tmp_path) -> None:

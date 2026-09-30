@@ -24,7 +24,7 @@ application service URLs, A2A agent endpoints, and OTel/collector endpoints.
 ## Kinds
 
 | `kind` | Purpose |
-|--------|---------|
+| -------- | --------- |
 | `InfraBundle` | Compose other infra files (`spec.includes[]`); recursive merge |
 | `InfraMiddleware` | Pipeline middleware (`llm_cache`, `fault_inject`) wrapped around LLM calls |
 | `InfraInterceptor` | Cross-cutting middleware reference with explicit applicability |
@@ -136,6 +136,22 @@ multiple middleware refs, **first merged ref = outermost**. See
 
 ---
 
+## CLI overrides
+
+Resolved infrastructure can be addressed with the same root-qualified syntax:
+
+```bash
+mas-ctl chat agent.yaml \
+  --override 'infra:spec.tool_servers[id=mcp].port=9100'
+```
+
+The effective in-memory infrastructure is patched; the referenced YAML file is
+not modified.
+
+For reusable Infra changes, use an Overlay with `target.kind: Infra` and place
+root-qualified assignments under `spec.overrides`; see the [Overlay manifest
+reference](overlay.md).
+
 ## Local tool source
 
 `standard:local-tools` is implicitly merged into infra for every run. It
@@ -188,7 +204,7 @@ Canonical sample: [`library-samples/infra/mcp-localhost.yaml`](../../library-sam
 (only required connection fields; runtime defaults supply optional policy).
 
 | Field | Default | Meaning |
-|-------|---------|---------|
+| ------- | --------- | --------- |
 | `id` | required | Stable infra key for the remote tool server |
 | `protocol` | required | `mcp` for MCP servers |
 | `usage` | `use` | `use`, `deploy`, or `use-and-deploy` |

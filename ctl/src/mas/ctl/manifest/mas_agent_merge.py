@@ -244,10 +244,23 @@ def apply_loaded_agent_patch(
     patch = (agent_patches or {}).get(str(agent_id))
     if not isinstance(patch, dict) or not patch:
         return agent_manifest
+    from mas.ctl.overlay.merge import _LOADED_AGENT_OVERRIDES
+
+    cli_overrides = list(patch.get(_LOADED_AGENT_OVERRIDES) or [])
+    agent_patch = {key: value for key, value in patch.items() if key != _LOADED_AGENT_OVERRIDES}
     entry = find_agency_entry(mas_config, agent_id) if mas_config else None
-    return apply_agency_entry_overlay(
-        agent_manifest, entry or {"id": agent_id}, agent_patch=patch
+    result = (
+        apply_agency_entry_overlay(
+            agent_manifest, entry or {"id": agent_id}, agent_patch=agent_patch
+        )
+        if agent_patch
+        else agent_manifest
     )
+    if cli_overrides:
+        from mas.ctl.overrides import apply_cli_overrides
+
+        result = apply_cli_overrides(result, cli_overrides, root="agent")
+    return result
 
 
 def _peer_manifests_for_ids(

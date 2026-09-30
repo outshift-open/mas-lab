@@ -411,6 +411,9 @@ spec:
 ```
 
 Schema source: `GET /api/schemas/workflow`
+Topology-switching overlays replace `spec.patch.workflow` or `spec.patch.agents`.
+Scenario overlays are declared in [experiment.md](experiment.md); patch files,
+target selectors, and grouped overrides are documented in [overlay.md](overlay.md).
 
 ---
 

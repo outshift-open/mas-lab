@@ -45,7 +45,7 @@ optional `hitl`, `memory_seeds`, `tool_fixtures`). File pointers use
 `{ref: path}`. Ground truth is `expectations` on the same item.
 
 | Form | When to use | Example |
-|------|-------------|---------|
+| ------ | ------------- | --------- |
 | **Inline** | Small fragments, one-off agent blocks, overlay `patch:` | `design_pattern: { type: cot }` |
 | **File path** | A real document on disk | `./mas.yaml`, `samples:apps/trip-planner/mas.yaml` |
 | **Catalog id** | A named app, dataset, or tool in a library | `example-library:my-app@v2`, `trip-planner` |
@@ -123,7 +123,7 @@ the app-root file; `*.mas.yaml` is an extra MAS **document**, not a second
 app-root spelling.
 
 | Kind | Conventional file | How it is found |
-|------|-------------------|-----------------|
+| ------ | ------------------- | ----------------- |
 | Library | `library.yaml` | Folder with this file is a library root |
 | Lab | `lab-config.yaml` | Folder `*.lab/` or a directory containing this file |
 | Experiment | `experiment.yaml` | That name, or YAML under `experiments/` |
@@ -196,10 +196,19 @@ kind: Overlay
 metadata:
   name: no-tools
 spec:
-  target: { kind: Agent }
+  target:
+    kind: Agent
+    name: qa                 # optional when applied to a MAS
   patch:
     tools: { "$op": { clear: true } }
+  overrides:                 # optional ordered path assignments
+    - 'agent:spec.context.role="security reviewer"'
 ```
+
+The complete target, patch, selector, compatibility, and validation contract
+is documented in the [Overlay manifest reference](overlay.md). The same
+root-qualified assignments are also available through the CLI
+[`--override`](../cli/overrides.md).
 
 ---
 

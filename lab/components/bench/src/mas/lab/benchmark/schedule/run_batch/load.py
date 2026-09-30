@@ -40,6 +40,7 @@ class LoadedExperiment:
 def load_experiment(
     experiment_yaml: Path,
     *,
+    overrides: Optional[list[str]] = None,
     max_runs: Optional[int] = None,
     limit_scenarios: Optional[int] = None,
     scenario_id: Optional[str] = None,
@@ -67,6 +68,11 @@ def load_experiment(
         from mas.runtime.spec.source import load_yaml_file
 
         raw = load_yaml_file(experiment_yaml)
+
+        if overrides:
+            from mas.ctl.overrides import apply_cli_overrides
+
+            raw = apply_cli_overrides(raw, tuple(overrides), root="experiment")
 
         if experiment_overlays:
             from mas.lab.benchmark.execution.experiment_overlay import (

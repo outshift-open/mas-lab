@@ -1,0 +1,13 @@
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: flavour-contract
+spec:
+  target:
+    kind: Flavour
+    name: local
+  patch:
+    tools:
+      remote_tools_enabled: true
+  overrides:
+    - "flavour:spec.tools.remote_tools_enabled=false"

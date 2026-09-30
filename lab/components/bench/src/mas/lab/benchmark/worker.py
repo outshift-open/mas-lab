@@ -52,6 +52,7 @@ __all__ = [
 def run_benchmark_sync(
     experiment_yaml: str | Path,
     *,
+    overrides: Optional[list[str]] = None,
     flavour_name: str = "local",
     force: bool = False,
     benchmark_id: Optional[str] = None,
@@ -123,6 +124,7 @@ def run_benchmark_sync(
 
         opts = BenchmarkRunOptions(
             progress=False,
+            overrides=overrides or [],
             flavour_name=flavour_name,
             force=force,
             benchmark_id=benchmark_id,

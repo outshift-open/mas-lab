@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BenchmarkRunOptions:
     progress: bool = True
+    overrides: list[str] = field(default_factory=list)
     resume: bool = False
     force: bool = False
     benchmark_id: str | None = None
@@ -44,6 +45,7 @@ class BenchmarkRunOptions:
         _path = lambda k: Path(spec[k]) if spec.get(k) else None  # noqa: E731
         return cls(
             progress=spec.get("progress", True),
+            overrides=spec.get("overrides") or [],
             resume=spec.get("resume", False),
             force=spec.get("force", False),
             benchmark_id=spec.get("benchmark_id"),
@@ -128,6 +130,7 @@ async def run_benchmark(
     return await run_mas_benchmark(
         experiment_yaml=experiment_yaml,
         progress=opts.progress,
+        overrides=opts.overrides,
         dry_run=opts.dry_run,
         max_runs=opts.max_runs,
         limit_scenarios=opts.limit_scenarios,
