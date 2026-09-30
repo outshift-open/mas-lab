@@ -6,8 +6,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from mas.library.skills.plugins.sk_catalog import SkillCatalogPlugin, attach_skill_catalog_plugin
 from mas.runtime.contracts.context_contract import ContextPlacement
 
@@ -16,7 +14,7 @@ def _skill_dir(tmp_path: Path, name: str, description: str, body: str = "## Body
     skill_dir = tmp_path / name
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text(
-        f"---\nname: {name}\ndescription: {description}\n---\n{body}\n",
+        f"---\nname: {name}\ndescription: {description!r}\n---\n{body}\n",
         encoding="utf-8",
     )
     return skill_dir
@@ -30,8 +28,13 @@ def _manifest(skills: list[str]) -> dict:
 # collect_context
 # ---------------------------------------------------------------------------
 
+
 def test_catalog_emits_system_skills_part(tmp_path: Path):
-    _skill_dir(tmp_path, "code-review", "Reviews Python code for correctness.")
+    when_to_use = (
+        'Use when reviewing Python. Call `activate_skill("code-review")` '
+        "and follow the loaded instructions before answering."
+    )
+    _skill_dir(tmp_path, "code-review", when_to_use)
     manifest = _manifest(["code-review"])
     plugin = SkillCatalogPlugin(manifest=manifest, base_dir=tmp_path)
 
@@ -41,8 +44,26 @@ def test_catalog_emits_system_skills_part(tmp_path: Path):
     assert part.placement == ContextPlacement.SYSTEM_SKILLS
     assert part.pinned is True
     assert "code-review" in part.content
-    assert "Reviews Python code" in part.content
-    assert "activate_skill" in part.content  # behavioral instruction
+    assert when_to_use in part.content
+    assert f"- **code-review**: {when_to_use}" in part.content
+    assert "MUST call" not in part.content
+    assert "Do not skip this tool call" not in part.content
+
+
+def test_catalog_skips_skill_without_leading_frontmatter(tmp_path: Path, caplog):
+    import logging
+
+    skill_dir = tmp_path / "late-fm"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        "<!-- copyright -->\n---\nname: late-fm\ndescription: Too late.\n---\nBody.\n",
+        encoding="utf-8",
+    )
+    manifest = _manifest(["late-fm"])
+    with caplog.at_level(logging.WARNING, logger="agentskills"):
+        plugin = SkillCatalogPlugin(manifest=manifest, base_dir=tmp_path)
+    assert plugin.collect_context() == []
+    assert any("name" in r.message or "not found" in r.message for r in caplog.records)
 
 
 def test_catalog_empty_when_no_skills(tmp_path: Path):
@@ -52,6 +73,7 @@ def test_catalog_empty_when_no_skills(tmp_path: Path):
 
 def test_catalog_skips_missing_ref(tmp_path: Path, caplog):
     import logging
+
     manifest = _manifest(["nonexistent-skill"])
     with caplog.at_level(logging.WARNING, logger="mas.library.skills"):
         plugin = SkillCatalogPlugin(manifest=manifest, base_dir=tmp_path)
@@ -61,11 +83,10 @@ def test_catalog_skips_missing_ref(tmp_path: Path, caplog):
 
 def test_catalog_skips_skill_without_description(tmp_path: Path, caplog):
     import logging
+
     skill_dir = tmp_path / "nodesc"
     skill_dir.mkdir()
-    (skill_dir / "SKILL.md").write_text(
-        "---\nname: nodesc\n---\nBody.\n", encoding="utf-8"
-    )
+    (skill_dir / "SKILL.md").write_text("---\nname: nodesc\n---\nBody.\n", encoding="utf-8")
     manifest = _manifest(["nodesc"])
     with caplog.at_level(logging.WARNING, logger="agentskills"):
         plugin = SkillCatalogPlugin(manifest=manifest, base_dir=tmp_path)
@@ -105,6 +126,7 @@ def test_registry_populated(tmp_path: Path):
 # ---------------------------------------------------------------------------
 # attach_skill_catalog_plugin
 # ---------------------------------------------------------------------------
+
 
 class _FakeCtx:
     pass

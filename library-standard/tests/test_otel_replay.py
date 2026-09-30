@@ -34,7 +34,7 @@ def test_replay_events_file_end_to_end(tmp_path: Path, monkeypatch) -> None:
         {"kind": "mas_call_start", "call_id": "c1", "run_id": "r1", "session_id": "s1",
          "timestamp": 1.0},
         {"kind": "execution_start", "call_id": "e1", "parent_call_id": "c1",
-         "agent_id": "planner", "input": "hi", "timestamp": 1.1},
+         "upstream_correlation_id": 42, "agent_id": "planner", "input": "hi", "timestamp": 1.1},
         {"kind": "execution_end", "call_id": "e1", "agent_id": "planner",
          "status": "error", "output": "boom", "timestamp": 1.2},
         {"kind": "routing", "source_agent_id": "planner", "target_agent_id": "worker",
@@ -77,6 +77,7 @@ def test_replay_events_file_end_to_end(tmp_path: Path, monkeypatch) -> None:
     assert "demo-app.graph" in blob
     # topology JSON carried on the graph span
     assert "gen_ai.ioa.graph" in blob
+    assert "mas.upstream.correlation.id" in blob
     # replay mapping was written next to the spans and into the env cache dir.
     mapping = (spans_dir / "session_mappings.jsonl").read_text()
     assert "exp1" in mapping and "sc1" in mapping

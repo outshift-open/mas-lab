@@ -8,14 +8,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from mas.runtime.boundary.context.working_memory_registry import WorkingMemoryConfig
 from mas.runtime.boundary.coordination.chokepoint import ChokepointCoordinator
 from mas.runtime.boundary.obs.operator import ObservabilityOperator
+from mas.runtime.contracts.tool_semantics import existing_attr
+from mas.runtime.driver.driver import DriverTrace, KernelDriver
+from mas.runtime.driver.mocks import AutoCtxAssembler
 from mas.runtime.engine.simulated import SimulatedEngine
 from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.kernel.orchestrator import RuntimeKernel
-from mas.runtime.driver.driver import DriverTrace, KernelDriver
-from mas.runtime.driver.mocks import AutoCtxAssembler
-from mas.runtime.boundary.context.working_memory_registry import WorkingMemoryConfig
 from mas.runtime.schema.ingress import (
     IngressSymbol,
     LifecycleAbort,
@@ -26,7 +27,6 @@ from mas.runtime.schema.ingress import (
 
 if TYPE_CHECKING:
     from mas.runtime.boundary.obs.binding import ObservabilityBinding
-    from mas.runtime.boundary.obs.plugins import ObsPluginSet
 
 
 @dataclass
@@ -118,9 +118,7 @@ class RuntimeInstance:
 
         from mas.runtime.spec.parser import parse_agent_spec
 
-        kernel_config, spec_obs_binding = parse_agent_spec(
-            spec, runtime_engine=runtime_engine
-        )
+        kernel_config, spec_obs_binding = parse_agent_spec(spec, runtime_engine=runtime_engine)
         obs_binding = obs_binding_override if obs_binding_override is not None else spec_obs_binding
         resolved_base_dir = (_Path(base_dir) if isinstance(base_dir, str) else base_dir) or _Path(".")
 
@@ -158,6 +156,7 @@ class RuntimeInstance:
         turn_id: str = "u1",
         parent_call_id: str = "",
         session_id: str = "",
+        upstream_correlation_id: int | None = None,
     ) -> DriverTrace:
         """``session_id`` empty means "no one has one yet" — a genuinely new
         MAS session — and UserInputReceived mints one itself (see its
@@ -180,15 +179,17 @@ class RuntimeInstance:
                 record_kwargs["parent_call_id"] = parent_call_id
             op.record_session("user_input", **record_kwargs)
 
-        ingress_kwargs: dict[str, Any] = {"user_turn_id": turn_id, "text": text}
+        ingress_kwargs: dict[str, Any] = {
+            "user_turn_id": turn_id,
+            "text": text,
+            "upstream_correlation_id": upstream_correlation_id,
+        }
         if session_id:
             ingress_kwargs["session_id"] = session_id
         trace = self.feed(UserInputReceived(**ingress_kwargs))
 
         if op is not None and exec_id is not None:
-            response_text = "\n".join(
-                r.content for r in trace.client_responses if getattr(r, "content", "")
-            ).strip()
+            response_text = "\n".join(r.content for r in trace.client_responses if getattr(r, "content", "")).strip()
             if response_text:
                 op.record_session("agent_response", text=response_text, finish_reason="stop")
             op.pop_call_frame(exec_id)
@@ -213,11 +214,18 @@ class RuntimeInstance:
         if callable(reset_fn):
             reset_fn()
         engine = self.driver.engine
-        while engine is not None:
-            reset_engine = getattr(engine, "reset_turn_state", None)
+        seen: set[int] = set()
+        for _ in range(8):
+            if engine is None or id(engine) in seen:
+                break
+            seen.add(id(engine))
+            reset_engine = existing_attr(engine, "reset_turn_state")
             if callable(reset_engine):
                 reset_engine()
-            engine = getattr(engine, "inner", None)
+            inner = existing_attr(engine, "inner")
+            if inner is None or inner is engine:
+                break
+            engine = inner
 
     def snapshot(self) -> dict:
         return self.kernel.snapshot()

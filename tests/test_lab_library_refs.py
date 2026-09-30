@@ -53,12 +53,28 @@ def test_lab_yaml_schema_and_refs(path: Path) -> None:
     )
 
 
+@pytest.mark.parametrize("path", _lab_yaml_paths(), ids=lambda p: str(p.relative_to(_ROOT)))
+def test_lab_config_schema_allows_libraries(path: Path) -> None:
+    pytest.importorskip("jsonschema")
+    from mas.lab.manifests.validator import validate_manifest
+
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    validate_manifest(
+        data,
+        source=str(path.relative_to(_ROOT)),
+        kind="lab-config",
+        strict=True,
+        resolve_refs=True,
+        base_dir=path.parent,
+    )
+
+
 def test_missing_ref_fails_validation(tmp_path: Path) -> None:
     from mas.lab.manifests.validator import ManifestValidationError, validate_manifest
 
     exp = tmp_path / "experiment.yaml"
     exp.write_text(
-        "experiment:\n  name: x\n  applications:\n    - manifest: ./no-such-mas.yaml\n",
+        "experiment:\n  name: x\n  application:\n    manifest: ./no-such-mas.yaml\n",
         encoding="utf-8",
     )
     data = yaml.safe_load(exp.read_text()) or {}
@@ -109,8 +125,8 @@ def test_bad_overlay_id_blocks_composition(tmp_path: Path) -> None:
     )
     exp = tmp_path / "experiment.yaml"
     exp.write_text(
-        "experiment:\n  name: x\n  applications:\n    - manifest: ./app/mas.yaml\n"
-        "      configs_dir: ./app/overlays\n  scenarios:\n    - id: bad\n"
+        "experiment:\n  name: x\n  application:\n    manifest: ./app/mas.yaml\n"
+        "    configs_dir: ./app/overlays\n  scenarios:\n    - id: bad\n"
         "      overlays:\n        logic:\n          - nonexistent-overlay\n",
         encoding="utf-8",
     )
@@ -124,3 +140,25 @@ def test_bad_overlay_id_blocks_composition(tmp_path: Path) -> None:
             resolve_refs=True,
             base_dir=tmp_path,
         )
+
+
+def test_unknown_library_name_path_ref_is_rejected(tmp_path: Path) -> None:
+    from mas.lab.manifests.ref_checks import check_recursive_refs
+
+    payload = {"application": {"manifest": "no-such-lib:x.yaml"}}
+    with pytest.raises(LookupError, match="unknown library 'no-such-lib'"):
+        check_recursive_refs(payload, tmp_path, source=str(tmp_path))
+
+
+@pytest.mark.parametrize(
+    "lab_dir",
+    [_LABS / "lifecycle-control.lab", _LABS / "extensions.lab"],
+    ids=["lifecycle-control", "extensions"],
+)
+def test_in_repo_lab_local_dir_resolves_as_named_library(lab_dir: Path) -> None:
+    from mas.library_roots import resolve_named_library_root
+
+    listed = lab_dir / "lib"
+    assert (listed / "library.yaml").is_file()
+    root = resolve_named_library_root("lib", lab_dir)
+    assert root == listed.resolve()

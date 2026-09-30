@@ -1,13 +1,12 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
 """Tests for typed InfraBundle spec.entries[] resolution."""
+
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
-import yaml
-
 from mas.ctl.infra.pipeline_chain import BidirectionalInfraPipeline, InfraChainContext
 from mas.ctl.infra.resolve import (
     InfraResolveError,
@@ -15,6 +14,7 @@ from mas.ctl.infra.resolve import (
     bidirectional_pipeline_for,
     resolve_infra_refs,
 )
+from mas.ctl.validate import validate_file
 from mas.ctl.workspace.config import WorkspaceConfig
 
 
@@ -53,7 +53,7 @@ def test_bidirectional_pipeline_backward_transform():
 
 
 def test_bidirectional_pipeline_from_resolved_infra(tmp_path: Path):
-    infra = resolve_infra_refs(["standard:mock-llm"], anchor=tmp_path)
+    infra = resolve_infra_refs(["standard:openai"], anchor=tmp_path)
     pipe = bidirectional_pipeline_for(infra.llm_proxy)
     assert isinstance(pipe, BidirectionalInfraPipeline)
     ctx = InfraChainContext(query={"messages": [{"role": "user", "content": "hi"}]})
@@ -199,8 +199,8 @@ def test_resolve_infra_uses_workspace_root_when_anchor_omitted():
         pytest.skip("library-samples/sample-workspace/config.yaml not in workspace")
     ws = WorkspaceConfig.load(sample)
     assert ws.found and ws.root
-    infra = resolve_infra_refs(["standard:mock-llm"], workspace=ws)
-    assert infra.refs == ["standard:mock-llm"]
+    infra = resolve_infra_refs(["standard:openai"], workspace=ws)
+    assert infra.refs == ["standard:openai"]
     assert infra.llm_proxy.get("api_key_env")
 
 
@@ -219,3 +219,40 @@ def test_workspace_infra_refs_resolve_from_subdirectory():
         workspace=ws,
     )
     assert infra.llm_proxy.get("api_base")
+
+
+def test_tool_server_registry_resolves_connection_defaults():
+    repo = Path(__file__).resolve().parents[2]
+    sample = repo / "library-samples" / "infra" / "mcp-localhost.yaml"
+    if not sample.is_file():
+        pytest.skip("library-samples/infra/mcp-localhost.yaml not in workspace")
+    infra = resolve_infra_refs([str(sample)], anchor=repo)
+    server = infra.tool_server_registry["localhost-mcp-tools"]
+    assert server["protocol"] == "mcp"
+    assert server["url"] == "http://127.0.0.1:9001/mcp"
+    assert "transport" not in server
+    local = infra.tool_server_registry["local"]
+    assert local["protocol"] == "local"
+    assert local["tools_dir"] == "tools"
+    assert local["skills_dir"] == "skills"
+
+
+def test_explicit_local_tool_registry_overrides_implicit_defaults(tmp_path: Path):
+    manifest = tmp_path / "local-tools.yaml"
+    manifest.write_text(
+        "apiVersion: infra/v1\n"
+        "kind: ToolServerRegistry\n"
+        "metadata:\n  name: local-tools\n"
+        "spec:\n  tool_servers:\n"
+        "    - id: local\n"
+        "      protocol: local\n"
+        "      tools_dir: app-tools\n"
+        "      skills_dir: knowledge\n",
+        encoding="utf-8",
+    )
+    validation = validate_file(manifest, kind="infra")
+    assert validation.ok, validation.issues
+    infra = resolve_infra_refs([str(manifest)], anchor=tmp_path)
+    local = infra.tool_server_registry["local"]
+    assert local["tools_dir"] == "app-tools"
+    assert local["skills_dir"] == "knowledge"

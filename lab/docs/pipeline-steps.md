@@ -4,8 +4,8 @@
 -->
 # Pipeline step types
 
-Built-in **pipeline step** types for the **embedded pipeline** in
-`experiment.yaml`. Labs add more under `lib/steps/`.
+Built-in **pipeline step** types for level hooks in `experiment.yaml`.
+Labs add more under `lib/steps/`.
 
 How **pipelines** work: [pipeline.md](pipeline.md). **Benchmark** command:
 [benchmark.md](benchmark.md). Full OSS catalog: see the [Directory](#directory)
@@ -31,12 +31,14 @@ curl -s http://localhost:8090/api/pipeline-step-types   # when controller runnin
 
 | Type | Output |
 |------|--------|
-| `eval_mce` | MCE evaluation metrics |
+| `eval_mce` | One run's `events.jsonl` → `metrics.json` (`scope: run`). Judge: `experiment.evaluation.model`, else `experiment.models.judge`, else `experiment.model` / `models.main`, else application `spec.models[]`. |
 | `eval_trip_planner_gt` | Trip-planner ground truth |
 | `eval_adversarial` | Adversarial probes |
 | `annotate_metrics` | Attach scores to run metadata |
-| `collect_metrics` | Aggregate run metrics |
+| `collect_metrics` | Aggregate run metrics (whole-tree walk; legacy alternative to `metrics_to_dataframe` + `gather_level`) |
+| `metrics_to_dataframe` | One run's `metrics.json` → tidy `data.csv` in that run folder (`scope: run`) |
 | `compute_ci` | Confidence intervals |
+| `validate_outputs` | Check `experiment.output_schema`'s `required_files`/`required_columns` against the output directory |
 
 ## viz/ — figures
 
@@ -55,7 +57,8 @@ curl -s http://localhost:8090/api/pipeline-step-types   # when controller runnin
 |------|------|
 | `dataset` | Load scenario inputs |
 | `experiment` | Run trials (nested pipelines) |
-| `collect_dataframe` / `gather_level` | Merge step outputs |
+| `collect_dataframe` | Merge step outputs |
+| `gather_level` | Concatenate the level below's named artifact (`config["artifact_paths"]`, populated from `in:`) into this level's `data.csv` |
 | `join_dataframe` | Join tables |
 | `processor` | Custom dataframe transforms |
 
@@ -78,7 +81,13 @@ Paper labs register matplotlib figure steps, e.g.:
 
 Pattern: subclass `PipelineStep`, `register_step_type`, declare in `experiment.yaml`.
 
+See **[custom-pipeline-steps.md](custom-pipeline-steps.md)** for the full authoring
+guide — including the `per_run: true` pattern, artifact resolution APIs, and the
+`lib/steps/register_steps.py` discovery convention.
+
 ## Related
 
 - [pipeline.md](pipeline.md)
+- [custom-pipeline-steps.md](custom-pipeline-steps.md)
 - [benchmark.md](benchmark.md)
+- [summarization.md](../../docs/manifests/summarization.md) — `eval_mce` judge model

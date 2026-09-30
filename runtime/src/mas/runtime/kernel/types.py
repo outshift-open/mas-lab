@@ -72,6 +72,7 @@ class GovState(str, Enum):
     HITL_PENDING = "HITL_PENDING"
     VALIDATING = "VALIDATING"
     BLOCKED = "BLOCKED"
+    ERROR = "ERROR"
 
 
 InflightKind = Literal["NONE", "MODEL", "TOOL", "HITL"]

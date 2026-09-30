@@ -8,7 +8,8 @@
 
 A **pipeline** is an ordered list of **pipeline steps** (e.g. `extract_trace_stats`,
 `plotnine`) that read **run** artifacts such as **`events.jsonl`** and write CSV/PNG under
-`results/`. An **embedded pipeline** lives in `experiment.yaml`; a standalone file is run with
+`results/`. Level hooks live in `experiment.yaml` (`run.post`, `item.post`,
+`scenario.post`, experiment `post:`). A standalone `pipeline:` file is run with
 `mas-lab benchmark pipeline run`.
 
 **Terms:** [glossary.md](../glossary.md) · Hands-on: [Tutorial 3](../tutorials/03-experiments-and-analysis/README.md).
@@ -37,6 +38,37 @@ pipeline:
 
 Steps reference upstream outputs via template paths (`{{run.output_dir}}/...`) in experiment
 context.
+
+### Level-scoped steps (`scope:` / `in:` / `out:`)
+
+A step embedded inside an experiment manifest's `run:`/`test:`/`scenario:`/`application:`
+block is materialized once per folder at that level; its `scope` is inferred from the
+enclosing block (explicit `scope:` is only needed on a standalone pipeline file with no
+enclosing block). `in:`/`out:` name the artifact a step reads/writes — declared in that
+level's own `artifacts:` map. A step whose `in:` names an artifact from the level *below*
+fans in every child instance (`config["artifact_paths"]`); see [experiment.md](experiment.md)
+and [multi-scenario-format.md](../../lab/docs/multi-scenario-format.md).
+
+```yaml
+run:
+  artifacts:
+    trace: { type: trace, path: "{run_dir}/traces/events.jsonl" }
+    metrics: metrics
+  post:
+    - name: eval-quality
+      type: eval_mce
+      in: trace
+      out: metrics
+
+test:
+  artifacts:
+    df: { type: dataframe, path: "{level_dir}/data.csv" }
+  post:
+    - name: gather-test       # fans in every run's `df` under this test folder
+      type: gather_level
+      in: df
+      out: df
+```
 
 ---
 
@@ -72,9 +104,18 @@ UI may emit `x-canvas-positions` (stripped before execution).
 
 - **DAG:** `depends_on` with cycle detection (controller + executor).
 - **Step types:** registered processors (`extract_trajectories`, `extract_trace_stats`,
-  `eval_mce`, `plot_*`, …). Full catalog: [pipeline steps](https://github.com/outshift-open/mas-lab/blob/main/lab/docs/pipeline-steps.md).
+  `eval_mce`, `plot_*`, …). Catalog: [pipeline steps](../../lab/docs/pipeline-steps.md).
 - **Artifacts:** typed values passed between steps — in-process during execution; serializable
   to files or infra sinks when a step writes `outputs` paths.
+- **Cache:** each step fingerprints its type, config, and upstream steps under
+  `<output_dir>/.cache/`. Unchanged steps are skipped; a fingerprint change
+  reruns that step and everything that `depends_on` it. Force with
+  `mas-lab benchmark pipeline run … --force STEP` or
+  `mas-lab benchmark step restart`.
+- **Streaming:** set `streaming: true` on a step. During a MAS run the runtime
+  publishes transition dicts on `mas.runtime.boundary.obs.event_stream.EventStream`.
+  The step's `on_event` is called for each; `execute` still writes artefacts
+  afterward. Demo UIs subscribe to the same stream.
 
 ---
 
@@ -82,3 +123,5 @@ UI may emit `x-canvas-positions` (stripped before execution).
 
 - [experiment.md](experiment.md)
 - [lab.md](lab.md)
+- [summarization.md](summarization.md) — `eval_mce` judge model
+- [Pipeline guide](../../lab/docs/pipeline.md)

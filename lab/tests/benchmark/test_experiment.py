@@ -40,6 +40,25 @@ def test_resolve_dataset_by_name_in_datasets_folder():
         assert resolved == base / "datasets" / "trip-queries.yaml"
 
 
+def test_resolve_dataset_by_name_walks_up_past_nested_lab_config():
+    """Nested experiment.yaml still finds datasets/ at the lab root.
+
+    Sub-experiments may have their own lab-config.yaml; keep walking.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        lab = Path(tmp)
+        (lab / "lab-config.yaml").write_text("lab:\n  name: example\n")
+        expected = _make_dataset_manifest(
+            lab, "queries.yaml", "trip-planner-queries",
+            [{"id": "q1", "inputs": {"user": "Plan a trip"}}],
+        )
+        nested = lab / "02-bit-exactness"
+        nested.mkdir()
+        (nested / "lab-config.yaml").write_text("lab:\n  name: nested\n")
+        resolved = _resolve_dataset_by_name(nested, "trip-planner-queries")
+        assert resolved == expected
+
+
 def test_resolve_dataset_by_name_root_fallback():
     """A manifest at base_dir root (no datasets/ subfolder) is found as fallback."""
     with tempfile.TemporaryDirectory() as tmp:

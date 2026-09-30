@@ -7,13 +7,15 @@
 Reusable **artefacts** for tutorials and labs — not runnable experiments.
 
 **Rule:** YAML samples live here, grouped by artefact type. Experiments belong only under `labs/*.lab/`.
+A lab is the experiment pack; this tree is a **library**. When to create
+each: [docs/labs-and-libraries.md](../docs/labs-and-libraries.md).
 
 ## What belongs here
 
 | Kind | Examples |
 |------|----------|
-| **apps** | `apps/trip-planner/` (agents, local tools/skills) |
-| **datasets** | `datasets/trip-planner/`, `datasets/mas-necessity.yaml`, … |
+| **apps** | `apps/trip-planner/` (real use-case MAS: agents, local tools/skills) |
+| **datasets** | `datasets/trip-planner/benchmark.yaml` — complete pack for the app, tutorials, and CI |
 | **tools** | `tools/calc.py`, `tools/*.tool.yaml` |
 | **skills** | (under app trees or top-level when shared) |
 | **overlays** | `overlays/cot-moderator.yaml`, `overlays/hitl-on-tool.yaml`, … |
@@ -28,6 +30,8 @@ Generic pipelines, built-in steps, and shared artefacts belong in **`library-sta
 - **`experiment.yaml`** — only in `labs/<name>.lab/`
 - Lab-specific pipeline definitions — colocate with the lab (`labs/.../pipeline-figure.yaml`, inline in experiment)
 - One-off benchmark output paths or canvas exports
+- Small plugin/feature examples — those sit in
+  `library-standard/examples/<category>/` (not under `apps/`)
 
 Labs **compose** library artefacts by registered id — not path traversal:
 
@@ -37,8 +41,9 @@ mas:
   configs_dir: ./overlays
 
 dataset:
-  name: qa-reasoning-queries-100
+  name: trip-planner-benchmark
   locator: samples   # mas.runtime.manifest_libraries scheme
+  # limit: 5         # optional: first N items (smoke / CI)
 ```
 
 Install `mas-library-samples` (or `-e library-samples`) so the `samples` locator resolves via entry point.

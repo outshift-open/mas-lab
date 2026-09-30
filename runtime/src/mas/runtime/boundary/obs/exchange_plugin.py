@@ -1,16 +1,15 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""ExchangePlugin \u2014 read-only, multi-subscriber interface for the driver's
-exchange log (the display-oriented USER<->AGENT<->LLM<->TOOL record stream).
+"""ExchangePlugin — read-only, multi-subscriber interface for the driver's
+exchange log (structured USER↔AGENT↔LLM↔TOOL records).
 
 Mirrors ObservabilityPlugin's additive subscribe() pattern (see
-observability_plugin.py) but for ExchangeRecord \u2014 the driver's own,
-already-complete six-tag exchange stream (USER->AGENT, AGENT->USER,
-AGENT->LLM, LLM->AGENT, AGENT->TOOL, TOOL->AGENT) used for human-facing
-trace/log display. Consumers subscribe via
-KernelDriver.subscribe_exchange(plugin) instead of overwriting a single
-driver.on_exchange callback \u2014 multiple subscribers (e.g. mas-ctl's own CLI
-trace plugin and an external chat-UI plugin) can coexist without one
+observability_plugin.py) but for ExchangeRecord — typed hops
+(user_in / user_out / llm_request / llm_response / tool_call / tool_result).
+Pretty-print is a view on those fields, not the interchange. Consumers
+subscribe via KernelDriver.subscribe_exchange(plugin) instead of overwriting
+a single driver.on_exchange callback — multiple subscribers (e.g. mas-ctl's
+CLI trace plugin and an external chat-UI plugin) can coexist without one
 silently discarding another.
 """
 

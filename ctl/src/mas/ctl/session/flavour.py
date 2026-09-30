@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Flavour selection + validation for the interactive commands (chat / tui / run-mas).
+"""Flavour selection + validation for chat / tui / run-mas.
 
 A *flavour* is a deployment posture — a ``kind: Flavour`` manifest bundled in
 ``mas-library-standard`` (``flavours/<name>.yaml``). It selects protocols and
@@ -8,11 +8,9 @@ observability/control plugins. It is **not** a place for LLM parameters
 (those live in the agent spec) or infra coordinates — see
 ``docs/design/flavour-boundary.md``.
 
-Only ``local`` is supported this release; the ``--flavour`` flag is a
-forward-compatible, validated selector. :func:`resolve_flavour` resolves,
-validates, and returns the flavour's ``spec`` dict so callers can fold its
-surviving deployment concerns (currently: ``observability`` plugin selection)
-into the effective run config. :func:`validate_flavour` is kept for existing
+``--flavour`` selects deployment posture. :func:`resolve_flavour` resolves,
+validates, and returns the flavour's ``spec`` dict; callers use its exposure
+protocol and observability defaults. :func:`validate_flavour` is kept for
 callers that only need the validation side effect.
 """
 
@@ -26,9 +24,8 @@ import yaml
 
 _FLAVOUR_PACKAGE = "mas.library.standard"
 DEFAULT_FLAVOUR = "local"
-# Flavours wired into the interactive path today. Others (mock, local-benchmark)
-# exist in library-standard for benchmarks; offline chat uses the mock-llm overlay.
-SUPPORTED_FLAVOURS = ("local",)
+# Flavours wired into the interactive path today. Offline chat uses llm_cache replay.
+SUPPORTED_FLAVOURS = ("local", "mcp")
 
 
 class FlavourError(ValueError):
@@ -63,7 +60,7 @@ def resolve_flavour(name: str | None = None) -> dict[str, Any]:
         supported = ", ".join(SUPPORTED_FLAVOURS)
         raise FlavourError(
             f"flavour {resolved!r} is not supported yet (supported: {supported}). "
-            f"For offline runs use `-o overlays/mock-llm.yaml`; "
+            f"For offline runs attach llm_cache replay (raise_on_miss); "
             f"see all bundled flavours with `mas-ctl flavour list`."
         )
     data = _load_bundled_flavour(resolved)

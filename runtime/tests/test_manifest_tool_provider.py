@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from mas.runtime.engine.manifest_tool_provider import (
     ManifestToolLoadError,
     build_manifest_tool_provider,
@@ -64,6 +63,27 @@ def test_build_manifest_tool_provider_from_ref(calculator_tool_tree: Path):
     assert names == ["calculator"]
     out = provider.call_tool("calculator", {"expression": "2**16"})
     assert out["result"] == 65536
+
+
+def test_spec_tools_load_with_external_only_overlay(calculator_tool_tree: Path):
+    class ExternalProvider:
+        def list_tools(self, *, ctx=None):
+            return []
+
+        def call_tool(self, tool_name, arguments, *, ctx=None, user="", **kwargs):
+            raise AssertionError(f"unexpected tool call: {tool_name}")
+
+    external = ExternalProvider()
+    provider = build_manifest_tool_provider(
+        [{"ref": "tools/calculator.tool.yaml"}],
+        calculator_tool_tree,
+        include_system_tools=False,
+        overlay_providers=[external],
+    )
+
+    assert provider._registry.local_provider() is not None
+    assert external in provider._overlay_providers
+    assert [tool["function"]["name"] for tool in provider.list_openai_tools()] == ["calculator"]
 
 
 def test_redundant_system_tool_entry_is_skipped_not_raised(calculator_tool_tree: Path):
@@ -166,6 +186,17 @@ def test_unknown_bare_tool_name_errors(tmp_path: Path):
     # declares errors clearly (not a "bare names unsupported" rejection).
     with pytest.raises(ManifestToolLoadError, match="not found in any library catalog"):
         build_manifest_tool_provider(["definitely-not-a-real-tool"], tmp_path)
+
+
+def test_unknown_bare_tool_name_reports_local_directory(tmp_path: Path):
+    tools_dir = tmp_path / "tools"
+    tools_dir.mkdir()
+    with pytest.raises(ManifestToolLoadError, match="checked local tools directory"):
+        build_manifest_tool_provider(
+            ["definitely-not-a-real-tool"],
+            tmp_path,
+            tools_dir=tools_dir,
+        )
 
 
 def test_execute_engine_tool_requires_provider():

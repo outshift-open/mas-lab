@@ -66,27 +66,39 @@ mas-lab benchmark show last
 ## Experiment YAML format
 
 ```yaml
-name: my-sre-ablation
-n_runs: 5
-output_dir: $XDG_DATA_HOME/mas/labs/results/my-ablation
-
-mas_config: path/to/mas.yaml
-flavour: local
-
-scenarios:
-  - path: datasets/scenarios.json     # multi-scenario dataset
-    limit: 20                         # optional subset
-  - id: single-scenario
-    prompt: "CPU spike on prod-api-1"
-
-overlays:                             # one experiment column per overlay
-  - name: baseline
-  - name: full_mitigation
-    path: overlays/full.yaml
-  - name: ablate_C7
-    path: overlays/ablate-C7.yaml
-
-pipeline: pipelines/post-process.yaml  # optional post-processing pipeline
+experiment:
+  name: my-sre-ablation
+  default_flavour: local
+  application:
+    manifest: path/to/mas.yaml
+    configs_dir: ./overlays
+  scenarios:
+    - id: baseline
+      overlays: {logic: [], control: [], infra: []}
+    - id: with-mitigation
+      overlays: {logic: [], control: [full_mitigation], infra: []}
+  dataset:
+    path: ./datasets/queries.yaml
+    limit: 20
+  run:
+    n_runs: 5
+    artifacts:
+      trace: trace
+      df: dataframe
+    post:
+      - {name: extract-trace-stats, type: extract_trace_stats, in: trace, out: df}
+  item:
+    artifacts: {df: dataframe}
+    post:
+      - {name: gather-item, type: gather_level, in: df, out: df, depends_on: [extract-trace-stats]}
+  scenario:
+    artifacts: {df: dataframe}
+    post:
+      - {name: gather-scenario, type: gather_level, in: df, out: df, depends_on: [gather-item]}
+  post:
+    - {name: gather-experiment, type: gather_level, in: df, out: df, depends_on: [gather-scenario]}
+  execution:
+    strategy: coverage
 ```
 
 ---
@@ -95,9 +107,9 @@ pipeline: pipelines/post-process.yaml  # optional post-processing pipeline
 
 ### `benchmark run`
 
-Executes an experiment. Idempotent by default — a run with `n_runs: 5` resumes
-from wherever it stopped. Results land in timestamped sub-directories under
-`output_dir`.
+Executes an experiment. Idempotent by default — a run with `run.n_runs: 5` resumes
+from wherever it stopped. Results land under the lab output root derived from
+`experiment.name` (override with `-o`).
 
 ```bash
 mas-lab benchmark run experiment.yaml
@@ -117,11 +129,11 @@ mas-lab benchmark run experiment.yaml -o /tmp/results
 | `--benchmark-id` | — | Resume a specific benchmark by ID |
 | `--progress / --no-progress` | progress | Real-time progress bar |
 | `--dry-run` | off | Validate config + show plan, no execution |
-| `--max-runs` | from YAML | Override `n_runs` |
+| `--max-runs` | from YAML `run.n_runs` | Override `n_runs` |
 | `--limit-scenarios` | — | Limit to first N scenarios |
 | `--sample-scenarios` | — | Randomly sample N scenarios |
 | `--single-run` | off | Run exactly 1 scenario |
-| `-o / --output-dir` | from YAML | Output directory |
+| `-o / --output-dir` | derived from `experiment.name` | Output directory |
 | `--trace-cache` | `$XDG_CACHE_HOME/mas/traces` | Override trace-cache directory |
 | `--force-lock` | off | Break existing lock |
 | `--flavour` | `local` | Runtime flavour YAML name |
@@ -223,9 +235,10 @@ steps:
 
   - name: eval
     type: eval_mce
+    scope: run              # scores ONE run per invocation; needs run-level context
     depends_on: [extract]
     config:
-      events_path: "{{output_dir}}/runs/**/traces/events.jsonl"
+      metrics: [goal_success_rate]
 
   - name: plot
     type: plot
@@ -280,29 +293,17 @@ mas-lab plot list output/benchmark/runs/
 
 ## Python API
 
+Prefer `mas-lab benchmark run experiment.yaml`. For in-process runs:
+
 ```python
-from mas.lab.benchmark.dataset import Dataset
-from mas.lab.benchmark.experiment import ExperimentRunner, ExperimentConfig
-from mas.lab.benchmark.metadata import BenchmarkMetadata
+from pathlib import Path
+from mas.lab.benchmark.worker import run_benchmark_sync
 
-# Load dataset
-dataset = Dataset.from_json("scenarios.json")
-subset  = dataset.filter(category="timeout").sample(10, seed=42)
-
-# Run experiment programmatically
-config = ExperimentConfig(
-    name="my-ablation",
-    n_runs=5,
-    output_dir="/tmp/my-ablation",
-    mas_config="mas.yaml",
-    overlays=["overlays/baseline.yaml", "overlays/full.yaml"],
+ok = run_benchmark_sync(
+    Path("labs/design-space.lab/02-topologies/experiment.yaml"),
+    flavour_name="local",
+    output_dir=Path.home() / ".local/share/mas/labs/my-run",
 )
-runner = ExperimentRunner(config)
-runner.run(dataset=subset, strategy="coverage")
-
-# Query results
-meta = BenchmarkMetadata.load("/tmp/my-ablation")
-print(meta.status, meta.completed_runs, meta.total_runs)
 ```
 
 ---

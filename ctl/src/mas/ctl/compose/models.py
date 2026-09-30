@@ -39,6 +39,7 @@ class ResolvedInfra:
     observability: dict[str, Any] = field(default_factory=dict)
     runtime_engine: dict[str, Any] = field(default_factory=dict)
     runtime_refs: list[str] = field(default_factory=list)
+    applications: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass
@@ -87,3 +88,5 @@ class EffectiveBindManifest:
     composed_application: ComposedApplication | None = None
     resolved_infra: ResolvedInfra | None = None
     mas_base_dir: Path | None = None
+    experiment_default_model: str | None = None
+    experiment_model_slots: dict[str, str] | None = None

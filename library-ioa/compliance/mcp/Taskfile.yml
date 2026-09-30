@@ -1,0 +1,45 @@
+# Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+# SPDX-License-Identifier: Apache-2.0
+version: "3"
+
+vars:
+  ROOT_DIR: "{{.TASKFILE_DIR}}/../../.."
+  VENV: "{{.TASKFILE_DIR}}/../../../.venv/bin"
+  MCP_CONFORMANCE_VERSION: '{{.MCP_CONFORMANCE_VERSION | default "0.2.0-alpha.11"}}'
+  MCP_CONFORMANCE_HOST: '{{.MCP_CONFORMANCE_HOST | default "127.0.0.1"}}'
+  MCP_CONFORMANCE_PORT: '{{.MCP_CONFORMANCE_PORT | default "9002"}}'
+  MCP_CONFORMANCE_RESULTS: '{{.MCP_CONFORMANCE_RESULTS | default "{{.TASKFILE_DIR}}/results"}}'
+
+tasks:
+  install:
+    desc: Install the Python dependencies required by the MCP compliance fixture
+    dir: "{{.ROOT_DIR}}"
+    cmds:
+      - uv venv .venv --allow-existing
+      - uv pip install -e runtime -e ctl -e library-standard -e library-ioa -e library-skills -e library-eval -e library-lab -e library-samples -e lab/components/core -e lab/components/bench -e lab/components/controller -e lab
+      - uv pip install pytest pytest-asyncio
+
+  validate-config:
+    desc: Validate the shell runner, Taskfile, and GitHub workflow YAML
+    dir: "{{.ROOT_DIR}}"
+    cmds:
+      - bash -n library-ioa/compliance/mcp/mcp-conformance.sh
+      - uv run --no-project --with pyyaml python -c "import yaml; [yaml.safe_load(open(path, encoding='utf-8')) for path in ['.github/workflows/test.yml', '.github/workflows/publish.yml']]; print('workflow YAML OK')"
+
+  unit-tests:
+    desc: Run MCP unit tests outside the compliance tree
+    dir: "{{.ROOT_DIR}}"
+    cmds:
+      - "{{.VENV}}/pytest library-ioa/tests/mcp -q --tb=short"
+
+  run:
+    desc: Run both pinned MCP requirement sets and write JSON reports
+    dir: "{{.ROOT_DIR}}"
+    cmds:
+      - MCP_CONFORMANCE_HOST="{{.MCP_CONFORMANCE_HOST}}" MCP_CONFORMANCE_PORT="{{.MCP_CONFORMANCE_PORT}}" MCP_CONFORMANCE_VERSION="{{.MCP_CONFORMANCE_VERSION}}" MCP_CONFORMANCE_RESULTS="{{.MCP_CONFORMANCE_RESULTS}}" ./library-ioa/compliance/mcp/mcp-conformance.sh
+
+  check:
+    desc: Install dependencies and run MCP unit checks plus compliance
+    deps: [install, validate-config, unit-tests]
+    cmds:
+      - task: run

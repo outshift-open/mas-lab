@@ -7,12 +7,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from mas.runtime.boundary.context.chunk_compaction import maybe_compact_chunks_after_commit
 from mas.runtime.boundary.context.conversation_chunks import ConversationChunkStore
 from mas.runtime.boundary.context.dp_inject import inject_dp_protocol
 from mas.runtime.boundary.context.plugin_collection import PluginCollection
 from mas.runtime.boundary.context.working_memory import WorkingMemoryStore
-from mas.runtime.boundary.context.working_memory_compaction import WorkingMemoryCompactionRuntime
 from mas.runtime.schema.egress import RequestCtxAssembly
 from mas.runtime.schema.ingress import CtxAssemblyComplete
 
@@ -31,10 +29,8 @@ class AutoCtxAssembler:
     turn_history: list[tuple[str, str]] = field(default_factory=list)
     committed_messages: list[dict[str, Any]] = field(default_factory=list)
     conversation_chunks: ConversationChunkStore = field(default_factory=ConversationChunkStore)
-    # Commit-time WM compaction (chunk graph) — set at bootstrap from
-    # spec.working_memory.compaction; distinct from context_manager assembly plugin.
-    working_memory_compaction: WorkingMemoryCompactionRuntime | None = None
     working_memory: WorkingMemoryStore = field(default_factory=WorkingMemoryStore)
+    manifest: dict[str, Any] | None = None
     pattern_plugin_id: str = "react@v1"
     runtime_params: dict[str, Any] = field(default_factory=dict)
     q_product: QProduct | None = None
@@ -127,10 +123,9 @@ class AutoCtxAssembler:
         turn_messages = list(self.committed_messages[committed_before:])
         if turn_messages:
             self.conversation_chunks.append_turn(turn_messages)
-            maybe_compact_chunks_after_commit(
-                self.conversation_chunks,
-                compaction=self.working_memory_compaction,
-            )
+            from mas.runtime.boundary.context.assemble import compact_committed_history
+
+            compact_committed_history(self)
         record_context_mutation(
             self.observability,
             action="turn_commit",

@@ -15,7 +15,8 @@ Human-readable field docs are in [Specifications](index.md#specifications).
 
 | Schema | Purpose |
 | --- | --- |
-| [`config.schema.yaml`](../schemas/config.schema.yaml) | Root `config.yaml` — defaults, flavour, infra refs |
+| [`config.schema.yaml`](../schemas/config.schema.yaml) | Root `config.yaml` — [field reference](config.yaml.md) (`mas_ctl`, flavour, infra refs, `manifest_libraries:`) |
+| [`library.schema.yaml`](../schemas/library.schema.yaml) | `kind: Library` (`library.yaml`) — [labs-and-libraries.md](../labs-and-libraries.md) |
 | [`deployment.schema.yaml`](../schemas/deployment.schema.yaml) | Deployment / placement descriptors |
 | [`runtime-profile.schema.yaml`](../schemas/runtime-profile.schema.yaml) | Runtime profile flags (governance, observability) |
 | [`placement-plan.schema.yaml`](../schemas/placement-plan.schema.yaml) | Component placement plan |
@@ -32,12 +33,14 @@ Top-level kinds (see [manifest reference](../manifests/README.md)):
 | Schema | `kind` / role |
 | --- | --- |
 | [`runtime/agent.schema.yaml`](../schemas/runtime/agent.schema.yaml) | `Agent` |
+| [`runtime/llm-model-catalog.schema.yaml`](../schemas/runtime/llm-model-catalog.schema.yaml) | Curated per-model context/settings — [llm-model-catalog.md](../manifests/llm-model-catalog.md) |
 | [`runtime/mas.schema.yaml`](../schemas/runtime/mas.schema.yaml) | `MAS` |
 | [`runtime/workflow.schema.yaml`](../schemas/runtime/workflow.schema.yaml) | `Workflow` |
 | [`runtime/overlay.schema.yaml`](../schemas/runtime/overlay.schema.yaml) | `Overlay` |
 | [`runtime/flavour.schema.yaml`](../schemas/runtime/flavour.schema.yaml) | `Flavour` |
-| [`runtime/infra.schema.yaml`](../schemas/runtime/infra.schema.yaml) | Infra bundle / middleware |
-| [`runtime/tool.schema.yaml`](../schemas/runtime/tool.schema.yaml) | Tool definition |
+| [`runtime/infra.schema.yaml`](../schemas/runtime/infra.schema.yaml) | Infra bundle / middleware / ToolServerRegistry — [infra.md](../manifests/infra.md) · [reference](tool-server-registry.md) |
+| [`runtime/tool.schema.yaml`](../schemas/runtime/tool.schema.yaml) | Tool definition — [tool.md](../manifests/tool.md) |
+| [`runtime/fragments/infra-tool-server.schema.yaml`](../schemas/runtime/fragments/infra-tool-server.schema.yaml) | Infra `tool_servers[]` item — [tool-server-registry.md](tool-server-registry.md) |
 | [`runtime/tool_bundle.schema.yaml`](../schemas/runtime/tool_bundle.schema.yaml) | Bundled tools |
 | [`runtime/prompt_bundle.schema.yaml`](../schemas/runtime/prompt_bundle.schema.yaml) | Prompt bundles |
 
@@ -54,7 +57,7 @@ bindings, workflow nodes/edges, policy rules, design-pattern config, etc.
 | [`lab/dataset.schema.yaml`](../schemas/lab/dataset.schema.yaml) | Dataset manifest |
 | [`lab/pipeline.schema.yaml`](../schemas/lab/pipeline.schema.yaml) | Pipeline step definitions |
 | [`lab/lab.schema.yaml`](../schemas/lab/lab.schema.yaml) | Lab folder metadata |
-| [`lab/lab-config.schema.yaml`](../schemas/lab/lab-config.schema.yaml) | Local pipeline libraries |
+| [`lab/lab-config.schema.yaml`](../schemas/lab/lab-config.schema.yaml) | Lab config, including `lab.libraries` |
 | [`lab/run-input.schema.yaml`](../schemas/lab/run-input.schema.yaml) | Per-run inputs |
 | [`lab/pipeline-manifest.schema.json`](../schemas/lab/pipeline-manifest.schema.json) | Serialized pipeline manifest |
 | [`lab/artefacts/run_info.schema.json`](../schemas/lab/artefacts/run_info.schema.json) | Run metadata artefact |
@@ -76,9 +79,12 @@ bindings, workflow nodes/edges, policy rules, design-pattern config, etc.
 
 Sample overlays and bindings under [`schemas/examples/`](../schemas/examples/):
 
-- [`overlays/mock-llm.yaml`](../schemas/examples/overlays/mock-llm.yaml)
 - [`overlays/live-llm.yaml`](../schemas/examples/overlays/live-llm.yaml)
-- [`overlays/observability-native.yaml`](../schemas/examples/overlays/observability-native.yaml)
+- [`overlays/llm-reasoning.yaml`](../schemas/examples/overlays/llm-reasoning.yaml)
+- [`overlays/llm-sampling.yaml`](../schemas/examples/overlays/llm-sampling.yaml)
+- [`infra/mcp-localhost.yaml`](../schemas/examples/infra/mcp-localhost.yaml)
+- `library-samples/infra/mcp-localhost-deploy.yaml` — MCP server deployment posture
+- [`tools/annotated.tool.yaml`](../schemas/examples/tools/annotated.tool.yaml)
 
 Plus `*.example.yaml` siblings next to deployment, placement, memory-seed, and
 runtime-profile schemas.

@@ -109,4 +109,6 @@ Choose the starting point that matches your task.
   no concrete implementation in the repository.
 - `ContextManagerContract` is documented alongside state and context because it
   operates on conversation history, even though it is a supporting interface
-  rather than a top-level taxonomy family.
+  rather than a top-level taxonomy family. Payload rules (protocol vs tokens,
+  tool-call pairing) are in
+  [state-and-context.md § ContextManagerContract](dev/contracts/state-and-context.md#contextmanagercontract).

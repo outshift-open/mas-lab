@@ -53,7 +53,7 @@ def _compose_run(
 
 
 @click.command("compose")
-@click.argument("manifest", type=click.Path())
+@click.argument("manifest")
 @click.option("--deployment", "-d", "deployment_path", default=None, type=click.Path())
 @click.option("--overlay", "-o", "overlay_paths", multiple=True, type=click.Path())
 @click.option("--infra-ref", "infra_refs", multiple=True)
@@ -95,7 +95,7 @@ def compose_cmd(
 
 
 @click.command("plan")
-@click.argument("manifest", type=click.Path())
+@click.argument("manifest")
 @click.option("--deployment", "-d", "deployment_path", default=None, type=click.Path())
 @click.option("--kernel", "kernel_backend", default=DEFAULT_RUNTIME_ID, type=runtime_id_choice())
 @click.option("--no-validate", is_flag=True)

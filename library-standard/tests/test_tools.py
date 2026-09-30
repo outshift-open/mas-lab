@@ -4,8 +4,8 @@
 
 from pathlib import Path
 
+import pytest
 import yaml
-
 from mas.runtime.engine.manifest_tool_provider import build_manifest_tool_provider
 from mas.runtime.engine.tool_dispatch import execute_engine_tool
 
@@ -138,3 +138,19 @@ class MemorySearchTool:
         tool_provider=provider,
     )
     assert "Paris trip" in out
+
+
+def test_local_execute_failure_propagates():
+    from mas.library.standard.plugins.tools.local import LocalToolProvider
+
+    class Boom:
+        def on_collect_tools(self, **_):
+            return [{"name": "boom"}]
+
+        def on_execute_tool(self, name, args, **_):
+            raise RuntimeError("nope")
+
+    provider = LocalToolProvider()
+    provider._add_instance(Boom(), {"name": "boom"})
+    with pytest.raises(RuntimeError, match="nope"):
+        provider.call_tool("boom", {})

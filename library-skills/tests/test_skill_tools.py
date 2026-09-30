@@ -246,11 +246,25 @@ def test_read_skill_file_via_injected_backend_plugin(tmp_path: Path):
 # on_collect_tools — schema check
 # ---------------------------------------------------------------------------
 
+def test_on_collect_tools_without_registry_advertises_nothing():
+    """Default: no skill is exposed to the LLM until a registry has entries."""
+    plugin = SkillToolsPlugin()
+    assert plugin.on_collect_tools() == []
+    assert plugin.on_collect_tools(ctx=object()) == []
+
+
 def test_list_tools_returns_three_tools():
     plugin = SkillToolsPlugin()
     tools = plugin.list_tools()
     names = {t["name"] for t in tools}
     assert names == {"activate_skill", "list_skill_files", "read_skill_file"}
+    by_name = {t["name"]: t for t in tools}
+    assert by_name["activate_skill"]["semantics"] == {
+        "concept": "skill",
+        "op": "activate",
+        "subject_arg": "name",
+    }
+    assert by_name["read_skill_file"]["semantics"]["op"] == "read"
     for tool in tools:
         assert "description" in tool
         assert "parameters" in tool

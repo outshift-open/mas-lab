@@ -7,9 +7,7 @@ calls (no HTTP). Daemon threads are started only for external protocol needs.
 
 Local flavour service policy
 ----------------------------
-Started as daemon threads only when required:
-
-- llm_mock    : opt-in via MAS_LLM_SERVER_ENABLED=true
+Started as daemon threads only when required: none in local flavour.
 
 NOT started (handled in-process):
 - metrics     : computed directly from the JSONL feed via compute_metrics()
@@ -50,12 +48,10 @@ from mas.library.standard.plugins.infra_backend_plugin import (  # noqa: F401
 
 _SERVICE: Dict[str, str] = {
     "metrics":    "mas.lab.components.metrics.server:main",
-    "llm_mock":   "mas.lab.components.llm.mock_server:main",
 }
 
 _SERVICE_PORT: Dict[str, int] = {
     "metrics":    8090,
-    "llm_mock":   12000,
 }
 
 
@@ -81,20 +77,10 @@ def services_for_config(
 ) -> list[str]:
     """Return the list of service names required by a MAS config dict.
 
-    Local flavour rules
-    -------------------
-    - llm_mock    : opt-in via MAS_LLM_SERVER_ENABLED=true
-
-    NOT started in local flavour:
-    - metrics     : computed in-process from the JSONL feed, no HTTP server needed
-    - otlp_local  : mas-runtime emits telemetry via in-process callbacks
+    Local flavour does not start extra HTTP services: metrics and OTLP
+    are in-process. Offline LLM uses llm_cache replay, not a local fake server.
     """
-    required: list[str] = []
-
-    if os.getenv("MAS_LLM_SERVER_ENABLED", "false").lower() in ("true", "1", "yes"):
-        required.append("llm_mock")
-
-    return required
+    return []
 
 
 # ---------------------------------------------------------------------------

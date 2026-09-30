@@ -5,12 +5,12 @@
 from __future__ import annotations
 
 import logging
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
-
 from mas.runtime.workspace_config import RuntimeWorkspaceConfig
 
 from . import (
@@ -46,6 +46,8 @@ def _variant_info_from_data(vdata: dict[str, Any]) -> VariantInfo:
         class_name=str(vdata.get("class") or vdata.get("class_name") or ""),
         version=str(vdata.get("version") or ""),
         description=str(vdata.get("description") or ""),
+        requires=[str(r) for r in (vdata.get("requires") or [])],
+        extra=str(vdata.get("extra") or ""),
     )
 
 
@@ -72,7 +74,16 @@ def _parse_generic_manifest(
     for type_name in data.get("types") or []:
         known_types.add(_canonical_type_name(str(type_name)))
 
-    for item in data.get("plugins") or []:
+    raw_plugins = data.get("plugins")
+    if raw_plugins is None:
+        raw_plugins = []
+    elif not isinstance(raw_plugins, list):
+        raise ValueError(
+            "plugins: must be a list of plugin declarations (each with "
+            "type:), not a mapping keyed by type. "
+            f"Got {type(raw_plugins).__name__}."
+        )
+    for item in raw_plugins:
         if not isinstance(item, dict):
             continue
         candidate = _candidate_from_manifest_item(item)
@@ -124,7 +135,7 @@ def _candidate_from_manifest_item(item: dict[str, Any]) -> _ManifestPluginCandid
         module = item.get("module")
         class_name = item.get("class") or item.get("class_name")
         if module and class_name:
-            variants["builtin"] = VariantInfo(module=str(module), class_name=str(class_name))
+            variants["builtin"] = _variant_info_from_data(item)
     if not variants:
         return None
 
@@ -231,6 +242,9 @@ def _register_library_plugins(reg: PluginRegistry) -> None:
     from mas.library_catalog import discover_plugin_manifests
 
     for manifest_path in discover_plugin_manifests():
+        library_parent = str(manifest_path.parent.parent)
+        if library_parent not in sys.path:
+            sys.path.append(library_parent)
         try:
             register_manifest_file(reg, manifest_path)
         except Exception as exc:

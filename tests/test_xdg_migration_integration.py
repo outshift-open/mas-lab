@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from mas.runtime.constants import WORKSPACE_CONFIG_FILENAME
+from ci_llm import mas_infra_refs_for_ci, require_ci_cache
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SMOKE_EXPERIMENT = REPO_ROOT / "tests/fixtures/lab-smoke/experiment.yaml"
@@ -54,6 +55,8 @@ def test_fresh_workspace_config_yaml_writes_under_xdg_paths(tmp_path, monkeypatc
     )
     monkeypatch.setenv("MAS_WORKSPACE_ROOT", str(workspace))
     monkeypatch.setenv("MAS_MCE_OFFLINE", "1")
+    monkeypatch.setenv("MAS_INFRA_REFS", mas_infra_refs_for_ci())
+    require_ci_cache()
 
     output_dir = tmp_path / "benchmark-out"
 

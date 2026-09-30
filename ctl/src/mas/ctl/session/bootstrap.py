@@ -19,7 +19,7 @@ from mas.ctl.adapters.memory_seed import (
 )
 from mas.ctl.compose.models import ResolvedInfra
 from mas.ctl.infra.resolve import resolution_anchor
-from mas.ctl.session.engine_factory import build_engine
+from mas.ctl.session.engine_factory import EngineSelection, build_engine
 from mas.ctl.validate import validate_file, validation_enabled
 from mas.ctl.workspace.config import WorkspaceConfig
 from mas.runtime.agent_defaults import default_pattern_plugin_id
@@ -38,6 +38,22 @@ _SKILL_SHELL_REFS = {
     "pkg://skills/tools/run-skill-script.tool.yaml",
 }
 _SUPPORTED_SKILL_IMPLS = {"native", "adk", "langchain"}
+
+
+def _overlay_providers_from_manifest(
+    manifest: dict | None,
+    resolved_infra: ResolvedInfra | None = None,
+) -> list[Any]:
+    """Instantiate providers from infra dependencies.
+
+    MCP ``usage: use`` servers are client providers; ``usage: deploy`` entries
+    are endpoints for the server command and are not connected here. An
+    explicit local ToolServerRegistry claim re-adds the local provider beside MCP.
+    """
+    from mas.runtime.registry.tool_provider_registry import providers_from_manifest
+
+    servers = (resolved_infra.tool_server_registry if resolved_infra else None) or {}
+    return providers_from_manifest(manifest, tool_servers=servers)
 
 
 @dataclass(frozen=True)
@@ -67,7 +83,13 @@ class InstantiationOptions:
     cache_read_override: bool | None = None
     cache_write_override: bool | None = None
     stream_override: bool | None = None
+    engine: Any | None = None
     runtime_refs_cli: tuple[str, ...] = ()
+    model_override: str | None = None
+    parent_default_model: str | None = None
+    experiment_default_model: str | None = None
+    experiment_model_slots: dict[str, str] | None = None
+    parent_spec: dict | None = None
 
 
 def instantiate_runtime(
@@ -93,14 +115,20 @@ def instantiate_runtime(
         store.memory_seeds = [{"key": s.key, "content": s.content} for s in seeds]
 
     ctx = AutoCtxAssembler(pattern_plugin_id=options.pattern_plugin_id)
-    # Resolve skills relative to the agent manifest directory first.
-    # app_root can be '.' for some compose flows and would break relative refs.
-    skill_base = options.manifest_dir or options.app_root
+    # Resolve local resource paths relative to the app root, not the process CWD.
+    skill_base = options.manifest_dir or options.app_root or Path.cwd()
+    tool_servers = (options.resolved_infra.tool_server_registry if options.resolved_infra else {}) or {}
+    local_source = next(
+        (server for server in tool_servers.values() if str(server.get("protocol") or "").lower() == "local"),
+        {},
+    )
+    tools_dir = _resolve_local_resource_dir(local_source.get("tools_dir", "tools"), skill_base)
+    skills_dir = _resolve_local_resource_dir(local_source.get("skills_dir", "skills"), skill_base)
     skill_cfg = _resolve_skill_plugin_config(
         options.agent_manifest,
-        default_base_dir=skill_base or Path.cwd(),
+        default_base_dir=skills_dir,
+        relative_base_dir=skill_base,
     )
-    _auto_inject_skill_tools(options.agent_manifest, auto_inject_scripts=skill_cfg.auto_inject_scripts)
     _apply_manifest_context(
         ctx,
         options.agent_manifest,
@@ -144,35 +172,43 @@ def instantiate_runtime(
         else None
     )
     _kernel_cfg, _obs_binding = parse_agent_spec(spec, runtime_engine=_runtime_engine)
-    selection = build_engine(
-        ctx,
-        options.agent_manifest,
-        options.resolved_infra,
-        pattern_plugin_id=options.pattern_plugin_id,
-        workspace_default_model=ws.default_model,
-        anchor=resolution_anchor(options.manifest_dir, ws),
-        workspace=ws,
-        kernel_config=_kernel_cfg,
-        cache_read_override=options.cache_read_override,
-        cache_write_override=options.cache_write_override,
-        stream_override=options.stream_override,
-        runtime_refs_cli=list(options.runtime_refs_cli),
-    )
-    logger.info("Engine mode=%s (%s)", selection.mode, selection.reason)
+    if options.engine is not None:
+        selection = EngineSelection(
+            engine=options.engine,
+            mode="injected",
+            reason="InstantiationOptions.engine",
+        )
+    else:
+        selection = build_engine(
+            ctx,
+            options.agent_manifest,
+            options.resolved_infra,
+            pattern_plugin_id=options.pattern_plugin_id,
+            workspace_default_model=ws.default_model,
+            anchor=resolution_anchor(options.manifest_dir, ws),
+            workspace=ws,
+            kernel_config=_kernel_cfg,
+            cache_read_override=options.cache_read_override,
+            cache_write_override=options.cache_write_override,
+            stream_override=options.stream_override,
+            runtime_refs_cli=list(options.runtime_refs_cli),
+            model_override=options.model_override,
+            parent_default_model=options.parent_default_model,
+            experiment_default_model=options.experiment_default_model,
+        )
+    engine_obj = selection.engine
+    if engine_obj is not None:
+        engine_obj.model_slots = options.experiment_model_slots or {}
+        engine_obj.parent_spec = options.parent_spec
+    logger.debug("Engine mode=%s (%s)", selection.mode, selection.reason)
 
-    from mas.runtime.boundary.context.working_memory_compaction import (
-        apply_working_memory_compaction,
-        working_memory_compaction_runtime,
-    )
+    from mas.library.standard.lib.context.compaction import apply_working_memory_compaction
 
     apply_working_memory_compaction(spec, engine=selection.engine)
-    ctx.working_memory_compaction = working_memory_compaction_runtime(spec)
     if "context_manager" in spec and options.agent_manifest is not None:
-        # LiveLlmEngine holds a live reference to options.agent_manifest (not
-        # `spec` above, a separate shallow copy) and reads context_manager
-        # fresh from it on every assemble_llm_messages() call -- keep both in
-        # sync so the facade takes effect for the engine actually constructed
-        # above, not just the copy this function goes on to use locally.
+        # working_memory.compaction → context_manager is applied to a shallow
+        # copy of spec; keep the engine's live manifest in sync. The engine
+        # itself is bound onto ctx at driver init, not written into spec params.
         options.agent_manifest.setdefault("spec", {})["context_manager"] = spec["context_manager"]
 
     instance = RuntimeInstance.from_spec(
@@ -191,9 +227,7 @@ def instantiate_runtime(
     if isinstance(working_memory_spec, dict):
         from mas.runtime.boundary.context.working_memory_registry import WorkingMemoryConfig
 
-        instance.working_memory = WorkingMemoryConfig(
-            persistent=bool(working_memory_spec.get("persistent", True))
-        )
+        instance.working_memory = WorkingMemoryConfig(persistent=bool(working_memory_spec.get("persistent", True)))
     apply_memory_seeds(instance, seeds)
     if seeds and options.agent_manifest:
         from mas.ctl.executor.mas_session import agent_manifest_label
@@ -229,6 +263,13 @@ def instantiate_runtime(
             workspace_root=ws.root if ws.found else None,
             hitl_contract=options.hitl_contract,
             user_io_contract=options.user_io_contract,
+            auto_inject_scripts=skill_cfg.auto_inject_scripts,
+            tools_dir=tools_dir,
+            skills_dir=skill_cfg.base_dir or skills_dir,
+            overlay_providers=_overlay_providers_from_manifest(
+                options.agent_manifest,
+                options.resolved_infra,
+            ),
         )
     return instance, store
 
@@ -247,10 +288,16 @@ def _apply_manifest_context(
     ctx.injected_context.extend(context_chunks_from_spec(spec, base_dir=base))
 
 
+def _resolve_local_resource_dir(value: Any, app_root: Path) -> Path:
+    path = Path(str(value or ".")).expanduser()
+    return path.resolve() if path.is_absolute() else (app_root / path).resolve()
+
+
 def _resolve_skill_plugin_config(
     manifest: dict[str, Any] | None,
     *,
     default_base_dir: Path,
+    relative_base_dir: Path | None = None,
 ) -> _SkillPluginConfig:
     """Resolve skill plugin implementation from overlay/manifest/env settings.
 
@@ -303,7 +350,7 @@ def _resolve_skill_plugin_config(
     resolved_base = default_base_dir
     if rel_base:
         p = Path(rel_base)
-        resolved_base = p.resolve() if p.is_absolute() else (default_base_dir / p).resolve()
+        resolved_base = p.resolve() if p.is_absolute() else ((relative_base_dir or default_base_dir) / p).resolve()
 
     return _SkillPluginConfig(impl=impl, base_dir=resolved_base, auto_inject_scripts=auto_inject_scripts)
 
@@ -354,49 +401,11 @@ def _entry_skill_base_dir(entry: dict[str, Any]) -> str | None:
 
 
 def _auto_inject_skill_tools(manifest: dict[str, Any] | None, *, auto_inject_scripts: bool = False) -> None:
-    """Auto-add skill tool refs when ``spec.skills`` is set.
+    """Deprecated no-op.
 
-    SkillCatalogPlugin/SkillToolsPlugin should not require the user to
-    hand-declare ``skill-access.tool.yaml`` — presence of ``spec.skills: [...]``
-    is enough to enable model-driven skill activation. That one is always
-    auto-injected: it is read-only (activate_skill/list_skill_files/
-    read_skill_file).
-
-    ``run-skill-script.tool.yaml`` (shell/script execution) is a trust
-    decision, not a manifest-authoring convenience — see
-    library-skills/docs/user-guide.md's "Shell tool" section. It is only
-    auto-injected when the deployment has opted in via
-    ``spec.context_sources: [{native: {auto_inject: true}}]`` (see
-    _resolve_skill_plugin_config), never merely because ``spec.skills`` is
-    non-empty. Default is off: declaring skills must not silently grant
-    script execution.
+    Skill tools are system tools now: listing ``spec.skills`` injects
+    ``activate_skill``; a skill with ``scripts/`` (or an explicit
+    ``kind: system`` / ``auto_inject`` opt-in) injects ``run_skill_script``.
+    Kept so older tests/callers do not break.
     """
-    if not manifest:
-        return
-    spec = manifest.get("spec")
-    if not isinstance(spec, dict):
-        return
-    skills = spec.get("skills")
-    if not isinstance(skills, list) or not skills:
-        return
-
-    tools = spec.get("tools")
-    if not isinstance(tools, list):
-        tools = []
-
-    existing_refs = {
-        str(item.get("ref") or "").strip()
-        for item in tools
-        if isinstance(item, dict)
-    }
-
-    def _add_if_missing(ref: str) -> None:
-        if ref not in existing_refs and f"pkg://{ref.split(':', 1)[1]}" not in existing_refs:
-            tools.append({"ref": ref})
-            existing_refs.add(ref)
-
-    _add_if_missing("skills:tools/skill-access.tool.yaml")
-    if auto_inject_scripts:
-        _add_if_missing("skills:tools/run-skill-script.tool.yaml")
-
-    spec["tools"] = tools
+    _ = (manifest, auto_inject_scripts)

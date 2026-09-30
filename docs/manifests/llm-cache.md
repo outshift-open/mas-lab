@@ -26,7 +26,7 @@ entry keyed by the assembled conversation preview at that point in the run.
 
 Caching is configured in a **separate infra manifest**, not on the agent:
 
-1. **Provider** (`standard:mock-llm`, `standard:openai`, …) — where the model runs.
+1. **Provider** (`standard:openai`, `standard:openai`, …) — where the model runs.
 2. **Cache middleware** (`middleware: llm_cache`) — read/write/replay policy and `cache_path`.
 3. **Pipeline** — middleware wraps the provider; see [Pipeline order](#pipeline-order).
 
@@ -138,16 +138,15 @@ Refs merge: workspace `infra_refs` → user default → CLI `--infra-ref` (not f
 Either CLI order works — only the middleware ref adds a pipeline step:
 
 ```bash
---infra-ref standard:mock-llm --infra-ref library-samples/infra/llm-cache-write.yaml
+--infra-ref standard:openai --infra-ref library-samples/infra/llm-cache-write.yaml
 # same as
---infra-ref library-samples/infra/llm-cache-write.yaml --infra-ref standard:mock-llm
+--infra-ref library-samples/infra/llm-cache-write.yaml --infra-ref standard:openai
 ```
 
-### Overlay supplies the provider
+### Provider plus cache middleware
 
-Tutorial 1's `overlays/mock-llm.yaml` adds `standard:mock-llm` via
-`infra_refs` in `config.yaml`. `--infra-ref library-samples/infra/llm-cache-write.yaml` merges
-after the overlay → effective pipeline `[llm_cache]` wrapping the mock provider.
+`--infra-ref standard:openai --infra-ref library-samples/infra/llm-cache-write.yaml`
+merges to pipeline `[llm_cache]` wrapping the OpenAI provider.
 
 ### Multiple middleware
 
@@ -170,7 +169,6 @@ and overlays — no extra files under the tutorial tree. Cache manifests come fr
 ```bash
 export PATH="$(git rev-parse --show-toplevel)/.venv/bin:$PATH"
 AGENT=docs/tutorials/01-building-an-agent/agent.yaml
-MOCK=docs/tutorials/01-building-an-agent/overlays/mock-llm.yaml
 ```
 
 **Record**
@@ -180,7 +178,7 @@ rm -f library-samples/infra/cache/demo.llm-cache.json
 
 mas-ctl chat "$AGENT" \
   -q "Say hello in exactly three words." \
-  -o "$MOCK" \
+  --infra-ref standard:openai \
   --infra-ref library-samples/infra/llm-cache-write.yaml \
   --single-turn
 ```
@@ -190,7 +188,7 @@ mas-ctl chat "$AGENT" \
 ```bash
 mas-ctl chat "$AGENT" \
   -q "Say hello in exactly three words." \
-  -o "$MOCK" \
+  --infra-ref standard:openai \
   --infra-ref library-samples/infra/llm-cache-replay.yaml \
   --single-turn
 ```
@@ -200,7 +198,7 @@ mas-ctl chat "$AGENT" \
 ```bash
 mas-ctl chat "$AGENT" \
   -q "Say goodbye in exactly three words." \
-  -o "$MOCK" \
+  --infra-ref standard:openai \
   --infra-ref library-samples/infra/llm-cache-replay.yaml \
   --single-turn
 ```
@@ -244,10 +242,10 @@ results). On replay, the runtime walks the same LLM-call sequence; with
 matches the recording and you get **cache hits on every `LLM_CALL` until the
 run completes** — no live provider calls.
 
-**Non-deterministic tool-call IDs** (common in mock mode) change the preview
+**Non-deterministic tool-call IDs** change the preview
 text between runs, so strict replay (`raise_on_miss: true`) may miss on
-post-tool turns. Prefer a **live recording** for fixture-grade replay, or
-deterministic mock tools for CI.
+post-tool turns. Prefer a **live recording** for fixture-grade replay, and
+deterministic tools for CI.
 
 Uses Tutorial 1's `overlays/tools.yaml` (same agent as above):
 
@@ -257,7 +255,7 @@ TOOLS=docs/tutorials/01-building-an-agent/overlays/tools.yaml
 # Record
 mas-ctl chat "$AGENT" \
   -q "Who is POTUS?" \
-  -o "$MOCK" \
+  --infra-ref standard:openai \
   -o "$TOOLS" \
   --infra-ref library-samples/infra/llm-cache-write.yaml \
   --single-turn
@@ -265,7 +263,7 @@ mas-ctl chat "$AGENT" \
 # Replay
 mas-ctl chat "$AGENT" \
   -q "Who is POTUS?" \
-  -o "$MOCK" \
+  --infra-ref standard:openai \
   -o "$TOOLS" \
   --infra-ref library-samples/infra/llm-cache-replay.yaml \
   --single-turn
@@ -282,7 +280,7 @@ in CI with `raise_on_miss: true` so tests never hit a live LLM.
 
 ```bash
 mas-lab benchmark run experiment.yaml \
-  --infra-ref standard:mock-llm \
+  --infra-ref standard:openai \
   --infra-ref library-samples/infra/llm-cache-write.yaml
 ```
 

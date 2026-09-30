@@ -118,7 +118,8 @@ def test_cc3_gls_live_run_does_not_stack_unbounded_service_missing_errors(
     pytest.importorskip("mas.lab.benchmark.worker")
     from mas.lab.benchmark.golden.cache_backup import find_events_in_tree
     from mas.lab.benchmark.worker import run_benchmark_sync
-    from mas.runtime.boundary.context.working_memory import working_memory_slice_limit
+    from mas.lab.benchmark.worker import run_benchmark_sync
+    from mas.library.standard.lib.context.working_memory import working_memory_slice_limit
 
     out = tmp_path / "benchmark-out"
     trace_cache = tmp_path / "trace-cache"

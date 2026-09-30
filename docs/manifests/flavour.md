@@ -20,7 +20,7 @@ observability, tool policy, and RAG/skills backend.
 
 | Aspect | Flavour sections | Examples |
 |--------|------------------|----------|
-| **Control / observation** | `observability`, `telemetry`, `tools` (tool-server enable, allow-list), `mocking` | OTel backend, span export path, deny dangerous tools |
+| **Control / observation** | `observability`, `telemetry`, `tools.exposure_protocol` | Native/OTel export; MCP exposure protocol |
 | **Protocol / comm** | `agent_comm` | `protocol: local \| grpc \| hybrid`, `mode`, `emulation` |
 
 Governance plugins that **alter trajectory** are usually declared on **Agent `plugins[]`** or
@@ -41,6 +41,10 @@ Enforced by `FlavourSeparationValidator` and `mas-lab check-config`.
 
 ## Selection at run time
 
+Flavours select how this application exposes agents or tools. MCP consumption is
+not a flavour concern: a `ToolServerRegistry` with `usage: use` is an infra
+dependency. A local/MCP mix is expressed by infra dependencies, not flavour.
+
 ```bash
 mas-ctl run-mas mas.yaml --infra-ref ./infra/prod-bundle.yaml
 ```
@@ -53,7 +57,7 @@ mas-lab benchmark run experiment.yaml --flavour local
 
 `metadata.default_flavour` on MAS provides the default name.
 
-**OSS mas-lab:** canonical flavour YAML lives only under `library-standard/src/mas/library/standard/flavours/` (`local.yaml`, `local-benchmark.yaml`, `mock.yaml`). The scheduler resolves flavours via `mas.lab.flavour.resolve.resolve_flavour_path()` — do not copy `flavours/local.yaml` into individual labs or samples.
+**OSS mas-lab:** canonical flavour YAML lives only under `library-standard/src/mas/library/standard/flavours/` (`local.yaml`, `mcp.yaml`, `local-benchmark.yaml`). The scheduler resolves flavours via `mas.lab.flavour.resolve.resolve_flavour_path()` — do not copy flavour YAML into individual labs or samples.
 
 ---
 

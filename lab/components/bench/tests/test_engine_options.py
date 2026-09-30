@@ -15,9 +15,36 @@ async def test_run_benchmark_missing_file_returns_false(tmp_path: Path) -> None:
     assert ok is False
 
 
+def test_is_mas_experiment_yaml_detects_application(tmp_path: Path) -> None:
+    path = tmp_path / "exp.yaml"
+    path.write_text("experiment:\n  application:\n    app: demo\n", encoding="utf-8")
+    assert _is_mas_experiment_yaml(path)
+
+
 def test_is_mas_experiment_yaml_detects_applications(tmp_path: Path) -> None:
     path = tmp_path / "exp.yaml"
     path.write_text("experiment:\n  applications:\n    - app: demo\n", encoding="utf-8")
+    assert _is_mas_experiment_yaml(path)
+
+
+def test_is_mas_experiment_yaml_applications_win_over_mas_key(tmp_path: Path) -> None:
+    path = tmp_path / "exp.yaml"
+    path.write_text(
+        "experiment:\n"
+        "  mas: leftover\n"
+        "  applications:\n"
+        "    - app: demo\n",
+        encoding="utf-8",
+    )
+    assert _is_mas_experiment_yaml(path)
+
+
+def test_is_mas_experiment_yaml_detects_legacy_mas_key(tmp_path: Path) -> None:
+    path = tmp_path / "exp.yaml"
+    path.write_text(
+        "experiment:\n  mas:\n    manifest: ./mas.yaml\n    configs_dir: ./overlays\n",
+        encoding="utf-8",
+    )
     assert _is_mas_experiment_yaml(path)
 
 
@@ -40,7 +67,7 @@ async def test_run_benchmark_resume_path(monkeypatch, tmp_path: Path) -> None:
     from mas.lab.benchmark import schedule as schedule_pkg
 
     path = tmp_path / "exp.yaml"
-    path.write_text("experiment:\n  applications:\n    - app: demo\n", encoding="utf-8")
+    path.write_text("experiment:\n  application:\n    app: demo\n", encoding="utf-8")
 
     async def _fake_resume(**kwargs):
         assert kwargs["benchmark_id"] == "b1"
@@ -61,7 +88,7 @@ async def test_run_benchmark_mas_route_uses_options(monkeypatch, tmp_path: Path)
     from mas.lab.benchmark.schedule import run_batch
 
     path = tmp_path / "exp.yaml"
-    path.write_text("experiment:\n  applications:\n    - app: demo\n", encoding="utf-8")
+    path.write_text("experiment:\n  application:\n    app: demo\n", encoding="utf-8")
 
     captured = {}
 

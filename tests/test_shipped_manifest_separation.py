@@ -21,6 +21,7 @@ _SEARCH_ROOTS = (
     _ROOT / "docs" / "tutorials",
     _ROOT / "labs",
     _ROOT / "library-samples",
+    _ROOT / "library-standard" / "examples",
     _ROOT / "tests" / "fixtures",
 )
 

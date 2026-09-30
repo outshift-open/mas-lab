@@ -13,11 +13,27 @@ from mas.runtime.engine.worker_pool import DEFAULT_ENGINE_QUEUE_DEPTH, EngineWor
 from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.kernel.orchestrator import RuntimeKernel
 from mas.runtime.schema.egress import InvokeEngineIo
+from mas.runtime.schema.ingress import EngineIoReturn
 from mas.runtime.spec.parser import parse_agent_spec
 
 
 def test_default_queue_depth_constant():
     assert DEFAULT_ENGINE_QUEUE_DEPTH == 32
+
+
+def test_process_one_returns_error_when_worker_raises() -> None:
+    def _boom(io: InvokeEngineIo) -> EngineIoReturn:
+        raise RuntimeError("worker exploded")
+
+    pool = EngineWorkerPool(worker=_boom)
+    pool.submit(InvokeEngineIo(correlation_id=7, op="TOOL_CALL"))
+    result = pool.process_one()
+    assert result is not None
+    assert result.response_kind == "ERROR"
+    assert result.next_step == "STOP"
+    assert result.correlation_id == 7
+    assert "worker exploded" in result.text
+    assert pool.pop_inbound() is result
 
 
 def test_submit_rejects_when_queue_full():
@@ -57,6 +73,16 @@ def test_parse_agent_spec_reads_max_auto_steps():
 def test_parse_agent_spec_default_max_auto_steps():
     config, _ = parse_agent_spec({})
     assert config.max_auto_steps == DEFAULT_MAX_AUTO_STEPS
+
+
+def test_parse_agent_spec_design_pattern_string_shorthand():
+    config, _ = parse_agent_spec({"design_pattern": "cot"})
+    assert config.pattern_plugin_id == "cot"
+
+
+def test_parse_agent_spec_design_pattern_max_steps_sets_dispatch_cap():
+    config, _ = parse_agent_spec({"design_pattern": {"type": "react", "params": {"max_steps": 12}}})
+    assert config.max_auto_steps == 12
 
 
 def test_runtime_instance_threads_kernel_config_max_auto_steps_to_driver():

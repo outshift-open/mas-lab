@@ -34,5 +34,5 @@ def test_workspace_infra_refs_from_sample_workspace():
     assert (sample / "config.yaml").is_file()
     ws = WorkspaceConfig.load(sample)
     assert ws.found
-    infra = resolve_infra_refs(["standard:mock-llm"], anchor=repo, workspace=ws)
-    assert infra.llm_proxy.get("provider") == "mock" or "mock" in str(infra.refs).lower()
+    infra = resolve_infra_refs(["standard:openai"], anchor=repo, workspace=ws)
+    assert infra.llm_proxy.get("api_base")

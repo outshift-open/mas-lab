@@ -2,12 +2,10 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Canonical agent defaults for lab/controller discovery and eval helpers.
 
-The actual default values (model, design pattern, context manager) are no
-longer hardcoded constants here -- they live in ``defaults.yaml`` (see
-``mas.runtime.registry.defaults``) and can be overridden per-workspace via
-the ``defaults:`` block in ``config.yaml``, exactly like ``aliases:``. This
-module is just the stable, workspace-aware accessor surface used by the
-rest of the codebase.
+Plugin slots (design pattern, context manager, assembler) live in
+``defaults.yaml`` and can be overridden per-workspace via ``config.yaml``.
+``models[].model: any`` is the compiled sentinel — ``defaults.model`` fills
+it at engine time and is never written into the committed spec.
 """
 
 from __future__ import annotations
@@ -27,6 +25,13 @@ def default_context_manager_id() -> str:
     from mas.runtime.registry import get_registry
 
     return get_registry().default_for("context_manager")
+
+
+def default_assembler_id() -> str:
+    """Registry id for ``spec.assembler`` when manifest omits type/ref."""
+    from mas.runtime.registry import get_registry
+
+    return get_registry().default_for("assembler") or "assembler"
 
 
 def default_model() -> str:
@@ -54,9 +59,14 @@ def resolve_default_model(workspace: Any = None) -> str:
 
 
 def agent_defaults(workspace: Any = None) -> dict[str, Any]:
-    """Default agent spec fragment for UI/catalog (not a full manifest)."""
-    model = resolve_default_model(workspace)
+    """Default agent spec fragment for UI/catalog (not a full manifest).
+
+    ``models[].model: any`` is the compiled sentinel — local ``config.yaml``
+    ``defaults.model`` fills it at engine time. Do not bake the workspace
+    model into the spec (that would hide the pin from the committed YAML).
+    """
+    _ = workspace
     return {
         "design_pattern": {"type": default_pattern_plugin_id()},
-        "models": [{"id": "main", "model": model}],
+        "models": [{"id": "main", "model": "any"}],
     }

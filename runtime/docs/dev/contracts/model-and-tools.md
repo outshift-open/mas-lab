@@ -179,15 +179,15 @@ memory.write_memory(
 from mas.runtime.contracts import ModelContract, LLMResponse
 
 
-class MockModel(ModelContract):
-    provider_id = "mock"
+class StubModel(ModelContract):
+    provider_id = "stub"
 
     @property
     def available(self) -> bool:
         return True
 
     def complete(self, model, messages, temperature=0.7, max_tokens=1500, tools=None):
-        return LLMResponse(content="mock response")
+        return LLMResponse(content="stub response")
 ```
 
 ### ModelContract backward compatibility note

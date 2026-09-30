@@ -84,7 +84,7 @@ def _parse_gov_plugin_list(
 
 
 def parse_gov_spec(raw: list | None) -> GovernanceBinding:
-    """Parse ``spec.governance`` — plugin list only."""
+    """Parse ``spec.governance`` — ordered chain of plugins (not a sequence)."""
     if raw is None:
         return GovernanceBinding()
 
@@ -148,7 +148,7 @@ def build_kernel_config(
     """
     from mas.runtime.boundary.gov.filter import GovTransitionFilter
     from mas.runtime.boundary.gov.ingress_chain import RegisteredIngressPlugin
-    from mas.runtime.boundary.gov.plugin import GovernancePlugin
+    from mas.runtime.boundary.gov.plugin import GovernancePlugin, GovernancePluginChain
     from mas.runtime.boundary.gov.policy_engine import GovernancePolicyEngine
     from mas.runtime.kernel.config import KernelConfig
     from mas.runtime.agent_defaults import default_pattern_plugin_id
@@ -190,20 +190,20 @@ def build_kernel_config(
             )
         return None
 
-    egress_plugin: GovernancePlugin | None = None
+    egress_plugins: list[GovernancePlugin] = []
     ingress_entries: list[RegisteredIngressPlugin] = []
 
     for name in binding.plugins:
         plugin = _instantiate(name, dict(binding.plugin_configs.get(name) or {}))
         if plugin is not None:
-            egress_plugin = plugin
+            egress_plugins.append(plugin)
             entry = _ingress_entry_for(plugin)
             if entry is not None:
                 ingress_entries.append(entry)
 
     # Fallback: explicit flags without a named plugin — use the built-in
     # sample_governance plugin, resolved via the registry like any other.
-    if egress_plugin is None and (
+    if not egress_plugins and (
         binding.hitl_on_tool or binding.hitl_on_tool_result or binding.gov_trigger_destructive
     ):
         plugin_cfg = {
@@ -218,11 +218,19 @@ def build_kernel_config(
             }.items()
             if v is not None
         }
-        egress_plugin = _instantiate("sample_governance", plugin_cfg)
-        if egress_plugin is not None:
-            entry = _ingress_entry_for(egress_plugin)
+        plugin = _instantiate("sample_governance", plugin_cfg)
+        if plugin is not None:
+            egress_plugins.append(plugin)
+            entry = _ingress_entry_for(plugin)
             if entry is not None:
                 ingress_entries.append(entry)
+
+    if len(egress_plugins) == 1:
+        egress_plugin: GovernancePlugin | None = egress_plugins[0]
+    elif len(egress_plugins) > 1:
+        egress_plugin = GovernancePluginChain(egress_plugins)
+    else:
+        egress_plugin = None
 
     kwargs: dict[str, Any] = {
         "pattern_plugin_id": pattern_plugin_id or default_pattern_plugin_id(),

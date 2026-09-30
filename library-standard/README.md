@@ -4,9 +4,16 @@
 -->
 # mas-library-standard
 
-Reusable MAS artifacts: plugins, tools, skills, prompts, and flavours.
+Reusable MAS artifacts: plugins, tools, skills, prompts, flavours, and overlays.
 
 ## Documentation
 
-- User guide: `docs/user-guide.md`
-- Developer guide: `docs/developer-guide.md`
+- User guide: [docs/user-guide.md](docs/user-guide.md)
+- Developer guide: [docs/developer-guide.md](docs/developer-guide.md)
+- Plugin id cards: [src/mas/library/standard/plugins/README.md](src/mas/library/standard/plugins/README.md)
+- Overlay index: [src/mas/library/standard/overlays/README.md](src/mas/library/standard/overlays/README.md)
+- Examples: [examples/](examples/README.md) (by plugin kind; Agent or MAS)
+
+Shipped overlays: `observability-native`, `with-hardened`, `cheap-summarizer`.
+Governance example: [examples/governance/undeclared-tool/](examples/governance/undeclared-tool/).
+Summarizer example: [examples/context/summarizer-override/](examples/context/summarizer-override/).

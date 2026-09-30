@@ -9,15 +9,15 @@ import os
 from pathlib import Path
 from typing import Any
 
-from mas.runtime.spec.schema_bindings_generated import INFRA_MIDDLEWARE_PATH_PARAM_KEYS
-from mas.runtime.spec.source import load_yaml_file, resolve_ref_with_search
-from mas.runtime.xdg import mas_infra_dir, mas_runtime_dir
 from mas.ctl.compose.models import ResolvedInfra
 from mas.ctl.infra.env_resolve import resolve_manifest_values
 from mas.ctl.infra.models import InfraManifest, ModelsSpec, ProxySpec
 from mas.ctl.infra.pipeline_chain import BidirectionalInfraPipeline
 from mas.ctl.libraries.bundles import list_manifest_libraries
 from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
+from mas.runtime.spec.schema_bindings_generated import INFRA_MIDDLEWARE_PATH_PARAM_KEYS
+from mas.runtime.spec.source import load_yaml_file, resolve_ref_with_search
+from mas.runtime.xdg import mas_infra_dir, mas_runtime_dir
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,29 @@ _LEAF_KINDS = {
     "RuntimeEngine",
 }
 _VALID_KINDS = _LEAF_KINDS | {"InfraBundle"}
+
+_APPLICATION_USAGES = {"use", "deploy", "use-and-deploy"}
+
+
+def application_endpoint_usage(endpoint: dict[str, Any]) -> str:
+    """Return the endpoint's explicit usage, preserving legacy expose behavior."""
+    usage = endpoint.get("usage")
+    if usage is None:
+        return "use-and-deploy" if endpoint.get("expose") is True else "use"
+    value = str(usage)
+    if value not in _APPLICATION_USAGES:
+        raise ValueError(
+            "Application endpoint usage must be 'use', 'deploy', or 'use-and-deploy'"
+        )
+    return value
+
+
+def application_endpoint_is_used(endpoint: dict[str, Any]) -> bool:
+    return application_endpoint_usage(endpoint) in {"use", "use-and-deploy"}
+
+
+def application_endpoint_is_deployed(endpoint: dict[str, Any]) -> bool:
+    return application_endpoint_usage(endpoint) in {"deploy", "use-and-deploy"}
 
 
 def resolve_infra_refs(
@@ -80,7 +103,9 @@ def resolve_infra_refs(
 
     merged = InfraManifest(name="merged")
     errors: list[tuple[str, Exception]] = []
-    for ref in effective:
+    implicit_refs = ["standard:local-tools"]
+    refs_to_load = implicit_refs + [ref for ref in effective if ref not in implicit_refs]
+    for ref in refs_to_load:
         try:
             part = _load_ref(ref, anchor=root, workspace=ws)
             merged = _merge(merged, part)
@@ -108,9 +133,7 @@ def resolve_infra_refs(
     for ref in runtime_effective:
         try:
             part = _load_runtime_ref(ref, anchor=root, workspace=ws)
-            runtime_engine = merge_runtime_engine_layers(
-                runtime_engine, part.runtime_engine
-            )
+            runtime_engine = merge_runtime_engine_layers(runtime_engine, part.runtime_engine)
         except Exception as exc:
             errors.append((ref, exc))
 
@@ -125,12 +148,18 @@ def resolve_infra_refs(
     llm["pipeline"] = _filter_pipeline_for_target(llm.get("pipeline") or [], "LLM_CALL")
     _hydrate_pipeline_cache_paths(llm.get("pipeline") or [], cache_path=cache_path)
 
+    tool_server_registry = {
+        str(item["id"]): dict(item) for item in merged.tool_servers if isinstance(item, dict) and item.get("id")
+    }
+
     return ResolvedInfra(
         refs=effective,
         llm_proxy=llm,
+        tool_server_registry=tool_server_registry,
         observability={},
         runtime_engine=dict(runtime_engine),
         runtime_refs=list(runtime_effective),
+        applications=dict(merged.applications),
     )
 
 
@@ -375,14 +404,10 @@ def _load_file(
                 if child in seen:
                     raise ValueError(f"circular InfraBundle reference: {path} -> {child}")
                 parts.append(
-                    _load_file(
-                        child, workspace=workspace, _seen=seen, allow_runtime_engine=allow_runtime_engine
-                    )
+                    _load_file(child, workspace=workspace, _seen=seen, allow_runtime_engine=allow_runtime_engine)
                 )
                 for step in entry.get("pipeline") or []:
-                    pipeline.append(
-                        _resolve_pipeline_entry(step, anchor=path.parent, workspace=workspace)
-                    )
+                    pipeline.append(_resolve_pipeline_entry(step, anchor=path.parent, workspace=workspace))
         else:
             for entry in spec.get("interceptors") or spec.get("pipeline") or []:
                 pipeline.append(_resolve_pipeline_entry(entry, anchor=path.parent, workspace=workspace))
@@ -391,9 +416,7 @@ def _load_file(
                 if child in seen:
                     raise ValueError(f"circular InfraBundle reference: {path} -> {child}")
                 parts.append(
-                    _load_file(
-                        child, workspace=workspace, _seen=seen, allow_runtime_engine=allow_runtime_engine
-                    )
+                    _load_file(child, workspace=workspace, _seen=seen, allow_runtime_engine=allow_runtime_engine)
                 )
         merged = _merge_many(parts)
         merged.pipeline = _merge_pipeline(merged.pipeline, pipeline)
@@ -445,6 +468,14 @@ def _from_dict(data: dict[str, Any]) -> InfraManifest:
     meta = data.get("metadata") or {}
     spec = data.get("spec") or {}
     kind = data.get("kind", "")
+    applications: dict[str, dict[str, Any]] = {}
+    if kind == "Application":
+        raw_endpoints = spec.get("endpoints") or {}
+        if isinstance(raw_endpoints, dict):
+            applications = {
+                str(name): dict(endpoint) if isinstance(endpoint, dict) else {"url": str(endpoint)}
+                for name, endpoint in raw_endpoints.items()
+            }
     proxy_raw = spec.get("proxy") or spec.get("server") or {}
     models_raw = spec.get("models") or {}
     defaults = models_raw.get("defaults") or spec.get("defaults") or {}
@@ -458,6 +489,7 @@ def _from_dict(data: dict[str, Any]) -> InfraManifest:
         proxy=ProxySpec(
             api_base=str(proxy_raw.get("api_base", "") or ""),
             api_key_env=api_key_env,
+            timeout=float(proxy_raw["timeout"]) if proxy_raw.get("timeout") is not None else None,
         ),
         models=ModelsSpec(
             allowed=list(models_raw.get("allowed") or models_raw.get("available") or []),
@@ -466,7 +498,10 @@ def _from_dict(data: dict[str, Any]) -> InfraManifest:
             mappings=dict(models_raw.get("mappings") or {}),
         ),
         model_access=dict(spec.get("model_access") or {}),
+        protocol=str(spec.get("protocol") or "").strip(),
+        tool_servers=[dict(item) for item in (spec.get("tool_servers") or []) if isinstance(item, dict)],
         raw=data,
+        applications=applications,
     )
 
 
@@ -484,8 +519,12 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
     default_llm: str | None = None
     default_embed: str | None = None
     model_access: dict[str, Any] = {}
+    protocol = ""
+    applications: dict[str, dict[str, Any]] = {}
     pipeline: list[dict[str, Any]] = []
     runtime_engine: dict[str, Any] = {}
+    tool_servers_by_id: dict[str, dict[str, Any]] = {}
+    tool_server_order: list[str] = []
     name = parts[-1].name
 
     from mas.runtime.spec.runtime_engine import merge_runtime_engine_layers
@@ -494,7 +533,9 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
         if m.runtime_engine:
             runtime_engine = merge_runtime_engine_layers(runtime_engine, m.runtime_engine)
         if m.proxy.api_base:
-            proxy = ProxySpec(api_base=m.proxy.api_base, api_key_env=m.proxy.api_key_env)
+            proxy = ProxySpec(api_base=m.proxy.api_base, api_key_env=m.proxy.api_key_env, timeout=m.proxy.timeout)
+        elif m.proxy.timeout is not None:
+            proxy = ProxySpec(api_base=proxy.api_base, api_key_env=proxy.api_key_env, timeout=m.proxy.timeout)
         pipeline = _merge_pipeline(pipeline, m.pipeline)
         for item in m.models.allowed:
             if item not in seen_allowed:
@@ -506,6 +547,17 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
         if m.models.default_embed:
             default_embed = m.models.default_embed
         model_access.update(m.model_access)
+        if m.protocol:
+            protocol = m.protocol
+        for server in m.tool_servers:
+            sid = str(server.get("id") or "").strip()
+            if not sid:
+                continue
+            if sid not in tool_servers_by_id:
+                tool_server_order.append(sid)
+            previous = tool_servers_by_id.get(sid) or {}
+            tool_servers_by_id[sid] = {**previous, **server}
+        applications.update(m.applications)
 
     return InfraManifest(
         name=name,
@@ -518,8 +570,11 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
             mappings=mappings,
         ),
         model_access=model_access,
+        protocol=protocol,
         pipeline=pipeline,
         runtime_engine=runtime_engine,
+        tool_servers=[tool_servers_by_id[sid] for sid in tool_server_order],
+        applications=applications,
     )
 
 
@@ -566,9 +621,7 @@ def _merge_pipeline(a: list[dict[str, Any]], b: list[dict[str, Any]]) -> list[di
     return list(a) + list(b)
 
 
-def _filter_pipeline_for_target(
-    pipeline: list[dict[str, Any]], target: str
-) -> list[dict[str, Any]]:
+def _filter_pipeline_for_target(pipeline: list[dict[str, Any]], target: str) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for entry in pipeline:
         applies = entry.get("applies_to") or ["LLM_CALL"]
@@ -579,9 +632,7 @@ def _filter_pipeline_for_target(
     return out
 
 
-def _hydrate_pipeline_cache_paths(
-    pipeline: list[dict[str, Any]], *, cache_path: Path
-) -> None:
+def _hydrate_pipeline_cache_paths(pipeline: list[dict[str, Any]], *, cache_path: Path) -> None:
     for entry in pipeline:
         mid = str(entry.get("middleware") or "")
         if mid not in {"llm_cache", "llm-cache"}:

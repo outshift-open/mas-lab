@@ -29,11 +29,10 @@ class InfraEmulationSpec:
     """
 
     llm: str = "live"
-    """LLM model access: ``live`` | ``mock`` | ``replay``.
+    """LLM model access: ``live`` | ``replay``.
 
-    ``mock``   → MockModelAccess (no network, canned responses).
-    ``replay`` → responses served from the content-addressed trace cache.
-    ``live``   → real LLM endpoint (via flavour).
+    ``replay`` → responses served from llm_cache or the content-addressed trace cache.
+    ``live``   → real LLM endpoint.
     """
 
     tools: str = "live"

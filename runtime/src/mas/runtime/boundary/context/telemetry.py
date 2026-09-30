@@ -115,8 +115,13 @@ def record_context_assembly(
     messages: list[dict[str, Any]],
     turn_index: int = 0,
     agent_id: str = "agent",
+    tools: list[str] | None = None,
 ) -> None:
-    """Log the exact messages[] snapshot sent to the LLM (pre-call)."""
+    """Log the exact messages[] snapshot sent to the LLM (pre-call).
+
+    ``tools`` is the function names from the OpenAI ``tools`` array on that
+    same request. ``None`` means the caller did not record them.
+    """
     if observability is None or not messages:
         return
     record = getattr(observability, "record_context_assembled", None)
@@ -130,6 +135,7 @@ def record_context_assembly(
         messages=messages,
         segments=segments,
         total_tokens=sum(s.get("tokens") or 0 for s in segments),
+        tools=tools,
     )
 
 

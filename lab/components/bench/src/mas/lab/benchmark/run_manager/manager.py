@@ -228,25 +228,37 @@ class BenchmarkRunManager:
         run_info = runs[0]
         return self.get_run(run_info.benchmark_id)
 
-    def record_last_run(self, metadata: BenchmarkMetadata, run_dir: Path) -> None:
+    def record_last_run(
+        self,
+        metadata: BenchmarkMetadata,
+        run_dir: Path,
+        *,
+        experiment_yaml: Path | None = None,
+    ) -> None:
         """Write a pointer to the most recently started run.
 
         Called at run start by both single-agent and MAS benchmark paths so
         ``mas-lab benchmark show last`` always resolves correctly.
+
+        *experiment_yaml* overrides a reused metadata.yaml path when the
+        same output dir is resumed with a different YAML (``-o``).
         """
-        import json as _json
+        ts = metadata.timestamp
+        if hasattr(ts, "isoformat"):
+            ts = ts.isoformat()
+        yaml_path = experiment_yaml if experiment_yaml is not None else metadata.experiment_yaml_path
         try:
             ptr_path = last_run_write_path()
             ptr_path.parent.mkdir(parents=True, exist_ok=True)
-            ptr_path.write_text(_json.dumps({
+            ptr_path.write_text(json.dumps({
                 "run_dir": str(run_dir),
-                "benchmark_id": metadata.benchmark_id,
-                "experiment_name": metadata.experiment_name,
-                "experiment_yaml_path": metadata.experiment_yaml_path,
-                "timestamp": metadata.timestamp,
+                "benchmark_id": str(metadata.benchmark_id),
+                "experiment_name": str(metadata.experiment_name),
+                "experiment_yaml_path": str(Path(yaml_path).resolve()) if yaml_path else "",
+                "timestamp": str(ts),
             }))
         except Exception as _e:
-            logger.debug("Failed to write last-run pointer: %s", _e)
+            logger.error("Failed to write last-run pointer: %s", _e)
 
     def get_last_run_for_experiment(
         self,

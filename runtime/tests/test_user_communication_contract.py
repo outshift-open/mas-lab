@@ -32,6 +32,17 @@ def empty_tool_tree(tmp_path: Path) -> Path:
     return tmp_path
 
 
+@pytest.fixture(autouse=True)
+def _clean_hitl_env(monkeypatch):
+    """MAS_HITL_AUTO_RESOLVE is set via os.environ.setdefault (not monkeypatch)
+    by benchmark/batch-run code elsewhere, so it can leak into this file's
+    tests when the whole suite runs in one process. Guarantee a clean
+    baseline here (see test_system_tools_request_human_input.py, which has
+    the same fixture for the same reason)."""
+    monkeypatch.delenv("MAS_HITL_AUTO_RESOLVE", raising=False)
+    monkeypatch.delenv("MAS_HITL_AUTO_RESOLVE_DECISION", raising=False)
+
+
 # ---------------------------------------------------------------------------
 # RegistryHitlContract / RegistryUserIOContract in isolation
 # ---------------------------------------------------------------------------
@@ -126,7 +137,7 @@ class _RecordingUserIOContract:
 
 
 def test_custom_hitl_contract_is_used_instead_of_registry(empty_tool_tree: Path):
-    from mas.runtime.engine.manifest_tool_provider import _SystemToolHitlWrapper
+    from mas.library.standard.plugins.tools.local import _SystemToolHitlWrapper
     from mas.runtime.system_tools.request_human_input import RequestHumanInputTool
 
     contract = _RecordingHitlContract()
@@ -148,7 +159,7 @@ def test_custom_hitl_contract_is_used_instead_of_registry(empty_tool_tree: Path)
 
 
 def test_custom_user_io_contract_is_used_instead_of_registry(empty_tool_tree: Path):
-    from mas.runtime.engine.manifest_tool_provider import _SystemToolUserUpdateWrapper
+    from mas.library.standard.plugins.tools.local import _SystemToolUserUpdateWrapper
     from mas.runtime.system_tools.inform_user import InformUserTool
 
     contract = _RecordingUserIOContract()
@@ -169,7 +180,10 @@ def test_custom_user_io_contract_is_used_instead_of_registry(empty_tool_tree: Pa
 
 
 def test_default_contract_is_registry_backed(empty_tool_tree: Path):
-    from mas.runtime.engine.manifest_tool_provider import _SystemToolHitlWrapper, _SystemToolUserUpdateWrapper
+    from mas.library.standard.plugins.tools.local import (
+        _SystemToolHitlWrapper,
+        _SystemToolUserUpdateWrapper,
+    )
     from mas.runtime.system_tools.inform_user import InformUserTool
     from mas.runtime.system_tools.request_human_input import RequestHumanInputTool
 

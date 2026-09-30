@@ -83,6 +83,39 @@ properties:
       "^x-":
         description: "Extension properties (UI metadata) — ignored by the runtime."
     properties:
+      models:
+        type: array
+        description: >
+          MAS default model(s). Agents that omit spec.models or set
+          model: any inherit the primary entry (id: main). `any` means
+          this MAS does not pin a provider id — inherit experiment.models.main
+          / experiment.model, then local config.yaml defaults.model. Same shape
+          as Agent spec.models[].
+        default: []
+        items:
+          type: object
+          required: [model]
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+              default: "main"
+            model:
+              type: string
+              description: >
+                LiteLLM id, or `any` to inherit experiment.models.<id>
+                (models.main / experiment.model for id main), then local
+                config.yaml defaults.model.
+            temperature:
+              type: number
+              minimum: 0.0
+              maximum: 2.0
+            max_tokens:
+              type: integer
+              minimum: 1
+            context_window:
+              type: integer
+              minimum: 1
       agents:
         description: >
           On a base MAS manifest: short form, a flat list of agent refs
@@ -93,7 +126,9 @@ properties:
           collection op on spec.agency.agents — special-cased merge logic
           (merge_mas_overlay), not part of the generic x-merge dispatch, and
           not meaningful to set in this object form on a base MAS manifest
-          (there's nothing yet to override/remove from).
+          (there's nothing yet to override/remove from). The reserved key
+          $entry patches spec.workflow.entry after this overlay's workflow
+          patch, so a design-pattern overlay need not hardcode the entry id.
         oneOf:
           - type: array
             default: []
@@ -174,7 +209,7 @@ properties:
             items:
               oneOf:
                 - type: object
-                  required: [ref]
+                  required: [id]
                   additionalProperties: false
                   properties:
                     id:

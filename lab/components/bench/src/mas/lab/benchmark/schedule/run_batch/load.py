@@ -180,19 +180,11 @@ def load_experiment(
         configs_dir = None
 
     _pipeline_specs = resolve_pipeline_specs(exp, experiment_yaml)
-    dataset_items = _load_dataset_items(exp)
-
-    if exp.dataset_filter:
-        _before = len(dataset_items)
-        dataset_items = [
-            item for item in dataset_items
-            if all(item.get(k) == v for k, v in exp.dataset_filter.items())
-        ]
-        logger.info(f"Dataset filter {exp.dataset_filter}: {_before} → {len(dataset_items)} items")
-
-    if exp.dataset_limit is not None and len(dataset_items) > exp.dataset_limit:
-        dataset_items = dataset_items[:exp.dataset_limit]
-        logger.info(f"Dataset limit: capped to {exp.dataset_limit} items")
+    dataset_items = _view_dataset_items(
+        _load_dataset_items(exp),
+        dataset_filter=exp.dataset_filter,
+        dataset_limit=exp.dataset_limit,
+    )
 
     n_runs = max_runs if max_runs is not None else exp.execution.n_runs if exp.execution else 1
     if single_run:
@@ -221,24 +213,38 @@ def load_experiment(
     )
 
 
+def _view_dataset_items(
+    items: list,
+    *,
+    dataset_filter: dict | None = None,
+    dataset_limit: int | None = None,
+) -> list:
+    """Filter then cap — cap is first N of the filtered list, not a reduced Dataset file."""
+    viewed = list(items)
+    if dataset_filter:
+        before = len(viewed)
+        viewed = [
+            item for item in viewed
+            if all(item.get(k) == v for k, v in dataset_filter.items())
+        ]
+        logger.info("Dataset filter %s: %s → %s items", dataset_filter, before, len(viewed))
+    if dataset_limit is not None and len(viewed) > dataset_limit:
+        viewed = viewed[:dataset_limit]
+        logger.info("Dataset limit: capped to %s items", dataset_limit)
+    return viewed
+
+
 def _load_dataset_items(exp: Any) -> list:
     dataset_items: list = []
-    if exp.dataset and exp.dataset.exists():
-        try:
-            from mas.runtime.spec.source import load_yaml_file
+    if exp.dataset and Path(exp.dataset).exists():
+        from mas.lab.benchmark.dataset import Dataset
 
-            ds_data = load_yaml_file(exp.dataset)
-            if isinstance(ds_data, dict):
-                dataset_items = (
-                    ds_data.get("spec", {}).get("items")
-                    or ds_data.get("items")
-                    or []
-                )
-            else:
-                dataset_items = ds_data
-            logger.info(f"Dataset: {exp.dataset} ({len(dataset_items)} items)")
-        except Exception as exc:
-            logger.warning(f"Failed to load dataset {exp.dataset}: {exc}")
+        ds = Dataset.from_yaml(
+            Path(exp.dataset),
+            source_overlay=getattr(exp, "dataset_source", None),
+        )
+        dataset_items = [item.to_dict() for item in ds]
+        logger.info(f"Dataset: {exp.dataset} ({len(dataset_items)} items)")
     elif exp.dataset:
         logger.warning(f"Dataset not found: {exp.dataset}")
 
@@ -246,9 +252,7 @@ def _load_dataset_items(exp: Any) -> list:
         dataset_items = [
             {
                 "id": 0,
-                "inputs": {
-                    "user": [{"role": "user", "content": "Triage an SRE incident."}],
-                },
+                "inputs": {"user": "Triage an SRE incident."},
             }
         ]
         logger.warning("No dataset items loaded; using default prompt")
@@ -269,26 +273,19 @@ def print_dry_run(loaded: LoadedExperiment) -> None:
     print(f"configs_dir: {loaded.configs_dir}")
     print(f"Scenarios  : {loaded.scenario_ids}")
     print(f"Dataset    : {len(loaded.dataset_items)} items")
-    print(f"Runs/test  : {loaded.n_runs}")
+    print(f"Runs/item  : {loaded.n_runs}")
     print(f"Total      : {total} executions")
     _pipeline_specs = loaded.pipeline_specs
-    if exp.is_v2:
-        _all_steps = _pipeline_specs
+    if _pipeline_specs:
         _by_scope: dict = {}
-        for s in _all_steps:
+        for s in _pipeline_specs:
             _by_scope.setdefault(s.scope, []).append(s)
         _parts = []
-        for scope in ("run", "test", "scenario", "experiment"):
+        for scope in ("run", "item", "scenario", "experiment"):
             count = len(_by_scope.get(scope, []))
             if count:
                 _parts.append(f"{count} {scope}")
-        print(f"Pipeline   : {len(_all_steps)} steps ({', '.join(_parts)})")
-    elif _pipeline_specs:
-        _pipe = _pipeline_specs
-        _ps_count = sum(1 for s in _pipe if getattr(s, "per_scenario", False))
-        _scalar_count = len(_pipe) - _ps_count
-        print(f"Pipeline   : {len(_pipe)} steps "
-              f"({_ps_count} per-scenario × {len(loaded.scenario_ids)} = "
-              f"{_ps_count * len(loaded.scenario_ids)} + {_scalar_count} scalar)")
+        extra = f" ({', '.join(_parts)})" if _parts else ""
+        print(f"Pipeline   : {len(_pipeline_specs)} steps{extra}")
     print("=" * 70)
     print("\n✓ Configuration valid — ready to run")

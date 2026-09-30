@@ -208,24 +208,6 @@ def ensure_live_otel_span_files(events_path: Path, obs_cfg: Any) -> None:
             logger.warning("Failed to materialize span export %s", dest, exc_info=True)
 
 
-def _default_observability_overlay_path() -> Path:
-    """Canonical ``observability-native`` overlay shipped with library-standard."""
-    import mas.library.standard as std_pkg
-
-    return (Path(std_pkg.__file__).resolve().parent / "overlays" / "observability-native.yaml")
-
-
-def _ensure_observability_overlay(overlay_paths: list[Path]) -> list[Path]:
-    """Prepend observability-native overlay so lab/bench runs are always instrumented."""
-    obs = _default_observability_overlay_path()
-    if not obs.is_file():
-        return overlay_paths
-    resolved = obs.resolve()
-    if any(p.resolve() == resolved for p in overlay_paths):
-        return overlay_paths
-    return [resolved, *overlay_paths]
-
-
 def _resolve_overlay_paths(
     overlay_refs: list[OverlayRefEntry],
     *,
@@ -290,6 +272,10 @@ class MasBenchRunner:
         tool_fixtures = ri.tool_fixtures if ri else None
 
         write_tool_fixtures_sidecar(spec_path, tool_fixtures)
+        if tool_fixtures is None:
+            from mas.lab.benchmark.cache.trace_store import write_runtime_params_sidecar
+
+            write_runtime_params_sidecar(config, spec_path)
 
         checkpoint_path = _checkpoint_path(checkpoint_load, spec_path.parent)
         checkpoint_dir = output_dir / "checkpoints" if checkpoint_save else None
@@ -299,6 +285,12 @@ class MasBenchRunner:
         _overlays_dir = overlays_dir
         _overlay_base = overlay_base_dir
 
+        experiment_default_model = kwargs.get("experiment_default_model")
+        experiment_model_slots = kwargs.get("experiment_model_slots")
+        if not experiment_default_model and isinstance(experiment_model_slots, dict):
+            from mas.runtime.spec.model_ref import SLOT_MAIN, slot_model
+
+            experiment_default_model = slot_model(experiment_model_slots, SLOT_MAIN)
         resolved = self._resolve_target(
             config=config,
             spec_path=spec_path,
@@ -315,6 +307,8 @@ class MasBenchRunner:
             output_dir=output_dir,
             run_seed=run_seed,
             flavour=flavour,
+            experiment_default_model=experiment_default_model,
+            experiment_model_slots=experiment_model_slots if isinstance(experiment_model_slots, dict) else None,
         )
         if isinstance(resolved, RunResult):
             return self._with_bench_metadata(resolved, run_seed=run_seed)
@@ -372,6 +366,8 @@ class MasBenchRunner:
         output_dir: Path,
         run_seed: int,
         flavour: Any = None,
+        experiment_default_model: str | None = None,
+        experiment_model_slots: dict[str, str] | None = None,
     ) -> RunResult | _ControllerTarget:
         entry_manifest = config
         entry_manifest_path = spec_path
@@ -405,15 +401,20 @@ class MasBenchRunner:
                 infra_refs=infra_refs,
                 checkpoint_path=checkpoint_path,
                 checkpoint_dir=checkpoint_dir,
+                experiment_default_model=experiment_default_model,
+                experiment_model_slots=experiment_model_slots,
             )
 
-        overlay_paths = _ensure_observability_overlay(
-            _resolve_overlay_paths(
-                overlay_refs,
-                manifest_path=resolved_mas_path,
-                overlays_dir=overlays_dir,
-                base_dir=overlay_base_dir,
-            )
+        # Do not prepend observability-native. That overlay is target.kind:
+        # Agent; compose now fans it onto every agency row, which would give
+        # each agent a private native sink on top of bench_obs_config's
+        # shared traces/events.jsonl. The harness already instruments MAS
+        # runs via setup_run_observability.
+        overlay_paths = _resolve_overlay_paths(
+            overlay_refs,
+            manifest_path=resolved_mas_path,
+            overlays_dir=overlays_dir,
+            base_dir=overlay_base_dir,
         )
         compose = compose_run(
             ComposeRequest(
@@ -428,6 +429,8 @@ class MasBenchRunner:
             entry_manifest = merge_stacked_entry_agent_manifest(entry_manifest, config)
 
         bind = compose.bind
+        bind.experiment_default_model = experiment_default_model
+        bind.experiment_model_slots = experiment_model_slots
         entry = entry_agent_id(compose.mas_config)
 
         if len(bind.agents) <= 1:
@@ -444,6 +447,8 @@ class MasBenchRunner:
                     checkpoint_path=checkpoint_path,
                     checkpoint_dir=checkpoint_dir,
                     pattern_plugin_id=pattern_plugin_id,
+                    experiment_default_model=experiment_default_model,
+                    experiment_model_slots=experiment_model_slots,
                 ),
             )
             return _ControllerTarget(instance, store, entry_manifest, entry_manifest_path)
@@ -525,6 +530,8 @@ class MasBenchRunner:
         infra_refs: list[str],
         checkpoint_path: Path | None,
         checkpoint_dir: Path | None,
+        experiment_default_model: str | None = None,
+        experiment_model_slots: dict[str, str] | None = None,
     ) -> _ControllerTarget:
         workspace = WorkspaceConfig.load(entry_manifest_path.parent)
         user = UserConfig.load()
@@ -551,6 +558,8 @@ class MasBenchRunner:
                 checkpoint_path=checkpoint_path,
                 checkpoint_dir=checkpoint_dir,
                 pattern_plugin_id=pattern_plugin_id,
+                experiment_default_model=experiment_default_model,
+                experiment_model_slots=experiment_model_slots,
             ),
         )
         return _ControllerTarget(instance, store, entry_manifest, entry_manifest_path)

@@ -3,7 +3,7 @@
 """Tutorial 03 — Analysis, Pipelines & Evaluation: integration tests.
 
 Tests experiment configs, pipeline definitions, overlay patterns, and
-the benchmark/analysis CLI subcommands.  LLM calls are mocked.
+the benchmark/analysis CLI subcommands. Instantiation uses SimulatedEngine.
 """
 from __future__ import annotations
 
@@ -13,6 +13,8 @@ import pytest
 import yaml
 
 from conftest import T03, T01, T02, load_yaml, run_cli
+from ci_llm import stop_engine
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 1. Manifest validation (CLI)
@@ -66,6 +68,7 @@ class TestExperimentConfig:
         assert scenario_ids == {"react", "cot", "reflection"}
         assert e["run"]["n_runs"] >= 1
         assert e.get("run", {}).get("pipeline", []) == []
+        assert e.get("models", {}).get("main")
 
     def test_topology_experiment(self):
         exp = load_yaml(T03 / "experiment-topology.yaml")
@@ -78,6 +81,7 @@ class TestExperimentConfig:
         # v2 experiments use run/scenario/application pipeline slots (may be empty)
         assert "run" in e
         assert e.get("run", {}).get("pipeline", []) == []
+        assert e.get("models", {}).get("main")
 
     def test_topology_experiment_levels(self):
         """Verify pipeline levels are present and release-safe."""
@@ -262,12 +266,10 @@ class TestCLISubcommands:
 class TestT03AgentInstantiation:
     """Instantiate T03 agents via mas-ctl session bootstrap."""
 
-    def _mock_manifest(self, *extra_overlays: str) -> dict:
+    def _agent_manifest(self, *extra_overlays: str) -> dict:
         from mas.ctl.overlay import merge_overlay
 
         base = load_yaml(T03 / "agent.yaml")
-        mock_path = T01 / "overlays" / "mock-llm.yaml"
-        base = merge_overlay(base, load_yaml(mock_path))
         for name in extra_overlays:
             base = merge_overlay(base, load_yaml(T03 / "overlays" / name))
         return base
@@ -275,12 +277,13 @@ class TestT03AgentInstantiation:
     def test_instantiate_qa_agent(self):
         from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
 
-        config = self._mock_manifest()
+        config = self._agent_manifest()
         instance, _ = instantiate_runtime(
             InstantiationOptions(
                 agent_manifest=config,
                 manifest_dir=T03,
                 validate_manifests=False,
+                engine=stop_engine(),
             ),
         )
         assert instance is not None
@@ -290,12 +293,13 @@ class TestT03AgentInstantiation:
     def test_instantiate_with_cot_overlay(self):
         from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
 
-        merged = self._mock_manifest("cot.yaml")
+        merged = self._agent_manifest("cot.yaml")
         instance, _ = instantiate_runtime(
             InstantiationOptions(
                 agent_manifest=merged,
                 manifest_dir=T03,
                 validate_manifests=False,
+                engine=stop_engine(),
             ),
         )
         assert instance is not None

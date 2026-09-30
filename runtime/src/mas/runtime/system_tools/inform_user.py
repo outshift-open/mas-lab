@@ -6,9 +6,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field, create_model
+from pydantic import BaseModel, Field, create_model, field_validator
 
 from mas.runtime.contracts.tool_contract import ToolContract
+from mas.runtime.system_tools._arg_coercion import coerce_json_string_to_dict
 
 #: Default cap on ``message`` length — see ``max_message_length`` on __init__.
 DEFAULT_MAX_MESSAGE_LENGTH = 2000
@@ -64,6 +65,8 @@ class InformUserTool(ToolContract):
             default_factory=dict,
             description="Optional contextual data to attach to the update",
         )
+
+        _coerce_metadata = field_validator("metadata", mode="before")(coerce_json_string_to_dict)
 
     def __init__(self, *, max_message_length: int = DEFAULT_MAX_MESSAGE_LENGTH) -> None:
         """``max_message_length``: configurable via a ``spec.tools`` entry —

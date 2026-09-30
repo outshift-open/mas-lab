@@ -20,6 +20,7 @@ docs/tutorials/**/logs/
 .hypothesis/
 compliance-report.json
 COMPLIANCE_REPORT.md
+compliance/results/
 
 # MkDocs build output
 site/
@@ -64,6 +65,9 @@ lab/src/mas/lab/_cli_legacy.py
 docker/.env
 docker/data/*
 !docker/data/.gitkeep
+
+# Local protocol compliance checkouts and reports
+compliance/vendor/
 
 # Session / scratch (do not commit — not gitignored; keep local only)
 COVERAGE_REPORT.md

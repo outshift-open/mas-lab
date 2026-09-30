@@ -1,0 +1,19 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Use gpt-4o-mini for history summaries. Same type as the package default
+# (summarising), so params deep-merge and keep_turns / trimmer stay.
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: cheap-summarizer
+spec:
+  target:
+    kind: Agent
+  patch:
+    context_manager:
+      type: summarising
+      params:
+        summarizer:
+          type: llm
+          params:
+            model: gpt-4o-mini

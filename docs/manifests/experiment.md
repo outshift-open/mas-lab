@@ -13,16 +13,22 @@ Defines **benchmark** metadata, execution modes, lifecycle levels, and **pipelin
 
 ---
 
-## Four layers
+## Four layers (matches CLI `--depth exp|scenario|item|run`)
 
-| Level | Scope | Typical pre | Typical post |
-|-------|-------|-------------|--------------|
-| `application` | Whole experiment | `service_start`, allocate infra | Aggregate metrics, publish report |
-| `scenario` | One overlay column | — | Scenario-level plots |
-| `test` | One dataset item (all runs) | — | Per-item analysis |
-| `run` | Single run index | — | `extract_trajectories`, trace export |
+There is **no** `pipelines:` key. Hooks live on the same objects the CLI
+already names:
 
-Each level supports `pre:` and `post:` as **lists of pipelines** (0..N).
+| YAML | CLI | Scope | Typical post |
+|------|-----|-------|--------------|
+| `post:` (experiment root) | `--depth exp` | Whole experiment | `gather_level`, CI, plots |
+| `scenario:` | `--scenario` / `--depth scenario` | One overlay column | Gather item frames |
+| `item:` | `--item` / `--depth item` | One dataset item (all runs) | Gather run frames |
+| `run:` | `--depth run` | Single run index | `eval_mce`, `metrics_to_dataframe`, `extract_trace_stats` |
+
+`application:` is the **MAS binding** (`app` / `manifest` / `configs_dir`), not a pipeline level.
+Deprecated aliases still load with a warning: `applications:`, `application.post`, `test:`.
+
+Each level supports `pre:` and `post:` as **lists of steps** (0..N).
 
 ---
 
@@ -31,25 +37,138 @@ Each level supports `pre:` and `post:` as **lists of pipelines** (0..N).
 ```yaml
 experiment:
   name: topology-ablation
-  applications:
-    - manifest: ./mas.yaml
-      configs_dir: ./overlays
+  model: any                    # shorthand for models.main; omit ≡ any
+  models:                       # optional slot map (main / summarizer / judge)
+    main: any
+
+  # ── Application ── MAS + experiment-level post (gather → CI → figure)
+  application:
+    app: trip-planner
+    configs_dir: ./overlays
+    # Preferred for shared apps — library identifier + versioned app id:
+    # app: library-ioc:sre-triage@v2
+    # manifest: library-ioc:apps/sre-triage/v2/mas.yaml
+  artifacts: {df: dataframe}
+  post:
+    - {name: gather-experiment, type: gather_level, in: df, out: df, depends_on: [gather-scenario]}
+
+  # ── Scenario ── overlay columns + gather
   scenarios:
     - id: linear
-      overlays:
-        logic: [linear]
-        control: []
-        infra: []
+      overlays: {logic: [linear], control: [], infra: []}
+  scenario:
+    artifacts: {df: dataframe}
+    post:
+      - {name: gather-scenario, type: gather_level, in: df, out: df, depends_on: [gather-item]}
+
+  # ── Test ── dataset items + gather
   dataset:
-    name: arborian-network
+    name: trip-planner-benchmark
+    locator: samples
+    # limit: 10   # optional: first N items; omit to run the full Dataset
+  item:
+    artifacts: {df: dataframe}
+    post:
+      - {name: gather-item, type: gather_level, in: df, out: df, depends_on: [extract-trace-stats]}
+
+  # ── Run ── one MAS execution; n_runs lives here
   run:
     n_runs: 5
-    pre: []
+    artifacts:
+      trace: trace
+      df: dataframe
     post:
-      - id: analysis          # library pipeline in lab/pipelines/
-  evaluation:
-    method: trace_only
+      - name: extract-trace-stats
+        type: extract_trace_stats
+        in: trace
+        out: df
+
+  # ── Execution ── batch orchestration only (last)
+  execution:
+    parallel_scenarios: 4
+    timeout: 300
+    strategy: coverage
 ```
+
+---
+
+## Model slots (`models` / `model`)
+
+Named slots, not `$variables`. Keys match Agent/MAS `spec.models[].id`, plus
+`judge`. Agents that say `model: any` inherit the experiment (then MAS, then
+local `config.yaml`). Scalar `experiment.model` is **shorthand for
+`models.main`**; `models.main` wins when both are set.
+
+```yaml
+experiment:
+  models:
+    main: gpt-4o                # turn default (fills Agent/MAS model: any)
+    summarizer: gpt-4o-mini     # summary default when params.model omitted
+    judge: gpt-4o-mini          # MCE default; evaluation.model still wins
+```
+
+`evaluation.model` and `eval_mce.config.model` remain judge-only overrides.
+`summarizer.params.model` remains a per-agent summary override. Overlay the
+graph (tools, pattern); pin models here.
+
+See [summarization.md](summarization.md) for the full chain.
+
+---
+
+## Evaluation model (`evaluation.model`)
+
+`eval_mce` defaults to `experiment.models.judge`, then `models.main` /
+`experiment.model`, then the application MAS/Agent `spec.models[]`. `any`
+(or omitted) means the spec does not pin a provider id — local `config.yaml`
+`defaults.model` fills it. Override the judge with `experiment.evaluation.model`;
+a per-step `eval_mce.config.model` still wins.
+
+```yaml
+experiment:
+  models:
+    main: gpt-4o
+    judge: gpt-4o-mini          # or evaluation.model: gpt-4o-mini
+  applications:
+    - manifest: ./mas.yaml
+  evaluation:
+    method: llm_judge
+  application:
+    post:
+      - {type: eval_mce, depends_on: [extract_trajectories]}
+```
+
+See [summarization.md](summarization.md#mce-judge-model) for resolution order
+and logs. Feature example (not a sample app):
+[library-eval/examples/mce/judge-override/](../../library-eval/examples/mce/judge-override/).
+
+---
+
+## Applications
+
+`experiment.applications` is the MAS pointer (`app:` catalog id or `manifest:` path).
+
+```yaml
+applications:
+  - app: library-ioc:sre-triage@v1
+    configs_dir: ./overlays
+```
+
+`experiment.mas` (and `lab.mas` in `lab-config.yaml`) is a **deprecated** alias of
+`applications[0]`. Loaders still accept it and emit a warning. Rewrite:
+
+```yaml
+# before
+mas:
+  manifest: ../../apps/sre-triage/mas.yaml
+  configs_dir: overlays
+
+# after
+applications:
+  - app: library-ioc:sre-triage@v1
+    configs_dir: overlays
+```
+
+Relative `manifest:` paths still work; prefer `app: library:id@version`.
 
 ---
 
@@ -65,9 +184,57 @@ experiment:
 
 ## Artifacts
 
-`artifacts:` declares typed outputs (`trace`, `metrics`, `plot`, …) at experiment
-or level scope. Pipeline steps consume/produce these as **typed intermediates** (memory streams
-or serialized paths).
+`artifacts:` declares typed outputs (`trace`, `metrics`, `dataframe`, `plot`, …) at each
+level. Short form names just the type (`metrics: metrics`); long form overrides the path
+template and turns on schema validation:
+
+```yaml
+run:
+  artifacts:
+    trace: { type: trace, path: "{run_dir}/traces/events.jsonl" }
+    metrics: metrics
+    df: { type: dataframe, path: "{level_dir}/data.csv" }
+  post:
+    - name: eval-quality
+      type: eval_mce
+      in: trace     # reads this level's `trace` artifact
+      out: metrics  # writes this level's `metrics` artifact
+
+test:
+  artifacts:
+    df: { type: dataframe, path: "{level_dir}/data.csv" }
+  post:
+    - name: gather-test
+      type: gather_level
+      in: df        # fans in every child `run`'s `df` instance
+      out: df        # writes this level's own `df`
+```
+
+A step's `in:` names an artifact declared at the level **below** its own scope — the
+executor resolves every child instance's file path and passes them as
+`config["artifact_paths"]`. `out:` just documents which of this level's own declared
+artifacts the step produces; nothing enforces it beyond the step's own config
+(`output:`/`output_dir:`).
+
+---
+
+## `output_schema:`
+
+Optional fail-fast check on the final output directory — declares files that must
+exist and, per file, columns that must be present:
+
+```yaml
+experiment:
+  output_schema:
+    required_files:
+      - "results/ci_summary.csv"
+    required_columns:
+      results/ci_summary.csv: [scenario, metric, mean, ci_low, ci_high]
+```
+
+Declaring it doesn't run the check by itself — add a `validate_outputs` step
+(typically last in `application: post:`) with `config: {schema: <the output_schema
+dict above>}`; see [pipeline-steps.md](../../lab/docs/pipeline-steps.md).
 
 ---
 
@@ -75,7 +242,7 @@ or serialized paths).
 
 > **Planned breaking change (deferred, last in queue):** `experiment.execution` mixes
 > **experimental design** (what we compare) with **bench scheduling** (how we walk the
-> matrix) and **emulation posture** (mock/replay/trace cache). A future release will
+> matrix) and **emulation posture** (replay/trace cache). A future release will
 > split these into separate top-level blocks (`experiment.design`, `experiment.schedule`,
 > and bench emulation posture). Until then, the key name is historical.
 
@@ -84,17 +251,22 @@ runs. It is **not** the removed `spec.execution` field from `kind: Agent` manife
 
 | Concern | Where it lives |
 | --- | --- |
-| LLM endpoints, mock bundles, cache middleware | Workspace `infra_refs`, `MAS_INFRA_REFS`, `--infra-ref`, optional `mas-lab benchmark --infra <name>` (local `infra/<name>.yaml`) |
+| LLM endpoints, cache middleware | Workspace `infra_refs`, `MAS_INFRA_REFS`, `--infra-ref`, optional `mas-lab benchmark --infra <name>` (local `infra/<name>.yaml`) |
 | Per-turn engine tuning (queue depth, LLM response cache read/write, stream, parallel tools) | `kind: RuntimeEngine` via `runtime_refs` / `--runtime-ref` — see [runtime-engine.md](runtime-engine.md) |
 | How many MAS runs run in parallel, timeouts, ordering | `experiment.execution.parallel_scenarios`, `timeout`, `strategy`, … |
 | Whole-run trace skip/replay (content-addressed lab cache) | `experiment.execution.emulation.runtime.cache` (`content-addressed` \| `disabled` \| `forced`) |
-| Live vs mock/replay for LLM, tools, memory during a benchmark | `experiment.execution.emulation.infra.*` |
+| Live vs replay for LLM, tools, memory during a benchmark | `experiment.execution.emulation.infra.*` |
 
-Example (smoke run — disable trace cache, keep infra live):
+Example (smoke run — disable trace cache, keep infra live). Put `execution:` last:
 
 ```yaml
 experiment:
   name: my-bench
+  application:
+    app: trip-planner
+    configs_dir: ./overlays
+  run:
+    n_runs: 1
   execution:
     emulation:
       runtime:
@@ -105,9 +277,28 @@ Implementation types: `mas.lab.lab.config.execution` (`MASExecutionSpec`, `Emula
 
 ---
 
+## Dataset
+
+`experiment.dataset.name` is a catalog id (`locator: samples`) or a lab-local
+`datasets/<name>.yaml`. Nested experiments (`01-foo/experiment.yaml`) resolve
+the lab root `datasets/` automatically.
+
+`dataset.limit` takes the first N items. Use that for smoke and CI. Do not
+check in a reduced copy of the same pack (`*-100.yaml`).
+
+```yaml
+dataset:
+  name: trip-planner-benchmark
+  locator: samples
+  limit: 5
+```
+
+---
+
 ## See also
 
 - [lab.md](lab.md)
 - [pipeline.md](pipeline.md)
+- [summarization.md](summarization.md) — judge model + conversation summarization
 - [Tutorial 03](../tutorials/03-experiments-and-analysis/README.md)
 - [Tutorial 3](../tutorials/03-experiments-and-analysis/README.md)

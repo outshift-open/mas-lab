@@ -42,7 +42,7 @@ metadata:
 spec:
   description: test
   models:
-    - model: mock
+    - model: gpt-4o-mini
 """,
         encoding="utf-8",
     )
@@ -79,7 +79,7 @@ spec:
                 manifest=mas_path,
                 deployment_path=dep_path,
                 validate=False,
-                infra_refs=["standard:mock-llm"],
+                infra_refs=["standard:openai"],
             )
         )
 

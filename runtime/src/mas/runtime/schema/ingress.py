@@ -8,9 +8,8 @@ import uuid
 from enum import Enum
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field
-
 from mas.runtime.schema.hitl import HitlResolveChoice
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class IngressKind(str, Enum):
@@ -48,6 +47,9 @@ class UserInputReceived(BaseModel):
     # every agent-to-agent delegation call by
     # mas.ctl.executor.mas_session.make_workflow_send), so it never re-mints.
     session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    # Observability context supplied by an upstream caller. The kernel keeps
+    # allocating its engine correlation identifiers locally.
+    upstream_correlation_id: int | None = Field(default=None, ge=0)
 
 
 class LifecyclePause(BaseModel):
@@ -87,6 +89,9 @@ class EngineIoReturn(BaseModel):
     text: str = ""
     usage: dict = Field(default_factory=dict)
     finish_reason: str = ""
+    # Names sent as the OpenAI ``tools`` array for this LLM call.
+    # None means the engine did not record them (budget stop, non-LLM return).
+    offered_tools: list[str] | None = None
 
 
 class CtxAssemblyComplete(BaseModel):

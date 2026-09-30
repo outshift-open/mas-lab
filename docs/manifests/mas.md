@@ -19,20 +19,21 @@ Declares multi-agent composition: participants, control flow, and system-level h
 ## Responsibilities
 
 | Area | `spec` fields | Role |
-|------|---------------|------|
-| Participants | `agency.agents[]` | `id` + `ref` to agent manifests (or inline definitions) |
+| ------ | --------------- | ------ |
+| Participants | `agency.agents[]` | Agent names and optional local `ref` only |
 | Topology | `workflow` | `entry`, `nodes`, `delegates_to`, `edges` — see [topology-and-workflow.md](topology-and-workflow.md) |
-| Transport | `transport` | High-level comm mode (`local`, `agent-remote`, emulation flags) |
+| Agent communication | infra `Application.spec.endpoints` | Endpoint keyed by agent name; `protocol: a2a` selects the registered transport |
 | Shared tools | `tools_ref` | Default logical tool-set (resolved via infra ToolRegistry) |
+| Default models | `models[]` | Team default LLM(s). Agents with `model: any` inherit `id: main`; unbound named ids inherit `experiment.models.<id>`. See [experiment.md](experiment.md#model-slots-models--model) |
 | Infra wiring | *(not on MAS)* | Workspace `config.yaml` `infra_refs`, env `MAS_INFRA_REFS`, or `--infra-ref` |
 | Memory artifacts | `memory_stores` | Episodic / semantic / procedural store paths |
 | Telemetry | `telemetry.path` | Default events.jsonl location |
 | System intent | `intent` (top-level) | Summary for emulation / agent cards |
 
-Inter-agent **delegation graph** lives on MAS ``workflow``. Delegation *executes* through the
-entry agent's own ``design_pattern`` (the ReAct tool loop dispatching ``delegate_to_*`` tool
-calls) — there is no separate delegation-transport binding on the agent; see
-[agent.md](agent.md#delegation).
+Inter-agent **delegation graph** lives on MAS ``workflow``. The LLM decides whether to
+delegate through the entry agent's ``DelegationContract`` and ``delegate_to_*`` tools;
+the runtime then resolves the target's named infra endpoint independently. This keeps
+delegation policy separate from local-bus or A2A communication.
 
 ---
 

@@ -4,11 +4,10 @@ $schema: "https://json-schema.org/draft-07/schema#"
 $id: "mas/v1#context-manager-assembly-params"
 title: ContextManagerAssemblyParams
 description: >
-  Kernel assembly knobs under spec.context_manager.params. Read by
-  assemble_llm_messages / token budget / working-memory slicing — not forwarded
-  to ContextManagerContract constructors (stripped in CMFactory).
+  Assembly knobs under spec.context_manager.params. Read by the
+  assembler / working-memory slicing — not forwarded to
+  ContextManagerContract constructors (stripped in CMFactory).
 type: object
-additionalProperties: false
 properties:
   working_memory_messages:
     type: integer
@@ -19,25 +18,31 @@ properties:
     type: integer
     minimum: 1
     description: Alias for working_memory_messages.
-  token_budget:
-    type: integer
-    minimum: 1
-    description: Max estimated input tokens after assembly.
-  max_tokens:
-    type: integer
-    minimum: 1
-    description: Alias for token_budget.
-  reserve_tokens:
-    type: integer
-    minimum: 0
-    default: 512
-    description: Tokens reserved for model completion when token_budget is set.
+  trimmer:
+    type: object
+    description: >
+      Assembly-time token trim (tool-group-aware). When omitted, max_tokens
+      is the model's context_window and reserve_tokens is models[].max_tokens
+      (completion). Not a registry plugin — tunable assembly params only.
+    additionalProperties: false
+    properties:
+      max_tokens:
+        type: integer
+        minimum: 1
+        description: >
+          Max estimated input tokens after assembly. Defaults to the primary
+          model's context_window.
+      token_budget:
+        type: integer
+        minimum: 1
+        description: Alias for max_tokens.
+      reserve_tokens:
+        type: integer
+        minimum: 0
+        default: 512
+        description: >
+          Tokens reserved for the completion (and other non-history payload).
+          Defaults to the primary model's max_tokens when that is set.
   working_memory_ref:
     type: string
     description: Registry ref for working_memory context source plugin.
-  trimmer_ref:
-    type: string
-    description: Registry ref for token-budget trimmer plugin.
-  token_budget_ref:
-    type: string
-    description: Alias for trimmer_ref.

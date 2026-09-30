@@ -100,11 +100,23 @@ class EvaluationSpec:
             "emulator_manifest": "path/to/emulator.yaml",
             "criteria": ["correctness", "helpfulness"],
         }
+
+    ``config.model`` is an alias of ``evaluation.model`` (the top-level field
+    wins when both are set).
     """
+
+    model: Optional[str] = None
+    """LLM-as-judge override for eval_mce. Default: experiment.models.judge, then experiment.model / models.main, then application spec.models[]."""
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> EvaluationSpec:
-        return cls(method=data["method"], config=data.get("config", {}))
+        config = dict(data.get("config") or {})
+        model = data.get("model") or config.get("model") or config.get("judge_model")
+        return cls(
+            method=data["method"],
+            model=str(model).strip() if model else None,
+            config=config,
+        )
 
 
 @dataclass
@@ -162,8 +174,9 @@ def _resolve_dataset_by_name(
     **locator values:**
 
     ``None`` / ``"local"``
-        Search in the lab's own ``datasets/`` sub-folder, then ``base_dir``
-        itself.  This is the default and covers the vast majority of cases.
+        Search ``base_dir/datasets``, then ``base_dir``, then ancestor
+        ``datasets/`` folders (including past a nested ``lab-config.yaml``
+        so ``01-foo/experiment.yaml`` still sees the lab root pack).
 
     ``"<package-name>"``
         Search inside an installed Python package or a workspace library path.
@@ -191,6 +204,16 @@ def _resolve_dataset_by_name(
         # Bare filename fallback (no YAML loading needed)
         for search_dir in [base_dir / "datasets", base_dir]:
             candidate = search_dir / f"{name}.yaml"
+            if candidate.exists():
+                return candidate
+        for parent in [base_dir, *base_dir.parents]:
+            lab_datasets = parent / "datasets"
+            if not lab_datasets.is_dir() and not (parent / "lab-config.yaml").is_file():
+                continue
+            result = _scan_dir_for_dataset_name(lab_datasets, name)
+            if result:
+                return result
+            candidate = lab_datasets / f"{name}.yaml"
             if candidate.exists():
                 return candidate
         # ── Library fallback: scan sys.path entries injected by inject_lab_libraries
@@ -223,19 +246,11 @@ def _resolve_dataset_from_package(name: str, package: str) -> Path:
 
     scheme_root = resolve_library_scheme_root(package)
     if scheme_root is not None:
-        from mas.library_catalog import (
-            _discover_datasets_from_manifest,
-            _discover_datasets_from_scan,
-            _load_library_manifest,
-        )
+        from mas.library_catalog import _index_datasets, _lookup_versioned
 
-        manifest = _load_library_manifest(scheme_root)
-        catalog = _discover_datasets_from_manifest(scheme_root, manifest)
-        if name in catalog:
-            return catalog[name]
-        scanned = _discover_datasets_from_scan(scheme_root)
-        if name in scanned:
-            return scanned[name]
+        hit = _lookup_versioned(_index_datasets(scheme_root), name)
+        if hit is not None:
+            return hit
         result = _scan_dir_for_dataset_name(scheme_root / "datasets", name)
         if result:
             return result
@@ -284,6 +299,9 @@ class ExperimentConfig:
     
     execution: Dict[str, Any]
     """Execution parameters (n_runs, timeout, etc.)."""
+
+    dataset_source: Optional[Dict[str, Any]] = None
+    """Optional ``spec.source`` overlay merged onto the Dataset at load time."""
     
     agent: Optional[AgentSpec] = None
     """Agent specification with scenarios (single-scenario mode)."""
@@ -396,15 +414,21 @@ class ExperimentConfig:
         if "scenarios" in exp_data:
             scenarios_data = exp_data["scenarios"]
             if isinstance(scenarios_data, list):
-                # New format: applications + [{id, overlays, ...}, ...]
-                # Resolve app manifest: mas.manifest > applications[0].app > agent.yaml
+                # Resolve app manifest: mas.manifest > application.manifest
+                # > application.app > applications[0] > agent.yaml
                 mas_config = exp_data.get("mas", {})
+                app = exp_data.get("application")
                 apps = exp_data.get("applications", [])
-                app_name = apps[0].get("app") if apps else None
+                binding = app if isinstance(app, dict) else {}
+                if not binding.get("app") and not binding.get("manifest"):
+                    binding = apps[0] if apps else {}
+                app_name = binding.get("app")
                 
                 if mas_config.get("manifest"):
                     # Explicit manifest path in mas.manifest
                     app_manifest = base_dir / mas_config["manifest"]
+                elif binding.get("manifest"):
+                    app_manifest = (base_dir / binding["manifest"]).resolve()
                 elif app_name:
                     try:
                         from mas.apps import get_app, resolve_app_manifest
@@ -487,10 +511,15 @@ class ExperimentConfig:
             except Exception as e:
                 logger.warning("Failed to load overlay registry from %s: %s", overlays_dir, e)
         
+        dataset_source = None
+        if isinstance(dataset_config.get("source"), dict):
+            dataset_source = dict(dataset_config["source"])
+
         return cls(
             name=exp_data["name"],
             description=exp_data.get("description", ""),
             dataset=dataset_path,
+            dataset_source=dataset_source,
             agent=agent,
             scenarios=scenarios,
             flavours=flavours,
@@ -528,7 +557,10 @@ class ExperimentConfig:
         from mas.lab.benchmark import Dataset
         
         # Load dataset
-        dataset = Dataset.from_yaml(self.dataset)
+        dataset = Dataset.from_yaml(
+            self.dataset,
+            source_overlay=self.dataset_source,
+        )
         n_runs = max_runs if max_runs is not None else self.execution.get("n_runs", 1)
         
         scenarios = []

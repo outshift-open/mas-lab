@@ -64,14 +64,14 @@ Legend: ✅ Implemented · ⚠️ Partial · ❌ Not yet · 🔲 Out of scope
 |---------|--------|-------|
 | Catalog injected at session start | ✅ | `SkillCatalogPlugin.collect_context()` → `SYSTEM_SKILLS` band |
 | Name + description in catalog | ✅ | Bullet-list format in system prompt |
-| Behavioral instruction (how to use skills) | ✅ | "call `activate_skill(name)` …" instruction included |
+| When-to-use + activate cue | ✅ | Each skill's frontmatter `description` is listed verbatim; short catalog header points at `activate_skill` |
 | Location field in catalog | ⚠️ | `activate_skill` response includes `base_dir`; catalog itself omits it |
 | Catalog placement: system prompt band | ✅ | `ContextPlacement.SYSTEM_SKILLS`, priority 40, pinned=True |
 | Catalog placement: tool description embedding | ❌ | Only system-prompt placement supported |
 | No catalog when no skills available | ✅ | Empty catalog → nothing injected, no empty block |
 | Skill filtering (disabled/permission) | ✅ | `disabled: true` in frontmatter skips the skill entirely |
 | `activate_skill` enum of valid skill names | ✅ | `SkillToolsPlugin(registry=…)` adds JSON Schema `enum` to name parameter; description lists names |
-| Don't register tool when no skills | ✅ | `SkillToolsPlugin.on_collect_tools()` returns `[]` when registry present but empty |
+| Don't register tool when no skills | ✅ | `SkillToolsPlugin.on_collect_tools()` returns `[]` when no registry / empty registry; plugin is not injected unless `spec.skills` or `{kind: system, name: activate_skill}` |
 
 ---
 

@@ -37,7 +37,7 @@ establishes that the type is legitimate before the fixpoint pass ends.
 | Concept | Where | What it is |
 | --- | --- | --- |
 | `PluginEntry` | `registry/__init__.py` | One registered plugin: URN, description, variants, shortcuts, attributes. |
-| `VariantInfo` | `registry/__init__.py` | One implementation of a plugin (`module` + `class_name` + `version`). |
+| `VariantInfo` | `registry/__init__.py` | One implementation of a plugin (`module` + `class_name` + `version` + optional `requires`/`extra`). |
 | `PluginRegistry` | `registry/__init__.py` | Process-wide singleton (`get_registry()`) holding all entries, aliases, and known types. |
 | Known type | `PluginRegistry._known_types` | A category string (`"design_pattern"`, `"step"`, `"codec"`, ...) the registry currently accepts. |
 | Manifest | usually `library.yaml`, or `*.plugins.yaml` for libraries that split it up | A YAML file declaring `types:`, `plugins:`, `aliases:`, `defaults:`. Parsed by `bootstrap._parse_generic_manifest`. |
@@ -67,6 +67,8 @@ plugins:
     description: "..."               # optional
     attributes: {}                   # optional — merged into PluginEntry.attributes
     provides_types: [my_new_thing]   # optional — see below
+    requires: []                     # optional — import names needed to use this plugin
+    extra: ""                        # optional — pip/uv extra that installs requires: (see below)
 
   - type: my_new_thing
     name: instance_one
@@ -96,9 +98,10 @@ registerable — if at least one of these is true *before* the fixpoint
 resolves that candidate:
 
 1. It's a core runtime type (`design_pattern`, `context_manager`,
-   `context_plugin`, `memory`, `governance`, `step`, `codec` — see
-   `bootstrap._BUILTIN_TYPES`).
-2. It's listed in this manifest's own top-level `types:`.
+   `assembler`, `memory`, `governance`, `step`, `codec`).
+2. It's listed in this manifest's own top-level `types:` (how
+   `summarizer` is introduced — a sub-plugin composed by the summarising
+   context manager, not a top-level agent spec key).
 3. It's listed in `provides_types:` on some *other* candidate that has
    already been resolved (possibly from an earlier-loaded manifest, or
    builtins).
@@ -169,9 +172,9 @@ plugins:
    `None` later.
 3. **Library plugin manifests** — every library root returned by
    [`mas.library_roots.discover_library_roots`](../src/mas/library_roots.py)
-   (installed packages via the `mas.runtime.manifest_libraries` entry
-   point, `config.yaml`'s `manifest_libraries:` map, and directory-scanned
-   `library.yaml` files) is checked by
+   (lab-local first, then workspace `manifest_libraries:`, installed
+   libraries, `MAS_LIBRARY_PATHS`, ancestor walk — see
+   [library-discovery.md](../../docs/library-discovery.md)) is checked by
    [`mas.library_catalog.discover_plugin_manifests`](../src/mas/library_catalog.py)
    for plugin manifests. **`library.yaml` *is* the plugin manifest** — the
    same file carries `kind: Library` metadata (name/description/version/
@@ -202,17 +205,76 @@ ships only the pipeline *engine* (`Pipeline`, `PipelineExecutor`,
 step or codec is a library plugin resolved through this registry at run
 time.
 
-## Relationship to the folder-libraries design
+## Availability gate: `requires:`/`extra:` for optional dependencies
 
-`docs/design/manifest-libraries.md` (on `feat/folder-libraries`, stacked on
-top of this work) proposes extending `library.yaml` further: per-plugin
-`requires:`/`extra:` for optional dependencies, an availability gate
-(`PluginUnavailable` with an install hint), and a `mas plugin` CLI. That
-design is compatible with — and builds on — the manifest schema and
-fixpoint mechanism described here; it does not replace it. Nothing in this
-document should be considered final once that lands, but the `types:` /
-`plugins:` / `provides_types:` shape is expected to remain the payload
-format libraries write, however they end up being discovered.
+A plugin can carry code with a third-party dependency the library doesn't
+force on every install (an OTel exporter, a vector DB client, ...).
+Declare the import names it needs and, optionally, the pip/uv extra that
+installs them:
+
+```yaml
+plugins:
+  - type: observability
+    name: otel
+    urn: mas.observability.otel
+    module: mas.library.standard.plugins.observability.otel_plugin
+    class: OtelObservabilityPlugin
+    requires: [opentelemetry.sdk.trace]
+    extra: "mas-library-standard[otel]"
+```
+
+This is the real, shipping declaration for `mas.observability.otel` in
+[`library-standard/library.yaml`](../../library-standard/library.yaml) —
+`opentelemetry-sdk` is not a base dependency of `mas-library-standard`,
+only of its `otel` extra.
+
+**Discovery is unaffected.** A plugin with unmet `requires:` is still
+registered and still shows up in `PluginRegistry.list()` — it is *marked*
+disabled, not hidden, so `mas plugin list` and `mas registry` can tell you
+it exists and how to turn it on.
+
+**Resolving it is where the gate applies.** `PluginEntry.resolve()` — and
+therefore `PluginRegistry.resolve()`/`resolve_by_type()`/`get()`/`create()`,
+the paths every spec key (`design_pattern`, `context_manager`, `codec`, a
+pipeline `step`, ...) goes through to actually construct a plugin instance
+— checks `requires:` first and raises `PluginUnavailable` with the missing
+import names and an install hint, instead of letting a bare
+`ModuleNotFoundError` surface from deep inside `VariantInfo.load_class()`
+or the plugin's own constructor. Because plugin construction already
+happens at spec/kernel-compile time (not lazily mid-conversation), this
+means a missing dependency fails at startup with a clear message, not
+mid-run with a stack trace pointing at an unrelated line.
+
+A plugin declared with no `requires:` (the default — every built-in plugin
+today) is unaffected: `missing_requires()` is always `[]`, so
+`resolve()`/`create()` behave exactly as before.
+
+## `mas plugin` CLI
+
+```bash
+mas plugin list [--type TYPE] [--json]   # every discovered plugin, available or disabled + why
+mas plugin doctor [MANIFEST ...]         # check availability for a spec's referenced plugins
+                                          # (or every registered plugin, with no arguments)
+mas plugin enable <urn> [--dry-run]      # install the plugin's extra (or requires:), then re-check
+```
+
+`doctor` is the CI/authoring-time version of the same check `resolve()`
+does at runtime — it reports rather than raises, and can be pointed at a
+manifest to check only what that spec actually references:
+
+```console
+$ mas plugin doctor docs/tutorials/01-building-an-agent/agent.yaml
+  ok       mas.dp.react
+
+$ mas plugin list --type observability
+[observability]
+  mas.observability.native                 available
+  mas.observability.otel                   disabled  (missing: opentelemetry.sdk.trace; mas plugin enable mas.observability.otel)
+
+$ mas plugin enable mas.observability.otel
+Installing: uv pip install mas-library-standard[otel]
+mas.observability.otel is now available.
+```
 
 ## Contributor checklist
 

@@ -15,8 +15,7 @@ pipeline:
           - pattern-reflection
           - pattern-tree-of-thoughts
         dataset:
-          name: qa-reasoning-queries-100
-          locator: samples
+          name: qa-reasoning-queries
           columns: [difficulty]
 
     - name: compute-ci

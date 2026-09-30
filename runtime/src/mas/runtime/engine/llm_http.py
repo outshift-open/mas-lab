@@ -178,8 +178,8 @@ def classify_llm_http_error(exc: BaseException) -> str:
             return (
                 f"LLM request failed: proxy budget exceeded{detail_hint}. "
                 "Contact your LLM proxy admin or use another infra bundle "
-                "(e.g. mas-ctl chat --infra-ref standard:production with your own OPENAI_API_KEY, "
-                "or -o overlays/mock-llm.yaml for offline testing)."
+                "(e.g. mas-ctl chat --infra-ref standard:openai with OPENAI_API_KEY, "
+                "or llm_cache replay with raise_on_miss for offline testing)."
             )
         return f"LLM request failed: HTTP {status}{detail_hint}"
 

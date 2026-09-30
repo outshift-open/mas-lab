@@ -11,29 +11,28 @@ from pathlib import Path
 from typing import Any
 
 from mas.ctl.compose.models import ResolvedInfra
-from mas.ctl.infra.resolve import resolution_anchor, resolve_infra_refs
-from mas.ctl.infra.resolve import InfraResolveError
-from mas.ctl.infra.resolve import api_key_for_infra
-from mas.ctl.session.manifest_config import engine_use_tool_loop, kernel_config_from_manifest  # kernel_config_from_manifest: deprecated; prefer RuntimeInstance.from_spec()
+from mas.ctl.infra.resolve import api_key_for_infra, resolution_anchor, resolve_infra_refs
+from mas.ctl.session.manifest_config import engine_use_tool_loop, kernel_config_from_manifest
 from mas.ctl.workspace.config import UserConfig, WorkspaceConfig, merge_infra_refs
-from mas.runtime.engine.llm_cache import resolve_cache_path
-from mas.runtime.engine.llm_live import LiveLlmEngine
 from mas.runtime.agent_defaults import default_pattern_plugin_id, resolve_default_model
+from mas.runtime.spec.model_ref import concrete_model, first_concrete, primary_model_binding
 from mas.runtime.driver.mocks import AutoCtxAssembler
+from mas.runtime.engine.llm_cache import resolve_cache_path
+from mas.runtime.engine.llm_reasoning import reasoning_settings_from_manifest
+from mas.runtime.engine.llm_request import model_entry_from_manifest
+from mas.runtime.engine.llm_live import LiveLlmEngine
 from mas.runtime.kernel.config import KernelConfig
 
 logger = logging.getLogger(__name__)
 
-_LLM_SPEC_DEPRECATION = (
-    "spec.llm is deprecated; declare model settings under spec.models[] instead"
-)
+_LLM_SPEC_DEPRECATION = "spec.llm is deprecated; declare model settings under spec.models[] instead"
 
 
-def _primary_model_entry(spec: dict[str, Any]) -> dict[str, Any] | None:
-    models = spec.get("models") or []
-    if isinstance(models, list) and models and isinstance(models[0], dict):
-        return models[0]
-    return None
+def _primary_model_entry(spec: dict[str, Any], *, model: str | None = None) -> dict[str, Any] | None:
+    if model:
+        return model_entry_from_manifest({"spec": spec}, model=model)
+    entry = primary_model_binding({"spec": spec} if spec else {})
+    return entry or model_entry_from_manifest({"spec": spec}, model=model)
 
 
 def _warn_llm_spec_fallback(field: str) -> None:
@@ -43,22 +42,22 @@ def _warn_llm_spec_fallback(field: str) -> None:
 @dataclass(frozen=True)
 class EngineSelection:
     engine: Any
-    mode: str  # live | mock
+    mode: str  # live | replay
     reason: str = ""
 
 
-def is_mock_mode(manifest: dict | None, infra: ResolvedInfra | None) -> bool:
-    spec = (manifest or {}).get("spec") or {}
-    llm = spec.get("llm") or {}
-    if str(llm.get("provider", "")).lower() == "mock":
-        return True
-    if os.environ.get("MAS_MOCK_LLM", "").lower() in ("1", "true", "yes"):
-        return True
-    llm_proxy = (infra.llm_proxy if infra else {}) or {}
-    if llm_proxy.get("mock"):
-        return True
-    refs = infra.refs if infra else []
-    return any("mock-llm" in r for r in refs)
+def _strict_replay(llm_proxy: dict[str, Any] | None) -> bool:
+    """True when an llm_cache pipeline step will error on miss (offline replay)."""
+    for step in (llm_proxy or {}).get("pipeline") or []:
+        if not isinstance(step, dict):
+            continue
+        mid = str(step.get("middleware") or "")
+        if mid not in {"llm_cache", "llm-cache"}:
+            continue
+        params = step.get("params") or {}
+        if params.get("raise_on_miss") is True:
+            return True
+    return False
 
 
 def resolve_model_name(
@@ -66,56 +65,73 @@ def resolve_model_name(
     infra: ResolvedInfra | None,
     *,
     workspace_default: str | None = None,
+    forced: str | None = None,
+    parent_default: str | None = None,
+    experiment_default: str | None = None,
 ) -> str:
+    """Resolve the turn-model LiteLLM id.
+
+    Precedence: CLI / ``MAS_CTL_MODEL`` → Agent ``spec.models[id=main]`` →
+    MAS default → ``experiment.models.main`` / ``experiment.model`` →
+    ``config.yaml`` ``defaults.model`` → package ``defaults.yaml``.
+    """
     llm_proxy = (infra.llm_proxy if infra else {}) or {}
-    forced = (
-        os.environ.get("MAS_CTL_MODEL", "").strip()
-        or os.environ.get("MAS_LLM_MODEL", "").strip()
+    forced = (forced or "").strip() or (
+        os.environ.get("MAS_CTL_MODEL", "").strip() or os.environ.get("MAS_LLM_MODEL", "").strip()
     )
     if forced:
         raw = forced
     else:
         spec = (manifest or {}).get("spec") or {}
         entry = _primary_model_entry(spec)
-        model = entry.get("model") if entry else None
-        if not model:
-            model = spec.get("model")
-        if not model:
+        declared = concrete_model(entry.get("model") if entry else None)
+        if not declared:
             llm = spec.get("llm") or {}
             if llm.get("model"):
                 _warn_llm_spec_fallback("model")
-                model = llm.get("model")
-        if isinstance(model, str) and model.strip():
-            raw = model.strip()
-        elif workspace_default:
-            raw = workspace_default
-        else:
+                declared = concrete_model(llm.get("model"))
+        raw, _source = first_concrete(
+            (declared, "spec.models"),
+            (parent_default, "mas.spec.models"),
+            (experiment_default, "experiment.model"),
+            (workspace_default, "config.defaults.model"),
+            (resolve_default_model(), "defaults.model"),
+        )
+        if not raw:
             raw = resolve_default_model()
-        if not model and not workspace_default:
+        if not declared and not parent_default and not experiment_default and not workspace_default:
             default = llm_proxy.get("default_model")
-            if default:
+            if default and concrete_model(default):
                 raw = str(default)
     mappings = llm_proxy.get("mappings") or {}
     return str(mappings.get(raw, raw))
 
 
-def _resolve_sampling_param(manifest: dict | None, key: str, default: float) -> float:
-    """Read a sampling param from ``spec.models[0]``, then deprecated ``spec.llm``."""
+def _resolve_sampling_param(
+    manifest: dict | None, key: str, default: float, *, model: str | None = None
+) -> float:
+    """Read a sampling param from the matching ``spec.models[]`` row, then ``spec.llm``."""
     spec = (manifest or {}).get("spec") or {}
-    entry = _primary_model_entry(spec)
+    entry = _primary_model_entry(spec, model=model)
     if entry and key in entry:
         return float(entry[key])
     llm = spec.get("llm") or {}
     if key in llm:
         _warn_llm_spec_fallback(key)
         return float(llm[key])
+    from mas.runtime.engine.llm_model_catalog import default_model_catalog
+
+    name = model or (entry or {}).get("model")
+    info = default_model_catalog().get(str(name) if name else None)
+    if info is not None and key in info.defaults:
+        return float(info.defaults[key])
     return default
 
 
-def _resolve_model_option(manifest: dict | None, key: str) -> str | None:
-    """Read a string model option from ``spec.models[0]``, then deprecated ``spec.llm``."""
+def _resolve_model_option(manifest: dict | None, key: str, *, model: str | None = None) -> str | None:
+    """Read a string model option from the matching ``spec.models[]`` row, then ``spec.llm``."""
     spec = (manifest or {}).get("spec") or {}
-    entry = _primary_model_entry(spec)
+    entry = _primary_model_entry(spec, model=model)
     value = entry.get(key) if entry else None
     if value is None:
         llm = spec.get("llm") or {}
@@ -143,28 +159,15 @@ def _resolve_infra_for_engine(
         cli_refs=[],
         workspace_found=ws.found,
     )
-    if not merged_refs and is_mock_mode(manifest, infra):
-        merged_refs = ["standard:mock-llm"]
     if not merged_refs:
         return infra or ResolvedInfra(refs=[], llm_proxy={})
-    try:
-        return resolve_infra_refs(
-            merged_refs,
-            anchor=anchor,
-            workspace=ws,
-            user=user,
-            runtime_refs=list(runtime_refs_cli or []),
-        )
-    except InfraResolveError:
-        if is_mock_mode(manifest, infra):
-            return resolve_infra_refs(
-                ["standard:mock-llm"],
-                anchor=anchor,
-                workspace=ws,
-                user=user,
-                runtime_refs=list(runtime_refs_cli or []),
-            )
-        raise
+    return resolve_infra_refs(
+        merged_refs,
+        anchor=anchor,
+        workspace=ws,
+        user=user,
+        runtime_refs=list(runtime_refs_cli or []),
+    )
 
 
 def build_engine(
@@ -174,6 +177,8 @@ def build_engine(
     *,
     pattern_plugin_id: str | None = None,
     workspace_default_model: str | None = None,
+    parent_default_model: str | None = None,
+    experiment_default_model: str | None = None,
     anchor: Path | None = None,
     workspace: WorkspaceConfig | None = None,
     kernel_config: KernelConfig | None = None,
@@ -181,9 +186,12 @@ def build_engine(
     cache_write_override: bool | None = None,
     stream_override: bool | None = None,
     runtime_refs_cli: list[str] | None = None,
+    model_override: str | None = None,
 ) -> EngineSelection:
     pid = pattern_plugin_id or default_pattern_plugin_id()
-    kernel_cfg = kernel_config if kernel_config is not None else kernel_config_from_manifest(manifest, pattern_plugin_id=pid)
+    kernel_cfg = (
+        kernel_config if kernel_config is not None else kernel_config_from_manifest(manifest, pattern_plugin_id=pid)
+    )
     tool_loop = engine_use_tool_loop(manifest, kernel_cfg)
     ws = workspace or WorkspaceConfig.load(anchor)
     ref_anchor = resolution_anchor(anchor, ws)
@@ -196,76 +204,85 @@ def build_engine(
         runtime_refs_cli=runtime_refs_cli,
     )
     llm_proxy = dict(resolved.llm_proxy or {})
-    mock = is_mock_mode(manifest, resolved) or bool(llm_proxy.get("mock"))
+    strict_replay = _strict_replay(llm_proxy)
 
     api_base = str(llm_proxy.get("api_base") or "").strip()
     api_key_env = str(llm_proxy.get("api_key_env") or "OPENAI_API_KEY")
+    http_timeout = float(llm_proxy["timeout"]) if llm_proxy.get("timeout") is not None else None
 
-    if mock:
-        mode = "mock"
-        reason = "mock infra ref or model_access provider"
+    api_key = api_key_for_infra(llm_proxy)
+    if not api_base and not strict_replay:
+        raise RuntimeError(
+            "No LLM configured: resolve infra (workspace infra_refs or --infra-ref). "
+            "For offline CI, attach llm_cache replay (raise_on_miss) recorded against a live provider."
+        )
+    if not api_key and not strict_replay:
+        env_name = llm_proxy.get("api_key_env") or "OPENAI_API_KEY"
+        raise RuntimeError(
+            f"Live LLM configured ({api_base}) but {env_name} is unset. "
+            "Set the API key, or replay from an llm_cache fixture with raise_on_miss: true."
+        )
+    if strict_replay:
+        mode = "replay"
+        reason = "llm_cache raise_on_miss"
     else:
-        api_key = api_key_for_infra(llm_proxy)
-        if not api_base:
-            raise RuntimeError(
-                "No LLM configured: resolve infra (workspace infra_refs or --infra-ref), "
-                "or use a mock infra ref (e.g. standard:mock-llm in workspace infra_refs)."
-            )
-        if not api_key:
-            env_name = llm_proxy.get("api_key_env") or "OPENAI_API_KEY"
-            raise RuntimeError(
-                f"Live LLM configured ({api_base}) but {env_name} is unset. "
-                "Set the API key or point infra_refs at standard:mock-llm."
-            )
         mode = "live"
         reason = f"resolved infra → {api_base}"
 
-    model = resolve_model_name(manifest, resolved, workspace_default=workspace_default_model)
+    model = resolve_model_name(
+        manifest,
+        resolved,
+        workspace_default=workspace_default_model,
+        forced=model_override,
+        parent_default=parent_default_model,
+        experiment_default=experiment_default_model,
+    )
     cache_raw = llm_proxy.get("cache_path")
     runtime_engine = dict(resolved.runtime_engine or {})
     cache_read = _cache_read_enabled(runtime_engine, override=cache_read_override)
     cache_write = _cache_write_enabled(runtime_engine, override=cache_write_override)
-    cache_active = (cache_read or cache_write) and not mock and not (llm_proxy.get("pipeline"))
+    cache_active = (cache_read or cache_write) and not (llm_proxy.get("pipeline"))
     cache_path = Path(str(cache_raw)) if cache_raw else resolve_cache_path() if cache_active else None
     stream = _stream_enabled(runtime_engine, override=stream_override)
 
+    from mas.runtime.registry.llm_provider_registry import llm_provider_from_infra
+
+    reasoning = reasoning_settings_from_manifest(manifest, model=model)
+    llm_provider = llm_provider_from_infra(
+        llm_proxy,
+        manifest=manifest,
+        stream=stream,
+        reasoning_effort=reasoning.effort,
+        reasoning=reasoning.to_spec_dict(),
+        cache_path=cache_path,
+        wrap_cache=cache_active,
+        cache_read=cache_read,
+        cache_write=cache_write,
+    )
     engine = _wrap_with_infra_pipeline(
         LiveLlmEngine(
             ctx=ctx,
             manifest=manifest,
-            api_base=api_base or "mock://local",
+            api_base=api_base or "https://api.openai.com/v1",
             api_key_env=api_key_env,
             model=model,
-            temperature=_resolve_sampling_param(manifest, "temperature", 0.7),
-            max_tokens=int(_resolve_sampling_param(manifest, "max_tokens", 2000)),
-            reasoning_effort=_resolve_model_option(manifest, "reasoning_effort"),
+            temperature=_resolve_sampling_param(manifest, "temperature", 0.7, model=model),
+            max_tokens=int(_resolve_sampling_param(manifest, "max_tokens", 2000, model=model)),
+            reasoning_effort=reasoning.effort,
+            reasoning=reasoning.to_spec_dict(),
             cache_path=cache_path,
-            use_cache=cache_active,
+            use_cache=False,
             cache_read=cache_read,
             cache_write=cache_write,
             stream=stream,
             use_tool_loop=tool_loop,
             parallel_tool_calls=kernel_cfg.parallel_tool_calls,
             llm_proxy=llm_proxy,
+            http_timeout=http_timeout,
+            llm_provider=llm_provider,
         ),
         llm_proxy.get("pipeline") or [],
     )
-    if mock:
-        from mas.runtime.engine.leaf import leaf_engine
-
-        leaf = leaf_engine(engine)
-        if getattr(leaf, "_model_access", None) is None:
-            ma_cfg = llm_proxy.get("model_access")
-            if isinstance(ma_cfg, dict) and ma_cfg:
-                raise RuntimeError(
-                    "Mock mode has model_access infra config but no plugin was loaded. "
-                    "Check module_path/class_name, or see ModelAccessLoadError above "
-                    "if instantiation failed."
-                )
-            raise RuntimeError(
-                "Mock mode requires model_access from standard:mock-llm infra "
-                "(workspace infra_refs or --infra-ref with standard:mock-llm)."
-            )
     return EngineSelection(engine=engine, mode=mode, reason=reason)
 
 

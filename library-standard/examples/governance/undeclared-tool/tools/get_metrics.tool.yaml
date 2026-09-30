@@ -1,0 +1,24 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Tool
+metadata:
+  name: get_metrics
+  description: Fetch latency metrics for a service.
+  version: "1.0.0"
+spec:
+  description: >
+    Call this tool when you need latency metrics for a named service.
+  parameters:
+    - name: service
+      type: string
+      description: Canonical service name.
+      required: true
+      examples: ["payment-service"]
+  impl:
+    kind: python
+    module_path: ./telemetry.py
+    class_name: TelemetryStub
+    params:
+      name: get_metrics
+      description: Fetch latency metrics for a service.

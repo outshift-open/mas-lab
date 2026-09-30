@@ -1,27 +1,29 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Engine selection — explicit mock/live only; no silent SimulatedEngine fallback."""
+"""Engine selection — live or llm_cache replay; no silent SimulatedEngine fallback."""
 
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import pytest
-
 from mas.ctl.compose.models import ResolvedInfra
 from mas.ctl.session.engine_factory import (
     _cache_read_enabled,
     _resolve_model_option,
     _resolve_sampling_param,
     _stream_enabled,
+    _strict_replay,
     build_engine,
-    is_mock_mode,
     resolve_model_name,
 )
 from mas.runtime.driver.mocks import AutoCtxAssembler
 
+_CI_REPLAY = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "llm-cache" / "ci-replay.yaml"
 
-def test_build_engine_errors_without_infra_or_mock(monkeypatch, tmp_path):
+
+def test_build_engine_errors_without_infra(monkeypatch, tmp_path):
     from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
 
     monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: WorkspaceConfig({}))
@@ -38,41 +40,46 @@ def test_build_engine_errors_without_infra_or_mock(monkeypatch, tmp_path):
         )
 
 
-def test_build_engine_resolves_infra_anchor_from_workspace_when_omitted(monkeypatch, tmp_path):
-    from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
-
-    ws = WorkspaceConfig({}, tmp_path)
-    monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: ws)
-    monkeypatch.setattr(UserConfig, "load", lambda *a, **k: UserConfig({}))
-    ctx = AutoCtxAssembler()
-    manifest = {"spec": {"llm": {"provider": "mock"}}}
-
-    sel = build_engine(ctx, manifest, None, workspace=ws)
-    assert sel.mode == "mock"
-
-
-def test_build_engine_mock_mode_from_mock_infra(monkeypatch, tmp_path):
+def test_build_engine_live_requires_api_key(monkeypatch, tmp_path):
     from mas.ctl.infra.resolve import resolve_infra_refs
     from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
 
     monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: WorkspaceConfig({}))
     monkeypatch.setattr(UserConfig, "load", lambda *a, **k: UserConfig({}))
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     ctx = AutoCtxAssembler()
-    manifest = {"spec": {}}
-    infra = resolve_infra_refs(["standard:mock-llm"], anchor=tmp_path)
+    infra = resolve_infra_refs(["standard:openai"], anchor=tmp_path)
 
-    sel = build_engine(
-        ctx,
-        manifest,
-        infra,
-        anchor=tmp_path,
-    )
-    assert sel.mode == "mock"
+    with pytest.raises(RuntimeError, match="OPENAI_API_KEY is unset"):
+        build_engine(ctx, {"spec": {}}, infra, anchor=tmp_path)
+
+
+def test_parse_execution_rejects_removed_mocking_key():
+    from mas.ctl.manifest.spec_bindings import SpecBindingError, parse_execution
+
+    with pytest.raises(SpecBindingError, match="unknown field 'mocking'"):
+        parse_execution({"mocking": {"enabled": True}})
+
+
+def test_build_engine_replay_does_not_require_api_key(monkeypatch, tmp_path):
+    from mas.ctl.infra.resolve import resolve_infra_refs
+    from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
     from mas.runtime.engine.leaf import leaf_engine
     from mas.runtime.engine.llm_live import LiveLlmEngine
+    from mas.library.standard.plugins.llm.openai import OpenAILLMProvider
 
-    assert isinstance(leaf_engine(sel.engine), LiveLlmEngine)
-    assert leaf_engine(sel.engine)._model_access is not None
+    monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: WorkspaceConfig({}))
+    monkeypatch.setattr(UserConfig, "load", lambda *a, **k: UserConfig({}))
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    ctx = AutoCtxAssembler()
+    infra = resolve_infra_refs([str(_CI_REPLAY)], anchor=tmp_path)
+    assert _strict_replay(infra.llm_proxy) is True
+
+    sel = build_engine(ctx, {"spec": {}}, infra, anchor=tmp_path)
+    assert sel.mode == "replay"
+    leaf = leaf_engine(sel.engine)
+    assert isinstance(leaf, LiveLlmEngine)
+    assert isinstance(leaf.llm_provider, OpenAILLMProvider)
 
 
 def test_resolve_sampling_param_prefers_spec_models():
@@ -86,6 +93,19 @@ def test_resolve_sampling_param_prefers_spec_models():
     assert _resolve_sampling_param(manifest, "max_tokens", 2000) == 8000
 
 
+def test_resolve_sampling_param_matches_named_model_row():
+    manifest = {
+        "spec": {
+            "models": [
+                {"id": "main", "model": "gpt-4o", "temperature": 0.1},
+                {"id": "alt", "model": "gpt-5-mini", "temperature": 0.9, "max_tokens": 111},
+            ]
+        }
+    }
+    assert _resolve_sampling_param(manifest, "temperature", 0.7, model="gpt-5-mini") == 0.9
+    assert _resolve_sampling_param(manifest, "max_tokens", 2000, model="alt") == 111
+
+
 def test_resolve_model_name_prefers_spec_models(monkeypatch):
     monkeypatch.delenv("MAS_CTL_MODEL", raising=False)
     monkeypatch.delenv("MAS_LLM_MODEL", raising=False)
@@ -96,6 +116,49 @@ def test_resolve_model_name_prefers_spec_models(monkeypatch):
         }
     }
     assert resolve_model_name(manifest, None) == "vertex_ai/gemini-2.5-pro"
+
+
+def test_resolve_model_name_any_uses_workspace_then_package(monkeypatch):
+    monkeypatch.delenv("MAS_CTL_MODEL", raising=False)
+    monkeypatch.delenv("MAS_LLM_MODEL", raising=False)
+    manifest = {"spec": {"models": [{"model": "any"}]}}
+    assert resolve_model_name(manifest, None, workspace_default="gpt-local") == "gpt-local"
+    from mas.runtime.agent_defaults import default_model
+
+    assert resolve_model_name(manifest, None) == default_model()
+
+
+def test_resolve_model_name_parent_mas_default(monkeypatch):
+    monkeypatch.delenv("MAS_CTL_MODEL", raising=False)
+    monkeypatch.delenv("MAS_LLM_MODEL", raising=False)
+    manifest = {"spec": {"models": [{"model": "any"}]}}
+    assert (
+        resolve_model_name(manifest, None, parent_default="gpt-4o", workspace_default="gpt-local")
+        == "gpt-4o"
+    )
+
+
+def test_resolve_model_name_experiment_default(monkeypatch):
+    monkeypatch.delenv("MAS_CTL_MODEL", raising=False)
+    monkeypatch.delenv("MAS_LLM_MODEL", raising=False)
+    manifest = {"spec": {"models": [{"model": "any"}]}}
+    assert (
+        resolve_model_name(
+            manifest,
+            None,
+            parent_default="any",
+            experiment_default="gpt-4o",
+            workspace_default="gpt-local",
+        )
+        == "gpt-4o"
+    )
+
+
+def test_resolve_model_name_cli_override_beats_spec(monkeypatch):
+    monkeypatch.delenv("MAS_CTL_MODEL", raising=False)
+    monkeypatch.delenv("MAS_LLM_MODEL", raising=False)
+    manifest = {"spec": {"models": [{"model": "gpt-4o"}]}}
+    assert resolve_model_name(manifest, None, forced="gpt-4.1") == "gpt-4.1"
 
 
 def test_resolve_sampling_param_falls_back_to_deprecated_spec_llm(caplog):
@@ -111,12 +174,35 @@ def test_resolve_model_option_from_spec_models():
     assert _resolve_model_option(manifest, "reasoning_effort") == "low"
 
 
+def test_build_engine_loads_nested_reasoning_from_spec_models(monkeypatch, tmp_path):
+    from mas.ctl.infra.resolve import resolve_infra_refs
+    from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
+    from mas.runtime.engine.leaf import leaf_engine
+
+    monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: WorkspaceConfig({}))
+    monkeypatch.setattr(UserConfig, "load", lambda *a, **k: UserConfig({}))
+    ctx = AutoCtxAssembler()
+    manifest = {
+        "spec": {
+            "models": [
+                {
+                    "model": "gpt-5",
+                    "reasoning": {"effort": "low", "budget_tokens": 64, "exclude": True},
+                }
+            ]
+        }
+    }
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    infra = resolve_infra_refs(["standard:openai"], anchor=tmp_path)
+    sel = build_engine(ctx, manifest, infra, anchor=tmp_path)
+    leaf = leaf_engine(sel.engine)
+    assert leaf.reasoning.effort == "low"
+    assert leaf.reasoning.budget_tokens == 64
+    assert leaf.reasoning.exclude is True
+    assert leaf.reasoning.exclude_from_spec is True
+
+
 def test_cache_and_stream_from_runtime_engine():
     rt = {"cache": {"read": False}, "stream": True}
     assert _cache_read_enabled(rt) is False
     assert _stream_enabled(rt) is True
-
-
-def test_is_mock_mode_from_mock_infra_ref():
-    infra = ResolvedInfra(refs=["standard:mock-llm"], llm_proxy={})
-    assert is_mock_mode({"spec": {}}, infra) is True

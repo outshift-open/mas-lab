@@ -32,7 +32,7 @@ def _base() -> dict:
                 "emulation": {"runtime": {"cache": "disabled"}},
             },
             "run": {"n_runs": 3, "post": [{"ref": "pipelines/a.yaml"}]},
-            "application": {"post": [{"ref": "pipelines/b.yaml"}]},
+            "post": [{"ref": "pipelines/b.yaml"}],
             "scenarios": [{"id": "s1"}],
         }
     }
@@ -82,10 +82,10 @@ def test_run_post_replaced_by_overlay(tmp_path: Path) -> None:
     assert post == [{"ref": "pipelines/eval.yaml"}]
 
 
-def test_application_post_replaced_by_overlay(tmp_path: Path) -> None:
-    overlay = _write_overlay(tmp_path, "o.yaml", {"application": {"post": [{"ref": "pipelines/plots.yaml"}]}})
+def test_experiment_post_replaced_by_overlay(tmp_path: Path) -> None:
+    overlay = _write_overlay(tmp_path, "o.yaml", {"post": [{"ref": "pipelines/plots.yaml"}]})
     result = apply_experiment_overlays(_base(), [overlay])
-    post = result["experiment"]["application"]["post"]
+    post = result["experiment"]["post"]
     assert post == [{"ref": "pipelines/plots.yaml"}]
 
 

@@ -9,6 +9,7 @@ from mas.runtime.boundary.obs.transition import TransitionEvent
 from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.engine.simulated import SimMode, SimulatedEngine
 from mas.runtime.kernel.config import KernelConfig
+from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.ingress import EngineIoReturn, LifecyclePause, LifecycleResume
 
 
@@ -248,3 +249,42 @@ def test_driver_records_real_memory_call_end_matching_start_call_id():
     assert starts, "expected at least one memory op start"
     assert ends, "expected at least one memory_call_end — was misclassified as LLM_CALL before the fix"
     assert {e.call_id for e in starts} == {e.call_id for e in ends}
+
+
+class _RaiseOnTool:
+    def invoke(self, io: InvokeEngineIo) -> EngineIoReturn:
+        if io.op == "LLM_CALL":
+            return EngineIoReturn(
+                correlation_id=io.correlation_id,
+                response_kind="MODEL_TEXT",
+                next_step="TOOL_CALL",
+                tool_name="get_deployments",
+                tool_arguments={"service": "payment-service"},
+            )
+        raise RuntimeError("Tool 'get_deployments' not found in manifest or overlays")
+
+
+def test_driver_records_tool_call_end_when_engine_raises() -> None:
+    """A tool-call start is always paired with an end, including when invoke
+    raises. The failure text is the end event's output.
+    """
+    inst = RuntimeInstance.from_parts(engine=_RaiseOnTool())
+    cap = _CapturePlugin()
+    inst.driver.observability.subscribe(cap)
+    inst.capture_session_baseline()
+    inst.run_user_text("investigate payment-service")
+
+    starts = [e for e in cap.seen if e.contract_id == "tool" and e.phase == "start"]
+    ends = [e for e in cap.seen if e.contract_id == "tool" and e.phase == "end"]
+    assert starts
+    assert ends
+    assert {e.call_id for e in starts} == {e.call_id for e in ends}
+    error_ends = [
+        e
+        for e in ends
+        if e.attributes.get("response_kind") == "ERROR"
+        or "get_deployments" in str(e.attributes.get("text") or "")
+    ]
+    assert error_ends, ends
+    assert "get_deployments" in str(error_ends[-1].attributes.get("text") or "")
+

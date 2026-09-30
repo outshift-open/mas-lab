@@ -13,12 +13,12 @@ site — it is `mkdocs build` of this folder, driven by [`mkdocs.yml`](../mkdocs
 at the repository root.
 
 | Where | What |
-|-------|------|
+| ------- | ------ |
 | [docs/index.md](index.md) | Site home (≈ align with root [README.md](../README.md)) |
 | [mkdocs.yml](../mkdocs.yml) `nav:` | Left sidebar and top tabs on GitHub Pages |
 | [outshift-open.github.io/mas-lab](https://outshift-open.github.io/mas-lab/) | Published output |
 
-Local preview: `task docs-serve` → http://127.0.0.1:8000
+Local preview: `task docs-serve` → <http://127.0.0.1:8000>
 
 When you add or rename a doc page, update **`mkdocs.yml` nav** and cross-links in
 `README.md` / `docs/index.md` so the repo landing page and the site stay aligned.
@@ -35,9 +35,11 @@ When you add or rename a doc page, update **`mkdocs.yml` nav** and cross-links i
 ### User guide
 
 - [User guide](user-guide.md)
-- [User configuration](user-config.md)
+- [Labs vs libraries](labs-and-libraries.md)
+- [User configuration](user-config.md) — XDG paths
+- [config.yaml](references/config.yaml.md) — workspace / user YAML fields
+- CLI → [overview](cli/index.md), [mas-ctl options](cli/mas-ctl.md), [observability / run logs](cli/observability.md), [`compile`](cli/compile.md)
 - [Package map](libraries.md)
-- [Observability / run logs](cli/observability.md)
 - **[Web UI](ui/index.md)**
 - [Terminal UI (TUI)](ctl/tui.md)
 - [Glossary](glossary.md)
@@ -53,9 +55,9 @@ When you add or rename a doc page, update **`mkdocs.yml` nav** and cross-links i
 ### References
 
 - [References index](references/index.md)
-- Specifications → `manifests/*.md`, [schemas](references/schemas.md)
+- Specifications → `manifests/*.md` (including [summarization.md](manifests/summarization.md)), [config.yaml](references/config.yaml.md), [schemas](references/schemas.md)
 - Runtime → [manifests/runtime.md](manifests/runtime.md), [runtime docs](references/runtime.md)
-- Lab & benchmarks → experiment/dataset/pipeline manifests, [lab bench](references/lab.md)
+- Lab & benchmarks → experiment/dataset/pipeline manifests, [lab bench](references/lab.md), [library discovery](library-discovery.md)
 
 ### Paper
 
@@ -70,7 +72,7 @@ When you add or rename a doc page, update **`mkdocs.yml` nav** and cross-links i
 ## Outside `docs/` (linked, not on Pages)
 
 | Path | Audience |
-|------|----------|
+| ------ | ---------- |
 | [`docker/README.md`](../docker/README.md) | Docker compose, mounts, env |
 | [`ui/README.md`](../ui/README.md) | UI package development (Yarn, Vite) |
 | [`runtime/docs/`](../runtime/docs/) | Runtime contributor docs |

@@ -20,6 +20,10 @@ class EgressIntentView:
     correlation_id: int
     tool_name: str = ""
     tool_arguments: dict | None = None
+    # Names in the OpenAI ``tools`` array of the LLM call that produced this
+    # TOOL_CALL. None = not recorded (fall back to spec.tools). () = recorded
+    # as an empty offer — the model was given no tools this call.
+    offered_tools: tuple[str, ...] | None = None
 
 
 _PROFILE_LABEL: dict[GovPolicyProfile, str] = {

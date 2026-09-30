@@ -15,7 +15,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 
 
 def _experiment_paths() -> list[Path]:
-    return sorted(_ROOT.glob("labs/**/experiment.yaml"))
+    return sorted(_ROOT.glob("labs/**/experiment*.yaml"))
 
 
 def test_no_experiments_in_library_samples() -> None:

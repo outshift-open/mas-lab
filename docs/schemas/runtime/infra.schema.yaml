@@ -53,10 +53,10 @@ properties:
   spec:
     type: object
     description: >
-      Kind-specific infrastructure specification. String values may use
-      ``env:VAR_NAME`` or ``env:VAR_NAME|default`` to read deploy-time
-      configuration from the process environment (Kubernetes valueFrom,
-      Vault agent, local .env). Fields ending in ``_env`` (e.g.
+      Kind-specific infrastructure specification. Connection values belong
+      in this document. ``env:VAR_NAME|default`` is an optional override of
+      a manifest default (URLs, API bases). ``env:VAR_NAME`` is for secrets
+      (empty when unset). Fields ending in ``_env`` (e.g.
       ``api_key_env``, ``password_env``) are secretKeyRef names and must
       be literal env var names, not ``env:`` lookups.
     additionalProperties: true
@@ -111,6 +111,17 @@ properties:
         default: [LLM_CALL]
 
       # ── LLMProxy / LLMLocal / Infrastructure ────────────────────────────
+      protocol:
+        type: string
+        description: >
+          Wire-protocol plugin kind for the LLMProvider registry
+          (``openai`` now; later ``bedrock``, …). Ollama and LiteLLM
+          proxies use ``openai``. Default is the library ``llm_provider``
+          default (openai). Not ``mock`` or ``cache`` — offline CI uses
+          ``llm_cache`` replay (``raise_on_miss``); cache wraps the routed
+          protocol plugin.
+        default: openai
+
       proxy:
         type: object
         additionalProperties: true
@@ -126,6 +137,10 @@ properties:
             description: >
               Name of the environment variable holding the API key (secretKeyRef).
               Literal only — do not use ``env:`` syntax here.
+          timeout:
+            type: number
+            description: >
+              HTTP request timeout in seconds for LLM API calls. Defaults to 120.
 
       server:
         type: object
@@ -136,6 +151,10 @@ properties:
             type: string
           api_key_env:
             type: string
+          timeout:
+            type: number
+            description: >
+              HTTP request timeout in seconds for LLM API calls. Defaults to 120.
 
       models:
         type: object
@@ -168,7 +187,24 @@ properties:
           - type: object
             additionalProperties:
               type: object
+              required: [url, protocol]
               additionalProperties: true
+              properties:
+                url:
+                  type: string
+                  format: uri
+                protocol:
+                  type: string
+                expose:
+                  type: boolean
+                  default: false
+                headers:
+                  type: object
+                  additionalProperties:
+                    type: string
+                timeout:
+                  type: number
+                  exclusiveMinimum: 0
           - type: array
             items:
               type: object
@@ -178,21 +214,7 @@ properties:
       tool_servers:
         type: array
         items:
-          type: object
-          required: [id]
-          additionalProperties: true
-          properties:
-            id:
-              type: string
-            url:
-              type: string
-            name:
-              type: string
-            transport:
-              type: string
-              default: "http"
-            description:
-              type: string
+          $ref: "./fragments/infra-tool-server.schema.yaml"
 
       # ── ToolRegistry ────────────────────────────────────────────────────
       tools:

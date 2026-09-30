@@ -1,11 +1,12 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
 # MAS Library Metadata — Lab
-# Pipeline steps and artifact codecs used by the mas-lab-bench pipeline
-# engine. Bench ships the engine only (Pipeline, PipelineExecutor,
-# PipelineStep, caching, dependency resolution); every concrete step and
-# codec implementation lives here and is registered through the runtime
-# plugin registry — see runtime/docs/plugin-registry-manifests.md.
+# Pipeline steps, artifact types, and artifact codecs used by the
+# mas-lab-bench pipeline engine. Bench ships the engine only (Pipeline,
+# PipelineExecutor, PipelineStep, caching, dependency resolution); every
+# concrete step, artifact type, and codec implementation lives here and
+# is registered through the runtime plugin registry — see
+# runtime/docs/plugin-registry-manifests.md.
 #
 # This file is both the library manifest (kind: Library — metadata read by
 # mas.library_catalog: discover_apps/discover_datasets/discover_tools) and,
@@ -31,6 +32,7 @@ types:
   - step
   - codec
   - design_pattern
+  - artifact
 
 plugins:
   - type: step
@@ -130,6 +132,10 @@ plugins:
     module: mas.library.lab.steps.viz.metrics_comparison_plot
     class: MetricsComparisonPlotStep
   - type: step
+    name: metrics_to_dataframe
+    module: mas.library.lab.steps.eval.metrics_to_dataframe
+    class: MetricsToDataFrameStep
+  - type: step
     name: pipeline_diagram
     module: mas.library.lab.steps.viz.pipeline_diagram
     class: PipelineDiagramStep
@@ -177,6 +183,10 @@ plugins:
     name: to_dataframe
     module: mas.library.lab.steps.data.to_dataframe
     class: ToDataFrameStep
+  - type: step
+    name: validate_outputs
+    module: mas.library.lab.steps.eval.validate_outputs
+    class: ValidateOutputsStep
   - type: codec
     name: otel_traces-otlp
     urn: mas.codec.otel_traces_otlp
@@ -231,3 +241,24 @@ plugins:
     urn: mas.dp.deterministic_verifier
     module: mas.library.lab.plugins.design_patterns.verifier
     class: DeterministicVerifierPlugin
+
+  - type: artifact
+    name: dataframe
+    module: mas.library.lab.artifact_types
+    class: DataFrame
+  - type: artifact
+    name: metrics
+    module: mas.library.lab.artifact_types
+    class: Metrics
+  - type: artifact
+    name: plot
+    module: mas.library.lab.artifact_types
+    class: Plot
+  - type: artifact
+    name: run_info
+    module: mas.library.lab.artifact_types
+    class: RunInfo
+  - type: artifact
+    name: trace
+    module: mas.library.lab.artifact_types
+    class: Trace

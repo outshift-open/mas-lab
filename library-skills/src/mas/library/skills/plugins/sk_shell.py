@@ -92,6 +92,7 @@ class RunSkillScriptPlugin(ToolContract):
                     },
                     "required": ["skill", "script"],
                 },
+                "semantics": {"concept": "skill", "op": "execute", "subject_arg": "skill"},
             }
         ]
 

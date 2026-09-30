@@ -4,12 +4,14 @@
 
 from __future__ import annotations
 
-from mas.runtime.boundary.obs.operator import ObservabilityOperator
 from dataclasses import replace
 
+from mas.runtime.boundary.obs.operator import ObservabilityOperator
 from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.kernel.envelope import (
     EnvelopeContext,
+    GuardedProductComposer,
+    close_envelope,
     contract_kind_for_op,
     execute_contract_call,
     run_egress_authorize_envelope,
@@ -25,6 +27,14 @@ from mas.runtime.schema.envelope import (
 )
 from mas.runtime.schema.ingress import EngineIoReturn
 from mas.runtime.schema.observability import ObsEventKind
+
+
+def _activity_symbols(ctx: EnvelopeContext) -> list[str]:
+    return [
+        e.payload.get("symbol")
+        for e in ctx.observability.events  # type: ignore[union-attr]
+        if e.kind == ObsEventKind.ENVELOPE_ACTIVITY
+    ]
 
 
 def _ctx(*, op: str = "TOOL_CALL", cid: int = 1) -> EnvelopeContext:
@@ -92,6 +102,100 @@ def test_execute_contract_call_in_process() -> None:
     assert result == "ok"
     assert seen == ["execute"]
     assert any(e.kind == ObsEventKind.ENGINE_IO for e in ctx.observability.events)  # type: ignore[union-attr]
+
+
+def test_execute_contract_call_closes_on_error() -> None:
+    """CONTRACT_EXECUTE is always followed by the ingress close, even when
+    execute_fn raises — the failure is recorded as ENGINE_IO_RETURN.
+    """
+    ctx = _ctx()
+
+    def _boom() -> str:
+        raise RuntimeError("Tool 'get_deployments' not found in manifest or overlays")
+
+    try:
+        execute_contract_call(ctx.contract, "call", ctx, execute_fn=_boom)
+        raise AssertionError("expected execute_fn to raise")
+    except RuntimeError as exc:
+        assert "get_deployments" in str(exc)
+
+    kinds = [e.kind for e in ctx.observability.events]  # type: ignore[union-attr]
+    assert ObsEventKind.ENGINE_IO in kinds
+    assert ObsEventKind.ENGINE_IO_RETURN in kinds
+    ends = [e for e in ctx.observability.events if e.kind == ObsEventKind.ENGINE_IO_RETURN]  # type: ignore[union-attr]
+    assert ends[-1].payload.get("response_kind") == "ERROR"
+    assert "get_deployments" in str(ends[-1].payload.get("text") or "")
+    assert ends[-1].payload.get("op") == "TOOL_CALL"
+    symbols = _activity_symbols(ctx)
+    assert EnvelopeSymbol.CONTRACT_EXECUTE.value in symbols
+    assert symbols[-len(INGRESS_ENVELOPE_SYMBOLS) :] == [s.value for s in INGRESS_ENVELOPE_SYMBOLS]
+
+
+def test_close_envelope_emits_all_ingress_symbols_on_error() -> None:
+    ctx = _ctx()
+    run_egress_authorize_envelope(ctx)
+    close_envelope(ctx, error="GOV_BLOCK")
+    expected = [s.value for s in EGRESS_ENVELOPE_SYMBOLS] + [s.value for s in INGRESS_ENVELOPE_SYMBOLS]
+    assert _activity_symbols(ctx) == expected
+    ends = [e for e in ctx.observability.events if e.kind == ObsEventKind.ENGINE_IO_RETURN]  # type: ignore[union-attr]
+    assert ends[-1].payload.get("response_kind") == "ERROR"
+    assert "GOV_BLOCK" in str(ends[-1].payload.get("text") or "")
+
+
+def test_composer_continues_after_machine_failure() -> None:
+    class _Boom:
+        machine_id = "boom"
+
+        def step(self, symbol: EnvelopeSymbol, ctx: EnvelopeContext) -> None:
+            raise RuntimeError("machine boom")
+
+    class _Ok:
+        machine_id = "ok"
+        seen: list[EnvelopeSymbol]
+
+        def __init__(self) -> None:
+            self.seen = []
+
+        def step(self, symbol: EnvelopeSymbol, ctx: EnvelopeContext) -> None:
+            self.seen.append(symbol)
+
+    ok = _Ok()
+    composer = GuardedProductComposer(machines=[_Boom(), ok])  # type: ignore[arg-type]
+    ctx = _ctx()
+    composer.step(EnvelopeSymbol.CONTRACT_START, ctx)
+    composer.step(EnvelopeSymbol.CONTRACT_END, ctx)
+    assert ok.seen == [EnvelopeSymbol.CONTRACT_START, EnvelopeSymbol.CONTRACT_END]
+
+
+def test_egress_block_closes_contract_envelope() -> None:
+    from mas.runtime.kernel.coupling import GovDecision
+    from mas.runtime.kernel.egress_gate import emit_scheduled_egress
+    from mas.runtime.kernel.runtime_context import runtime_binding
+    from mas.runtime.kernel.state import RunLedger
+    from mas.runtime.schema.egress import RaiseBoundaryError
+
+    class _BlockPlugin:
+        def evaluate_egress(self, intent, *, config):  # noqa: ANN001
+            return GovDecision.BLOCK, "test-block", "blocked for test"
+
+    ctx_obs = ObservabilityOperator()
+    q = QProduct()
+    q.scheduled_egress = "TOOL_CALL"
+    q.pending_tool_name = "web-search"
+    run = RunLedger()
+    config = KernelConfig(hitl_on_tool=False, egress_governance_plugin=_BlockPlugin())
+    with runtime_binding(None, ctx_obs):
+        out = emit_scheduled_egress(q, run, config)
+    assert isinstance(out[0], RaiseBoundaryError)
+    assert out[0].code == "GOV_BLOCK"
+    symbols = [
+        e.payload.get("symbol")
+        for e in ctx_obs.events
+        if e.kind == ObsEventKind.ENVELOPE_ACTIVITY
+    ]
+    assert EnvelopeSymbol.CONTRACT_START.value in symbols
+    assert EnvelopeSymbol.CONTRACT_END.value in symbols
+    assert symbols[-len(INGRESS_ENVELOPE_SYMBOLS) :] == [s.value for s in INGRESS_ENVELOPE_SYMBOLS]
 
 
 def test_envelope_works_without_governance_plugins() -> None:

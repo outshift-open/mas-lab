@@ -8,6 +8,15 @@
 
 From this directory (`docs/tutorials/01-building-an-agent`):
 
+Overlays declare tool refs as `<library>:<path>`. The prefix is always a
+library name. These overlays use the `samples` library from
+**mas-library-samples**, which **mas-lab-workspace** installs. A lab can
+also ship a library next to `lab-config.yaml`: list the path under
+`lab.libraries`, or put `library.yaml` in an immediate child directory.
+Lab-local library names win over workspace config and installed libraries.
+When to use a lab vs a library vs a local plugin:
+[labs-and-libraries.md](../../labs-and-libraries.md).
+
 ```bash
 # Live chat with tools, a skill, and memory
 mas-ctl chat agent.yaml \
@@ -15,11 +24,6 @@ mas-ctl chat agent.yaml \
   -o overlays/skills.yaml \
   -o overlays/memory.yaml \
   -q "What is the current price of Apple?"
-
-# Offline (no live LLM, no API key) — mock-llm overlay
-mas-ctl chat agent.yaml -i \
-  -o overlays/tools.yaml \
-  -o overlays/mock-llm.yaml
 
 # Operator steering mid-run (interactive session)
 mas-ctl chat agent.yaml -i -o overlays/tools.yaml --trace
@@ -93,9 +97,16 @@ That's it. Everything else has sensible defaults:
 
 | Field | Default | Meaning |
 |-------|---------|---------|
-| `spec.models[0].model` | `gpt-4` (overridden by flavour) | Main LLM — works without flavour; flavour overrides |
-| `spec.design_pattern.type` | `react` | ReAct loop — up to **25 steps** per turn |
-| `spec.context_manager.type` | `sliding-window` | Keep last **20 turns** in context |
+| `spec.models[0].model` | `any` (compile sentinel) | Main LLM. Pin a LiteLLM id, or inherit MAS / `experiment.models.main`, then local `config.yaml` `defaults.model`. |
+| `spec.design_pattern` | `react` | ReAct loop. Shorthand `design_pattern: react` ≡ `{type: react, params: {max_steps: 512, max_cot_pass: 1, parallel: true}}`. [plugin-bindings.md](../../manifests/plugin-bindings.md) |
+| `spec.assembler` | `assembler` | Builds `messages[]`. Omit ≡ `{type: assembler, params: {emit_segments: true, always_reassemble: false}}` — [context-assembly.md](../../manifests/context-assembly.md) |
+| `spec.context_manager` | `summarising` | Last **10 user turns** verbatim; `summarizer: llm`; hysteresis 0.2 — [summarization.md](../../manifests/summarization.md) · [context-assembly.md](../../manifests/context-assembly.md) |
+
+Don't take this table's word for it — `mas-ctl compile agent.yaml` prints the
+real, fully-expanded object for every one of these plugins (and the
+`summarizer` sub-plugin one level down). See
+[Compiled agent defaults](../../references/defaults.md) for exactly that
+output against this file, or run it yourself once you've read Step 5 below.
 
 > **Key insight:** The manifest is a *specification*, not a configuration file.
 > It declares the agent's capabilities and intent. The runtime resolves how
@@ -134,7 +145,6 @@ manifests bundled in `mas-library-standard`. List the installed ones:
 ```bash
 mas-ctl flavour list
 # standard:local             ← development default (this tutorial)
-# standard:mock              ← offline / cached responses (benchmarks)
 # standard:local-benchmark   ← batch benchmark runs
 ```
 
@@ -172,8 +182,9 @@ source .env
 ```
 
 With `default_infra: standard:production` in `$XDG_CONFIG_HOME/mas/config.yaml`, you do not
-need `--infra-ref` on every command.  For offline runs (no API key), stack
-the mock overlay: `-o overlays/mock-llm.yaml`.
+need `--infra-ref` on every command. This tutorial does not pin an LLM backend;
+live chat uses Tutorial 0 infra. Record/replay without calling the provider is
+the `llm_cache` middleware ([llm-cache.md](../../manifests/llm-cache.md)).
 
 ### Run it
 
@@ -268,7 +279,15 @@ spec:
 ```
 
 The runtime finds `skills/answer-formatting/SKILL.md` automatically.
-No `skills_dir` needed.
+No `skills_dir` needed. That file **must start with YAML frontmatter**
+(`---` then `name` / `description`) so discovery can index it. A leading
+copyright comment before the frontmatter is treated as a body with no name.
+
+Listing the skill is enough: `activate_skill` is added as a system tool
+(it is **not** exposed unless at least one skill is listed). Frontmatter
+`description` is the when-to-use text shown in the catalog. It should also
+tell the model to `activate_skill("answer-formatting")` and follow the
+loaded body. The body is *how* to apply the skill and is not in the catalog.
 
 Stack it on top of the tools overlay with a second `--overlay`:
 
@@ -286,9 +305,10 @@ mas-ctl -v chat agent.yaml \
 > of the previous merge. The base `agent.yaml` is never modified.
 > Fields declared in a later overlay win over earlier ones; list fields (tools, skills) are appended.
 
-The agent now follows the formatting rules from
-`skills/answer-formatting/SKILL.md` — you'll see the structured answer
-format with confidence indicator.
+The catalog lists that frontmatter description, so the model is prompted to
+call `activate_skill("answer-formatting")` and then follow the formatting
+rules from the skill body — a one-sentence summary, supporting bullets, and
+a HIGH / MEDIUM / LOW confidence line.
 
 ---
 
@@ -478,15 +498,17 @@ echo "What is the GDP of France?" | mas-ctl -v chat agent.yaml
 # Default flavour (local) — explicit form is optional
 mas-ctl chat agent.yaml -i --flavour local
 
-# Offline / no API key needed — stack the mock-llm overlay
-mas-ctl chat agent.yaml -i -o overlays/mock-llm.yaml
+# Offline / no API key — llm_cache replay (see docs/manifests/llm-cache.md)
+mas-ctl chat agent.yaml -i --infra-ref standard:openai \
+  --infra-ref library-samples/infra/llm-cache-replay.yaml
 ```
 
 The optional `--flavour NAME` flag selects a deployment flavour bundled in
 `mas-library-standard` (see `mas-ctl flavour list`); it defaults to `local`,
 the only flavour wired into `chat`/`tui` today. Passing an unsupported name
-(e.g. `--flavour prod`) exits with an error listing what's available. Offline
-runs use the `overlays/mock-llm.yaml` overlay, not a flavour.
+(e.g. `--flavour prod`) exits with an error listing what's available. This
+tutorial's `config.yaml` does not pin an LLM backend. Offline runs use
+llm_cache replay, not a flavour.
 
 The agent manifest is the same in all cases — only the deployment
 posture changes.
@@ -531,8 +553,22 @@ One base manifest, overlays stacked with `--overlay`:
 | 3 | `+ overlays/skills.yaml` | + skills: `answer-formatting` |
 | 4 | `+ overlays/memory.yaml` | + memory resource (plugin) + context injection + `memory-search` tool |
 
-The file `agent-final.yaml` shows what the runtime sees after merging all four
-overlays — a single assembled view for reference. Validate it:
+The file `agent-final.yaml` is a commented snapshot of that merge. Generate
+the live equivalent with [`mas-ctl compile`](../../cli/compile.md) (overlays
+applied, runtime defaults filled):
+
+```bash
+mas-ctl compile agent.yaml \
+  -o overlays/tools.yaml \
+  -o overlays/skills.yaml \
+  -o overlays/memory.yaml \
+  -O compiled-agent.yaml
+```
+
+Full flags, MAS folder vs single-file layouts, and examples:
+[compile command reference](../../cli/compile.md).
+
+Validate the snapshot:
 
 ```bash
 mas-ctl validate agent-final.yaml
@@ -557,7 +593,7 @@ Live `mas-ctl chat` steps need `TUTORIAL_ONLINE=1` and a configured LLM (Tutoria
 ## Key takeaways
 
 1. **Spec-first**: define *what* the agent does, not *how*
-2. **Defaults matter**: ReAct, sliding-window, model — you get a capable agent with 3 fields
+2. **Defaults matter**: ReAct, summarising context, model — you get a capable agent with 3 fields
 3. **Overlays compose**: `--overlay` stacks features without duplication
 4. **Tools by name**: the agent says `web-search`; the runtime binds it to a Python module or tool server — the agent manifest never sees implementation details
 5. **Skills are markdown**: domain knowledge injected into the system prompt

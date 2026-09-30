@@ -4,10 +4,12 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from mas.runtime.spec.gov import GovernanceBinding, build_kernel_config, parse_gov_spec
 from mas.runtime.spec.obs import parse_obs_spec
+from mas.runtime.spec.plugin_binding import plugin_binding_id, plugin_binding_params
 
 if TYPE_CHECKING:
     from mas.runtime.boundary.obs.binding import ObservabilityBinding
@@ -19,12 +21,7 @@ def _resolve_pattern_plugin_id(spec: dict[str, Any]) -> str:
     from mas.runtime.agent_defaults import default_pattern_plugin_id
     from mas.runtime.registry import get_registry
 
-    dp_raw = spec.get("design_pattern")
-    if not dp_raw:
-        return default_pattern_plugin_id()
-
-    binding = dp_raw if isinstance(dp_raw, dict) else {}
-    name = str(binding.get("type") or binding.get("ref") or "").strip()
+    name = plugin_binding_id(spec.get("design_pattern"), field="spec.design_pattern")
     if not name:
         return default_pattern_plugin_id()
 
@@ -32,10 +29,24 @@ def _resolve_pattern_plugin_id(spec: dict[str, Any]) -> str:
     info = reg.resolve_by_type("design_pattern", name)
     if info is None:
         import logging as _logging
+
         _logging.getLogger(__name__).warning(
             "design_pattern %r not found in registry; passing through to kernel", name
         )
     return name
+
+
+def _apply_design_pattern_params(spec: dict[str, Any], kernel_config: KernelConfig) -> KernelConfig:
+    """``params.max_steps`` is the dispatch-loop cap (KernelConfig.max_auto_steps)."""
+    params = plugin_binding_params(spec.get("design_pattern"), field="spec.design_pattern")
+    updates: dict[str, Any] = {}
+    if params.get("max_steps") is not None:
+        updates["max_auto_steps"] = int(params["max_steps"])
+    if params.get("max_cot_pass") is not None:
+        updates["max_cot_pass"] = int(params["max_cot_pass"])
+    if params.get("parallel") is not None:
+        updates["parallel_tool_calls"] = bool(params["parallel"])
+    return replace(kernel_config, **updates) if updates else kernel_config
 
 
 def parse_agent_spec(
@@ -61,6 +72,7 @@ def parse_agent_spec(
     kernel_config = build_kernel_config(
         gov_binding, pattern_plugin_id=pattern_plugin_id, agent_spec=spec
     )
+    kernel_config = _apply_design_pattern_params(spec, kernel_config)
 
     from mas.runtime.spec.runtime_engine import apply_runtime_engine_to_kernel
 

@@ -10,6 +10,11 @@ kind: UserConfig
 # Team libs: my-org:bundle-id after uv pip install -e …
 default_infra: standard:production
 
+# Human exchange log on stderr for mas-ctl chat / run-mas.
+# Machines use events.jsonl / telemetry. Color stays opt-in (--trace-color).
+mas_ctl:
+  trace: summary
+
 runs_dir: ~/.local/share/mas/runs
 cache_dir: ~/.cache/mas
 labs_dir: ~/.local/share/mas/labs

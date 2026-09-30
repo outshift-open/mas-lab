@@ -15,7 +15,8 @@ def test_instantiate_runtime_attaches_tool_provider(monkeypatch, tmp_path: Path)
 
     monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: WorkspaceConfig({}))
     monkeypatch.setattr(UserConfig, "load", lambda *a, **k: UserConfig({}))
-    infra = resolve_infra_refs(["standard:mock-llm"], anchor=tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "ci-test-unused")
+    infra = resolve_infra_refs(["standard:openai"], anchor=tmp_path)
     tool_dir = tmp_path / "tools"
     tool_dir.mkdir()
     (tool_dir / "calc.py").write_text(

@@ -6,10 +6,12 @@ experiment:
     per (scenario, item) tuple of the trip-planner MAS.
 
     '
-  applications:
-    - app: trip-planner
-      configs_dir: ./overlays
+  application:
+    app: trip-planner
+    configs_dir: ./overlays
   default_flavour: local-benchmark
+  models:
+    main: gpt-4o
   default_infra: llm-proxy
   scenarios:
   - id: single-agent_cot
@@ -35,34 +37,31 @@ experiment:
       infra: []
   dataset:
     name: trip-planner-queries
-    locator: samples
   run:
     n_runs: 3
-  pipeline_bind: experiment/post
-  application:
-    post:
-      - name: trace-diff
-        type: trace_diff
-        config:
-          trace_file: traces/events.jsonl
-          normalize:
-            drop_fields:
-            - timestamp
-            - call_id
-            - parent_call_id
-            - context.run_id
-          output: '{output_dir}/results/trace-diff.csv'
-      - name: figure-bars
-        type: bar_plot
-        depends_on:
-        - trace-diff
-        config:
-          data: '@trace-diff'
-          x_col: scenario
-          y_col: value
-          facet_col: metric
-          title: Lab 5.A — Trace Reproducibility (3 replicates)
-          ylim:
-          - 0
-          - 1
-          output: '{output_dir}/results/figure-bit-exactness.png'
+  post:
+    - name: trace-diff
+      type: trace_diff
+      config:
+        trace_file: traces/events.jsonl
+        normalize:
+          drop_fields:
+          - timestamp
+          - call_id
+          - parent_call_id
+          - context.run_id
+        output: '{output_dir}/results/trace-diff.csv'
+    - name: figure-bars
+      type: bar_plot
+      depends_on:
+      - trace-diff
+      config:
+        data: '@trace-diff'
+        x_col: scenario
+        y_col: value
+        facet_col: metric
+        title: Lab 5.A — Trace Reproducibility (3 replicates)
+        ylim:
+        - 0
+        - 1
+        output: '{output_dir}/results/figure-bit-exactness.png'

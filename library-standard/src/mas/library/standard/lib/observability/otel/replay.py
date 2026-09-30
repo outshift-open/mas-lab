@@ -68,14 +68,13 @@ def replay_events_file(
     if not OTEL_AVAILABLE:
         raise RuntimeError("opentelemetry-sdk is not installed")
 
-    from opentelemetry.sdk.resources import Resource
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-
     from mas.library.standard.lib.observability.otel.topology import (
         build_topology,
         derive_app_name,
     )
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
     input_path = Path(input_path)
     if not input_path.exists():

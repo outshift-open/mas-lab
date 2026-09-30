@@ -22,6 +22,20 @@ class _CustomGovernancePlugin:
         return GovDecision.ALLOW, "custom", ""
 
 
+class _CompositeAllowPlugin:
+    def evaluate_egress(self, intent, *, config):
+        from mas.runtime.kernel.coupling import GovDecision
+
+        return GovDecision.ALLOW, "allow", "ok"
+
+
+class _CompositeBlockPlugin:
+    def evaluate_egress(self, intent, *, config):
+        from mas.runtime.kernel.coupling import GovDecision
+
+        return GovDecision.BLOCK, "block", "nope"
+
+
 def test_same_plugin_key_merges_policies_instead_of_overwriting_regression() -> None:
     """Regression: two overlay entries both using "sample_governance" used to
     silently overwrite (configs[name] = dict(cfg)), dropping the first
@@ -144,3 +158,36 @@ def test_agent_spec_threads_through_to_kernel_config() -> None:
 def test_agent_spec_defaults_to_none() -> None:
     config = build_kernel_config(parse_gov_spec(None))
     assert config.agent_spec is None
+
+
+def test_distinct_plugins_are_chained_not_last_wins() -> None:
+    from mas.runtime.boundary.gov.plugin import GovernancePluginChain
+    from mas.runtime.registry import get_registry, register_plugin
+
+    allow_urn = "mas.gov.test_composite_allow"
+    block_urn = "mas.gov.test_composite_block"
+    try:
+        register_plugin(
+            allow_urn,
+            _CompositeAllowPlugin,
+            shortcuts=["test_composite_allow"],
+            attributes={"plugin_type": "governance"},
+        )
+        register_plugin(
+            block_urn,
+            _CompositeBlockPlugin,
+            shortcuts=["test_composite_block"],
+            attributes={"plugin_type": "governance"},
+        )
+        config = build_kernel_config(parse_gov_spec(["test_composite_allow", "test_composite_block"]))
+        plugin = config.egress_governance_plugin
+        assert isinstance(plugin, GovernancePluginChain)
+        assert len(plugin.plugins) == 2
+    finally:
+        reg = get_registry()
+        for urn, shortcut in (
+            (allow_urn, "test_composite_allow"),
+            (block_urn, "test_composite_block"),
+        ):
+            reg._entries.pop(urn, None)
+            reg._aliases.pop(shortcut, None)

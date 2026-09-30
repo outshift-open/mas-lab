@@ -22,12 +22,24 @@ plugins:
 Or by short name when using a flavour that already activates it.
 
 See [flavours documentation](../library-standard/docs/user-guide.md) and
-[Tutorial 2 — Creating a MAS](../tutorials/02-creating-a-mas/) for
+[Tutorial 2 — Creating a MAS](tutorials/02-creating-a-mas/) for
 practical examples.
 
 ---
 
 ## Plugins by Category
+
+### Agent_Comm
+
+| Class            | Full module path                                            | Package                |
+| ---------------- | ----------------------------------------------------------- | ---------------------- |
+| `LocalAgentComm` | `mas.library.standard.mas.runtime.boundary.agentcomm.local` | `mas-library-standard` |
+
+### Assembler
+
+| Class                    | Full module path                                 | Package                |
+| ------------------------ | ------------------------------------------------ | ---------------------- |
+| `ContextAssemblerPlugin` | `mas.library.standard.plugins.context.assembler` | `mas-library-standard` |
 
 ### Context_Manager
 
@@ -36,12 +48,6 @@ practical examples.
 | `SlidingWindowConversation` | `mas.library.standard.plugins.context.conversation` | `mas-library-standard` |
 | `StackConversation`         | `mas.library.standard.plugins.context.conversation` | `mas-library-standard` |
 | `SummarizingConversation`   | `mas.library.standard.plugins.context.conversation` | `mas-library-standard` |
-
-### Context_Plugin
-
-| Class                    | Full module path                                 | Package                |
-| ------------------------ | ------------------------------------------------ | ---------------------- |
-| `ContextAssemblerPlugin` | `mas.library.standard.plugins.context.assembler` | `mas-library-standard` |
 
 ### Design_Pattern
 
@@ -59,9 +65,17 @@ practical examples.
 
 ### Governance
 
-| Class                    | Full module path                                       | Package                |
-| ------------------------ | ------------------------------------------------------ | ---------------------- |
-| `SampleGovernancePlugin` | `mas.library.standard.mas.runtime.boundary.gov.sample` | `mas-library-standard` |
+| Class                    | Full module path                                             | Package                |
+| ------------------------ | ------------------------------------------------------------ | ---------------------- |
+| `NoUndeclaredToolPlugin` | `mas.library.standard.plugins.governance.no_undeclared_tool` | `mas-library-standard` |
+| `SampleGovernancePlugin` | `mas.library.standard.plugins.governance.sample`             | `mas-library-standard` |
+
+### Llm_Provider
+
+| Class               | Full module path                          | Package                |
+| ------------------- | ----------------------------------------- | ---------------------- |
+| `CacheLLMProvider`  | `mas.library.standard.plugins.llm.cache`  | `mas-library-standard` |
+| `OpenAILLMProvider` | `mas.library.standard.plugins.llm.openai` | `mas-library-standard` |
 
 ### Memory
 
@@ -94,19 +108,39 @@ practical examples.
 | ------------------ | ------------------------------------- | -------------------- |
 | `SkillToolsPlugin` | `mas.library.skills.plugins.sk_tools` | `mas-library-skills` |
 
+### Summarizer
+
+| Class            | Full module path                                  | Package                |
+| ---------------- | ------------------------------------------------- | ---------------------- |
+| `DropSummarizer` | `mas.library.standard.plugins.context.summarizer` | `mas-library-standard` |
+| `LlmSummarizer`  | `mas.library.standard.plugins.context.summarizer` | `mas-library-standard` |
+
+### Tool_Provider
+
+| Class               | Full module path                           | Package                |
+| ------------------- | ------------------------------------------ | ---------------------- |
+| `LocalToolProvider` | `mas.library.standard.plugins.tools.local` | `mas-library-standard` |
+
 ---
 
 ## All Plugins — Alphabetical Index
 
 | Class                            | Category        | Package                |
 | -------------------------------- | --------------- | ---------------------- |
-| `ContextAssemblerPlugin`         | context_plugin  | `mas-library-standard` |
+| `CacheLLMProvider`               | llm_provider    | `mas-library-standard` |
+| `ContextAssemblerPlugin`         | assembler       | `mas-library-standard` |
 | `CotPlugin`                      | design_pattern  | `mas-library-standard` |
 | `DeterministicLinearPlugin`      | design_pattern  | `mas-library-standard` |
 | `DeterministicParallelPlugin`    | design_pattern  | `mas-library-standard` |
 | `DeterministicSingleAgentPlugin` | design_pattern  | `mas-library-standard` |
+| `DropSummarizer`                 | summarizer      | `mas-library-standard` |
 | `IntrospectionPlugin`            | design_pattern  | `mas-library-standard` |
+| `LlmSummarizer`                  | summarizer      | `mas-library-standard` |
+| `LocalAgentComm`                 | agent_comm      | `mas-library-standard` |
+| `LocalToolProvider`              | tool_provider   | `mas-library-standard` |
 | `NativeObservabilityPlugin`      | observability   | `mas-library-standard` |
+| `NoUndeclaredToolPlugin`         | governance      | `mas-library-standard` |
+| `OpenAILLMProvider`              | llm_provider    | `mas-library-standard` |
 | `OtelObservabilityPlugin`        | observability   | `mas-library-standard` |
 | `PlanExecutePlugin`              | design_pattern  | `mas-library-standard` |
 | `ReactPlugin`                    | design_pattern  | `mas-library-standard` |
@@ -142,5 +176,5 @@ Flavour YAML files shipped inside library packages.
 | ----------------- | --------------------------------------------------------------------------------- | ---------------------- |
 | `local`           | Default local development flavour. Infra bundles are resolved via workspace refs… | `mas-library-standard` |
 | `local-benchmark` | Benchmark flavour for mas-lab batch runs. Uses file telemetry and native observa… | `mas-library-standard` |
-| `mock`            | Deployment posture for offline CI / golden benchmark runs — same protocol and ob… | `mas-library-standard` |
+| `mcp`             | Expose local tools through the MCP protocol.                                      | `mas-library-standard` |
 

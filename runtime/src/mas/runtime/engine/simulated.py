@@ -8,6 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 
+from mas.runtime.engine.exchange_preview import ExchangeSnapshot, format_exchange_snapshot
 from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.ingress import EngineIoReturn
 
@@ -32,11 +33,15 @@ class SimulatedEngine:
     script: dict[int, EngineIoReturn] = field(default_factory=dict)
     llm_next_step: Callable[[int], str] | None = None
     llm_tool_intent: Callable[[int], tuple[str, dict]] | None = None
+    stop_text: str | None = None
 
-    def exchange_preview(self, op: str) -> str:
+    def exchange_snapshot(self, op: str, *, correlation_id: int = 0) -> ExchangeSnapshot:
         if op == "LLM_CALL":
-            return f"simulated:{self.sim_mode.value}"
-        return ""
+            return ExchangeSnapshot(note=f"simulated:{self.sim_mode.value}")
+        return ExchangeSnapshot()
+
+    def exchange_preview(self, op: str, *, correlation_id: int = 0) -> str:
+        return format_exchange_snapshot(self.exchange_snapshot(op, correlation_id=correlation_id))
 
     def invoke(self, io: InvokeEngineIo) -> EngineIoReturn:
         if io.correlation_id in self.script:
@@ -53,13 +58,19 @@ class SimulatedEngine:
                 tool_name, tool_arguments = self.llm_tool_intent(io.correlation_id)
             elif next_step == "TOOL_CALL":
                 tool_name = ""
+            if next_step == "TOOL_CALL":
+                text = ""
+            elif self.stop_text is not None:
+                text = self.stop_text
+            else:
+                text = f"[simulated model response cid={io.correlation_id}]"
             return EngineIoReturn(
                 correlation_id=io.correlation_id,
                 response_kind="MODEL_TEXT",
                 next_step=next_step,  # type: ignore[arg-type]
                 tool_name=tool_name,
                 tool_arguments=tool_arguments,
-                text="" if next_step == "TOOL_CALL" else f"[simulated model response cid={io.correlation_id}]",
+                text=text,
             )
 
         if io.op == "TOOL_CALL":

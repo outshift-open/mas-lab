@@ -4,31 +4,36 @@
 
 from __future__ import annotations
 
-from mas.runtime.boundary.gov.ingress_chain import evaluate_ingress_chain
+from mas.runtime.boundary.gov.telemetry import get_bound_observability
 from mas.runtime.boundary.ingress_validate import ingress_governance_valid
 from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.kernel.control_pipeline import control_on_egress_gov, control_on_result
 from mas.runtime.kernel.coord_hook import coord_after_ingress, coord_before_ingress
-from mas.runtime.kernel.coupling import apply_control_valid, apply_ingress_deny
+from mas.runtime.kernel.coupling import (
+    apply_control_valid,
+    apply_gov_error,
+    apply_ingress_deny,
+    gov_plugin_boundary_error,
+)
 from mas.runtime.kernel.egress_gate import emit_scheduled_egress
 from mas.runtime.kernel.envelope import (
     EnvelopeContext,
+    close_envelope,
     contract_kind_for_op,
     run_ingress_validate_envelope,
 )
-from mas.runtime.boundary.gov.telemetry import get_bound_observability
 from mas.runtime.kernel.hitl_gate import emit_ingress_hitl_pause
 from mas.runtime.kernel.inflight import dismiss_inflight, pending_for_validate
-from mas.runtime.schema.egress import EgressSymbol, NoOp, RaiseBoundaryError
-from mas.runtime.schema.governance import GovernanceAction
-from mas.runtime.schema.ingress import EngineIoReturn
+from mas.runtime.kernel.state import DpState, QProduct, RunEvent, RunLedger, ToolState
 from mas.runtime.machines.context import ctx_on_cycle_reset
 from mas.runtime.machines.memory import memory_on_ingress
 from mas.runtime.machines.model import model_on_abort, model_on_ingress
 from mas.runtime.machines.session import session_on_done
 from mas.runtime.machines.tool import tool_on_abort, tool_on_ingress
 from mas.runtime.machines.transport import transport_on_ingress
-from mas.runtime.kernel.state import DpState, QProduct, RunLedger, RunEvent, ToolState
+from mas.runtime.schema.egress import EgressSymbol, NoOp, RaiseBoundaryError
+from mas.runtime.schema.governance import GovernanceAction
+from mas.runtime.schema.ingress import EngineIoReturn
 
 
 def _ingress_hitl_skipped(q: QProduct, config: KernelConfig, event: EngineIoReturn) -> bool:
@@ -67,13 +72,14 @@ def commit_engine_io_return(
             text=event.text,
         )
     )
+    if event.offered_tools is not None:
+        q.offered_tools = tuple(event.offered_tools)
     if event.next_step == "TOOL_CALL":
         q.pending_tool_name = event.tool_name
         q.pending_tool_args = dict(event.tool_arguments)
     if event.next_step == "PARALLEL_TOOL_CALLS":
         q.parallel_tool_batch = [
-            {"tool_name": spec.tool_name, "tool_arguments": dict(spec.tool_arguments)}
-            for spec in event.parallel_tools
+            {"tool_name": spec.tool_name, "tool_arguments": dict(spec.tool_arguments)} for spec in event.parallel_tools
         ]
     q.session = session_on_done(q.session)
     q.memory = memory_on_ingress(q.memory)
@@ -97,35 +103,16 @@ def commit_engine_io_return(
     return evaluate(q, run, config=config)
 
 
-def apply_engine_io_return(
+def _ingress_envelope_context(
     q: QProduct,
-    run: RunLedger,
     event: EngineIoReturn,
     *,
     config: KernelConfig,
-    evaluate,
-) -> list[EgressSymbol]:
-    last_cid = run.events[-1].correlation_id if run.events else 0
-    inflight = pending_for_validate(q)
-    coord_before_ingress(q)
-    if not ingress_governance_valid(
-        event,
-        last_correlation_id=last_cid,
-        pending_correlation_id=q.pending_engine_correlation_id,
-        inflight_correlation_ids=inflight,
-    ):
-        apply_ingress_deny(q)
-        return [RaiseBoundaryError(code="INGRESS_DENIED", recoverable=True)]
-
-    if _ingress_hitl_skipped(q, config, event):
-        control_on_result(q)
-        control_on_egress_gov(q)
-        return commit_engine_io_return(q, run, event, config=config, evaluate=evaluate)
-
+) -> EnvelopeContext:
     # q.tool.value flips EXECUTING -> DONE as soon as the FIRST result of an
     # inflight batch (multiple tool calls dispatched together) is committed
-    # (see tool_on_ingress, called from commit_engine_io_return below) — by
-    # the time the 2nd/3rd result's own apply_engine_io_return call reads it,
+    # (see tool_on_ingress, called from commit_engine_io_return) — by the
+    # time the 2nd/3rd result's own apply_engine_io_return call reads it,
     # it already reads "DONE", so this would wrongly resolve to "LLM_CALL"
     # for every result but the first. That breaks CONTRACT_END's
     # (correlation_id, op)-keyed lookup in ObservabilityOperator, silently
@@ -151,8 +138,7 @@ def apply_engine_io_return(
     by_cid = q.pending_tools_by_cid.get(event.correlation_id)
     if by_cid is not None:
         tool_name, tool_arguments = by_cid[0], dict(by_cid[1] or {})
-
-    env_ctx = EnvelopeContext(
+    return EnvelopeContext(
         q=q,
         correlation_id=event.correlation_id,
         contract=contract_kind_for_op(scheduled_op),
@@ -163,7 +149,43 @@ def apply_engine_io_return(
         tool_arguments=tool_arguments,
         ingress_event=event,
     )
-    ingress_decision = run_ingress_validate_envelope(env_ctx)
+
+
+def apply_engine_io_return(
+    q: QProduct,
+    run: RunLedger,
+    event: EngineIoReturn,
+    *,
+    config: KernelConfig,
+    evaluate,
+) -> list[EgressSymbol]:
+    last_cid = run.events[-1].correlation_id if run.events else 0
+    inflight = pending_for_validate(q)
+    coord_before_ingress(q)
+    env_ctx = _ingress_envelope_context(q, event, config=config)
+    if not ingress_governance_valid(
+        event,
+        last_correlation_id=last_cid,
+        pending_correlation_id=q.pending_engine_correlation_id,
+        inflight_correlation_ids=inflight,
+    ):
+        apply_ingress_deny(q)
+        close_envelope(env_ctx, error="INGRESS_DENIED")
+        return [RaiseBoundaryError(code="INGRESS_DENIED", recoverable=True)]
+
+    if _ingress_hitl_skipped(q, config, event):
+        # Pair CONTRACT_START / PRE_EXECUTE without re-running ingress HITL.
+        close_envelope(env_ctx, enable_governance=False)
+        control_on_result(q)
+        control_on_egress_gov(q)
+        return commit_engine_io_return(q, run, event, config=config, evaluate=evaluate)
+
+    try:
+        ingress_decision = run_ingress_validate_envelope(env_ctx)
+    except Exception as exc:
+        close_envelope(env_ctx, error="GOV_PLUGIN_ERROR")
+        apply_gov_error(q)
+        return [gov_plugin_boundary_error(exc)]
     action = ingress_decision.action
     control_on_result(q)
     control_on_egress_gov(q)
@@ -192,15 +214,11 @@ def apply_engine_io_return(
         code = ingress_decision.boundary_code or "INGRESS_GOV_BLOCK"
         msg = ingress_decision.message
         recoverable = ingress_decision.recoverable
-        return [
-            RaiseBoundaryError(code=code, recoverable=recoverable, message=msg)
-        ]
+        return [RaiseBoundaryError(code=code, recoverable=recoverable, message=msg)]
 
     if action == GovernanceAction.SKIP:
         cid = run.next_correlation_id()
-        run.append(
-            RunEvent(correlation_id=cid, response_kind="TOOL_RESULT", next_step="STOP")
-        )
+        run.append(RunEvent(correlation_id=cid, response_kind="TOOL_RESULT", next_step="STOP"))
         q.inflight_kind = "NONE"
         q.dp = DpState.EVALUATING
         return evaluate(q, run, config=config)

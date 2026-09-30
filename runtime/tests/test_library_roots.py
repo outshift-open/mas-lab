@@ -246,7 +246,7 @@ def test_discover_library_roots_finds_unpackaged_local_library(tmp_path, monkeyp
     (lib / "library.yaml").write_text("name: local-only-lib\n", encoding="utf-8")
 
     monkeypatch.setenv("MAS_LIBRARY_PATHS", str(lib))
-    monkeypatch.setattr(library_roots, "_installed_library_roots", lambda: [])
+    monkeypatch.setattr(library_roots, "_installed_named_libraries", lambda: {})
     monkeypatch.setattr(
         "mas.runtime.workspace_config.RuntimeWorkspaceConfig.load",
         classmethod(lambda cls, start=None: cls({})),
@@ -263,7 +263,7 @@ def test_discover_library_roots_dedupes_across_strategies(tmp_path, monkeypatch)
 
     # Same root reachable via both MAS_LIBRARY_PATHS and the installed-package stub.
     monkeypatch.setenv("MAS_LIBRARY_PATHS", str(lib))
-    monkeypatch.setattr(library_roots, "_installed_library_roots", lambda: [lib])
+    monkeypatch.setattr(library_roots, "_installed_named_libraries", lambda: {"dup-lib": lib})
     monkeypatch.setattr(
         "mas.runtime.workspace_config.RuntimeWorkspaceConfig.load",
         classmethod(lambda cls, start=None: cls({})),
@@ -296,7 +296,51 @@ def test_discover_library_roots_one_broken_installed_library_does_not_hide_other
     # try/except), but this proves discover_library_roots() as a whole
     # still surfaces the local library even when package discovery finds
     # nothing at all.
-    monkeypatch.setattr(library_roots, "_installed_library_roots", lambda: [])
+    monkeypatch.setattr(library_roots, "_installed_named_libraries", lambda: {})
 
     roots = discover_library_roots(tmp_path / "somewhere-else")
     assert good_lib.resolve() in roots
+
+
+def test_discover_library_roots_does_not_scan_git_checkout_siblings(tmp_path, monkeypatch) -> None:
+    """A .git ancestor is a walk boundary, not a library search root."""
+    checkout = tmp_path / "mas-lab"
+    (checkout / ".git").mkdir(parents=True)
+    lab = checkout / "library-lab"
+    lab.mkdir()
+    (lab / "library.yaml").write_text("name: mas-library-lab\n", encoding="utf-8")
+    nested = checkout / "labs" / "lifecycle-control.lab"
+    nested.mkdir(parents=True)
+
+    monkeypatch.delenv("MAS_LIBRARY_PATHS", raising=False)
+    monkeypatch.setattr(library_roots, "_installed_named_libraries", lambda: {})
+    monkeypatch.setattr(
+        "mas.runtime.workspace_config.RuntimeWorkspaceConfig.load",
+        classmethod(lambda cls, start=None: cls({})),
+    )
+
+    roots = discover_library_roots(nested)
+    assert lab.resolve() not in roots
+
+
+def test_discover_library_roots_includes_nested_lab_library(tmp_path, monkeypatch) -> None:
+    """A library.yaml under a *.lab cwd is enumerated when that lab is the anchor."""
+    lab = tmp_path / "demo.lab"
+    mylib = lab / "mylib"
+    mylib.mkdir(parents=True)
+    (lab / "lab-config.yaml").write_text(
+        "lab:\n  name: demo\n  libraries:\n    - mylib/\n",
+        encoding="utf-8",
+    )
+    (mylib / "library.yaml").write_text("name: mylib\n", encoding="utf-8")
+
+    monkeypatch.delenv("MAS_LIBRARY_PATHS", raising=False)
+    monkeypatch.setattr(library_roots, "_installed_named_libraries", lambda: {})
+    monkeypatch.setattr(
+        "mas.runtime.workspace_config.RuntimeWorkspaceConfig.load",
+        classmethod(lambda cls, start=None: cls({})),
+    )
+    monkeypatch.chdir(lab)
+
+    roots = discover_library_roots(lab)
+    assert mylib.resolve() in roots

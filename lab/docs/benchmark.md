@@ -5,7 +5,7 @@
 # Benchmark guide
 
 `mas-lab benchmark` runs an **experiment**: all **scenarios** × **dataset** items ×
-**runs**, then the **embedded pipeline** (if declared in `experiment.yaml`).
+**runs**, then the level hooks declared in `experiment.yaml`.
 
 Full CLI reference: [components/bench/README.md](../components/bench/README.md).
 Terms: [glossary.md](../../docs/glossary.md).
@@ -14,8 +14,8 @@ Terms: [glossary.md](../../docs/glossary.md).
 
 | Phase | Command | Produces |
 |-------|---------|----------|
-| **Execution** | `mas-lab benchmark run experiment.yaml` | Per-**run** `events.jsonl`, `metrics.json` |
-| **Pipeline** | Automatic after execution | `results/*.csv`, `results/fig-*.png` |
+| **Execution** | `mas-lab benchmark run experiment.yaml` | Per-**run** `events.jsonl` |
+| **Pipeline** | Automatic after execution | Per-level artifacts (`run/…/metrics.json`, `run/…/data.csv`, gathered up through `scenario/data.csv` to `data.csv` and any figures at the application level) |
 
 Re-running skips completed **runs** (unless `--force`) and re-executes **pipeline
 steps** when step fingerprints change.
@@ -23,7 +23,7 @@ steps** when step fingerprints change.
 ## Essential commands
 
 ```bash
-mas-lab benchmark run experiment.yaml --progress    # execution + embedded pipeline
+mas-lab benchmark run experiment.yaml --progress    # execution + level hooks
 mas-lab benchmark run experiment.yaml --dry-run       # JSON Schema validate + execution plan
 mas-lab benchmark show last                         # inspect latest output_dir
 mas-lab benchmark pipeline run pipeline.yaml -o DIR # pipeline only
@@ -51,6 +51,6 @@ Per lab: [labs-quickstart.md](labs-quickstart.md).
 |-------|----------|
 | Pipeline YAML | [pipeline.md](pipeline.md) |
 | Pipeline step types | [pipeline-steps.md](pipeline-steps.md) |
-| Executor design | [PIPELINE_DESIGN.md](../components/bench/PIPELINE_DESIGN.md) |
+| Run state, locks, fingerprints | [benchmark-state-architecture.md](benchmark-state-architecture.md) |
 | Reproducibility | [Experiments and analysis](../../docs/tutorials/03-experiments-and-analysis/README.md) |
 | Paper labs | [paper/index.md](../../docs/paper/index.md) |

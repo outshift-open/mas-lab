@@ -5,7 +5,7 @@
 Before issue #65's fix, ``pin_tail`` (the in-turn working memory) was exempt
 from budget trimming outright: if it alone exceeded the budget the code just
 logged a warning and returned it whole. That meant a long stuck retry loop
-with a configured ``token_budget`` could still blow the budget forever.
+with ``context_manager.params.trimmer`` could still blow the budget forever.
 """
 
 from __future__ import annotations
@@ -55,3 +55,23 @@ def test_committed_history_trimmed_before_pinned_tail() -> None:
     out = trim_messages_to_budget(committed, max_tokens=budget, pin_tail=pin_tail)
     assert out[-2:] == pin_tail
     assert len(out) < len(committed) + len(pin_tail)
+
+
+def test_history_tool_groups_trimmed_atomically() -> None:
+    history: list[dict] = []
+    for i in range(8):
+        history.extend(_tool_group(f"call_{i}", arg_len=400))
+    budget = estimate_tokens(_tool_group("call_7", arg_len=400)) + 40
+    out = trim_messages_to_budget(history, max_tokens=budget)
+    assert_provider_payload(out)
+    assert out[-1]["tool_call_id"] == "call_7"
+
+
+def test_assistant_in_history_tool_results_only_in_pin_tail() -> None:
+    """Dropping the committed assistant must not leave orphan tools in pin_tail."""
+    history = [{"role": "user", "content": "q"}] + _tool_group("committed", arg_len=30)[:1]
+    pin_tail = _tool_group("committed", arg_len=30)[1:] + _tool_group("live", arg_len=30)
+    budget = estimate_tokens(pin_tail) + 20
+    out = trim_messages_to_budget(history, max_tokens=budget, pin_tail=pin_tail)
+    assert_provider_payload(out)
+    assert out[-2:] == pin_tail[-2:]

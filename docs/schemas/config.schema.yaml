@@ -35,6 +35,30 @@ properties:
       runtime_profile:
         type: string
         description: Path to runtime-profile manifest (relative to workspace).
+      trace:
+        description: >-
+          Human exchange log on stderr for mas-ctl chat / run-mas. `summary`
+          (or `true`) is the usable default: headers + timestamps, untruncated
+          AGENT→USER. `full` dumps payloads. `off` (or `false`) disables.
+          Color is never implied; set trace_color or pass --trace-color.
+          Machine data is events.jsonl / mas-lab telemetry, not this log.
+        oneOf:
+          - type: boolean
+          - type: string
+            enum: [off, summary, full]
+        default: off
+      trace_timestamps:
+        type: boolean
+        default: true
+        description: UTC + elapsed on each exchange (on by default when tracing).
+      trace_color:
+        type: boolean
+        default: false
+        description: ANSI color on the exchange log. Never the CLI default.
+      trace_engine:
+        type: boolean
+        default: false
+        description: Include raw InvokeEngineIo / EngineIoReturn JSON.
 
   mas_lab:
     type: object
@@ -107,11 +131,21 @@ properties:
     description: Optional infra interceptor bundle refs.
 
   manifest_libraries:
-    type: object
-    additionalProperties:
-      type: string
     description: >-
-      Map library scheme to directory (e.g. samples: ./library-samples/src).
+      Extra library **search folders** for this workspace. Same scan as
+      ``lab.libraries`` and ``MAS_LIBRARY_PATHS``: each path is a library
+      root, or a parent of sibling library folders. ``library.yaml`` in
+      those folders fills the catalog. Names come from the found
+      directory stem. A legacy name→path map is flattened to its path
+      values; it is not an alias table.
+    oneOf:
+      - type: array
+        items:
+          type: string
+          minLength: 1
+      - type: object
+        additionalProperties:
+          type: string
 
   aliases:
     type: object
@@ -131,13 +165,16 @@ properties:
     properties:
       model:
         type: string
-        description: Default model id when manifests omit one.
+        description: Fill-in LLM id for remaining Agent/MAS/experiment `any` after experiment.models (not written into committed specs).
       design_pattern:
         type: string
         description: Default plugin id for spec.design_pattern when manifests omit one.
       context_manager:
         type: string
         description: Default plugin id for spec.context_manager when manifests omit one.
+      assembler:
+        type: string
+        description: Default plugin id for spec.assembler when manifests omit one.
 
   paths:
     type: object

@@ -38,6 +38,8 @@ def _tool_ref_path(ref: str, base_dir: Path) -> Path | None:
         else:
             path = (root / ref).resolve()
             path.relative_to(root)
+    except LookupError:
+        raise
     except (ValueError, ModuleNotFoundError) as exc:
         logger.debug("tool ref %r not resolved: %s", ref, exc)
         return None

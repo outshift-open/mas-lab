@@ -105,7 +105,7 @@ def analyze_command(args) -> int:
     
     logger.info(
         "Figures and tables are produced by pipeline steps in experiment.yaml "
-        "(application.post / scenario.post). Re-run the benchmark or "
+        "(experiment post: / scenario.post). Re-run the benchmark or "
         "'mas-lab benchmark step restart' to refresh plot artefacts."
     )
 

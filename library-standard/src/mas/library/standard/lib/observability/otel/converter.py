@@ -44,34 +44,27 @@ so replayed traces have the same timing as the original run.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
-import os
 import threading
-import time
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, ClassVar
-
-logger = logging.getLogger(__name__)
 
 from mas.library.standard.lib.observability.export_layers import (
     ExportLayers,
     layer_for_kind,
-    parse_export_layers,
     should_export_event,
 )
 from mas.library.standard.lib.observability.native.tool_name import resolve_tool_name
 
+logger = logging.getLogger(__name__)
+
 try:
     from opentelemetry import context as context_api
     from opentelemetry import trace
-    from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
     from opentelemetry.sdk.trace.export import (
-        SimpleSpanProcessor,
         SpanExporter,
         SpanExportResult,
     )
@@ -190,6 +183,7 @@ class MasOtelConverter:
         self._closed_call_ids: set[str] = set()
         # call_id → agent_id (disambiguate shared ids across agents in one trace)
         self._call_id_agents: dict[str, str] = {}
+        self._upstream_correlation_ids: dict[str, int] = {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -201,6 +195,13 @@ class MasOtelConverter:
     def process_event(self, event: dict[str, Any]) -> None:
         """Dispatch a single native event record to the appropriate handler."""
         event = self._scope_event_call_ids(event)
+        call_id = event.get("call_id")
+        upstream_correlation_id = event.get("upstream_correlation_id")
+        if call_id and upstream_correlation_id is not None:
+            try:
+                self._upstream_correlation_ids[str(call_id)] = int(upstream_correlation_id)
+            except (TypeError, ValueError):
+                pass
         if not should_export_event(event, self._export_layers):
             return
         run_id = event.get("run_id") or (event.get("context") or {}).get("run_id", "")
@@ -348,6 +349,7 @@ class MasOtelConverter:
         self._open_spans.clear()
         self._closed_span_ctx.clear()
         self._call_id_agents.clear()
+        self._upstream_correlation_ids.clear()
         self._closed_call_ids.clear()
         self._run_id = ""
         self._session_uuid = str(uuid.uuid4())
@@ -403,6 +405,9 @@ class MasOtelConverter:
             if self._session_uuid:
                 overlay["session.id"] = self._session_uuid
         attrs = {**attrs, **overlay}
+        upstream_correlation_id = self._upstream_correlation_ids.get(call_id)
+        if upstream_correlation_id is not None:
+            attrs["mas.upstream.correlation.id"] = upstream_correlation_id
         if set_call_id:
             attrs["mas.call.id"] = call_id
         kwargs: dict[str, Any] = {"context": ctx, "attributes": attrs}

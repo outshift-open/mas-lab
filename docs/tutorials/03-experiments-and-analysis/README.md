@@ -21,6 +21,10 @@ evaluate answer quality with MCE, and generate plots — first
 manually, then via reusable pipelines, and finally in a full experiment
 comparing three MAS topologies on the trip planner.
 
+A **lab** is this experiment pack. A **library** is reusable YAML and code
+(`samples:tools/calc.tool.yaml`). When to create each:
+[labs-and-libraries.md](../../labs-and-libraries.md).
+
 1. **Part A** — Manual trace analysis on a QA agent (CLI commands one by one)
 2. **Part B** — Turning those manual steps into a declarative pipeline
 3. **Part C** — Trip planner experiment: single-agent vs. linear vs. moderator, evaluated with MCEv1 `AnswerRelevancyMetric` and compared in a grouped ggplot2 plot
@@ -122,8 +126,9 @@ delete the `.run_ref` file (breaks the link) and re-execute.
 > deduplicates whole *experiment runs*. Each individual LLM call within a run
 > has its own separate **LLM response cache** (policy from workspace
 > `runtime_refs` / `standard:runtime-default`, or `--cache-read` /
-> `--cache-write` on `mas-ctl chat`). Mock LLM comes from workspace
-> `infra_refs: [standard:mock-llm]` (see `config.yaml` in this tutorial).
+> `--cache-write` on `mas-ctl chat`). Offline CI replay uses
+> [llm_cache](../../manifests/llm-cache.md) (`raise_on_miss`) recorded against
+> a live provider. Tutorial 0 `config.yaml` inherits user `default_infra`.
 > See [runtime-engine.md](../../manifests/runtime-engine.md) and
 > [llm-cache.md](../../manifests/llm-cache.md).
 
@@ -239,22 +244,29 @@ Before diving into pipelines and full experiments, let's understand the
 **four-level hierarchy** that structures every benchmark:
 
 ```
-EXPERIMENT ─── the top-level unit of work
-├── APP (applications:) ── one or more MAS applications under test
-│   └── SCENARIO ───────── a configuration variant (overlay stack)
-│       └── TEST ───────── one dataset item (prompt, incident, trip…)
-│           └── RUN ────── a repeated execution (n_runs times)
+EXPERIMENT ─── the top-level unit of work (experiment-level post: --depth exp)
+├── APPLICATION ── MAS binding (application.app / manifest + configs_dir)
+├── SCENARIO ───── overlay column (scenarios: + scenario.post)
+│   └── TEST / ITEM ── one dataset item (dataset: + item.post)
+│       └── RUN ────── one execution (run.n_runs + run.post)
+└── EXECUTION ──── batch orchestration only (last in the file)
 ```
 
 | Level | Defined by | Multiplicity |
 |-------|-----------|--------------|
-| **Experiment** | `experiment.yaml` | 1 |
-| **App** | `applications:` list (manifest + overlays dir) | 1+ per experiment |
+| **Experiment** | `experiment.yaml` + root `post:` | 1 |
+| **Application** | `application:` (`app` or `manifest`, `configs_dir`) | 1 |
 | **Scenario** | `scenarios:` list — each entry is an overlay stack | M scenarios |
-| **Test** | one item in `dataset.yaml` (app-specific) | D items per dataset |
-| **Run** | `run.n_runs` | N repetitions per test |
+| **Test / item** | one item in `dataset:` (`item:` hooks, CLI `--item`) | D items per dataset |
+| **Run** | `run.n_runs` | N repetitions per item |
 
 **Total executions = M × D × N**
+
+Pin LLMs on the experiment, not in overlays. `experiment.models` is a
+**slot map**: `main` (turns), `summarizer` (history summary), `judge`
+(MCE). Scalar `experiment.model` is shorthand for `models.main`. Agents
+that say `model: any` inherit these slots. See
+[experiment.md](../../manifests/experiment.md#model-slots-models--model).
 
 The output directory mirrors this structure:
 
@@ -274,15 +286,12 @@ patches applied on top of the base MAS manifest:
 
 ```yaml
 scenarios:
-  - id: baseline                # ← scenario id (used for output dirs)
-    overlays: []                # ← no overlays (control)
+  - id: baseline
+    overlays: {logic: [], control: [], infra: []}
     tags: [reference]
-  - id: cot                     # ← scenario id
-    overlays: [cot]             # ← overlays/cot.yaml via metadata.id
+  - id: cot
+    overlays: {logic: [cot], control: [], infra: []}
     tags: [cot]
-  - id: biased-confirmation
-    overlays: [biased-confirmation]  # ← MITM fault overlay
-    tags: [mitm, bias]
 ```
 
 **Tests** come from the dataset, which is **app-specific** — a Q&A agent
@@ -297,8 +306,9 @@ dataset:
 **Runs** repeat each test to measure variance:
 
 ```yaml
-execution:
+run:
   n_runs: 3                     # 3 repetitions per (scenario × item)
+execution:
   strategy: coverage            # breadth-first: one round across all conditions
 ```
 
@@ -309,22 +319,20 @@ Pipeline steps run after the benchmark and operate at a specific
 inline pipelines empty and uses a standalone, re-runnable analysis pipeline.
 
 ```yaml
-application:
-  post:
-    - name: extract
-      type: extract_trajectories
-      scope: app              # ← runs once for the whole experiment
-      config:
-        runs_dir: runs
-        csv_file: mas_benchmark_*.csv
+post:
+  - name: extract
+    type: extract_trajectories
+    config:
+      runs_dir: runs
+      csv_file: mas_benchmark_*.csv
 ```
 
-| Scope | Runs | Template variables available |
+| Scope | YAML / CLI | Template variables available |
 |-------|------|-----------------------------|
-| `run` | once per run | `{scenario_id}`, `{item_id}`, `{run_dir}`, `{events_jsonl}` |
-| `item` | once per (scenario × item) | `{scenario_id}`, `{item_id}` |
-| `scenario` | once per scenario | `{scenario_id}` |
-| `app` | once total | `{output_dir}` |
+| `run` | `run.post` / `--depth run` | `{scenario_id}`, `{item_id}`, `{run_dir}`, `{events_jsonl}` |
+| `item` | `item.post` / `--depth item` | `{scenario_id}`, `{item_id}` |
+| `scenario` | `scenario.post` / `--depth scenario` | `{scenario_id}` |
+| `exp` | root `post:` / `--depth exp` | `{output_dir}` |
 
 ### Tutorial artifacts vs. design-space lab
 
@@ -407,8 +415,8 @@ The plots land under `$LAB/trajectories/` (`trajectory.svg`, `swimlane.html`).
 
 ### B.5 — Inline vs. standalone pipelines
 
-Pipelines can also be **inlined** in the experiment YAML (`application.post`
-and other level hooks). Use inline for simple post-processing;
+Pipelines can also be **inlined** in the experiment YAML (`post:` at
+experiment level, plus `scenario.post` / `item.post` / `run.post`). Use inline for simple post-processing;
 use standalone `.yaml` files when you want to re-run analysis without
 re-executing the benchmark.
 
@@ -559,45 +567,43 @@ For this tutorial we use a 15-item subset of the trip planner benchmark —
 # experiment-topology.yaml (illustrative — see note above)
 experiment:
   name: "t3-topology-comparison"
-  version: "v1"
   description: >
     Compare three MAS topologies (single-agent, linear, moderator) on
     15 trip planner prompts. 3 runs per scenario × 15 items = 135 executions.
-    Evaluated with MCEv1 AnswerRelevancyMetric.
 
   default_flavour: local
-  applications:
-    - manifest: ./mas.yaml
-      configs_dir: "topologies"
+  application:
+    manifest: ./mas.yaml
+    configs_dir: ./topologies
 
   scenarios:
     - id: single-agent
-      description: "One agent with all tools — no delegation (workflow.type: single)"
+      description: "One agent with all tools — no delegation"
+      overlays: {logic: [], control: [], infra: []}
       tags: [single, baseline]
-
     - id: linear
-      description: "Automaton-driven pipeline: schedule → itinerary → concierge (workflow.type: sequential)"
+      description: "Fixed chain: schedule → itinerary → concierge"
+      overlays: {logic: [linear], control: [], infra: []}
       tags: [linear, sequential]
-
     - id: moderator
-      description: "Entry agent orchestrates 3 specialists via delegate_to_* (workflow.type: dynamic)"
+      description: "Dynamic delegation to specialists"
+      overlays: {logic: [moderator], control: [], infra: []}
       tags: [moderator, broker]
 
   dataset:
     path: "dataset-topology.yaml"
 
+  models:
+    main: gpt-4o
+    judge: gpt-4o
+
   evaluation:
-    method: "mce_v1"
-    config:
-      metrics:
-        - AnswerRelevancyMetric
-      metric_kwargs:
-        model: "gpt-4o"
-        threshold: 0.5
-        api_key_env: "OPENAI_API_KEY"
+    method: llm_judge
+
+  run:
+    n_runs: 3
 
   execution:
-    n_runs: 3
     parallel_scenarios: 3
     timeout: 300
     pause_between_runs: 1.0
@@ -782,25 +788,24 @@ services:
 
 ### Wiring bundle → pipeline
 
-Declare lifecycle steps under `application.pre` / `application.post` and
+Declare lifecycle steps under experiment-level `pre:` / `post:` and
 per-run hooks under `run.post`:
 
 ```yaml
 experiment:
   default_infra: local-test    # selected when --infra is omitted
 
-  application:
-    pre:
-      - type: service_start
-        name: start-otel
-        config:
-          service: otel-collector
-          health_timeout: 30
-    post:
-      - type: service_stop
-        name: stop-otel
-        config:
-          service: otel-collector
+  pre:
+    - type: service_start
+      name: start-otel
+      config:
+        service: otel-collector
+        health_timeout: 30
+  post:
+    - type: service_stop
+      name: stop-otel
+      config:
+        service: otel-collector
 
   run:
     post:

@@ -18,10 +18,11 @@ from mas.runtime.boundary.hitl.responders import HitlResponder
 from mas.runtime.boundary.ingress_validate import validate_ingress
 from mas.runtime.boundary.obs.exchange_plugin import ExchangePlugin
 from mas.runtime.boundary.obs.operator import ObservabilityOperator
+from mas.runtime.contracts.tool_semantics import bound_tool_semantics, existing_attr
 from mas.runtime.driver.mocks import AutoCtxAssembler
+from mas.runtime.engine.exchange_preview import ExchangeSnapshot
 from mas.runtime.engine.simulated import SimulatedEngine
 from mas.runtime.engine.worker_pool import DEFAULT_ENGINE_QUEUE_DEPTH, EngineWorkerPool
-from mas.runtime.spec.defaults import DEFAULT_MAX_AUTO_STEPS
 from mas.runtime.kernel.inflight import pending_for_validate, register_inflight
 from mas.runtime.kernel.orchestrator import RuntimeKernel
 from mas.runtime.kernel.runtime_context import runtime_binding
@@ -36,20 +37,85 @@ from mas.runtime.schema.egress import (
     RequestCtxAssembly,
 )
 from mas.runtime.schema.ingress import EngineIoReturn, IngressSymbol, UserInputReceived
+from mas.runtime.schema.observability import ObsEventKind
+from mas.runtime.spec.defaults import DEFAULT_MAX_AUTO_STEPS
 
 _logger = logging.getLogger(__name__)
+
+ExchangeKind = Literal[
+    "user_in",
+    "user_out",
+    "llm_request",
+    "llm_response",
+    "tool_call",
+    "tool_result",
+    "gov_block",
+]
 
 
 @dataclass
 class ExchangeRecord:
-    """One line in the v1-style exchange log (AGENT↔LLM↔TOOL)."""
+    """One USER↔AGENT↔LLM↔TOOL hop. Typed fields only; pretty-print is a view."""
 
-    tag: str
-    text: str
-    detail: str = ""
+    kind: ExchangeKind
+    text: str = ""
     ts_mono: float = 0.0
     ts_wall: str = ""
+    agent_id: str = ""
+    correlation_id: int | None = None
+    op: str | None = None
+    response_kind: str | None = None
+    finish_reason: str | None = None
+    next_step: str | None = None
+    tool_name: str | None = None
+    tool_arguments: dict[str, Any] | None = None
+    semantics: dict[str, Any] | None = None
+    model: str | None = None
+    messages: list[dict[str, Any]] | None = None
+    tools: list[dict[str, Any]] | None = None
+    tools_note: str = ""
     engine_raw: str = ""
+    policy_name: str | None = None
+
+
+def engine_model_id(engine: Any) -> str:
+    """Model id the engine will actually call (unwraps infra middleware).
+
+    Uses :func:`existing_attr` so a spec-less ``MagicMock`` cannot auto-create
+    ``.inner`` / ``.model`` and allocate an unbounded mock tree.
+    """
+    seen: set[int] = set()
+    cur = engine
+    for _ in range(8):
+        if cur is None or id(cur) in seen:
+            break
+        seen.add(id(cur))
+        model = existing_attr(cur, "model")
+        if isinstance(model, str) and model.strip():
+            return model.strip()
+        inner = existing_attr(cur, "inner")
+        if inner is None or inner is cur:
+            break
+        cur = inner
+    return ""
+
+
+def engine_manifest(engine: Any) -> dict[str, Any] | None:
+    """Agent manifest on the engine, unwrapping infra ``.inner`` wrappers."""
+    seen: set[int] = set()
+    cur = engine
+    for _ in range(8):
+        if cur is None or id(cur) in seen:
+            break
+        seen.add(id(cur))
+        manifest = existing_attr(cur, "manifest")
+        if isinstance(manifest, dict):
+            return manifest
+        inner = existing_attr(cur, "inner")
+        if inner is None or inner is cur:
+            break
+        cur = inner
+    return None
 
 
 def _exchange_timestamp() -> tuple[float, str]:
@@ -57,6 +123,27 @@ def _exchange_timestamp() -> tuple[float, str]:
         time.perf_counter(),
         datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
     )
+
+
+def _next_unbound_tool_call_id(store: Any, extra_messages: list[Any] | None = None) -> str:
+    """Id of the next assistant tool_call that has no matching tool result yet.
+
+    HITL can dispatch parallel tools one-at-a-time, so tool-result correlation
+    ids do not match the ids recorded on the assistant message. Bind in order.
+    ``extra_messages`` is committed history: HITL pause folds WM there before
+    the tool result arrives.
+    """
+    messages = list(extra_messages or []) + list(getattr(store, "messages", None) or [])
+    declared: list[str] = []
+    for msg in reversed(messages):
+        if msg.get("role") == "assistant" and msg.get("tool_calls"):
+            declared = [str(c.get("id") or "") for c in (msg.get("tool_calls") or []) if c.get("id")]
+            break
+    bound = {str(m.get("tool_call_id") or "") for m in messages if m.get("role") == "tool"}
+    for tid in declared:
+        if tid not in bound:
+            return tid
+    return ""
 
 
 def _engine_payload_json(obj: object) -> str:
@@ -67,6 +154,72 @@ def _engine_payload_json(obj: object) -> str:
     else:
         return str(obj)
     return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+def _engine_snapshot(engine: Any, op: str, *, correlation_id: int = 0) -> ExchangeSnapshot | None:
+    snap_fn = getattr(engine, "exchange_snapshot", None)
+    if not callable(snap_fn):
+        return None
+    snap = snap_fn(op, correlation_id=correlation_id)
+    return snap if isinstance(snap, ExchangeSnapshot) else None
+
+
+def _engine_invoke_record(
+    sym: InvokeEngineIo,
+    *,
+    engine: Any,
+    q: Any,
+    agent_id: str,
+    ts_mono: float,
+    ts_wall: str,
+    engine_raw: str,
+    ctx: Any = None,
+) -> tuple[ExchangeRecord, str]:
+    """Build the outbound engine ExchangeRecord. Returns (record, tool_name to track)."""
+    if sym.op == "TOOL_CALL":
+        tool_name = ""
+        tool_arguments: dict[str, Any] | None = None
+        by_cid = q.pending_tools_by_cid.get(sym.correlation_id)
+        if by_cid is not None:
+            tool_name, raw_args = by_cid[0], by_cid[1]
+            tool_arguments = dict(raw_args or {})
+        elif q.pending_tool_name:
+            tool_name = q.pending_tool_name
+            tool_arguments = dict(q.pending_tool_args or {})
+        return (
+            ExchangeRecord(
+                kind="tool_call",
+                ts_mono=ts_mono,
+                ts_wall=ts_wall,
+                agent_id=agent_id,
+                correlation_id=sym.correlation_id,
+                op=sym.op,
+                tool_name=tool_name or None,
+                tool_arguments=tool_arguments,
+                semantics=bound_tool_semantics(engine, tool_name or None, tool_arguments, ctx=ctx),
+                model=engine_model_id(engine) or None,
+                engine_raw=engine_raw,
+            ),
+            tool_name,
+        )
+    snap = _engine_snapshot(engine, sym.op, correlation_id=sym.correlation_id) if engine is not None else None
+    return (
+        ExchangeRecord(
+            kind="llm_request",
+            text=(snap.note if snap is not None else ""),
+            ts_mono=ts_mono,
+            ts_wall=ts_wall,
+            agent_id=agent_id,
+            correlation_id=sym.correlation_id,
+            op=sym.op,
+            messages=snap.messages if snap is not None else None,
+            tools=snap.tools if snap is not None else None,
+            tools_note=snap.tools_note if snap is not None else "",
+            model=engine_model_id(engine) or None,
+            engine_raw=engine_raw,
+        ),
+        "",
+    )
 
 
 @dataclass
@@ -132,22 +285,27 @@ class KernelDriver:
     # own or gate.
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     _tool_by_correlation_id: dict[int, str] = field(default_factory=dict)  # Track tool name per correlation_id
+    _semantics_by_correlation_id: dict[int, dict[str, Any]] = field(default_factory=dict)
     # Task id of the turn currently being processed — set from
     # UserInputReceived.task_id and carried onto every transition (ingress
     # and egress alike) produced while that turn runs, until the next
     # UserInputReceived replaces it. See GovTransition.task_id.
     _current_task_id: str = field(default="", repr=False)
+    _upstream_correlation_id: int | None = field(default=None, repr=False)
+    _gov_exchange_seq: int = field(default=0, repr=False)
 
     def __post_init__(self) -> None:
         if self.engine_pool is None and self.engine is not None:
-            depth = (
-                self.kernel.config.engine_queue_depth
-                if self.kernel is not None
-                else DEFAULT_ENGINE_QUEUE_DEPTH
-            )
-            self.engine_pool = EngineWorkerPool(worker=self.engine.invoke, max_depth=depth)
-        if self.ctx is not None and self.observability is not None:
-            self.ctx.observability = self.observability
+            depth = self.kernel.config.engine_queue_depth if self.kernel is not None else DEFAULT_ENGINE_QUEUE_DEPTH
+            self.engine_pool = EngineWorkerPool(worker=self._invoke_engine, max_depth=depth)
+        if self.ctx is not None:
+            if self.observability is not None:
+                self.ctx.observability = self.observability
+            if self.engine is not None:
+                self.ctx.engine = self.engine
+                bound_manifest = engine_manifest(self.engine)
+                if bound_manifest is not None:
+                    self.ctx.manifest = bound_manifest
 
     def feed(self, event: IngressSymbol) -> DriverTrace:
         with runtime_binding(self.coordination, self.observability):
@@ -171,6 +329,7 @@ class KernelDriver:
 
             if isinstance(ingress, UserInputReceived):
                 self._current_task_id = ingress.task_id
+                self._upstream_correlation_id = ingress.upstream_correlation_id
                 # Adopt whatever this turn's UserInputReceived carries as the
                 # session id from here on — freshly minted for a genuinely
                 # new session (nothing set one yet), or the propagated value
@@ -186,33 +345,48 @@ class KernelDriver:
                     # Same values, same source, as what governance sees on
                     # this and every subsequent transition this turn (see
                     # _notify_governance) — so observability logs match.
-                    self.observability.set_context(session_id=self.session_id, task_id=self._current_task_id)
+                    self.observability.set_context(
+                        session_id=self.session_id,
+                        task_id=self._current_task_id,
+                        upstream_correlation_id=self._upstream_correlation_id,
+                    )
                 if self.ctx is not None:
-                    # Emit USER->AGENT exchange for trace visibility
                     ts_mono, ts_wall = _exchange_timestamp()
                     self._emit_exchange(
                         trace,
                         ExchangeRecord(
-                            tag="USER->AGENT",
+                            kind="user_in",
                             text=ingress.text,
-                            detail="",
                             ts_mono=ts_mono,
                             ts_wall=ts_wall,
-                            engine_raw="",
+                            agent_id=self.agent_id,
                         ),
                     )
                     note = getattr(self.ctx, "note_user_input", None)
                     if callable(note):
                         note(ingress.text)
 
-            self._notify_governance("ingress", ingress)
+            err = self._notify_governance("ingress", ingress)
+            if err is not None:
+                self._dispatch_egress(err, trace)
+                break
+
             result = self.kernel.transition(ingress)
             trace.steps.append(DriverStep(ingress=ingress, egress=list(result.egress)))
             self._sync_tool_result_memory(ingress)
             if self.coordination is not None:
                 self.coordination.on_internal_mutation(self.kernel.q, label=ingress.kind.value)
+
+            halt_err: RaiseBoundaryError | None = None
             for sym in result.egress:
-                self._notify_governance("egress", sym)
+                err = self._notify_governance("egress", sym)
+                if err is not None:
+                    halt_err = err
+                    break
+            if halt_err is not None:
+                self._dispatch_egress(halt_err, trace)
+                break
+
             if self.observability is not None:
                 self.observability.record_ingress(ingress, self.kernel.q)
                 for sym in result.egress:
@@ -223,6 +397,7 @@ class KernelDriver:
                             self.coordination.on_egress_hitl(self.kernel.q)
                     if sym.kind != EgressKind.INVOKE_ENGINE_IO:
                         self.observability.record_egress(sym, self.kernel.q)
+            self._emit_gov_block_exchanges(trace)
             auto_steps += 1
 
             engine_ios: list[InvokeEngineIo] = []
@@ -285,17 +460,16 @@ class KernelDriver:
 
         if sym.kind == EgressKind.EMIT_CLIENT_RESPONSE:
             assert isinstance(sym, EmitClientResponse)
-            # Emit AGENT->USER exchange for trace visibility
             ts_mono, ts_wall = _exchange_timestamp()
             self._emit_exchange(
                 trace,
                 ExchangeRecord(
-                    tag="AGENT->USER",
+                    kind="user_out",
                     text=sym.content,
-                    detail=f"finish_reason={sym.finish_reason}",
+                    finish_reason=sym.finish_reason,
                     ts_mono=ts_mono,
                     ts_wall=ts_wall,
-                    engine_raw="",
+                    agent_id=self.agent_id,
                 ),
             )
             trace.client_responses.append(sym)
@@ -303,6 +477,7 @@ class KernelDriver:
 
         if sym.kind == EgressKind.RAISE_BOUNDARY_ERROR:
             assert isinstance(sym, RaiseBoundaryError)
+            self._emit_gov_block_from_symbol(trace, sym)
             trace.boundary_errors.append(sym)
             return []
 
@@ -323,8 +498,56 @@ class KernelDriver:
         for plugin in self.exchange_plugins:
             plugin.on_exchange(record)
 
-    def _notify_governance(self, hook: Literal["ingress", "egress"], symbol: IngressSymbol | EgressSymbol) -> None:
-        """Give the governance plugin every ingress/egress symbol, read-only.
+    def _gov_block_exchange(self, *, policy_name: str, text: str) -> ExchangeRecord:
+        ts_mono, ts_wall = _exchange_timestamp()
+        return ExchangeRecord(
+            kind="gov_block",
+            text=text,
+            ts_mono=ts_mono,
+            ts_wall=ts_wall,
+            agent_id=self.agent_id,
+            policy_name=policy_name or None,
+        )
+
+    def _emit_gov_block_from_symbol(self, trace: DriverTrace, sym: RaiseBoundaryError) -> None:
+        if sym.code not in {"GOV_BLOCK", "GOV_TERMINATE"}:
+            return
+        if any(ex.kind == "gov_block" and ex.policy_name == (sym.policy_name or None) for ex in trace.exchanges):
+            return
+        self._emit_exchange(
+            trace,
+            self._gov_block_exchange(policy_name=sym.policy_name, text=sym.message or sym.code),
+        )
+
+    def _emit_gov_block_exchanges(self, trace: DriverTrace) -> None:
+        """Print AGENT->GOV on --trace when egress governance BLOCKs, including
+        the TOOL_CALL recovery path that never raises RaiseBoundaryError."""
+        if self.observability is None:
+            return
+        for ev in self.observability.events:
+            if ev.seq <= self._gov_exchange_seq:
+                continue
+            self._gov_exchange_seq = ev.seq
+            if ev.kind != ObsEventKind.GOVERNANCE_DECISION:
+                continue
+            payload = ev.payload or {}
+            if payload.get("hook") != "egress" or payload.get("checkpoint") != "after":
+                continue
+            if payload.get("decision") not in {"BLOCK", "TERMINATE"}:
+                continue
+            policy_name = ev.policy_name or str(payload.get("policy_name") or "")
+            text = str(payload.get("reason") or payload.get("decision") or "")
+            if any(
+                ex.kind == "gov_block" and (ex.policy_name or "") == policy_name and ex.text == text
+                for ex in trace.exchanges
+            ):
+                continue
+            self._emit_exchange(trace, self._gov_block_exchange(policy_name=policy_name, text=text))
+
+    def _notify_governance(
+        self, hook: Literal["ingress", "egress"], symbol: IngressSymbol | EgressSymbol
+    ) -> RaiseBoundaryError | None:
+        """Give every governance plugin the ingress/egress symbol, read-only.
 
         Single hook (``on_transition(GovTransition)``), not one bespoke
         ``note_*`` method per symbol kind — replaces the old
@@ -340,29 +563,21 @@ class KernelDriver:
         (the method absent, or returning empty) means "everything",
         matching ``GovTransitionFilter``'s own "empty matches all" rule.
 
-        Called synchronously and unconditionally (unlike observability's
-        ``on_transition``, which may be dispatched on a background worker
-        thread once ``enable_async_plugins`` is on) — a governance plugin
-        needs to observe transitions in the order the driver produces them,
-        since a later transition's ``evaluate_egress`` may depend on state
-        an earlier one set (e.g. the casa plugin's alignment check needs
-        this turn's user query before its first tool-call decision).
-        Exceptions are swallowed: this hook cannot influence control flow,
-        so a plugin bug here must not break the turn.
+        Called synchronously (unlike observability's ``on_transition``,
+        which may be dispatched on a background worker once
+        ``enable_async_plugins`` is on) — a later ``evaluate_egress`` may
+        depend on state an earlier observer set (e.g. Casa stashing this
+        turn's user query). An observer bug must not fail open: exceptions
+        move M_gov to ERROR and return ``RaiseBoundaryError(code="GOV_PLUGIN_ERROR")``.
         """
+        from mas.runtime.boundary.gov.transition import build_gov_transition
+        from mas.runtime.kernel.coupling import apply_gov_error, gov_plugin_boundary_error
+
         gov = getattr(getattr(self.kernel, "config", None), "egress_governance_plugin", None)
         on_transition = getattr(gov, "on_transition", None)
         if not callable(on_transition):
-            return
-        # Everything below — building the transition, calling the plugin's
-        # own transition_filters(), and calling on_transition itself — is
-        # inside the one try/except: a plugin bug (a bad transition_filters()
-        # implementation, or on_transition itself) must not break the turn,
-        # and neither should a future IngressSymbol/EgressSymbol variant that
-        # build_gov_transition doesn't yet handle cleanly.
+            return None
         try:
-            from mas.runtime.boundary.gov.transition import build_gov_transition
-
             transition = build_gov_transition(
                 hook,
                 symbol,
@@ -376,10 +591,28 @@ class KernelDriver:
             if callable(get_filters):
                 filters = get_filters()
                 if filters and not any(f.matches(transition) for f in filters):
-                    return
+                    return None
             on_transition(transition)
-        except Exception:
-            _logger.debug("governance plugin on_transition failed", exc_info=True)
+        except Exception as exc:
+            apply_gov_error(self.kernel.q)
+            return gov_plugin_boundary_error(exc)
+        return None
+
+    def _invoke_engine(self, io: InvokeEngineIo) -> EngineIoReturn:
+        """Run one engine op. An exception still becomes an ERROR return so the
+        envelope can close the matching start event (tool_call_end / llm_call_end).
+        """
+        if self.engine is None:
+            raise RuntimeError("no engine configured")
+        try:
+            return self.engine.invoke(io)
+        except Exception as exc:
+            return EngineIoReturn(
+                correlation_id=io.correlation_id,
+                response_kind="ERROR",
+                next_step="STOP",
+                text=str(exc),
+            )
 
     def _dispatch_engine_batch(self, ios: list[InvokeEngineIo], trace: DriverTrace) -> list[IngressSymbol]:
         q = self.kernel.q
@@ -394,52 +627,23 @@ class KernelDriver:
             parallel_group_id = str(uuid.uuid4())
             self._record_parallel_group_obs(ios, q, boundary="start", group_id=parallel_group_id)
         for sym in ios:
-            preview = ""
-            tool_name_for_detail = ""  # Extract tool name for exchange detail
-            if engine is not None:
-                by_cid = q.pending_tools_by_cid.get(sym.correlation_id)
-                if sym.op == "TOOL_CALL" and by_cid is not None:
-                    from mas.runtime.engine.exchange_preview import format_tool_invoke
-
-                    preview = format_tool_invoke(by_cid[0], by_cid[1])
-                    tool_name_for_detail = by_cid[0]  # Extract tool name
-                elif sym.op == "TOOL_CALL" and q.pending_tool_name:
-                    from mas.runtime.engine.exchange_preview import format_tool_invoke
-
-                    preview = format_tool_invoke(q.pending_tool_name, q.pending_tool_args)
-                    tool_name_for_detail = q.pending_tool_name
-                else:
-                    preview_fn = getattr(engine, "exchange_preview", None)
-                    if callable(preview_fn):
-                        preview = str(preview_fn(sym.op) or "")
             ts_mono, ts_wall = _exchange_timestamp()
-            engine_raw = ""
-            if self.capture_engine_io:
-                engine_raw = _engine_payload_json(sym)
-            self._emit_exchange(
-                trace,
-                ExchangeRecord(
-                    tag=(
-                        "AGENT->LLM"
-                        if sym.op == "LLM_CALL"
-                        else "AGENT→TOOL"
-                        if sym.op == "TOOL_CALL"
-                        else f"AGENT->{sym.op}"
-                    ),
-                    text=preview,
-                    detail=(
-                        f"correlation_id={sym.correlation_id} op={sym.op} tool={tool_name_for_detail}"
-                        if tool_name_for_detail
-                        else f"correlation_id={sym.correlation_id} op={sym.op}"
-                    ),
-                    ts_mono=ts_mono,
-                    ts_wall=ts_wall,
-                    engine_raw=engine_raw,
-                ),
+            engine_raw = _engine_payload_json(sym) if self.capture_engine_io else ""
+            record, tracked_tool = _engine_invoke_record(
+                sym,
+                engine=engine,
+                q=q,
+                agent_id=self.agent_id,
+                ts_mono=ts_mono,
+                ts_wall=ts_wall,
+                engine_raw=engine_raw,
+                ctx=self.ctx,
             )
-            # Track tool name for TOOL_CALL so we can include it in TOOL->AGENT response
-            if sym.op == "TOOL_CALL" and tool_name_for_detail:
-                self._tool_by_correlation_id[sym.correlation_id] = tool_name_for_detail
+            self._emit_exchange(trace, record)
+            if tracked_tool:
+                self._tool_by_correlation_id[sym.correlation_id] = tracked_tool
+                if record.semantics:
+                    self._semantics_by_correlation_id[sym.correlation_id] = record.semantics
             if sym.op == "TOOL_CALL" and engine is not None:
                 by_cid = q.pending_tools_by_cid.get(sym.correlation_id)
                 if by_cid is not None:
@@ -511,8 +715,7 @@ class KernelDriver:
             if pool is not None:
                 pool.submit(sym)
             else:
-                assert engine is not None
-                ret = engine.invoke(sym)
+                ret = self._invoke_engine(sym)
                 self._record_engine_return(trace, sym, ret)
                 self._record_wait_state_obs(sym, q, boundary="end")
                 direct.append(ret)
@@ -536,7 +739,6 @@ class KernelDriver:
         io: InvokeEngineIo,
         ret: IngressSymbol,
     ) -> None:
-        from mas.runtime.engine.exchange_preview import format_llm_response
         from mas.runtime.schema.ingress import EngineIoReturn
 
         if not isinstance(ret, EngineIoReturn):
@@ -550,35 +752,36 @@ class KernelDriver:
         # keeping it would double-record llm_call_end now that the envelope
         # machine's path actually runs for every op instead of being
         # permanently shadowed.
-        detail = f"correlation_id={ret.correlation_id} response_kind={ret.response_kind}"
-        # Add tool name to detail if LLM is calling a tool
-        if io.op == "LLM_CALL" and ret.next_step == "TOOL_CALL" and ret.tool_name:
-            detail = f"correlation_id={ret.correlation_id} response_kind={ret.response_kind} tool={ret.tool_name}"
-        # Add tool name to detail for TOOL_CALL return (tool->agent response)
-        elif io.op == "TOOL_CALL":
-            tool_name = self._tool_by_correlation_id.get(ret.correlation_id, "")
-            if tool_name:
-                detail = f"correlation_id={ret.correlation_id} response_kind={ret.response_kind} tool={tool_name}"
-            # Clean up tracking dict to avoid memory leak
-            self._tool_by_correlation_id.pop(ret.correlation_id, None)
+        tool_name: str | None = None
+        tool_arguments: dict[str, Any] | None = None
+        semantics: dict[str, Any] | None = None
+        if io.op == "TOOL_CALL":
+            tool_name = self._tool_by_correlation_id.pop(ret.correlation_id, None)
+            semantics = self._semantics_by_correlation_id.pop(ret.correlation_id, None)
+        elif io.op == "LLM_CALL" and ret.next_step == "TOOL_CALL" and ret.tool_name:
+            tool_name = ret.tool_name
+            tool_arguments = dict(ret.tool_arguments or {})
+            semantics = bound_tool_semantics(self.engine, tool_name, tool_arguments, ctx=self.ctx)
         ts_mono, ts_wall = _exchange_timestamp()
         engine_raw = _engine_payload_json(ret) if self.capture_engine_io else ""
+        model = engine_model_id(self.engine) or None
         if io.op == "LLM_CALL":
-            body = format_llm_response(
-                text=ret.text,
-                next_step=ret.next_step,
-                tool_name=ret.tool_name,
-                tool_arguments=ret.tool_arguments,
-                response_kind=ret.response_kind,
-            )
             self._emit_exchange(
                 trace,
                 ExchangeRecord(
-                    tag="LLM->AGENT",
-                    text=body,
-                    detail=detail,
+                    kind="llm_response",
+                    text=ret.text or "",
                     ts_mono=ts_mono,
                     ts_wall=ts_wall,
+                    agent_id=self.agent_id,
+                    correlation_id=ret.correlation_id,
+                    op=io.op,
+                    response_kind=ret.response_kind,
+                    next_step=ret.next_step,
+                    tool_name=tool_name,
+                    tool_arguments=tool_arguments,
+                    semantics=semantics,
+                    model=model,
                     engine_raw=engine_raw,
                 ),
             )
@@ -586,11 +789,17 @@ class KernelDriver:
             self._emit_exchange(
                 trace,
                 ExchangeRecord(
-                    tag="TOOL->AGENT",
+                    kind="tool_result",
                     text=ret.text,
-                    detail=detail,
                     ts_mono=ts_mono,
                     ts_wall=ts_wall,
+                    agent_id=self.agent_id,
+                    correlation_id=ret.correlation_id,
+                    op=io.op,
+                    response_kind=ret.response_kind,
+                    tool_name=tool_name,
+                    semantics=semantics,
+                    model=model,
                     engine_raw=engine_raw,
                 ),
             )
@@ -605,6 +814,16 @@ class KernelDriver:
             return
         call_id = f"call_{ret.correlation_id if io.op == 'LLM_CALL' else io.correlation_id}"
         if io.op == "LLM_CALL" and ret.next_step == "PARALLEL_TOOL_CALLS":
+            calls = [
+                (
+                    f"call_{ret.correlation_id}_{idx}",
+                    str(spec.tool_name),
+                    dict(spec.tool_arguments or {}),
+                )
+                for idx, spec in enumerate(ret.parallel_tools)
+            ]
+            if calls:
+                store.record_assistant_tool_calls(calls)
             return
         if io.op == "LLM_CALL" and ret.next_step == "TOOL_CALL":
             store.record_assistant_tool_call(
@@ -634,7 +853,7 @@ class KernelDriver:
 
     def _sync_tool_result_memory(self, ingress: IngressSymbol) -> None:
         from mas.runtime.machines.gov import gov_is_hitl_pending
-        from mas.runtime.schema.ingress import EngineIoReturn, HitlResolve
+        from mas.runtime.schema.ingress import EngineIoReturn
 
         if gov_is_hitl_pending(self.kernel.q):
             return
@@ -645,34 +864,45 @@ class KernelDriver:
         if store is None:
             return
 
+        synced: set[int] = getattr(store, "_synced_tool_result_cids", None) or set()
+        store._synced_tool_result_cids = synced
+
         cid = 0
         text = ""
-        if isinstance(ingress, EngineIoReturn) and ingress.response_kind == "TOOL_RESULT":
+        events = getattr(getattr(self.kernel, "run", None), "events", None) or []
+        if not isinstance(events, (list, tuple)):
+            events = []
+        for row in reversed(events):
+            if getattr(row, "response_kind", "") != "TOOL_RESULT":
+                continue
+            row_cid = int(getattr(row, "correlation_id", 0) or 0)
+            if row_cid and row_cid in synced:
+                continue
+            cid = row_cid
+            text = str(getattr(row, "text", "") or "")
+            break
+        if not cid and isinstance(ingress, EngineIoReturn) and ingress.response_kind == "TOOL_RESULT":
             cid = ingress.correlation_id
             text = ingress.text
-        elif isinstance(ingress, HitlResolve):
-            for row in reversed(self.kernel.run.events):
-                if row.response_kind == "TOOL_RESULT":
-                    cid = row.correlation_id
-                    text = row.text or ""
-                    break
-        else:
+        if not cid and not str(text or "").strip():
+            return
+        if cid and cid in synced:
             return
 
-        for row in reversed(self.kernel.run.events):
-            if row.response_kind == "TOOL_RESULT" and (not cid or row.correlation_id == cid):
-                text = row.text or text
-                cid = row.correlation_id
-                break
         open_id = getattr(store, "_open_tool_call_id", "") or ""
-        call_id = open_id or (f"call_{cid}" if cid else "")
+        committed = list(getattr(ctx, "committed_messages", None) or [])
+        call_id = _next_unbound_tool_call_id(store, extra_messages=committed) or open_id
         if not call_id:
             return
         if store.messages and store.messages[-1].get("role") == "tool":
             last_cid = store.messages[-1].get("tool_call_id", "")
             if last_cid == call_id:
+                if cid:
+                    synced.add(cid)
                 return
         store.record_tool_result(call_id=call_id, content=str(text))
+        if cid:
+            synced.add(cid)
         from mas.runtime.boundary.context.telemetry import record_context_mutation
 
         record_context_mutation(
@@ -695,6 +925,10 @@ class KernelDriver:
         store = getattr(ctx, "working_memory", None)
         if store is None:
             return
+        if store.messages:
+            last = store.messages[-1]
+            if last.get("role") == "assistant" and last.get("tool_calls"):
+                return
         calls: list[tuple[str, str, dict]] = []
         for sym in ios:
             by_cid = q.pending_tools_by_cid.get(sym.correlation_id)

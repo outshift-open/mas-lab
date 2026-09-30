@@ -7,9 +7,11 @@ experiment:
 
     '
   default_flavour: local
-  applications:
-    - manifest: ./agent.yaml
-      configs_dir: ./overlays
+  models:
+    main: gpt-4o-mini
+  application:
+    manifest: ./agent.yaml
+    configs_dir: ./overlays
   scenarios:
   - id: cot
     description: Chain-of-Thought reasoning

@@ -1,12 +1,14 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Shared LLM response cache utilities (live engine, mock model access, HTTP mock server)."""
+"""Shared LLM response cache utilities (live engine and llm_cache middleware)."""
 
 from __future__ import annotations
 
 import hashlib
 import json
 import os
+import threading
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -37,19 +39,43 @@ def load_cache(path: Path) -> dict[str, Any]:
 
 def persist_cache(path: Path, cache: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(cache, indent=2), encoding="utf-8")
+    tmp = path.with_suffix(
+        f"{path.suffix}.{os.getpid()}.{threading.get_ident()}.{uuid.uuid4().hex[:8]}.tmp"
+    )
+    try:
+        tmp.write_text(json.dumps(cache, indent=2), encoding="utf-8")
+        tmp.replace(path)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def llm_cache_key(
     model: str,
     messages: list[dict[str, Any]],
     tools: list[dict[str, Any]] | None,
+    params: dict[str, Any] | None = None,
 ) -> str:
-    blob = json.dumps(
-        {"model": model, "messages": messages, "tools": tools or []},
-        sort_keys=True,
-    )
+    payload: dict[str, Any] = {"model": model, "messages": messages, "tools": tools or []}
+    if params:
+        payload["params"] = params
+    blob = json.dumps(payload, sort_keys=True, default=str)
     return hashlib.sha256(blob.encode()).hexdigest()
+
+
+def completion_cache_params(
+    *,
+    temperature: float,
+    max_tokens: int,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Stable extra fields that distinguish otherwise-identical completions."""
+    params: dict[str, Any] = {"temperature": temperature, "max_tokens": max_tokens}
+    for key in ("reasoning", "reasoning_effort", "sampling", "extra_body"):
+        value = kwargs.get(key)
+        if value is not None:
+            params[key] = value
+    return params
 
 
 def lookup_response(
@@ -58,9 +84,10 @@ def lookup_response(
     messages: list[dict[str, Any]],
     *,
     tools: list[dict[str, Any]] | None = None,
+    params: dict[str, Any] | None = None,
 ) -> tuple[str | None, dict[str, Any] | None, str]:
     """Return ``(content, usage, source)`` for a cached completion, if any."""
-    key = llm_cache_key(model, messages, tools)
+    key = llm_cache_key(model, messages, tools, params=params)
     entry = cache.get(key)
     if isinstance(entry, str) and entry.strip():
         return entry, None, "cache"

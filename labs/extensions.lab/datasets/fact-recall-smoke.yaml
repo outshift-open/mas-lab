@@ -1,5 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
+
 apiVersion: lab/v1
 kind: Dataset
 metadata:
@@ -25,11 +26,9 @@ spec:
   items:
   - id: k0_q01
     inputs:
-      user:
-      - role: user
-        content: 'What is the train fare from Celestia to Verdantia on a Monday morning?
+      user: 'What is the train fare from Celestia to Verdantia on a Monday morning?
 
-          '
+        '
     expectations:
       ground_truth: 'Fares depend on class and date; use the fare lookup tool.
 
@@ -37,11 +36,9 @@ spec:
     group: k0
   - id: k0_q02
     inputs:
-      user:
-      - role: user
-        content: 'Is there a direct flight route between Verdantia and Maritima?
+      user: 'Is there a direct flight route between Verdantia and Maritima?
 
-          '
+        '
     expectations:
       ground_truth: 'Check available routes via the schedule tool.
 
@@ -49,11 +46,9 @@ spec:
     group: k0
   - id: k1_q04
     inputs:
-      user:
-      - role: user
-        content: 'What is my daily travel budget?
+      user: 'What is my daily travel budget?
 
-          '
+        '
     expectations:
       ground_truth: 'Alex''s daily travel budget is $200.
 
@@ -61,11 +56,9 @@ spec:
     group: k1
   - id: k1_q05
     inputs:
-      user:
-      - role: user
-        content: 'What type of activities do I prefer when travelling?
+      user: 'What type of activities do I prefer when travelling?
 
-          '
+        '
     expectations:
       ground_truth: 'Alex prefers cultural activities and art museums.
 
@@ -73,11 +66,9 @@ spec:
     group: k1
   - id: k1_q08
     inputs:
-      user:
-      - role: user
-        content: 'What meal preference do I have when flying?
+      user: 'What meal preference do I have when flying?
 
-          '
+        '
     expectations:
       ground_truth: 'Alex requests vegetarian meals on flights.
 
@@ -85,11 +76,9 @@ spec:
     group: k1
   - id: k2_q01
     inputs:
-      user:
-      - role: user
-        content: 'Given my budget and interests, which paid museum in Celestia should I prioritise on a half-day visit?
+      user: 'Given my budget and interests, which paid museum in Celestia should I prioritise on a half-day visit?
 
-          '
+        '
     expectations:
       ground_truth: 'With a $200/day budget and preference for art/culture, the Museum of Celestial Arts is the top priority.
 
@@ -97,11 +86,9 @@ spec:
     group: k2
   - id: k2_q05
     inputs:
-      user:
-      - role: user
-        content: 'What should the airline be told about my food preferences for the next long-haul flight?
+      user: 'What should the airline be told about my food preferences for the next long-haul flight?
 
-          '
+        '
     expectations:
       ground_truth: 'Alex requires a vegetarian meal and is lactose intolerant — request a vegan or dairy-free vegetarian
         option.
@@ -110,11 +97,9 @@ spec:
     group: k2
   - id: k2_q06
     inputs:
-      user:
-      - role: user
-        content: 'When I book my next flight and train combo, what loyalty number and seat preference should I specify?
+      user: 'When I book my next flight and train combo, what loyalty number and seat preference should I specify?
 
-          '
+        '
     expectations:
       ground_truth: 'Add SkyWings frequent flyer number; request a window seat in the quiet carriage on the train.
 
@@ -122,12 +107,10 @@ spec:
     group: k2
   - id: k2_q04
     inputs:
-      user:
-      - role: user
-        content: 'Based on my Tokyo stay and general accommodation preference, what type of hotel should I book for my next
-          trip to Kyoto?
+      user: 'Based on my Tokyo stay and general accommodation preference, what type of hotel should I book for my next trip
+        to Kyoto?
 
-          '
+        '
     expectations:
       ground_truth: 'A boutique hotel with local character, similar to Park Hyatt Tokyo; avoid large international chains.
 
@@ -135,11 +118,9 @@ spec:
     group: k2
   - id: k3_q06
     inputs:
-      user:
-      - role: user
-        content: 'When booking my next flight, what loyalty program, insurance, and payment method should I use?
+      user: 'When booking my next flight, what loyalty program, insurance, and payment method should I use?
 
-          '
+        '
     expectations:
       ground_truth: 'SkyWings loyalty number; GlobalGuard travel insurance; Sapphire Visa for booking.
 

@@ -58,6 +58,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  mcp-compliance-release:
+    name: MCP compliance release report
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Setup Python 3.13
+        run: uv python install 3.13
+
+      - name: Install go-task
+        run: |
+          sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b "${{ runner.temp }}/bin"
+          echo "${{ runner.temp }}/bin" >> "$GITHUB_PATH"
+
+      - name: Install MCP compliance dependencies
+        run: task --dir library-ioa/compliance/mcp install
+
+      - name: Validate MCP compliance configuration
+        run: task --dir library-ioa/compliance/mcp validate-config
+
+      - name: Run MCP unit tests
+        run: .venv/bin/pytest library-ioa/tests/mcp -q
+
+      - name: Run both MCP requirement sets
+        run: |
+          MCP_CONFORMANCE_RESULTS="${{ github.workspace }}/library-ioa/compliance/mcp/results" \
+            ./library-ioa/compliance/mcp/mcp-conformance.sh
+
+      - name: Upload release MCP compliance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-compliance-${{ github.ref_name }}
+          path: library-ioa/compliance/mcp/results/
+          if-no-files-found: warn
+          retention-days: 90
+
   publish:
     runs-on: ubuntu-latest
     strategy:

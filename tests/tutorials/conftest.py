@@ -6,10 +6,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock
 
 import pytest
 import yaml
@@ -44,39 +41,6 @@ def t03_dir():
 
 
 # ---------------------------------------------------------------------------
-# Mock LLM response factory
-# ---------------------------------------------------------------------------
-
-@dataclass
-class FakeLLMResponse:
-    """Mimics mas.runtime.contracts.model_contract.LLMResponse."""
-    content: str = "This is a mock LLM response."
-    usage: Dict[str, int] = field(default_factory=lambda: {
-        "prompt_tokens": 10,
-        "completion_tokens": 20,
-        "total_tokens": 30,
-    })
-    tool_calls: Optional[List[Dict[str, Any]]] = None
-    thinking: Optional[str] = None
-    finish_reason: Optional[str] = "stop"
-
-
-def make_llm_response(content="Mock answer.", tool_calls=None, finish_reason="stop"):
-    """Create a fake LLM response."""
-    return FakeLLMResponse(
-        content=content,
-        tool_calls=tool_calls,
-        finish_reason=finish_reason,
-    )
-
-
-@pytest.fixture
-def fake_llm_response():
-    """A simple mock LLM response with no tool calls."""
-    return make_llm_response()
-
-
-# ---------------------------------------------------------------------------
 # YAML loading helpers
 # ---------------------------------------------------------------------------
 
@@ -89,7 +53,12 @@ def load_yaml(path: Path) -> dict:
 # CLI runner helper
 # ---------------------------------------------------------------------------
 
-def run_cli(args: list[str], cwd: Path | None = None, timeout: int = 30) -> subprocess.CompletedProcess:
+def run_cli(
+    args: list[str],
+    cwd: Path | None = None,
+    timeout: int = 30,
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess:
     """Run a CLI command and return the result.
 
     Resolves the command from the current Python environment's Scripts/bin
@@ -103,11 +72,15 @@ def run_cli(args: list[str], cwd: Path | None = None, timeout: int = 30) -> subp
     else:
         resolved_args = args
 
+    env = {**os.environ, "MAS_MANIFEST_VALIDATE": "1"}
+    if extra_env:
+        env.update(extra_env)
+
     return subprocess.run(
         resolved_args,
         capture_output=True,
         text=True,
         cwd=str(cwd) if cwd else None,
         timeout=timeout,
-        env={**os.environ, "MAS_MANIFEST_VALIDATE": "1"},
+        env=env,
     )

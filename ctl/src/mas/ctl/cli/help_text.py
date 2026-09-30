@@ -2,6 +2,21 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Shared CLI help epilogs for mas-ctl commands."""
 
+COMPILE_EPILOG = """
+Examples:
+  mas-ctl compile agent.yaml -o overlays/tools.yaml -o overlays/skills.yaml
+  mas-ctl compile agent.yaml -o overlays/tools.yaml -O compiled-agent.yaml
+  mas-ctl compile mas.yaml -o overlays/linear.yaml -O ./compiled/
+  mas-ctl compile mas.yaml -o overlays/linear.yaml --layout bundle -O team.yaml
+
+Layouts:
+  auto    YAML file or stdout → one document; directory → mas.yaml + agents/
+  tree    Always a folder (MAS keeps one file per agent; Agent writes agent.yaml)
+  bundle  Always one YAML file (MAS inlines agents into agency.agents)
+
+``compose`` emits EffectiveBind + placement. ``compile`` dumps the resolved spec.
+"""
+
 CHAT_EPILOG = """
 Interactive session commands (at the You: prompt):
   /quit, /exit, /q     End the session
@@ -20,11 +35,13 @@ Context model (see docs/design/context-sources.md):
 
 Examples:
   mas-ctl chat agent.yaml -i -o overlays/tools.yaml --trace
-  mas-ctl chat agent.yaml -i -o overlays/tools.yaml --trace --trace-timestamps
-  mas-ctl chat agent.yaml -i -o overlays/tools.yaml --trace -vv
+  mas-ctl chat agent.yaml -i -o overlays/tools.yaml --trace full
+  mas-ctl chat agent.yaml -i -o overlays/tools.yaml --trace --trace-color
 
-Trace (--trace, or automatic with -i + HITL):
-  Exchanges stream on stderr as they happen (AGENT→LLM context, LLM→AGENT replies,
-  tool calls/results). --trace-timestamps adds UTC time + elapsed. -vv or
-  --trace-engine adds raw engine InvokeEngineIo / EngineIoReturn JSON.
+Trace (--trace, or mas_ctl.trace in config.yaml):
+  Human exchange log on stderr (stdout stays the conversation). Bare --trace is
+  summary: headers + timestamps, untruncated AGENT→USER. --trace full dumps
+  payloads. --trace-color is opt-in (never the default). --no-trace disables a
+  config.yaml default. Machines use events.jsonl / mas-lab telemetry, not this
+  log. -vv or --trace-engine adds raw InvokeEngineIo / EngineIoReturn JSON.
 """

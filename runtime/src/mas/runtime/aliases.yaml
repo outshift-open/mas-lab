@@ -24,6 +24,8 @@ spec:
     react: mas.dp.react
     reflection: mas.dp.introspection
     sample_governance: mas.gov.sample
+    gov_no_undeclared_tool: mas.gov.no_undeclared_tool
+    no_undeclared_tool: mas.gov.no_undeclared_tool
     single_pass: mas.dp.single_pass
     sliding-window: mas.cm.sliding_window
     sliding_window: mas.cm.sliding_window
@@ -49,3 +51,4 @@ spec:
     tot@v1: mas.dp.tree_of_thoughts
     semantic_memory@v1: mas.mem.semantic
     sample_governance@v1: mas.gov.sample
+    gov_no_undeclared_tool@v1: mas.gov.no_undeclared_tool

@@ -51,6 +51,7 @@ def q_product_to_dict(q: QProduct) -> dict:
             for w in q.outbound_waits
         ],
         "inflight_correlation_ids": list(q.inflight_correlation_ids),
+        "offered_tools": list(q.offered_tools) if q.offered_tools is not None else None,
         "pending_tool_name": q.pending_tool_name,
         "pending_tool_args": dict(q.pending_tool_args),
         "pending_tools_by_cid": {
@@ -107,6 +108,11 @@ def q_product_from_dict(data: dict) -> QProduct:
         inflight_correlation_ids=[
             int(x) for x in (data.get("inflight_correlation_ids") or [])
         ],
+        offered_tools=(
+            tuple(data["offered_tools"])
+            if data.get("offered_tools") is not None
+            else None
+        ),
         pending_tool_name=data.get("pending_tool_name", ""),
         pending_tool_args=dict(data.get("pending_tool_args") or {}),
         pending_tools_by_cid={

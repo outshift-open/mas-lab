@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import re
 from importlib import resources
+from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any
 
@@ -22,9 +23,16 @@ _DEFAULT_MODEL_ALIAS = "generic-model"
 _DEFAULT_TARGET_MODEL = "gpt-4o-mini"
 
 
-def _templates_root() -> Path:
-    """Bundled under ``mas.lab/templates`` — no library-samples checkout required."""
-    return Path(str(resources.files("mas.lab") / "templates"))
+def _templates_root() -> Traversable:
+    """Bundled under ``mas.lab/templates`` — no library-samples checkout required.
+
+    ``mas.lab`` is a namespace package spanning every ``mas-lab-*`` editable
+    install, so ``resources.files()`` returns a ``MultiplexedPath`` searching
+    all of them. Round-tripping that through ``Path(str(...))`` corrupts it
+    into the object's repr text (not a filesystem path) — use the
+    Traversable's own ``/`` and ``read_text`` instead of converting it.
+    """
+    return resources.files("mas.lab") / "templates"
 
 
 def _load_template(name: str) -> str:
@@ -291,19 +299,19 @@ def init_cmd(yes: bool) -> None:
     click.echo("Try first command:")
     click.echo(
         "mas-ctl run-mas library-samples/apps/trip-planner/mas.yaml "
-        "--infra-ref standard:mock-llm "
+        "--infra-ref standard:openai "
         "-q \"Plan a trip from Celestia to Verdantia\""
     )
     click.echo("Default trace file for this manifest: library-samples/apps/trip-planner/traces/events.jsonl")
     click.echo("To control output location, rerun with --events-file:")
     click.echo(
         "mas-ctl run-mas library-samples/apps/trip-planner/mas.yaml "
-        "--infra-ref standard:mock-llm "
+        "--infra-ref standard:openai "
         "--events-file traces/trip-planner-default.events.jsonl "
         "-q \"Plan a trip from Celestia to Verdantia\""
     )
-    click.echo("For inline trace stream (summary + color), add:")
-    click.echo("--trace --trace-summary --trace-color")
+    click.echo("For a human exchange log on stderr (summary + timestamps), add --trace")
+    click.echo("Verbose payload dump: --trace full    Color (opt-in): --trace-color")
     click.echo("Then inspect traces:")
     click.echo("mas-lab telemetry show library-samples/apps/trip-planner/traces/events.jsonl")
     click.echo(

@@ -49,6 +49,6 @@ benchmark pipelines on run logs directly.
 
 After Tutorial 3:
 
-- **Labs** — runnable experiment artifacts live in [`labs/`](../../labs/): `design-space.lab` (design patterns + topologies), `lifecycle-control.lab`, `extensions.lab` — see [paper index](../paper/index.md)
+- **Labs** — runnable experiment artifacts live in [`labs/`](../../labs/): `design-space.lab` (design patterns + topologies), `lifecycle-control.lab`, `extensions.lab` — see [paper index](../paper/index.md). Lab vs library: [labs-and-libraries.md](../labs-and-libraries.md)
 - **Custom evaluation** — extend the Tutorial 3 pipeline with your own metrics and reports
 - **New benchmark scenarios** — add datasets and overlays to compare routing and topology choices

@@ -1,0 +1,117 @@
+{
+  "model": "generic-model",
+  "temperature": 0.1,
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_metrics",
+        "description": "Fetch latency metrics for a service.",
+        "parameters": {
+          "type": "object",
+          "properties": { "service": { "type": "string" } },
+          "required": ["service"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_logs",
+        "description": "Fetch logs for a service.",
+        "parameters": {
+          "type": "object",
+          "properties": { "service": { "type": "string" } },
+          "required": ["service"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_service_health",
+        "description": "Check service health.",
+        "parameters": {
+          "type": "object",
+          "properties": { "service": { "type": "string" } },
+          "required": ["service"]
+        }
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a telemetry analyst. Use tools.\n## Available Skills\n- **data-access-protocol**: MANDATORY prerequisite for get_metrics, get_logs, get_service_health, get_deployments, and query_db.\n- **latency-analysis**: isolate P99 spikes; compare pre/post deployment windows."
+    },
+    {
+      "role": "user",
+      "content": "Investigate the latency spike (P99 4200ms) and error rate (0.23) for 'payment-service'. Provide a breakdown of latency, correlate errors, and establish if this is a sudden spike or a gradual increase."
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "c1",
+          "type": "function",
+          "function": {
+            "name": "activate_skill",
+            "arguments": "{\"name\":\"data-access-protocol\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "c1",
+      "content": "When calling any data tool (`get_metrics`, `get_logs`, `get_service_health`, `get_deployments`, `query_db`), you MUST pass the canonical service name as the `service` argument.\nCorrect pattern:\nget_metrics(service=\"payment-service\")\nget_logs(service=\"payment-service\")\nget_deployments(service=\"payment-service\")"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "c2",
+          "type": "function",
+          "function": {
+            "name": "get_metrics",
+            "arguments": "{\"service\":\"payment-service\",\"window\":\"1h\"}"
+          }
+        },
+        {
+          "id": "c3",
+          "type": "function",
+          "function": {
+            "name": "get_logs",
+            "arguments": "{\"service\":\"payment-service\"}"
+          }
+        },
+        {
+          "id": "c4",
+          "type": "function",
+          "function": {
+            "name": "get_service_health",
+            "arguments": "{\"service\":\"payment-service\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "c2",
+      "content": "{\"service\":\"payment-service\",\"window\":\"1h\",\"latency_ms\":{\"p50\":1823,\"p99\":4212},\"error_rate\":0.23}"
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "c3",
+      "content": "{\"service\":\"payment-service\",\"entries\":[{\"level\":\"ERROR\",\"msg\":\"upstream timeout\"}]}"
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "c4",
+      "content": "{\"service\":\"payment-service\",\"status\":\"degraded\"}"
+    }
+  ]
+}

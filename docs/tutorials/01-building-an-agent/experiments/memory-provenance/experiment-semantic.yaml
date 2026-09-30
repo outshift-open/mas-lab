@@ -8,10 +8,12 @@ experiment:
     runs, empty memory each time. Sequential conversational dataset.
 
   default_flavour: local
-  applications:
-    - manifest: "semantic-memory/mas.yaml"
-      configs_dir: "semantic-memory/overlays"
-      base_scenario: "baseline"
+  models:
+    main: gpt-4o
+  application:
+    manifest: "semantic-memory/mas.yaml"
+    configs_dir: "semantic-memory/overlays"
+    base_scenario: "baseline"
 
   scenarios:
     - id: baseline

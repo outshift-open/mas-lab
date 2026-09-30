@@ -4,7 +4,11 @@ apiVersion: mas/v1
 kind: Overlay
 metadata:
   name: with-guardrail
-# +Guardrail: blocks forbidden content (Shadowmere)
+# +Guardrail: blocks forbidden content (Shadowmere).
+#
+# target.kind: Agent on a MAS fans this patch out onto every
+# spec.agency.agents[] row. compose / run-mas then merge those rows onto
+# the agent YAML (governance/observability union, not replace).
 spec:
   target:
     kind: Agent

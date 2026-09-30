@@ -90,7 +90,11 @@ properties:
             enum: [Agent, MAS, Flavour, Infra]
           name:
             type: string
-            description: "Optional name filter. Omit to apply to every matching kind."
+            description: >
+              Optional name filter. On an Agent overlay applied to a MAS,
+              selects one nested agency row (id, name, or metadata.name).
+              Omit to fan the patch out to every nested agent. Zero matches
+              is an error.
 
       patch:
         description: >

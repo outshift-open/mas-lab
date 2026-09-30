@@ -1,0 +1,14 @@
+[project]
+name = "mas-lab-compliance"
+version = "0.1.0"
+description = "Optional third-party protocol compliance tooling for MAS Lab"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+a2a = [
+    "a2a-tck @ git+https://github.com/a2aproject/a2a-tck.git",
+]
+
+[tool.uv]
+package = false

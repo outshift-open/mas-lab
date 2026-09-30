@@ -7,7 +7,7 @@
 | Package                | Layer         | Description                                                                                                   | CLI                  |
 | ---------------------- | ------------- | ------------------------------------------------------------------------------------------------------------- | -------------------- |
 | `mas-runtime`          | Runtime core  | MAS Runtime V2 — Mealy kernel (embeddable library)                                                            | `mas-runtime`        |
-| `mas-ctl`              | Orchestration | MAS control plane V2 — compose, session, placement                                                            | `mas-ctl`            |
+| `mas-ctl`              | Orchestration | MAS control plane V2 — compile, compose, session, placement                                                   | `mas-ctl`            |
 | `mas-lab`              | Lab framework | MAS Lab — Multi-Agent System experimentation, benchmarking, and analysis toolkit.                             | `mas-lab`, `mas-ctl` |
 | `mas-lab-core`         | Lab framework | Core contracts, telemetry, schemas and utilities shared across MAS Lab components.                            | —                    |
 | `mas-lab-bench`        | Lab framework | Benchmark engine, pipeline execution, plots and validation for MAS Lab.                                       | —                    |
@@ -20,6 +20,7 @@
 | `mas-library-eval`     | Libraries     | Evaluation and quality metrics library for MAS Lab — MCE integration.                                         | —                    |
 | `mas-library-lab`      | Libraries     | MAS Lab provider library with public eval plugins.                                                            | —                    |
 | `mas-library-samples`  | Libraries     | Community-contributed MAS sample apps, datasets, and tools.                                                   | —                    |
+| `library-ioa`          | Libraries     | MCP client/server bridge for MAS Lab                                                                          | `mas-mcp`            |
 ---
 
 ## Installation
@@ -102,7 +103,7 @@ uv pip install -e "runtime[grpc,dev]"  # with all extras
 ### `mas-ctl`
 **Install path:** `ctl`  
 **Layer:** Orchestration  
-MAS control plane V2 — compose, session, placement
+MAS control plane V2 — compile, compose, session, placement
 
 ```bash
 uv pip install -e ctl  # core
@@ -324,6 +325,35 @@ Community-contributed MAS sample apps, datasets, and tools.
 ```bash
 uv pip install -e library-samples
 ```
+
+**Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
+
+---
+
+### `library-ioa`
+**Install path:** `library-ioa`  
+**Layer:** Libraries  
+MCP client/server bridge for MAS Lab
+
+```bash
+uv pip install -e library-ioa  # core
+uv pip install -e "library-ioa[all]"  # with all extras
+```
+
+**Depends on:** `mas-runtime`  
+
+**Optional extras:**
+
+| Extra | Packages / features |
+| ----- | ------------------- |
+| `cli` | `mcp[cli]`          |
+| `all` | `mcp[cli]`          |
+
+**CLI commands:**
+
+| Command   | Entry point                           |
+| --------- | ------------------------------------- |
+| `mas-mcp` | `library_ioa.plugins.mcp.server:main` |
 
 **Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
 

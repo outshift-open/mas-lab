@@ -29,7 +29,7 @@ class RunAgentRequest(BaseModel):
     query: str = Field(..., description="The question to send to the agent")
     flavour: Optional[str] = Field(
         default=None,
-        description="Flavour name (e.g., 'local', 'mock', 'prod')",
+        description="Flavour name (e.g., 'local', 'local-benchmark')",
     )
     session_id: Optional[str] = Field(
         default=None,

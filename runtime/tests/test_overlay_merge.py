@@ -2,6 +2,8 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Overlay merge tests."""
 
+import pytest
+
 from mas.ctl.overlay.merge import (
     OverlayTargetError,
     apply_merge_patch,
@@ -53,9 +55,7 @@ def test_merge_context_dict():
 
 def test_merge_context_op_add_appends_without_duplicating_base_text():
     base = {"spec": {"context": {"role": "You are a triage agent."}}}
-    merged = merge_overlay(
-        base, _overlay({"context": {"role": {"$op": {"add": ["Escalate P1s immediately."]}}}})
-    )
+    merged = merge_overlay(base, _overlay({"context": {"role": {"$op": {"add": ["Escalate P1s immediately."]}}}}))
     assert merged["spec"]["context"]["role"] == [
         "You are a triage agent.",
         "Escalate P1s immediately.",
@@ -277,6 +277,90 @@ def test_merge_context_manager_list():
     assert merged["spec"]["context_manager"]["include"] == ["a", "b"]
 
 
+def test_merge_assembler_type_keeps_existing_params():
+    base = {
+        "spec": {
+            "assembler": {
+                "type": "assembler",
+                "params": {"emit_segments": True},
+            }
+        }
+    }
+    merged = merge_overlay(base, _overlay({"assembler": {"type": "assembler"}}))
+    assert merged["spec"]["assembler"]["type"] == "assembler"
+    assert merged["spec"]["assembler"]["params"]["emit_segments"] is True
+
+
+def test_merge_context_manager_type_change_drops_params():
+    base = {
+        "spec": {
+            "context_manager": {
+                "type": "summarising",
+                "params": {"keep_turns": 10, "hysteresis_ratio": 0.2},
+            }
+        }
+    }
+    merged = merge_overlay(base, _overlay({"context_manager": {"type": "stack"}}))
+    assert merged["spec"]["context_manager"] == {"type": "stack"}
+
+
+def test_merge_design_pattern_type_change_drops_params():
+    base = {
+        "spec": {
+            "design_pattern": {
+                "type": "react",
+                "params": {"max_steps": 8, "parallel": False},
+            }
+        }
+    }
+    merged = merge_overlay(base, _overlay({"design_pattern": {"type": "cot"}}))
+    assert merged["spec"]["design_pattern"] == {"type": "cot"}
+
+
+def test_merge_nested_context_manager_params_keeps_siblings():
+    base = {
+        "spec": {
+            "context_manager": {
+                "type": "summarising",
+                "params": {
+                    "keep_turns": 10,
+                    "trimmer": {"max_tokens": 128000, "reserve_tokens": 2000},
+                },
+            }
+        }
+    }
+    merged = merge_overlay(
+        base,
+        _overlay({"context_manager": {"params": {"trimmer": {"reserve_tokens": 4000}}}}),
+    )
+    trimmer = merged["spec"]["context_manager"]["params"]["trimmer"]
+    assert trimmer == {"max_tokens": 128000, "reserve_tokens": 4000}
+    assert merged["spec"]["context_manager"]["params"]["keep_turns"] == 10
+
+
+def test_merge_invalid_plugin_binding_raises():
+    import pytest
+    from mas.runtime.spec.plugin_binding import PluginBindingError
+
+    base = {"spec": {"context_manager": ["stack"]}}
+    with pytest.raises(PluginBindingError, match="plugin binding"):
+        merge_overlay(base, _overlay({"context_manager": {"params": {"max_messages": 1}}}))
+
+
+def test_merge_string_context_manager_keeps_type_when_params_patched():
+    base = {"spec": {"context_manager": "stack"}}
+    merged = merge_overlay(base, _overlay({"context_manager": {"params": {"max_messages": 50}}}))
+    assert merged["spec"]["context_manager"]["type"] == "stack"
+    assert merged["spec"]["context_manager"]["params"]["max_messages"] == 50
+
+
+def test_merge_string_assembler_keeps_type_when_params_patched():
+    base = {"spec": {"assembler": "assembler"}}
+    merged = merge_overlay(base, _overlay({"assembler": {"params": {"emit_segments": False}}}))
+    assert merged["spec"]["assembler"]["type"] == "assembler"
+    assert merged["spec"]["assembler"]["params"]["emit_segments"] is False
+
+
 def test_merge_no_spec_in_overlay():
     base = {"spec": {"tools": ["x"]}}
     merged = merge_overlay(base, {"metadata": {"name": "ov"}})
@@ -285,7 +369,6 @@ def test_merge_no_spec_in_overlay():
 
 def test_normalize_rejects_shorthand_overlay():
     import pytest
-
     from mas.ctl.overlay.normalize import normalize_overlay
 
     with pytest.raises(ValueError, match="mas/v1"):
@@ -295,11 +378,7 @@ def test_normalize_rejects_shorthand_overlay():
 def test_merge_mas_overlay_patches_agency_agent_context():
     base = {
         "kind": "MAS",
-        "spec": {
-            "agency": {
-                "agents": [{"id": "moderator", "ref": "agents/moderator/agent.yaml"}]
-            }
-        },
+        "spec": {"agency": {"agents": [{"id": "moderator", "ref": "agents/moderator/agent.yaml"}]}},
     }
     overlay = _overlay(
         {
@@ -316,6 +395,82 @@ def test_merge_mas_overlay_patches_agency_agent_context():
     agent = merged["spec"]["agency"]["agents"][0]
     assert agent["spec"]["context"]["role"] == "patched role"
     assert agent["spec"]["memory_seed"] == [{"key": "f001", "content": "seed"}]
+
+
+def _trip_mas(*, entry: str = "moderator") -> dict:
+    return {
+        "kind": "MAS",
+        "spec": {
+            "agency": {
+                "agents": [
+                    {"id": "moderator", "ref": "agents/moderator.yaml"},
+                    {"id": "schedule_agent", "ref": "agents/schedule.yaml"},
+                ]
+            },
+            "workflow": {"entry": entry, "nodes": [{"id": "moderator"}, {"id": "schedule_agent"}]},
+        },
+    }
+
+
+def test_merge_mas_overlay_entry_patches_workflow_entry_only():
+    overlay = _overlay(
+        {"agents": {"$entry": {"design_pattern": {"type": "cot", "config": {"max_steps": 10}}}}},
+        target_kind="MAS",
+    )
+    merged = merge_overlay(_trip_mas(), overlay)
+    by_id = {a["id"]: a for a in merged["spec"]["agency"]["agents"]}
+    assert by_id["moderator"]["spec"]["design_pattern"] == {"type": "cot", "config": {"max_steps": 10}}
+    assert "spec" not in by_id["schedule_agent"]
+
+
+def test_merge_mas_overlay_entry_follows_this_overlay_workflow_patch():
+    overlay = _overlay(
+        {
+            "workflow": {"entry": "schedule_agent", "nodes": [{"id": "schedule_agent"}, {"id": "moderator"}]},
+            "agents": {"$entry": {"design_pattern": {"type": "react"}}},
+        },
+        target_kind="MAS",
+    )
+    merged = merge_overlay(_trip_mas(entry="moderator"), overlay)
+    by_id = {a["id"]: a for a in merged["spec"]["agency"]["agents"]}
+    assert by_id["schedule_agent"]["spec"]["design_pattern"] == {"type": "react"}
+    assert "spec" not in by_id["moderator"]
+
+
+def test_merge_mas_overlay_entry_requires_workflow_entry():
+    import pytest
+
+    base = {
+        "kind": "MAS",
+        "spec": {"agency": {"agents": [{"id": "moderator", "ref": "agents/moderator.yaml"}]}},
+    }
+    overlay = _overlay({"agents": {"$entry": {"design_pattern": {"type": "cot"}}}}, target_kind="MAS")
+    with pytest.raises(OverlayTargetError, match=r"patch\.agents\.\$entry requires spec\.workflow\.entry"):
+        merge_overlay(base, overlay)
+
+
+def test_merge_mas_overlay_entry_unknown_agency_id_fails():
+    import pytest
+
+    overlay = _overlay({"agents": {"$entry": {"design_pattern": {"type": "cot"}}}}, target_kind="MAS")
+    with pytest.raises(OverlayTargetError, match="not in spec.agency.agents"):
+        merge_overlay(_trip_mas(entry="missing"), overlay)
+
+
+def test_merge_mas_overlay_entry_conflicts_with_named_id():
+    import pytest
+
+    overlay = _overlay(
+        {
+            "agents": {
+                "$entry": {"design_pattern": {"type": "cot"}},
+                "moderator": {"design_pattern": {"type": "react"}},
+            }
+        },
+        target_kind="MAS",
+    )
+    with pytest.raises(OverlayTargetError, match=r"patch\.agents\.\$entry and patch\.agents\['moderator'\]"):
+        merge_overlay(_trip_mas(), overlay)
 
 
 def test_merge_mas_overlay_keeps_name_only_agents():
@@ -437,8 +592,12 @@ def test_composition_tools_clear_then_add_is_deterministic() -> None:
 
 def test_composition_control_merge_then_replace_is_deterministic() -> None:
     base = {"spec": {"control": {"budget": {"max_tokens": 10}}}}
-    merged_once = merge_overlay(base, _overlay({"control": {"$op": {"merge": {"rate_limiter": {"requests_per_minute": 5}}}}}))
-    merged_twice = merge_overlay(merged_once, _overlay({"control": {"$op": {"replace": {"budget": {"max_tokens": 99}}}}}))
+    merged_once = merge_overlay(
+        base, _overlay({"control": {"$op": {"merge": {"rate_limiter": {"requests_per_minute": 5}}}}})
+    )
+    merged_twice = merge_overlay(
+        merged_once, _overlay({"control": {"$op": {"replace": {"budget": {"max_tokens": 99}}}}})
+    )
     assert merged_twice["spec"]["control"] == {"budget": {"max_tokens": 99}}
 
 
@@ -446,6 +605,16 @@ def test_list_field_accepts_implicit_array_replace() -> None:
     base = {"spec": {"skills": ["s1"]}}
     merged = merge_overlay(base, _overlay({"skills": ["s2"]}))
     assert merged["spec"]["skills"] == ["s2"]
+
+
+def test_agent_overlay_rejects_provider_wiring() -> None:
+    """Provider connections are infra, not agent overlay patch data."""
+    base = {"spec": {}}
+    with pytest.raises(OverlayTargetError, match="providers"):
+        merge_overlay(
+            base,
+            _overlay({"providers": [{"name": "mcp", "kind": "mcp", "url": "http://127.0.0.1:9001/mcp"}]}),
+        )
 
 
 def test_runtime_semantics_registry_covers_non_trivial_agent_fields() -> None:
@@ -460,7 +629,73 @@ def test_runtime_semantics_registry_covers_non_trivial_agent_fields() -> None:
         "control",
     ):
         assert field in agent
+    assert "providers" not in agent
+    assert agent["models"] == "named_list_merge(identity=id)"
+    assert agent["description"] == "replace"
+    assert agent["tools_ref"] == "replace"
+    assert agent["behavior"] == "mapping_merge_or_ops"
     assert "Infra" in semantics
+
+
+def test_merge_models_reasoning_deep_merges_by_id() -> None:
+    base = {"spec": {"models": [{"id": "main", "model": "gpt-5-mini", "temperature": 0.2}]}}
+    merged = merge_overlay(
+        base,
+        _overlay({"models": [{"id": "main", "reasoning": {"effort": "low", "think": True, "mode": "standard"}}]}),
+    )
+    row = merged["spec"]["models"][0]
+    assert row["model"] == "gpt-5-mini"
+    assert row["temperature"] == 0.2
+    assert row["reasoning"]["effort"] == "low"
+    assert row["reasoning"]["think"] is True
+    assert row["reasoning"]["mode"] == "standard"
+
+
+def test_merge_models_sampling_and_extra_by_id() -> None:
+    base = {"spec": {"models": [{"id": "main", "model": "gpt-5-mini", "temperature": 0.7, "extra": {"a": 1}}]}}
+    merged = merge_overlay(
+        base,
+        _overlay(
+            {
+                "models": [
+                    {
+                        "id": "main",
+                        "temperature": 0.2,
+                        "top_p": 0.9,
+                        "extra": {"b": 2},
+                    }
+                ]
+            }
+        ),
+    )
+    row = merged["spec"]["models"][0]
+    assert row["model"] == "gpt-5-mini"
+    assert row["temperature"] == 0.2
+    assert row["top_p"] == 0.9
+    assert row["extra"] == {"a": 1, "b": 2}
+
+
+def test_merge_agent_overlay_patches_description_tools_ref_behavior() -> None:
+    base = {
+        "spec": {
+            "description": "base",
+            "tools_ref": "sre-tools",
+            "behavior": {"share_reasoning": False},
+        }
+    }
+    merged = merge_overlay(
+        base,
+        _overlay(
+            {
+                "description": "patched",
+                "tools_ref": "backend-tools",
+                "behavior": {"share_reasoning": True},
+            }
+        ),
+    )
+    assert merged["spec"]["description"] == "patched"
+    assert merged["spec"]["tools_ref"] == "backend-tools"
+    assert merged["spec"]["behavior"]["share_reasoning"] is True
 
 
 def test_merge_infra_overlay_json_merge_patch_semantics() -> None:
@@ -489,3 +724,101 @@ def test_merge_infra_overlay_json_merge_patch_semantics() -> None:
     }
     assert merged["spec"]["models"] == {"allowed": ["gpt-4o"]}
     assert merged["spec"]["tools"] == {"calc": {"enabled": True}}
+
+
+def _gov_names(spec: dict) -> list[str]:
+    names = []
+    for item in spec.get("governance") or []:
+        names.append(item if isinstance(item, str) else next(iter(item)))
+    return names
+
+
+def test_agent_overlay_fans_out_onto_mas_agency_rows() -> None:
+    """run-mas/compose only merge_overlay the MAS document. Agent overlays
+    must land on nested agency rows, not on MAS.spec (unsupported)."""
+    base = {
+        "kind": "MAS",
+        "spec": {
+            "agency": {
+                "agents": [
+                    {"id": "moderator", "ref": "agents/moderator.yaml"},
+                    {"id": "helper", "ref": "agents/helper.yaml"},
+                ]
+            }
+        },
+    }
+    overlay = _overlay(
+        {
+            "observability": ["native"],
+            "governance": [{"sample_governance": {"policies": [{"name": "forbidden-destination"}]}}],
+        }
+    )
+    merged = merge_overlay(base, overlay)
+    assert "governance" not in (merged.get("spec") or {})
+    assert "observability" not in (merged.get("spec") or {})
+    for agent in merged["spec"]["agency"]["agents"]:
+        assert agent["ref"].startswith("agents/")
+        assert agent["spec"]["observability"] == ["native"]
+        assert "sample_governance" in _gov_names(agent["spec"])
+
+
+def test_agent_overlay_on_mas_with_no_agents_raises() -> None:
+    import pytest
+
+    with pytest.raises(OverlayTargetError, match="matched no agents"):
+        merge_overlay(
+            {"kind": "MAS", "spec": {"agency": {"agents": []}}},
+            _overlay({"observability": ["native"]}),
+        )
+
+
+def test_agent_overlay_target_name_filters_agency_row() -> None:
+    base = {
+        "kind": "MAS",
+        "spec": {
+            "agency": {
+                "agents": [
+                    {"id": "moderator", "ref": "agents/moderator.yaml"},
+                    {"id": "helper", "ref": "agents/helper.yaml"},
+                ]
+            }
+        },
+    }
+    overlay = {
+        "apiVersion": "mas/v1",
+        "kind": "Overlay",
+        "metadata": {"name": "named"},
+        "spec": {
+            "target": {"kind": "Agent", "name": "helper"},
+            "patch": {"observability": ["native"]},
+        },
+    }
+    merged = merge_overlay(base, overlay)
+    by_id = {a["id"]: a for a in merged["spec"]["agency"]["agents"]}
+    assert "spec" not in by_id["moderator"]
+    assert by_id["helper"]["spec"]["observability"] == ["native"]
+
+
+def test_agent_overlay_target_name_miss_raises() -> None:
+    import pytest
+
+    with pytest.raises(OverlayTargetError, match="named 'missing'"):
+        merge_overlay(
+            _trip_mas(),
+            {
+                "apiVersion": "mas/v1",
+                "kind": "Overlay",
+                "metadata": {"name": "named"},
+                "spec": {
+                    "target": {"kind": "Agent", "name": "missing"},
+                    "patch": {"observability": ["native"]},
+                },
+            },
+        )
+
+
+def test_agent_overlay_on_agent_document_is_unchanged() -> None:
+    base = {"kind": "Agent", "spec": {"tools": ["calc"]}}
+    merged = merge_overlay(base, _overlay({"observability": ["native"]}))
+    assert merged["spec"]["observability"] == ["native"]
+    assert merged["spec"]["tools"] == ["calc"]

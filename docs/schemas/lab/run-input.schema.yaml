@@ -1,11 +1,12 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
 $schema: "http://json-schema.org/draft-07/schema#"
-$id: "mas-lab/run-input/v1"
+$id: "urn:mas-lab:run-input:v1"
 title: "mas-lab Run Input Envelope (v1)"
 description: >
-  Canonical per-run input document.  Embedded under dataset item ``inputs:`` or
-  loaded via ``ref:``.
+  Per-run document. ``user`` is prompt text (string) or ``{ref: file}``.
+  ``tool_fixtures`` / ``memory_seeds`` use ``{ref:}`` or a bare path
+  shorthand. Expectation values and tool-fixture payloads are free-form.
 
 type: object
 additionalProperties: false
@@ -14,45 +15,98 @@ properties:
   inputs:
     type: object
     additionalProperties: false
+    required: [user]
     properties:
       user:
-        type: array
-        description: "User messages (multi-turn).  First message may duplicate item prompt."
-        minItems: 1
-        items:
-          $ref: "#/$defs/message"
-      hitl:
-        type: array
-        description: "Scripted human-operator replies."
-        items:
-          $ref: "#/$defs/message"
-        default: []
-      memory_seeds:
-        description: "Inline seed list or path/ref to a seed file."
+        description: >
+          The user prompt. A string is the text. A list of strings is
+          sequential user messages (no role dicts). A ref object loads
+          that file (scalar, YAML string, or .txt/.md).
         oneOf:
+          - type: string
+            minLength: 1
           - type: array
+            minItems: 1
+            items:
+              type: string
+              minLength: 1
+          - $ref: "urn:mas-lab:fragments:ref:v1"
+          - type: array
+            deprecated: true
+            description: >
+              DEPRECATED. OpenAI-style [{role, content}] from older SRE
+              datasets. Use a string or list of strings. Loader warns.
+              See https://outshift-open.github.io/mas-lab/manifests/dataset-migration/
+            minItems: 1
             items:
               type: object
+              required: [role, content]
               additionalProperties: true
-          - type: string
-            minLength: 1
-      tool_fixtures:
-        description: "World / grounding state for mock tool providers."
+              properties:
+                role:
+                  type: string
+                content:
+                  type: string
+      hitl:
+        description: >
+          Scripted operator replies, in order, after the user prompt.
+          Strings, not role dicts.
         oneOf:
+          - $ref: "urn:mas-lab:fragments:ref:v1"
           - type: string
             minLength: 1
+          - type: array
+            items:
+              type: string
+              minLength: 1
+        default: []
+      memory_seeds:
+        description: >
+          Inline seed list, MemorySeed kind document, ``{ref:}``, or bare
+          path shorthand. Kind files keep ``docs/schemas/memory-seed.schema.yaml``.
+        oneOf:
+          - $ref: "urn:mas-lab:fragments:ref:v1"
+          - type: string
+            minLength: 1
+          - type: array
+            items:
+              $ref: "urn:mas-lab:fragments:memory-seed-entry:v1"
           - type: object
             additionalProperties: true
+            required: [kind, entries]
+            properties:
+              kind:
+                type: string
+                const: MemorySeed
+              apiVersion:
+                type: string
+              metadata:
+                type: object
+                additionalProperties: true
+              entries:
+                type: array
+                minItems: 1
+                items:
+                  $ref: "urn:mas-lab:fragments:memory-seed-entry:v1"
+      tool_fixtures:
+        description: >
+          Mapping (which tool gets which payload) plus opaque per-tool YAML.
+          Prefer sibling files. Ground truth is not stored here.
+        oneOf:
+          - $ref: "urn:mas-lab:fragments:tool-fixture-mapping:v1"
+          - type: object
+            additionalProperties: true
+            description: Inline opaque payload the tool reads.
+            not:
+              required: [incident_fixture]
       checkpoint:
         type: object
         additionalProperties: false
         properties:
           load:
-            description: "Checkpoint ref or null."
             oneOf:
               - type: "null"
-              - type: string
-                minLength: 1
+              - $ref: "urn:mas-lab:fragments:ref:v1"
               - type: object
                 additionalProperties: true
           save:
@@ -64,42 +118,41 @@ properties:
       session_id:
         type: string
         minLength: 1
-        description: "Fixed conversation id for session-aware memory replay."
-    required: [user]
 
   expectations:
-    type: object
-    additionalProperties: true
-    description: "Ground truth and evaluation overrides for this run."
-    properties:
-      ground_truth:
-        oneOf:
-          - type: string
-          - type: object
+    description: Ground truth for eval. Named keys; values are free-form.
+    oneOf:
+      - $ref: "urn:mas-lab:fragments:ref:v1"
+      - type: object
+        additionalProperties: true
+        properties:
+          ground_truth:
+            oneOf:
+              - type: string
+              - type: integer
+              - type: number
+              - type: boolean
+              - type: object
+                additionalProperties: true
+              - type: array
+          correct_action:
+            type: object
             additionalProperties: true
-      governance:
-        type: object
-        additionalProperties: true
-      metrics:
-        type: array
-        items:
-          type: string
-      tool_calls:
-        type: object
-        additionalProperties: true
-      recovery:
-        type: object
-        additionalProperties: true
-
-$defs:
-  message:
-    type: object
-    required: [role, content]
-    additionalProperties: false
-    properties:
-      role:
-        type: string
-        enum: [user, hitl, system]
-      content:
-        type: string
-        minLength: 1
+          governance:
+            type: object
+            additionalProperties: true
+          metrics:
+            type: array
+            items:
+              type: string
+          tool_calls:
+            type: object
+            additionalProperties: true
+          recovery:
+            type: object
+            additionalProperties: true
+          source_evidence:
+            type: array
+            items:
+              type: object
+              additionalProperties: true

@@ -2,6 +2,10 @@
 #  SPDX-License-Identifier: Apache-2.0
 # Canonical config template for `mas-lab init` (bundled in the mas-lab package).
 
+mas_ctl:
+  # Human exchange log on stderr. Machines use events.jsonl / telemetry.
+  trace: summary
+
 mas_lab:
   flavour: local
   benchmark_flavour: local-benchmark

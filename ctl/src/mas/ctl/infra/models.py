@@ -13,6 +13,7 @@ from typing import Any
 class ProxySpec:
     api_base: str = ""
     api_key_env: str = "OPENAI_API_KEY"
+    timeout: float | None = None
 
 
 @dataclass
@@ -43,9 +44,12 @@ class InfraManifest:
     proxy: ProxySpec = field(default_factory=ProxySpec)
     models: ModelsSpec = field(default_factory=ModelsSpec)
     model_access: dict[str, Any] = field(default_factory=dict)
+    protocol: str = ""
     pipeline: list[dict[str, Any]] = field(default_factory=list)
     runtime_engine: dict[str, Any] = field(default_factory=dict)
+    tool_servers: list[dict[str, Any]] = field(default_factory=list)
     raw: dict[str, Any] = field(default_factory=dict)
+    applications: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: Path | str) -> InfraManifest:
@@ -59,22 +63,18 @@ class InfraManifest:
             raise ValueError(f"{p}: expected mapping")
         return _from_dict(resolve_manifest_values(data))
 
-    @property
-    def is_mock(self) -> bool:
-        if self.model_access.get("provider") == "mock":
-            return True
-        if not self.proxy.api_base and self.kind in ("LLMLocal", "InfraBundle"):
-            return bool(self.model_access)
-        return False
-
     def to_llm_proxy_dict(self) -> dict[str, Any]:
-        return {
+        out: dict[str, Any] = {
             "api_base": self.proxy.api_base,
             "api_key_env": self.proxy.api_key_env,
             "default_model": self.models.default_llm,
             "mappings": dict(self.models.mappings),
             "allowed": list(self.models.allowed),
-            "mock": self.is_mock,
             "model_access": dict(self.model_access),
             "pipeline": list(self.pipeline),
         }
+        if self.proxy.timeout is not None:
+            out["timeout"] = self.proxy.timeout
+        if self.protocol:
+            out["protocol"] = self.protocol
+        return out

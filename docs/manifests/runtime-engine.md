@@ -6,8 +6,9 @@
 
 Shared kernel and LLM engine tuning for a deployment — queue depth, dispatch
 step budget, streaming, and **LLM response cache policy** (read/write flags).
-**Mock LLM is not configured here** — use workspace `infra_refs` with
-`standard:mock-llm` (same as any other LLM endpoint).
+LLM endpoints are not configured here — use workspace `infra_refs` with
+`standard:openai` (or another provider bundle). Offline CI uses
+[llm_cache replay](llm-cache.md) recorded against a live provider.
 
 **Agent and MAS manifests must not reference runtime** (no `runtime_refs` on
 agents or MAS).
@@ -52,7 +53,7 @@ Example workspace file (see `library-samples/sample-workspace/config.yaml`):
 
 ```yaml
 infra_refs:
-  - standard:mock-llm
+  - standard:openai
 runtime_refs:
   - standard:runtime-default   # optional; omit for package defaults only
 ```
@@ -64,7 +65,7 @@ Omit `runtime_refs` entirely to use package kernel/cache/stream defaults only.
 
 ## Precedence
 
-When building `KernelConfig` and LLM cache/stream/mock behaviour:
+When building `KernelConfig` and LLM cache/stream behaviour:
 
 1. Package defaults (`DEFAULT_ENGINE_QUEUE_DEPTH`, etc.)
 2. Merged `RuntimeEngine` manifest(s) from the resolution ladder above

@@ -47,25 +47,48 @@ properties:
         minItems: 1
         description: "MAS use-case pointer(s) for the demo."
         items:
-          type: object
-          additionalProperties: false
-          properties:
-            manifest:
-              type: string
-              description: "Path to mas.yaml."
-            app:
-              type: string
-              description: "Registered app name (mas.apps registry)."
-            configs_dir:
-              type: string
-              description: "Path to the scenario overlay YAML directory."
-            base_scenario:
-              type: string
-              default: "baseline"
-              description: "Scenario loaded on demo startup."
-          anyOf:
-            - required: [manifest]
-            - required: [app]
+          oneOf:
+            - type: string
+              minLength: 1
+              description: "Library + app identifier, e.g. library-ioc:sre-triage@v2."
+              pattern: "^[a-z0-9][a-z0-9-]*:[^\\s]+$"
+            - type: object
+              additionalProperties: false
+              properties:
+                manifest:
+                  type: string
+                  description: >
+                    Path or library:app identifier resolving to mas.yaml
+                    (e.g. library-ioc:sre-triage@v2).
+                app:
+                  type: string
+                  description: >
+                    Application catalog id, optionally library-qualified
+                    (library-ioc:sre-triage@v2 or sre-triage@v2).
+                configs_dir:
+                  type: string
+                  description: "Path to the scenario overlay YAML directory."
+                base_scenario:
+                  type: string
+                  default: "baseline"
+                  description: "Scenario loaded on demo startup."
+              anyOf:
+                - required: [manifest]
+                - required: [app]
+
+      mas:
+        deprecated: true
+        description: >
+          DEPRECATED. Alias of applications[0]. Loaders still accept
+          lab.mas and emit a warning. Replace with lab.applications.
+          See https://outshift-open.github.io/mas-lab/manifests/experiment/#applications
+        oneOf:
+          - type: object
+            additionalProperties: true
+          - type: array
+            minItems: 1
+          - type: string
+            minLength: 1
 
       # ── Scenarios ─────────────────────────────────────────────────────────
       scenarios:
@@ -109,7 +132,24 @@ properties:
               items:
                 type: string
 
-      # ── Dataset ───────────────────────────────────────────────────────────
+      libraries:
+        type: array
+        description: >
+          Library paths (same role as workspace config.yaml
+          ``manifest_libraries:``). A directory containing ``library.yaml``
+          is a library; the name is the listed basename (``lib/`` →
+          ``lib``) and is used in ``name:path`` refs. Immediate children
+          of this lab that contain ``library.yaml`` are included too.
+          A directory without ``library.yaml`` is added to Python's import
+          path only. In-repo labs that list a local dir must ship
+          ``library.yaml`` there. A listed name that is already a known
+          library (for example ``samples``) resolves to that library.
+          Lab-local libraries win over workspace and installed libraries
+          of the same name. See docs/labs-and-libraries.md.
+        items:
+          type: string
+          minLength: 1
+
       dataset:
         type: object
         required: [path]
@@ -121,6 +161,45 @@ properties:
           filter:
             type: object
             additionalProperties: true
+          source:
+            type: object
+            additionalProperties: false
+            description: >
+              Optional Dataset spec.source overlay (same shape as experiment.dataset.source).
+            properties:
+              kind:
+                type: string
+                enum: [huggingface, jsonl, csv, glob, pickle]
+              id:
+                type: string
+              split:
+                type: string
+              path:
+                type: string
+              map:
+                type: object
+                additionalProperties: true
+              config:
+                type: string
+              name:
+                type: string
+              limit:
+                type: integer
+                minimum: 1
+
+      model:
+        type: string
+        description: >
+          Shorthand for models.main. Same meaning as experiment.model.
+          evaluation.model overrides the judge only.
+
+      models:
+        type: object
+        additionalProperties:
+          type: string
+        description: >
+          Slot map matching spec.models[].id plus judge. Same meaning as
+          experiment.models.
 
       # ── Evaluation ────────────────────────────────────────────────────────
       evaluation:
@@ -131,6 +210,12 @@ properties:
           method:
             type: string
             enum: [user_emulation, llm_judge, metrics]
+          model:
+            type: string
+            description: >
+              LLM-as-judge override for demo eval_mce. Omit to inherit
+              lab.models.judge / lab.model / application spec.models
+              (`any` uses local config).
           config:
             type: object
             additionalProperties: true

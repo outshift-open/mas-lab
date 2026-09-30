@@ -1,18 +1,19 @@
-<!--
-  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
-  SPDX-License-Identifier: Apache-2.0
--->
 ---
 name: fare-and-itinerary-assembly
 description: >
-  Fare lookup, cost estimation, budget-gate enforcement, city-consistency
-  check, and day-by-day itinerary assembly for the Concierge Agent.
+  Use for fare lookup, cost estimation, budget-gate enforcement,
+  city-consistency check, and day-by-day itinerary assembly (Concierge Agent).
+  Call `activate_skill("fare-and-itinerary-assembly")` and follow the loaded
+  instructions before answering.
 metadata:
   version: "1.0.0"
   domain: travel
   tags: [fares, budget, assembly, concierge]
 ---
-
+<!--
+  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+  SPDX-License-Identifier: Apache-2.0
+-->
 # Fare & Itinerary Assembly Protocol
 
 ## Input

@@ -1,18 +1,19 @@
-<!--
-  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
-  SPDX-License-Identifier: Apache-2.0
--->
 ---
 name: route-planning
 description: >
-  Graph-based route planning protocol for the Itinerary Agent. Use this to
-  enumerate and rank paths in the Arborian Network by time, cost, or scenic value.
+  Use when planning graph-based routes in the Arborian Network for the
+  Itinerary Agent (time, cost, or scenic value). Call
+  `activate_skill("route-planning")` and follow the loaded instructions
+  before answering.
 metadata:
   version: "1.0.0"
   domain: travel
   tags: [route, graph, planning]
 ---
-
+<!--
+  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+  SPDX-License-Identifier: Apache-2.0
+-->
 # Route Planning Protocol
 
 ## Input

@@ -10,28 +10,118 @@ An **agent** manifest (`agent.yaml`) declares one LLM actor: tools, skills, desi
 pattern, plugins, and **observability** settings. A **MAS** manifest references one or
 more agents; **overlays** patch agents without duplicating the base file.
 
-**Terms:** [glossary.md](../glossary.md) · Hub: [README.md](README.md).
-
-Declares one runtime participant: how it reasons, what it can call, what context it
-sees, and which plugins hook its execution.
-
 ---
+
+## Plugin bindings
+
+Singleton slots accept a **plugin name** or `{type, ref, params}`. List slots
+use `[{plugin_name: {params}}]`. Full rules: [plugin-bindings.md](plugin-bindings.md).
+
+```yaml
+spec:
+  design_pattern: cot          # ≡ {type: cot}
+  context_manager: stack       # ≡ {type: stack}
+  assembler: assembler         # omit for the same default
+```
+
+## Spec field reference
+
+Every `spec` key from `agent.schema.yaml`. **Default** is what omitting the
+field does. **Equivalent** is the object `mas-ctl compile` writes. Bindings:
+[plugin-bindings.md](plugin-bindings.md). To see this table as one real
+`mas-ctl compile` output instead of a hand-written summary:
+[Compiled agent defaults](../references/defaults.md).
+
+| Field | Default | Notes |
+| ------- | --------- | ------- |
+| `description` | *(required)* | Routing one-liner for `delegate_to_*` tools. Not the system prompt. |
+| `context` | `{}` | Named system-prompt chunks (`role`, `intent`, …). String, `{ref}`, or fragment list. |
+| `params` | `{}` | Free-form strings for middleware / sidecars. Not kernel config. |
+| `models[]` | `[{id: main, model: any}]` | `any` means inherit MAS / `experiment.models.main` (`experiment.model`), then local `config.yaml` `defaults.model`. Pin a LiteLLM id for reproducibility. Named ids (`summarizer`, …) are filled from `experiment.models.<id>` when unbound. `temperature` 0.7, `max_tokens` 2000, `context_window` 128000. |
+| `design_pattern` | `react` | Shorthand `design_pattern: cot` ≡ `{type: cot}`. Compile fills `params.max_steps: 512`, `max_cot_pass: 1`, `parallel: true`. |
+| `assembler` | `assembler` | Builds `messages[]`. Compile fills `emit_segments: true`, `always_reassemble: false`. |
+| `context_manager` | `summarising` | History plugin. Sub-plugin `params.summarizer` (`llm` \| `drop`). See [context-assembly.md](context-assembly.md). |
+| `working_memory.persistent` | `true` | Committed buffer survives delegate calls in-session. |
+| `working_memory.compaction` | *(unset)* | Sugar for `context_manager` (LLM view + stored-log cap). Ignored if `context_manager` is set. |
+| `memory` | flavour | Shorthand `semantic` or full `types` / `persistence` / `search` object. |
+| `memory_seed` | `[]` | Documents indexed at startup. |
+| `skills` | `[]` | Skill names or `@library/name`. |
+| `tools` | `[]` | Semantic name, `{ref}`, `{kind: system, name}`, or inline `module_path`. |
+| `tools_ref` | `null` | Logical tool-set name for infra ToolRegistry. |
+| `providers` | `[]` | Tool-provider claims. Empty → local plugin owns `spec.tools`. |
+| `behavior.share_reasoning` | `false` | Optional `reasoning_context` on send_to_caller. |
+| `behavior.delegation_style` | `typed` | `delegate_to_<id>` from MAS topology. |
+| `governance` | `[]` | List slot. Bare id or `{plugin_name: {params}}`. |
+| `observability` | `[]` | List slot (`native`, `otel`). Flavour/CLI may attach native. |
+| `context_sources` | `[]` | Skill-engine list (`native`, `adk`, `langchain`). |
+| `control` | `{}` | Control-plane plugin configs keyed by id. |
+| `llm` | `{}` | Deprecated model shim. Prefer `models[]`. |
+
+### `design_pattern` (default equivalent)
+
+```yaml
+spec:
+  design_pattern:
+    type: react
+    params:
+      max_steps: 512
+      max_cot_pass: 1
+      parallel: true
+```
+
+Shipped ids: `react`, `cot`, `single_pass`, `introspection`, `plan_execute`,
+`tree_of_thoughts`, `deterministic_single`, `deterministic_linear`,
+`deterministic_parallel`. Same default params; `cot` / `introspection` /
+`tree_of_thoughts` consume `max_cot_pass`.
+
+### `context_manager` + `summarizer` (default equivalent)
+
+```yaml
+spec:
+  context_manager:
+    type: summarising
+    params:
+      keep_turns: 10
+      hysteresis_ratio: 0.2
+      summarizer: llm          # registry type summarizer; drop = discard older turns
+      summary_threshold: 126000
+      working_memory_messages: 20
+      trimmer:
+        max_tokens: 128000
+        reserve_tokens: 2000
+```
+
+The summarising manager **has strategy code** (recency pin + hysteresis cache)
+and **composes** a summarizer sub-plugin. `stack` and `sliding-window` have
+no summarizer.
+
+### `assembler` (default equivalent)
+
+```yaml
+spec:
+  assembler:
+    type: assembler
+    params:
+      emit_segments: true
+      always_reassemble: false
+```
 
 ## Responsibilities
 
 | Area | `spec` fields | Trajectory impact |
-|------|---------------|-------------------|
+| ------ | --------------- | ------------------- |
 | Reasoning loop | `design_pattern` | Selects DesignPatternContract (ReAct, CoT, …) — intra-agent δ transitions |
 | Peer delegation | MAS `workflow` (when embedded in a MAS) | `delegates_to` graph + `workflow.type`; executed by the entry agent's own `design_pattern` (ReAct tool loop) — see [mas.md](mas.md) |
-| Context window | `context_manager` | Stack / sliding-window / summarising |
+| Prompt assembly | `assembler` | default `assembler` (ContextAssemblerPlugin) — [context-assembly.md](context-assembly.md) · [plugin-bindings.md](plugin-bindings.md) |
+| Context window | `context_manager` | default `summarising` (last `keep_turns` verbatim; `summarizer: llm` or `drop`; optional cheaper summary model) / sliding-window / stack — [summarization.md](summarization.md) · [context-assembly.md](context-assembly.md) |
 | Prompt / role | `description`, `context` | `description` → delegation tools; `context.*` → system prompt |
-| Models | `models[]` | LLM routing (ids, temperature, max_tokens) |
-| Tools | `tools`, `tools_ref` | ToolContract surface |
+| Models | `models[]` | LLM routing (ids, temperature, max_tokens completion, context_window, [reasoning / thinking](llm-reasoning.md)). Unbound ids inherit MAS / `experiment.models.<id>`. Summarizer/judge slots default the summary and MCE calls — [summarization.md](summarization.md) |
+| Tools | `tools`, `tools_ref` | [ToolContract](../references/tool-contract.md) · [tool.md](tool.md) · [ToolServerRegistry](../references/tool-server-registry.md) |
 | Skills | `skills` | Context facet (catalog) + `activate_skill`/`read_skill_file` tools |
 | Memory | `memory`, `memory_seed` | Stores + startup seeds |
 | Working memory | `working_memory.persistent` | Cross-turn buffer survives repeat delegate calls within one session (default `true`) — see below |
-| Kernel plugins | `plugins[]`, `governance[]`, `observability[]` | Governance and observability on Mealy envelope chokepoints (not a hook plane) |
-| Execution mode | `execution` | Mocking, LLM cache, parallel tools, engine queue depth — see [execution.md](execution.md) |
+| Kernel plugins | `governance[]`, `observability[]` | Governance and observability on Mealy envelope chokepoints (not a hook plane) |
+| Engine / flavour | workspace `runtime_refs` / flavour | Mocking, LLM cache, engine queue — not an agent spec field; see [execution.md](execution.md) |
 
 ---
 
@@ -40,7 +130,7 @@ sees, and which plugins hook its execution.
 **Who** an agent may delegate to is declared on the **MAS** manifest, not on the agent alone:
 
 | Concern | Manifest | Field |
-|---------|----------|-------|
+| --------- | ---------- | ------- |
 | Delegation graph (peers) | MAS | `spec.workflow.nodes[].delegates_to`, `workflow.entry` |
 | Workflow driver | MAS | `spec.workflow.type` — `dynamic` (LLM picks peers), `sequential`, or `single` |
 | Per-peer tool text | Agent | `spec.description` — surfaced on `delegate_to_<id>` tools for the entry agent |
@@ -78,7 +168,7 @@ is cleared before every delegate call even though the underlying instance is reu
 
 **Overlays can set this too** (`spec.patch.working_memory.persistent` on an `Overlay` targeting
 `kind: Agent`) — useful to flip a shared agent manifest's default per deployment/experiment without
-forking it.
+duplicating the agent file.
 
 **`context_id`** — the delegating agent's LLM may optionally pass `context_id` as an extra argument
 on `delegate_to_<agent_id>`, alongside `task`. When given, it selects an independent working-memory
@@ -90,25 +180,101 @@ default bucket, as described above.
 This is in-memory and scoped to one mas-ctl session/run — it does not persist across separate CLI
 invocations. Cross-process persistence (`spec.memory.persistence`) is a tracked follow-up.
 
-**`spec.working_memory.compaction`** — how much of the committed history to keep as it grows. A
-facade over `spec.context_manager`/`CMFactory` (set `context_manager` directly instead for
-lower-level control — it takes precedence if both are set):
+**`spec.working_memory.compaction`** is **sugar for `spec.context_manager`**, not a
+second engine and not a cache of working memory.
+
+- **Committed history is rewritten at turn commit** to the same recency cap
+  (`keep_turns` / `max_turns` / `max_messages`). Folded prefix data is dropped
+  from `committed_messages` and conversation chunks so snapshots stay bounded.
+- **The LLM view** is the same policy: each call, `context_manager.manage_history`
+  builds the payload (drop or summarize older turns).
+- **The cache is hysteresis on the context-manager instance** (summarising plugin):
+  after a summary, new turns stay verbatim until the managed payload grows
+  `hysteresis_ratio` (default 0.2) past budget. That avoids a summarizer LLM call
+  on every in-turn step without mutating working memory.
+- **Working memory** is the live tool round (this turn) plus the optional
+  persistent committed buffer (`working_memory.persistent`).
+
+Prefer `spec.context_manager` (what compile emits). If both are set, `context_manager` wins.
+
+```yaml
+# equivalent to context_manager: {type: stack, params: {max_messages: 200}}
+working_memory:
+  compaction:
+    strategy: keep_recent
+    max_messages: 200
+```
+
+Summarize with a cheaper model (sugar for `summarizer.params.model`):
 
 ```yaml
 working_memory:
   compaction:
-    strategy: keep_recent   # keep_recent (default, no LLM call) | sliding_window | summarize
-    max_messages: 200       # keep_recent
-    window_size: 20         # sliding_window
-    summary_threshold: 4000 # summarize
-    keep_turns: 10          # summarize — recent exchanges kept verbatim alongside the summary
+    strategy: summarize
+    model: gpt-4o-mini
+    keep_turns: 10
 ```
 
-`summarize` calls an LLM (using this agent's own resolved model) to compress older turns into one
-summary block; it degrades to `keep_recent` rather than failing if no live model is available.
-`keep_recent`/`sliding_window` never spend a model call. See
-`docs/design/working-memory-compaction.md` for the full design and why the two dead schema surfaces
-this replaces were removed.
+Full thresholds, model, prompt, and logs: [summarization.md](summarization.md).
+Example: [summarizer-override](../../library-standard/examples/context/summarizer-override/).
+
+---
+
+## Model providers
+
+`spec.models[]` claims **which** wire-protocol plugin owns **which** model
+name. `kind` is the
+protocol (`openai` now; `bedrock` later). Connection `api_base` / `api_key_env`
+belong on infra (`LLMProxy` / `spec.protocol`). With no `kind`, the library
+default (`openai`) or infra `spec.protocol` owns every model.
+
+Cache is a wrapper around the routed protocol plugin, not a `kind`. Offline
+turns replay a recorded live provider through `llm_cache` (`raise_on_miss`).
+
+```yaml
+models:
+  - id: main
+    model: gpt-4o-mini
+    kind: openai
+    reasoning:
+      effort: low
+      exclude: true          # default — CoT does not enter working memory
+```
+
+Thinking depth, thinking-token budget, hiding chain-of-thought, and the
+portable sampling overset: [llm-reasoning.md](llm-reasoning.md). Per-model
+maxima and allowed settings: [llm-model-catalog.md](llm-model-catalog.md).
+
+---
+
+## Tool providers
+
+The preferred shape is: the agent spec stays declarative and infrastructure owns
+transport details. Remote connection policy belongs on infra
+[`ToolServerRegistry`](../references/tool-server-registry.md), not in
+`spec.providers[]`.
+
+The runtime still routes on tool names and arguments via
+[`call_tool(name, arguments)`](../references/tool-contract.md), but the
+connection-specific data is resolved from infra: URL, transport, timeout,
+headers, pagination, list-cache policy, and protocol metadata such as `mcp`.
+
+```yaml
+# preferred: the agent stays stable; only infra changes
+apiVersion: infra/v1
+kind: ToolServerRegistry
+spec:
+  tool_servers:
+    - id: localhost-mcp-tools
+      protocol: mcp
+      transport: streamable-http
+      url: http://127.0.0.1:9001/mcp
+```
+
+The runtime's local provider handles local tools by default, without a provider
+patch on the agent manifest. Remote MCP endpoints are resolved from infra.
+Agent and overlay schemas reject `providers[]`; provider connection details
+belong in infra.
 
 ---
 
@@ -175,5 +341,9 @@ curl http://localhost:8090/api/schemas/agent
 - [execution.md](execution.md) — removed `spec.execution` on agents (migration pointer)
 - [MAS manifest](mas.md) — topology and transport
 - [Overlay manifest](overlay.md) — overrides
+- [Tool manifest](tool.md) — `kind: Tool` advertise fields
+- [ToolContract](../references/tool-contract.md) — `call_tool(name, arguments)`
+- [Infra ToolServerRegistry](infra.md#toolserverregistry) — remote URL / transport · [reference](../references/tool-server-registry.md)
+- [plugin-bindings.md](plugin-bindings.md) — string shorthand vs `{type, params}` vs list slots
+- [Compiled agent defaults](../references/defaults.md) — a minimal manifest, fully expanded
 - [Tutorial: building an agent](../tutorials/01-building-an-agent/README.md)
-- [Design patterns](agent.md#design-pattern) — `spec.design_pattern` on agents

@@ -40,7 +40,7 @@ LLM_CALL (forward):
 
   ┌──────────────────┐     ┌──────────────────┐     ┌─────────────────┐
   │ LlmCacheMiddleware │ → │ LiveLlmEngine    │ → │ Provider        │
-  │ (llm_cache)        │   │ (assemble + API) │   │ (OpenAI / mock) │
+  │ (llm_cache)        │   │ (assemble + API) │   │ (OpenAI)          │
   └──────────────────┘     └──────────────────┘     └─────────────────┘
          ▲ miss + allow_write
          │ SHA-256(exchange_preview) → cache_path JSON
@@ -79,7 +79,7 @@ responses. Tool *outputs* affect the preview for subsequent `LLM_CALL` keys.
   parallel tools, optional `_preview` annotation).
 - **File:** single JSON object at `cache_path`.
 - Each agentic turn = one key. Post-tool completions are separate entries.
-- Non-deterministic tool-call IDs (mock mode) change the preview between runs.
+- Non-deterministic tool-call IDs change the preview between runs.
 
 ### Deterministic trajectory replay
 
@@ -91,7 +91,7 @@ Requirements for strict offline replay (`raise_on_miss: true`):
 
 1. Same `cache_path` and replay manifest as the recording.
 2. Same overlays, tools, and prompts as the recording run.
-3. Stable tool-call IDs in the preview (live recordings) or deterministic mocks.
+3. Stable tool-call IDs in the preview (live recordings) or deterministic tools.
 
 ### Ref merge order
 
@@ -278,7 +278,7 @@ Delete the JSON file to invalidate all entries. Format: `{ "<sha256-hex>": "<tex
 | Prune or invalidate single entries | Not implemented | Delete `cache_path` or edit the JSON manually; use `include_preview: true` to find keys |
 | Human-readable query in cache file | Opt-in | `include_preview: true` stores `_preview` (includes user message) per entry |
 | Built-in cache vs middleware keying | Different schemes | Do not mix built-in RuntimeEngine cache files with middleware `cache_path` |
-| Mock non-deterministic tool-call IDs | Runtime behaviour | Record with live provider or deterministic mocks for strict replay |
+| Non-deterministic tool-call IDs | Runtime behaviour | Record with a live provider or deterministic tools for strict replay |
 
 `raise_on_miss: true` is the safeguard for **fully offline** replay: any cache
 miss is a hard error, so CI never silently calls a live provider.

@@ -4,7 +4,7 @@
 -->
 # Infrastructure manifests (`apiVersion: infra/v1`)
 
-**Package:** `mas-runtime` · **Models:** `mas.runtime.manifest.infra_manifest`
+**Package:** `mas-runtime` · **Models:** `mas.ctl.infra.models.InfraManifest`
 
 **Infra** manifests declare resources the runtime resolves at execution time: LLM proxy
 URLs, tool registries, secrets env mapping, OTel endpoints. Referenced from **MAS**
@@ -13,9 +13,10 @@ URLs, tool registries, secrets env mapping, OTel endpoints. Referenced from **MA
 **Terms:** [glossary.md](../glossary.md) · Hub: [README.md](README.md).
 
 Provides resources: LLM endpoints, tool registries, tool servers, secrets mapping, optional
-application service URLs, OTel/collector endpoints.
+application service URLs, A2A agent endpoints, and OTel/collector endpoints.
 
-**Schema:** `infra.schema.yaml` (also validated via Python models in `infra_manifest.py`).
+**Schema:** `infra.schema.yaml`. Field reference for remote tools:
+[ToolServerRegistry](../references/tool-server-registry.md).
 
 ---
 
@@ -28,7 +29,8 @@ application service URLs, OTel/collector endpoints.
 | `LLMProxy` | OpenAI-compatible proxy URL, model catalogue, defaults |
 | `LLMLocal` | Local inference (e.g. Ollama) |
 | `ToolRegistry` | Map logical tool-set ids → JSON tool index paths |
-| `ToolServerRegistry` | tool server ids and transport |
+| `ToolServerRegistry` | MCP endpoint for consuming/deploying, or local tool/skill paths (`protocol: local`) |
+| `ToolProvider` | Semantic name → in-process implementation binding |
 | `PersonalSecrets` | Logical token id → env var (gitignored) |
 | `Application` | Named service endpoints |
 | `Infrastructure` | Legacy alias |
@@ -71,6 +73,37 @@ Relative `cache_path` / `path` values on `InfraMiddleware` `spec.params` are
 made absolute at load time relative to the **directory containing that infra
 YAML file** (not CWD). See [LLM cache reference](../references/llm-cache.md).
 
+## A2A agent endpoints
+
+An `Application` infra manifest can name external agent endpoints without putting
+deployment URLs in the MAS topology:
+
+```yaml
+apiVersion: infra/v1
+kind: Application
+metadata:
+  name: a2a-agents-local
+spec:
+  endpoints:
+    weather-oracle:
+      url: http://127.0.0.1:9005
+```
+
+Reference the endpoint from an agency entry:
+
+```yaml
+spec:
+  # Configure this file through workspace config or --infra-ref.
+  agency:
+    agents:
+      - id: weather-oracle
+        # The agency only names weather-oracle; infra matches by that name.
+        # ref is omitted because this is an external dependency.
+```
+
+The current resolver is static and manifest-based. Directory discovery and
+search/composition are intentionally separate future plugins.
+
 ---
 
 ## Separation from Flavour
@@ -91,10 +124,87 @@ Record and replay LLM responses via `kind: InfraMiddleware` with
 pipeline order. **Reference:** [llm-cache.md](../references/llm-cache.md).
 
 **Pipeline order:** only `InfraMiddleware` refs add pipeline steps; provider
-refs (`LLMProxy`, `standard:openai`, `standard:mock-llm`) do not. With one
+refs (`LLMProxy`, `standard:openai`, `standard:openai`) do not. With one
 cache middleware, provider and cache `--infra-ref` order is equivalent. With
 multiple middleware refs, **first merged ref = outermost**. See
 [llm-cache.md — Pipeline order](llm-cache.md#pipeline-order).
+
+---
+
+## Local tool source
+
+`standard:local-tools` is implicitly merged into infra for every run. It
+provides `tools_dir: tools` and `skills_dir: skills`, relative to the app root.
+Override either path with another `ToolServerRegistry` entry using
+`protocol: local`. A consumed MCP `usage: use` dependency replaces the implicit
+local provider. Add an explicit local `tools` claim to keep both.
+
+```yaml
+apiVersion: infra/v1
+kind: ToolServerRegistry
+metadata:
+  name: local-tools
+spec:
+  tool_servers:
+    - id: local
+      protocol: local
+      tools_dir: tools
+      skills_dir: skills
+```
+
+## ToolServerRegistry
+
+**Where** a remote tool process lives. Not the tool's advertise contract
+([tool.md](tool.md)); the agent manifest does not declare tool providers.
+
+**Full field reference:** [tool-server-registry.md](../references/tool-server-registry.md).
+Schema fragment: [`infra-tool-server.schema.yaml`](../schemas/runtime/fragments/infra-tool-server.schema.yaml).
+
+```yaml
+apiVersion: infra/v1
+kind: ToolServerRegistry
+metadata:
+  name: mcp-localhost
+spec:
+  tool_servers:
+    - id: localhost-mcp-tools
+      protocol: mcp
+      usage: use
+      transport: streamable-http
+      url: http://127.0.0.1:9001/mcp
+      timeout: 30
+      follow_pagination: true
+      cache_scope: private
+      # headers:
+      #   Authorization: "env:MCP_AUTH_HEADER"
+```
+
+Canonical sample: [`library-samples/infra/mcp-localhost.yaml`](../../library-samples/infra/mcp-localhost.yaml)
+(only required connection fields; runtime defaults supply optional policy).
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `id` | required | Stable infra key for the remote tool server |
+| `protocol` | required | `mcp` for MCP servers |
+| `usage` | `use` | `use`, `deploy`, or `use-and-deploy` |
+| `transport` | `streamable-http` | `stdio` \| `streamable-http` \| `sse` \| `http` |
+| `url` / `endpoint` | — | HTTP/SSE URL (manifest). Optional override `env:VAR\|default` |
+| `host` / `port` | `127.0.0.1:9001` | Listener address for `usage: deploy` |
+| `tools_dir` | `tools` | Tool manifests served when deploying locally |
+| `command` / `args` / `env` / `cwd` | — | stdio process |
+| `headers` | `{}` | Omit unless auth is needed. Secrets: `env:VAR` (unset omits the header) |
+| `timeout` | `30` | Per-call timeout (seconds) |
+| `follow_pagination` | `true` | Walk MCP `nextCursor` and flatten |
+| `cache_ttl_ms` | omit | Client list-cache TTL in ms (`0` disables; omit caches until invalidate) |
+| `cache_scope` | omit | `public` \| `private` (private keys the list cache by user) |
+| `tools` | `"*"` | Discover all names, or declare an explicit list in infra |
+
+`--infra-ref` loads this document into `ResolvedInfra.tool_server_registry`.
+`usage: use` connects to a remote endpoint; `usage: deploy` starts the local
+server; `use-and-deploy` does both. The runtime discovers names advertised by
+MCP unless `tools` is set.
+
+For explicit local in-process bindings, see [`library-samples/infra/tool-providers.yaml`](../../library-samples/infra/tool-providers.yaml).
 
 ---
 
@@ -102,6 +212,7 @@ multiple middleware refs, **first merged ref = outermost**. See
 
 - [LLM cache](llm-cache.md) — `llm_cache` middleware guide
 - [LLM cache reference](../references/llm-cache.md) — parameters, pipeline model, implementation
+- [ToolServerRegistry reference](../references/tool-server-registry.md)
 - [Flavour manifest](flavour.md)
 - [user-config.md](../user-config.md) — workspace and `infra_refs`
-- Source: `runtime/src/mas/runtime/manifest/infra_manifest.py`
+- Source: `ctl/src/mas/ctl/infra/models.py`

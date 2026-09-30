@@ -70,7 +70,8 @@ def test_genuinely_different_content_still_detected_as_mismatch(tmp_path) -> Non
     ])
     match, diff = compare_events_files(actual, expected)
     assert not match
-    assert diff
+    assert "changed_keys=" in diff
+    assert "input" in diff
 
 
 def test_identical_multiset_in_different_order_matches(tmp_path) -> None:
@@ -84,3 +85,15 @@ def test_identical_multiset_in_different_order_matches(tmp_path) -> None:
     ])
     match, diff = compare_events_files(actual, expected)
     assert match, diff
+
+
+def test_parity_diff_names_extra_keys(tmp_path) -> None:
+    actual = _write(tmp_path, "actual.jsonl", [
+        {"kind": "context_assembled", "agent_id": "qa-agent", "tools": ["calc"]},
+    ])
+    expected = _write(tmp_path, "expected.jsonl", [
+        {"kind": "context_assembled", "agent_id": "qa-agent"},
+    ])
+    match, diff = compare_events_files(actual, expected)
+    assert not match
+    assert "extra_keys=['tools']" in diff

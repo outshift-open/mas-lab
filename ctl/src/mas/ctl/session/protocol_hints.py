@@ -25,8 +25,8 @@ def emit_session_protocol_hints(
     hints: list[str] = []
     if trace:
         hints.append(
-            "Trace on: exchanges stream on stderr during each turn "
-            "(AGENT→LLM→TOOL)."
+            "Trace on: human exchange log on stderr (summary + timestamps; "
+            "--trace full for the payload dump)."
         )
         if trace_timestamps:
             hints.append("Trace timestamps on (UTC + elapsed per exchange).")

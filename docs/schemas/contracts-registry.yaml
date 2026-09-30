@@ -80,6 +80,14 @@ spec:
         - NativeObservabilityPlugin
         - OtelObservabilityPlugin
 
+    - id: LLMProvider
+      alias: [ModelAccess, llm_provider]
+      module: mas.runtime.registry.llm_provider_protocol
+      note: Wire-protocol plugins for chat completions. Cache wraps a routed protocol; offline CI uses llm_cache replay.
+      implementations:
+        - OpenAILLMProvider
+        - CacheLLMProvider
+
     - id: EventTransform
       module: mas.library.standard.lib.observability.native.transform
       note: Pure native projection (OTel via MasOtelConverter, not transform hack)

@@ -1,0 +1,2 @@
+# Generated package pages use Markdown two-space hard line breaks.
+docs/packages-reference.md whitespace=-blank-at-eol

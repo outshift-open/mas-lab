@@ -32,6 +32,10 @@ spec:
     Requires SkillCatalogPlugin to have populated ctx.skill_registry at session
     start (done automatically by attach_skill_catalog_plugin in bootstrap).
 
+    Per-call semantics (concept=skill, op=activate|list|read) are advertised
+    on SkillToolsPlugin.list_tools(); metadata.name is skill-access, so a
+    single spec.semantics here would not apply to the three call names.
+
   impl:
     kind: python
     module_path: mas.library.skills.plugins.sk_tools

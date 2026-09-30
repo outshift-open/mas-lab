@@ -10,6 +10,7 @@ import threading
 import uuid
 from dataclasses import dataclass, field
 
+from mas.runtime.kernel.state import QProduct
 from mas.runtime.schema.egress import (
     EgressKind,
     EgressSymbol,
@@ -20,8 +21,7 @@ from mas.runtime.schema.egress import (
     RequestCtxAssembly,
 )
 from mas.runtime.schema.ingress import HitlResolve, IngressSymbol
-from mas.runtime.schema.observability import AuditReport, ObsEventKind, ObservabilityEvent, ObsPhase
-from mas.runtime.kernel.state import QProduct
+from mas.runtime.schema.observability import AuditReport, ObservabilityEvent, ObsEventKind, ObsPhase
 
 _logger = logging.getLogger(__name__)
 
@@ -74,6 +74,7 @@ class ObservabilityOperator:
     # sees for the same transition.
     _session_id: str = ""
     _task_id: str = ""
+    _upstream_correlation_id: int | None = None
     _subscribers: list = field(default_factory=list)
     _frames: _CallFrames = field(default_factory=_CallFrames, repr=False)
     _interval_call_ids: dict[tuple[int, str], str] = field(default_factory=dict)
@@ -91,6 +92,11 @@ class ObservabilityOperator:
         if plugin not in self._subscribers:
             self._subscribers.append(plugin)
 
+    def unsubscribe(self, plugin: object) -> None:
+        """Drop a previously subscribed plugin. No-op if it is not registered."""
+        if plugin in self._subscribers:
+            self._subscribers.remove(plugin)
+
     def set_context(
         self,
         *,
@@ -98,6 +104,7 @@ class ObservabilityOperator:
         run_id: str | None = None,
         session_id: str | None = None,
         task_id: str | None = None,
+        upstream_correlation_id: int | None = None,
     ) -> None:
         if agent_id is not None:
             self._agent_id = agent_id
@@ -107,6 +114,7 @@ class ObservabilityOperator:
             self._session_id = session_id
         if task_id is not None:
             self._task_id = task_id
+        self._upstream_correlation_id = upstream_correlation_id
 
     def push_call_frame(self, call_id: str) -> None:
         """Push an open execution frame (e.g. agent turn) onto the CURRENT thread's stack."""
@@ -419,19 +427,25 @@ class ObservabilityOperator:
         messages: list | None = None,
         segments: list | None = None,
         total_tokens: int = 0,
+        tools: list | None = None,
     ) -> ObservabilityEvent:
+        payload: dict = {
+            "agent_id": agent_id,
+            "turn_index": turn_index,
+            "messages": list(messages or []),
+            "segments": list(segments or []),
+            "total_tokens": total_tokens,
+            "message_count": len(messages or []),
+        }
+        if tools is not None:
+            payload["tools"] = [str(name) for name in tools if str(name)]
         return self._emit(
             ObsEventKind.CONTEXT_ASSEMBLED,
             ObsPhase.EXECUTE,
             "M_ctx",
             correlation_id=correlation_id,
             payload={
-                "agent_id": agent_id,
-                "turn_index": turn_index,
-                "messages": list(messages or []),
-                "segments": list(segments or []),
-                "total_tokens": total_tokens,
-                "message_count": len(messages or []),
+                **payload,
                 # Context is only ever assembled for one specific LLM_CALL
                 # dispatch — never a guess, always this op. Lets
                 # _resolve_transition_ids resolve the SAME call_id that
@@ -505,6 +519,7 @@ class ObservabilityOperator:
         tool_name: str = "",
         usage: dict | None = None,
         finish_reason: str = "",
+        tools: list | None = None,
     ) -> ObservabilityEvent:
         machine = _machine_for_op(op)
         resolved_tool = str(tool_name or "").strip()
@@ -522,6 +537,8 @@ class ObservabilityOperator:
             payload["usage"] = dict(usage)
         if finish_reason:
             payload["finish_reason"] = finish_reason
+        if tools is not None:
+            payload["tools"] = [str(name) for name in tools if str(name)]
         return self._emit(
             ObsEventKind.ENGINE_IO_RETURN,
             ObsPhase.RESULT,
@@ -663,6 +680,14 @@ class ObservabilityOperator:
                 _logger.debug("observability plugin failed", exc_info=True)
 
     def _dispatch_transition(self, transition) -> None:
+        try:
+            from mas.runtime.boundary.obs.event_stream import publish_event
+
+            payload = transition.to_dict() if hasattr(transition, "to_dict") else {}
+            payload.setdefault("source", "transition")
+            publish_event(payload)
+        except Exception:
+            _logger.debug("event stream publish failed", exc_info=True)
         if not self._subscribers:
             return
         if self._async_plugins:
@@ -895,5 +920,6 @@ class ObservabilityOperator:
                 task_id=self._task_id,
                 call_id=call_id,
                 parent_call_id=parent_call_id,
+                upstream_correlation_id=self._upstream_correlation_id,
             )
         )

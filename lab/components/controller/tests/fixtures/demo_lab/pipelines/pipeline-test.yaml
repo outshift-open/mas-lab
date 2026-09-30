@@ -68,12 +68,12 @@ pipeline:
         output: "{output_dir}/ci_summary.csv"
     - name: eval-mce
       type: eval_mce
+      scope: run
       config:
         metrics: []
         overwrite: false
         validate: true
         max_workers: 2
-        fail_threshold: 1
         model: azure/gpt-4o
         metrics_filename: metrics.json
     - name: collect-metrics

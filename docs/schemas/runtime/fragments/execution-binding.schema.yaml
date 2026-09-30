@@ -9,12 +9,6 @@ description: >
 type: object
 additionalProperties: false
 properties:
-  mocking:
-    type: object
-    additionalProperties: false
-    properties:
-      enabled:
-        type: boolean
   cache:
     type: object
     additionalProperties: false

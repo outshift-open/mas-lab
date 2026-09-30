@@ -29,6 +29,11 @@ spec:
     exit code.  Passes through the runtime governance policy engine before
     execution.
 
+  semantics:
+    concept: skill
+    op: execute
+    subject_arg: skill
+
   impl:
     kind: python
     module_path: mas.library.skills.plugins.sk_shell

@@ -7,13 +7,15 @@ Allowed binding keys are generated from JSON Schema
 This module adds semantic checks that schema alone does not express (integer ranges,
 nested object key sets).
 
-Cardinality-one fields (scalar / single object): ``design_pattern``, ``llm``,
-``memory``, ``execution``, ``mocking``.
+Cardinality-one fields (string shorthand or `{type, ref, params}`): ``design_pattern``,
+``context_manager``, ``assembler``, ``llm``, ``memory``.
 
-Multi-cardinality fields (list): ``observability``, ``tools``, ``skills``,
-``governance`` (plugin list — see governance-binding.schema.yaml).
+Multi-cardinality fields (list): ``observability`` (sequence), ``tools``,
+``skills``, ``governance`` (chain — see governance-binding.schema.yaml).
 
-Governance is a **plugin list** (like observability)::
+Observability is a **sequence** (every plugin sees every event).
+Governance is an **iptables-style chain** (BLOCK stops and returns the
+error; ALLOW passes to the next plugin)::
 
     governance:
       - sample_governance:
@@ -32,12 +34,12 @@ from typing import Any
 from mas.runtime.boundary.obs.binding import ObservabilityBinding
 from mas.runtime.spec.gov import GovernanceBinding
 from mas.runtime.spec.schema_bindings_generated import (
+    ASSEMBLER_BINDING_KEYS,
     CONTEXT_MANAGER_BINDING_KEYS,
     CONTROL_BINDING_KEYS,
     DESIGN_PATTERN_BINDING_KEYS,
     EXECUTION_BINDING_KEYS,
     EXECUTION_CACHE_KEYS,
-    EXECUTION_MOCKING_KEYS,
     LLM_BINDING_KEYS,
 )
 
@@ -208,17 +210,43 @@ def _reject_unknown_keys(raw: dict[str, Any], *, allowed: frozenset[str], field:
 def parse_design_pattern(raw: Any) -> None:
     if raw is None:
         return
+    if isinstance(raw, str):
+        if not raw.strip():
+            raise SpecBindingError("spec.design_pattern string must be a plugin name")
+        return
     if not isinstance(raw, dict):
-        raise SpecBindingError(f"spec.design_pattern must be an object, got {type(raw).__name__}")
+        raise SpecBindingError(
+            f"spec.design_pattern must be a plugin name or object, got {type(raw).__name__}"
+        )
     _reject_unknown_keys(raw, allowed=DESIGN_PATTERN_BINDING_KEYS, field="spec.design_pattern")
 
 
 def parse_context_manager(raw: Any) -> None:
     if raw is None:
         return
+    if isinstance(raw, str):
+        if not raw.strip():
+            raise SpecBindingError("spec.context_manager string must be a plugin name")
+        return
     if not isinstance(raw, dict):
-        raise SpecBindingError(f"spec.context_manager must be an object, got {type(raw).__name__}")
+        raise SpecBindingError(
+            f"spec.context_manager must be a plugin name or object, got {type(raw).__name__}"
+        )
     _reject_unknown_keys(raw, allowed=CONTEXT_MANAGER_BINDING_KEYS, field="spec.context_manager")
+
+
+def parse_assembler(raw: Any) -> None:
+    if raw is None:
+        return
+    if isinstance(raw, str):
+        if not raw.strip():
+            raise SpecBindingError("spec.assembler string must be a plugin name")
+        return
+    if not isinstance(raw, dict):
+        raise SpecBindingError(
+            f"spec.assembler must be a plugin name or object, got {type(raw).__name__}"
+        )
+    _reject_unknown_keys(raw, allowed=ASSEMBLER_BINDING_KEYS, field="spec.assembler")
 
 
 def parse_llm(raw: Any) -> None:
@@ -235,9 +263,6 @@ def parse_execution(raw: Any) -> None:
     if not isinstance(raw, dict):
         raise SpecBindingError(f"spec.execution must be an object, got {type(raw).__name__}")
     _reject_unknown_keys(raw, allowed=EXECUTION_BINDING_KEYS, field="spec.execution")
-    mocking = raw.get("mocking")
-    if isinstance(mocking, dict):
-        _reject_unknown_keys(mocking, allowed=EXECUTION_MOCKING_KEYS, field="spec.execution.mocking")
     cache = raw.get("cache")
     if isinstance(cache, dict):
         _reject_unknown_keys(cache, allowed=EXECUTION_CACHE_KEYS, field="spec.execution.cache")
@@ -258,8 +283,10 @@ def parse_control(raw: Any) -> None:
 
 
 def parse_infra_lists(raw_spec: dict[str, Any]) -> tuple[list[str], list[str]]:
-    """Validate ``infra_refs`` and ``infra_interceptors`` list shapes."""
+    """Reject deployment infrastructure from agent/MAS specs."""
     refs_raw = raw_spec.get("infra_refs") or raw_spec.get("infra_ref")
+    if refs_raw:
+        raise SpecBindingError("spec.infra_refs is forbidden; use workspace config or --infra-ref")
     interceptors_raw = raw_spec.get("infra_interceptors") or raw_spec.get("infra_interceptor")
     refs = _as_str_list(refs_raw, field="spec.infra_refs")
     interceptors = _as_str_list(interceptors_raw, field="spec.infra_interceptors")
@@ -316,6 +343,12 @@ def validate_agent_spec_bindings(spec: Any) -> None:
         parse_design_pattern(spec["design_pattern"])
     if "context_manager" in spec:
         parse_context_manager(spec["context_manager"])
+    if "assembler" in spec:
+        parse_assembler(spec["assembler"])
+    if "context_plugin" in spec:
+        raise SpecBindingError(
+            "spec.context_plugin was removed; use spec.assembler"
+        )
 
 
 def parse_sink_from_deployment(deployment: dict | None) -> str | None:

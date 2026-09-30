@@ -16,6 +16,11 @@ spec:
       description: "Natural language memory search query."
       required: true
 
+  semantics:
+    concept: memory
+    op: read
+    subject_arg: query
+
   impl:
     kind: python
     module_path: ./memory_search.py

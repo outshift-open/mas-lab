@@ -847,7 +847,7 @@ Plugins that are not standalone contracts still fit as **context sources** or
 | `SkillPlugin`, `SkillEligibilityChecker` | ctx collect + `consult_skills` tool path |
 | `MemoryContextPlugin`, vector/Letta overlays | ctx collect, `rag` or `inject` |
 | `DefaultContextPlugin`, `ContextPolicyPlugin` | ctx filter / governance overlay on parts |
-| `OpenAIModelAccess`, `MockModelAccess` | `execute_fn` behind \(\mathcal{E}_{\text{llm}}\) |
+| `OpenAIModelAccess` | `execute_fn` behind \(\mathcal{E}_{\text{llm}}\) |
 | `ToolProviderPlugin`, `LocalToolProvider`, `system_tools` | tool envelope + tool directory facet; target `ToolCatalogContextProvider` (§27.3) |
 | `PlanExecuteDP`, `ReactDP`, other DPs | ctx collect `SYSTEM_PATTERN` + DP scheduler (§28) |
 | `LocalTransportPlugin`, `GRPCTransportPlugin` | \(M_{\text{transport}}\) |

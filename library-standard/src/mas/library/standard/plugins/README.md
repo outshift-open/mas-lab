@@ -47,12 +47,52 @@ Each plugin has a canonical **`plugin_id@version`**. Short names resolve via the
 | `workflow-graph@v1` | workflow-graph | 2026.1 | Graph topology |
 | `workflow-supervised@v1` | workflow-supervised | 2026.1 | Operator approve between nodes |
 
+## LLM providers (`mas.library.standard.plugins.llm`)
+
+Same procedure as tools: a plugin speaks **one protocol**; the registry routes
+`spec.models[].kind` (like `spec.providers[].kind`) to that plugin.
+
+| ID | Role | Implementation |
+|----|------|----------------|
+| `openai` | Wire protocol | OpenAI-compatible `/chat/completions` HTTP |
+| `cache` | Wrapper (not a protocol) | Disk cache around a routed protocol plugin |
+
+Infra `spec.protocol` / agent `spec.models[].kind` select the wire protocol (default `openai`). Ollama and LiteLLM proxies use the OpenAI plugin. A future Bedrock plugin would register as `type: llm_provider` with its own class. Offline CI replays a recorded live protocol through `llm_cache` (`raise_on_miss`).
+
+Thinking depth, thinking-token budget, and hiding chain-of-thought live on
+`spec.models[].reasoning` (`effort`, `budget_tokens`, `exclude`) — see
+[`docs/manifests/llm-reasoning.md`](../../../../../../docs/manifests/llm-reasoning.md).
+
 ## Tools (library-samples)
 
 Tutorial and benchmark tools live in **`mas-library-samples`** as `kind: Tool` manifests
 (e.g. `samples:tools/calc.tool.yaml`, `samples:tools/memory-search.tool.yaml`).
 Agents reference them via ``spec.tools[].ref``; the runtime loads implementations
 from the manifest, not from `mas.runtime`.
+
+## Governance
+
+| ID | Alias | Implementation |
+|----|-------|----------------|
+| `gov_no_undeclared_tool@v1` | `gov_no_undeclared_tool`, `no_undeclared_tool` | `NoUndeclaredToolPlugin` — BLOCK names not in this LLM call's `tools` list; chain rule (pass or stop) |
+
+- Card: [governance/no-undeclared-tool.md](governance/no-undeclared-tool.md)
+- Example (not an app): [examples/governance/undeclared-tool/](../../../../../examples/governance/undeclared-tool/)
+  ([index](../../../../../examples/README.md))
+- Overlay: `pkg://mas.library.standard/overlays/with-hardened.yaml` — [overlays/README.md](../overlays/README.md)
+
+`spec.governance` is a chain (BLOCK exits, ALLOW continues). `spec.observability` is a sequence.
+
+## Context (`summarizer` sub-plugin)
+
+| ID | Alias | Implementation |
+|----|-------|----------------|
+| `llm` / `drop` | `summarizer` | `LlmSummarizer` / `DropSummarizer` — compress or drop older turns |
+
+- Card: [context/summarizer.md](context/summarizer.md)
+- Example (not an app): [examples/context/summarizer-override/](../../../../../examples/context/summarizer-override/)
+- Overlay: `pkg://mas.library.standard/overlays/cheap-summarizer.yaml`
+- Docs: [summarization.md](../../../../../../docs/manifests/summarization.md)
 
 ## Deferred (not in this OSS release)
 

@@ -1,44 +1,48 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-
-from __future__ import annotations
-
 """Benchmark show and lab-tree commands."""
+from __future__ import annotations
 
 import logging
 from pathlib import Path
-
-from mas.lab.benchmark.run_manager import BenchmarkRunManager
-from mas.lab.benchmark.reporting import print_benchmark_summary
+from typing import Any
 
 from mas.lab.benchmark.cli.common import _get_trace_cache_dir, _resolve_run_manager_dir
+from mas.lab.benchmark.cli.declared import (
+    catalog_from_yaml,
+    locate_artifacts,
+)
+from mas.lab.benchmark.cli.tree import _render_exp_tree
+from mas.lab.benchmark.reporting import print_benchmark_summary
+from mas.lab.benchmark.run_manager import BenchmarkRunManager
 
 logger = logging.getLogger(__name__)
 
-from mas.lab.benchmark.cli.tree import _PIPELINE_ARTIFACT_SCHEMA, _render_exp_tree, _render_pipeline_dag
+_PLOT_TYPE = "plot"
 
-# ---------------------------------------------------------------------------
-# show_command helpers
-# ---------------------------------------------------------------------------
 
-def _show_plots(metadata, run_dir: Path) -> int:
-    """List plot files for a benchmark run."""
-    plots_dir = Path(metadata.plots_dir) if metadata.plots_dir else run_dir / "plots"
-    if not plots_dir.exists():
-        print(f"No plots directory found at: {plots_dir}")
-        print("Run the benchmark first, or generate plots with:")
-        print(f"  mas-lab benchmark pipeline run <pipeline.yaml>")
+def _show_plots(metadata: Any, run_dir: Path) -> int:
+    """List pipeline artifacts of type ``plot`` in the lab tree."""
+    catalog = catalog_from_yaml(getattr(metadata, "experiment_yaml_path", None))
+    found = locate_artifacts(run_dir, catalog, type_filter=_PLOT_TYPE)
+
+    if not found:
+        print(f"No plot artifacts found under: {run_dir}")
+        print(
+            "Plot artifacts are those declared with type 'plot' in experiment.yaml, "
+            "in the experiment / scenario / test / run directory that produced them. "
+            "Dump folders results/ and plots/ are not searched."
+        )
         return 1
 
-    files = sorted(plots_dir.rglob("*"))
-    files = [f for f in files if f.is_file()]
-    if not files:
-        print(f"Plots directory is empty: {plots_dir}")
-        return 1
-
-    print(f"Plots in {plots_dir}:")
-    for f in files:
-        print(f"  {f}")
+    print(f"Plot artifacts ({len(found)}):")
+    for art in found:
+        try:
+            rel = art.path.relative_to(run_dir)
+        except ValueError:
+            rel = art.path
+        loc = art.location or "."
+        print(f"  {art.level:<12} {loc:<28} {art.name:<32} [{art.type}] {rel}")
     return 0
 
 
@@ -137,7 +141,10 @@ def show_command(args) -> int:
             print(f"  Scenarios:  {metadata.n_scenarios}")
             print(f"  Tests:      {metadata.n_tests} (scenario × item)")
             print(f"  Runs:       {metadata.n_runs_per_test} per test = {metadata.total_scenarios} total")
-            print(f"  Formula:    {metadata.n_scenarios} × {n_items} × {metadata.n_runs_per_test} = {metadata.total_scenarios}")
+            print(
+                f"  Formula:    {metadata.n_scenarios} × {n_items} × "
+                f"{metadata.n_runs_per_test} = {metadata.total_scenarios}"
+            )
         
         # Show state if available
         state = run_manager.load_state(run_dir)
@@ -169,7 +176,7 @@ def show_command(args) -> int:
     # Show resume hint if interrupted (all modes)
     if run_manager.can_resume(metadata.benchmark_id):
         print()
-        print(f"⏸️  This run can be resumed with:")
+        print("⏸️  This run can be resumed with:")
         print(f"   mas-lab benchmark run <yaml> --benchmark-id {metadata.short_id} --resume")
     
     return 0
@@ -180,87 +187,69 @@ def show_command(args) -> int:
 # ---------------------------------------------------------------------------
 
 def show_artifact_by_id_command(args) -> int:
-    """Find an artifact anywhere in the lab tree by its 8-char SHA-256 prefix."""
+    """Find a declared artifact by its 8-char SHA-256 prefix."""
     import hashlib as _hlib
 
     art_id: str = args.artifact_id.lower()
-    search_root = Path(getattr(args, "search_root", ".")).resolve()
 
-    # Collect experiment YAMLs (same logic as show_lab_tree_command)
-    exp_yamls: list = []
-    direct = search_root / "experiment.yaml"
-    if direct.exists():
-        exp_yamls = [direct]
-    else:
-        exp_yamls = sorted(search_root.glob("*/experiment.yaml"))
-    if not exp_yamls:
-        logger.error(f"No experiment.yaml found under {search_root}")
-        return 1
-
-    from mas.lab.lab.config import MASExperimentConfig
-    from mas.lab.artifacts import classify_file as _classify_file
-
-    def _data_dir_for(exp_yaml: "Path") -> "Path | None":
-        try:
-            exp = MASExperimentConfig.from_yaml(exp_yaml)
-        except Exception:
-            return None
-        dd = getattr(exp, "output_dir", None)
-        if dd and dd.exists():
-            csv = dd / "results.csv"
-            if csv.exists() and csv.stat().st_size > 150:
-                return dd
-        # legacy fallback
-        if exp.name:
-            try:
-                from mas.lab import paths as _paths
-                fb = _paths.labs_root() / exp.name
-                if fb.exists():
-                    return fb
-            except Exception:
-                logger.debug('suppressed', exc_info=True)
-        return dd if (dd and dd.exists()) else None
-
-    for exp_yaml in exp_yamls:
-        dd = _data_dir_for(exp_yaml)
-        if dd is None:
+    for yaml_path, run_dir in _artifact_run_candidates():
+        if not yaml_path.is_file() or not run_dir.exists():
             continue
-        for fpath in sorted(dd.rglob("*")):
-            if not fpath.is_file():
-                continue
+        catalog = catalog_from_yaml(yaml_path)
+        for art in locate_artifacts(run_dir, catalog):
             try:
-                fhash = _hlib.sha256(fpath.read_bytes()).hexdigest()[:8]
-            except Exception:
+                fhash = _hlib.sha256(art.path.read_bytes()).hexdigest()[:8]
+            except OSError:
                 continue
             if fhash != art_id:
                 continue
-            # Found — print details
-            ft = _classify_file(fpath)
             try:
-                display_path = "~/" + str(fpath.relative_to(Path.home()))
+                display_path = "~/" + str(art.path.relative_to(Path.home()))
             except ValueError:
-                display_path = str(fpath)
-            size_kb = fpath.stat().st_size / 1024
-            exp_label = exp_yaml.parent.name
-            try:
-                _exp = MASExperimentConfig.from_yaml(exp_yaml)
-                exp_name = _exp.name
-            except Exception:
-                exp_name = "?"
+                display_path = str(art.path)
+            size_kb = art.path.stat().st_size / 1024
+            loc = art.location or "."
             print(f"artifact  {art_id}")
-            print(f"  type:  [{ft.abbrev}] {ft.label}")
-            print(f"  file:  {fpath.name}")
+            print(f"  name:  {art.name}")
+            print(f"  type:  {art.type}")
+            print(f"  file:  {art.path.name}")
             print(f"  path:  {display_path}")
             print(f"  size:  {size_kb:.1f} KB")
-            print(f"  exp:   {exp_label}  [{exp_name}]")
-            if ft.description:
-                print(f"  desc:  {ft.description}")
-            if ft.produced_by:
-                print(f"  from:  {', '.join(ft.produced_by)}")
+            print(f"  level: {art.level}  ({loc})")
+            print(f"  exp:   {yaml_path.parent.name}  [{yaml_path.name}]")
+            if art.spec.description:
+                print(f"  desc:  {art.spec.description}")
             return 0
 
-    logger.error(f"No artifact found with id '{art_id}' under {search_root}")
+    logger.error(f"No artifact found with id '{art_id}'")
     return 1
+
+
+def _artifact_run_candidates() -> list[tuple[Path, Path]]:
+    """Resolve (experiment YAML, run dir) from last-run and known benchmark ids."""
+    manager = BenchmarkRunManager()
+    seen: set[Path] = set()
+    out: list[tuple[Path, Path]] = []
+
+    def _add(yaml_path: object, run_dir: Path) -> None:
+        if not yaml_path:
+            return
+        try:
+            key = run_dir.resolve()
+        except OSError:
+            key = run_dir
+        if key in seen:
+            return
+        seen.add(key)
+        out.append((Path(str(yaml_path)), run_dir))
+
+    last = manager.get_last_run()
+    if last is not None:
+        metadata, run_dir = last
+        _add(getattr(metadata, "experiment_yaml_path", None), run_dir)
+    for info in manager.list_runs():
+        _add(info.experiment_yaml_path, info.run_dir)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -272,26 +261,19 @@ def show_lab_tree_command(args) -> int:
 
     Verbosity levels:
       0 (default) — structure only: scenarios + item/run counts
-      1 (-v)       — + final output artifacts (results.csv, figures)
-      2 (-vv)      — + intermediate artifacts (.cache fingerprints, metrics.json)
-      3 (-vvv)     — + pipeline DAG with artifact lineage and provenance
+      3 (-vvv)     — + pipeline DAG with artifact lineage
     """
     target = Path(args.target).resolve()
     verbose: int = getattr(args, "verbose", 0)
     scenario_filter: "str | None" = getattr(args, "scenario", None)
     item_filter: "str | None" = getattr(args, "item", None)
     run_filter: "int | None" = getattr(args, "run_idx", None)
-    artifact_type_filter: "str | None" = getattr(args, "artifact_type", None)
-    artifacts_only: bool = getattr(args, "artifacts_only", False)
     # depth controls how many levels of the tree are expanded.
     # Map named levels → integer for easy comparison:
     #   exp=1  scenario=2 (default)  item=3  run=4
     _DEPTH_MAP = {"exp": 1, "experiment": 1, "scenario": 2, "item": 3, "run": 4}
     depth_str: "str | None" = getattr(args, "depth", None)
     depth_int: int = _DEPTH_MAP.get(depth_str or "scenario", 2)
-    # artifacts_only implies at least -v
-    if artifacts_only and verbose < 1:
-        verbose = 1
 
     # Collect experiment YAML files under target
     exp_yamls: list = []
@@ -328,8 +310,6 @@ def show_lab_tree_command(args) -> int:
             scenario_filter=scenario_filter,
             item_filter=item_filter,
             run_filter=run_filter,
-            artifact_type_filter=artifact_type_filter,
-            artifacts_only=artifacts_only,
             prefix="└── " if (multi and is_last) else ("├── " if multi else ""),
             child_prefix="    " if (multi and is_last) else ("│   " if multi else ""),
         )

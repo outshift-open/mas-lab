@@ -9,8 +9,10 @@ experiment:
     dataset_version: "1.0"
     notes: Created via mas-lab UI experiment builder.
   default_flavour: local
-  applications:
-    - manifest: ../demo_lab/apps/trip-planner/mas.yaml
+  models:
+    main: azure/gpt-4o
+  application:
+    manifest: ../demo_lab/apps/trip-planner/mas.yaml
   scenarios:
     - id: cot
       description: Chain-of-thought moderator reasoning

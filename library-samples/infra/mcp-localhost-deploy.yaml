@@ -1,0 +1,18 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: infra/v1
+kind: ToolServerRegistry
+
+metadata:
+  name: mcp-localhost-deploy
+
+spec:
+  tool_servers:
+    - id: mcp-localhost-deploy
+      protocol: mcp
+      usage: deploy
+      transport: streamable-http
+      host: 127.0.0.1
+      port: 9001
+      tools_dir: ../tools
+      tools: [web-search]

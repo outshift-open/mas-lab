@@ -44,17 +44,17 @@ def _extract_namespace_from_yaml(content: str) -> str:
 
 
 def _find_overlay_file(lib_dir: Path, overlay_name: str) -> Path | None:
-    """Search for an overlay file across global and app-scoped directories."""
+    """Search for an overlay file across global, app-scoped, and nested app dirs."""
     filename = f"{overlay_name}.yaml" if not overlay_name.endswith(".yaml") else overlay_name
     global_path = lib_dir / "overlays" / filename
     if global_path.exists():
         return global_path
     apps_dir = lib_dir / "apps"
     if apps_dir.exists():
-        for app_dir in sorted(apps_dir.iterdir()):
-            candidate = app_dir / "overlays" / filename
-            if candidate.exists():
-                return candidate
+        for pattern in (f"*/overlays/{filename}", f"*/*/overlays/{filename}"):
+            matches = sorted(apps_dir.glob(pattern))
+            if matches:
+                return matches[0]
     return None
 
 

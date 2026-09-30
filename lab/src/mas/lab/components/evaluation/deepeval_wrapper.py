@@ -29,22 +29,22 @@ except ImportError:
 
 
 def _resolve_model_arg(model: Any) -> Any:
-    """Build a ``deepeval.models.GPTModel`` routed through the workspace LLM proxy.
+    """Build a ``deepeval.models.OpenAIModel`` routed through the workspace LLM proxy.
 
     If *model* is already a ``DeepEvalBaseLLM`` instance, return as-is.
-    If it's a string (e.g. ``"azure/gpt-4o"``), create a ``GPTModel`` configured
-    with the workspace proxy base-url and API key.
+    If it's a string (e.g. ``"azure/gpt-4o"``), create an ``OpenAIModel``
+    configured with the workspace proxy base-url and API key.
     """
     if model is not None and not isinstance(model, str):
         return model
     try:
-        from mas.library.eval.mce.runner import _resolve_infra
+        from mas.library.eval.mce.runner import _deepeval_llm_cls, _resolve_infra
         import os
         api_base, api_key_env, default_model = _resolve_infra()
         effective_model = model or default_model or "gpt-4o"
         api_key = os.environ.get(api_key_env) or os.environ.get("OPENAI_API_KEY") or "none"
-        from deepeval.models import GPTModel
-        return GPTModel(
+        cls = _deepeval_llm_cls()
+        return cls(
             model=effective_model,
             api_key=api_key,
             base_url=api_base or None,

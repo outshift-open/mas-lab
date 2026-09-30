@@ -62,3 +62,20 @@ def test_no_agents_is_a_no_op() -> None:
     config: dict = {}
     applied = _apply_overlay_governance(None, {"governance": [{"a": 1}]}, config)
     assert applied is False
+
+
+def test_with_guardrail_overlay_lands_on_trip_planner_agents() -> None:
+    from pathlib import Path
+
+    from mas.lab.lab.config.scenario_loading import load_stacked_config
+
+    repo = Path(__file__).resolve().parents[4]
+    mas = repo / "library-samples" / "apps" / "trip-planner" / "mas.yaml"
+    overlays = repo / "labs" / "lifecycle-control.lab" / "overlays"
+    cfg, _ = load_stacked_config(mas, ["with-guardrail"], overlays_dir=overlays, base_dir=overlays)
+    assert cfg["agents"]
+    for agent in cfg["agents"]:
+        gov = agent.get("governance") or []
+        names = [g if isinstance(g, str) else next(iter(g)) for g in gov]
+        assert "sample_governance" in names, agent.get("id")
+        assert "native" in (agent.get("observability") or [])

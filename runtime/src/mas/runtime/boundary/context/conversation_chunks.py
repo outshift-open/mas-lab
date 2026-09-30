@@ -1,27 +1,18 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Commit-time conversation chunks — summaries retain children for audit/replay."""
+"""Committed conversation chunks — append/project/serialize.
+
+After each turn commit the store is replaced with the context manager's
+bounded view (summary + recent turns). Folded prefix data is dropped.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 from uuid import uuid4
 
 ChunkKind = Literal["messages", "summary"]
-
-
-def _estimate_tokens(messages: list[dict[str, Any]]) -> int:
-    total = 0
-    for msg in messages:
-        content = msg.get("content", "")
-        if isinstance(content, str):
-            total += len(content)
-        for call in msg.get("tool_calls") or []:
-            fn = call.get("function") or {}
-            total += len(str(fn.get("name", ""))) + len(str(fn.get("arguments", "")))
-    return total // 4 + len(messages) * 4
 
 
 def _new_chunk_id() -> str:
@@ -78,7 +69,7 @@ Chunk = MessageChunk | SummaryChunk
 
 @dataclass
 class ConversationChunkStore:
-    """Durable turn chunks with optional rolling summary (children kept for traceability)."""
+    """Durable turn chunks. Bounded by the context manager at turn commit."""
 
     chunks: dict[str, Chunk] = field(default_factory=dict)
     order: list[str] = field(default_factory=list)
@@ -91,6 +82,14 @@ class ConversationChunkStore:
         self.chunks[chunk.chunk_id] = chunk
         self.order.append(chunk.chunk_id)
         return chunk.chunk_id
+
+    def replace_with(self, turns: list[list[dict[str, Any]]]) -> None:
+        """Reset the store to *turns* (each item is one user-turn message list)."""
+        self.chunks.clear()
+        self.order.clear()
+        self.summary_chunk_id = ""
+        for turn in turns:
+            self.append_turn(turn)
 
     def project_messages(self) -> list[dict[str, Any]]:
         """Linear OpenAI-shaped list for LLM assembly (summary block + recent chunks)."""
@@ -109,70 +108,6 @@ class ConversationChunkStore:
             if isinstance(chunk, MessageChunk):
                 out.extend(chunk.messages)
         return out
-
-    def messages_for_chunk_ids(self, chunk_ids: list[str]) -> list[dict[str, Any]]:
-        msgs: list[dict[str, Any]] = []
-        for chunk_id in chunk_ids:
-            chunk = self.chunks.get(chunk_id)
-            if isinstance(chunk, MessageChunk):
-                msgs.extend(chunk.messages)
-        return msgs
-
-    def maybe_compact(
-        self,
-        *,
-        summary_threshold: int,
-        keep_message_chunks: int,
-        summarize_fn: Callable[[list[dict[str, Any]]], str],
-    ) -> bool:
-        """Fold oldest message chunks into the rolling summary (incremental, children retained)."""
-        if summary_threshold <= 0 or keep_message_chunks < 0:
-            return False
-        projected = self.project_messages()
-        if _estimate_tokens(projected) <= summary_threshold:
-            return False
-        message_ids = [cid for cid in self.order if isinstance(self.chunks.get(cid), MessageChunk)]
-        if len(message_ids) <= keep_message_chunks:
-            return False
-
-        to_fold = message_ids[: len(message_ids) - keep_message_chunks]
-        if not to_fold:
-            return False
-
-        fold_messages = self.messages_for_chunk_ids(to_fold)
-        if not fold_messages:
-            return False
-
-        if self.summary_chunk_id:
-            prior = self.chunks[self.summary_chunk_id]
-            if isinstance(prior, SummaryChunk):
-                incremental_input = [
-                    {"role": "system", "content": f"[Prior summary]\n{prior.text}"},
-                    *fold_messages,
-                ]
-                new_text = summarize_fn(incremental_input)
-                child_ids = list(prior.child_chunk_ids) + to_fold
-                prior.text = new_text.strip()
-                prior.child_chunk_ids = child_ids
-            else:
-                new_text = summarize_fn(fold_messages)
-                self.summary_chunk_id = _new_chunk_id()
-                self.chunks[self.summary_chunk_id] = SummaryChunk(
-                    chunk_id=self.summary_chunk_id,
-                    text=new_text.strip(),
-                    child_chunk_ids=to_fold,
-                )
-        else:
-            new_text = summarize_fn(fold_messages)
-            self.summary_chunk_id = _new_chunk_id()
-            self.chunks[self.summary_chunk_id] = SummaryChunk(
-                chunk_id=self.summary_chunk_id,
-                text=new_text.strip(),
-                child_chunk_ids=to_fold,
-            )
-
-        self.order = [cid for cid in self.order if cid not in to_fold]
-        return True
 
     def to_dict(self) -> dict[str, Any]:
         return {

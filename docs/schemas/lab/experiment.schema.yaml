@@ -8,6 +8,14 @@ description: >
   Top-level key must be 'experiment:'.  All relative paths are resolved from
   the directory containing this file.
 
+  CLI vocabulary (canonical): application (MAS binding), scenarios, dataset,
+  run, item, scenario, post (experiment-level, --depth exp).
+
+  Properties marked deprecated: true still validate so old files load;
+  mas-lab validate warns on them (applications, mas). Removed keys
+  (pipeline_bind, pipeline, plots, flavours, output_dir) are rejected by
+  additionalProperties: false.
+
 type: object
 required: [experiment]
 additionalProperties: false
@@ -37,7 +45,11 @@ properties:
       output_schema:
         type: object
         additionalProperties: false
-        description: "Optional post-run output validation (required files/columns)."
+        deprecated: true
+        x-replaced-by: "plotnine/config.df_schema (and compute_ci output paths)"
+        description: >
+          DEPRECATED. Prefer plot-step df_schema and the files those steps write.
+          Still accepted as a warn-only post-run checklist.
         properties:
           required_files:
             type: array
@@ -56,41 +68,102 @@ properties:
           Runtime flavour name resolved via library-standard
           (mas.lab.flavour.resolve).
 
+      model:
+        type: string
+        description: >
+          Shorthand for models.main. Experiment default LLM (LiteLLM id, or
+          `any`). Agents/MAS that omit spec.models or set model: any inherit
+          this. `any` (and omitted) means this experiment does not pin a
+          provider id — inherit the application spec.models, then local
+          config.yaml defaults.model. models.main wins when both are set.
+          See docs/manifests/summarization.md.
+
+      models:
+        type: object
+        additionalProperties:
+          type: string
+        description: >
+          Slot map matching Agent/MAS spec.models[].id, plus `judge`.
+          `main` is the turn default (same as scalar model). `summarizer`
+          defaults the summary LLM when the agent omitted params.model.
+          `judge` defaults eval_mce; evaluation.model still overrides the
+          judge only. Values are LiteLLM ids or `any`.
+
       default_infra:
         type: string
         description: "Default infra bundle name for service/codec pipeline steps."
 
-      pipeline_bind:
-        type: string
-        description: "Library pipeline binding id (e.g. experiment/post)."
+      # ── MAS under test (CLI has no --application depth; this is the MAS binding) ─
+      application:
+        description: >
+          The MAS or agent under test ({app|manifest, configs_dir}).
+          Using this key as a pipeline level (pre/post without app/manifest) is
+          deprecated; use experiment-level post: (CLI --depth exp).
+        oneOf:
+          - $ref: "#/$defs/mas_binding"
+          - allOf:
+              - $ref: "#/$defs/level_section"
+              - deprecated: true
+                description: "DEPRECATED. Use experiment-level post: (CLI --depth exp)."
 
-      # ── MAS applications ──────────────────────────────────────────────────
       applications:
         type: array
         minItems: 1
-        description: "One or more MAS use-cases targeted by this experiment."
+        deprecated: true
+        x-replaced-by: "application: {app|manifest, configs_dir}"
+        description: >
+          DEPRECATED. Use application: {app|manifest, configs_dir}.
+          Still accepted as a one-item list so existing files load.
         items:
-          type: object
-          additionalProperties: false
-          description: "Pointer to a MAS use-case (manifest path, app name, or configs directory)."
-          properties:
-            manifest:
-              type: string
-              description: "Path to mas.yaml or agent.yaml."
-            app:
-              type: string
+          oneOf:
+            - type: string
+              minLength: 1
               description: >
-                Registered app name (mas.apps registry → mas.yaml).
-            configs_dir:
-              type: string
-              description: "Path to the overlays directory."
-            base_scenario:
-              type: string
-              default: "baseline"
-              description: "Default scenario used as reference/baseline."
-          anyOf:
-            - required: [manifest]
-            - required: [app]
+                Library + app identifier. The applications: attribute implies
+                kind MAS (or a standalone Agent app). Example:
+                library-ioc:sre-triage@v2. Slash after LIBRARY: is a path,
+                not an id (library-ioc:apps/sre-triage/v2).
+              pattern: "^[a-z0-9][a-z0-9-]*:[^\\s]+$"
+            - type: object
+              additionalProperties: false
+              description: "Pointer to a MAS use-case (manifest path, app name, or configs directory)."
+              properties:
+                manifest:
+                  type: string
+                  description: >
+                    Path or library:app identifier resolving to mas.yaml
+                    (e.g. library-ioc:sre-triage@v2).
+                app:
+                  type: string
+                  description: >
+                    Application catalog id, optionally library-qualified
+                    (library-ioc:sre-triage@v2 or sre-triage@v2).
+                configs_dir:
+                  type: string
+                  description: "Path to the overlays directory."
+                base_scenario:
+                  type: string
+                  default: "baseline"
+                  description: "Default scenario used as reference/baseline."
+              anyOf:
+                - required: [manifest]
+                - required: [app]
+
+      mas:
+        deprecated: true
+        description: >
+          DEPRECATED. Alias of application: {app|manifest, configs_dir}.
+          Loaders still accept mas: {manifest|app, configs_dir} (and
+          lab.mas in lab-config.yaml) and emit a one-shot warning.
+          Replace with application: {app|manifest, configs_dir}.
+          See https://outshift-open.github.io/mas-lab/manifests/experiment/#applications
+        oneOf:
+          - type: object
+            additionalProperties: true
+          - type: array
+            minItems: 1
+          - type: string
+            minLength: 1
 
       # ── Scenarios ─────────────────────────────────────────────────────────
       scenarios:
@@ -181,8 +254,10 @@ properties:
           app:
             type: string
             description: >-
-              App name (from mas.apps registry).  When present, the dataset is
-              resolved as {app_root}/datasets/{name}.yaml.  Requires 'name'.
+              Legacy filesystem hint: look under that app for datasets/<name>.
+              App-specific datasets now live at apps/<app>/vN/datasets/<name>/
+              and declare spec.app on the Dataset itself. Prefer dataset.name
+              as a catalog id.
           path:
             type: string
             description: >-
@@ -200,7 +275,37 @@ properties:
           limit:
             type: integer
             minimum: 1
-            description: "Cap number of dataset items processed (smoke runs)."
+            description: >
+              Use the first N items of the Dataset. Prefer this over shipping
+              a reduced copy (for example a ``-100`` sidecar). Smoke and CI
+              set a small limit; full lab runs omit it.
+          source:
+            type: object
+            additionalProperties: false
+            description: >
+              Optional external-dataset pointer (same shape as Dataset
+              spec.source). Merged over the Dataset manifest's spec.source
+              at load time (e.g. a tighter limit or different split).
+            properties:
+              kind:
+                type: string
+                enum: [huggingface, jsonl, csv, glob, pickle]
+              id:
+                type: string
+              split:
+                type: string
+              path:
+                type: string
+              map:
+                type: object
+                additionalProperties: true
+              config:
+                type: string
+              name:
+                type: string
+              limit:
+                type: integer
+                minimum: 1
 
       # ── Evaluation ────────────────────────────────────────────────────────
       evaluation:
@@ -213,10 +318,21 @@ properties:
             type: string
             enum: [user_emulation, llm_judge, metrics, trace_only]
             description: "Evaluation strategy. trace_only = collect trajectories without scoring."
+          model:
+            type: string
+            description: >
+              LLM-as-judge model for eval_mce (and other llm_judge steps).
+              Overrides experiment.models.judge / experiment.model /
+              application spec.models for the judge only. Omit to inherit
+              those defaults (`any` resolves from local config.yaml). A
+              per-step eval_mce config.model still wins. See
+              docs/manifests/summarization.md#mce-judge-model.
           config:
             type: object
             additionalProperties: true
-            description: "Method-specific configuration."
+            description: >
+              Method-specific configuration. config.model is an alias of
+              evaluation.model (evaluation.model wins when both are set).
 
       # ── Output ────────────────────────────────────────────────────────────
       trace_cache_dir:
@@ -265,7 +381,7 @@ properties:
             default: native
             description: >
               Lab adapter id (mas.lab.runners entry point). Optional override —
-              when omitted, inferred from applications[].app / mas.manifest
+              when omitted, inferred from application.app / mas.manifest
               spec.framework.default_adapter or agent spec.framework_adapter.
           reset_state:
             type: boolean
@@ -300,30 +416,33 @@ properties:
       artifacts:
         $ref: "#/$defs/artifact_declarations"
 
-      # ── Level hooks ────────────────────────────────────────────────────────────
-      # Each level has a pre: and post: phase:
-      #   run        → once per (scenario × item × run)  — also declares n_runs
-      #   test       → once per (scenario × item), after all runs
-      #   scenario   → once per scenario, after all tests
-      #
-      # ── Per-level pipeline hooks ──────────────────────────────────────────
-      # Each level (application, scenario, test, run) has pre: and post: hooks.
-      # pre: fires before the level's execution, post: after.
-      # Each hook accepts a LIST of pipelines; each pipeline is inline steps (list),
-      # a file ref (string), the long form {steps: [...]} / {ref: "path"}, or
-      # a library pipeline reference {id: "pipeline-name"}.
-      application:
-        $ref: "#/$defs/level_section"
-        description: >-
-          Experiment-level lifecycle hooks.
-          pre: runs before execution starts (setup, infra allocation).
-          post: runs after all scenarios complete (eval, aggregation, plots).
+      # ── Pipeline hooks (CLI --depth exp|scenario|item|run) ──────────────
       run:
         $ref: "#/$defs/run_level_section"
+      item:
+        $ref: "#/$defs/level_section"
+        description: >
+          Hooks for one dataset item after all its runs (CLI --item / --depth item).
       test:
         $ref: "#/$defs/level_section"
+        deprecated: true
+        x-replaced-by: "item:"
+        description: "DEPRECATED. Use item: (matches CLI --item)."
       scenario:
         $ref: "#/$defs/level_section"
+        description: "Hooks after all items in a scenario (CLI --scenario)."
+      pre:
+        type: array
+        description: "Experiment-level pre hooks (CLI --depth exp)."
+        items:
+          $ref: "#/$defs/level_pipeline_entry"
+      post:
+        type: array
+        description: >
+          Experiment-level post hooks after every scenario completes
+          (CLI --depth exp). Preferred over the deprecated application.post.
+        items:
+          $ref: "#/$defs/level_pipeline_entry"
 
       ui:
         type: object
@@ -356,10 +475,36 @@ properties:
                   type: number
             description: "Per-agent canvas coordinates {agent_id: {x, y}}."
 
-    required: [name, applications]
+    required: [name]
+    anyOf:
+      - required: [application]
+      - required: [applications]
+      - required: [mas]
 
 # ── Shared definitions ────────────────────────────────────────────────────────
 $defs:
+  mas_binding:
+    type: object
+    additionalProperties: false
+    description: "Pointer to a MAS use-case (manifest path, app name, or configs directory)."
+    properties:
+      manifest:
+        type: string
+        description: "Path to mas.yaml or agent.yaml."
+      app:
+        type: string
+        description: Registered app name (mas.apps registry → mas.yaml).
+      configs_dir:
+        type: string
+        description: "Path to the overlays directory."
+      base_scenario:
+        type: string
+        default: "baseline"
+        description: "Default scenario used as reference/baseline."
+    anyOf:
+      - required: [manifest]
+      - required: [app]
+
   # ── Artifact declarations ─────────────────────────────────────────────────
   artifact_declarations:
     type: object
@@ -378,7 +523,7 @@ $defs:
             type:
               type: string
               description: >
-                Artifact type from the library: trace, run_info, metrics, plot, dataframe.
+                Artifact type from a library.yaml plugin (type: artifact).
             path:
               type: string
               description: >
@@ -390,7 +535,7 @@ $defs:
               default: false
               description: "Validate artifact schema after creation."
 
-  # ── Level section (application / test / scenario) ──────────────────────
+  # ── Level section (item / scenario / experiment-level hooks) ──────────
   level_section:
     type: object
     additionalProperties: false
@@ -547,6 +692,10 @@ $defs:
         items:
           type: string
         description: "Names of upstream steps that must complete first."
+      streaming:
+        type: boolean
+        default: false
+        description: "If true, call on_event for live MAS telemetry; execute still finalizes artefacts."
       config:
         type: object
         additionalProperties: true

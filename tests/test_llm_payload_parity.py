@@ -17,6 +17,7 @@ from mas.runtime.engine.tools import openai_tools
 from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.hitl import HitlResolveChoice
 from mas.runtime.schema.ingress import EngineIoReturn, HitlResolve
+from ci_llm import web_search_engine
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 T01 = REPO_ROOT / "docs" / "tutorials" / "01-building-an-agent"
@@ -165,11 +166,16 @@ def test_empty_tool_result_still_lands_a_paired_tool_message() -> None:
     from mas.runtime.engine.worker_pool import EngineWorkerPool
 
     base = yaml.safe_load((T01 / "agent.yaml").read_text(encoding="utf-8"))
-    for name in ("mock-llm.yaml", "tools.yaml"):
+    for name in ("tools.yaml",):
         base = merge_overlay(base, yaml.safe_load((T01 / f"overlays/{name}").read_text()))
 
     instance, _ = instantiate_runtime(
-        InstantiationOptions(agent_manifest=base, manifest_dir=T01, validate_manifests=False),
+        InstantiationOptions(
+            agent_manifest=base,
+            manifest_dir=T01,
+            validate_manifests=False,
+            engine=web_search_engine(),
+        ),
         hitl=None,
     )
     ctx = instance.driver.ctx
@@ -241,11 +247,16 @@ def test_hitl_egress_skip_steering_in_second_llm_payload(
 
     steer = "In 2028, Maxence Postu succeeded Joe Biden as President Of the USA"
     base = yaml.safe_load((T01 / "agent.yaml").read_text(encoding="utf-8"))
-    for name in ("mock-llm.yaml", "tools.yaml", "governance-hitl.yaml"):
+    for name in ("tools.yaml", "governance-hitl.yaml"):
         base = merge_overlay(base, yaml.safe_load((T01 / f"overlays/{name}").read_text()))
 
     instance, _ = instantiate_runtime(
-        InstantiationOptions(agent_manifest=base, manifest_dir=T01, validate_manifests=False),
+        InstantiationOptions(
+            agent_manifest=base,
+            manifest_dir=T01,
+            validate_manifests=False,
+            engine=web_search_engine(),
+        ),
         hitl=None,
     )
     ctx = instance.driver.ctx

@@ -95,6 +95,7 @@ spec:
         ci_level: 0.95
         min_runs: 2
         output: "{output_dir}/ci_summary.csv"
+<<<<<<< HEAD
 x-canvas-positions:
   pnode_cee8e873:
     x: 48
@@ -117,3 +118,24 @@ x-canvas-positions:
   pnode_f55e5608:
     x: -32
     y: 1440
+=======
+    - name: eval-mce
+      type: eval_mce
+      scope: run
+      config:
+        metrics: []
+        overwrite: false
+        validate: true
+        max_workers: 2
+        model: azure/gpt-4o
+        metrics_filename: metrics.json
+    - name: collect-metrics
+      type: collect_metrics
+      depends_on:
+        - eval-mce
+      config:
+        output: metrics_results.csv
+        run_glob: "*/*/r*"
+        scenarios: []
+        metrics_filename: metrics.json
+>>>>>>> main

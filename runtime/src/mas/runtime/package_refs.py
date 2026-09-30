@@ -5,30 +5,22 @@
 from __future__ import annotations
 
 import importlib
-import importlib.metadata
 import importlib.resources
 from pathlib import Path
 
-
-def _manifest_library_root(scheme: str) -> Path | None:
-    """Root path for a ``mas.runtime.manifest_libraries`` entry-point scheme."""
-    try:
-        from mas.library_roots import resolve_manifest_library_package
-
-        eps = importlib.metadata.entry_points(group="mas.runtime.manifest_libraries")
-    except Exception:
-        return None
-    for ep in eps:
-        if ep.name == scheme:
-            root = resolve_manifest_library_package(ep.value)
-            if root is not None:
-                return root
-    return None
+from mas.version_spec import split_library_prefix
 
 
-def resolve_library_scheme_root(scheme: str) -> Path | None:
-    """Public helper — resolve a manifest library scheme (e.g. ``samples``)."""
-    return _manifest_library_root(scheme)
+def _manifest_library_root(scheme: str, *anchors: Path | None) -> Path | None:
+    """On-disk root for library *scheme*, or None if that library is not present."""
+    from mas.library_roots import resolve_named_library_root
+
+    return resolve_named_library_root(scheme, *anchors)
+
+
+def resolve_library_scheme_root(scheme: str, *anchors: Path | None) -> Path | None:
+    """Public helper — root of a named manifest library, or None."""
+    return _manifest_library_root(scheme, *anchors)
 
 
 def _ctl_example_package_root(package: str) -> Path | None:
@@ -60,7 +52,11 @@ def _resolve_pkg_resource(package: str, resource_rel: str) -> Path:
 
 
 def resolve_path_ref(ref: str, base_dir: Path) -> Path:
-    """Resolve a relative filesystem path or a pkg:// resource reference."""
+    """Resolve a library ref (``name:path``), ``pkg://`` resource, or filesystem path.
+
+    A ``name:path`` string is always a library name. Missing libraries raise
+    ``LookupError``; they are not interpreted as relative paths.
+    """
     if ref.startswith("pkg://"):
         package_path = ref[len("pkg://") :]
         package, sep, resource_rel = package_path.partition("/")
@@ -68,12 +64,16 @@ def resolve_path_ref(ref: str, base_dir: Path) -> Path:
             raise ValueError(f"Invalid package ref without resource path: {ref}")
         return _resolve_pkg_resource(package, resource_rel)
 
-    if ":" in ref and not ref.startswith("/"):
-        scheme, _, rel_path = ref.partition(":")
-        if scheme and "/" not in scheme and "\\" not in scheme:
-            lib_root = _manifest_library_root(scheme)
-            if lib_root is not None:
-                return _resolve_in_library(lib_root, rel_path)
+    scheme, rel_path = split_library_prefix(ref)
+    if scheme is not None:
+        lib_root = _manifest_library_root(scheme, base_dir)
+        if lib_root is None:
+            raise LookupError(f"unknown library {scheme!r}")
+        return _resolve_in_library(lib_root, rel_path)
+
+    catalog = _resolve_unqualified_catalog_id(ref)
+    if catalog is not None:
+        return catalog
 
     p = Path(ref)
     return p if p.is_absolute() else (base_dir / ref).resolve()
@@ -118,4 +118,96 @@ def _resolve_in_library(lib_root: Path, rel_path: str) -> Path:
         target = lib_root / cand
         if target.exists():
             return target
+    catalog = _resolve_library_catalog_rel(lib_root, rel)
+    if catalog is not None:
+        return catalog
+    nested = _resolve_catalog_relative(rel, lib_root=lib_root)
+    if nested is not None:
+        return nested
     return lib_root / rel
+
+
+def _looks_like_catalog_id(ref: str) -> bool:
+    """True when *ref* is ``name`` or ``name@version``, not a filesystem path.
+
+    Slash is a path. File extensions are paths. ``LIBRARY:`` is handled separately.
+    """
+    text = str(ref or "").strip()
+    if not text or text.startswith((".", "/", "\\")):
+        return False
+    if "/" in text or "\\" in text:
+        return False
+    if text.endswith((".yaml", ".yml", ".json")):
+        return False
+    return True
+
+
+def _catalog_path_to_ref(path: Path) -> Path:
+    from mas.library_catalog import app_manifest_file
+
+    if path.is_dir():
+        manifest = app_manifest_file(path)
+        return manifest if manifest is not None else path
+    return path
+
+
+def _catalog_dir(path: Path) -> Path:
+    """Folder to join a catalog-relative suffix onto (app dir or dataset dir)."""
+    return path.parent if path.is_file() else path
+
+
+def _resolve_catalog_relative(rel: str, *, lib_root: Path | None) -> Path | None:
+    """Resolve ``name@version/path`` as a file inside a catalog object.
+
+    ``library-ioc:sre-triage-incidents@v2/tool_fixtures/foo.yaml`` is the
+    Dataset folder plus a sibling payload. ``library-ioc:sre-triage@v2/tools/…``
+    is the app version folder plus a path. Slash after a *folder* name
+    (``apps/…``) stays a library-root path; this only fires when the first
+    segment is a catalog id.
+    """
+    text = rel.lstrip("/")
+    if "/" not in text:
+        return None
+    head, rest = text.split("/", 1)
+    if not rest or not _looks_like_catalog_id(head):
+        return None
+    from mas.library_catalog import resolve_catalog_id, resolve_id_in_library
+
+    path = (
+        resolve_id_in_library(lib_root, head, kind=None)
+        if lib_root is not None
+        else resolve_catalog_id(head, kind=None)
+    )
+    if path is None:
+        return None
+    anchor = _catalog_dir(path)
+    candidates = [rest]
+    if not rest.endswith((".yaml", ".yml", ".json")):
+        candidates += [f"{rest}.yaml", f"{rest}.yml"]
+    for cand in candidates:
+        target = anchor / cand
+        if target.exists():
+            return target
+    return anchor / rest
+
+
+def _resolve_unqualified_catalog_id(ref: str) -> Path | None:
+    """Look up a global catalog id before treating *ref* as a relative path."""
+    if _looks_like_catalog_id(ref):
+        from mas.library_catalog import resolve_catalog_id
+
+        path = resolve_catalog_id(ref, kind=None)
+        if path is None:
+            return None
+        return _catalog_path_to_ref(path)
+    return _resolve_catalog_relative(ref, lib_root=None)
+
+
+def _resolve_library_catalog_rel(lib_root: Path, rel: str) -> Path | None:
+    """Resolve a catalog id (app or dataset) when no file path exists under *lib_root*."""
+    from mas.library_catalog import resolve_id_in_library
+
+    path = resolve_id_in_library(lib_root, rel, kind=None)
+    if path is None:
+        return None
+    return _catalog_path_to_ref(path)

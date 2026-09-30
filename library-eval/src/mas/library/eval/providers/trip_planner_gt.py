@@ -44,16 +44,9 @@ from typing import Dict, List, Optional
 import yaml
 
 from mas.library.eval.evaluator import EvalProvider, MetricScore
+from mas.runtime.spec.source import load_dataset_items_file as _load_dataset_file
 
 logger = logging.getLogger(__name__)
-
-
-def _load_dataset_file(path: Path) -> Dict:
-    with path.open(encoding="utf-8") as fh:
-        data = yaml.safe_load(fh) if path.suffix in (".yaml", ".yml") else json.load(fh)
-    if isinstance(data, dict) and data.get("kind") == "Dataset":
-        return {"items": data.get("spec", {}).get("items", [])}
-    return data
 
 
 class TripPlannerGTProvider(EvalProvider):

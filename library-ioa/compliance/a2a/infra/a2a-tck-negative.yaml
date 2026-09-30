@@ -1,0 +1,19 @@
+apiVersion: infra/v1
+kind: Application
+metadata:
+  name: a2a-tck-negative
+  description: Negative-capability A2A TCK profile.
+spec:
+  endpoints:
+    a2a-tck-agent:
+      protocol: a2a
+      url: http://127.0.0.1:9031
+      usage: deploy
+      a2a:
+        listen:
+          host: 127.0.0.1
+          port: 9031
+        capabilities:
+          streaming: false
+          pushNotifications: false
+          extendedAgentCard: false

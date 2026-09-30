@@ -16,6 +16,7 @@ from mas.runtime.driver.mocks import AutoCtxAssembler
 from mas.runtime.schema.hitl import HitlResolveChoice
 from mas.runtime.schema.observability import ObsEventKind
 from mas.runtime.schema.ingress import HitlResolve
+from ci_llm import web_search_engine
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 T01 = REPO_ROOT / "docs" / "tutorials" / "01-building-an-agent"
@@ -149,11 +150,16 @@ def test_hitl_turn_commit_preserves_history_for_turn_two() -> None:
 
     steer = "Maxence Postu is POTUS"
     base = yaml.safe_load((T01 / "agent.yaml").read_text(encoding="utf-8"))
-    for name in ("mock-llm.yaml", "tools.yaml", "governance-hitl.yaml"):
+    for name in ("tools.yaml", "governance-hitl.yaml"):
         base = merge_overlay(base, yaml.safe_load((T01 / f"overlays/{name}").read_text()))
 
     instance, _ = instantiate_runtime(
-        InstantiationOptions(agent_manifest=base, manifest_dir=T01, validate_manifests=False),
+        InstantiationOptions(
+            agent_manifest=base,
+            manifest_dir=T01,
+            validate_manifests=False,
+            engine=web_search_engine(),
+        ),
         hitl=None,
     )
     op = instance.driver.observability

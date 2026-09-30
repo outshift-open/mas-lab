@@ -29,11 +29,11 @@ items:
               type: boolean
               default: false
               description: >
-                When true, also auto-grant run-skill-script.tool.yaml (script
-                execution) to any agent that declares spec.skills — not just
-                skill-access.tool.yaml (read-only). Off by default: declaring
-                skills must not silently grant script execution; opt in per
-                deployment here instead of hand-declaring the tool ref.
+                When true, grant the ``run_skill_script`` system tool (script
+                execution) even if no listed skill has a ``scripts/`` directory.
+                Off by default: listing skills only adds ``activate_skill``.
+                A skill that already ships scripts implies the tool. Explicit
+                alternative: ``{kind: system, name: run_skill_script}``.
         adk:
           type: object
           additionalProperties: false
@@ -44,11 +44,11 @@ items:
               type: boolean
               default: false
               description: >
-                When true, also auto-grant run-skill-script.tool.yaml (script
-                execution) to any agent that declares spec.skills — not just
-                skill-access.tool.yaml (read-only). Off by default: declaring
-                skills must not silently grant script execution; opt in per
-                deployment here instead of hand-declaring the tool ref.
+                When true, grant the ``run_skill_script`` system tool (script
+                execution) even if no listed skill has a ``scripts/`` directory.
+                Off by default: listing skills only adds ``activate_skill``.
+                A skill that already ships scripts implies the tool. Explicit
+                alternative: ``{kind: system, name: run_skill_script}``.
         langchain:
           type: object
           additionalProperties: false
@@ -59,8 +59,8 @@ items:
               type: boolean
               default: false
               description: >
-                When true, also auto-grant run-skill-script.tool.yaml (script
-                execution) to any agent that declares spec.skills — not just
-                skill-access.tool.yaml (read-only). Off by default: declaring
-                skills must not silently grant script execution; opt in per
-                deployment here instead of hand-declaring the tool ref.
+                When true, grant the ``run_skill_script`` system tool (script
+                execution) even if no listed skill has a ``scripts/`` directory.
+                Off by default: listing skills only adds ``activate_skill``.
+                A skill that already ships scripts implies the tool. Explicit
+                alternative: ``{kind: system, name: run_skill_script}``.

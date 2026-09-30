@@ -1,11 +1,37 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Human-readable LLM / tool exchange previews for ctl --trace."""
+"""Pretty-print helpers for LLM / tool exchange snapshots.
+
+Call these at a display edge (CLI --trace full, cache-key materialization,
+tests). Do not store their output on ExchangeRecord.
+"""
 
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import Any
+
+
+@dataclass
+class ExchangeSnapshot:
+    """Structured outbound engine state for one invoke. Not a display string."""
+
+    messages: list[dict[str, Any]] | None = None
+    tools: list[dict[str, Any]] | None = None
+    tools_note: str = ""
+    tool_name: str | None = None
+    arguments: dict[str, Any] | None = None
+    note: str = ""
+
+
+def format_exchange_snapshot(snap: ExchangeSnapshot) -> str:
+    """Pretty-print an ExchangeSnapshot. Last-step view, not interchange."""
+    if snap.messages:
+        return format_llm_messages(snap.messages, tools=snap.tools, tools_note=snap.tools_note)
+    if snap.tool_name:
+        return format_tool_invoke(snap.tool_name, snap.arguments)
+    return snap.note
 
 
 def format_llm_messages(

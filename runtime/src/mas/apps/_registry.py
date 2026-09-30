@@ -32,15 +32,43 @@ def _discover_apps() -> dict[str, Path]:
 
 
 def get_app(name: str) -> Path:
-    apps = _discover_apps()
-    if name not in apps:
-        available = ", ".join(sorted(apps)) or "(none found)"
+    """Return the application directory for a catalog id or ``library:app`` ref.
+
+    Canonical id: ``[library:]name[@version]`` (``library-ioc:sre-triage@v2``).
+    Bare ``name`` is ``@latest``. Slash is a filesystem path, not an id alias.
+    """
+    requested = str(name).strip()
+    from mas.library_catalog import parse_library_ref, parse_versioned_id, versioned_id
+
+    parsed = parse_library_ref(requested)
+    if parsed is not None:
+        scheme, app_id = parsed
+        from mas.library_catalog import resolve_library_app
+
+        path = resolve_library_app(scheme, app_id)
+        if path is not None:
+            return path
         raise AppNotFoundError(
-            f"App '{name}' not found. Available: {available}. "
-            "Declare the app under manifest_libraries in config.yaml "
-            "or register a mas.apps entry point."
+            f"App '{requested}' not found in library {scheme!r}. "
+            "Check library.yaml apps: and workspace manifest_libraries."
         )
-    return apps[name]
+
+    apps = _discover_apps()
+    if requested in apps:
+        return apps[requested]
+    name_part, ver = parse_versioned_id(requested)
+    if ver:
+        keyed = versioned_id(name_part, ver)
+        if keyed in apps:
+            return apps[keyed]
+    elif name_part in apps:
+        return apps[name_part]
+    available = ", ".join(sorted(apps)) or "(none found)"
+    raise AppNotFoundError(
+        f"App '{requested}' not found. Available: {available}. "
+        "Use library:app (e.g. library-ioc:sre-triage@v2) or declare the app "
+        "under manifest_libraries in config.yaml."
+    )
 
 
 def resolve_app_manifest(app_root: Path, app_id: str | None = None) -> Path:

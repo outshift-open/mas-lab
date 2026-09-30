@@ -151,6 +151,10 @@ class BenchmarkMetadata:
         if isinstance(data.get("status"), str):
             data["status"] = BenchmarkStatus(data["status"])
 
+        ts = data.get("timestamp")
+        if isinstance(ts, datetime):
+            data["timestamp"] = ts.isoformat()
+
         # Drop keys that no longer exist in the dataclass (backward compat).
         known = {f.name for f in _dc.fields(cls)}
         data = {k: v for k, v in data.items() if k in known}

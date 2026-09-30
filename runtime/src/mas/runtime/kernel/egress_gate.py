@@ -18,11 +18,14 @@ from mas.runtime.kernel.coupling import (
     apply_control_engine_allow,
     apply_control_tool_request,
     apply_gov_block,
+    apply_gov_error,
     apply_gov_terminate,
     enter_egress_chokepoint,
+    gov_plugin_boundary_error,
 )
 from mas.runtime.kernel.envelope import (
     EnvelopeContext,
+    close_envelope,
     contract_kind_for_op,
     run_egress_authorize_envelope,
 )
@@ -58,14 +61,37 @@ def _destructive_for_op(op: ScheduledEgress, config: KernelConfig) -> bool:
 
 def _append_synthetic_skip(q: QProduct, run: RunLedger) -> None:
     cid = run.next_correlation_id()
-    run.append(
-        RunEvent(correlation_id=cid, response_kind="TOOL_RESULT", next_step="STOP")
-    )
+    run.append(RunEvent(correlation_id=cid, response_kind="TOOL_RESULT", next_step="STOP"))
     q.model = model_on_abort(q.model)
     q.tool = tool_on_abort(q.tool)
     q.inflight_kind = "NONE"
     q.dp = DpState.EVALUATING
     control_on_idle(q)
+
+
+def _feed_blocked_tool_to_model(
+    q: QProduct,
+    run: RunLedger,
+    config: KernelConfig,
+    *,
+    cid: int,
+    text: str,
+) -> list[EgressSymbol]:
+    """BLOCK on TOOL_CALL → synthetic tool observation, then another LLM call."""
+    q.scheduled_egress = "NONE"
+    q.inflight_kind = "NONE"
+    q.tool = tool_on_abort(q.tool)
+    run.append(
+        RunEvent(
+            correlation_id=cid,
+            response_kind="TOOL_RESULT",
+            next_step="LLM_CALL",
+            text=text,
+        )
+    )
+    q.scheduled_egress = "LLM_CALL"
+    q.dp = DpState.EGRESS_PENDING
+    return emit_scheduled_egress(q, run, config)
 
 
 def _apply_engine_allow(q: QProduct, view: EgressIntentView) -> None:
@@ -81,9 +107,7 @@ def _apply_engine_allow(q: QProduct, view: EgressIntentView) -> None:
         q.transport = transport_on_egress(q.transport, view.op)
 
 
-def schedule_tool_egress(
-    q: QProduct, run: RunLedger, config: KernelConfig
-) -> list[EgressSymbol]:
+def schedule_tool_egress(q: QProduct, run: RunLedger, config: KernelConfig) -> list[EgressSymbol]:
     """Agentic ACT → control REQUEST; run egress governance / HITL at chokepoint."""
     apply_control_tool_request(q)
     return emit_scheduled_egress(q, run, config)
@@ -112,9 +136,7 @@ def _envelope_context(
     )
 
 
-def emit_scheduled_egress(
-    q: QProduct, run: RunLedger, config: KernelConfig
-) -> list[EgressSymbol]:
+def emit_scheduled_egress(q: QProduct, run: RunLedger, config: KernelConfig) -> list[EgressSymbol]:
     if q.scheduled_egress == "NONE":
         return [NoOp()]
     if q.tool_blacklisted and q.scheduled_egress == "TOOL_CALL":
@@ -146,8 +168,7 @@ def emit_scheduled_egress(
     cid = run.allocate_correlation_id()
     destructive = _destructive_for_op(op, config)
     hitl_override = bool(
-        q.hitl_gov_override
-        or (config.hitl_once_per_turn and q.hitl_tools_approved_turn and op == "TOOL_CALL")
+        q.hitl_gov_override or (config.hitl_once_per_turn and q.hitl_tools_approved_turn and op == "TOOL_CALL")
     )
     env_ctx = _envelope_context(
         q,
@@ -157,7 +178,12 @@ def emit_scheduled_egress(
         destructive=destructive,
         hitl_override=hitl_override,
     )
-    decision = run_egress_authorize_envelope(env_ctx)
+    try:
+        decision = run_egress_authorize_envelope(env_ctx)
+    except Exception as exc:
+        close_envelope(env_ctx, error="GOV_PLUGIN_ERROR")
+        apply_gov_error(q)
+        return [gov_plugin_boundary_error(exc)]
 
     view = EgressIntentView(
         op=op,
@@ -165,6 +191,7 @@ def emit_scheduled_egress(
         correlation_id=cid,
         tool_name=q.pending_tool_name,
         tool_arguments=q.pending_tool_args,
+        offered_tools=q.offered_tools,
     )
 
     if decision == GovDecision.HITL:
@@ -201,15 +228,41 @@ def emit_scheduled_egress(
         )
 
     if decision == GovDecision.BLOCK:
+        # Capture before close_envelope: ingress validate overwrites gov_reason.
+        block_reason = env_ctx.gov_reason or (
+            f"Tool '{q.pending_tool_name}' is not allowed."
+        )
+        close_envelope(env_ctx, error="GOV_BLOCK")
+        if op == "TOOL_CALL":
+            # Same recovery path as HITL BLOCK: do not run the tool, put the
+            # policy reason in a tool observation, and let the same agent
+            # pick a name it was actually given.
+            coord_on_egress_blocked(q)
+            return _feed_blocked_tool_to_model(
+                q,
+                run,
+                config,
+                cid=cid,
+                text=block_reason,
+            )
         apply_gov_block(q)
         coord_on_egress_blocked(q)
-        return [RaiseBoundaryError(code="GOV_BLOCK", recoverable=True)]
+        return [
+            RaiseBoundaryError(
+                code="GOV_BLOCK",
+                recoverable=True,
+                message=block_reason,
+                policy_name=env_ctx.policy_name or "",
+            )
+        ]
 
     if decision == GovDecision.TERMINATE:
+        close_envelope(env_ctx, error="GOV_TERMINATE")
         apply_gov_terminate(q)
         return [RaiseBoundaryError(code="GOV_TERMINATE", recoverable=False)]
 
     if decision in {GovDecision.SKIP, GovDecision.BLACKLIST}:
+        close_envelope(env_ctx, error=decision.value)
         if decision == GovDecision.BLACKLIST:
             q.tool_blacklisted = True
         q.scheduled_egress = "NONE"
@@ -217,6 +270,7 @@ def emit_scheduled_egress(
         return [NoOp()]
 
     if decision == GovDecision.RETRY:
+        close_envelope(env_ctx, error="GOV_RETRY")
         if q.gov_retry_count >= config.max_gov_retries:
             apply_gov_block(q)
             return [RaiseBoundaryError(code="GOV_RETRY_EXHAUSTED", recoverable=True)]

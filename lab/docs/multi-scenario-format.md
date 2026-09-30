@@ -18,13 +18,27 @@ for scenario in scenarios:
       execute (scenario overlays × item)
 ```
 
-On disk:
+On disk, the directory tree *is* the artifact tree — each level (`application` /
+`scenario` / `test` / `run`) owns whatever artifacts it declares in its own
+`artifacts:` block:
 
 ```text
 <output_dir>/
-  <scenario-id>/item<N>/r<R>/traces/events.jsonl
-  results/          # pipeline outputs (all scenarios)
+  data.csv                              # application-level artifact (e.g. gathered df)
+  <scenario-id>/
+    data.csv                            # scenario-level artifact
+    item<N>/
+      data.csv                          # test-level artifact
+      r<R>/
+        traces/events.jsonl             # run-level artifact (trace)
+        metrics.json                    # run-level artifact (eval_mce output)
+        data.csv                        # run-level artifact (metrics_to_dataframe output)
 ```
+
+A `gather_level` step placed at `test:`/`scenario:`/`application:` fans the
+level below's named artifact upward (see [pipeline-steps.md](pipeline-steps.md)
+and the `in:`/`out:`/`scope:` fields in
+[manifests/pipeline.md](../../docs/manifests/pipeline.md)).
 
 ## `scenarios:`
 
@@ -62,28 +76,53 @@ Format: [dataset.md](../../docs/manifests/dataset.md).
 ## MAS binding
 
 ```yaml
-  applications:
-    - app: trip-planner
-      configs_dir: ./overlays
+  application:
+    app: trip-planner
+    configs_dir: ./overlays
 ```
 
 Or explicit manifest:
 
 ```yaml
-  applications:
-    - manifest: ./mas.yaml
-      configs_dir: ./overlays
+  application:
+    manifest: ./mas.yaml
+    configs_dir: ./overlays
 ```
+
+`applications:` (list) is deprecated; the loader keeps the first item and warns.
 
 ## Post-run pipeline
 
+Hooks use CLI names (`run:` / `item:` / `scenario:` / experiment `post:`).
+Run-scoped steps write one artifact; higher levels `gather_level` concatenate
+one child layer only.
+
 ```yaml
-  application:
+  run:
+    n_runs: 1
+    artifacts:
+      trace: { type: trace, path: "{run_dir}/traces/events.jsonl" }
+      metrics: metrics
+      df: dataframe
     post:
+      - name: eval-quality
+        type: eval_mce
+        in: trace
+        out: metrics
       - name: extract-trace-stats
         type: extract_trace_stats
-        config:
-          output: "{output_dir}/results/trace_stats.csv"
+        in: trace
+        out: df
+  item:
+    artifacts: {df: dataframe}
+    post:
+      - {name: gather-item, type: gather_level, in: df, out: df, depends_on: [extract-trace-stats]}
+  scenario:
+    artifacts: {df: dataframe}
+    post:
+      - {name: gather-scenario, type: gather_level, in: df, out: df, depends_on: [gather-item]}
+  post:
+    - {name: gather-experiment, type: gather_level, in: df, out: df, depends_on: [gather-scenario]}
 ```
 
 Step types: [pipeline-steps.md](pipeline-steps.md).

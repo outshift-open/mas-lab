@@ -76,7 +76,7 @@ class TestMergeFlavourOverlayWhitelist:
         merged = merge_flavour_overlay(base, _overlay({"agent_comm": {"mode": "remote"}}))
         assert merged["spec"]["agent_comm"] == {"protocol": "agent-local", "mode": "remote"}
 
-    @pytest.mark.parametrize("key", ["llm", "skills", "mocking", "prefer_local", "memory", "tools_remove"])
+    @pytest.mark.parametrize("key", ["llm", "skills", "prefer_local", "memory", "tools_remove"])
     def test_forbidden_keys_rejected(self, key):
         base = _flavour({})
         with pytest.raises(OverlayTargetError):

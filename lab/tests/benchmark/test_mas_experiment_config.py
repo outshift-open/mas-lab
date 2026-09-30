@@ -10,7 +10,9 @@ Covers:
   - Smoke-parse of every real experiment.yaml in labs/
   - Dry-run of every reproduce command (validates config + pipeline end-to-end)
 """
+import json
 import subprocess
+import sys
 import textwrap
 import warnings
 from pathlib import Path
@@ -43,9 +45,9 @@ def _write_experiment(tmp_path: Path, dataset_block: str, extra: str = "") -> Pa
         "  name: test-experiment\n"
         '  description: "Unit test"\n'
         "\n"
-        "  applications:\n"
-        "    - manifest: ./mas.yaml\n"
-        "      configs_dir: ./overlays\n"
+        "  application:\n"
+        "    manifest: ./mas.yaml\n"
+        "    configs_dir: ./overlays\n"
         "\n"
         f"{dataset_indented}\n"
         f"{extra_section}\n"
@@ -135,6 +137,115 @@ def test_dataset_name_with_group_filter(tmp_path):
     assert cfg.dataset_filter == {"group": "single_agent"}
 
 
+def test_dataset_source_overlay_is_loaded_and_applied(tmp_path):
+    """experiment.dataset.source is parsed and merged onto Dataset spec.source."""
+    datasets_dir = tmp_path / "datasets"
+    datasets_dir.mkdir(parents=True, exist_ok=True)
+    (datasets_dir / "rows.jsonl").write_text(
+        json.dumps({"id": "a", "question": "A"})
+        + "\n"
+        + json.dumps({"id": "b", "question": "B"})
+        + "\n"
+        + json.dumps({"id": "c", "question": "C"})
+        + "\n",
+        encoding="utf-8",
+    )
+    manifest = {
+        "apiVersion": "lab/v1",
+        "kind": "Dataset",
+        "metadata": {"name": "mmlu", "version": "v1"},
+        "spec": {
+            "source": {
+                "kind": "jsonl",
+                "path": "rows.jsonl",
+                "map": {"id": "id", "inputs.user": "question"},
+            }
+        },
+    }
+    (datasets_dir / "mmlu.yaml").write_text(
+        yaml.dump(manifest, allow_unicode=True, sort_keys=False)
+    )
+    exp_yaml = _write_experiment(
+        tmp_path,
+        "dataset:\n  path: ./datasets/mmlu.yaml\n  source:\n    limit: 1",
+    )
+    cfg = MASExperimentConfig.from_yaml(exp_yaml)
+    assert cfg.dataset_source == {"limit": 1}
+
+    from mas.lab.benchmark.schedule.run_batch.load import _load_dataset_items
+
+    items = _load_dataset_items(cfg)
+    assert [item["id"] for item in items] == ["a"]
+    assert items[0]["inputs"]["user"] == "A"
+
+
+def test_dataset_limit_slices_yaml_items(tmp_path):
+    """experiment.dataset.limit keeps the first N envelope items."""
+    datasets_dir = tmp_path / "datasets"
+    datasets_dir.mkdir(parents=True, exist_ok=True)
+    (datasets_dir / "queries.yaml").write_text(
+        yaml.dump(
+            {
+                "apiVersion": "lab/v1",
+                "kind": "Dataset",
+                "metadata": {"name": "queries", "version": "v1"},
+                "spec": {
+                    "items": [
+                        {"id": "1", "inputs": {"user": "one"}},
+                        {"id": "2", "inputs": {"user": "two"}},
+                        {"id": "3", "inputs": {"user": "three"}},
+                    ]
+                },
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        )
+    )
+    exp_yaml = _write_experiment(
+        tmp_path,
+        "dataset:\n  name: queries\n  limit: 2",
+    )
+    cfg = MASExperimentConfig.from_yaml(exp_yaml)
+    assert cfg.dataset_limit == 2
+    from mas.lab.benchmark.schedule.run_batch.load import (
+        _load_dataset_items,
+        _view_dataset_items,
+    )
+
+    items = _view_dataset_items(
+        _load_dataset_items(cfg),
+        dataset_limit=cfg.dataset_limit,
+    )
+    assert [item["id"] for item in items] == ["1", "2"]
+
+
+def test_load_dataset_items_raises_on_bad_source(tmp_path):
+    """A present dataset file that cannot materialize must not fall back to a dummy prompt."""
+    datasets_dir = tmp_path / "datasets"
+    datasets_dir.mkdir(parents=True, exist_ok=True)
+    (datasets_dir / "mmlu.yaml").write_text(
+        yaml.dump(
+            {
+                "apiVersion": "lab/v1",
+                "kind": "Dataset",
+                "metadata": {"name": "mmlu", "version": "v1"},
+                "spec": {"source": {"kind": "jsonl"}},
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        )
+    )
+    exp_yaml = _write_experiment(
+        tmp_path,
+        "dataset:\n  path: ./datasets/mmlu.yaml",
+    )
+    cfg = MASExperimentConfig.from_yaml(exp_yaml)
+    from mas.lab.benchmark.schedule.run_batch.load import _load_dataset_items
+
+    with pytest.raises(ValueError, match="path is required"):
+        _load_dataset_items(cfg)
+
+
 def test_plots_key_rejected(tmp_path):
     """Top-level plots: is deprecated — use pipeline post steps instead."""
     exp_yaml = _write_experiment(
@@ -146,9 +257,38 @@ def test_plots_key_rejected(tmp_path):
         MASExperimentConfig.from_yaml(exp_yaml)
 
 
+def test_pipeline_bind_key_rejected(tmp_path):
+    """pipeline_bind is removed; hooks live under run/item/scenario/post."""
+    exp_yaml = _write_experiment(
+        tmp_path,
+        "",
+        extra="pipeline_bind: run",
+    )
+    with pytest.raises(ValueError, match="pipeline_bind"):
+        MASExperimentConfig.from_yaml(exp_yaml)
+
+
 # ---------------------------------------------------------------------------
 # No dataset (optional)
 # ---------------------------------------------------------------------------
+
+def test_legacy_mas_key_still_loads(tmp_path):
+    """Pre-applications mas: {manifest, configs_dir} must still parse."""
+    mas_yaml = tmp_path / "mas.yaml"
+    mas_yaml.write_text("apiVersion: mas/v1\nkind: MAS\nmetadata:\n  name: test\n")
+    exp_yaml = tmp_path / "experiment.yaml"
+    exp_yaml.write_text(textwrap.dedent("""\
+        experiment:
+          name: legacy-mas
+          description: "Existing labs still use mas:"
+          mas:
+            manifest: ./mas.yaml
+            configs_dir: ./overlays
+    """))
+    cfg = MASExperimentConfig.from_yaml(exp_yaml)
+    assert cfg.mas is not None
+    assert cfg.mas.manifest == mas_yaml.resolve()
+
 
 def test_no_dataset_is_valid(tmp_path):
     """Omitting dataset entirely is a valid experiment (scenarios-driven)."""
@@ -159,12 +299,89 @@ def test_no_dataset_is_valid(tmp_path):
         experiment:
           name: no-dataset
           description: "No dataset — scenarios only"
-          applications:
-            - manifest: ./mas.yaml
-              configs_dir: ./overlays
+          application:
+            manifest: ./mas.yaml
+            configs_dir: ./overlays
     """))
     cfg = MASExperimentConfig.from_yaml(exp_yaml)
     assert cfg.dataset is None
+
+
+def test_canonicalize_deprecated_aliases(tmp_path):
+    """applications:/application.post/test: still load, mapped to CLI names."""
+    mas_yaml = tmp_path / "mas.yaml"
+    mas_yaml.write_text("apiVersion: mas/v1\nkind: MAS\nmetadata:\n  name: test\n")
+    exp_yaml = tmp_path / "experiment.yaml"
+    exp_yaml.write_text(textwrap.dedent("""\
+        experiment:
+          name: deprecated-aliases
+          applications:
+            - manifest: ./mas.yaml
+              configs_dir: ./overlays
+          dataset:
+            path: ./datasets/my-queries.yaml
+          test:
+            artifacts:
+              df: dataframe
+          application:
+            post:
+              - name: gather-experiment
+                type: gather_level
+    """))
+    _make_dataset_file(tmp_path, "my-queries.yaml")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        cfg = MASExperimentConfig.from_yaml(exp_yaml)
+    messages = " ".join(str(w.message) for w in caught)
+    assert "applications:" in messages or "deprecated" in messages.lower()
+    assert "item" in cfg.levels
+    assert "experiment" in cfg.levels
+    assert cfg.mas is not None
+
+
+def test_canonical_application_and_item_keys(tmp_path):
+    """Preferred vocabulary: application: + item: + post:."""
+    mas_yaml = tmp_path / "mas.yaml"
+    mas_yaml.write_text("apiVersion: mas/v1\nkind: MAS\nmetadata:\n  name: test\n")
+    exp_yaml = tmp_path / "experiment.yaml"
+    exp_yaml.write_text(textwrap.dedent("""\
+        experiment:
+          name: canonical
+          application:
+            manifest: ./mas.yaml
+            configs_dir: ./overlays
+          item:
+            artifacts:
+              df: dataframe
+          post:
+            - name: gather-experiment
+              type: gather_level
+    """))
+    cfg = MASExperimentConfig.from_yaml(exp_yaml)
+    assert cfg.mas is not None
+    assert "item" in cfg.levels
+    assert "experiment" in cfg.levels
+    assert cfg.output_schema == {}
+
+
+def test_output_schema_loaded(tmp_path):
+    mas_yaml = tmp_path / "mas.yaml"
+    mas_yaml.write_text("apiVersion: mas/v1\nkind: MAS\nmetadata:\n  name: test\n")
+    exp_yaml = tmp_path / "experiment.yaml"
+    exp_yaml.write_text(textwrap.dedent("""\
+        experiment:
+          name: with-schema
+          application:
+            manifest: ./mas.yaml
+          output_schema:
+            required_files:
+              - results/ci_summary.csv
+            required_columns:
+              results/ci_summary.csv: [scenario, mean]
+    """))
+    cfg = MASExperimentConfig.from_yaml(exp_yaml)
+    assert cfg.output_schema["required_files"] == ["results/ci_summary.csv"]
+    assert cfg.output_schema["required_columns"]["results/ci_summary.csv"] == ["scenario", "mean"]
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +438,14 @@ _REPRODUCE_EXPERIMENTS = [
 _REPO_ROOT = Path(__file__).parents[3]
 """Absolute path to the repository root (outshift-open/mas-lab)."""
 
+_MAS_LAB = Path(sys.executable).parent / "mas-lab"
+"""The ``mas-lab`` console script installed in *this* venv.
+
+Resolved relative to ``sys.executable`` rather than left to ``PATH`` lookup,
+so the test can't pick up an unrelated ``mas-lab`` shadowing this repo's own
+venv earlier on ``PATH`` (see the same pattern in ``tests/test_reproduction.py``).
+"""
+
 
 @pytest.mark.parametrize("rel_path", _REPRODUCE_EXPERIMENTS)
 def test_reproduce_command_dry_run(rel_path: str):
@@ -232,9 +457,11 @@ def test_reproduce_command_dry_run(rel_path: str):
     """
     exp_yaml = _REPO_ROOT / rel_path
     assert exp_yaml.exists(), f"Experiment YAML not found: {exp_yaml}"
+    if not _MAS_LAB.is_file():
+        pytest.skip("mas-lab CLI not in venv")
 
     result = subprocess.run(
-        ["mas-lab", "benchmark", "run", str(exp_yaml), "--dry-run"],
+        [str(_MAS_LAB), "benchmark", "run", str(exp_yaml), "--dry-run"],
         capture_output=True,
         text=True,
         cwd=str(_REPO_ROOT),

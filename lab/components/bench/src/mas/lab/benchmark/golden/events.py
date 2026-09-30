@@ -118,8 +118,26 @@ def compare_events_files(actual: Path, expected: Path) -> tuple[bool, str]:
         return False, f"event count {len(act)} != {len(exp)}"
     for i, (a, e) in enumerate(zip(act, exp)):
         if a != e:
-            return False, f"first diff at index {i}: {json.dumps(a)[:200]} != {json.dumps(e)[:200]}"
+            return False, _first_event_diff(i, a, e)
     return False, "fingerprint mismatch"
+
+
+def _first_event_diff(index: int, actual: dict[str, Any], expected: dict[str, Any]) -> str:
+    extra = sorted(set(actual) - set(expected))
+    missing = sorted(set(expected) - set(actual))
+    changed = sorted(k for k in set(actual) & set(expected) if actual[k] != expected[k])
+    parts = [
+        f"first diff at index {index}",
+        f"kind={actual.get('kind')!r}/{expected.get('kind')!r}",
+    ]
+    if extra:
+        parts.append(f"extra_keys={extra}")
+    if missing:
+        parts.append(f"missing_keys={missing}")
+    if changed:
+        parts.append(f"changed_keys={changed}")
+    parts.append(f"{json.dumps(actual)[:200]} != {json.dumps(expected)[:200]}")
+    return "; ".join(parts)
 
 
 def write_normalized_events(events: list[dict[str, Any]], path: Path) -> None:

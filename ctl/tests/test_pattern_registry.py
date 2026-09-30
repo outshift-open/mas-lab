@@ -6,6 +6,7 @@ from mas.ctl.compose.pattern_registry import resolve_design_pattern_registry_id
 
 def test_resolve_design_pattern_cot():
     assert resolve_design_pattern_registry_id({"type": "cot"}) == "cot@v1"
+    assert resolve_design_pattern_registry_id("cot") == "cot@v1"
 
 
 def test_resolve_design_pattern_plan_execute_alias():

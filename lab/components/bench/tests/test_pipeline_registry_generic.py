@@ -30,3 +30,18 @@ def test_list_registered_includes_programmatic_entries() -> None:
 def test_resolve_class_from_module_path() -> None:
     cls = resolve_step_class("pathlib:Path")
     assert cls.__name__ == "Path"
+
+
+def test_unknown_step_hints_when_registry_empty(monkeypatch) -> None:
+    import pytest
+    from mas.lab.benchmark.pipeline import core as pipeline_core
+
+    monkeypatch.setattr(pipeline_core, "get_step", lambda name, **kwargs: None)
+    monkeypatch.setattr(pipeline_core, "list_steps", lambda: {})
+
+    def _boom(*_a, **_k):
+        raise ImportError("nope")
+
+    monkeypatch.setattr(pipeline_core, "_import_class", _boom)
+    with pytest.raises(ValueError, match="No pipeline steps are registered"):
+        pipeline_core.resolve_step_class("extract_trace_stats")

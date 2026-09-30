@@ -30,7 +30,7 @@ properties:
       model:
         type: string
         minLength: 1
-        description: Default LLM model id when a manifest omits one.
+        description: Fill-in LLM id for remaining Agent/MAS/experiment `any` after experiment.models (not written into committed specs).
       design_pattern:
         type: string
         minLength: 1
@@ -39,3 +39,7 @@ properties:
         type: string
         minLength: 1
         description: Default plugin id for spec.context_manager when omitted.
+      assembler:
+        type: string
+        minLength: 1
+        description: Default plugin id for spec.assembler when omitted.

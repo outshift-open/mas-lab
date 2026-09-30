@@ -5,11 +5,10 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Annotated, Literal, Union
-
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Annotated, Any, Literal, Union
 
 from mas.runtime.schema.hitl import HitlQuestionType, HitlResolveChoice
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class EgressKind(str, Enum):
@@ -56,6 +55,9 @@ class EmitClientResponse(BaseModel):
     kind: Literal[EgressKind.EMIT_CLIENT_RESPONSE] = EgressKind.EMIT_CLIENT_RESPONSE
     content: str = ""
     finish_reason: Literal["stop", "error", "cancelled"] = "stop"
+    artifacts: tuple[dict[str, Any], ...] = ()
+    task_state: Literal["working", "completed", "input_required"] | None = None
+    stream_chunks: tuple[str, ...] = ()
 
 
 class RaiseBoundaryError(BaseModel):
@@ -64,6 +66,7 @@ class RaiseBoundaryError(BaseModel):
     code: str
     recoverable: bool = True
     message: str = ""
+    policy_name: str = ""
 
 
 class RequestCtxAssembly(BaseModel):

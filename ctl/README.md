@@ -4,7 +4,7 @@
 -->
 # mas-ctl
 
-> Multi-agent orchestration — compose, chat, validate, run.
+> Multi-agent orchestration — compile, compose, chat, validate, run.
 
 ---
 
@@ -17,7 +17,7 @@ workflows, and provides the **interactive** CLI (`chat`, `tui`) on top of
 
 ```
 mas-runtime  ←  single agent : kernel + contracts + design-pattern plugins
-mas-ctl      ←  multi-agent  : compose, chat, run-mas, validate
+mas-ctl      ←  multi-agent  : compile, compose, chat, run-mas, validate
 mas-lab      ←  evaluation   : benchmarks, pipelines, controller UI
 ```
 
@@ -38,9 +38,9 @@ uv sync --all-packages
 ## Quickstart
 
 ```bash
-# Validate manifests
+# Validate / compile manifests
 mas-ctl validate agent.yaml
-mas-ctl validate mas.yaml
+mas-ctl compile agent.yaml -o overlays/tools.yaml
 
 # Interactive single agent
 mas-ctl chat agent.yaml -q "Hello"
@@ -80,23 +80,24 @@ Named overlay for A/B configuration without duplicating manifests.
 
 ## CLI reference
 
-| Command | What it does |
-|---------|-------------|
-| `mas-ctl chat MANIFEST` | Interactive or scripted conversation |
-| `mas-ctl tui MANIFEST` | Terminal UI for chat |
-| `mas-ctl run-mas MANIFEST` | Run a multi-agent workflow |
-| `mas-ctl compose …` | Compose effective manifests / placement |
-| `mas-ctl plan …` | Dry-run placement plan |
-| `mas-ctl validate PATH …` | Validate agent / MAS / experiment YAML |
-| `mas-ctl schemas` | List JSON/YAML schemas |
-| `mas-ctl flavour list\|show` | List or show flavours |
-| `mas-ctl infra list\|show` | List or show infra bundles |
-| `mas-ctl registry …` | Plugin registry introspection |
-| `mas-ctl checkpoint …` | Session checkpoint utilities |
-| `mas-ctl list-bundles` | List library bundles |
+| Command | What it does | Flags |
+|---------|-------------|-------|
+| `mas-ctl chat MANIFEST` | Interactive or scripted conversation | [docs/cli/mas-ctl.md](../docs/cli/mas-ctl.md) |
+| `mas-ctl tui MANIFEST` | Terminal UI for chat | same · [docs/ctl/tui.md](../docs/ctl/tui.md) |
+| `mas-ctl run-mas MANIFEST` | Run a multi-agent workflow | [docs/cli/mas-ctl.md](../docs/cli/mas-ctl.md) |
+| `mas-ctl compile …` | Dump resolved Agent/MAS YAML (overlays + defaults) | [docs/cli/compile.md](../docs/cli/compile.md) |
+| `mas-ctl compose …` | Compose effective manifests / placement | `mas-ctl compose --help` |
+| `mas-ctl plan …` | Dry-run placement plan | `mas-ctl plan --help` |
+| `mas-ctl validate PATH …` | Validate agent / MAS / experiment YAML | [docs/cli/mas-ctl.md](../docs/cli/mas-ctl.md) |
+| `mas-ctl schemas` | List JSON/YAML schemas | — |
+| `mas-ctl flavour list\|show` | List or show flavours | — |
+| `mas-ctl infra list\|show` | List or show infra bundles | — |
+| `mas-ctl registry …` | Plugin registry introspection | `mas-ctl registry --help` |
+| `mas-ctl checkpoint …` | Session checkpoint utilities | `mas-ctl checkpoint --help` |
+| `mas-ctl list-bundles` | List library bundles | — |
 
-Full flag reference: [docs/dev/cli/cli-reference.md](../runtime/docs/dev/cli/cli-reference.md)
-(runtime doc tree; shared CLI patterns).
+Overview: [docs/cli/index.md](../docs/cli/index.md).
+Workspace YAML: [docs/references/config.yaml.md](../docs/references/config.yaml.md).
 
 ---
 
@@ -138,11 +139,13 @@ Flavours ship in **`library-standard`** and resolve by name:
 
 | Document | Covers |
 |----------|--------|
-| [docs/user-guide.md](docs/user-guide.md) | Operational guide |
-| [docs/developer-guide.md](docs/developer-guide.md) | Manifest and compose extensions |
-| [../docs/manifests/](../docs/manifests/README.md) | YAML reference |
+| [../docs/user-guide.md](../docs/user-guide.md) | Operational guide |
+| [../docs/cli/index.md](../docs/cli/index.md) | CLI overview |
+| [../docs/cli/mas-ctl.md](../docs/cli/mas-ctl.md) | `mas-ctl` flags (`--trace`, `--events`, …) |
+| [../docs/references/config.yaml.md](../docs/references/config.yaml.md) | `config.yaml` fields |
+| [../docs/cli/observability.md](../docs/cli/observability.md) | `events.jsonl` |
+| [../docs/manifests/](../docs/manifests/README.md) | YAML manifests |
 | [../docs/libraries.md](../docs/libraries.md) | Package matrix |
-| [../docs/cli/observability.md](../docs/cli/observability.md) | Trace emission and event artifacts |
 
 ---
 

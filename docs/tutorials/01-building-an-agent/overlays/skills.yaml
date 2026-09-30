@@ -1,6 +1,7 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-# Overlay: skills — tool + context injection
+# Overlay: skills — list answer-formatting. That is enough: activate_skill
+# is added as a system tool, and the catalog lists this skill's frontmatter.
 apiVersion: mas/v1
 kind: Overlay
 metadata:

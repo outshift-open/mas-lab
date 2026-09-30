@@ -1,0 +1,101 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#llm-sampling"
+title: LlmSampling
+description: >
+  Static Chat Completions sampling knobs on spec.models[] / spec.llm.
+  Dynamic per-call overrides belong on LLMProvider.chat_completion.
+type: object
+additionalProperties: false
+properties:
+  temperature:
+    type: number
+    minimum: 0
+    maximum: 2
+    default: 0.7
+  max_tokens:
+    type: integer
+    minimum: 1
+    default: 2000
+    description: Answer-token budget. Reasoning models may map this to max_completion_tokens.
+  max_completion_tokens:
+    type: integer
+    minimum: 1
+    description: >
+      Explicit Chat Completions answer+reasoning cap. When omitted, reasoning
+      models map max_tokens onto this field.
+  min_tokens:
+    type: integer
+    minimum: 0
+  min_p:
+    type: number
+    minimum: 0
+    maximum: 1
+    description: vLLM / llama.cpp nucleus floor.
+  repetition_penalty:
+    type: number
+    minimum: 0
+    description: vLLM / Hugging Face repetition penalty.
+  service_tier:
+    type: string
+  store:
+    type: boolean
+  metadata:
+    type: object
+    additionalProperties: true
+  modalities:
+    type: array
+    items:
+      type: string
+  prediction:
+    type: object
+    additionalProperties: true
+  prompt_cache_key:
+    type: string
+  top_p:
+    type: number
+    minimum: 0
+    maximum: 1
+  top_k:
+    type: integer
+    minimum: 0
+  presence_penalty:
+    type: number
+    minimum: -2
+    maximum: 2
+  frequency_penalty:
+    type: number
+    minimum: -2
+    maximum: 2
+  seed:
+    type: integer
+  n:
+    type: integer
+    minimum: 1
+  stop:
+    oneOf:
+      - type: string
+      - type: array
+        items:
+          type: string
+  logit_bias:
+    type: object
+    additionalProperties:
+      type: number
+  user:
+    type: string
+  verbosity:
+    type: string
+    enum: [low, medium, high]
+  response_format:
+    type: object
+    additionalProperties: true
+  logprobs:
+    type: boolean
+  top_logprobs:
+    type: integer
+    minimum: 0
+    maximum: 20
+  parallel_tool_calls:
+    type: boolean

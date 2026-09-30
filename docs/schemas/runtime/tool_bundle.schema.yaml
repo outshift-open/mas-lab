@@ -78,7 +78,7 @@ properties:
               description: >
                 Fully-qualified Python module path (importlib-style).
                 E.g. library-samples/tools/calc.py or ./calc.py.
-                Required unless the tool is mock-only (testing).
+                Required unless the tool is test-only (no runtime impl).
               default: null
 
             class_name:
@@ -137,3 +137,23 @@ properties:
               maximum: 3600
               description: "Max wall-clock execution time. Enforced by pre_tool_call hook."
               default: 30
+
+            title:
+              type: string
+            read_only:
+              type: boolean
+            destructive:
+              type: boolean
+            open_world:
+              type: boolean
+            icons:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            task_support:
+              type: string
+              enum: [forbidden, optional, required]
+            meta:
+              type: object
+              additionalProperties: true

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from ci_llm import stop_engine
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 T01 = REPO_ROOT / "docs" / "tutorials" / "01-building-an-agent"
@@ -21,7 +22,7 @@ def _merged_tutorial_agent() -> dict:
     from mas.ctl.overlay import merge_overlay
 
     base = _load_yaml(T01 / "agent.yaml")
-    for name in ("mock-llm.yaml", "tools.yaml"):
+    for name in ("tools.yaml",):
         base = merge_overlay(base, _load_yaml(T01 / "overlays" / name))
     return base
 
@@ -35,7 +36,12 @@ def test_reset_clears_working_memory_and_turn_history() -> None:
 
     manifest = _merged_tutorial_agent()
     instance, _store = instantiate_runtime(
-        InstantiationOptions(agent_manifest=manifest, manifest_dir=T01, validate_manifests=False),
+        InstantiationOptions(
+            agent_manifest=manifest,
+            manifest_dir=T01,
+            validate_manifests=False,
+            engine=stop_engine(text="ok"),
+        ),
         hitl=None,
     )
     ctx = instance.driver.ctx

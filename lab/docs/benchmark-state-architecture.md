@@ -55,4 +55,4 @@ mas-lab benchmark list --limit 10
 ## Related
 
 - [Experiments and analysis](../../docs/tutorials/03-experiments-and-analysis/README.md) — caching and reproducibility
-- [PIPELINE_DESIGN.md](../components/bench/PIPELINE_DESIGN.md) — step fingerprints
+- [pipeline.md](pipeline.md) — step fingerprints and `depends_on`

@@ -1,16 +1,12 @@
 ---
 name: answer-expert
 description: >
-  Structure every answer with a one-sentence summary, 2–3 supporting bullet
-  points, and a confidence indicator. Use when answering factual or
-  knowledge questions to improve clarity and trustworthiness.
+  Use when answering factual or knowledge questions. Call
+  `activate_skill("answer-expert")` first and follow the loaded
+  instructions; the catalog text is when-to-use only, not the layout.
 tags: [formatting, qa, expert]
 ---
 # Answer Expert
-
-## When to use
-
-Apply this skill to every factual or knowledge-based question the user asks.
 
 ## Format rules
 

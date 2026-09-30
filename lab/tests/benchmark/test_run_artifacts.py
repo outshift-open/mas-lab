@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
-from mas.lab.artifacts import classify_file
 from mas.lab.benchmark.pipeline.executor import ExecutionContext
 from mas.lab.benchmark.pipeline.resources import ScopeContext
 from mas.lab.benchmark.pipeline.run_artifacts import (
@@ -66,6 +66,44 @@ def test_resolve_run_events_via_run_ref(tmp_path: Path, monkeypatch: pytest.Monk
     assert resolved == events
 
 
+def test_run_input_stream_empty_without_run_dir(tmp_path: Path) -> None:
+    """Experiment/item gathers must not inherit leftover run identity."""
+    ctx = _ctx(tmp_path / "bench")
+    assert run_input_stream(ctx, {"output": "data.csv"}) == {}
+
+
+@pytest.mark.asyncio
+async def test_gather_experiment_keeps_all_scenarios_after_batch(tmp_path: Path) -> None:
+    from mas.lab.benchmark.pipeline.models import StepOutput
+    from mas.library.lab.steps.data.gather_level import GatherLevelStep
+
+    combined = pd.DataFrame(
+        [
+            {"scenario": "topo-parallel", "item_id": "1", "value": 1.0},
+            {"scenario": "topo-verifier", "item_id": "99", "value": 0.2},
+        ]
+    )
+    step = GatherLevelStep(
+        name="gather-experiment",
+        depends_on=["gather-scenario"],
+        config={"output_dir": str(tmp_path), "output": "data.csv"},
+    )
+
+    class _Ctx:
+        output_dir = tmp_path
+        step_outputs = {"gather-scenario": StepOutput(data={"df": combined})}
+        pipeline = None
+        scope_context = ScopeContext(
+            experiment="exp",
+            scenario="topo-verifier",
+            test="item99",
+            run="r1",
+        )
+
+    out = await step.execute(_Ctx())  # type: ignore[arg-type]
+    assert set(out.data["df"]["scenario"]) == {"topo-parallel", "topo-verifier"}
+
+
 def test_run_input_stream_includes_run_and_trace(tmp_path: Path) -> None:
     run_dir = tmp_path / "bench" / "full" / "item1" / "r1"
     trace = run_dir / "traces" / "events.jsonl"
@@ -113,20 +151,33 @@ def test_materialize_per_run_steps(tmp_path: Path) -> None:
     assert steps[0]["config"]["run_dir"] == str(run_dir.resolve())
 
 
-def test_classify_run_artifacts() -> None:
-    assert classify_file(Path("kg.json")).abbrev == "KG"
-    assert classify_file(Path("trajectory-native.html")).abbrev == "TrajNative"
-    assert classify_file(Path("trajectory-kg.html")).abbrev == "TrajKG"
-    assert classify_file(Path("validation_report.json")).abbrev == "Validation"
-    assert classify_file(Path("parity_report.json")).abbrev == "Parity"
-    assert classify_file(Path("otel_sdk_spans_replay.jsonl")).abbrev == "OtelReplay"
-
-
 def test_registry_has_both_trajectory_plotters() -> None:
     native = RUN_ARTIFACTS["trajectory_native"]
     kg = RUN_ARTIFACTS["trajectory_kg"]
     assert "plot_multilevel_trajectory" in native.produced_by
     assert "plot_multilevel_trajectory_kg" in kg.produced_by
+
+
+def test_compact_step_names_collapses_past_threshold() -> None:
+    from mas.lab.benchmark.pipeline.executor import (
+        COMPACT_STEP_LIST_THRESHOLD,
+        compact_step_names,
+    )
+
+    short = [f"step-{i}" for i in range(COMPACT_STEP_LIST_THRESHOLD)]
+    assert compact_step_names(short) == ", ".join(short)
+
+    long_list = [f"step-{i}" for i in range(COMPACT_STEP_LIST_THRESHOLD + 1)]
+    assert compact_step_names(long_list) == f"step×{len(long_list)}"
+
+    # A type_of resolver groups by real step type instead of guessing from
+    # the name's hyphen prefix (which would wrongly merge unrelated steps
+    # that happen to share a first word, e.g. "run-df" and "run-anything").
+    mixed = ["run-df-a", "run-anything-b"] * (COMPACT_STEP_LIST_THRESHOLD // 2 + 1)
+    types = {"run-df-a": "metrics_to_dataframe", "run-anything-b": "gather_level"}
+    grouped = compact_step_names(mixed, type_of=lambda n: types[n])
+    assert "metrics_to_dataframe×" in grouped
+    assert "gather_level×" in grouped
 
 
 def test_kg_plotter_processor_registered() -> None:

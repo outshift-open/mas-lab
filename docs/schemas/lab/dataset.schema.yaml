@@ -5,7 +5,11 @@ $id: "mas-lab/dataset/v1"
 title: "mas-lab Dataset manifest (v1)"
 description: >
   Dataset items use the Run Input Envelope (inputs + expectations).
-  See run-input.schema.yaml for item shape.
+  See run-input.schema.yaml for item shape. Loaders still accept
+  pre-envelope items (prompt/query, top-level ground_truth, a bare YAML
+  list) and emit a deprecation warning; those shapes are marked
+  deprecated below. Migration:
+  https://outshift-open.github.io/mas-lab/manifests/dataset-migration/
 
 type: object
 required: [apiVersion, kind, metadata, spec]
@@ -43,86 +47,89 @@ properties:
   spec:
     type: object
     additionalProperties: false
-    oneOf:
+    anyOf:
       - required: [items]
       - required: [path]
+      - required: [source]
     properties:
+      app:
+        description: >
+          App this dataset is bound to (omit for general-purpose datasets).
+          Package-dependency form: `[library:]name` (any version) or
+          `[library:]name@<tag-or-range>` (`sre-triage@v1`, `sre-triage@>=v1,<v3`,
+          `sre-triage@^v1`). Dataset versions are independent of the app;
+          this field is the compatible app range.
+        oneOf:
+          - type: string
+            minLength: 1
+          - type: object
+            additionalProperties: false
+            required: [name]
+            properties:
+              name:
+                type: string
+                minLength: 1
+              library:
+                type: string
+              version:
+                type: string
+                description: "Version tag or range (v1, >=v1,<v3, ^v1)."
       items:
         type: array
         minItems: 1
         items:
           type: object
-          required: [id, inputs]
+          required: [id]
           additionalProperties: true
+          description: >
+            Canonical item is id + inputs (+ expectations). Legacy
+            prompt/query fields still validate here so existing files
+            check; they are deprecated and the loader warns.
           properties:
             id:
               oneOf:
                 - type: string
                 - type: integer
             inputs:
-              type: object
-              required: [user]
-              additionalProperties: true
-              properties:
-                user:
-                  type: array
-                  minItems: 1
-                  items:
-                    type: object
-                    required: [role, content]
-                    additionalProperties: false
-                    properties:
-                      role:
-                        type: string
-                        enum: [user, system]
-                      content:
-                        type: string
-                        minLength: 1
-                hitl:
-                  type: array
-                  items:
-                    type: object
-                    required: [role, content]
-                    additionalProperties: false
-                    properties:
-                      role:
-                        type: string
-                        enum: [hitl]
-                      content:
-                        type: string
-                memory_seeds:
-                  oneOf:
-                    - type: string
-                    - type: array
-                      items:
-                        type: object
-                        additionalProperties: true
-                tool_fixtures:
-                  oneOf:
-                    - type: string
-                    - type: object
-                      additionalProperties: true
-                session_id:
-                  type: string
-                checkpoint:
-                  type: object
-                  additionalProperties: true
+              $ref: "urn:mas-lab:run-input:v1#/properties/inputs"
             expectations:
-              type: object
-              additionalProperties: true
-              properties:
-                ground_truth:
-                  oneOf:
-                    - type: string
-                    - type: object
-                      additionalProperties: true
-                governance:
-                  type: object
-                  additionalProperties: true
-                metrics:
-                  type: array
-                  items:
-                    type: string
+              $ref: "urn:mas-lab:run-input:v1#/properties/expectations"
+            prompt:
+              deprecated: true
+              description: >
+                DEPRECATED. Use inputs.user (string). Loader warns.
+                See https://outshift-open.github.io/mas-lab/manifests/dataset-migration/
+            query:
+              deprecated: true
+              description: DEPRECATED. Use inputs.user.
+            question:
+              deprecated: true
+              description: DEPRECATED. Use inputs.user.
+            text:
+              deprecated: true
+              description: DEPRECATED. Use inputs.user.
+            input:
+              deprecated: true
+              description: DEPRECATED. Use inputs.user.
+            user:
+              deprecated: true
+              description: >
+                DEPRECATED at item top-level. Use inputs.user.
+            turns:
+              deprecated: true
+              description: >
+                DEPRECATED. Split into inputs.user / inputs.hitl strings.
+            expected_answer:
+              deprecated: true
+              description: DEPRECATED. Use expectations.ground_truth.
+            ground_truth:
+              deprecated: true
+              description: >
+                DEPRECATED at item top-level. Use expectations.ground_truth.
+            correct_action:
+              deprecated: true
+              description: >
+                DEPRECATED at item top-level. Use expectations.correct_action.
             category:
               type: string
             group:
@@ -139,9 +146,51 @@ properties:
 
       path:
         type: string
+        description: >
+          Sidecar items file relative to this Dataset YAML (YAML, JSONL,
+          or CSV). Loaded when spec.items and spec.source are empty.
+          JSON Dataset files are not supported.
+      source:
+        description: >
+          External corpus pointer (MMLU-Pro, jsonl, pickle). The Dataset YAML
+          is the mapping; rows are not copied into spec.items. Loader
+          materializes source into envelope items at Dataset.from_yaml.
+        type: object
+        additionalProperties: false
+        required: [kind]
+        properties:
+          kind:
+            type: string
+            enum: [huggingface, jsonl, csv, glob, pickle]
+          id:
+            type: string
+            description: HuggingFace dataset id (e.g. TIGER-Lab/MMLU-Pro).
+          split:
+            type: string
+          path:
+            type: string
+            description: Local file or glob, relative to the dataset folder.
+          map:
+            type: object
+            additionalProperties: true
+            description: >
+              Map source columns onto envelope fields
+              (id, inputs.user, expectations.ground_truth, ...).
+              A string is a column name or a ``{column}`` template.
+              ``{options_text}`` is synthesized from an ``options`` list.
+          config:
+            type: string
+            description: HuggingFace subset / config name.
+          name:
+            type: string
+            description: Alias for config.
+          limit:
+            type: integer
+            minimum: 1
+            description: Cap materialized items (smoke / CI).
       format:
         type: string
-        enum: [yaml]
+        enum: [yaml, jsonl, csv]
         default: yaml
       item_schema:
         type: object

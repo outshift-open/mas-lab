@@ -216,8 +216,8 @@ async def execute_batch(
             _use_cache
             and not force
             and not _global_hit
-            and _events_path.exists()
             and not _events_path.is_symlink()
+            and _events_path.exists()
             and _events_path.stat().st_size > 0
         )
         if _cache_policy == "forced" and not _global_hit and not _local_hit:
@@ -241,6 +241,8 @@ async def execute_batch(
             _src = "cached:" + _run_hash[:8] if _global_hit else "local"
             if _global_hit:
                 link_trace_to_cache_entry(run_output_dir, _global_run_dir, _run_hash)
+            # write_run_info is idempotent (no-ops once cached, repoints a stale
+            # symlink) so it's safe — and necessary — to call on every hit.
             write_run_info(
                 _global_run_dir, run_output_dir, _run_hash, exp.name, scenario_id,
                 item_id, run_idx,
@@ -313,6 +315,14 @@ async def execute_batch(
             try:
                 def _do_mas_run() -> dict:
                     from mas.lab.runners.infer import infer_runner_id
+                    from mas.runtime.boundary.obs.event_stream import (
+                        EventStream,
+                        reset_event_stream,
+                        set_event_stream,
+                    )
+
+                    _stream = EventStream()
+                    _token = set_event_stream(_stream)
 
                     _runner_id = infer_runner_id(
                         execution_runner=(
@@ -345,14 +355,21 @@ async def execute_batch(
                         infra_refs=_infra_refs,
                         session_id=_run_input.session_id,
                         emulation_plugins=_emulation_plugins,
+                        extra={
+                            "experiment_default_model": getattr(exp, "model", None),
+                            "experiment_model_slots": getattr(exp, "model_slots", None),
+                        },
                     )
-                    result = invoke_runner(ctx)
-                    return {
-                        "content": result.content,
-                        "status": result.status,
-                        "usage": result.metadata.get("usage", {}),
-                        "agent_id": result.metadata.get("agent_id", ""),
-                    }
+                    try:
+                        result = invoke_runner(ctx)
+                        return {
+                            "content": result.content,
+                            "status": result.status,
+                            "usage": result.metadata.get("usage", {}),
+                            "agent_id": result.metadata.get("agent_id", ""),
+                        }
+                    finally:
+                        reset_event_stream(_token)
 
                 result_dict = await asyncio.to_thread(_do_mas_run)
                 output = result_dict.get("content", str(result_dict))

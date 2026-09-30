@@ -5,9 +5,8 @@ kind: InfraBundle
 
 metadata:
   name: development
-  description: >
+    description: >
     Development bundle with local Ollama for offline work.
-    Includes mock LLM provider for testing without API calls.
 
 spec:
   entries:

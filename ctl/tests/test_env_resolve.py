@@ -24,15 +24,15 @@ def test_unset_var_with_default_uses_default_and_logs_debug(monkeypatch, caplog)
         value = resolve_env_string("env:MAS_TEST_ENV_RESOLVE_UNSET|fallback-value")
     assert value == "fallback-value"
     assert not any(r.levelno >= logging.WARNING for r in caplog.records)
-    assert any("using default value" in r.message for r in caplog.records)
+    assert any("using manifest default" in r.message for r in caplog.records)
 
 
-def test_unset_var_with_no_default_returns_empty_and_logs_warning(monkeypatch, caplog) -> None:
+def test_unset_var_with_no_default_returns_empty_without_warning(monkeypatch, caplog) -> None:
     monkeypatch.delenv("MAS_TEST_ENV_RESOLVE_UNSET_NO_DEFAULT", raising=False)
     with caplog.at_level(logging.DEBUG, logger="mas.ctl.infra.env_resolve"):
         value = resolve_env_string("env:MAS_TEST_ENV_RESOLVE_UNSET_NO_DEFAULT")
     assert value == ""
-    assert any(r.levelno == logging.WARNING for r in caplog.records)
+    assert not any(r.levelno >= logging.WARNING for r in caplog.records)
 
 
 def test_env_prefix_with_no_var_name_returns_empty() -> None:

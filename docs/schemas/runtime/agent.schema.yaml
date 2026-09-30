@@ -88,6 +88,8 @@ properties:
       description:
         type: string
         minLength: 1
+        x-merge:
+          strategy: replace
         description: >
           Routing-facing one-liner for delegation tools, AgentCard, and registry
           discovery. Not injected into the LLM system prompt — use spec.context.*
@@ -96,93 +98,123 @@ properties:
       models:
         type: array
         description: >
-          Preferred model(s) for this agent. Structural intent only —
-          the active flavour selects the actual provider at runtime.
-          Do NOT put api_base or api_key_env here.
+          Preferred model(s) for this agent. ``kind`` selects the wire-protocol
+          plugin for model calls.
+          Connection fields (api_base, api_key_env) belong on infra, not here.
+          Static sampling/reasoning live on each row; per-call dynamic fields
+          are LLMProvider.chat_completion kwargs. Capabilities:
+          docs/manifests/llm-model-catalog.md.
         default: []
+        x-merge:
+          strategy: named_list_merge
+          identity: id
         items:
-          type: object
-          required: [model]
-          additionalProperties: false
-          properties:
-            id:
-              type: string
-              description: "Logical model ID within this agent. Use 'main' for the primary model."
-              default: "main"
-            model:
-              type: string
-              description: "LiteLLM-style model string, e.g. vertex_ai/gemini-3-pro-preview."
-            temperature:
-              type: number
-              minimum: 0.0
-              maximum: 2.0
-              default: 0.7
-            max_tokens:
-              type: integer
-              minimum: 1
-              default: 2000
-            reasoning_effort:
-              type: string
-              description: >
-                Optional bound on internal reasoning for models that bill thinking
-                against max_tokens (e.g. Gemini 2.5, o-series).
+          allOf:
+            - $ref: "./fragments/llm-model-entry.schema.yaml"
+            - required: [model]
 
       design_pattern:
-        type: [object, "null"]
-        description: "Reasoning strategy. Defaults to react if absent."
+        description: >
+          Reasoning strategy. String shorthand is the plugin name
+          (`design_pattern: cot` ≡ `{type: cot}`). Defaults to react when absent.
+          See docs/manifests/plugin-bindings.md.
         x-merge:
-          strategy: replace
-        additionalProperties: false
-        properties:
-          type:
-            type: string
-            description: >
-              Builtin name shorthand — mutually exclusive with ref.
-              react | cot | cot_native | plan_execute | tree_of_thoughts | accumulator | role aliases.
-              Equivalent to ref: <name> when no scheme prefix.
-          ref:
-            type: string
-            description: >
-              Unified plugin locator — mutually exclusive with type.
-              Forms: bare-name, ./local/path, module://pkg.Class, oci://registry/img:tag
-          params:
-            type: object
-            description: Plugin-specific design-pattern parameters.
-            additionalProperties: true
-            default: {}
-          config:
-            type: object
-            description: Alias for params (overlay compatibility).
-            additionalProperties: true
-            default: {}
+          strategy: plugin_binding_merge
+        oneOf:
+          - type: "null"
+          - type: string
+            minLength: 1
+            description: Plugin name (react, cot, plan_execute, …).
+          - type: object
+            additionalProperties: false
+            properties:
+              type:
+                type: string
+                description: >
+                  Plugin name — mutually exclusive with ref.
+                  react | cot | cot_native | plan_execute | tree_of_thoughts | accumulator | role aliases.
+              ref:
+                type: string
+                description: >
+                  Unified plugin locator — mutually exclusive with type.
+                  Forms: bare-name, ./local/path, module://pkg.Class, oci://registry/img:tag
+              params:
+                $ref: "./fragments/design-pattern-config.schema.yaml"
+                description: Plugin-specific parameters (max_steps → kernel dispatch cap).
+                default: {}
+              config:
+                $ref: "./fragments/design-pattern-config.schema.yaml"
+                description: Alias for params (overlay compatibility).
+                default: {}
 
       context_manager:
-        type: object
         description: >
-          Context window management strategy. Defaults to stack (StackConversation,
-          unbounded history) when absent. Builtin types: stack | sliding-window |
-          summarising | full-history.
+          Conversation-history plugin. String shorthand is the plugin name
+          (`context_manager: stack` ≡ `{type: stack}`). Defaults to summarising
+          when absent. Builtin types: summarising | sliding-window | stack |
+          full-history. See docs/manifests/plugin-bindings.md and context-assembly.md.
         x-merge:
-          strategy: mapping_merge_or_ops
-        additionalProperties: false
-        properties:
-          type:
-            type: string
-            description: "Builtin name shorthand — mutually exclusive with ref: stack | sliding-window | summarising | full-history."
-          ref:
-            type: string
-            description: "Unified plugin locator — mutually exclusive with type. Same forms as design_pattern.ref."
-          params:
-            $ref: "./fragments/context-manager-params.schema.yaml"
-            default: {}
-          memory:
-            type: array
-            description: >
-              Memory types whose content is auto-injected into the system
-              prompt as context facets.  E.g. [semantic].
-            default: []
-            items:
-              type: string
+          strategy: plugin_binding_merge
+        oneOf:
+          - type: string
+            minLength: 1
+          - type: object
+            additionalProperties: false
+            properties:
+              type:
+                type: string
+                description: "Plugin name — mutually exclusive with ref: summarising | sliding-window | stack | full-history."
+              ref:
+                type: string
+                description: "Unified plugin locator — mutually exclusive with type. Same forms as design_pattern.ref."
+              params:
+                $ref: "./fragments/context-manager-params.schema.yaml"
+                default: {}
+              memory:
+                type: array
+                description: >
+                  Memory types whose content is auto-injected into the system
+                  prompt as context facets.  E.g. [semantic].
+                default: []
+                items:
+                  type: string
+
+      assembler:
+        description: >
+          Prompt assembler. Builds messages[] for each LLM call. String shorthand
+          is the plugin name (`assembler: assembler`). Defaults to assembler
+          (ContextAssemblerPlugin) when absent. See plugin-bindings.md.
+        x-merge:
+          strategy: plugin_binding_merge
+        oneOf:
+          - type: "null"
+          - type: string
+            minLength: 1
+          - type: object
+            additionalProperties: false
+            properties:
+              type:
+                type: string
+                description: Plugin name (default assembler / alias context-assembler).
+              ref:
+                type: string
+                description: Unified plugin locator — mutually exclusive with type.
+              params:
+                type: object
+                description: Constructor kwargs for the assembler plugin.
+                additionalProperties: true
+                default: {}
+                properties:
+                  token_budget:
+                    type: integer
+                    minimum: 1
+                    description: Max estimated tokens for injected context parts.
+                  always_reassemble:
+                    type: boolean
+                    default: false
+                  emit_segments:
+                    type: boolean
+                    default: true
 
       memory_seed:
         type: array
@@ -511,12 +543,12 @@ properties:
           compaction:
             type: object
             description: >
-              How much of this agent's committed history to keep as it grows.
-              Facade over spec.context_manager/CMFactory — instantiate_runtime()
-              translates this into a context_manager binding; set
-              spec.context_manager directly instead for lower-level control
-              (it takes precedence if both are set). See
-              docs/design/working-memory-compaction.md.
+              How much of this agent's committed history to include in each
+              LLM call. Sugar for spec.context_manager — not a second engine
+              and not a working-memory cache. Compaction is an assembly-time
+              view (manage_history); the summarising plugin caches the last
+              summary (hysteresis). Prefer spec.context_manager. Ignored when
+              context_manager is already set.
             additionalProperties: false
             properties:
               strategy:
@@ -528,8 +560,9 @@ properties:
                   no LLM call. sliding_window: keep the last window_size
                   user/assistant exchange pairs, no LLM call. summarize:
                   compress older turns into one summary block via an LLM
-                  call using this agent's own model, keep the last
-                  keep_turns pairs verbatim.
+                  call (default: summarizer slot, else this agent's turn
+                  model), keep the last keep_turns pairs verbatim. See
+                  docs/manifests/summarization.md.
               max_messages:
                 type: integer
                 minimum: 1
@@ -540,14 +573,23 @@ properties:
                 description: "sliding_window — number of recent exchange pairs to keep."
               summary_threshold:
                 type: integer
-                minimum: 1
-                default: 4000
-                description: "summarize — estimated-token threshold before compaction triggers."
+                minimum: 0
+                description: >
+                  summarize — estimated-token threshold before compaction
+                  triggers. 0 / omitted uses model context_window minus
+                  completion reserve (same as spec.context_manager).
               keep_turns:
                 type: integer
                 minimum: 1
                 default: 10
                 description: "summarize — recent exchange pairs kept verbatim alongside the summary."
+              model:
+                type: string
+                description: >
+                  summarize — model for the summary LLM call. A spec.models[].id
+                  or a LiteLLM model string. Default: this agent's primary
+                  model (same as the turn). Sugar for
+                  context_manager.params.summarizer.params.model.
 
       skills:
         type: array
@@ -580,6 +622,8 @@ properties:
 
       tools_ref:
         type: [string, "null"]
+        x-merge:
+          strategy: replace
         description: >
           Logical tool-set name resolved by the infra manifest ToolRegistry.
           No file paths, no extensions — a simple identifier only.
@@ -606,6 +650,18 @@ properties:
               - module_path: library-samples/tools/calc.py
                 class_name: CalcTool
 
+          Form D — system tools (runtime-owned; not listed → not exposed,
+          except request_human_input / inform_user which default on):
+            tools:
+              - kind: system
+                name: activate_skill
+              - kind: system
+                name: run_skill_script
+
+          ``activate_skill`` is also implicit when ``spec.skills`` lists at
+          least one skill. ``run_skill_script`` is implicit when a listed
+          skill has a ``scripts/`` directory.
+
           Additive with tools_ref — both may be set simultaneously.
         default: []
         items:
@@ -613,7 +669,7 @@ properties:
             # ── Form C: semantic name (bare string) ──────────────────────
             - type: string
               description: >
-                Semantic tool name resolved by the flavour's tool_providers.
+                Semantic tool name resolved by the active infra/local tool catalog.
                 E.g. web-search, calculator, memory-search.
 
             # ── Form A: ref —————————————————————————————————————————————
@@ -641,6 +697,32 @@ properties:
                     Init kwargs merged into the referenced tool's own
                     spec.impl.params (this entry's keys win on conflict) —
                     e.g. {impl: adk, base_dir: ./skills/} for a skill tool ref.
+                  additionalProperties: true
+                  default: {}
+
+            # ── Form D: system tool ──────────────────────────────────────
+            - type: object
+              required: [kind, name]
+              additionalProperties: false
+              description: >
+                Runtime-owned system tool. request_human_input and inform_user
+                are injected by default. activate_skill is implicit when
+                spec.skills is non-empty; declare it here to opt in explicitly.
+                run_skill_script is implicit when a listed skill has scripts/;
+                declare it here to opt in without shipping scripts yet.
+              properties:
+                kind:
+                  type: string
+                  const: system
+                name:
+                  type: string
+                  enum:
+                    - request_human_input
+                    - inform_user
+                    - activate_skill
+                    - run_skill_script
+                params:
+                  type: object
                   additionalProperties: true
                   default: {}
 
@@ -683,6 +765,8 @@ properties:
 
       behavior:
         type: object
+        x-merge:
+          strategy: mapping_merge_or_ops
         description: >
           Per-agent runtime behavior configuration.
           These settings are structural/semantic — they affect what system tools and
@@ -731,7 +815,7 @@ properties:
         $ref: "./fragments/llm-binding.schema.yaml"
         description: >
           Deprecated compat shim for model id and sampling params. Prefer
-          spec.models[]. Overlays may still patch provider/mock hints here until
+          spec.models[]. Overlays may still patch provider/sampling hints here until
           migrated.
         x-merge:
           strategy: mapping_merge_or_ops
@@ -762,4 +846,3 @@ properties:
           strategy: plugin_list_ops
           identity: plugin_id
         default: null
-

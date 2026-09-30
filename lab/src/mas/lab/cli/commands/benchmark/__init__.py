@@ -6,7 +6,7 @@ from __future__ import annotations
 import click
 
 from .analyze import analyze_cmd
-from .artifact_types import artifact_types_cmd
+from .artifacts import artifact_group
 from .clean import clean_cmd
 from .daemon import daemon_group
 from .export_cmd import export_cmd
@@ -31,7 +31,7 @@ def group() -> None:
 group.add_command(run_cmd)
 group.add_command(list_cmd)
 group.add_command(show_cmd)
-group.add_command(artifact_types_cmd)
+group.add_command(artifact_group)
 group.add_command(update_cmd)
 group.add_command(rename_cmd)
 group.add_command(migrate_cmd)
@@ -50,7 +50,7 @@ __all__ = [
     "run_cmd",
     "list_cmd",
     "show_cmd",
-    "artifact_types_cmd",
+    "artifact_group",
     "update_cmd",
     "rename_cmd",
     "migrate_cmd",

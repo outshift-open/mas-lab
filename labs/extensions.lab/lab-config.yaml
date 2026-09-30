@@ -8,5 +8,6 @@ lab:
   # live in requirements.txt and install into a dedicated venv:
   #   task install-lab LAB=labs/extensions.lab
 
+  # Local library (lib/library.yaml). Scheme name is the listed basename: lib
   libraries:
     - lib/

@@ -1,0 +1,105 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "infra/v1#tool-server"
+title: InfraToolServer
+description: >
+  One tool endpoint or local tool source. MCP entries describe a remote server;
+  local entries point at app-local Tool and skill directories. Tool advertise
+  fields live on kind: Tool, never on the agent provider wiring.
+type: object
+required: [id, protocol]
+additionalProperties: true
+properties:
+  id:
+    type: string
+    description: Stable id used by infra resolution.
+  name:
+    type: string
+    description: Display name. Defaults to id.
+  description:
+    type: string
+  protocol:
+    type: string
+    enum: [mcp, local]
+    description: MCP remote server or local in-process tool source.
+  usage:
+    type: string
+    enum: [use, deploy, use-and-deploy]
+    default: use
+    description: Consume the MCP endpoint, deploy it, or do both.
+  transport:
+    type: string
+    description: "stdio | streamable-http | sse | http"
+    default: streamable-http
+  url:
+    type: string
+    description: HTTP/SSE endpoint (e.g. http://127.0.0.1:9001/mcp).
+  host:
+    type: string
+    description: Listener host for a deployed MCP server; defaults to 127.0.0.1.
+  port:
+    type: integer
+    minimum: 1
+    maximum: 65535
+    description: Listener port for a deployed MCP server; defaults to 9001.
+  endpoint:
+    type: string
+    description: Alias for url.
+  command:
+    type: string
+    description: stdio server executable.
+  args:
+    type: array
+    items:
+      type: string
+  env:
+    type: object
+    additionalProperties:
+      type: string
+  cwd:
+    type: string
+  headers:
+    type: object
+    additionalProperties:
+      type: string
+    description: >
+      HTTP headers for streamable-http / SSE. Omit when unused. Secret
+      values use env:VAR_NAME (unset omits the header). Do not hardcode
+      credentials.
+  timeout:
+    type: number
+    description: Per-call timeout in seconds (MCP read_timeout_seconds).
+    default: 30
+  follow_pagination:
+    type: boolean
+    default: true
+    description: >
+      Client walks tools/list nextCursor pages and flattens them.
+      false = first page only.
+  cache_ttl_ms:
+    type: integer
+    minimum: 0
+    description: >
+      Client tools/list cache TTL in milliseconds. Omit to cache until
+      invalidate. 0 disables the cache. Not a tools/list request field.
+  cache_scope:
+    type: string
+    enum: [public, private]
+    description: >
+      public shares one list cache; private keys the cache by user.
+  tools:
+    description: >
+      Optional tool-name claim. "*" discovers tools from the MCP server at
+      runtime initialization; a list limits the provider to those names.
+    oneOf:
+      - type: string
+      - type: array
+        items:
+          type: string
+  tools_dir:
+    type: string
+    description: Local Tool manifest directory for protocol local or deployment.
+  skills_dir:
+    type: string
+    description: Local skill directory for protocol local.

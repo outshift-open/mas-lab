@@ -8,7 +8,7 @@ kind: Library
 
 name: mas-library-standard
 description: >
-  Standard library for MAS — infra bundles (OpenAI, mock, production),
+  Standard library for MAS — infra bundles (OpenAI, production),
   tutorial tools (web-search, calculator), and design-pattern aliases.
 version: "0.0.1"
 dependencies:
@@ -21,11 +21,48 @@ types:
   - observability
   - design_pattern
   - context_manager
-  - context_plugin
+  - summarizer
+  - assembler
   - memory
   - governance
+  - tool_provider
+  - llm_provider
+  - agent_comm
 
 plugins:
+  # Wire protocols (routed by spec.models[].kind / infra spec.protocol)
+  - type: llm_provider
+    name: openai
+    urn: mas.llm_provider.openai
+    module: mas.library.standard.plugins.llm.openai
+    class: OpenAILLMProvider
+    shortcuts:
+      - openai
+  # Decorator around a routed protocol plugin — not claimed as spec.models[].kind
+  - type: llm_provider
+    name: cache
+    urn: mas.llm_provider.cache
+    module: mas.library.standard.plugins.llm.cache
+    class: CacheLLMProvider
+    shortcuts:
+      - cache
+      - llm_cache
+
+  # Default in-process Python spec.tools (used when spec.providers is omitted)
+  - type: tool_provider
+    name: local
+    urn: mas.tool_provider.local
+    module: mas.library.standard.plugins.tools.local
+    class: LocalToolProvider
+    shortcuts:
+      - local
+      - in-process
+  - type: agent_comm
+    name: local
+    urn: mas.agent_comm.local
+    module: mas.runtime.boundary.agentcomm.local
+    class: LocalAgentComm
+
   # Observability plugins
   - type: observability
     name: native
@@ -37,6 +74,8 @@ plugins:
     urn: mas.observability.otel
     module: mas.library.standard.plugins.observability.otel_plugin
     class: OtelObservabilityPlugin
+    requires: [opentelemetry.sdk.trace]
+    extra: "mas-library-standard[otel]"
 
   # Deterministic design patterns (OSS only)
   - type: design_pattern
@@ -104,12 +143,32 @@ plugins:
     module: mas.library.standard.plugins.context.conversation
     class: SummarizingConversation
 
-  # Context plugins
-  - type: context_plugin
+  # Summarizer sub-plugins (composed by summarising context manager)
+  - type: summarizer
+    name: llm
+    urn: mas.summarizer.llm
+    module: mas.library.standard.plugins.context.summarizer
+    class: LlmSummarizer
+    shortcuts:
+      - llm
+  - type: summarizer
+    name: drop
+    urn: mas.summarizer.drop
+    module: mas.library.standard.plugins.context.summarizer
+    class: DropSummarizer
+    shortcuts:
+      - drop
+
+  # Prompt assembler (spec.assembler)
+  - type: assembler
     name: assembler
     urn: mas.ctx.assembler
     module: mas.library.standard.plugins.context.assembler
     class: ContextAssemblerPlugin
+    shortcuts:
+      - assembler
+      - context-assembler
+      - ctx-assembler
 
   # Memory plugins
   - type: memory
@@ -118,9 +177,24 @@ plugins:
     module: mas.library.standard.plugins.memory.memory_semantic
     class: SemanticMemoryPlugin
 
-  # Governance plugins (SampleGovernancePlugin lives in the runtime boundary layer)
+  # Governance plugins
   - type: governance
     name: sample
     urn: mas.gov.sample
-    module: mas.runtime.boundary.gov.sample
+    module: mas.library.standard.plugins.governance.sample
     class: SampleGovernancePlugin
+  - type: governance
+    name: gov_no_undeclared_tool
+    urn: mas.gov.no_undeclared_tool
+    module: mas.library.standard.plugins.governance.no_undeclared_tool
+    class: NoUndeclaredToolPlugin
+    description: >
+      BLOCK a TOOL_CALL whose name was not in this LLM call's tools list.
+    shortcuts:
+      - gov_no_undeclared_tool
+      - no_undeclared_tool
+
+defaults:
+  tool_provider: local
+  summarizer: llm
+  llm_provider: openai

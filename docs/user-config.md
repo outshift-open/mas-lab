@@ -9,6 +9,10 @@ prefer **`$XDG_*` / `MAS_*` names** (not hardcoded home paths). MkDocs tutorials
 can include values via
 [`includes/mas-paths.md`](includes/mas-paths.md) snippets (`task docs-gen`).
 
+Field-by-field `config.yaml` keys (including `mas_ctl.trace`) are in the
+[config.yaml reference](references/config.yaml.md). CLI flags:
+[mas-ctl.md](cli/mas-ctl.md).
+
 ## Path variable reference
 
 | Symbol | Default layout | Role |
@@ -100,6 +104,15 @@ export OPENAI_API_KEY=sk-...
 mas-ctl chat agent.yaml -q "What is 2+2?"
 ```
 
+### Human exchange log (`mas_ctl.trace`)
+
+Stdout is the conversation. The AGENT↔LLM↔TOOL transcript is a **human** log on
+stderr. Persist `mas_ctl.trace: summary` in `config.yaml` so you do not need
+`--trace`. Color stays opt-in (`--trace-color` / `trace_color: true`).
+
+Complete tables: [config.yaml](references/config.yaml.md#mas_ctl) ·
+[mas-ctl flags](cli/mas-ctl.md#exchange-log).
+
 ## Configuration Discovery
 
 The runtime searches for infra manifests in this order:
@@ -152,12 +165,19 @@ Include a value in markdown with pymdownx snippets, for example
 
 ### Resolution Rules
 
-When resolving an infra reference (e.g., `--infra-ref openai.example.yaml`):
+When resolving a library `name:path` ref (tools, overlays, infra bundles, …),
+the prefix is always a **library name**. Lab-local libraries are searched
+first, then workspace `manifest_libraries:`, then installed libraries.
 
-1. **Installed libraries** — Auto-registered via `mas.runtime.manifest_libraries` entry points
-2. **Workspace paths** — `manifest_libraries` in `config.yaml` for checkout trees that are not installed
-3. **User config** — `$XDG_CONFIG_HOME/mas/infra/{ref}`
-4. **Relative path** — Resolve from manifest directory
+List local library dirs in `lab-config.yaml` `lab.libraries` (and put
+`library.yaml` in that dir). List extra checkouts in workspace
+`config.yaml` `manifest_libraries:` (a list of paths; the name is the
+directory stem).
+
+User guide: [labs-and-libraries.md](labs-and-libraries.md). Search order and
+`LookupError`: [library-discovery.md](library-discovery.md).
+
+Infra files that are not `name:path` still fall through to `$XDG_CONFIG_HOME/mas/infra/{ref}` or a path relative to the manifest directory.
 
 ### Examples
 
@@ -182,7 +202,7 @@ instead:
 | --- | --- |
 | `spec.infra_refs`, `spec.runtime_refs`, `infra_interceptors` | `infra_refs` / `runtime_refs` in `config.yaml`, `MAS_INFRA_REFS` / `MAS_RUNTIME_REFS`, `--infra-ref` / `--runtime-ref` |
 | `spec.execution` (cache, stream, queue depth, parallel tools, …) | `kind: RuntimeEngine` refs (see [runtime-engine.md](manifests/runtime-engine.md)) |
-| Mock overlay only (`llm.provider: mock`) | Same overlay **and** `infra_refs: [standard:mock-llm]` (or env/CLI) |
+| Offline LLM turns (no live provider) | [llm_cache replay](manifests/llm-cache.md) (`raise_on_miss`) recorded against a live provider |
 
 `experiment.execution` in **mas-lab benchmark** YAML is unrelated — batch
 orchestration and trace emulation ([experiment.md](manifests/experiment.md#execution-batch-orchestration)).
@@ -194,6 +214,10 @@ orchestration and trace emulation ([experiment.md](manifests/experiment.md#execu
 See `library-standard/src/mas/library/standard/libs/standard/openai.yaml` and
 `config/infra/openai.example.yaml`.
 
-### Mock / offline
+### Offline replay
 
-Use `standard:mock-llm` for CI and tutorials (no network).
+Record with a live provider, then replay from disk (`raise_on_miss: true`).
+See [llm-cache.md](manifests/llm-cache.md).
+
+Library names, lab-local `lab.libraries`, and workspace `manifest_libraries:`:
+[labs-and-libraries.md](labs-and-libraries.md).

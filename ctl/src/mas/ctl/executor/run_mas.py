@@ -62,9 +62,8 @@ def execute_run_mas(
     """Compose → materialize → SessionController on entry agent."""
     import os
 
-    from mas.ctl.session.controller import ConversationConfig, SessionController, close_observability
+    from mas.ctl.session.controller import ConversationConfig, SessionController, close_observability, run_session_loop
     from mas.ctl.session.hitl_config import resolve_hitl_from_manifest
-    from mas.ctl.session.controller import run_session_loop
     from mas.ctl.ui.stdout import StdoutConversationDisplay
 
     # Batch/CLI runs with auto-hitl (the default) have no external resolver
@@ -100,7 +99,6 @@ def execute_run_mas(
     if runtime_params:
         stage_runtime_params(runtime_params)
 
-    bind = result.bind
     materialized = materialize_mas_compose(result, mas_base_dir=manifest_dir or manifest.parent)
 
     if getattr(materialized.materialized, "bus", None) is not None:
@@ -118,6 +116,7 @@ def execute_run_mas(
         agent_label=str(entry or "Agent"),
         verbose=verbose,
         show_labels=True,
+        trace=trace,
     )
 
     try:
@@ -180,7 +179,10 @@ def execute_run_mas(
     # opaque black boxes and the multilevel trajectory shows only the
     # moderator.  This mirrors the sequential-workflow path.
     plugin_set, scoped_recorders = setup_run_observability(
-        instances, obs_config, base_dir=base, entry_agent_id=str(entry or "agent"),
+        instances,
+        obs_config,
+        base_dir=base,
+        entry_agent_id=str(entry or "agent"),
     )
 
     controller = SessionController(

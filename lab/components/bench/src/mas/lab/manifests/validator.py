@@ -134,24 +134,37 @@ def detect_kind(data: Dict[str, Any]) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 
+def _load_kind_schema(kind: str) -> Optional[Dict[str, Any]]:
+    schema_file = _schema_dir() / _KIND_SCHEMA.get(kind, "")
+    if not schema_file.exists():
+        logger.warning(
+            "[manifest][%s] schema file not found: %s — skipping schema validation",
+            kind,
+            schema_file,
+        )
+        return None
+    with schema_file.open(encoding="utf-8") as fh:
+        loaded = yaml.safe_load(fh)
+    return loaded if isinstance(loaded, dict) else None
+
+
 def _validate_against_schema(data: Dict[str, Any], kind: str) -> List[str]:
     """Validate *data* against the JSON Schema for *kind*.
 
     Returns a list of human-readable violation strings (empty → valid).
     """
-    schema_file = _schema_dir() / _KIND_SCHEMA.get(kind, "")
-    if not schema_file.exists():
-        logger.warning("[manifest][%s] schema file not found: %s — skipping schema validation", kind, schema_file)
+    schema = _load_kind_schema(kind)
+    if schema is None:
         return []
 
-    with schema_file.open(encoding="utf-8") as fh:
-        schema = yaml.safe_load(fh)
+    from mas.ctl.validate.schema_errors import humanize_schema_error
 
-    validator = jsonschema.Draft7Validator(schema)
+    from mas.lab.schemas.validate import lab_schema_registry
+
+    validator = jsonschema.Draft7Validator(schema, registry=lab_schema_registry())
     violations: List[str] = []
     for error in sorted(validator.iter_errors(data), key=lambda e: list(e.absolute_path)):
-        path = " → ".join(str(p) for p in error.absolute_path) or "(root)"
-        violations.append(f"{path}: {error.message}")
+        violations.append(humanize_schema_error(error))
     return violations
 
 
@@ -192,8 +205,11 @@ def validate_manifest(
     strict: bool = True,
     base_dir: Optional[Path] = None,
     resolve_refs: Optional[bool] = None,
-) -> None:
+) -> List[str]:
     """Validate a mas-lab manifest dict.
+
+    Returns deprecation warnings (never fails on deprecated keys). Removed
+    keys fail JSON Schema (``additionalProperties: false``).
 
     Parameters
     ----------
@@ -222,7 +238,7 @@ def validate_manifest(
         When *strict* is ``True`` and violations are found.
     """
     if _DISABLED:
-        return
+        return []
 
     # Auto-detect kind
     if kind is None:
@@ -232,7 +248,7 @@ def validate_manifest(
         if strict and _STRICT_MODE:
             raise ManifestValidationError(source, [msg])
         logger.warning("[manifest] %s", msg)
-        return
+        return []
 
     effective_strict = strict and _STRICT_MODE
 
@@ -253,6 +269,16 @@ def validate_manifest(
         for msg in schema_violations:
             logger.warning("[manifest][%s] %s: %s", kind, source, msg)
 
+    deprecations: List[str] = []
+    if kind == "experiment":
+        schema = _load_kind_schema(kind)
+        if schema is not None:
+            from mas.ctl.validate.deprecations import collect_experiment_deprecations
+
+            deprecations = collect_experiment_deprecations(data, schema)
+            for msg in deprecations:
+                logger.warning("[manifest][%s] %s: deprecated: %s", kind, source, msg)
+
     # ── Step 2: Compose + validate resolved MAS (default on) ───────────────
     if _do_resolve and _base_dir is not None:
         ref_violations = _check_refs(data, kind, _base_dir)
@@ -261,3 +287,5 @@ def validate_manifest(
                 raise ManifestValidationError(source, ref_violations)
             for msg in ref_violations:
                 logger.warning("[manifest][%s] %s: %s", kind, source, msg)
+
+    return deprecations

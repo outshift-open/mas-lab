@@ -7,6 +7,7 @@ from pathlib import Path
 from mas.runtime.registry import (
     PluginRegistry,
     PluginEntry,
+    PluginUnavailable,
     VariantInfo,
     get_registry,
     register_plugin,
@@ -102,6 +103,66 @@ class TestPluginEntry:
         )
         with pytest.raises(ValueError, match="Unknown variant 'unknown'"):
             entry.resolve("unknown")
+
+
+class TestPluginAvailability:
+    """Test the requires:/extra: availability gate (PluginUnavailable)."""
+
+    def test_missing_requires_empty_when_no_requires_declared(self):
+        """Backward compat: a variant with no requires: is always available."""
+        info = VariantInfo(module="pathlib", class_name="Path")
+        assert info.missing_requires() == []
+
+    def test_missing_requires_reports_unimportable_names(self):
+        info = VariantInfo(
+            module="pathlib",
+            class_name="Path",
+            requires=["pathlib", "no_such_package_xyz"],
+        )
+        assert info.missing_requires() == ["no_such_package_xyz"]
+
+    def test_resolve_raises_plugin_unavailable_for_missing_requires(self):
+        variant = VariantInfo(
+            module="pathlib",
+            class_name="Path",
+            requires=["no_such_package_xyz"],
+            extra="mas-library-standard[otel]",
+        )
+        entry = PluginEntry(urn="mas.dp.test", variants={"builtin": variant})
+        with pytest.raises(PluginUnavailable) as exc_info:
+            entry.resolve()
+        err = exc_info.value
+        assert err.urn == "mas.dp.test"
+        assert err.missing == ["no_such_package_xyz"]
+        assert "mas plugin enable mas.dp.test" in str(err)
+
+    def test_resolve_hints_pip_install_without_extra(self):
+        variant = VariantInfo(module="pathlib", class_name="Path", requires=["no_such_package_xyz"])
+        entry = PluginEntry(urn="mas.dp.test", variants={"builtin": variant})
+        with pytest.raises(PluginUnavailable, match="pip install no_such_package_xyz"):
+            entry.resolve()
+
+    def test_resolve_succeeds_when_requires_import(self):
+        variant = VariantInfo(module="pathlib", class_name="Path", requires=["pathlib"])
+        entry = PluginEntry(urn="mas.dp.test", variants={"builtin": variant})
+        assert entry.resolve() is variant
+
+    def test_registry_list_marks_unavailable_plugin_disabled(self):
+        reg = PluginRegistry()
+        variant = VariantInfo(module="pathlib", class_name="Path", requires=["no_such_package_xyz"])
+        reg.register(PluginEntry(urn="mas.dp.disabled_test", variants={"builtin": variant}))
+        [item] = [i for i in reg.list() if i["urn"] == "mas.dp.disabled_test"]
+        assert item["available"] is False
+        assert item["missing"] == ["no_such_package_xyz"]
+        # list() never raises even though resolve() would for this entry.
+
+    def test_get_entry_by_urn_and_alias(self):
+        reg = PluginRegistry()
+        entry = PluginEntry(urn="mas.dp.aliased_test", shortcuts=["aliased"], variants={})
+        reg.register(entry)
+        assert reg.get_entry("mas.dp.aliased_test") is entry
+        assert reg.get_entry("aliased") is entry
+        assert reg.get_entry("no-such-plugin") is None
 
 
 class TestPluginRegistry:
@@ -228,6 +289,8 @@ class TestPluginRegistry:
         assert len(categories) > 0
         assert "design_pattern" in categories
         assert "context_manager" in categories
+        assert "summarizer" in categories
+        assert "assembler" in categories
     
     def test_all_aliases(self):
         """Test getting all aliases."""
@@ -346,3 +409,13 @@ class TestRealPlugins:
         info = registry.resolve("sliding-window")
         assert info is not None
         assert "SlidingWindow" in info.class_name
+
+    def test_otel_observability_plugin_declares_requires_and_extra(self):
+        """library-standard/library.yaml's otel plugin is the real requires:/extra: example."""
+        registry = get_registry()
+        entry = registry.get_entry("mas.observability.otel")
+        assert entry is not None
+        variant = entry.default
+        assert variant is not None
+        assert variant.requires == ["opentelemetry.sdk.trace"]
+        assert variant.extra == "mas-library-standard[otel]"

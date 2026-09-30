@@ -10,6 +10,9 @@ How **`events.jsonl`** run logs, the **exchange log**, and CLI flags relate to
 Applies to `mas-ctl chat`, `mas-ctl tui`, `mas-ctl run-mas`, and (for
 **benchmarks**) `mas-lab benchmark run`.
 
+Command-line flags (all of `--trace*` / `--events*`): [mas-ctl.md](mas-ctl.md).
+`config.yaml` keys: [config.yaml reference](../references/config.yaml.md).
+
 Term definitions: [glossary.md](../glossary.md).
 
 ---
@@ -90,19 +93,26 @@ mas-ctl chat agent.yaml -i \
 
 ## Exchange log (interactive trace)
 
-Separate from **`events.jsonl`**: a pretty-printed transcript on **`mas-ctl chat`**
-only (not written to **benchmark** artifacts).
+Separate from **`events.jsonl`**: a pretty-printed view of structured
+`ExchangeRecord` hops on **stderr** for **`mas-ctl chat`** / **`run-mas`**.
+Stdout stays the conversation. `--trace` is the compact summary; `--trace full`
+pretty-prints payloads last. Humans use this log; machines use **`events.jsonl`**
+/ **`mas-lab telemetry`**.
 
-| Flag | Effect |
-|------|--------|
-| `--trace` | Stream AGENT↔LLM↔TOOL exchanges on stderr |
-| `--trace-timestamps` | Add UTC timestamp and elapsed time |
-| `--trace-engine` | Include raw engine I/O JSON |
+Full flag and `config.yaml` tables: [mas-ctl.md](mas-ctl.md#exchange-log) ·
+[config.yaml `mas_ctl`](../references/config.yaml.md#mas_ctl).
 
 ```bash
 mas-ctl chat agent.yaml -i --trace
-mas-ctl chat agent.yaml -i --trace --trace-timestamps
+mas-ctl chat agent.yaml -i --trace full
+mas-ctl chat agent.yaml -i --trace --trace-color
 ```
+
+Headers keep the raw hop (`TOOL[activate_skill]`) and, when the tool
+advertised `spec.semantics` / `list_tools().semantics`, an interpretation
+(`SKILL[answer-formatting]`, `MEMORY[write]`). The model id is the engine's
+resolved model (`spec.models`, `--model` / `MAS_CTL_MODEL`), never a
+label-only fallback.
 
 ---
 
@@ -113,7 +123,8 @@ Common `kind` values (native transform):
 | Kind | Meaning |
 |------|---------|
 | `execution_start`, `execution_end` | **Run** lifecycle |
-| `llm_call_start`, `llm_call_end` | Model call (latency on `_end`) |
+| `llm_call_start`, `llm_call_end` | Model call (latency on `_end`). `llm_call_end.tools` is the function names sent to the model on that call. |
+| `context_assembled` | Prompt snapshot for that call. `tools` is the same function-name list. |
 | `tool_call_start`, `tool_call_end` | Tool call |
 | `governance_event`, `governance_policy` | Policy / budget hooks |
 | `routing`, `routing_result` | Delegation between agents in a **MAS** |
@@ -148,7 +159,8 @@ is configured through:
 2. **Overlays** on **scenarios** or the app
 3. App defaults in the bundled MAS
 
-The **embedded pipeline** in `experiment.yaml` runs after execution:
+The **level hooks** in `experiment.yaml` (`run.post`, `item.post`,
+`scenario.post`, experiment `post:`) run after execution:
 
 ```bash
 mas-lab benchmark run labs/lifecycle-control.lab/experiment.yaml --progress
@@ -164,3 +176,5 @@ and figure workflows.
 - [ctl/tui.md](../ctl/tui.md) — same `--events*` flags
 - [Web UI](../ui/index.md) — browse **run** artifacts
 - [glossary.md](../glossary.md) — manifest terms
+- [summarization.md](../manifests/summarization.md) — summarizer / MCE judge models and the summary system prompt in the log
+- Example: [summarizer-override](../../library-standard/examples/context/summarizer-override/)

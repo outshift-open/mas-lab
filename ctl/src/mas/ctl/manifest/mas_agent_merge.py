@@ -11,20 +11,19 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
-from mas.ctl.overlay.merge import _ops_dict, merge_context_map
+from mas.ctl.overlay.merge import _ops_dict, _plugin_entry_key, merge_agent_overlay, merge_context_map
+from mas.runtime.boundary.agentcomm.routing import AgentCommRoute
 from mas.runtime.boundary.context.manifest_context import routing_description_from_agent
 from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
 from mas.runtime.boundary.delegation.policy import delegation_targets
+from mas.runtime.contracts.tool_semantics import existing_attr
+from mas.runtime.engine.leaf import leaf_engine
 from mas.runtime.engine.llm_live import LiveLlmEngine
 from mas.runtime.engine.tools import resolve_manifest_tool_refs
 
 logger = logging.getLogger(__name__)
 
-RunTurnFn = Callable[[str, str, int], str]
-
-
-from mas.runtime.engine.leaf import leaf_engine
+RunTurnFn = Callable[[str, str, int, str, str], str]
 
 
 def _load_agent_yaml(path: Path) -> dict[str, Any] | None:
@@ -135,6 +134,26 @@ def _apply_description_overlay(
         spec["description"] = description.strip()
 
 
+def _plugin_list_as_add(value: Any) -> Any:
+    """Union a plain plugin list onto the agent YAML list (upsert by plugin id).
+
+    Agency-entry inline ``governance`` / ``observability`` used to replace the
+    agent YAML list. Agent overlays that fan out onto a MAS must keep other
+    plugins the agent already declared. Same plugin id is replaced by the
+    overlay stanza (so ``sample_governance`` plus policies overwrites a bare
+    ``sample_governance`` string). An explicit empty list still clears.
+    ``$op`` values pass through.
+    """
+    if _ops_dict(value) is not None:
+        return copy.deepcopy(value)
+    if isinstance(value, list):
+        if not value:
+            return {"$op": {"clear": True}}
+        keys = [_plugin_entry_key(item) for item in value]
+        return {"$op": {"remove": [k for k in keys if k], "add": copy.deepcopy(value)}}
+    return copy.deepcopy(value)
+
+
 def apply_agency_entry_overlay(
     agent_manifest: dict[str, Any],
     agency_entry: dict[str, Any],
@@ -156,9 +175,19 @@ def apply_agency_entry_overlay(
     if tools_val:
         spec["tools"] = _merge_agency_entry_tools(list(spec.get("tools") or []), tools_val)
 
-    for field in ("design_pattern", "skills", "memory", "governance"):
+    for field in ("design_pattern", "context_manager", "assembler", "skills", "memory"):
         if (val := _entry_val(agency_entry, entry_spec, field)) is not None:
             spec[field] = copy.deepcopy(val)
+
+    plugin_patch: dict[str, Any] = {}
+    for field in ("governance", "observability"):
+        val = _entry_val(agency_entry, entry_spec, field)
+        if val is not None:
+            plugin_patch[field] = _plugin_list_as_add(val)
+    if plugin_patch:
+        merged = merge_agent_overlay(out, {"spec": {"patch": plugin_patch}})
+        out["spec"] = merged.get("spec") or spec
+        spec = out["spec"]
 
     memory_seed = _entry_val(agency_entry, entry_spec, "memory_seed")
     if memory_seed:
@@ -206,9 +235,7 @@ def enrich_entry_agent_for_delegation(
     if isinstance(wf, dict):
         spec_out = out.setdefault("spec", {})
         if spec_out.get("workflow") and spec_out.get("workflow") != wf:
-            logger.warning(
-                "entry agent spec.workflow replaced by MAS workflow (MAS topology wins)"
-            )
+            logger.warning("entry agent spec.workflow replaced by MAS workflow (MAS topology wins)")
         spec_out["workflow"] = copy.deepcopy(wf)
     if manifest_dir is not None:
         resolve_manifest_tool_refs(out, manifest_dir, inplace=True)
@@ -224,6 +251,7 @@ def wire_entry_engine_delegation(
     entry_agent_id: str,
     mas_config: dict[str, Any] | None = None,
     mas_base_dir: Path | None = None,
+    routes: dict[str, AgentCommRoute] | None = None,
 ) -> None:
     """Set enriched manifest on the entry engine and bind ``LlmDelegator`` when peers exist.
 
@@ -240,9 +268,7 @@ def wire_entry_engine_delegation(
     peers = delegation_targets(manifest, agent_id=entry_agent_id)
     peer_manifests: dict[str, dict[str, Any]] = {}
     if isinstance(leaf, LiveLlmEngine) and peers and mas_config is not None and mas_base_dir is not None:
-        peer_manifests = _peer_manifests_for_ids(
-            mas_config, mas_base_dir=mas_base_dir, peer_ids=peers
-        )
+        peer_manifests = _peer_manifests_for_ids(mas_config, mas_base_dir=mas_base_dir, peer_ids=peers)
         leaf.delegation_peer_descriptions = {
             peer_id: desc
             for peer_id, manifest_doc in peer_manifests.items()
@@ -253,7 +279,7 @@ def wire_entry_engine_delegation(
     if not peers:
         leaf.delegation = None
         return
-    leaf.delegation = LlmDelegator(run_turn=run_turn)
+    leaf.delegation = LlmDelegator(run_turn=run_turn, routes=routes)
     if hasattr(leaf, "use_tool_loop"):
         if not leaf.use_tool_loop:
             logger.warning(
@@ -266,9 +292,16 @@ def wire_entry_engine_delegation(
 
 def reset_engine_delegation(engine: Any) -> None:
     """Clear delegate caches at the start of each user turn."""
-    while engine is not None:
-        delegation = getattr(engine, "delegation", None)
-        reset_fn = getattr(delegation, "reset_session", None)
+    seen: set[int] = set()
+    for _ in range(8):
+        if engine is None or id(engine) in seen:
+            break
+        seen.add(id(engine))
+        delegation = existing_attr(engine, "delegation")
+        reset_fn = existing_attr(delegation, "reset_session")
         if callable(reset_fn):
             reset_fn()
-        engine = getattr(engine, "inner", None)
+        inner = existing_attr(engine, "inner")
+        if inner is None or inner is engine:
+            break
+        engine = inner

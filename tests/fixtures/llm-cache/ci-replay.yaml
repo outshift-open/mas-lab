@@ -1,0 +1,21 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: infra/v1
+kind: InfraMiddleware
+
+metadata:
+  name: ci-llm-cache-replay
+  description: >
+    Strict offline replay of tests/fixtures/llm-cache/ci.llm-cache.json.
+    Pair with standard:openai (or any provider with an api_base). With
+    raise_on_miss, a cache miss fails instead of calling the provider.
+
+spec:
+  middleware: llm_cache
+  applies_to:
+    - LLM_CALL
+  params:
+    allow_read: true
+    allow_write: false
+    raise_on_miss: true
+    cache_path: ci.llm-cache.json

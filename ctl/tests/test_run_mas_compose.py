@@ -29,7 +29,7 @@ def test_compose_run_multi_agent_bind_from_library_samples():
         ComposeRequest(
             manifest=manifest,
             validate=False,
-            infra_refs=["standard:mock-llm"],
+            infra_refs=["standard:openai"],
         )
     )
 
@@ -52,7 +52,7 @@ metadata:
 spec:
   description: test agent
   models:
-    - model: mock
+    - model: gpt-4o-mini
 """,
             encoding="utf-8",
         )
@@ -88,7 +88,7 @@ spec:
         ComposeRequest(
             manifest=mas_path,
             validate=False,
-            infra_refs=["standard:mock-llm"],
+            infra_refs=["standard:openai"],
         )
     )
 

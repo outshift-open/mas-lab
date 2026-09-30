@@ -14,6 +14,7 @@ license = { text = "Apache-2.0" }
 dependencies = [
     "mas-runtime",
     "ddgs>=9.14.0",
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]
@@ -30,6 +31,7 @@ include = [
     "src/mas/library/standard/libs/**/*.yaml",
     "src/mas/library/standard/infra/**/*.yaml",
     "src/mas/library/standard/flavours/**/*.yaml",
+    "src/mas/library/standard/overlays/**/*",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -37,6 +39,7 @@ packages = ["src/mas"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "library.yaml" = "src/mas/library/standard/library.yaml"
+"src/mas/library/standard/overlays" = "src/mas/library/standard/overlays"
 
 [tool.uv.sources]
 mas-runtime = { workspace = true }

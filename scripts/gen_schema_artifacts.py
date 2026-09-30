@@ -88,10 +88,20 @@ def _nested_keys(schema: dict[str, Any], *path: str) -> frozenset[str]:
     return frozenset(props.keys())
 
 
+def _object_branch(schema: dict[str, Any]) -> dict[str, Any]:
+    """Prefer the object alternative when a slot is ``string | object``."""
+    if schema.get("properties"):
+        return schema
+    for alt in schema.get("oneOf") or []:
+        if isinstance(alt, dict) and (alt.get("type") == "object" or alt.get("properties")):
+            return alt
+    return schema
+
+
 def _agent_binding_keys(agent: dict[str, Any], binding: str) -> frozenset[str]:
     spec = (agent.get("properties") or {}).get("spec") or {}
     spec_props = spec.get("properties") or {}
-    binding_schema = spec_props.get(binding) or {}
+    binding_schema = _object_branch(spec_props.get(binding) or {})
     props = binding_schema.get("properties") or {}
     return frozenset(props.keys())
 
@@ -122,11 +132,11 @@ def _render_bindings(agent: dict[str, Any]) -> str:
     chunks = [
         ("LLM_BINDING_KEYS", _property_keys(llm, _FRAGMENTS)),
         ("EXECUTION_BINDING_KEYS", _property_keys(execution, _FRAGMENTS)),
-        ("EXECUTION_MOCKING_KEYS", _nested_keys(execution, "mocking")),
         ("EXECUTION_CACHE_KEYS", _nested_keys(execution, "cache")),
         ("CONTROL_BINDING_KEYS", _property_keys(control, _FRAGMENTS)),
         ("DESIGN_PATTERN_BINDING_KEYS", _agent_binding_keys(agent, "design_pattern")),
         ("CONTEXT_MANAGER_BINDING_KEYS", _agent_binding_keys(agent, "context_manager")),
+        ("ASSEMBLER_BINDING_KEYS", _agent_binding_keys(agent, "assembler")),
         (
             "CONTEXT_MANAGER_ASSEMBLY_PARAM_KEYS",
             _property_keys(assembly, _FRAGMENTS),
@@ -145,11 +155,30 @@ def _render_bindings(agent: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _agent_model_item_defaults(agent: dict[str, Any]) -> dict[str, Any]:
+    spec = (agent.get("properties") or {}).get("spec") or {}
+    models = (spec.get("properties") or {}).get("models") or {}
+    items = models.get("items") or {}
+    props = items.get("properties") or {}
+    defaults: dict[str, Any] = {}
+    for key, prop in props.items():
+        if isinstance(prop, dict) and "default" in prop:
+            defaults[key] = prop["default"]
+    return defaults
+
+
 def _render_defaults() -> str:
     execution = _load(_FRAGMENTS / "execution-binding.schema.yaml")
     assembly = _load(_FRAGMENTS / "context-manager-assembly-params.schema.yaml")
+    strategy = _load(_FRAGMENTS / "context-manager-strategy-params.schema.yaml")
+    agent = _load(_SCHEMA_ROOT / "agent.schema.yaml")
     exec_defaults = _property_defaults(execution, _FRAGMENTS)
     asm_defaults = _property_defaults(assembly, _FRAGMENTS)
+    strategy_defaults = _property_defaults(strategy, _FRAGMENTS)
+    model_defaults = _agent_model_item_defaults(agent)
+    asm_props = _merged_properties(assembly, _FRAGMENTS)
+    trimmer_props = (asm_props.get("trimmer") or {}).get("properties") or {}
+    reserve_default = (trimmer_props.get("reserve_tokens") or {}).get("default", 512)
 
     lines = [
         "#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates",
@@ -161,7 +190,11 @@ def _render_defaults() -> str:
         f"EXECUTION_MAX_AUTO_STEPS = {exec_defaults['max_auto_steps']!r}",
         f"EXECUTION_ENGINE_QUEUE_DEPTH = {exec_defaults['engine_queue_depth']!r}",
         f"CONTEXT_MANAGER_WORKING_MEMORY_MESSAGES = {asm_defaults['working_memory_messages']!r}",
-        f"CONTEXT_MANAGER_RESERVE_TOKENS = {asm_defaults['reserve_tokens']!r}",
+        f"CONTEXT_MANAGER_RESERVE_TOKENS = {reserve_default!r}",
+        f"CONTEXT_MANAGER_KEEP_TURNS = {strategy_defaults.get('keep_turns', 10)!r}",
+        f"CONTEXT_MANAGER_HYSTERESIS_RATIO = {strategy_defaults.get('hysteresis_ratio', 0.2)!r}",
+        f"DEFAULT_MODEL_CONTEXT_WINDOW = {model_defaults.get('context_window', 128000)!r}",
+        f"DEFAULT_MODEL_MAX_TOKENS = {model_defaults.get('max_tokens', 2000)!r}",
         "",
     ]
     return "\n".join(lines)

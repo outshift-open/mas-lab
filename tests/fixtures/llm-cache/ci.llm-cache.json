@@ -1,0 +1,1962 @@
+{
+  "0cc4c05b215899399d998183c1a3db55f9477511ccaab430bd3d5a11118d0ea1": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 15,
+      "prompt_tokens": 705,
+      "total_tokens": 720,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 6,
+        "engine_ttft_ms": 38,
+        "engine_ttlt_ms": 137,
+        "pre_inference_ms": 156,
+        "service_tbt_ms": 2,
+        "service_ttft_ms": 429,
+        "service_ttlt_ms": 463,
+        "user_visible_ttft_ms": 273
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "calc",
+    "tool_arguments": {
+      "expression": "2+2"
+    }
+  },
+  "11883e0a9616dd06bec882587871b6046fa9efcf0d830fba0e78c9f9c7bfce4e": "The result of 2 + 2 is 4.",
+  "a2b183bca9be8d74828425a18b4573b1144181ed037ee5e0e3fdec88bba20652": {
+    "next_step": "PARALLEL_TOOL_CALLS",
+    "text": "",
+    "usage": {
+      "completion_tokens": 73,
+      "prompt_tokens": 753,
+      "total_tokens": 826,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 13,
+        "engine_ttft_ms": 55,
+        "engine_ttlt_ms": 1005,
+        "pre_inference_ms": 260,
+        "service_tbt_ms": 13,
+        "service_ttft_ms": 643,
+        "service_ttlt_ms": 1589,
+        "user_visible_ttft_ms": 384
+      }
+    },
+    "finish_reason": "tool_calls",
+    "parallel_tools": [
+      {
+        "tool_name": "calc",
+        "tool_arguments": {
+          "expression": "120 * 2.5 + 80 * 1.75"
+        }
+      },
+      {
+        "tool_name": "calc",
+        "tool_arguments": {
+          "expression": "(120 * 2.5 + 80 * 1.75) / 3"
+        }
+      }
+    ]
+  },
+  "c0b540d89d803a4c93b8107e39fc58082deb998accf695bc6cd7c4b251eb7363": "The total distance covered by the train is 440 kilometers. \n\nTo cover the same distance in exactly 3 hours, the second train must maintain a constant speed of approximately 146.67 km/h.",
+  "cd09263d03cb2df9ec317e3478aa193532b12424eb1e862dc9bffe49123918da": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 26,
+      "prompt_tokens": 535,
+      "total_tokens": 561,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 12,
+        "engine_ttft_ms": 39,
+        "engine_ttlt_ms": 362,
+        "pre_inference_ms": 106,
+        "service_tbt_ms": 12,
+        "service_ttft_ms": 449,
+        "service_ttlt_ms": 764,
+        "user_visible_ttft_ms": 344
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "delegate_to_itinerary_agent",
+    "tool_arguments": {
+      "task": "Find trains from Celestia to Verdantia."
+    }
+  },
+  "660bb4f2b5eac091b3827530913a1b46234c4e9aba5033307e98b227fb5be085": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 28,
+      "prompt_tokens": 810,
+      "total_tokens": 838,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 16,
+        "engine_ttft_ms": 91,
+        "engine_ttlt_ms": 547,
+        "pre_inference_ms": 116,
+        "service_tbt_ms": 16,
+        "service_ttft_ms": 505,
+        "service_ttlt_ms": 949,
+        "user_visible_ttft_ms": 389
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Celestia",
+      "destination": "Verdantia",
+      "optimise_for": "time"
+    }
+  },
+  "f2b57d4952259143cb52068f2be5acefa1be0a725d1bae3ed9356ed31e9eeb45": "Here are the available train routes from **Celestia** to **Verdantia**, optimized for time:\n\n### Route Options\n\n1. **Route 1**\n   - **Leg 1:** Celestia to Fortuna\n     - **Travel Time:** 10 minutes\n     - **Route ID:** FC-train\n   - **Leg 2:** Fortuna to Luminos\n     - **Travel Time:** 10 minutes\n     - **Route ID:** LF\n   - **Leg 3:** Luminos to Verdantia\n     - **Travel Time:** 2 hours\n     - **Route ID:** VL\n   - **Total Travel Time:** 2 hours 20 minutes\n\n2. **Route 2**\n   - **Leg 1:** Celestia to Fortuna\n     - **Travel Time:** 10 minutes\n     - **Route ID:** FC-train\n   - **Leg 2:** Fortuna to Luminos\n     - **Travel Time:** 10 minutes\n     - **Route ID:** LFB\n   - **Leg 3:** Luminos to Verdantia\n     - **Travel Time:** 2 hours\n     - **Route ID:** VL\n   - **Total Travel Time:** 2 hours 20 minutes\n\n3. **Route 3**\n   - **Leg 1:** Celestia to Fortuna\n     - **Travel Time:** 10 minutes\n     - **Route ID:** CF-train\n   - **Leg 2:** Fortuna to Luminos\n     - **Travel Time:** 10 minutes\n     - **Route ID:** LF\n   - **Leg 3:** Luminos to Verdantia\n     - **Travel Time:** 2 hours\n     - **Route ID:** VL\n   - **Total Travel Time:** 2 hours 20 minutes\n\n### Summary\nAll routes have the same total travel time of **2 hours 20 minutes** with three hops. If you need further details or assistance with booking, feel free to ask!",
+  "1d6da01bbb55123f74587acabece8fe946dc1f48a319896e62ef1933d67fd75f": {
+    "next_step": "PARALLEL_TOOL_CALLS",
+    "text": "",
+    "usage": {
+      "completion_tokens": 74,
+      "prompt_tokens": 981,
+      "total_tokens": 1055,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 12,
+        "engine_ttft_ms": 40,
+        "engine_ttlt_ms": 968,
+        "pre_inference_ms": 89,
+        "service_tbt_ms": 12,
+        "service_ttft_ms": 409,
+        "service_ttlt_ms": 1319,
+        "user_visible_ttft_ms": 319
+      }
+    },
+    "finish_reason": "tool_calls",
+    "parallel_tools": [
+      {
+        "tool_name": "delegate_to_schedule_agent",
+        "tool_arguments": {
+          "task": "Look up train schedules for route FC-train, LF, VL."
+        }
+      },
+      {
+        "tool_name": "delegate_to_concierge_agent",
+        "tool_arguments": {
+          "task": "Check fares for route FC-train, LF, VL."
+        }
+      }
+    ]
+  },
+  "740db1e1ee44ae20a72a6c95764db68850f6fdb1b8bcbe59d121a7db1c17d683": {
+    "next_step": "PARALLEL_TOOL_CALLS",
+    "text": "",
+    "usage": {
+      "completion_tokens": 92,
+      "prompt_tokens": 1041,
+      "total_tokens": 1133,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1024
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 5,
+        "engine_ttft_ms": 51,
+        "engine_ttlt_ms": 548,
+        "pre_inference_ms": 141,
+        "service_tbt_ms": 5,
+        "service_ttft_ms": 467,
+        "service_ttlt_ms": 961,
+        "user_visible_ttft_ms": 327
+      }
+    },
+    "finish_reason": "tool_calls",
+    "parallel_tools": [
+      {
+        "tool_name": "lookup_schedule",
+        "tool_arguments": {
+          "origin": "Fortuna",
+          "destination": "Celestia",
+          "travel_mode": "train"
+        }
+      },
+      {
+        "tool_name": "lookup_schedule",
+        "tool_arguments": {
+          "origin": "Luminos",
+          "destination": "Fortuna",
+          "travel_mode": "train"
+        }
+      },
+      {
+        "tool_name": "lookup_schedule",
+        "tool_arguments": {
+          "origin": "Verdantia",
+          "destination": "Luminos",
+          "travel_mode": "train"
+        }
+      }
+    ]
+  },
+  "ce57fff8fb271248c8cdec4a7fe0e3e5a2319b739388fa709ee35edee2b65fdc": "Here are the train schedules for the requested routes:\n\n### Route: Fortuna (FC-train) \u2192 Celestia\n- **Travel Time:** 10 minutes\n- **Frequency:** 4 trains/day\n- **Service Classes:** Economy, Business\n- **Departure Times:** 07:00, 10:30, 15:00, 19:00\n\n### Route: Luminos (LF) \u2192 Fortuna\n- **Travel Time:** 10 minutes\n- **Frequency:** 10 trains/day\n- **Service Classes:** Standard, Express\n- **Departure Times:** 05:00, 07:30, 09:00, 10:30, 12:00, 13:30, 15:00, 16:30, 18:30, 20:30\n\n### Route: Verdantia (VL) \u2192 Luminos\n- **Travel Time:** 2 hours\n- **Frequency:** 8 trains/day on weekdays, 6 trains/day on weekends\n- **Service Classes:** Standard, Express\n- **Departure Times (Weekdays):** \n  - 06:00 (Express)\n  - 08:15 (Standard)\n  - 10:30 (Express)\n  - 12:45 (Standard)\n  - 15:00 (Express)\n  - 17:15 (Standard)\n  - 19:30 (Express)\n  - 21:45 (Standard)\n\nLet me know if you need further details or assistance!",
+  "b04fe17213a7c569702e074a4dcca2e9e8b67eef8233a6bc61c35892c0a7d197": {
+    "next_step": "PARALLEL_TOOL_CALLS",
+    "text": "",
+    "usage": {
+      "completion_tokens": 81,
+      "prompt_tokens": 1126,
+      "total_tokens": 1207,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 15,
+        "engine_ttft_ms": 91,
+        "engine_ttlt_ms": 1303,
+        "pre_inference_ms": 126,
+        "service_tbt_ms": 15,
+        "service_ttft_ms": 761,
+        "service_ttlt_ms": 1968,
+        "user_visible_ttft_ms": 634
+      }
+    },
+    "finish_reason": "tool_calls",
+    "parallel_tools": [
+      {
+        "tool_name": "get_fares",
+        "tool_arguments": {
+          "route_id": "FC-train",
+          "travel_class": "Standard"
+        }
+      },
+      {
+        "tool_name": "get_fares",
+        "tool_arguments": {
+          "route_id": "LF",
+          "travel_class": "Standard"
+        }
+      },
+      {
+        "tool_name": "get_fares",
+        "tool_arguments": {
+          "route_id": "VL",
+          "travel_class": "Standard"
+        }
+      }
+    ]
+  },
+  "e66c894b501a3a3b1d55316cf91cf79e1776acb76c75a655b39c3093dad33fe7": "Here are the fares for the requested routes:\n\n1. **FC-train**: \n   - Travel class 'Standard' is not available. Available classes are 'Economy' and 'Business'. Please specify if you would like to check fares for one of these classes.\n\n2. **LF (Luminos to Fortuna)**:\n   - Travel Class: Standard\n   - Fare: $2\n\n3. **VL (Verdantia to Luminos)**:\n   - Travel Class: Standard\n   - Fare: $22\n\nLet me know if you would like to check the fares for the available classes on the FC-train route or if you need any further assistance!",
+  "61da12d133ec9cceb67e2ddb341c4164382d60e20564675eb3a5aceb972fa8e8": "Here are the details for trains from **Celestia** to **Verdantia**:\n\n### Train Routes\n1. **Route 1**\n   - **Leg 1:** Celestia to Fortuna\n     - **Travel Time:** 10 minutes\n     - **Route ID:** FC-train\n   - **Leg 2:** Fortuna to Luminos\n     - **Travel Time:** 10 minutes\n     - **Route ID:** LF\n   - **Leg 3:** Luminos to Verdantia\n     - **Travel Time:** 2 hours\n     - **Route ID:** VL\n   - **Total Travel Time:** 2 hours 20 minutes\n\n2. **Route 2**\n   - **Leg 1:** Celestia to Fortuna\n     - **Travel Time:** 10 minutes\n     - **Route ID:** FC-train\n   - **Leg 2:** Fortuna to Luminos\n     - **Travel Time:** 10 minutes\n     - **Route ID:** LFB\n   - **Leg 3:** Luminos to Verdantia\n     - **Travel Time:** 2 hours\n     - **Route ID:** VL\n   - **Total Travel Time:** 2 hours 20 minutes\n\n3. **Route 3**\n   - **Leg 1:** Celestia to Fortuna\n     - **Travel Time:** 10 minutes\n     - **Route ID:** CF-train\n   - **Leg 2:** Fortuna to Luminos\n     - **Travel Time:** 10 minutes\n     - **Route ID:** LF\n   - **Leg 3:** Luminos to Verdantia\n     - **Travel Time:** 2 hours\n     - **Route ID:** VL\n   - **Total Travel Time:** 2 hours 20 minutes\n\n### Train Schedules\n- **Celestia to Fortuna (FC-train)**\n  - **Frequency:** 4 trains/day\n  - **Departure Times:** 07:00, 10:30, 15:00, 19:00\n\n- **Fortuna to Luminos (LF)**\n  - **Frequency:** 10 trains/day\n  - **Departure Times:** 05:00, 07:30, 09:00, 10:30, 12:00, 13:30, 15:00, 16:30, 18:30, 20:30\n\n- **Luminos to Verdantia (VL)**\n  - **Frequency:** 8 trains/day on weekdays, 6 trains/day on weekends\n  - **Departure Times (Weekdays):** 06:00, 08:15, 10:30, 12:45, 15:00, 17:15, 19:30, 21:45\n\n### Fares\n1. **FC-train (Celestia to Fortuna)**: \n   - Available classes: Economy and Business (Standard is not available). Please specify if you want fares for one of these classes.\n\n2. **LF (Luminos to Fortuna)**:\n   - **Fare:** $2 (Standard)\n\n3. **VL (Verdantia to Luminos)**:\n   - **Fare:** $22 (Standard)\n\nIf you would like to check fares for the Economy or Business class on the FC-train route or need any further assistance, please let me know!",
+  "5b3b265bc4c908ae1c9da8766a42844089b1f29d4ad54f3b19c2d495ccb115e5": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 27,
+      "prompt_tokens": 535,
+      "total_tokens": 562,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 43,
+        "engine_ttft_ms": 447,
+        "engine_ttlt_ms": 1649,
+        "pre_inference_ms": 86,
+        "service_tbt_ms": 44,
+        "service_ttft_ms": 1072,
+        "service_ttlt_ms": 2271,
+        "user_visible_ttft_ms": 986
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "delegate_to_itinerary_agent",
+    "tool_arguments": {
+      "task": "Find train routes from Celestia to Verdantia."
+    }
+  },
+  "f3c4a62415918535a23a37333bee0a6ddb6e135f2e8021941988e6070581df23": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 28,
+      "prompt_tokens": 811,
+      "total_tokens": 839,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 12,
+        "engine_ttft_ms": 29,
+        "engine_ttlt_ms": 370,
+        "pre_inference_ms": 124,
+        "service_tbt_ms": 12,
+        "service_ttft_ms": 511,
+        "service_ttlt_ms": 838,
+        "user_visible_ttft_ms": 387
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Celestia",
+      "destination": "Verdantia",
+      "optimise_for": "time"
+    }
+  },
+  "8521a36e63ad9e6f77df5e003ab8e642f94a3af455a3ae6f1b6cf4dd8e5572ea": "Here are the train routes from Celestia to Verdantia, optimized for time:\n\n### Route Options\n\n1. **Route 1**\n   - **Leg 1:** Celestia to Fortuna\n     - **Travel Time:** 10 minutes\n     - **Route ID:** FC-train\n   - **Leg 2:** Fortuna to Luminos\n     - **Travel Time:** 10 minutes\n     - **Route ID:** LF\n   - **Leg 3:** Luminos to Verdantia\n     - **Travel Time:** 2 hours\n     - **Route ID:** VL\n   - **Total Travel Time:** 2 hours 20 minutes\n\n2. **Route 2**\n   - **Leg 1:** Celestia to Fortuna\n     - **Travel Time:** 10 minutes\n     - **Route ID:** FC-train\n   - **Leg 2:** Fortuna to Luminos\n     - **Travel Time:** 10 minutes\n     - **Route ID:** LFB\n   - **Leg 3:** Luminos to Verdantia\n     - **Travel Time:** 2 hours\n     - **Route ID:** VL\n   - **Total Travel Time:** 2 hours 20 minutes\n\n3. **Route 3**\n   - **Leg 1:** Celestia to Fortuna\n     - **Travel Time:** 10 minutes\n     - **Route ID:** CF-train\n   - **Leg 2:** Fortuna to Luminos\n     - **Travel Time:** 10 minutes\n     - **Route ID:** LF\n   - **Leg 3:** Luminos to Verdantia\n     - **Travel Time:** 2 hours\n     - **Route ID:** VL\n   - **Total Travel Time:** 2 hours 20 minutes\n\nAll routes have the same total travel time of **2 hours 20 minutes**. If you need more details or assistance with booking, feel free to ask!",
+  "2f50f136dd9977e376d857f475d6c8aa0587baf9ad25293b7052214ec21067dc": {
+    "next_step": "PARALLEL_TOOL_CALLS",
+    "text": "",
+    "usage": {
+      "completion_tokens": 88,
+      "prompt_tokens": 972,
+      "total_tokens": 1060,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 12,
+        "engine_ttft_ms": 42,
+        "engine_ttlt_ms": 1136,
+        "pre_inference_ms": 99,
+        "service_tbt_ms": 12,
+        "service_ttft_ms": 667,
+        "service_ttlt_ms": 1757,
+        "user_visible_ttft_ms": 568
+      }
+    },
+    "finish_reason": "tool_calls",
+    "parallel_tools": [
+      {
+        "tool_name": "delegate_to_schedule_agent",
+        "tool_arguments": {
+          "task": "Look up train schedules for routes FC-train, LF, VL from Celestia to Verdantia."
+        }
+      },
+      {
+        "tool_name": "delegate_to_concierge_agent",
+        "tool_arguments": {
+          "task": "Check fares for routes FC-train, LF, VL from Celestia to Verdantia."
+        }
+      }
+    ]
+  },
+  "eff055e9b467fe59e53732c2e189fed3e347fdc1f892a78bf18ae33de39f8aa6": {
+    "next_step": "PARALLEL_TOOL_CALLS",
+    "text": "",
+    "usage": {
+      "completion_tokens": 79,
+      "prompt_tokens": 1048,
+      "total_tokens": 1127,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1024
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 4,
+        "engine_ttft_ms": 29,
+        "engine_ttlt_ms": 333,
+        "pre_inference_ms": 96,
+        "service_tbt_ms": 4,
+        "service_ttft_ms": 415,
+        "service_ttlt_ms": 710,
+        "user_visible_ttft_ms": 319
+      }
+    },
+    "finish_reason": "tool_calls",
+    "parallel_tools": [
+      {
+        "tool_name": "lookup_schedule",
+        "tool_arguments": {
+          "origin": "Celestia",
+          "destination": "Verdantia",
+          "travel_mode": "train",
+          "departure_date": "weekday"
+        }
+      },
+      {
+        "tool_name": "lookup_schedule",
+        "tool_arguments": {
+          "origin": "Celestia",
+          "destination": "Verdantia",
+          "travel_mode": "train",
+          "departure_date": "weekend"
+        }
+      }
+    ]
+  },
+  "b172c5a5eba4bd6eeee7c008a16a61257961271810b327543d86a72c0e2f7252": "Here are the train schedules for the route from Celestia to Verdantia:\n\n### Weekday Schedule:\n- **Travel Time:** 3 hours\n- **Frequency:** 8 trains per day + 1 night train\n- **Service Classes:** Standard, Express, NightTrain (couchette)\n- **Departure Times:**\n  - 06:15 (Express)\n  - 08:30 (Standard)\n  - 10:45 (Express)\n  - 13:00 (Standard)\n  - 15:30 (Express)\n  - 17:45 (Standard)\n  - 19:30 (Express)\n  - 21:00 (NightTrain)\n\n### Weekend Schedule:\n- **Travel Time:** 3 hours\n- **Frequency:** 6 trains per day + 1 night train\n- **Service Classes:** Standard, Express, NightTrain (couchette)\n- **Departure Times:**\n  - 07:00 (Express)\n  - 09:30 (Standard)\n  - 12:00 (Express)\n  - 14:30 (Standard)\n  - 17:00 (Express)\n  - 19:30 (Standard)\n\nLet me know if you need further details or assistance!",
+  "2ebe63b230022067a5e32a929d82a84f16c28091b8d142a8a91457abde9fa4b2": {
+    "next_step": "PARALLEL_TOOL_CALLS",
+    "text": "",
+    "usage": {
+      "completion_tokens": 81,
+      "prompt_tokens": 1133,
+      "total_tokens": 1214,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1024
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 14,
+        "engine_ttft_ms": 30,
+        "engine_ttlt_ms": 1155,
+        "pre_inference_ms": 561,
+        "service_tbt_ms": 17,
+        "service_ttft_ms": 1153,
+        "service_ttlt_ms": 2519,
+        "user_visible_ttft_ms": 593
+      }
+    },
+    "finish_reason": "tool_calls",
+    "parallel_tools": [
+      {
+        "tool_name": "get_fares",
+        "tool_arguments": {
+          "route_id": "FC-train",
+          "travel_class": "Standard"
+        }
+      },
+      {
+        "tool_name": "get_fares",
+        "tool_arguments": {
+          "route_id": "LF",
+          "travel_class": "Standard"
+        }
+      },
+      {
+        "tool_name": "get_fares",
+        "tool_arguments": {
+          "route_id": "VL",
+          "travel_class": "Standard"
+        }
+      }
+    ]
+  },
+  "e4f924b0e1c65db44af7845efc44c213694b405d1399e1d9c4736f35b15da75d": {
+    "next_step": "PARALLEL_TOOL_CALLS",
+    "text": "",
+    "usage": {
+      "completion_tokens": 63,
+      "prompt_tokens": 1348,
+      "total_tokens": 1411,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1152
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 12,
+        "engine_ttft_ms": 35,
+        "engine_ttlt_ms": 821,
+        "pre_inference_ms": 199,
+        "service_tbt_ms": 12,
+        "service_ttft_ms": 1296,
+        "service_ttlt_ms": 2078,
+        "user_visible_ttft_ms": 1097
+      }
+    },
+    "finish_reason": "tool_calls",
+    "parallel_tools": [
+      {
+        "tool_name": "get_fares",
+        "tool_arguments": {
+          "route_id": "FC-train",
+          "travel_class": "Economy"
+        }
+      },
+      {
+        "tool_name": "get_fares",
+        "tool_arguments": {
+          "route_id": "FC-train",
+          "travel_class": "Business"
+        }
+      }
+    ]
+  },
+  "dc79d602f943d77635767323f694e52280fb657f9f8ff9a02558c65c8b83fd30": "Here are the fares for the routes from Celestia to Verdantia:\n\n1. **FC-train**:\n   - **Economy Class**: $2\n   - **Business Class**: $5\n\n2. **LF** (from Luminos to Fortuna):\n   - **Standard Class**: $2\n\n3. **VL** (from Verdantia to Luminos):\n   - **Standard Class**: $22\n\n### Summary of Fares:\n- **FC-train** (Celestia to Fortuna):\n  - Economy: $2\n  - Business: $5\n- **LF** (Fortuna to Luminos): $2\n- **VL** (Luminos to Verdantia): $22\n\nIf you need further assistance or want to book any of these routes, let me know!",
+  "3735bfeb9810af3be113126389e8f98f4e2f380a936c0f5bc3d1f2f491c7465b": "Here are the details for trains running from **Celestia** to **Verdantia**:\n\n### Train Routes\n1. **Route 1**\n   - **Leg 1:** Celestia to Fortuna\n     - **Travel Time:** 10 minutes\n     - **Route ID:** FC-train\n   - **Leg 2:** Fortuna to Luminos\n     - **Travel Time:** 10 minutes\n     - **Route ID:** LF\n   - **Leg 3:** Luminos to Verdantia\n     - **Travel Time:** 2 hours\n     - **Route ID:** VL\n   - **Total Travel Time:** 2 hours 20 minutes\n\n2. **Route 2**\n   - **Leg 1:** Celestia to Fortuna\n     - **Travel Time:** 10 minutes\n     - **Route ID:** FC-train\n   - **Leg 2:** Fortuna to Luminos\n     - **Travel Time:** 10 minutes\n     - **Route ID:** LFB\n   - **Leg 3:** Luminos to Verdantia\n     - **Travel Time:** 2 hours\n     - **Route ID:** VL\n   - **Total Travel Time:** 2 hours 20 minutes\n\n3. **Route 3**\n   - **Leg 1:** Celestia to Fortuna\n     - **Travel Time:** 10 minutes\n     - **Route ID:** CF-train\n   - **Leg 2:** Fortuna to Luminos\n     - **Travel Time:** 10 minutes\n     - **Route ID:** LF\n   - **Leg 3:** Luminos to Verdantia\n     - **Travel Time:** 2 hours\n     - **Route ID:** VL\n   - **Total Travel Time:** 2 hours 20 minutes\n\n### Train Schedules\n- **Weekday Schedule:**\n  - **Travel Time:** 3 hours\n  - **Frequency:** 8 trains per day + 1 night train\n  - **Departure Times:**\n    - 06:15 (Express)\n    - 08:30 (Standard)\n    - 10:45 (Express)\n    - 13:00 (Standard)\n    - 15:30 (Express)\n    - 17:45 (Standard)\n    - 19:30 (Express)\n    - 21:00 (NightTrain)\n\n- **Weekend Schedule:**\n  - **Travel Time:** 3 hours\n  - **Frequency:** 6 trains per day + 1 night train\n  - **Departure Times:**\n    - 07:00 (Express)\n    - 09:30 (Standard)\n    - 12:00 (Express)\n    - 14:30 (Standard)\n    - 17:00 (Express)\n    - 19:30 (Standard)\n\n### Fares\n1. **FC-train** (Celestia to Fortuna):\n   - **Economy Class**: $2\n   - **Business Class**: $5\n\n2. **LF** (Fortuna to Luminos):\n   - **Standard Class**: $2\n\n3. **VL** (Luminos to Verdantia):\n   - **Standard Class**: $22\n\n### Total Fare Summary\n- **Total for FC-train + LF + VL:**\n  - **Economy Class:** $2 + $2 + $22 = $26\n  - **Business Class:** $5 + $2 + $22 = $29\n\nIf you need further assistance or want to book any of these routes, feel free to ask!",
+  "41af3e8fdad80662cf9dc4581d0506ff527337dbc1543f07153c7c831291b851": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 27,
+      "prompt_tokens": 541,
+      "total_tokens": 568,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 11,
+        "engine_ttft_ms": 40,
+        "engine_ttlt_ms": 347,
+        "pre_inference_ms": 84,
+        "service_tbt_ms": 11,
+        "service_ttft_ms": 416,
+        "service_ttlt_ms": 718,
+        "user_visible_ttft_ms": 332
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "delegate_to_itinerary_agent",
+    "tool_arguments": {
+      "task": "Find train routes from Celestia to Verdantia."
+    }
+  },
+  "14c0583a6229c87f6da4dd31a3d067e12d163527c0d5071d50eb2848f3f17f7d": {
+    "next_step": "PARALLEL_TOOL_CALLS",
+    "text": "",
+    "usage": {
+      "completion_tokens": 84,
+      "prompt_tokens": 978,
+      "total_tokens": 1062,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 15,
+        "engine_ttft_ms": 191,
+        "engine_ttlt_ms": 1476,
+        "pre_inference_ms": 86,
+        "service_tbt_ms": 15,
+        "service_ttft_ms": 825,
+        "service_ttlt_ms": 2105,
+        "user_visible_ttft_ms": 739
+      }
+    },
+    "finish_reason": "tool_calls",
+    "parallel_tools": [
+      {
+        "tool_name": "delegate_to_schedule_agent",
+        "tool_arguments": {
+          "task": "Look up train schedules from Celestia to Verdantia on a Monday morning."
+        }
+      },
+      {
+        "tool_name": "delegate_to_concierge_agent",
+        "tool_arguments": {
+          "task": "Check train fares for routes FC-train, LF, VL from Celestia to Verdantia."
+        }
+      }
+    ]
+  },
+  "f1f92e9495e55920afcf124bf4910c2fdd2188cad364e093b087d96739c8b94e": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 31,
+      "prompt_tokens": 1043,
+      "total_tokens": 1074,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1024
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 6,
+        "engine_ttft_ms": 27,
+        "engine_ttlt_ms": 216,
+        "pre_inference_ms": 89,
+        "service_tbt_ms": 6,
+        "service_ttft_ms": 394,
+        "service_ttlt_ms": 577,
+        "user_visible_ttft_ms": 305
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "lookup_schedule",
+    "tool_arguments": {
+      "origin": "Celestia",
+      "destination": "Verdantia",
+      "travel_mode": "train",
+      "departure_date": "weekday"
+    }
+  },
+  "21a4016f8f8581c5556fed4bebc7f2928d481cb5ca9ce6650afe6587ea281e51": "Here are the train schedules from Celestia to Verdantia on a Monday morning:\n\n### Train Options:\n1. **06:15 - Express** (Travel time: 3 hours)\n2. **08:30 - Standard** (Travel time: 3 hours)\n\n### Additional Information:\n- **Frequency**: 8 trains per day on weekdays, including 1 night train.\n- **Service Classes**: Standard, Express, and NightTrain (with couchette options).\n\nLet me know if you'd like more details about the attractions in Verdantia or assistance with booking!",
+  "f45006155055da03b44b3f94108b1cc81e9c26a643feb12a0ba35de904f6ed52": {
+    "next_step": "PARALLEL_TOOL_CALLS",
+    "text": "",
+    "usage": {
+      "completion_tokens": 81,
+      "prompt_tokens": 1134,
+      "total_tokens": 1215,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1024
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 23,
+        "engine_ttft_ms": 37,
+        "engine_ttlt_ms": 1941,
+        "pre_inference_ms": 176,
+        "service_tbt_ms": 23,
+        "service_ttft_ms": 514,
+        "service_ttlt_ms": 2400,
+        "user_visible_ttft_ms": 338
+      }
+    },
+    "finish_reason": "tool_calls",
+    "parallel_tools": [
+      {
+        "tool_name": "get_fares",
+        "tool_arguments": {
+          "route_id": "FC-train",
+          "travel_class": "Standard"
+        }
+      },
+      {
+        "tool_name": "get_fares",
+        "tool_arguments": {
+          "route_id": "LF",
+          "travel_class": "Standard"
+        }
+      },
+      {
+        "tool_name": "get_fares",
+        "tool_arguments": {
+          "route_id": "VL",
+          "travel_class": "Standard"
+        }
+      }
+    ]
+  },
+  "a79e0d613eb8b14f4d8324d8ea0606f11b9f1b34303c2fe90887823da9ce9b01": {
+    "next_step": "PARALLEL_TOOL_CALLS",
+    "text": "",
+    "usage": {
+      "completion_tokens": 82,
+      "prompt_tokens": 1349,
+      "total_tokens": 1431,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1152
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 15,
+        "engine_ttft_ms": 36,
+        "engine_ttlt_ms": 1243,
+        "pre_inference_ms": 138,
+        "service_tbt_ms": 15,
+        "service_ttft_ms": 724,
+        "service_ttlt_ms": 1927,
+        "user_visible_ttft_ms": 587
+      }
+    },
+    "finish_reason": "tool_calls",
+    "parallel_tools": [
+      {
+        "tool_name": "get_fares",
+        "tool_arguments": {
+          "route_id": "FC-train",
+          "travel_class": "Economy"
+        }
+      },
+      {
+        "tool_name": "get_fares",
+        "tool_arguments": {
+          "route_id": "LF",
+          "travel_class": "Standard"
+        }
+      },
+      {
+        "tool_name": "get_fares",
+        "tool_arguments": {
+          "route_id": "VL",
+          "travel_class": "Standard"
+        }
+      }
+    ]
+  },
+  "d534cb6484587797fa35cf96d9e5106bac8d65ca2f452b170201ba7e81dd1761": "Here are the train fares for the routes from Celestia to Verdantia:\n\n1. **Route: FC-train (Economy Class)**\n   - From: Fortuna to Celestia\n   - Fare: $2\n\n2. **Route: LF (Standard Class)**\n   - From: Luminos to Fortuna\n   - Fare: $2\n\n3. **Route: VL (Standard Class)**\n   - From: Verdantia to Luminos\n   - Fare: $22\n\n### Total Fare Calculation\nTo travel from Celestia to Verdantia, you would need to take the following routes:\n- FC-train from Fortuna to Celestia: $2\n- LF from Luminos to Fortuna: $2\n- VL from Verdantia to Luminos: $22\n\nLet's calculate the total fare for the journey. \n\nTotal Fare = $2 (FC-train) + $2 (LF) + $22 (VL) = $26. \n\n### Summary\n- **Total Fare from Celestia to Verdantia:** $26.",
+  "a6a1b9277950287225e6cee561268a3314f37178bf29a38352c17c9d135bc128": "Here are the details for your train journey from Celestia to Verdantia on a Monday morning:\n\n### Train Schedule\nYou have the following train options:\n\n1. **06:15 - Express**\n   - **Travel Time:** 3 hours\n2. **08:30 - Standard**\n   - **Travel Time:** 3 hours\n\n### Total Fare Calculation\nThe total fare for the journey from Celestia to Verdantia is as follows:\n\n1. **Route: FC-train (Economy Class)**\n   - From: Celestia to Fortuna\n   - Fare: $2\n\n2. **Route: LF (Standard Class)**\n   - From: Fortuna to Luminos\n   - Fare: $2\n\n3. **Route: VL (Standard Class)**\n   - From: Luminos to Verdantia\n   - Fare: $22\n\n### Total Fare\n- **Total Fare = $2 (FC-train) + $2 (LF) + $22 (VL) = $26**\n\n### Summary\n- **Total Fare from Celestia to Verdantia:** **$26**\n- **Travel Time:** Approximately **3 hours** for each train option.\n\nIf you need further assistance or would like to know more about attractions in Verdantia, feel free to ask!",
+  "6339ddc845c08b179f1c0fe1c16baab6c366341283f007e1eaf361aec524ad0e": "The answer to 2 + 2 is 4. There's no need to call an agent or use a calculator for this simple arithmetic. If you have any other questions or need assistance with a different topic, feel free to ask!",
+  "90c188f4068c507cd082911edfdd818b04b125b11f03479c7f215162c477cb92": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 35,
+      "prompt_tokens": 537,
+      "total_tokens": 572,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 11,
+        "engine_ttft_ms": 37,
+        "engine_ttlt_ms": 446,
+        "pre_inference_ms": 93,
+        "service_tbt_ms": 11,
+        "service_ttft_ms": 437,
+        "service_ttlt_ms": 835,
+        "user_visible_ttft_ms": 344
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "delegate_to_itinerary_agent",
+    "tool_arguments": {
+      "task": "Find routes to Thornhaven for a weekend trip, including options for transportation and estimated travel times."
+    }
+  },
+  "54ea26b3cdcb1b588c309d438cd638795ac4bf22cc37bc16674048f8b3eb63d1": "To assist you better, could you please provide the city you will be departing from?",
+  "af5b11cc02fe6230f6ce40617386f7ab57eb47ee0c660b79194dd3864c5af583": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 39,
+      "prompt_tokens": 600,
+      "total_tokens": 639,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 12,
+        "engine_ttft_ms": 30,
+        "engine_ttlt_ms": 521,
+        "pre_inference_ms": 121,
+        "service_tbt_ms": 12,
+        "service_ttft_ms": 424,
+        "service_ttlt_ms": 911,
+        "user_visible_ttft_ms": 303
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "delegate_to_itinerary_agent",
+    "tool_arguments": {
+      "task": "Find routes to Thornhaven for a weekend trip, including options for transportation and estimated travel times, departing from Amsterdam."
+    }
+  },
+  "e5dc5aee640b01c315101b5adc4a636b7aa49ded6b32a0b7ba1b839af5c6fdec": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 33,
+      "prompt_tokens": 867,
+      "total_tokens": 900,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 17,
+        "engine_ttft_ms": 33,
+        "engine_ttlt_ms": 607,
+        "pre_inference_ms": 211,
+        "service_tbt_ms": 16,
+        "service_ttft_ms": 552,
+        "service_ttlt_ms": 1065,
+        "user_visible_ttft_ms": 341
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Amsterdam",
+      "destination": "Thornhaven",
+      "optimise_for": "time",
+      "max_hops": 3
+    }
+  },
+  "4a31758faab3e4f00061f86a99788fbf0ec19e3c602a2a49948214ea2d735d30": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 34,
+      "prompt_tokens": 951,
+      "total_tokens": 985,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 13,
+        "engine_ttft_ms": 61,
+        "engine_ttlt_ms": 505,
+        "pre_inference_ms": 247,
+        "service_tbt_ms": 13,
+        "service_ttft_ms": 596,
+        "service_ttlt_ms": 1038,
+        "user_visible_ttft_ms": 349
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Amsterdam",
+      "destination": "Thornhaven",
+      "optimise_for": "scenic",
+      "max_hops": 3
+    }
+  },
+  "1be5346fdc20235efcd29849b1231198b802783520283baa26cd904b91787325": "It appears that there are no feasible routes from Amsterdam to Thornhaven within three hops, whether optimizing for time or scenic routes. \n\nWould you like to explore alternative destinations or perhaps look for routes with more hops?",
+  "3a65edfe6436097792294d83c6181466e172b2904a1335750ce321f3c4d90ec3": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 39,
+      "prompt_tokens": 692,
+      "total_tokens": 731,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 12,
+        "engine_ttft_ms": 44,
+        "engine_ttlt_ms": 531,
+        "pre_inference_ms": 98,
+        "service_tbt_ms": 12,
+        "service_ttft_ms": 687,
+        "service_ttlt_ms": 1155,
+        "user_visible_ttft_ms": 590
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "delegate_to_itinerary_agent",
+    "tool_arguments": {
+      "task": "Find routes to Thornhaven for a weekend trip, including options for transportation and estimated travel times, departing from Brussels."
+    }
+  },
+  "9c66f3d171585c1115a2eb8d252f58b33f5a1be1a4acaba963e10dd0fe0d0c3d": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 34,
+      "prompt_tokens": 1109,
+      "total_tokens": 1143,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 17,
+        "engine_ttft_ms": 40,
+        "engine_ttlt_ms": 621,
+        "pre_inference_ms": 306,
+        "service_tbt_ms": 17,
+        "service_ttft_ms": 659,
+        "service_ttlt_ms": 1226,
+        "user_visible_ttft_ms": 353
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Brussels",
+      "destination": "Thornhaven",
+      "optimise_for": "time",
+      "max_hops": 3
+    }
+  },
+  "d1464f99e2f806bf95909f2330119cf527ba5bf915e40c54e75e6ca88559b042": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 35,
+      "prompt_tokens": 1194,
+      "total_tokens": 1229,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1024
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 20,
+        "engine_ttft_ms": 57,
+        "engine_ttlt_ms": 771,
+        "pre_inference_ms": 138,
+        "service_tbt_ms": 19,
+        "service_ttft_ms": 516,
+        "service_ttlt_ms": 1177,
+        "user_visible_ttft_ms": 378
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Brussels",
+      "destination": "Thornhaven",
+      "optimise_for": "scenic",
+      "max_hops": 3
+    }
+  },
+  "a0cc73184e5916a2bfafac7f1f42bef67b44e50b22f44dd1fefe12a25cd113b6": "Unfortunately, there are no feasible routes from Brussels to Thornhaven within three hops, regardless of whether we optimize for time or scenic views.\n\nWould you like to consider other destinations or perhaps look for routes with more hops?",
+  "ff9c97ab59772028cff90b3a0ef7bbbb685349a2cd98d54a205fe10e09a9b3d3": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 39,
+      "prompt_tokens": 785,
+      "total_tokens": 824,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 11,
+        "engine_ttft_ms": 83,
+        "engine_ttlt_ms": 519,
+        "pre_inference_ms": 87,
+        "service_tbt_ms": 11,
+        "service_ttft_ms": 433,
+        "service_ttlt_ms": 866,
+        "user_visible_ttft_ms": 347
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "delegate_to_itinerary_agent",
+    "tool_arguments": {
+      "task": "Find routes to Thornhaven for a weekend trip, including options for transportation and estimated travel times, departing from Paris."
+    }
+  },
+  "44761deb2dde77aed90fa675f5af1d64df3eaea5ce6cef5e7fed9dc07954583c": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 33,
+      "prompt_tokens": 1355,
+      "total_tokens": 1388,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1024
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 8,
+        "engine_ttft_ms": 26,
+        "engine_ttlt_ms": 302,
+        "pre_inference_ms": 136,
+        "service_tbt_ms": 8,
+        "service_ttft_ms": 415,
+        "service_ttlt_ms": 669,
+        "user_visible_ttft_ms": 279
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Paris",
+      "destination": "Thornhaven",
+      "optimise_for": "time",
+      "max_hops": 3
+    }
+  },
+  "2bf43498f31e18eaad72b300f9f704e3ba18a1e7dbbc37f77200a87db6a32970": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 34,
+      "prompt_tokens": 1440,
+      "total_tokens": 1474,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1280
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 17,
+        "engine_ttft_ms": 53,
+        "engine_ttlt_ms": 652,
+        "pre_inference_ms": 168,
+        "service_tbt_ms": 17,
+        "service_ttft_ms": 537,
+        "service_ttlt_ms": 1129,
+        "user_visible_ttft_ms": 369
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Paris",
+      "destination": "Thornhaven",
+      "optimise_for": "scenic",
+      "max_hops": 3
+    }
+  },
+  "c64b351bd86c6eb411befeb62abd1bc76af48aebc2149a7f8a3a1079faa003b9": "It seems that there are no feasible routes from Paris to Thornhaven within three hops, whether optimizing for time or scenic routes.\n\nWould you like to explore alternative destinations or consider routes with more hops?",
+  "573c22a10a97d81f35043778e9080f658583ac3810569537c8849e6dcb2e36c6": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 39,
+      "prompt_tokens": 874,
+      "total_tokens": 913,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 11,
+        "engine_ttft_ms": 39,
+        "engine_ttlt_ms": 490,
+        "pre_inference_ms": 118,
+        "service_tbt_ms": 11,
+        "service_ttft_ms": 443,
+        "service_ttlt_ms": 890,
+        "user_visible_ttft_ms": 326
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "delegate_to_itinerary_agent",
+    "tool_arguments": {
+      "task": "Find routes to Thornhaven for a weekend trip, including options for transportation and estimated travel times, departing from London."
+    }
+  },
+  "02a87d3586a35d747157db8954040f40618c82313296e298bff8009fdb1c09b1": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 33,
+      "prompt_tokens": 1595,
+      "total_tokens": 1628,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1536
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 8,
+        "engine_ttft_ms": 31,
+        "engine_ttlt_ms": 287,
+        "pre_inference_ms": 141,
+        "service_tbt_ms": 8,
+        "service_ttft_ms": 406,
+        "service_ttlt_ms": 656,
+        "user_visible_ttft_ms": 265
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "London",
+      "destination": "Thornhaven",
+      "optimise_for": "time",
+      "max_hops": 3
+    }
+  },
+  "6a2352d9423c9ba80860d24cec70b0f22236f79509c8e497951614269f169230": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 34,
+      "prompt_tokens": 1679,
+      "total_tokens": 1713,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1536
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 8,
+        "engine_ttft_ms": 29,
+        "engine_ttlt_ms": 299,
+        "pre_inference_ms": 153,
+        "service_tbt_ms": 8,
+        "service_ttft_ms": 539,
+        "service_ttlt_ms": 801,
+        "user_visible_ttft_ms": 385
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "London",
+      "destination": "Thornhaven",
+      "optimise_for": "scenic",
+      "max_hops": 3
+    }
+  },
+  "3da04014341c5dbe561d4773bf883dbc21bf4c8120273010b74cef4f42aa85a7": "Unfortunately, there are no feasible routes from London to Thornhaven within three hops, regardless of whether we optimize for time or scenic views.\n\nWould you like to consider other destinations or perhaps look for routes with more hops?",
+  "28ff6e1c6c05c54e9f3a45f6b05e9534c495f2548c2be8b821b3e3b34542f2ca": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 39,
+      "prompt_tokens": 967,
+      "total_tokens": 1006,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 12,
+        "engine_ttft_ms": 38,
+        "engine_ttlt_ms": 524,
+        "pre_inference_ms": 160,
+        "service_tbt_ms": 12,
+        "service_ttft_ms": 628,
+        "service_ttlt_ms": 1108,
+        "user_visible_ttft_ms": 468
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "delegate_to_itinerary_agent",
+    "tool_arguments": {
+      "task": "Find routes to Thornhaven for a weekend trip, including options for transportation and estimated travel times, departing from Frankfurt."
+    }
+  },
+  "621d7ad77c161d131f2a5fb9a91df40339915d140cdcfb3114a1456f21ba6eff": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 34,
+      "prompt_tokens": 1794,
+      "total_tokens": 1828,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 9,
+        "engine_ttft_ms": 50,
+        "engine_ttlt_ms": 367,
+        "pre_inference_ms": 203,
+        "service_tbt_ms": 9,
+        "service_ttft_ms": 493,
+        "service_ttlt_ms": 806,
+        "user_visible_ttft_ms": 290
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Frankfurt",
+      "destination": "Thornhaven",
+      "optimise_for": "time",
+      "max_hops": 3
+    }
+  },
+  "34b45e6d33cee0c862fe224d84b4452ea2eae836d2eaf8c322ab2fab0ac22818": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 35,
+      "prompt_tokens": 1879,
+      "total_tokens": 1914,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1792
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 9,
+        "engine_ttft_ms": 22,
+        "engine_ttlt_ms": 336,
+        "pre_inference_ms": 163,
+        "service_tbt_ms": 9,
+        "service_ttft_ms": 530,
+        "service_ttlt_ms": 840,
+        "user_visible_ttft_ms": 367
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Frankfurt",
+      "destination": "Thornhaven",
+      "optimise_for": "scenic",
+      "max_hops": 3
+    }
+  },
+  "d96ffadc8c584c5f7e3794dd94ff8b39e4a850d9bed201546186d99f4594b10a": "It appears that there are no feasible routes from Frankfurt to Thornhaven within three hops, whether optimizing for time or scenic routes.\n\nWould you like to explore alternative destinations or consider routes with more hops?",
+  "e070f3d7ca3f94f680f623d5fc2a63e481d9a5d167949938ed81deb05be517f0": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 39,
+      "prompt_tokens": 1056,
+      "total_tokens": 1095,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 11,
+        "engine_ttft_ms": 70,
+        "engine_ttlt_ms": 529,
+        "pre_inference_ms": 185,
+        "service_tbt_ms": 11,
+        "service_ttft_ms": 579,
+        "service_ttlt_ms": 1019,
+        "user_visible_ttft_ms": 394
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "delegate_to_itinerary_agent",
+    "tool_arguments": {
+      "task": "Find routes to Thornhaven for a weekend trip, including options for transportation and estimated travel times, departing from Zurich."
+    }
+  },
+  "b0b97e2bf42b6348285d9104128614e88a945097d2aae8b8c1646f1bfebcd0f0": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 34,
+      "prompt_tokens": 1794,
+      "total_tokens": 1828,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 23,
+        "engine_ttft_ms": 54,
+        "engine_ttlt_ms": 874,
+        "pre_inference_ms": 165,
+        "service_tbt_ms": 24,
+        "service_ttft_ms": 523,
+        "service_ttlt_ms": 1339,
+        "user_visible_ttft_ms": 358
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Zurich",
+      "destination": "Thornhaven",
+      "optimise_for": "time",
+      "max_hops": 3
+    }
+  },
+  "4ed61b8473528b979f20fe5a73c686518d3c93cb4ddacca31d44793ffd75bc21": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 35,
+      "prompt_tokens": 1880,
+      "total_tokens": 1915,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 8,
+        "engine_ttft_ms": 44,
+        "engine_ttlt_ms": 324,
+        "pre_inference_ms": 137,
+        "service_tbt_ms": 8,
+        "service_ttft_ms": 534,
+        "service_ttlt_ms": 809,
+        "user_visible_ttft_ms": 397
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Zurich",
+      "destination": "Thornhaven",
+      "optimise_for": "scenic",
+      "max_hops": 3
+    }
+  },
+  "a9c5c3ab2813d8a32026992ae242b9dccbf0354d7ceb41088c9b770333f44f85": "Unfortunately, there are no feasible routes from Zurich to Thornhaven within three hops, regardless of whether we optimize for time or scenic views.\n\nWould you like to consider other destinations or perhaps look for routes with more hops?",
+  "e33dd82c07dbfc95ca85f35b54c9f6ea16897efd8d516d4e6e3ded9295265521": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 39,
+      "prompt_tokens": 1149,
+      "total_tokens": 1188,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1024
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 12,
+        "engine_ttft_ms": 38,
+        "engine_ttlt_ms": 507,
+        "pre_inference_ms": 134,
+        "service_tbt_ms": 12,
+        "service_ttft_ms": 467,
+        "service_ttlt_ms": 926,
+        "user_visible_ttft_ms": 333
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "delegate_to_itinerary_agent",
+    "tool_arguments": {
+      "task": "Find routes to Thornhaven for a weekend trip, including options for transportation and estimated travel times, departing from Milan."
+    }
+  },
+  "b7d774f6aded4224b2b547cbb71381e281abec393b14ee0a3b05b9b9ee92a45d": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 34,
+      "prompt_tokens": 1795,
+      "total_tokens": 1829,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 13,
+        "engine_ttft_ms": 61,
+        "engine_ttlt_ms": 507,
+        "pre_inference_ms": 266,
+        "service_tbt_ms": 13,
+        "service_ttft_ms": 610,
+        "service_ttlt_ms": 1044,
+        "user_visible_ttft_ms": 344
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Milan",
+      "destination": "Thornhaven",
+      "optimise_for": "time",
+      "max_hops": 3
+    }
+  },
+  "4124e0fea74191446938fe3e9a044c0177f04942b9bc2ebd879baa16281a15a2": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 35,
+      "prompt_tokens": 1881,
+      "total_tokens": 1916,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 8,
+        "engine_ttft_ms": 38,
+        "engine_ttlt_ms": 335,
+        "pre_inference_ms": 147,
+        "service_tbt_ms": 7,
+        "service_ttft_ms": 592,
+        "service_ttlt_ms": 829,
+        "user_visible_ttft_ms": 446
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Milan",
+      "destination": "Thornhaven",
+      "optimise_for": "scenic",
+      "max_hops": 3
+    }
+  },
+  "901718d001ae763f705cb89baf48c0df3eaca9b3d9c45cf11dfd0ba9fd69edbd": "It seems that there are no feasible routes from Milan to Thornhaven within three hops, whether optimizing for time or scenic routes.\n\nWould you like to explore alternative destinations or consider routes with more hops?",
+  "b564667709739b8c3c6c07d4025f10456b489b0cbe15bdfd61b60a6f3fd678de": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 39,
+      "prompt_tokens": 1238,
+      "total_tokens": 1277,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1152
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 12,
+        "engine_ttft_ms": 271,
+        "engine_ttlt_ms": 764,
+        "pre_inference_ms": 284,
+        "service_tbt_ms": 11,
+        "service_ttft_ms": 1009,
+        "service_ttlt_ms": 1433,
+        "user_visible_ttft_ms": 725
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "delegate_to_itinerary_agent",
+    "tool_arguments": {
+      "task": "Find routes to Thornhaven for a weekend trip, including options for transportation and estimated travel times, departing from Vienna."
+    }
+  },
+  "1fe26afbbd48203a2616cabcc1ebca9cdc482c66a9ddb7575be0fbaedb43075e": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 34,
+      "prompt_tokens": 1798,
+      "total_tokens": 1832,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 8,
+        "engine_ttft_ms": 36,
+        "engine_ttlt_ms": 324,
+        "pre_inference_ms": 133,
+        "service_tbt_ms": 8,
+        "service_ttft_ms": 420,
+        "service_ttlt_ms": 703,
+        "user_visible_ttft_ms": 288
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Vienna",
+      "destination": "Thornhaven",
+      "optimise_for": "time",
+      "max_hops": 3
+    }
+  },
+  "dd26235e84499e8651a64ecf59359f41a5874dc5a58d8d6c7cb22e6632e820f8": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 35,
+      "prompt_tokens": 1884,
+      "total_tokens": 1919,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 14,
+        "engine_ttft_ms": 59,
+        "engine_ttlt_ms": 564,
+        "pre_inference_ms": 175,
+        "service_tbt_ms": 14,
+        "service_ttft_ms": 499,
+        "service_ttlt_ms": 999,
+        "user_visible_ttft_ms": 324
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Vienna",
+      "destination": "Thornhaven",
+      "optimise_for": "scenic",
+      "max_hops": 3
+    }
+  },
+  "767e9a0a56020ba1e7a857559e43fa8579d3cb46f398afdbe42a3e8350468ece": "Unfortunately, there are no feasible routes from Vienna to Thornhaven within three hops, regardless of whether we optimize for time or scenic views.\n\nWould you like to consider other destinations or perhaps look for routes with more hops?",
+  "06e6245e001eeb9ca60579c75a378ca922d285a91ce0561874f894b9fc8c08b9": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 39,
+      "prompt_tokens": 1331,
+      "total_tokens": 1370,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1152
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 10,
+        "engine_ttft_ms": 37,
+        "engine_ttlt_ms": 456,
+        "pre_inference_ms": 214,
+        "service_tbt_ms": 11,
+        "service_ttft_ms": 526,
+        "service_ttlt_ms": 961,
+        "user_visible_ttft_ms": 312
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "delegate_to_itinerary_agent",
+    "tool_arguments": {
+      "task": "Find routes to Thornhaven for a weekend trip, including options for transportation and estimated travel times, departing from Copenhagen."
+    }
+  },
+  "dd453b2d1888395d6fb1e08b318bae75645033aa4cd88db008b8173b9532a29d": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 34,
+      "prompt_tokens": 1802,
+      "total_tokens": 1836,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 14,
+        "engine_ttft_ms": 51,
+        "engine_ttlt_ms": 534,
+        "pre_inference_ms": 118,
+        "service_tbt_ms": 15,
+        "service_ttft_ms": 446,
+        "service_ttlt_ms": 955,
+        "user_visible_ttft_ms": 328
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Copenhagen",
+      "destination": "Thornhaven",
+      "optimise_for": "time",
+      "max_hops": 3
+    }
+  },
+  "5ffb6c7bfa90c638960d05ffc1a064277e017ef33ca75ffa36ca29b66989b3ec": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 35,
+      "prompt_tokens": 1888,
+      "total_tokens": 1923,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1792
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 13,
+        "engine_ttft_ms": 48,
+        "engine_ttlt_ms": 533,
+        "pre_inference_ms": 406,
+        "service_tbt_ms": 14,
+        "service_ttft_ms": 780,
+        "service_ttlt_ms": 1266,
+        "user_visible_ttft_ms": 375
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Copenhagen",
+      "destination": "Thornhaven",
+      "optimise_for": "scenic",
+      "max_hops": 3
+    }
+  },
+  "c220e90e1e72e1263f5adb3c941312bb3ce787c6b47871c2b1ac9fc78077cc79": "It appears that there are no feasible routes from Copenhagen to Thornhaven within three hops, whether optimizing for time or scenic routes.\n\nWould you like to explore alternative destinations or consider routes with more hops?",
+  "c2184645fcafe748a2c3728feed444811445b4776633683a837ea18f01568917": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 39,
+      "prompt_tokens": 1420,
+      "total_tokens": 1459,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1280
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 13,
+        "engine_ttft_ms": 41,
+        "engine_ttlt_ms": 572,
+        "pre_inference_ms": 208,
+        "service_tbt_ms": 14,
+        "service_ttft_ms": 530,
+        "service_ttlt_ms": 1066,
+        "user_visible_ttft_ms": 322
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "delegate_to_itinerary_agent",
+    "tool_arguments": {
+      "task": "Find routes to Thornhaven for a weekend trip, including options for transportation and estimated travel times, departing from Oslo."
+    }
+  },
+  "a638f3c7eac3bcdc6dd122d5ef71972e1d9a453c737d0b1705945a9653dc6965": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 34,
+      "prompt_tokens": 1803,
+      "total_tokens": 1837,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 10,
+        "engine_ttft_ms": 39,
+        "engine_ttlt_ms": 390,
+        "pre_inference_ms": 118,
+        "service_tbt_ms": 10,
+        "service_ttft_ms": 389,
+        "service_ttlt_ms": 724,
+        "user_visible_ttft_ms": 272
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Oslo",
+      "destination": "Thornhaven",
+      "optimise_for": "time",
+      "max_hops": 3
+    }
+  },
+  "135ebfa5e8d41536c6d5de44cf8474b020a396e69b7a08f53e18855d2f495711": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 35,
+      "prompt_tokens": 1889,
+      "total_tokens": 1924,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1792
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 7,
+        "engine_ttft_ms": 42,
+        "engine_ttlt_ms": 297,
+        "pre_inference_ms": 122,
+        "service_tbt_ms": 7,
+        "service_ttft_ms": 394,
+        "service_ttlt_ms": 644,
+        "user_visible_ttft_ms": 273
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "query_graph_database",
+    "tool_arguments": {
+      "origin": "Oslo",
+      "destination": "Thornhaven",
+      "optimise_for": "scenic",
+      "max_hops": 3
+    }
+  },
+  "660c4a71b8d67bda0d416b4cb37f95f5619d8ec2755f94ed125d314b0626394d": "Unfortunately, there are no feasible routes from Oslo to Thornhaven within three hops, regardless of whether we optimize for time or scenic views.\n\nWould you like to consider other destinations or perhaps look for routes with more hops?",
+  "71e7ec75dd77e5f6f8ddad586af370799bfcec60d81b883fd6db7d7bd384dbf0": "It appears that there are no feasible routes to Thornhaven from major cities within three hops, which limits our options for planning a weekend trip there. Given this situation, I recommend considering alternative destinations that are more accessible.\n\nWould you like to suggest a different location, or should I propose some popular weekend getaway options that fit within your \u20ac400 budget?",
+  "178cc9da662b45bb463e5c16066414457d8d3b06ac63d7227e61a5971c3c69e2": {
+    "next_step": "TOOL_CALL",
+    "text": "",
+    "usage": {
+      "completion_tokens": 22,
+      "prompt_tokens": 696,
+      "total_tokens": 718,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 8,
+        "engine_ttft_ms": 39,
+        "engine_ttlt_ms": 234,
+        "pre_inference_ms": 193,
+        "service_tbt_ms": 8,
+        "service_ttft_ms": 362,
+        "service_ttlt_ms": 548,
+        "user_visible_ttft_ms": 169
+      }
+    },
+    "finish_reason": "tool_calls",
+    "tool_name": "web-search",
+    "tool_arguments": {
+      "query": "current President of the United States 2023"
+    }
+  },
+  "a855e784bce57324ed22835617c35817bf3dc3f38ffdeea3f8cb009f3cad1943": "The current President of the United States (POTUS) is Joe Biden. He is serving as the 46th President and began his term on January 20, 2021."
+}

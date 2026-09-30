@@ -34,9 +34,7 @@ def test_working_memory_persistent_patch_validates(tmp_path: Path):
 
 
 def test_working_memory_unknown_nested_field_is_rejected(tmp_path: Path):
-    result = validate_file(
-        _write(tmp_path, {"working_memory": {"persistent": True, "bogus": 1}}), kind="overlay"
-    )
+    result = validate_file(_write(tmp_path, {"working_memory": {"persistent": True, "bogus": 1}}), kind="overlay")
     assert not result.ok
 
 
@@ -68,12 +66,112 @@ def test_tools_op_remove_wrapper_still_validates(tmp_path: Path):
     schema's (accepts {"$op": {...}}), so it's not $ref-into-base. tools'
     own {"$op": {"remove": [...]}} is what tools_remove (a separate,
     now-removed attribute) used to duplicate."""
-    result = validate_file(
-        _write(tmp_path, {"tools": {"$op": {"remove": ["calculator"]}}}), kind="overlay"
-    )
+    result = validate_file(_write(tmp_path, {"tools": {"$op": {"remove": ["calculator"]}}}), kind="overlay")
     assert result.ok, result.issues
+
+
+def test_provider_connection_patch_is_rejected(tmp_path: Path):
+    result = validate_file(
+        _write(
+            tmp_path,
+            {
+                "providers": [
+                    {
+                        "name": "localhost-mcp-tools",
+                        "kind": "mcp",
+                        "transport": "streamable-http",
+                        "url": "http://127.0.0.1:9001/mcp",
+                        "tools": "*",
+                    }
+                ]
+            },
+        ),
+        kind="overlay",
+    )
+    assert not result.ok
 
 
 def test_tools_remove_is_rejected_as_a_removed_field(tmp_path: Path):
     result = validate_file(_write(tmp_path, {"tools_remove": ["calculator"]}), kind="overlay")
+    assert not result.ok
+
+
+def test_provider_claim_patch_is_rejected(tmp_path: Path):
+    result = validate_file(
+        _write(
+            tmp_path,
+            {
+                "providers": [
+                    {
+                        "name": "localhost-mcp-tools",
+                        "kind": "mcp",
+                        "transport": "streamable-http",
+                        "url": "http://127.0.0.1:9001/mcp",
+                        "tools": ["web-search"],
+                    }
+                ]
+            },
+        ),
+        kind="overlay",
+    )
+    assert not result.ok
+
+
+def test_llm_reasoning_patch_validates(tmp_path: Path):
+    result = validate_file(
+        _write(
+            tmp_path,
+            {"llm": {"reasoning": {"effort": "low", "budget_tokens": 64, "exclude": True}}},
+        ),
+        kind="overlay",
+    )
+    assert result.ok, result.issues
+
+
+def test_models_reasoning_patch_validates(tmp_path: Path):
+    result = validate_file(
+        _write(
+            tmp_path,
+            {
+                "models": [
+                    {
+                        "id": "main",
+                        "reasoning": {"effort": "low", "budget_tokens": 64, "exclude": True, "think": True},
+                    }
+                ]
+            },
+        ),
+        kind="overlay",
+    )
+    assert result.ok, result.issues
+
+
+def test_models_sampling_extra_patch_validates(tmp_path: Path):
+    result = validate_file(
+        _write(
+            tmp_path,
+            {
+                "models": [
+                    {
+                        "id": "main",
+                        "temperature": 0.2,
+                        "min_p": 0.05,
+                        "extra": {"chat_template_kwargs": {"enable_thinking": True}},
+                    }
+                ]
+            },
+        ),
+        kind="overlay",
+    )
+    assert result.ok, result.issues
+
+
+def test_llm_reasoning_unknown_field_is_rejected(tmp_path: Path):
+    result = validate_file(
+        _write(
+            tmp_path,
+            {"llm": {"reasoning": {"effort": "low", "turbo": True}}},
+        ),
+        kind="overlay",
+    )
     assert not result.ok

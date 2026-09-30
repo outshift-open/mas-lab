@@ -28,8 +28,27 @@ class ManifestSession:
 
 
 def resolve_manifest(manifest: str | Path, *, cwd: Path | None = None) -> Path:
-    """Resolve manifest to an absolute file path (before chdir)."""
+    """Resolve a filesystem path or ``library:app`` id to an absolute file."""
     base = cwd or Path.cwd()
+    text = str(manifest).strip()
+    from mas.library_catalog import parse_library_ref
+    from mas.runtime.package_refs import resolve_path_ref
+
+    if parse_library_ref(text) is not None:
+        path = resolve_path_ref(text, base)
+        if path.is_dir():
+            from mas.apps import resolve_app_manifest
+
+            path = resolve_app_manifest(path)
+        if path.is_file():
+            return path.resolve()
+        from mas.apps import get_app, resolve_app_manifest
+
+        path = resolve_app_manifest(get_app(text))
+        if path.is_file():
+            return path.resolve()
+        raise FileNotFoundError(f"manifest not found: {text}")
+
     raw = Path(manifest)
     path = raw if raw.is_absolute() else (base / raw).resolve()
     if not path.is_file():

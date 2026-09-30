@@ -14,20 +14,23 @@ also explains them in context; this page is the single reference list.
 | **Agent** | Single LLM actor with tools, skills, and plugins. Configured in an `agent.yaml` manifest. |
 | **Overlay** | A small YAML patch (`kind: Overlay`) merged on top of a manifest. CLI: `-o path/to/overlay.yaml`. Used to vary one knob (tools, memory, governance) without copying the whole file. |
 | **Flavour** | Deployment preset: model endpoint, instrumentation, transport. Referenced from experiments or `config.yaml` (e.g. `standard:openai`). |
-| **Lab (definition)** | A folder `*.lab/` (under `labs/`) with `experiment.yaml`, datasets, overlays, and optional custom pipeline steps. Data/config, not code. |
+| **Lab (definition)** | A folder `*.lab/` (under `labs/`) with `experiment.yaml`, datasets, overlays, and optional custom pipeline steps. Experiment surface — not a library. See [labs-and-libraries.md](labs-and-libraries.md). |
+| **Library** | A folder with `library.yaml`. Reusable apps, tools, plugins, and code. `name:path` always uses a library name. May live inside a lab. |
 | **Package** | A published wheel (`mas-runtime`, `mas-ctl`, `mas-lab`, …). See [packages reference](packages-reference.md). |
 | **Component** | One of the four lab sub-wheels under `lab/components/` (`mas-lab-core`, `mas-lab-bench`, `mas-lab-controller`, `mas-lab-content`). The interactive tutorial runner (`mas-lab-tutorial`) is internal-only — see `mas-lab-internal`. Distinct from the internal `mas.lab.*` runtime modules — see [ADR 0001](references/adr-0001-lab-terminology.md). |
 | **Experiment** | The `experiment:` block (usually in `experiment.yaml`): what to run, how many times, and which pipeline builds results. |
-| **Scenario** | One column in an experiment matrix — a named setup (`id`) and which overlays apply. Declared under `scenarios:`. |
+| **Model slots** | `experiment.models` (and `lab.models`): named LLM pins matching Agent/MAS `spec.models[].id`, plus `judge`. Scalar `experiment.model` = `models.main`. `any` inherits the next layer; local `config.yaml` `defaults.model` fills remaining `any` at engine time. |
+| **Scenario** | One column in an experiment matrix — a named setup (`id`) and layered overlays (`logic` / `control` / `infra`). Declared under `scenarios:`. |
+| **Item** | One dataset case (`item:` hooks, CLI `--item`). Formerly called `test:`. |
 | **Dataset** | Input items (prompts, expected fields) the experiment iterates over. Referenced as `dataset:` in `experiment.yaml`. |
 | **Run** | One execution of the agent/MAS for a given (scenario, dataset item, repeat index). Produces `traces/events.jsonl`. |
-| **`n_runs`** | How many times to repeat each (scenario, item) for variance. |
-| **Benchmark** | `mas-lab benchmark run` — executes all runs, then runs the pipeline. |
+| **`n_runs`** | How many times to repeat each (scenario, item) for variance. Declared under `run.n_runs`. |
+| **Benchmark** | `mas-lab benchmark run` — executes all runs, then runs level hooks. |
 | **Pipeline** | Ordered **pipeline steps** that read run artifacts and write CSV/PNG under `results/`. |
-| **Embedded pipeline** | The `pipeline:` list inside `experiment.yaml` — runs automatically after the benchmark execution phase. |
-| **Pipeline step** | One unit in the pipeline (e.g. `extract_trace_stats`, `plotnine`). Declared with `name`, `type`, `config`. |
+| **Level hooks** | `run.post` / `item.post` / `scenario.post` / experiment `post:` in `experiment.yaml`. There is no `pipeline:` key on the experiment. |
+| **Pipeline step** | One unit in a level hook (e.g. `extract_trace_stats`, `plotnine`). Declared with `name`, `type`, `config`. |
 | **`events.jsonl`** | Machine-readable run log: one JSON object per line (model calls, tool calls, governance, routing). |
-| **Exchange log** | Human-readable transcript on stderr during `mas-ctl chat` (`--trace`). Not used for experiment scoring. |
+| **Exchange log** | Human-readable transcript on stderr during `mas-ctl chat` (`--trace` = summary + timestamps; `--trace full` for the payload dump). Persist with `mas_ctl.trace` in `config.yaml`. Not used for experiment scoring. |
 | **Trace cache** | Store of completed run logs; identical inputs reuse the cache instead of calling the model again. |
 | **Observability** | Settings that enable `events.jsonl` (manifest `spec.observability`, overlay, or `--events`). |
 

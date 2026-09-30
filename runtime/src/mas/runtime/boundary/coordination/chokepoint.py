@@ -51,6 +51,10 @@ class ChokepointCoordinator:
         self.gov_state = GovState.BLOCKED
         self._record_mutation(q, ChokepointKind.EGRESS_TO_ENGINE, ObsPhase.AUTHZ)
 
+    def on_gov_error(self, q: QProduct) -> None:
+        self.gov_state = GovState.ERROR
+        self._record_mutation(q, ChokepointKind.INTERNAL, ObsPhase.AUTHZ)
+
     def before_ingress_governance(self, q: QProduct) -> None:
         self.gov_state = GovState.AUTHZ_INGRESS
         self.coord_state = "BARRIER"
@@ -72,6 +76,7 @@ class ChokepointCoordinator:
                 GovState.VALIDATING,
                 GovState.HITL_PENDING,
                 GovState.BLOCKED,
+                GovState.ERROR,
             }:
                 gaps.append("egress scheduled without active governance chokepoint")
         if tau_len > self.mutation_count:

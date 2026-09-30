@@ -6,10 +6,37 @@ from __future__ import annotations
 
 LLM_BINDING_KEYS = frozenset(
     {
+    'extra',
+    'frequency_penalty',
+    'logit_bias',
+    'logprobs',
+    'max_completion_tokens',
     'max_tokens',
+    'metadata',
+    'min_p',
+    'min_tokens',
+    'modalities',
     'model',
+    'n',
+    'parallel_tool_calls',
+    'prediction',
+    'presence_penalty',
+    'prompt_cache_key',
     'provider',
+    'reasoning',
+    'reasoning_effort',
+    'repetition_penalty',
+    'response_format',
+    'seed',
+    'service_tier',
+    'stop',
+    'store',
     'temperature',
+    'top_k',
+    'top_logprobs',
+    'top_p',
+    'user',
+    'verbosity',
     }
 )
 
@@ -19,16 +46,9 @@ EXECUTION_BINDING_KEYS = frozenset(
     'engine_queue_depth',
     'live',
     'max_auto_steps',
-    'mocking',
     'parallel',
     'stream',
     'timeout',
-    }
-)
-
-EXECUTION_MOCKING_KEYS = frozenset(
-    {
-    'enabled',
     }
 )
 
@@ -66,14 +86,18 @@ CONTEXT_MANAGER_BINDING_KEYS = frozenset(
     }
 )
 
+ASSEMBLER_BINDING_KEYS = frozenset(
+    {
+    'params',
+    'ref',
+    'type',
+    }
+)
+
 CONTEXT_MANAGER_ASSEMBLY_PARAM_KEYS = frozenset(
     {
     'max_in_turn_messages',
-    'max_tokens',
-    'reserve_tokens',
-    'token_budget',
-    'token_budget_ref',
-    'trimmer_ref',
+    'trimmer',
     'working_memory_messages',
     'working_memory_ref',
     }
@@ -81,9 +105,11 @@ CONTEXT_MANAGER_ASSEMBLY_PARAM_KEYS = frozenset(
 
 CONTEXT_MANAGER_STRATEGY_PARAM_KEYS = frozenset(
     {
+    'hysteresis_ratio',
     'keep_turns',
     'max_messages',
     'max_turns',
+    'summarizer',
     'summary_threshold',
     'window_size',
     }

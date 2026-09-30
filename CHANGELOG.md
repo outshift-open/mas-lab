@@ -8,6 +8,9 @@
 
 ### Added
 
+- `mas-ctl compile`: dump the resolved Agent or MAS spec after overlay merge
+  and runtime default resolution (`--layout tree|bundle`, `--output` folder
+  or file). See [docs/cli/compile.md](docs/cli/compile.md).
 - `library-skills`: an [agentskills.io](https://agentskills.io)-compatible
   implementation of the Agent Skills spec, with three swappable execution
   backends (native filesystem, google-adk, deepagents/LangChain). Agents
@@ -23,11 +26,21 @@
   `SkillCatalogPlugin` (see `library-skills`) instead of the
   `ContextFacetProvider`-based mechanism.
 - Flavour manifests (`kind: Flavour`) may no longer carry `spec.llm`,
-  `spec.skills`, `spec.mocking`, or `spec.prefer_local` — the
-  `FlavourSeparationValidator` now rejects them at load time. Move model
-  choice / inference params / RAG config to the agent's `kind: Agent` spec,
-  and mocking/cache to the `mas/v1` overlay's `spec.patch.execution` block.
-  See `docs/schemas/runtime/flavour.schema.yaml` and
+  `spec.skills`, or `spec.prefer_local` — the `FlavourSeparationValidator`
+  rejects them at load time. Move model choice / inference params / RAG
+  config to the agent's `kind: Agent` spec. Offline LLM turns use
+  `llm_cache` replay recorded against a live provider, not a Flavour or
+  Agent field. See `docs/schemas/runtime/flavour.schema.yaml` and
   `docs/design/flavour-boundary.md` for the current boundary.
+- `spec.execution.mocking` is removed from the execution-binding schema
+  (not deprecated). Offline CI records a live provider into
+  `tests/fixtures/llm-cache/ci.llm-cache.json` and replays with
+  `raise_on_miss`.
+- LLM access now goes through `llm_provider` plugins registered by URN
+  (`runtime/src/mas/runtime/registry/llm_provider_registry.py`). Wire
+  protocol and cache live in `library-standard` (`plugins/llm/`). The old
+  `llm_proxy.model_access.module_path` / `class_name` infra config is no
+  longer read; a custom implementation must register as an `llm_provider`
+  plugin (see `library-standard/src/mas/library/standard/plugins/llm/README.md`).
 
 ## Initial release v0.1

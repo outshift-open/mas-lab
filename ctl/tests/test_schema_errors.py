@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from mas.ctl.validate.schema_errors import humanize_schema_error
-from mas.ctl.validate.validator import validate_data
+from mas.ctl.validate.validator import _path_sort_key, validate_data
 
 
 def test_humanize_unknown_spec_fields_not_regex_message() -> None:
@@ -54,3 +54,20 @@ def test_humanize_required_property() -> None:
         path = ("spec",)
 
     assert humanize_schema_error(_Err()) == "spec.description is required"
+
+
+def test_path_sort_key_handles_mixed_int_and_string_segments() -> None:
+    mixed_paths = [
+        ("spec", "tools", "0"),
+        ("spec", "tools", 0),
+        ("spec", "tools", 1),
+        ("spec", "tools", "name"),
+    ]
+
+    ordered = sorted(mixed_paths, key=_path_sort_key)
+    assert ordered == [
+        ("spec", "tools", "0"),
+        ("spec", "tools", "name"),
+        ("spec", "tools", 0),
+        ("spec", "tools", 1),
+    ]

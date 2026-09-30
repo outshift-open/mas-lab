@@ -6,6 +6,8 @@
 mas_ctl:
   flavour: local
   env: .env
+  # Human exchange log on stderr. Machines use events.jsonl / telemetry.
+  trace: summary
 
 mas_lab:
   flavour: local

@@ -10,9 +10,14 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from mas.runtime.workspace_config import (
+    _user_config_path,
+    find_workspace_file,
+    normalize_manifest_libraries,
+    resolve_config_relative,
+)
+from mas.runtime.xdg import mas_cache_root
 
-from mas.runtime.workspace_config import find_workspace_file, _user_config_path, resolve_config_relative
-from mas.runtime.xdg import mas_cache_root, mas_infra_dir, mas_runtime_dir
 _ENV_INFRA_REFS = "MAS_INFRA_REFS"
 _ENV_RUNTIME_REFS = "MAS_RUNTIME_REFS"
 
@@ -58,6 +63,12 @@ def runtime_refs_from_env() -> list[str]:
     return parts
 
 
+def collect_mas_infra_refs(config: dict[str, Any]) -> list[str]:
+    # Infrastructure is deployment configuration, supplied by workspace or CLI.
+    # MAS/Agent specs deliberately do not carry infra references.
+    return []
+
+
 def merge_runtime_refs(
     *,
     workspace_refs: list[str],
@@ -74,6 +85,10 @@ def merge_runtime_refs(
             seen.add(ref)
             ordered.append(ref)
     return ordered
+
+def collect_infra_interceptors(config: dict[str, Any]) -> list[str]:
+    """Read deployment middleware from workspace/CLI configuration only."""
+    return []
 
 
 def merge_infra_interceptors(
@@ -153,8 +168,19 @@ class WorkspaceConfig:
 
     @property
     def manifest_libraries(self) -> dict[str, str]:
-        raw = self._data.get("manifest_libraries") or {}
-        return dict(raw) if isinstance(raw, dict) else {}
+        return normalize_manifest_libraries(self._data.get("manifest_libraries"))
+
+    @property
+    def raw_manifest_libraries(self) -> Any:
+        """The ``manifest_libraries`` YAML value, unmodified.
+
+        Unlike :attr:`manifest_libraries` (which, for a list input, keys the
+        result by trailing directory name and so collapses two search-path
+        entries that share one), this never loses an entry. Pass it to
+        :func:`mas.runtime.workspace_config.library_search_paths` to get
+        every search-path entry back.
+        """
+        return self._data.get("manifest_libraries")
 
     @property
     def default_model(self) -> str | None:
@@ -202,26 +228,31 @@ class WorkspaceConfig:
         return candidate if candidate.is_file() else None
 
     def resolve_library_path(self, lib_ref: str) -> Path | None:
-        """Resolve ``team:bundle/sub`` via manifest_libraries.
+        """Resolve ``name:path`` via the shared library-name lookup.
 
-        The ``base`` path in manifest_libraries may be:
-        - Absolute: ``/abs/path`` → used directly
-        - Home-relative: ``~/.config/…`` → expanded via Path.expanduser()
-        - Relative: ``./infra`` → resolved relative to the workspace root
+        Library roots come from lab-config paths, workspace
+        ``manifest_libraries:``, then installed libraries (same order as
+        :func:`mas.library_roots.resolve_named_library_root`). The remainder
+        of the ref is a file under that root (``.yaml`` implied for bundle
+        names).
         """
         if ":" not in lib_ref:
             return None
         lib, rest = lib_ref.split(":", 1)
-        base = self.manifest_libraries.get(lib)
-        if not base or self._path is None:
+        from mas.library_roots import resolve_named_library_root
+
+        anchors = [p for p in (self._path, Path.cwd()) if p is not None]
+        root = resolve_named_library_root(lib, *anchors)
+        if root is None:
             return None
-        base_path = Path(base).expanduser()
-        root = (base_path if base_path.is_absolute() else self._path / base_path).resolve()
         candidate = (root / rest).with_suffix(".yaml")
         if candidate.is_file():
             return candidate
         if rest.endswith(".yaml") and (root / rest).is_file():
             return (root / rest).resolve()
+        direct = root / rest
+        if direct.is_file():
+            return direct.resolve()
         return None
 
 
@@ -230,6 +261,12 @@ class UserConfig:
     default_infra: str | None = None
     default_runtime: str | None = None
     cache_dir: Path = field(default_factory=mas_cache_root)
+    _data: dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @property
+    def mas_ctl(self) -> dict[str, Any]:
+        raw = self._data.get("mas_ctl") or {}
+        return dict(raw) if isinstance(raw, dict) else {}
 
     @classmethod
     def load(cls) -> UserConfig:
@@ -240,6 +277,8 @@ class UserConfig:
             data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
         except Exception:
             return cls(default_infra="standard:production")
+        if not isinstance(data, dict):
+            data = {}
         cache = data.get("cache_dir")
         if not cache and isinstance(data.get("paths"), dict):
             cache = data["paths"].get("cache_dir")
@@ -251,6 +290,7 @@ class UserConfig:
             default_infra=data.get("default_infra"),
             default_runtime=data.get("default_runtime"),
             cache_dir=cache_dir,
+            _data=data,
         )
 
 

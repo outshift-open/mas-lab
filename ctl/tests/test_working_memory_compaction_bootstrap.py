@@ -13,7 +13,8 @@ def _instantiate(manifest: dict, tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: WorkspaceConfig({}))
     monkeypatch.setattr(UserConfig, "load", lambda *a, **k: UserConfig({}))
-    infra = resolve_infra_refs(["standard:mock-llm"], anchor=tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "ci-test-unused")
+    infra = resolve_infra_refs(["standard:openai"], anchor=tmp_path)
     return instantiate_runtime(
         InstantiationOptions(
             agent_manifest=manifest,
@@ -48,30 +49,30 @@ def test_explicit_context_manager_is_left_untouched(tmp_path: Path, monkeypatch)
     assert manifest["spec"]["context_manager"] == {"type": "sliding_window", "params": {"window_size": 9}}
 
 
-def test_no_working_memory_compaction_leaves_context_manager_absent(tmp_path: Path, monkeypatch):
+def test_no_working_memory_compaction_leaves_spec_without_context_manager(tmp_path: Path, monkeypatch):
+    """Omitted context_manager stays omitted; the default summarising plugin
+    is instantiated at assemble time and binds the engine from ctx."""
     manifest = {
         "metadata": {"name": "agent"},
         "spec": {},
     }
-    _instantiate(manifest, tmp_path, monkeypatch)
+    instance, _store = _instantiate(manifest, tmp_path, monkeypatch)
     assert "context_manager" not in manifest["spec"]
+    assert getattr(instance.driver.ctx, "engine", None) is instance.driver.engine
 
 
-def test_summarize_wires_a_real_summarize_fn_off_the_resolved_engine(tmp_path: Path, monkeypatch):
-    """standard:mock-llm still resolves to a LiveLlmEngine (pointed at a fake
-    endpoint, not a SimulatedEngine) -- it implements CompactionSummarizeEngine,
-    so summarize wires a real callable rather
-    than degrading. The degrade-to-keep_recent path (no completion
-    primitives available at all) is covered at the facade level in
-    test_working_memory_compaction.py."""
+def test_summarize_sugar_writes_context_manager_without_runtime_callables(tmp_path: Path, monkeypatch):
+    """standard:openai resolves to a LiveLlmEngine; the engine is bound on
+    ctx, not stuffed into spec.context_manager.params."""
     manifest = {
         "metadata": {"name": "agent"},
         "spec": {
             "working_memory": {"compaction": {"strategy": "summarize", "keep_turns": 4}},
         },
     }
-    _instantiate(manifest, tmp_path, monkeypatch)
+    instance, _store = _instantiate(manifest, tmp_path, monkeypatch)
     cm = manifest["spec"]["context_manager"]
     assert cm["type"] == "summarising"
     assert cm["params"]["keep_turns"] == 4
-    assert callable(cm["params"]["summarize_fn"])
+    assert "summarize_fn" not in cm["params"]
+    assert getattr(instance.driver.ctx, "engine", None) is instance.driver.engine

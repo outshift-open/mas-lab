@@ -23,8 +23,15 @@ def _dataset_items(doc: dict | list | None) -> list[dict]:
 
 def _primary_prompt(item: dict) -> str:
     if "inputs" in item:
-        user = item["inputs"].get("user") or []
-        return str(user[0].get("content", "")).strip() if user else ""
+        user = item["inputs"].get("user")
+        if isinstance(user, str):
+            return user.strip()
+        if isinstance(user, list) and user:
+            first = user[0]
+            if isinstance(first, dict):
+                return str(first.get("content", "")).strip()
+            return str(first).strip()
+        return ""
     prompt = item.get("prompt", "")
     if prompt:
         return str(prompt).strip()
@@ -38,9 +45,7 @@ def _primary_prompt(item: dict) -> str:
     "rel_path",
     [
         "tests/fixtures/lab-smoke/dataset.yaml",
-        "labs/lifecycle-control.lab/datasets/lifecycle-queries.yaml",
-        "labs/extensions.lab/datasets/fact-recall-smoke.yaml",
-        "library-samples/datasets/trip-planner/queries.yaml",
+        "library-samples/datasets/trip-planner/benchmark.yaml",
         "docs/tutorials/03-experiments-and-analysis/dataset.yaml",
     ],
 )

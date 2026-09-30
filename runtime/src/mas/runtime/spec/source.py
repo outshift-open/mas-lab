@@ -60,6 +60,27 @@ def load_yaml_mapping(path: Path) -> dict[str, Any]:
     return raw
 
 
+def load_dataset_items_file(path: Path) -> Any:
+    """Load a Dataset YAML file and normalize to ``{"items": [...]}``.
+
+    Supports a Dataset manifest (``apiVersion: lab/v1, kind: Dataset``,
+    unwrapped to its ``spec.items``), a plain ``{items: [...]}`` mapping, or
+    a bare list of items.
+
+    Shared by callers (e.g. ``library-eval`` providers) that need raw item
+    dicts rather than the full ``mas.lab.benchmark.dataset.Dataset`` /
+    ``RunInput`` envelope pipeline, so a Dataset-shape change only needs to
+    be taught to one loader instead of several hand-rolled copies.
+    """
+    if path.suffix not in (".yaml", ".yml"):
+        raise ValueError(f"Dataset files must be YAML, got {path}")
+    data = load_yaml_file(path)
+    if isinstance(data, dict) and data.get("kind") == "Dataset":
+        spec = data.get("spec") or {}
+        return {"items": spec.get("items", [])}
+    return data
+
+
 def resolve_yaml_source(
     *,
     inline: Any = None,

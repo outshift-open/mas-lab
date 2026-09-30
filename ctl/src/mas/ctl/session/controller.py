@@ -11,6 +11,11 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from mas.ctl.session.exchange_log import (
+    CliTraceExchangePlugin,
+    TraceFormatOptions,
+)
+from mas.ctl.ui.display import ConversationDisplay
 from mas.runtime.boundary.context.working_memory_registry import (
     get_working_memory_registry,
     sync_working_memory_in,
@@ -20,12 +25,6 @@ from mas.runtime.boundary.obs.exchange_plugin import ExchangePlugin
 from mas.runtime.driver.driver import DriverTrace, ExchangeRecord
 from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.schema.egress import EmitClientResponse
-
-from mas.ctl.session.exchange_log import (
-    CliTraceExchangePlugin,
-    TraceFormatOptions,
-)
-from mas.ctl.ui.display import ConversationDisplay
 
 _logger = logging.getLogger("mas.runtime")
 _RED = "\033[1;31m"
@@ -37,7 +36,7 @@ class _ToolErrorAndListenerBridge(ExchangePlugin):
 
     Two behaviors that aren't display formatting, so they don't belong in
     CliTraceExchangePlugin (a generic, reusable trace renderer):
-      - Always-on tool-call error surfacing: a TOOL->AGENT exchange whose text
+      - Always-on tool-call error surfacing: a tool_result whose text
         is a JSON error result is printed in RED to stderr and logged at ERROR
         level, regardless of --trace/--verbose, so a failing tool call (e.g.
         run_skill_script returning {"error": ...}) can never silently
@@ -59,7 +58,7 @@ class _ToolErrorAndListenerBridge(ExchangePlugin):
         self.exchange_listener = exchange_listener
 
     def on_exchange(self, record: ExchangeRecord) -> None:
-        if record.tag == "TOOL->AGENT" and '"error"' in record.text:
+        if record.kind == "tool_result" and '"error"' in record.text:
             message = f"[{self.agent_id}] TOOL ERROR: {record.text.strip()}"
             print(f"{_RED}{message}{_RESET}", file=sys.stderr, flush=True)
             _logger.error(message)
@@ -105,7 +104,7 @@ class SessionController:
     trace_summary: bool = False
     trace_color: bool = False
     agent_id: str = "n/a"
-    llm_id: str = "gpt-4o-mini"
+    llm_id: str = ""
     obs_recorder: Any | None = None
     exchange_listener: Any | None = None
     # One id for the whole MAS run — every turn this controller ever runs
@@ -135,6 +134,11 @@ class SessionController:
         return self.working_memory_key or self.session_id
 
     def _trace_format_options(self) -> TraceFormatOptions:
+        from mas.runtime.driver.driver import engine_model_id
+
+        engine = getattr(self.instance, "driver", None)
+        engine = getattr(engine, "engine", None) if engine is not None else None
+        llm_name = engine_model_id(engine) or self.llm_id
         return TraceFormatOptions(
             timestamps=self.trace_timestamps,
             engine_io=self.trace_engine,
@@ -142,7 +146,7 @@ class SessionController:
             turn_start_mono=self._trace_turn_start,
             color=self.trace_color,
             agent_name=self.agent_id,
-            llm_name=self.llm_id,
+            llm_name=llm_name,
         )
 
     def _setup_exchange_tracing(self) -> None:

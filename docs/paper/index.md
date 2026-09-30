@@ -24,7 +24,8 @@ Source under [`labs/`](https://github.com/outshift-open/mas-lab/tree/main/labs) 
 
 Each lab is a single benchmark experiment. Run it, and MAS-Lab produces the
 figures and tables reported in the paper — charts, metrics, and comparison
-reports — without separate plotting scripts.
+reports — without separate plotting scripts. Labs vs libraries:
+[labs-and-libraries.md](../labs-and-libraries.md).
 
 Hands-on introduction: [Tutorial 3 — Run an experiment](../tutorials/03-experiments-and-analysis/README.md).
 

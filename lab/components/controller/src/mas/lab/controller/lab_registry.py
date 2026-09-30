@@ -458,12 +458,22 @@ class LabRegistry:
 
         ws_root = self._workspace_root()
         if ws_root is not None:
-            manifest_libs = getattr(self._workspace, "_data", {}).get("manifest_libraries") or {}
-            if not manifest_libs and self._workspace is not None:
-                manifest_libs = getattr(self._workspace, "_data", {}) or {}
-                manifest_libs = manifest_libs.get("manifest_libraries") or {}
-            for slug, rel in manifest_libs.items():
-                _add(slug, ws_root / rel, f"manifest_libraries:{rel}")
+            from mas.library_roots import iter_libraries_in_search_path
+            from mas.runtime.workspace_config import library_search_paths
+
+            ws = self._workspace
+            if ws is not None and hasattr(ws, "raw_manifest_libraries"):
+                # Preferred: the public accessor (real WorkspaceConfig instances).
+                raw_libs = ws.raw_manifest_libraries
+            else:
+                # Fallback for duck-typed workspace stand-ins (e.g. tests) that
+                # only carry ``_data``.
+                raw_libs = (getattr(ws, "_data", {}) or {}).get("manifest_libraries")
+            for rel in library_search_paths(raw_libs):
+                path = Path(rel).expanduser()
+                search = path if path.is_absolute() else (ws_root / rel)
+                for lib in iter_libraries_in_search_path(search):
+                    _add(lib.name, lib, f"manifest_libraries:{rel}")
 
             for rel in self._labs_search_paths():
                 labs_dir = (ws_root / rel).resolve()
@@ -535,42 +545,107 @@ class LabRegistry:
 
     def _collect_mas_resources(self, lib_dir: Path) -> Dict[str, Dict[str, Any]]:
         result: Dict[str, Dict[str, Any]] = {}
+        seen: set[Path] = set()
+
+        def _add(catalog_id: str, app_path: Path) -> None:
+            if not catalog_id or catalog_id in result:
+                return
+            resolved = app_path.resolve()
+            if resolved in seen:
+                return
+            mas_file = None
+            for name in ("mas.yaml", "mas-bench.yaml"):
+                candidate = resolved / name
+                if candidate.is_file():
+                    mas_file = candidate
+                    break
+            if mas_file is None:
+                from mas.apps import resolve_app_manifest
+
+                try:
+                    agent_manifest = resolve_app_manifest(resolved, app_id=resolved.name)
+                except Exception:
+                    return
+                try:
+                    rel = str(agent_manifest.relative_to(lib_dir.resolve()))
+                except ValueError:
+                    rel = str(agent_manifest)
+                entry = {
+                    "agents": {},
+                    "path": rel,
+                }
+                if agent_manifest.is_file():
+                    entry["agents"][agent_manifest.stem] = agent_manifest.read_text(
+                        encoding="utf-8"
+                    )
+                seen.add(resolved)
+                result[catalog_id] = entry
+                return
+            try:
+                doc = load_yaml_file(mas_file)
+            except Exception:
+                doc = {}
+            try:
+                rel = str(mas_file.relative_to(lib_dir.resolve()))
+            except ValueError:
+                rel = str(mas_file)
+            seen.add(resolved)
+            result[catalog_id] = {
+                "mas_yaml": mas_file.read_text(encoding="utf-8"),
+                "agents": self._load_agents_from_mas_refs(resolved, doc),
+                "path": rel,
+            }
+
+        # Pass 1: canonical catalog discovery (library.yaml `apps:` entries,
+        # plus a scan of apps/<name>[/v*] recognised by _is_app_directory).
+        # This is the primary source; passes below only add what it misses.
+        try:
+            from mas.library_catalog import apps_in_library
+
+            for catalog_id, app_path in apps_in_library(lib_dir).items():
+                if "/" in catalog_id:
+                    continue
+                _add(catalog_id, app_path)
+        except Exception:
+            pass
+
+        # Pass 2: manual apps/<name> walk. Mostly redundant with pass 1, but
+        # its final resolve_app_manifest() fallback also recognises a bare
+        # ``<name>/<name>.yaml`` manifest — a convention _is_app_directory()
+        # (and so pass 1) does not check for.
         apps_dir = lib_dir / "apps"
         if apps_dir.exists():
             for app_folder in sorted(apps_dir.iterdir()):
                 if not app_folder.is_dir():
                     continue
                 mas_file = app_folder / "mas.yaml"
-                agents_dir = app_folder / "agents"
-                if not mas_file.exists():
-                    from mas.apps import resolve_app_manifest
-
-                    try:
-                        agent_manifest = resolve_app_manifest(app_folder, app_id=app_folder.name)
-                    except Exception:
-                        continue
-                    entry = {
-                        "agents": {},
-                        "path": str(agent_manifest.relative_to(lib_dir)),
-                    }
-                    if agent_manifest.is_file():
-                        entry["agents"][agent_manifest.stem] = agent_manifest.read_text(
-                            encoding="utf-8"
-                        )
-                    result[app_folder.name] = entry
+                if mas_file.is_file():
+                    _add(app_folder.name, app_folder)
                     continue
-                mas_name = app_folder.name
-                entry: Dict[str, Any] = {
-                    "mas_yaml": mas_file.read_text(encoding="utf-8"),
-                    "agents": {},
-                    "path": f"apps/{mas_name}/mas.yaml",
-                }
-                agents_dir = app_folder / "agents"
-                if agents_dir.is_dir():
-                    for af in sorted(agents_dir.glob("*.yaml")):
-                        entry["agents"][af.stem] = af.read_text(encoding="utf-8")
-                result[mas_name] = entry
+                version_dirs = [
+                    d
+                    for d in sorted(app_folder.iterdir())
+                    if d.is_dir() and d.name.startswith("v") and (d / "mas.yaml").is_file()
+                ]
+                if version_dirs:
+                    for ver_dir in version_dirs:
+                        _add(f"{app_folder.name}@{ver_dir.name}", ver_dir)
+                    continue
+                from mas.apps import resolve_app_manifest
 
+                try:
+                    resolve_app_manifest(app_folder, app_id=app_folder.name)
+                except Exception:
+                    continue
+                _add(app_folder.name, app_folder)
+
+        # Pass 3: mas.yaml / mas-bench.yaml anywhere under lib_dir (outside
+        # apps/). Required when lib_dir is itself a bare app root rather
+        # than a library with an apps/ folder — e.g. an entry-point-
+        # registered app (see runtime_objects("app") above) treated as a
+        # "library" by collect_mas_resources(); apps_in_library() only
+        # looks for library.yaml / an apps/ subfolder, so it never resolves
+        # that case (see test_collect_mas_resources_from_app_root).
         for mas_name in _MAS_MANIFEST_NAMES:
             for mas_file in sorted({lib_dir / mas_name, *lib_dir.rglob(mas_name)}):
                 if not mas_file.is_file():
@@ -584,31 +659,29 @@ class LabRegistry:
                 name = (doc.get("metadata") or {}).get("name") or mas_file.stem.replace(
                     "-bench", ""
                 )
-                if name in result:
-                    continue
-                mas_base = mas_file.parent
-                result[str(name)] = {
-                    "mas_yaml": mas_file.read_text(encoding="utf-8"),
-                    "agents": self._load_agents_from_mas_refs(mas_base, doc),
-                    "path": str(mas_file.relative_to(lib_dir)),
-                }
+                _add(str(name), mas_file.parent)
 
-        for mas_file in sorted(lib_dir.rglob("apps/*/mas.yaml")):
+        # Pass 4: apps/<name>/<subdir>/mas.yaml where <subdir> is not a
+        # ``v*`` version folder. apps_in_library()'s version scan
+        # (_version_dirs) only descends into ``v*``-named children, so a
+        # non-version nested layout (e.g. apps/<name>/<variant>/mas.yaml)
+        # is invisible to pass 1 and needs this rglob. (A single-level
+        # ``apps/*/mas.yaml`` rglob used to run here too, but every path it
+        # can match is already an app directory by _is_app_directory()'s
+        # own definition, so pass 1 always finds it first — confirmed with
+        # apps_in_library() directly, and by this pass's own dead-hit guard
+        # in _add(); it was dropped as genuinely redundant.)
+        for mas_file in sorted(lib_dir.rglob("apps/*/*/mas.yaml")):
             if not mas_file.is_file():
                 continue
-            try:
-                doc = load_yaml_file(mas_file)
-            except Exception:
-                doc = {}
-            name = (doc.get("metadata") or {}).get("name") or mas_file.parent.name
-            if str(name) in result:
-                continue
-            mas_base = mas_file.parent
-            result[str(name)] = {
-                "mas_yaml": mas_file.read_text(encoding="utf-8"),
-                "agents": self._load_agents_from_mas_refs(mas_base, doc),
-                "path": str(mas_file.relative_to(lib_dir)),
-            }
+            parent = mas_file.parent
+            catalog_id = parent.name
+            if parent.parent.parent.name == "apps":
+                if parent.name.startswith("v"):
+                    catalog_id = f"{parent.parent.name}@{parent.name}"
+                else:
+                    catalog_id = f"{parent.parent.name}-{parent.name}"
+            _add(catalog_id, parent)
         return result
 
     @staticmethod

@@ -24,7 +24,7 @@ REF_KEYS = frozenset(
 )
 
 # Parent keys whose "path" child is a runtime output sink, not an input file ref.
-_OUTPUT_PATH_PARENTS = frozenset({"telemetry"})
+_OUTPUT_PATH_PARENTS = frozenset({"telemetry", "artifacts"})
 
 
 def resolve_refs_enabled() -> bool:
@@ -50,6 +50,8 @@ def _is_scheme_ref(value: str) -> bool:
 def is_path_ref(key: str, value: Any) -> bool:
     if not isinstance(value, str) or not value.strip():
         return False
+    if "{" in value:
+        return False  # unresolved template (e.g. {output_dir}/fig.svg), not a file
     if _is_scheme_ref(value):
         return False
     if key in ("configs_dir", "path"):
@@ -74,7 +76,10 @@ def iter_ref_paths(obj: Any, prefix: str = "") -> list[tuple[str, str]]:
         for k, v in obj.items():
             p = f"{prefix}.{k}" if prefix else k
             parent_key = prefix.rsplit(".", 1)[-1] if "." in prefix else prefix
-            if k == "path" and parent_key in _OUTPUT_PATH_PARENTS:
+            if k == "path" and (
+                parent_key in _OUTPUT_PATH_PARENTS
+                or "artifacts" in prefix.split(".")
+            ):
                 pass  # runtime output path — not a file ref
             elif k in REF_KEYS and is_path_ref(k, v):
                 found.append((p, v))

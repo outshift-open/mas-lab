@@ -7,9 +7,11 @@ experiment:
 
     '
   default_flavour: local
-  applications:
-    - manifest: ./mas.yaml
-      configs_dir: ./topologies
+  models:
+    main: gpt-4o-mini
+  application:
+    manifest: ./mas.yaml
+    configs_dir: ./topologies
   scenarios:
   - id: single-agent
     description: Single-agent — all tools in one agent
@@ -33,5 +35,4 @@ experiment:
     path: ./dataset.yaml
   run:
     n_runs: 1
-  application:
-    post: []
+  post: []

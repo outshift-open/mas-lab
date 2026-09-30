@@ -354,7 +354,7 @@ class MASSpecValidator:
 
         When the path is an overlay, the sibling/parent ``mas.yaml`` is loaded via
         ``load_mas_config`` and patch-specific fields (telemetry, capabilities,
-        mocking, test_knowledge) are applied on top.
+        test_knowledge) are applied on top.
         """
         from mas.runtime.spec.source import load_yaml_file
 

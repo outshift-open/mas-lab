@@ -9,7 +9,8 @@ A **lab** is a folder ending in `.lab` with an **experiment** manifest
 **pipeline** steps turn **runs** into tables and figures.
 
 Full term list: [glossary.md](../../docs/glossary.md). Default paths:
-[`docs/user-config.md`](../../docs/user-config.md).
+[`docs/user-config.md`](../../docs/user-config.md). Lab vs library:
+[labs-and-libraries.md](../../docs/labs-and-libraries.md).
 
 ## What one command does
 
@@ -25,11 +26,10 @@ mas-lab benchmark run labs/lifecycle-control.lab/experiment.yaml --progress
    **`events.jsonl`** under `traces/`. Identical work is skipped via the **trace
    cache**.
 
-2. **Embedded pipeline** — The `pipeline:` block in the same `experiment.yaml`
-   runs automatically. Each **pipeline step** reads logs and writes CSV/PNG files
-   into `results/`.
+2. **Level hooks** — `run:` / `item:` / `scenario:` / experiment `post:` in the
+   same `experiment.yaml` run automatically. There is no `pipeline:` key.
 
-Paper figures come only from this command (phase 1 + embedded pipeline). Do not
+Paper figures come only from this command (phase 1 + level hooks). Do not
 use standalone plotting scripts.
 
 ## What you need installed

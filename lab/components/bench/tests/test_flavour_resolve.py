@@ -9,7 +9,7 @@ import pytest
 from mas.lab.flavour.resolve import bundled_flavour_path, resolve_flavour_path
 
 
-@pytest.mark.parametrize("name", ["local", "lib:local", "local-benchmark", "mock"])
+@pytest.mark.parametrize("name", ["local", "lib:local", "local-benchmark"])
 def test_bundled_flavours_exist(name: str) -> None:
     path = resolve_flavour_path(name)
     assert path.is_file()

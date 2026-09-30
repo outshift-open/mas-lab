@@ -617,17 +617,16 @@ export interface ContextManagerParams {
    */
   working_memory_messages?: number;
   /**
-   * Max estimated input tokens after assembly.
+   * Optional assembly-time token trim (tool-group-aware). When set with
+   * max_tokens, enables trim before the provider call; WM is pin_tail.
    */
-  token_budget?: number;
-  /**
-   * Alias for token_budget.
-   */
-  max_tokens?: number;
-  /**
-   * Tokens reserved for model completion (default 512).
-   */
-  reserve_tokens?: number;
+  trimmer?: {
+    max_tokens?: number;
+    /** Alias for max_tokens */
+    token_budget?: number;
+    /** Subtracted from max_tokens before comparing payload (default 512) */
+    reserve_tokens?: number;
+  };
   /**
    * Summarising CM — token threshold before compression.
    */
@@ -640,14 +639,6 @@ export interface ContextManagerParams {
    * Registry ref for working_memory context source plugin.
    */
   working_memory_ref?: string;
-  /**
-   * Registry ref for token-budget trimmer plugin.
-   */
-  trimmer_ref?: string;
-  /**
-   * Alias for trimmer_ref.
-   */
-  token_budget_ref?: string;
 }
 /**
  * Inline memory seed — maps to MemorySeedLoader (key/source + content).

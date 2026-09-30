@@ -125,15 +125,22 @@ def _apply_plugin(plugin: PluginSpec, anchor: Path) -> None:
 
 
 def resolve_library_root(ref: str, anchor: Path) -> Path | None:
-    """Resolve a ``lab-config.yaml`` libraries entry — scheme name or relative path."""
-    from mas.runtime.package_refs import resolve_library_scheme_root
+    """Resolve a ``lab-config.yaml`` libraries entry — relative path or library name.
 
-    scheme_root = resolve_library_scheme_root(ref.strip())
-    if scheme_root is not None:
-        return scheme_root.resolve()
+    A directory with ``library.yaml`` is a real library (name = basename).
+    A directory without ``library.yaml`` is ``sys.path`` only. A name that is
+    already a known library (``samples``) resolves to that library's root.
+    """
+    from mas.library_roots import resolve_named_library_root
 
     candidate = (anchor / ref).resolve()
-    return candidate if candidate.is_dir() else None
+    if candidate.is_dir():
+        return candidate
+
+    scheme_root = resolve_named_library_root(ref.strip(), anchor)
+    if scheme_root is not None:
+        return scheme_root.resolve()
+    return None
 
 
 def inject_lab_libraries(lab_context: LabContext) -> None:

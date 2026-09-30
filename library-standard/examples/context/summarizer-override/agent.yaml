@@ -1,0 +1,37 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Agent
+
+metadata:
+  name: qa-compact
+
+spec:
+  models:
+    - id: main
+      model: gpt-4o
+      max_tokens: 2000
+      context_window: 128000
+    - id: summarizer
+      model: gpt-4o-mini
+      max_tokens: 2000
+      context_window: 128000
+  description: >
+    Feature example for summarizer params.model and params.instructions.
+    Not a sample app. summary_threshold is low so a short chat fires compaction.
+  context:
+    role: |
+      Answer questions clearly. Keep city names and dates accurate.
+  context_manager:
+    type: summarising
+    params:
+      keep_turns: 2
+      hysteresis_ratio: 0.2
+      summary_threshold: 80
+      summarizer:
+        type: llm
+        params:
+          model: summarizer
+          instructions: |
+            Preserve city names, dates, and numeric facts. One short paragraph.
+            Do not write a transcript.

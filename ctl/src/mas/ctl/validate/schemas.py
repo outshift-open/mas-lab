@@ -53,6 +53,7 @@ _KIND_MAP: dict[str, str] = {
     "effective-bind": "effective-bind.schema.yaml",
     "placement_plan": "placement-plan.schema.yaml",
     "experiment": "lab/experiment.schema.yaml",
+    "lab_config": "lab/lab-config.schema.yaml",
     "dataset": "lab/dataset.schema.yaml",
     "pipeline": "lab/pipeline.schema.yaml",
     "library": "library.schema.yaml",
@@ -133,6 +134,13 @@ def load_schema(kind: str) -> dict:
     with path.open(encoding="utf-8") as fh:
         raw = yaml.safe_load(fh)
     return _resolve_local_refs(raw, path.parent)
+
+
+def lab_schema_registry():
+    """Registry of ``$id`` documents under docs/schemas (lab fragments + runtime)."""
+    from mas.lab.schemas.validate import schema_registry_from_dir
+
+    return schema_registry_from_dir(_SCHEMA_ROOT)
 
 
 def _resolve_json_pointer(doc: Any, pointer: str, *, ref: str, source: Path) -> Any:

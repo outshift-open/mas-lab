@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -252,6 +251,11 @@ def test_list_tools_schema():
     assert "timeout" in params["properties"]
     assert "env" in params["properties"]   # extra env support
     assert set(params["required"]) == {"skill", "script"}
+    assert tools[0]["semantics"] == {
+        "concept": "skill",
+        "op": "execute",
+        "subject_arg": "skill",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -425,6 +429,7 @@ def test_run_script_via_injected_backend_plugin_wraps_exceptions(tmp_path: Path)
 
 def test_build_safe_env_strips_secrets():
     import os
+
     from sandbox.runner import _build_safe_env
     os.environ["MY_APIKEY"] = "secret123"
     env = _build_safe_env(Path("/tmp"), {})

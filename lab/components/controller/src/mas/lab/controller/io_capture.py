@@ -3,6 +3,7 @@
 """Capture stdout/stderr from worker threads into WorkerRecord buffers."""
 from __future__ import annotations
 
+import logging
 import sys
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
@@ -30,12 +31,25 @@ class _StreamCapture:
 
 @contextmanager
 def capture_worker_io(record: "WorkerRecord"):
-    """Redirect sys.stdout/stderr into the worker record for REST polling."""
+    """Redirect sys.stdout/stderr and logging into the worker record.
+
+    Logging handlers are bound when the daemon starts (often to daemon.log),
+    so replacing sys.stderr alone does not move ``logger.error`` into the
+    stream the CLI polls.  A temporary StreamHandler writes those lines
+    into the worker record as well.
+    """
     out = _StreamCapture(record, "stdout")
     err = _StreamCapture(record, "stderr")
     old_out, old_err = sys.stdout, sys.stderr
+    handler = logging.StreamHandler(err)
+    handler.setLevel(logging.NOTSET)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    root = logging.getLogger()
     sys.stdout, sys.stderr = out, err  # type: ignore[assignment]
+    root.addHandler(handler)
     try:
         yield
     finally:
+        root.removeHandler(handler)
+        handler.close()
         sys.stdout, sys.stderr = old_out, old_err

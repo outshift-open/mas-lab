@@ -16,10 +16,42 @@ class VariantInfo:
     class_name: str
     version: str = ""
     description: str = ""
+    requires: list[str] = field(default_factory=list)
+    extra: str = ""
 
     def load_class(self) -> type:
         mod = importlib.import_module(self.module)
         return getattr(mod, self.class_name)
+
+    def missing_requires(self) -> list[str]:
+        """``requires`` entries that fail to import, in declared order."""
+        missing = []
+        for name in self.requires:
+            try:
+                importlib.import_module(name)
+            except ImportError:
+                missing.append(name)
+        return missing
+
+
+class PluginUnavailable(RuntimeError):
+    """A plugin's declared ``requires`` are not importable.
+
+    Raised by :meth:`PluginEntry.resolve` instead of letting the eventual
+    ``import`` inside :meth:`VariantInfo.load_class` fail deep inside
+    plugin construction — the same missing-dependency case, but caught at
+    the point a caller asks for the plugin instead of wherever it happens
+    to first touch the missing module.
+    """
+
+    def __init__(self, urn: str, *, missing: list[str], extra: str = "") -> None:
+        self.urn = urn
+        self.missing = list(missing)
+        self.extra = extra
+        hint = f"mas plugin enable {urn}" if extra else f"pip install {' '.join(missing)}"
+        super().__init__(
+            f"plugin {urn!r} is unavailable: missing {', '.join(missing)} ({hint})"
+        )
 
 
 @dataclass
@@ -42,7 +74,11 @@ class PluginEntry:
                 f"Unknown variant {key!r} for {self.urn}. "
                 f"Available: {list(self.variants)}"
             )
-        return self.variants[key]
+        info = self.variants[key]
+        missing = info.missing_requires()
+        if missing:
+            raise PluginUnavailable(self.urn, missing=missing, extra=info.extra)
+        return info
 
 
 def _normalise_type_name(type_name: str) -> str:
@@ -199,11 +235,23 @@ class PluginRegistry:
         manifest: dict | None = None,
         **params: Any,
     ) -> Any:
-        """Instantiate the plugin declared under ``spec.<spec_key>``."""
+        """Instantiate the plugin declared under ``spec.<spec_key>``.
+
+        Reads the binding leniently: ``ctl`` already validates every
+        singleton plugin slot at authoring time, so this is the runtime's
+        one central plugin-construction path, hit by every spec key
+        (``design_pattern``, ``context_manager``, ``assembler``, ``summarizer``,
+        ...). A malformed value that bypassed ``ctl`` (e.g. a hand-built
+        manifest in a test or embedding) degrades to the slot's default
+        plugin rather than failing construction.
+        """
+        from mas.runtime.spec.plugin_binding import normalize_plugin_binding_lenient
+
         if binding is None and manifest is not None:
-            raw = (manifest.get("spec") or {}).get(spec_key) or {}
-            binding = raw if isinstance(raw, dict) else {}
-        binding = dict(binding or {})
+            raw = (manifest.get("spec") or {}).get(spec_key)
+            binding = normalize_plugin_binding_lenient(raw, field=f"spec.{spec_key}")
+        else:
+            binding = normalize_plugin_binding_lenient(binding, field=f"spec.{spec_key}")
         info = self.resolve_spec(spec_key, binding)
         cls = info.load_class()
         ctor_params = {**dict(binding.get("params") or {}), **params}
@@ -263,14 +311,30 @@ class PluginRegistry:
             return key
         return self._aliases.get(key)
 
+    def get_entry(self, urn: str) -> PluginEntry | None:
+        """Look up a :class:`PluginEntry` by URN or alias, without resolving a variant.
+
+        Unlike :meth:`resolve`/:meth:`get`, never raises :class:`PluginUnavailable` —
+        for callers (CLI listing, ``mas plugin enable``) that need the entry
+        itself to inspect or fix availability, not to use the plugin.
+        """
+        key = str(urn).strip().lower()
+        if key in self._entries:
+            return self._entries[key]
+        aliased = self._aliases.get(key)
+        if aliased and aliased in self._entries:
+            return self._entries[aliased]
+        return None
+
     # ── Query (UI / CLI / lab delegation) ────────────────────────────────
+
+    def all_entries(self) -> list[PluginEntry]:
+        return [self._entries[u] for u in self.list_all()]
 
     def list(self, spec_key: str | None = None) -> list[dict[str, Any]]:
         """List plugins; *spec_key* matches agent manifest ``spec.<key>``."""
         if spec_key is None:
-            return self._entries_as_dicts(
-                [self._entries[u] for u in self.list_all()]
-            )
+            return self._entries_as_dicts(self.all_entries())
         return self._entries_as_dicts(self._entries_for_type(spec_key))
 
     def list_all(self) -> list[str]:
@@ -289,6 +353,7 @@ class PluginRegistry:
         items: list[dict[str, Any]] = []
         for entry in entries:
             default = entry.default
+            missing = default.missing_requires() if default else []
             items.append(
                 {
                     "urn": entry.urn,
@@ -298,6 +363,9 @@ class PluginRegistry:
                     "module": default.module if default else "",
                     "class_name": default.class_name if default else "",
                     "attributes": dict(entry.attributes),
+                    "available": not missing,
+                    "missing": missing,
+                    "extra": default.extra if default else "",
                 }
             )
         return items
@@ -363,6 +431,7 @@ def register_manifest_file(path: str | Path) -> None:
 __all__ = [
     "PluginEntry",
     "PluginRegistry",
+    "PluginUnavailable",
     "VariantInfo",
     "add_plugin_path",
     "get_registry",

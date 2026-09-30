@@ -6,10 +6,9 @@ from __future__ import annotations
 
 import sys
 
-from mas.runtime.schema.egress import EmitHitlRequest
-
 from mas.ctl.run_progress import print_answer
 from mas.ctl.ui.display import ConversationDisplay
+from mas.runtime.schema.egress import EmitHitlRequest
 
 
 class StdoutConversationDisplay:
@@ -24,6 +23,7 @@ class StdoutConversationDisplay:
         verbose: int = 0,
         show_labels: bool = True,
         user_prompt_echoed: bool = False,
+        trace: bool = False,
     ) -> None:
         self._out = out
         self._err = err
@@ -31,9 +31,14 @@ class StdoutConversationDisplay:
         self._verbose = verbose
         self._show_labels = show_labels or verbose >= 1
         self._user_prompt_echoed = user_prompt_echoed
+        self._trace = trace
 
     def on_user(self, text: str, *, turn_id: str = "") -> None:
         if self._user_prompt_echoed:
+            return
+        # --trace already prints USER -> AGENT; keep You: only when there is
+        # no trace, or at -vv for people who want both.
+        if self._trace and self._verbose < 2:
             return
         if self._verbose >= 1 or self._show_labels:
             self._out.write(f"You: {text}\n")

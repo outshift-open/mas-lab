@@ -15,7 +15,7 @@ what `events.jsonl` contains.
 - [ ] Same `experiment.yaml`, overlays, dataset version, and infra ref
 - [ ] Same random seeds where the runtime exposes them
 - [ ] Observability enabled (`observability-native` overlay or `--events`)
-- [ ] Mock LLM overlay for deterministic CI, or document live-model variance
+- [ ] llm_cache replay fixture for deterministic CI, or document live-model variance
 
 ## Structural equivalence (from traces)
 
