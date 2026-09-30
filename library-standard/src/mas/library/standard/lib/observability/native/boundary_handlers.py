@@ -120,6 +120,10 @@ def _boundary_engine_io_return(
         model = payload.get("model")
         if model:
             rec["model"] = model
+        if payload.get("max_tokens") is not None:
+            rec["max_tokens"] = payload["max_tokens"]
+        if payload.get("truncation_retries"):
+            rec["truncation_retries"] = payload["truncation_retries"]
         if isinstance(payload.get("tools"), list):
             rec["tools"] = list(payload["tools"])
         out.append(_with_parent(rec, record, ctx))

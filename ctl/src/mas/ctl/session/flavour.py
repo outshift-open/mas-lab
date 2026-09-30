@@ -47,9 +47,7 @@ def _load_bundled_flavour(name: str) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def resolve_flavour(
-    name: str | None = None, *, overrides: tuple[str, ...] | list[str] = ()
-) -> dict[str, Any]:
+def resolve_flavour(name: str | None = None, *, overrides: tuple[str, ...] | list[str] = ()) -> dict[str, Any]:
     """Resolve, schema-validate, and return the selected flavour's ``spec`` dict.
 
     Raises :class:`FlavourError` for an unknown/unsupported name or an invalid
@@ -70,9 +68,11 @@ def resolve_flavour(
         return {}
 
     if overrides:
-        from mas.ctl.overrides import apply_cli_overrides
+        from mas.ctl.overrides import apply_cli_overrides, overrides_for_root
 
-        data = apply_cli_overrides(data, tuple(overrides), root="flavour")
+        flavour_overrides = overrides_for_root(overrides, "flavour")
+        if flavour_overrides:
+            data = apply_cli_overrides(data, flavour_overrides, root="flavour")
 
     from mas.ctl.validate import validate_data, validation_enabled
 

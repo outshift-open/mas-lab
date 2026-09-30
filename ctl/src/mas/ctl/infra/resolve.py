@@ -187,6 +187,7 @@ def _infra_document(manifest: InfraManifest) -> dict[str, Any]:
             "embed": manifest.models.default_embed,
         },
         "mappings": dict(manifest.models.mappings),
+        "generation": dict(manifest.models.generation),
     }
     return {
         "apiVersion": "infra/v1",
@@ -535,6 +536,7 @@ def _from_dict(data: dict[str, Any]) -> InfraManifest:
             default_llm=defaults.get("llm"),
             default_embed=defaults.get("embed") or defaults.get("embedding"),
             mappings=dict(models_raw.get("mappings") or {}),
+            generation=dict(models_raw.get("generation") or {}),
         ),
         model_access=dict(spec.get("model_access") or {}),
         protocol=str(spec.get("protocol") or "").strip(),
@@ -555,6 +557,7 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
     allowed: list[str] = []
     seen_allowed: set[str] = set()
     mappings: dict[str, str] = {}
+    generation: dict[str, Any] = {}
     default_llm: str | None = None
     default_embed: str | None = None
     model_access: dict[str, Any] = {}
@@ -581,6 +584,7 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
                 seen_allowed.add(item)
                 allowed.append(item)
         mappings.update(m.models.mappings)
+        generation.update(m.models.generation)
         if m.models.default_llm:
             default_llm = m.models.default_llm
         if m.models.default_embed:
@@ -607,6 +611,7 @@ def _merge_many(parts: list[InfraManifest]) -> InfraManifest:
             default_llm=default_llm,
             default_embed=default_embed,
             mappings=mappings,
+            generation=generation,
         ),
         model_access=model_access,
         protocol=protocol,

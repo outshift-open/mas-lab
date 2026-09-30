@@ -9,9 +9,25 @@ from typing import Any
 
 from mas.ctl.overlay import merge_overlay
 from mas.ctl.overlay.normalize import normalize_overlay
-from mas.ctl.overrides import apply_cli_overrides
+from mas.ctl.overrides import apply_cli_overrides, parse_override
 from mas.ctl.validate import validate_data, validate_file, validation_enabled
 from mas.runtime.spec.source import load_yaml_file, resolve_manifest_source
+
+_ROOTS_APPLIED_ELSEWHERE = frozenset({"infra", "flavour", "workspace"})
+
+
+def _apply_agent_overrides(data: dict[str, Any], overrides: tuple[str, ...]) -> dict[str, Any]:
+    """Apply ``agent:`` overrides; infra/flavour/workspace roots are applied where those documents load."""
+    parsed = [(source, parse_override(source)) for source in overrides]
+    agent = [(source, p) for source, p in parsed if p.path.root not in _ROOTS_APPLIED_ELSEWHERE]
+    if not agent:
+        return data
+    spec = data.get("spec") or {}
+    selects_models = any(len(p.path.segments) > 1 and p.path.segments[1].name == "models" for _source, p in agent)
+    if selects_models and not spec.get("models"):
+        # Same row `mas-ctl compile` writes for an omitted spec.models (model: any inherits).
+        data = {**data, "spec": {**spec, "models": [{"id": "main", "model": "any"}]}}
+    return apply_cli_overrides(data, tuple(source for source, _p in agent), root="agent")
 
 
 def build_cli_overlay(
@@ -97,7 +113,7 @@ def load_merged_agent_manifest(
         )
         data = _agent_from_cli_overlay(cli_ov) if cli_ov else None
         if data is not None and overrides:
-            data = apply_cli_overrides(data, overrides, root="agent")
+            data = _apply_agent_overrides(data, overrides)
         return (data, plugin) if data else (None, plugin)
 
     anchor = manifest_dir or (manifest.parent if isinstance(manifest, Path) else Path.cwd())
@@ -120,7 +136,7 @@ def load_merged_agent_manifest(
         )
         data = _agent_from_cli_overlay(cli_ov) if cli_ov else None
         if data is not None and overrides:
-            data = apply_cli_overrides(data, overrides, root="agent")
+            data = _apply_agent_overrides(data, overrides)
         return (data, plugin) if data else (None, plugin)
 
     for ov in overlays:
@@ -134,7 +150,7 @@ def load_merged_agent_manifest(
     if cli_ov:
         data = merge_overlay(data, cli_ov)
     if overrides:
-        data = apply_cli_overrides(data, overrides, root="agent")
+        data = _apply_agent_overrides(data, overrides)
         if validate and validation_enabled():
             validate_data(data, source="CLI overrides", kind="agent").raise_if_failed()
     plugin = pattern or pattern_from_manifest(data)

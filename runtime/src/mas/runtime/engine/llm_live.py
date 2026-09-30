@@ -19,18 +19,24 @@ from mas.runtime.boundary.context.assemble import (
 )
 from mas.runtime.boundary.gov.budget import BudgetTracker, budget_from_manifest
 from mas.runtime.engine.exchange_preview import ExchangeSnapshot, format_exchange_snapshot
-from mas.runtime.reliability.classify import classify_llm_failure, classify_llm_http_error
-from mas.runtime.engine.textual_tool_calls import maybe_recover_textual_tool_calls, repair_merged_arg_keys
-from mas.runtime.engine.tool_dispatch import ToolExecutionError, execute_engine_tool
-from mas.runtime.reliability.classes import ClassifiedFailure, FailureClass
-from mas.runtime.reliability.policy import ReliabilitySettings
-from mas.runtime.engine.tools import openai_tools
+from mas.runtime.engine.llm_output_limits import (
+    OutputLimits,
+    estimate_prompt_tokens,
+    resolve_output_limits,
+    sum_usage,
+)
 from mas.runtime.engine.llm_reasoning import (
     ReasoningSettings,
     coerce_reasoning_settings,
     reasoning_settings_from_manifest,
 )
 from mas.runtime.engine.llm_request import extra_from_manifest, sampling_settings_from_manifest
+from mas.runtime.engine.textual_tool_calls import maybe_recover_textual_tool_calls, repair_merged_arg_keys
+from mas.runtime.engine.tool_dispatch import ToolExecutionError, execute_engine_tool
+from mas.runtime.engine.tools import openai_tools
+from mas.runtime.reliability.classes import ClassifiedFailure, FailureClass
+from mas.runtime.reliability.classify import classify_llm_failure, classify_llm_http_error
+from mas.runtime.reliability.policy import ReliabilitySettings
 from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.ingress import EngineIoReturn
 
@@ -38,6 +44,10 @@ if TYPE_CHECKING:
     from mas.runtime.driver.mocks import AutoCtxAssembler
 
 logger = logging.getLogger(__name__)
+
+
+class TruncatedCompletionError(RuntimeError):
+    """Raised when ``on_truncation: error`` and the completion hit its token budget."""
 
 
 @dataclass
@@ -50,9 +60,10 @@ class LiveLlmEngine:
     api_key_env: str = "OPENAI_API_KEY"
     model: str = "gpt-4o-mini"
     temperature: float = 0.7
-    max_tokens: int = 2000
-    # Reasoning models (Gemini 2.5, o-series) bill internal thinking against
-    # max_tokens, so an unbounded budget can leave zero tokens for the answer.
+    # None sends no limit (server default). Reasoning models bill thinking
+    # against the same budget, see llm_output_limits.
+    max_tokens: int | None = None
+    output_limits: OutputLimits | None = None
     reasoning_effort: str | None = None
     reasoning: ReasoningSettings | dict[str, Any] | None = None
     extra_body: dict[str, Any] | None = None
@@ -89,13 +100,21 @@ class LiveLlmEngine:
 
     def __post_init__(self) -> None:
         self.reasoning = coerce_reasoning_settings(
-            self.reasoning if self.reasoning is not None else reasoning_settings_from_manifest(
-                self.manifest, model=self.model
-            ),
+            self.reasoning
+            if self.reasoning is not None
+            else reasoning_settings_from_manifest(self.manifest, model=self.model),
             effort=self.reasoning_effort,
         )
         self.reasoning_effort = self.reasoning.effort
         self.sampling = sampling_settings_from_manifest(self.manifest, model=self.model)
+        if self.output_limits is None:
+            self.output_limits = resolve_output_limits(
+                self.manifest,
+                model=self.model,
+                generation=(self.llm_proxy or {}).get("generation"),
+                max_tokens_override=self.max_tokens,
+            )
+        self.max_tokens = self.output_limits.max_tokens
         if self.extra_body is None:
             self.extra_body = extra_from_manifest(self.manifest, model=self.model)
         self._budget = budget_from_manifest(self.manifest)
@@ -149,10 +168,7 @@ class LiveLlmEngine:
     def summarize_messages(self, messages: list[dict[str, Any]], *, model: str | None = None) -> str:
         """One-off chat completion. The summarizer plugin builds the prompt."""
         if not self._budget.allow_llm():
-            raise RuntimeError(
-                "history summarizer: LLM call budget "
-                "exceeded (spec.budget.max_llm_calls)"
-            )
+            raise RuntimeError("history summarizer: LLM call budget exceeded (spec.budget.max_llm_calls)")
         self._budget.note_llm()
         use_model = (model or self.model or "").strip() or self.model
         logger.info(
@@ -162,7 +178,7 @@ class LiveLlmEngine:
             " (override)" if model and model != self.model else "",
         )
         api_key = os.environ.get(self.api_key_env, "")
-        message = self._chat_completion(
+        message, _retries = self._complete_with_truncation_policy(
             messages, api_key=api_key, tools=None, temperature=0.0, model=use_model
         )
         content = message.get("content") if isinstance(message, dict) else getattr(message, "content", "")
@@ -238,8 +254,10 @@ class LiveLlmEngine:
                     agent_spec=((self.manifest or {}).get("spec") if isinstance(self.manifest, dict) else None),
                 )
             except (ClassifiedFailure, ToolExecutionError) as exc:
-                classified = exc if isinstance(exc, ClassifiedFailure) else ClassifiedFailure(
-                    str(exc), failure_class=FailureClass.APPLICATION, code="TOOL_ERROR"
+                classified = (
+                    exc
+                    if isinstance(exc, ClassifiedFailure)
+                    else ClassifiedFailure(str(exc), failure_class=FailureClass.APPLICATION, code="TOOL_ERROR")
                 )
                 text = self._unavailable_tool_observation(tool, classified)
                 return EngineIoReturn(
@@ -310,8 +328,10 @@ class LiveLlmEngine:
                     agent_spec=((self.manifest or {}).get("spec") if isinstance(self.manifest, dict) else None),
                 )
             except (ClassifiedFailure, ToolExecutionError) as exc:
-                classified = exc if isinstance(exc, ClassifiedFailure) else ClassifiedFailure(
-                    str(exc), failure_class=FailureClass.APPLICATION, code="TOOL_ERROR"
+                classified = (
+                    exc
+                    if isinstance(exc, ClassifiedFailure)
+                    else ClassifiedFailure(str(exc), failure_class=FailureClass.APPLICATION, code="TOOL_ERROR")
                 )
                 text = self._unavailable_tool_observation(tool, classified)
                 return EngineIoReturn(
@@ -359,11 +379,21 @@ class LiveLlmEngine:
         tools = llm_request_tools(messages, tools=tool_defs or None)
         answering_from_tools = has_tool_results(messages)
         try:
-            message = self._chat_completion(
+            message, retries = self._complete_with_truncation_policy(
                 messages,
                 api_key=os.environ.get(self.api_key_env, ""),
                 tools=tools,
                 temperature=0.0 if answering_from_tools else self.temperature,
+            )
+        except TruncatedCompletionError as exc:
+            return EngineIoReturn(
+                correlation_id=io.correlation_id,
+                response_kind="ERROR",
+                next_step="STOP",
+                text=str(exc),
+                finish_reason="length",
+                offered_tools=list(self._offered_tool_names),
+                model=self.model,
             )
         except Exception as exc:
             logger.debug("LLM provider call failed", exc_info=True)
@@ -398,9 +428,13 @@ class LiveLlmEngine:
 
         usage = message.pop("usage", None) or {}
         finish_reason = message.pop("finish_reason", None) or ""
-        return self._message_to_engine_return(
+        max_tokens = message.pop("_max_tokens", None)
+        ret = self._message_to_engine_return(
             io, message, messages, tool_defs, answering_from_tools, usage, finish_reason
         )
+        if max_tokens is None and not retries:
+            return ret
+        return ret.model_copy(update={"max_tokens": max_tokens, "truncation_retries": retries})
 
     async def _allm_call(self, io: InvokeEngineIo) -> EngineIoReturn:
         if not self._budget.allow_llm():
@@ -418,7 +452,7 @@ class LiveLlmEngine:
         tools = llm_request_tools(messages, tools=tool_defs or None)
         answering_from_tools = has_tool_results(messages)
         try:
-            message = await self._achat_completion(
+            message, retries = await self._acomplete_with_truncation_policy(
                 messages,
                 api_key=os.environ.get(self.api_key_env, ""),
                 tools=tools,
@@ -433,6 +467,16 @@ class LiveLlmEngine:
                 finish_reason="cancelled",
                 offered_tools=list(self._offered_tool_names),
             )
+        except TruncatedCompletionError as exc:
+            return EngineIoReturn(
+                correlation_id=io.correlation_id,
+                response_kind="ERROR",
+                next_step="STOP",
+                text=str(exc),
+                finish_reason="length",
+                offered_tools=list(self._offered_tool_names),
+                model=self.model,
+            )
         except Exception as exc:
             logger.debug("LLM provider call failed", exc_info=True)
             return EngineIoReturn(
@@ -445,9 +489,115 @@ class LiveLlmEngine:
 
         usage = message.pop("usage", None) or {}
         finish_reason = message.pop("finish_reason", None) or ""
-        return self._message_to_engine_return(
+        max_tokens = message.pop("_max_tokens", None)
+        ret = self._message_to_engine_return(
             io, message, messages, tool_defs, answering_from_tools, usage, finish_reason
         )
+        if max_tokens is None and not retries:
+            return ret
+        return ret.model_copy(update={"max_tokens": max_tokens, "truncation_retries": retries})
+
+    async def _acomplete_with_truncation_policy(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        api_key: str,
+        tools: list[dict[str, Any]] | None,
+        temperature: float | None = None,
+        model: str | None = None,
+    ) -> tuple[dict[str, Any], int]:
+        """Async counterpart to `_complete_with_truncation_policy`."""
+        assert self.output_limits is not None
+        limits = self.output_limits.fit_to_prompt(estimate_prompt_tokens(messages, tools))
+        call_kwargs: dict[str, Any] = {"api_key": api_key, "tools": tools, "temperature": temperature}
+        if model is not None:
+            call_kwargs["model"] = model
+        if limits != self.output_limits:
+            call_kwargs["limits"] = limits
+        message = await self._achat_completion(messages, **call_kwargs)
+        policy = limits.truncation
+        retries = 0
+        usage = message.get("usage")
+        while message.get("finish_reason") == "length" and policy.action == "escalate" and retries < policy.retries:
+            nxt = limits.escalated((message.get("usage") or {}).get("completion_tokens"))
+            if nxt is None or not self._budget.allow_llm():
+                break
+            logger.warning(
+                "LLM completion truncated (model=%s, max tokens=%s); retrying with %d",
+                model or self.model,
+                limits.budget,
+                nxt,
+            )
+            self._budget.note_llm()
+            retries += 1
+            limits = limits.with_budget(nxt)
+            message = await self._achat_completion(messages, **{**call_kwargs, "limits": limits})
+            usage = sum_usage(usage, message.get("usage"))
+        if usage:
+            message["usage"] = usage
+        if limits.budget is not None:
+            message["_max_tokens"] = limits.budget
+        if message.get("finish_reason") == "length" and policy.action != "ignore":
+            detail = (
+                f"LLM completion truncated at max tokens={limits.budget or 'server default'} "
+                f"(model={model or self.model}, retries={retries}). Raise spec.models[].max_tokens "
+                "or set on_truncation."
+            )
+            if policy.action == "error":
+                raise TruncatedCompletionError(detail)
+            logger.warning(detail)
+        return message, retries
+
+    def _complete_with_truncation_policy(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        api_key: str,
+        tools: list[dict[str, Any]] | None,
+        temperature: float | None = None,
+        model: str | None = None,
+    ) -> tuple[dict[str, Any], int]:
+        """Run one completion and apply ``on_truncation``. Returns ``(message, retries)``."""
+        assert self.output_limits is not None
+        limits = self.output_limits.fit_to_prompt(estimate_prompt_tokens(messages, tools))
+        call_kwargs: dict[str, Any] = {"api_key": api_key, "tools": tools, "temperature": temperature}
+        if model is not None:
+            call_kwargs["model"] = model
+        if limits != self.output_limits:
+            call_kwargs["limits"] = limits
+        message = self._chat_completion(messages, **call_kwargs)
+        policy = limits.truncation
+        retries = 0
+        usage = message.get("usage")
+        while message.get("finish_reason") == "length" and policy.action == "escalate" and retries < policy.retries:
+            nxt = limits.escalated((message.get("usage") or {}).get("completion_tokens"))
+            if nxt is None or not self._budget.allow_llm():
+                break
+            logger.warning(
+                "LLM completion truncated (model=%s, max tokens=%s); retrying with %d",
+                model or self.model,
+                limits.budget,
+                nxt,
+            )
+            self._budget.note_llm()
+            retries += 1
+            limits = limits.with_budget(nxt)
+            message = self._chat_completion(messages, **{**call_kwargs, "limits": limits})
+            usage = sum_usage(usage, message.get("usage"))
+        if usage:
+            message["usage"] = usage
+        if limits.budget is not None:
+            message["_max_tokens"] = limits.budget
+        if message.get("finish_reason") == "length" and policy.action != "ignore":
+            detail = (
+                f"LLM completion truncated at max tokens={limits.budget or 'server default'} "
+                f"(model={model or self.model}, retries={retries}). Raise spec.models[].max_tokens "
+                "or set on_truncation."
+            )
+            if policy.action == "error":
+                raise TruncatedCompletionError(detail)
+            logger.warning(detail)
+        return message, retries
 
     def _message_to_engine_return(
         self,
@@ -482,9 +632,7 @@ class LiveLlmEngine:
                     correlation_id=io.correlation_id,
                     response_kind="MODEL_TEXT",
                     next_step="PARALLEL_TOOL_CALLS",
-                    parallel_tools=tuple(
-                        ToolCallSpec(tool_name=name, tool_arguments=args) for name, args in parsed
-                    ),
+                    parallel_tools=tuple(ToolCallSpec(tool_name=name, tool_arguments=args) for name, args in parsed),
                     text="",
                     usage=usage,
                     finish_reason=finish_reason,
@@ -561,8 +709,10 @@ class LiveLlmEngine:
         tools: list[dict[str, Any]] | None,
         temperature: float | None = None,
         model: str | None = None,
+        limits: OutputLimits | None = None,
     ) -> dict[str, Any]:
         """Dispatch to ``llm_provider``. Tests may patch this method."""
+        limits = limits or self.output_limits or OutputLimits()
         provider = self.llm_provider
         if provider is None:
             raise RuntimeError("no LLM provider configured")
@@ -573,7 +723,8 @@ class LiveLlmEngine:
             "messages": messages,
             "tools": tools,
             "temperature": self.temperature if temperature is None else temperature,
-            "max_tokens": self.max_tokens,
+            "max_tokens": limits.max_tokens,
+            "max_completion_tokens": limits.max_completion_tokens,
             "stream": self.stream,
             "on_stream_chunk": on_chunk,
             "api_key": api_key,
@@ -595,8 +746,10 @@ class LiveLlmEngine:
         tools: list[dict[str, Any]] | None,
         temperature: float | None = None,
         model: str | None = None,
+        limits: OutputLimits | None = None,
     ) -> dict[str, Any]:
         """Dispatch to ``llm_provider.achat_completion``. Tests may patch this method."""
+        limits = limits or self.output_limits or OutputLimits()
         provider = self.llm_provider
         if provider is None:
             raise RuntimeError("no LLM provider configured")
@@ -607,7 +760,8 @@ class LiveLlmEngine:
             "messages": messages,
             "tools": tools,
             "temperature": self.temperature if temperature is None else temperature,
-            "max_tokens": self.max_tokens,
+            "max_tokens": limits.max_tokens,
+            "max_completion_tokens": limits.max_completion_tokens,
             "stream": self.stream,
             "on_stream_chunk": on_chunk,
             "api_key": api_key,

@@ -53,6 +53,12 @@ from mas.ctl.ui.curses_app import build_curses_controller, run_curses_session
     default=None,
     help="Override spec.models for this run",
 )
+@click.option(
+    "--max-tokens",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Alias of --override 'agent:spec.models[*].max_tokens=N' (applied before explicit --override)",
+)
 @observability_options
 @click.pass_context
 def tui_cmd(
@@ -68,6 +74,7 @@ def tui_cmd(
     runtime_refs_cli: tuple[str, ...],
     no_validate: bool,
     model: str | None,
+    max_tokens: int | None,
     events: bool | None,
     events_file: str | None,
     events_stdout: bool,
@@ -75,19 +82,23 @@ def tui_cmd(
 ) -> None:
     """Curses chat UI — manifest, overlays, infra, and HITL parity with mas-ctl chat."""
     from mas.ctl.env import load_dotenv
+    from mas.ctl.overrides import max_tokens_overrides
     from mas.ctl.paths import manifest_cwd, resolve_overlay_path
     from mas.ctl.runtime_cli import load_merged_agent_manifest
     from mas.ctl.session.infra_resolve import resolve_session_infra
     from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
 
+    overrides = (*max_tokens_overrides(max_tokens), *overrides)
     with manifest_cwd(manifest, overlay_paths=overlays) as session:
         load_dotenv(cwd=session.original_cwd, manifest_dir=session.manifest_dir)
         workspace = WorkspaceConfig.load(session.manifest_dir or session.original_cwd)
+        workspace = workspace.with_cli_overrides(overrides)
         user = UserConfig.load()
         overlay_strs = tuple(str(p) for p in session.overlays)
         agent_data, plugin = load_merged_agent_manifest(
             session.local_manifest if manifest else None,
             overlays=overlay_strs,
+            overrides=overrides,
             pattern=pattern,
             validate=not no_validate,
         )
@@ -124,6 +135,7 @@ def tui_cmd(
                     infra_refs_cli=infra_refs_cli,
                     runtime_refs_cli=runtime_refs_cli,
                     anchor=session.manifest_dir or session.original_cwd,
+                    overrides=overrides,
                 ),
                 workspace=workspace,
                 runtime_refs_cli=runtime_refs_cli,

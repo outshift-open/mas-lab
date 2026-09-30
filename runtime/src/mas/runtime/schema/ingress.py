@@ -80,9 +80,7 @@ class EngineIoReturn(BaseModel):
     kind: Literal[IngressKind.ENGINE_IO_RETURN] = IngressKind.ENGINE_IO_RETURN
     correlation_id: int = Field(ge=1)
     response_kind: Literal["MODEL_TEXT", "TOOL_RESULT", "TRANSPORT_ACK", "ERROR"] = "MODEL_TEXT"
-    next_step: Literal[
-        "STOP", "TOOL_CALL", "PARALLEL_TOOL_CALLS", "LLM_CALL", "DELEGATE"
-    ] = "STOP"
+    next_step: Literal["STOP", "TOOL_CALL", "PARALLEL_TOOL_CALLS", "LLM_CALL", "DELEGATE"] = "STOP"
     tool_name: str = ""
     tool_arguments: dict = Field(default_factory=dict)
     parallel_tools: tuple[ToolCallSpec, ...] = ()
@@ -97,6 +95,9 @@ class EngineIoReturn(BaseModel):
     failure_class: str = ""
     failure_code: str = ""
     retry_attempts: int = 0
+    # Output-token budget sent on the final attempt; None when no limit was sent.
+    max_tokens: int | None = None
+    truncation_retries: int = 0
 
 
 class CtxAssemblyComplete(BaseModel):

@@ -64,9 +64,9 @@ def test_parse_execution_rejects_removed_mocking_key():
 def test_build_engine_replay_does_not_require_api_key(monkeypatch, tmp_path):
     from mas.ctl.infra.resolve import resolve_infra_refs
     from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
+    from mas.library.standard.plugins.llm.openai import OpenAILLMProvider
     from mas.runtime.engine.leaf import leaf_engine
     from mas.runtime.engine.llm_live import LiveLlmEngine
-    from mas.library.standard.plugins.llm.openai import OpenAILLMProvider
 
     monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: WorkspaceConfig({}))
     monkeypatch.setattr(UserConfig, "load", lambda *a, **k: UserConfig({}))
@@ -165,10 +165,7 @@ def test_resolve_model_name_parent_mas_default(monkeypatch):
     monkeypatch.delenv("MAS_CTL_MODEL", raising=False)
     monkeypatch.delenv("MAS_LLM_MODEL", raising=False)
     manifest = {"spec": {"models": [{"model": "any"}]}}
-    assert (
-        resolve_model_name(manifest, None, parent_default="gpt-4o", workspace_default="gpt-local")
-        == "gpt-4o"
-    )
+    assert resolve_model_name(manifest, None, parent_default="gpt-4o", workspace_default="gpt-local") == "gpt-4o"
 
 
 def test_resolve_model_name_experiment_default(monkeypatch):
@@ -233,6 +230,40 @@ def test_build_engine_loads_nested_reasoning_from_spec_models(monkeypatch, tmp_p
     assert leaf.reasoning.budget_tokens == 64
     assert leaf.reasoning.exclude is True
     assert leaf.reasoning.exclude_from_spec is True
+
+
+def test_build_engine_output_limits_from_infra_generation(monkeypatch, tmp_path):
+    from mas.ctl.infra.resolve import resolve_infra_refs
+    from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
+    from mas.runtime.engine.leaf import leaf_engine
+
+    monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: WorkspaceConfig({}))
+    monkeypatch.setattr(UserConfig, "load", lambda *a, **k: UserConfig({}))
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.delenv("MAS_LLM_MAX_TOKENS", raising=False)
+    limits_ref = tmp_path / "limits.yaml"
+    limits_ref.write_text(
+        "apiVersion: infra/v1\nkind: LLMProxy\nmetadata: {name: limits}\n"
+        "spec:\n  models:\n    generation:\n      max_tokens: 4096\n"
+        "      max_output_tokens: 8000\n      on_truncation: escalate\n",
+        encoding="utf-8",
+    )
+    infra = resolve_infra_refs(["standard:openai", str(limits_ref)], anchor=tmp_path)
+    assert infra.llm_proxy["generation"]["max_output_tokens"] == 8000
+    ctx = AutoCtxAssembler()
+    manifest = {"spec": {"models": [{"model": "onprem/qwen3"}]}}
+
+    leaf = leaf_engine(build_engine(ctx, manifest, infra, anchor=tmp_path).engine)
+    assert leaf.output_limits.max_tokens == 4096
+    assert leaf.output_limits.truncation.action == "escalate"
+
+    capped = {"spec": {"models": [{"model": "onprem/qwen3", "max_tokens": 20000}]}}
+    leaf = leaf_engine(build_engine(ctx, capped, infra, anchor=tmp_path).engine)
+    assert leaf.output_limits.max_tokens == 8000
+
+    bare = resolve_infra_refs(["standard:openai"], anchor=tmp_path)
+    leaf = leaf_engine(build_engine(ctx, manifest, bare, anchor=tmp_path).engine)
+    assert leaf.output_limits.budget is None
 
 
 def test_cache_and_stream_from_runtime_engine():

@@ -14,18 +14,12 @@ import os
 from typing import Any, Callable
 
 import httpx
-
-from mas.runtime.boundary.context.assemble import llm_tool_choice
 from mas.library.standard.plugins.llm.http import (
     arequest_with_retries,
     request_with_retries,
     resolve_ssl_verify,
 )
-from mas.runtime.reliability.classify import (
-    classify_llm_failure,
-    classify_llm_http_error,
-)
-from mas.runtime.reliability.policy import llm_retry_policy
+from mas.runtime.boundary.context.assemble import llm_tool_choice
 from mas.runtime.engine.llm_reasoning import (
     ReasoningSettings,
     ThinkTagStreamFilter,
@@ -33,7 +27,17 @@ from mas.runtime.engine.llm_reasoning import (
     coerce_reasoning_settings,
     sanitize_assistant_message,
 )
-from mas.runtime.engine.llm_request import apply_sampling_payload, merge_extra_body, sampling_settings_from_entry
+from mas.runtime.engine.llm_request import (
+    apply_output_token_limit,
+    apply_sampling_payload,
+    merge_extra_body,
+    sampling_settings_from_entry,
+)
+from mas.runtime.reliability.classify import (
+    classify_llm_failure,
+    classify_llm_http_error,
+)
+from mas.runtime.reliability.policy import llm_retry_policy
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +129,8 @@ class OpenAILLMProvider:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.7,
-        max_tokens: int = 2000,
+        max_tokens: int | None = None,
+        max_completion_tokens: int | None = None,
         stream: bool | None = None,
         on_stream_chunk: Callable[[str], None] | None = None,
         api_key: str | None = None,
@@ -143,7 +148,9 @@ class OpenAILLMProvider:
         if not key:
             raise RuntimeError(f"Missing API key env {self.api_key_env} for live LLM.")
         use_stream = self.stream if stream is None else stream
-        settings = coerce_reasoning_settings(reasoning if reasoning is not None else self.reasoning, effort=reasoning_effort)
+        settings = coerce_reasoning_settings(
+            reasoning if reasoning is not None else self.reasoning, effort=reasoning_effort
+        )
         try:
             return self._post_chat(
                 model=model,
@@ -151,6 +158,7 @@ class OpenAILLMProvider:
                 tools=tools,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                max_completion_tokens=max_completion_tokens,
                 api_key=key,
                 stream=use_stream,
                 on_stream_chunk=on_stream_chunk,
@@ -175,7 +183,8 @@ class OpenAILLMProvider:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.7,
-        max_tokens: int = 2000,
+        max_tokens: int | None = None,
+        max_completion_tokens: int | None = None,
         stream: bool | None = None,
         on_stream_chunk: Callable[[str], None] | None = None,
         api_key: str | None = None,
@@ -193,7 +202,9 @@ class OpenAILLMProvider:
         if not key:
             raise RuntimeError(f"Missing API key env {self.api_key_env} for live LLM.")
         use_stream = self.stream if stream is None else stream
-        settings = coerce_reasoning_settings(reasoning if reasoning is not None else self.reasoning, effort=reasoning_effort)
+        settings = coerce_reasoning_settings(
+            reasoning if reasoning is not None else self.reasoning, effort=reasoning_effort
+        )
         try:
             return await self._apost_chat(
                 model=model,
@@ -201,6 +212,7 @@ class OpenAILLMProvider:
                 tools=tools,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                max_completion_tokens=max_completion_tokens,
                 api_key=key,
                 stream=use_stream,
                 on_stream_chunk=on_stream_chunk,
@@ -225,9 +237,10 @@ class OpenAILLMProvider:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None,
         temperature: float,
-        max_tokens: int,
+        max_tokens: int | None,
         api_key: str,
         reasoning: ReasoningSettings,
+        max_completion_tokens: int | None = None,
         extra_body: dict[str, Any] | None = None,
         extra_headers: dict[str, Any] | None = None,
         extra_query: dict[str, Any] | None = None,
@@ -237,11 +250,7 @@ class OpenAILLMProvider:
     ) -> tuple[str, dict[str, Any], dict[str, str], dict[str, Any] | None]:
         url = self.api_base.rstrip("/") + "/chat/completions"
         payload: dict[str, Any] = apply_reasoning_payload(
-            {
-                "model": model,
-                "messages": messages,
-                "max_tokens": max_tokens,
-            },
+            {"model": model, "messages": messages},
             reasoning,
             max_tokens=max_tokens,
         )
@@ -249,18 +258,21 @@ class OpenAILLMProvider:
         if not isinstance(nested_extra, dict):
             nested_extra = None
         if sampling:
-            payload = apply_sampling_payload(
-                payload, sampling_settings_from_entry(sampling, model=model), model=model
-            )
+            payload = apply_sampling_payload(payload, sampling_settings_from_entry(sampling, model=model), model=model)
         from mas.runtime.engine.llm_model_catalog import default_model_catalog
 
         info = default_model_catalog().get(model)
         payload["temperature"] = info.clamp("temperature", temperature) if info is not None else temperature
-        if "max_completion_tokens" not in payload:
-            payload["max_tokens"] = int(max_tokens)
         extra = merge_extra_body(getattr(self, "extra_body", None), nested_extra, extra_body)
         if extra:
             payload.update(extra)
+        payload = apply_output_token_limit(
+            payload,
+            max_tokens=max_tokens,
+            max_completion_tokens=max_completion_tokens
+            if max_completion_tokens is not None
+            else (sampling or {}).get("max_completion_tokens"),
+        )
         if stream_options:
             payload["stream_options"] = stream_options
         if tools:
@@ -300,7 +312,8 @@ class OpenAILLMProvider:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None,
         temperature: float,
-        max_tokens: int,
+        max_tokens: int | None,
+        max_completion_tokens: int | None,
         api_key: str,
         stream: bool,
         on_stream_chunk: Callable[[str], None] | None,
@@ -318,6 +331,7 @@ class OpenAILLMProvider:
             tools=tools,
             temperature=temperature,
             max_tokens=max_tokens,
+            max_completion_tokens=max_completion_tokens,
             api_key=api_key,
             reasoning=reasoning,
             extra_body=extra_body,
@@ -366,7 +380,8 @@ class OpenAILLMProvider:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None,
         temperature: float,
-        max_tokens: int,
+        max_tokens: int | None,
+        max_completion_tokens: int | None,
         api_key: str,
         stream: bool,
         on_stream_chunk: Callable[[str], None] | None,
@@ -384,6 +399,7 @@ class OpenAILLMProvider:
             tools=tools,
             temperature=temperature,
             max_tokens=max_tokens,
+            max_completion_tokens=max_completion_tokens,
             api_key=api_key,
             reasoning=reasoning,
             extra_body=extra_body,

@@ -186,6 +186,30 @@ properties:
             type: object
             additionalProperties:
               type: string
+          generation:
+            type: object
+            additionalProperties: false
+            description: >
+              LLMProxy/LLMLocal: operator output-token policy for every model
+              served by this endpoint. max_tokens / max_completion_tokens /
+              on_truncation are defaults below spec.models[]; max_output_tokens
+              is a ceiling that bounds every value, including CLI and env
+              overrides. Omit the block to send no limit (server default).
+            properties:
+              max_tokens:
+                type: integer
+                minimum: 1
+              max_completion_tokens:
+                type: integer
+                minimum: 1
+              max_output_tokens:
+                type: integer
+                minimum: 1
+                description: >
+                  Hard ceiling. Match the server limit (e.g. vLLM
+                  generation-config max_new_tokens).
+              on_truncation:
+                $ref: "./fragments/llm-truncation.schema.yaml"
 
       endpoints:
         description: "Application: map of id → endpoint. LLMProxy: may be a list with name field."

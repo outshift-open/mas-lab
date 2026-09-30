@@ -75,7 +75,7 @@ class CacheLLMProvider:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.7,
-        max_tokens: int = 2000,
+        max_tokens: int | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
         params = completion_cache_params(temperature=temperature, max_tokens=max_tokens, **kwargs)

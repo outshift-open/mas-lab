@@ -32,6 +32,17 @@ Field-by-field `config.yaml` keys (including `mas_ctl.trace`) are in the
 | `--8<-- "includes/mas-paths.md:xdg-llm-cache"` | under `$XDG_CACHE_HOME` | LLM cache — built-in: [execution.md](manifests/execution.md#cache--the-llm-response-cache); infra: [llm-cache.md](manifests/llm-cache.md) · [ref](references/llm-cache.md) |
 | `$XDG_STATE_HOME` | `~/.local/state` | Base for state files |
 | `--8<-- "includes/mas-paths.md:xdg-last-run"` | under `$XDG_STATE_HOME` | Last benchmark run pointer |
+| `MAS_LABS_ROOT` | — | Env override for labs root |
+| `MAS_RUNS_ROOT` | — | Env override for runs root |
+| `MAS_DATA_ROOT` / `MAS_LAB_DATA` | — | Env override for data root |
+| `MAS_TRACE_CACHE` | — | Env override for trace cache |
+| `MAS_DATA_CACHE` | — | Env override for pipeline cache |
+| `MAS_LLM_CACHE` | — | Env override for the LLM response cache file path |
+| `MAS_LLM_CACHE_READ` / `MAS_LLM_CACHE_WRITE` | — | Built-in engine cache — [execution.md](manifests/execution.md#cache--the-llm-response-cache). Infra middleware: [references/llm-cache.md](references/llm-cache.md) |
+| `MAS_LLM_MAX_TOKENS` / `MAS_LLM_MAX_COMPLETION_TOKENS` | — (no limit sent) | Output-token budget for model rows that set none; below `spec.models[]` overrides and above infra `generation` — [Output-token limits](manifests/agent.md#output-token-limits) |
+| `MAS_LLM_ON_TRUNCATION` | — | `ignore` \| `warn` \| `error` \| `escalate`; default action below `spec.models[].on_truncation` |
+| `MAS_HOME` | `--8<-- "includes/mas-paths.md:mas-home"` | Env override for controller data root |
+| `MAS_CONTROLLER_SOCKET` | `--8<-- "includes/mas-paths.md:controller-socket"` | Env override for controller socket |
 
 MAS-Lab and `mas-ctl` resolve storage paths from the active config file
 (see [Tutorial 0](tutorials/00-environment-setup/README.md)). Infra manifests

@@ -65,11 +65,13 @@ class LLMProvider(Protocol):
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.7,
-        max_tokens: int = 2000,
+        max_tokens: int | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
         """Return an OpenAI-shaped assistant ``message`` dict.
 
+        ``max_tokens`` / ``max_completion_tokens`` (kwarg): output budget;
+        send at most one, and none when both are ``None`` (server default).
         Optional kwargs:
         **static (also on spec.models[])** — ``reasoning`` / ``reasoning_effort``,
         ``sampling``, ``extra_body``.

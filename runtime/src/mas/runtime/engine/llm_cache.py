@@ -66,12 +66,14 @@ def llm_cache_key(
 def completion_cache_params(
     *,
     temperature: float,
-    max_tokens: int,
+    max_tokens: int | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Stable extra fields that distinguish otherwise-identical completions."""
-    params: dict[str, Any] = {"temperature": temperature, "max_tokens": max_tokens}
-    for key in ("reasoning", "reasoning_effort", "sampling", "extra_body"):
+    params: dict[str, Any] = {"temperature": temperature}
+    if max_tokens is not None:
+        params["max_tokens"] = max_tokens
+    for key in ("max_completion_tokens", "reasoning", "reasoning_effort", "sampling", "extra_body"):
         value = kwargs.get(key)
         if value is not None:
             params[key] = value
