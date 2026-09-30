@@ -80,10 +80,10 @@ raise RequestHitlSignal(
    - Tracks `pending_hitl_agents` set in delegation state
    - **Side-channel propagation** — delegation contract unchanged (still returns `str`)
 
-### Phase 3: Webex Bot Helpers (Commit 6c2c23d4)
+### Phase 3: External HITL Client Helpers (Commit 6c2c23d4)
 
 **Files Created:**
-- `webex-use-case/src/webex_use_case/hitl_helpers.py`
+- Integration-owned `hitl_helpers.py` module (outside this repository)
 
 **Helper Functions:**
 ```python
@@ -95,29 +95,29 @@ clear_session_hitl(session_id)
 
 **Integration Pattern:**
 ```python
-# In bot._handle_room_text():
+# In an external chat client handler:
 result = session.ask(text)
 pending = get_pending_hitl_for_session(result.session_id)
 for agent_id, requests in pending.items():
     for req in requests:
         self._publish_agent_hitl_card(room_id, agent_id, req)
 
-# In bot._handle_attachment_action():
+# In an interactive UI action handler:
 if action_type == "hitl_resolve":
     resolve_agent_hitl(session_id, agent_id, correlation_id, choice, steering)
 ```
 
-### Phase 4: Webex Bot UI (TODO - Next Session)
+### Phase 4: External Client UI (TODO - Next Session)
 
 **Files to Modify:**
-- `webex-use-case/src/webex_use_case/bot.py`
+- The integration's client-specific UI adapter
 
 **Implementation Tasks:**
-1. Add `_publish_agent_hitl_card()` method
+1. Add `_publish_agent_hitl_prompt()` method
 2. Hook `get_pending_hitl_for_session()` after each `ask()`
-3. Hook `resolve_agent_hitl()` in `_handle_attachment_action()`
-4. Map agent_id to correct Webex bot identity for posting cards
-5. Test end-to-end: finance-agent calls → Webex card → user responds → resolution
+3. Hook `resolve_agent_hitl()` in the UI action handler
+4. Map agent_id to the correct client identity for posting prompts
+5. Test end-to-end: finance-agent calls → chat prompt → user responds → resolution
 
 ## Architecture Benefits
 
@@ -133,7 +133,7 @@ if action_type == "hitl_resolve":
 ✅ All imports verified with PYTHONPATH  
 ✅ System tools module structure correct  
 ✅ Registry API tested  
-✅ Webex helpers imports successful  
+✅ External integration helper imports successful
 ✅ No runtime modifications to Mealy kernel  
 ✅ Delegation contract unchanged  
 
@@ -168,16 +168,16 @@ if result.awaiting_hitl:
     if registry.has_pending(session_id, "finance-agent"):
         state["pending_hitl_agents"].add("finance-agent")
 
-# 6. Webex bot polls registry after ask()
+# 6. External client polls registry after ask()
 pending = get_pending_hitl_for_session("sess-123")
 # → {"finance-agent": [{"question": "...", "choices": [...], ...}]}
 
-# 7. Bot posts adaptive card to room
+# 7. Client posts an interactive prompt to the conversation
 self._publish_agent_hitl_card(room_id, "finance-agent", pending["finance-agent"][0])
 
 # 8. User clicks "approve" button
 
-# 9. Bot receives attachment action
+# 9. Client receives the user's UI action
 resolve_agent_hitl("sess-123", "finance-agent", 456, "approve", "")
 
 # 10. Resolution propagates back to agent
@@ -191,9 +191,9 @@ resolve_agent_hitl("sess-123", "finance-agent", 456, "approve", "")
 
 ## Next Steps
 
-1. **Phase 4**: Implement Webex bot UI integration
-   - Modify `bot.py` to post HITL cards
-   - Add card builders for different question types
+1. **Phase 4**: Implement external client UI integration
+    - Add support for posting HITL prompts
+    - Add prompt builders for different question types
    - Test end-to-end flow
 
 2. **Future**: Implement callback mechanism for resolution propagation

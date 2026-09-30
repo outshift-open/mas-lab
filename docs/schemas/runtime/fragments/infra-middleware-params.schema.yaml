@@ -17,6 +17,22 @@ properties:
     type: boolean
   include_preview:
     type: boolean
+  replay_delay_min_s:
+    type: number
+    minimum: 0
+  replay_delay_max_s:
+    type: number
+    minimum: 0
+  miss_log_path:
+    type: [string, "null"]
+    x-filesystem-path: true
+  write_mode:
+    type: string
+    enum: [append, replace]
+    description: >
+      append (default) keeps existing cache keys and records misses.
+      replace truncates cache_path once at process start (startup recording)
+      so a gold replay file is not mixed with a previous failed run.
   cache_path:
     type: [string, "null"]
     x-filesystem-path: true

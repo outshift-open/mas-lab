@@ -515,6 +515,98 @@ def test_merge_mas_overlay_agents_remove_by_name():
     assert agents[0]["id"] == "moderator"
 
 
+def _trip_mas_with_delegates(*, entry: str = "moderator") -> dict:
+    return {
+        "kind": "MAS",
+        "spec": {
+            "agency": {
+                "agents": [
+                    {"id": "moderator", "ref": "agents/moderator.yaml"},
+                    {"id": "finance", "ref": "agents/finance.yaml"},
+                    {"id": "deal_desk", "ref": "agents/deal-desk.yaml"},
+                ]
+            },
+            "workflow": {
+                "entry": entry,
+                "nodes": [
+                    {"id": "moderator", "delegates_to": ["finance", "deal_desk"]},
+                    {"id": "finance"},
+                    {"id": "deal_desk"},
+                ],
+            },
+        },
+    }
+
+
+def _skills(merged: dict, agent_id: str):
+    by_id = {item["id"]: item for item in merged["spec"]["agency"]["agents"]}
+    return (by_id[agent_id].get("spec") or {}).get("skills")
+
+
+def test_merge_mas_overlay_not_entry_skips_chair():
+    overlay = _overlay(
+        {"agents": {"$not-entry": {"skills": {"$op": {"add": ["l9-concord-v2-receiver"]}}}}},
+        target_kind="MAS",
+    )
+    merged = merge_overlay(_trip_mas_with_delegates(), overlay)
+    assert "spec" not in {item["id"]: item for item in merged["spec"]["agency"]["agents"]}["moderator"]
+    # Resolved against each agency row's own (still-empty, ref-only) spec --
+    # merge_agent_overlay always resolves $op eagerly here, same as a named
+    # per-agent patch (see test_merge_mas_overlay_keeps_name_only_agents).
+    assert _skills(merged, "finance") == ["l9-concord-v2-receiver"]
+    assert _skills(merged, "deal_desk") == ["l9-concord-v2-receiver"]
+
+
+def test_merge_mas_overlay_all_then_entry_stacks():
+    overlay = _overlay(
+        {
+            "agents": {
+                "$all": {"budget": {"max_llm_calls": 40}},
+                "$entry": {"skills": {"$op": {"add": ["l9-concord-v2-orchestrator"]}}},
+                "$not-entry": {"skills": {"$op": {"add": ["l9-concord-v2-receiver"]}}},
+            }
+        },
+        target_kind="MAS",
+    )
+    merged = merge_overlay(_trip_mas_with_delegates(), overlay)
+    by_id = {item["id"]: item for item in merged["spec"]["agency"]["agents"]}
+    assert by_id["moderator"]["spec"]["budget"] == {"max_llm_calls": 40}
+    assert by_id["finance"]["spec"]["budget"] == {"max_llm_calls": 40}
+    assert _skills(merged, "moderator") == ["l9-concord-v2-orchestrator"]
+    assert _skills(merged, "finance") == ["l9-concord-v2-receiver"]
+
+
+def test_merge_mas_overlay_delegates_matches_workflow_edges():
+    overlay = _overlay(
+        {"agents": {"$delegates": {"skills": {"$op": {"add": ["l9-concord-v2-receiver"]}}}}},
+        target_kind="MAS",
+    )
+    merged = merge_overlay(_trip_mas_with_delegates(), overlay)
+    assert _skills(merged, "finance") == ["l9-concord-v2-receiver"]
+    assert _skills(merged, "deal_desk") == ["l9-concord-v2-receiver"]
+    assert "spec" not in {item["id"]: item for item in merged["spec"]["agency"]["agents"]}["moderator"]
+
+
+def test_merge_mas_overlay_all_and_delegates_compose_on_same_agent_keep_op():
+    """Two alias patches landing on the SAME agent (here $all + $delegates
+    both touch finance/deal_desk) must stack -- not silently drop one -- via
+    _resolve_mas_agent_patches._layer/_keep_unresolved_ops."""
+    overlay = _overlay(
+        {
+            "agents": {
+                "$all": {"skills": {"$op": {"add": ["base-skill"]}}},
+                "$delegates": {"skills": {"$op": {"add": ["delegate-skill"]}}},
+            }
+        },
+        target_kind="MAS",
+    )
+    merged = merge_overlay(_trip_mas_with_delegates(), overlay)
+    assert _skills(merged, "finance") == ["base-skill", "delegate-skill"]
+    assert _skills(merged, "deal_desk") == ["base-skill", "delegate-skill"]
+    # moderator only ever matches $all (not a delegate of itself)
+    assert _skills(merged, "moderator") == ["base-skill"]
+
+
 def test_merge_mas_overlay_rejects_unsupported_patch_field() -> None:
     import pytest
 

@@ -118,6 +118,7 @@ CONTEXT_MANAGER_STRATEGY_PARAM_KEYS = frozenset(
 INFRA_MIDDLEWARE_PATH_PARAM_KEYS = frozenset(
     {
     'cache_path',
+    'miss_log_path',
     'path',
     }
 )

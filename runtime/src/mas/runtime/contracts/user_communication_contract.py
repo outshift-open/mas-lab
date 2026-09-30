@@ -136,6 +136,11 @@ class RegistryHitlContract:
                 f"(session={session_id}, agent={agent_id}, correlation_id={correlation_id}): {question}"
             )
 
+        # Full result: HITL tool results are returned verbatim and embedded in
+        # conversation history, so both this path and _SystemToolHitlWrapper's
+        # auto-resolve batch-mode path must build the exact same shape or a
+        # cache recorded via one path won't hit when replayed through the
+        # other (see mas_runtime.py bot-side resolution vs mas-ctl --auto-hitl).
         return {
             "choice": resolution_result["choice"],
             "steering": resolution_result["steering"] or "",

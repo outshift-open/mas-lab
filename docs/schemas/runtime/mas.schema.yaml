@@ -126,9 +126,9 @@ properties:
           collection op on spec.agency.agents — special-cased merge logic
           (merge_mas_overlay), not part of the generic x-merge dispatch, and
           not meaningful to set in this object form on a base MAS manifest
-          (there's nothing yet to override/remove from). The reserved key
-          $entry patches spec.workflow.entry after this overlay's workflow
-          patch, so a design-pattern overlay need not hardcode the entry id.
+          (there's nothing yet to override/remove from). Reserved keys
+          $entry, $all, $not-entry, and $delegates expand onto agency ids
+          after this overlay's workflow patch.
         oneOf:
           - type: array
             default: []

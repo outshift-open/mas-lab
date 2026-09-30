@@ -122,10 +122,10 @@ if result.awaiting_hitl:
     state["pending_hitl_agents"].add(agent_id)
 ```
 
-### Phase 3: Webex Bot Integration (✅ COMPLETE)
+### Phase 3: External HITL Client Helpers (✅ COMPLETE)
 
 **Added Files**:
-- `webex-use-case/src/webex_use_case/hitl_helpers.py` — HITL detection/resolution helpers
+- Integration-owned `hitl_helpers.py` module — HITL detection/resolution helpers
 
 **Helper Functions**:
 ```python
@@ -138,12 +138,10 @@ clear_session_hitl(session_id)
 **Integration Pattern**:
 
 ```python
-# In webex bot _handle_room_text:
+# In an external chat client handler:
 result = session.ask(text)
 
 # Check for pending HITL
-from webex_use_case.hitl_helpers import get_pending_hitl_for_session
-
 pending = get_pending_hitl_for_session(result.session_id)
 for agent_id, requests in pending.items():
     for req in requests:
@@ -157,9 +155,7 @@ for agent_id, requests in pending.items():
             correlation_id=req["correlation_id"],
         )
 
-# When user responds via attachment action:
-from webex_use_case.hitl_helpers import resolve_agent_hitl
-
+# When the user responds through the client UI:
 success = resolve_agent_hitl(
     session_id,
     agent_id,
@@ -188,15 +184,15 @@ success = resolve_agent_hitl(
 - `KernelDriver` — Propagate session/agent context to ctx
 - `mas_session.py` — Track pending HITL agents in delegation state
 
-### ✅ Phase 3: Webex Bot Helpers (Ready to Commit)
+### ✅ Phase 3: External HITL Client Helpers (Ready to Commit)
 
 - `hitl_helpers.py` — Detection and resolution functions
 - Integration pattern documented
 
-### 🔄 Phase 4: Webex Bot UI (TODO - Next Session)
+### 🔄 Phase 4: External Client UI (TODO - Next Session)
 
 **Files to Modify**:
-- `webex-use-case/src/webex_use_case/bot.py`
+- The integration's client-specific UI adapter
 
 **Implementation**:
 ```python
@@ -242,7 +238,7 @@ def _handle_attachment_action(self, attachment_action):
 2. **Integration Test**: Wrapper catches signal and returns marker
 3. **Registry Test**: Register/resolve cycle works
 4. **Delegation Test**: finance-agent calls `request_human_input`, moderator detects pending
-5. **Webex Test**: Bot posts HITL card, user clicks, resolution propagates
+5. **External UI Test**: Client posts HITL prompt, user responds, resolution propagates
 
 ## Benefits of This Architecture
 

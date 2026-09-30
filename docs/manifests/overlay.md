@@ -36,6 +36,12 @@ spec:
     agents:
       $entry:            # workflow.entry after this overlay's workflow patch
         design_pattern: { type: cot, params: { max_steps: 10 } }
+      $not-entry:        # every agency agent except $entry
+        skills: { "$op": { add: [l9-concord-v2-receiver] } }
+      $all:              # every agency agent (composed under more specific keys)
+        budget: { max_llm_calls: 40 }
+      $delegates:        # workflow.nodes[$entry].delegates_to
+        skills: { "$op": { add: [peer-note] } }
       broker:
         tools: { "$op": { remove: [web-search] } }
     workflow: { ... }   # topology: entry + directed delegation links
@@ -73,6 +79,20 @@ agency row onto the agent YAML (`governance` / `observability` union by plugin i
 they do not replace the agent's existing lists). Lab/bench MAS runs already attach
 a shared native sink; a fanned-out default `native` list joins that sink instead of
 opening a second `events.jsonl`. Custom observability paths stay per-agent.
+
+On a MAS overlay, reserved `patch.agents` keys expand onto agency ids after this
+overlay's `workflow` patch:
+
+| Key | Expands to |
+| --- | --- |
+| `$entry` | `spec.workflow.entry` |
+| `$all` | every `spec.agency.agents` id |
+| `$not-entry` | every agency id except `$entry` |
+| `$delegates` | `workflow.nodes[$entry].delegates_to` |
+
+They compose in that order, then a named id wins. `$entry` plus that same id as a
+key is an error. `$entry` / `$not-entry` require `spec.workflow.entry`. An unknown
+`$entry` id is an error.
 
 Merge semantics: later overlays in a scenario stack win on conflicting keys.
 Patches use RFC 7396 JSON merge; list fields such as `tools` accept an explicit

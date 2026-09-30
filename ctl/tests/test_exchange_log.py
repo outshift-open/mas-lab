@@ -264,6 +264,49 @@ def test_format_exchange_dump_pretty_prints_last():
     assert "correlation_id=2" in out
 
 
+def test_format_exchange_summary_delegated_turn_labels_caller_not_user():
+    """A delegated turn's USER edge is really the calling agent (see
+    KernelDriver.caller_agent_id) -- the trace must say so, not "USER"."""
+    inbound = format_exchange(
+        "finance",
+        ExchangeRecord(
+            kind="user_in",
+            text="What is the Q3 revenue?",
+            caller_agent_id="moderator",
+            ts_mono=1.0,
+            ts_wall="t",
+        ),
+        fmt=TraceFormatOptions(summary_only=True, turn_start_mono=1.0, agent_name="finance"),
+    )
+    assert "AGENT[moderator] -> AGENT[finance]" in inbound
+    assert "USER" not in inbound
+
+    outbound = format_exchange(
+        "finance",
+        ExchangeRecord(
+            kind="user_out",
+            text="Q3 revenue was $4.2M.",
+            caller_agent_id="moderator",
+            finish_reason="stop",
+            ts_mono=2.0,
+            ts_wall="t",
+        ),
+        fmt=TraceFormatOptions(summary_only=True, turn_start_mono=1.0, agent_name="finance"),
+    )
+    assert "AGENT[finance] -> AGENT[moderator]" in outbound
+    assert "USER" not in outbound
+
+
+def test_format_exchange_entry_agent_turn_still_labeled_user():
+    """No caller_agent_id (the MAS entry agent) keeps the plain USER label."""
+    out = format_exchange(
+        "moderator",
+        ExchangeRecord(kind="user_in", text="hi", ts_mono=1.0, ts_wall="t"),
+        fmt=TraceFormatOptions(summary_only=True, turn_start_mono=1.0, agent_name="moderator"),
+    )
+    assert "USER -> AGENT[moderator]" in out
+
+
 def test_format_exchange_gov_block_prints_agent_to_gov():
     ex = ExchangeRecord(
         kind="gov_block",

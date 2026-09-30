@@ -5,8 +5,9 @@
 
 Currently the only consumer is library-skills, which reads the first plugin
 id to pick the skill-plugin engine (native, adk, langchain), and an optional
-per-plugin ``auto_inject: true`` to also grant the ``run_skill_script`` system
-tool (script execution). ``activate_skill`` is implicit when ``spec.skills``
+per-plugin ``auto_inject: true`` to force ``run_skill_script`` even when no
+listed skill has a ``scripts/`` directory. Skills with scripts inject that
+tool automatically; ``activate_skill`` is implicit when ``spec.skills``
 lists at least one skill — see
 ``mas.library.skills.plugins.system_tools``. The shape is kept generic so other ContextContract
 source plugins can register here in the future without a schema change.

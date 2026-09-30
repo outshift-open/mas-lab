@@ -27,7 +27,7 @@ class RequestHumanInputTool(ToolContract):
     **Architecture**:
     - The tool emits an `EmitHitlRequest` to the kernel
     - The kernel pauses the agent's turn (but not the whole MAS round)
-    - External systems (e.g., Webex bot) resolve the HITL via a side channel
+    - External clients resolve the HITL via a side channel
     - The resolution flows back via `submit_hitl()` to this agent
     - The tool returns the user's response as its result
 
@@ -133,7 +133,7 @@ class RequestHumanInputTool(ToolContract):
         1. Validate arguments via Input model
         2. Emit EmitHitlRequest to kernel (side channel, not tool return)
         3. Kernel pauses agent's turn and returns DriverTrace with awaiting_hitl=True
-        4. External resolver (Webex bot) detects pending HITL and posts question
+        4. External resolver detects pending HITL and posts the question
         5. User responds via UI action (adaptive card button click)
         6. Resolver calls session.resolve_hitl(choice, steering)
         7. Kernel resumes agent's turn

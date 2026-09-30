@@ -52,6 +52,53 @@ def test_wrap_bidirectional_pipeline_uses_cache(tmp_path):
     assert cache_path.is_file()
 
 
+def test_write_mode_replace_truncates_once_per_process(tmp_path):
+    from mas.runtime.engine.infra_pipeline import reset_llm_cache_replace_guard
+
+    reset_llm_cache_replace_guard()
+    cache_path = tmp_path / "cache.json"
+    cache_path.write_text(
+        '{"old": {"response_kind": "MODEL_TEXT", "next_step": "STOP", "text": "stale"}}'
+    )
+    first = LlmCacheMiddleware(
+        inner=_EchoEngine(),
+        cache_path=cache_path,
+        allow_write=True,
+        write_mode="replace",
+    )
+    assert "old" not in first._cache
+    assert cache_path.read_text(encoding="utf-8") == "{}"
+
+    cache_path.write_text(
+        '{"kept": {"response_kind": "MODEL_TEXT", "next_step": "STOP", "text": "live"}}'
+    )
+    second = LlmCacheMiddleware(
+        inner=_EchoEngine(),
+        cache_path=cache_path,
+        allow_write=True,
+        write_mode="replace",
+    )
+    assert "kept" in second._cache
+    reset_llm_cache_replace_guard()
+
+
+def test_write_mode_append_keeps_existing_keys(tmp_path):
+    from mas.runtime.engine.infra_pipeline import reset_llm_cache_replace_guard
+
+    reset_llm_cache_replace_guard()
+    cache_path = tmp_path / "cache.json"
+    cache_path.write_text(
+        '{"old": {"response_kind": "MODEL_TEXT", "next_step": "STOP", "text": "stale"}}'
+    )
+    engine = LlmCacheMiddleware(
+        inner=_EchoEngine(),
+        cache_path=cache_path,
+        allow_write=True,
+        write_mode="append",
+    )
+    assert "old" in engine._cache
+
+
 def test_bidirectional_engine_backward_reply_passthrough():
     echo = _EchoEngine()
     inner = LlmCacheMiddleware(inner=echo, allow_read=False, allow_write=False)

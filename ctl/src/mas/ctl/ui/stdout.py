@@ -45,6 +45,11 @@ class StdoutConversationDisplay:
             self._out.flush()
 
     def on_agent(self, text: str) -> None:
+        # --trace already prints every agent's text via the exchange log --
+        # printing it again here as plain "agent: text" is pure duplication,
+        # same rule as on_user (kept at -vv for people who want both).
+        if self._trace and self._verbose < 2:
+            return
         if not text.strip():
             return
         if self._verbose == 0 and not self._show_labels:

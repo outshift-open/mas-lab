@@ -15,6 +15,14 @@ from mas.runtime.spec.plugin_binding import normalize_plugin_binding, plugin_bin
 
 logger = logging.getLogger(__name__)
 
+_OVERLAY_OP_KEY = "$op"
+_PATCH_OP_REPLACE = "replace"
+_PATCH_OP_ADD = "add"
+_PATCH_OP_REMOVE = "remove"
+_PATCH_OP_CLEAR = "clear"
+_PATCH_OP_MERGE = "merge"
+_PATCH_OPS = frozenset({_PATCH_OP_REPLACE, _PATCH_OP_ADD, _PATCH_OP_REMOVE, _PATCH_OP_CLEAR, _PATCH_OP_MERGE})
+
 
 # Every kind reads merge metadata straight off its own canonical schema --
 # every overlay-patchable field carries its own x-merge annotation inline on
@@ -139,12 +147,11 @@ def _validate_patch_fields_against_target_schema(overlay: dict[str, Any]) -> Non
 
 
 def _ops_dict(value: Any) -> dict[str, Any] | None:
-    if isinstance(value, dict) and isinstance(value.get("$op"), dict):
-        value = value["$op"]
+    if isinstance(value, dict) and isinstance(value.get(_OVERLAY_OP_KEY), dict):
+        value = value[_OVERLAY_OP_KEY]
     if not isinstance(value, dict):
         return None
-    op_keys = {"replace", "add", "remove", "clear", "merge"}
-    if not (set(value) & op_keys):
+    if not (set(value) & _PATCH_OPS):
         return None
     return value
 
@@ -164,24 +171,24 @@ def _merge_list_ops(
             "collection patch must be a raw list (implicit replace) or use '$op' (replace/add/remove/clear)"
         )
 
-    if ops.get("clear") is True:
+    if ops.get(_PATCH_OP_CLEAR) is True:
         result: list[Any] = []
     else:
         result = list(existing)
 
-    if "replace" in ops:
-        result = list(ops.get("replace") or [])
+    if _PATCH_OP_REPLACE in ops:
+        result = list(ops.get(_PATCH_OP_REPLACE) or [])
 
-    if "remove" in ops:
-        to_remove = list(ops.get("remove") or [])
+    if _PATCH_OP_REMOVE in ops:
+        to_remove = list(ops.get(_PATCH_OP_REMOVE) or [])
         if dedupe_key is None:
             result = [item for item in result if item not in to_remove]
         else:
             remove_keys = {dedupe_key(item) for item in to_remove}
             result = [item for item in result if dedupe_key(item) not in remove_keys]
 
-    if "add" in ops:
-        for item in list(ops.get("add") or []):
+    if _PATCH_OP_ADD in ops:
+        for item in list(ops.get(_PATCH_OP_ADD) or []):
             if dedupe_key is None:
                 if item not in result:
                     result.append(item)
@@ -238,17 +245,17 @@ def _merge_mapping_ops(existing: dict[str, Any], incoming: Any) -> dict[str, Any
         raise OverlayTargetError(
             "mapping patch must be a raw object (implicit replace) or use '$op' (replace/merge/clear)"
         )
-    if ops.get("clear") is True:
+    if ops.get(_PATCH_OP_CLEAR) is True:
         result: dict[str, Any] = {}
     else:
         result = deepcopy(existing)
-    if "replace" in ops:
-        replace_val = ops.get("replace") or {}
+    if _PATCH_OP_REPLACE in ops:
+        replace_val = ops.get(_PATCH_OP_REPLACE) or {}
         if not isinstance(replace_val, dict):
             raise OverlayTargetError("replace operation expects an object")
         result = deepcopy(replace_val)
-    if "merge" in ops:
-        merge_val = ops.get("merge") or {}
+    if _PATCH_OP_MERGE in ops:
+        merge_val = ops.get(_PATCH_OP_MERGE) or {}
         if not isinstance(merge_val, dict):
             raise OverlayTargetError("merge operation expects an object")
         result = apply_merge_patch(result, deepcopy(merge_val))
@@ -272,21 +279,21 @@ def _merge_plugin_list_ops(existing: list[Any], incoming: Any) -> list[Any]:
             "plugin-list patch must be a raw list (implicit replace) or use '$op' (replace/add/remove/clear)"
         )
 
-    if ops.get("clear") is True:
+    if ops.get(_PATCH_OP_CLEAR) is True:
         result: list[Any] = []
     else:
         result = list(existing)
 
-    if "replace" in ops:
-        result = list(ops.get("replace") or [])
+    if _PATCH_OP_REPLACE in ops:
+        result = list(ops.get(_PATCH_OP_REPLACE) or [])
 
-    if "remove" in ops:
-        remove_keys = {str(v) for v in list(ops.get("remove") or [])}
+    if _PATCH_OP_REMOVE in ops:
+        remove_keys = {str(v) for v in list(ops.get(_PATCH_OP_REMOVE) or [])}
         result = [item for item in result if _plugin_entry_key(item) not in remove_keys]
 
-    if "add" in ops:
+    if _PATCH_OP_ADD in ops:
         keys = {_plugin_entry_key(item) for item in result}
-        for item in list(ops.get("add") or []):
+        for item in list(ops.get(_PATCH_OP_ADD) or []):
             key = _plugin_entry_key(item)
             if key not in keys:
                 result.append(item)
@@ -555,7 +562,71 @@ class OverlayTargetError(ValueError):
     """Overlay target kind, name, or patch field does not match the base document."""
 
 
-_ENTRY_AGENT_KEY = "$entry"
+def _compose_list_op_patches(left: Any, right: Any) -> dict[str, Any]:
+    """Stack two `$op` collection patches (add lists concatenate)."""
+    a = _ops_dict(left) or {}
+    b = _ops_dict(right) or {}
+    out: dict[str, Any] = {}
+    if a.get("clear") or b.get("clear"):
+        out["clear"] = True
+    if "replace" in b:
+        out["replace"] = list(b.get("replace") or [])
+    elif "replace" in a:
+        out["replace"] = list(a.get("replace") or [])
+    added: list[Any] = []
+    if "replace" not in b:
+        added.extend(list(a.get("add") or []))
+    added.extend(list(b.get("add") or []))
+    if added:
+        out["add"] = added
+    removed: list[Any] = []
+    if "replace" not in b:
+        removed.extend(list(a.get("remove") or []))
+    removed.extend(list(b.get("remove") or []))
+    if removed:
+        out["remove"] = removed
+    return {"$op": out}
+
+
+def _keep_unresolved_ops(existing: Any, incoming: Any) -> Any:
+    """Park `$op` on a MAS agent-alias patch ($all/$not-entry/$delegates/$entry)
+    until the Agent YAML is loaded, when two aliases stack onto the same
+    agency id (see _resolve_mas_agent_patches._layer).
+
+    Resolving `$op.add` against an empty agent spec here would collapse it to
+    a short list; the later per-agent overlay merge (once that Agent's own
+    document is loaded) needs the `$op` wrapper intact to compose correctly.
+    Nested maps (e.g. context.role) are walked the same way.
+    """
+    if _ops_dict(incoming) is not None:
+        if _ops_dict(existing) is not None:
+            return _compose_list_op_patches(existing, incoming)
+        if existing in (None, [], {}):
+            return deepcopy(incoming)
+        if isinstance(existing, list):
+            return _merge_list_ops(existing, incoming)
+        return deepcopy(incoming)
+    if isinstance(incoming, dict):
+        base = existing if isinstance(existing, dict) else {}
+        out = deepcopy(base)
+        for key, value in incoming.items():
+            out[key] = _keep_unresolved_ops(base.get(key), value)
+        return out
+    return deepcopy(incoming)
+
+
+_AGENT_ALIAS_ENTRY = "$entry"
+_AGENT_ALIAS_ALL = "$all"
+_AGENT_ALIAS_NOT_ENTRY = "$not-entry"
+_AGENT_ALIAS_DELEGATES = "$delegates"
+_AGENT_ALIASES = frozenset(
+    {
+        _AGENT_ALIAS_ENTRY,
+        _AGENT_ALIAS_ALL,
+        _AGENT_ALIAS_NOT_ENTRY,
+        _AGENT_ALIAS_DELEGATES,
+    }
+)
 
 
 def _workflow_entry(spec: dict[str, Any]) -> str:
@@ -566,22 +637,88 @@ def _workflow_entry(spec: dict[str, Any]) -> str:
     return str(entry).strip() if entry is not None else ""
 
 
-def _resolve_mas_agent_patches(overlay_agents: dict[str, Any], *, entry: str) -> dict[str, Any]:
-    """Map ``patch.agents.$entry`` onto ``spec.workflow.entry`` after the workflow patch."""
-    if _ENTRY_AGENT_KEY not in overlay_agents:
+def _agency_ids(spec: dict[str, Any]) -> list[str]:
+    agency = spec.get("agency")
+    if not isinstance(agency, dict):
+        return []
+    ids: list[str] = []
+    for item in agency.get("agents") or []:
+        if not isinstance(item, dict):
+            continue
+        key = _agency_entry_key(item)
+        if key:
+            ids.append(key)
+    return ids
+
+
+def _workflow_delegates(spec: dict[str, Any], *, entry: str) -> list[str]:
+    wf = spec.get("workflow")
+    if not isinstance(wf, dict):
+        return []
+    for node in wf.get("nodes") or []:
+        if not isinstance(node, dict):
+            continue
+        if str(node.get("id") or "").strip() != entry:
+            continue
+        return [str(item).strip() for item in (node.get("delegates_to") or []) if str(item).strip()]
+    return []
+
+
+def _require_workflow_entry(alias: str, entry: str) -> str:
+    if entry:
+        return entry
+    raise OverlayTargetError(f"patch.agents.{alias} requires spec.workflow.entry on the merged MAS")
+
+
+def _resolve_mas_agent_patches(overlay_agents: dict[str, Any], spec: dict[str, Any]) -> dict[str, Any]:
+    """Expand ``$entry`` / ``$all`` / ``$not-entry`` / ``$delegates`` onto agency ids.
+
+    Specificity (later wins, patches compose with ``$op``): ``$all``, then
+    ``$not-entry``, then ``$delegates``, then ``$entry``, then a named id.
+    ``$entry`` plus that same id as a key is an error.
+    """
+    if not any(key in overlay_agents for key in _AGENT_ALIASES):
         return overlay_agents
-    if not entry:
-        raise OverlayTargetError("patch.agents.$entry requires spec.workflow.entry on the merged MAS")
-    if entry in overlay_agents:
-        raise OverlayTargetError(
-            f"patch.agents.$entry and patch.agents[{entry!r}] both set; "
-            "use $entry alone — it already names the workflow entry agent"
-        )
-    resolved: dict[str, Any] = {}
-    for agent_id, per_agent in overlay_agents.items():
-        key = entry if agent_id == _ENTRY_AGENT_KEY else agent_id
-        resolved[key] = per_agent
-    return resolved
+
+    entry = _workflow_entry(spec)
+    agency_ids = _agency_ids(spec)
+    named = {key: value for key, value in overlay_agents.items() if key not in _AGENT_ALIASES}
+    if _AGENT_ALIAS_ENTRY in overlay_agents:
+        entry = _require_workflow_entry(_AGENT_ALIAS_ENTRY, entry)
+        if entry in named:
+            raise OverlayTargetError(
+                f"patch.agents.$entry and patch.agents[{entry!r}] both set; "
+                "use $entry alone — it already names the workflow entry agent"
+            )
+    if _AGENT_ALIAS_NOT_ENTRY in overlay_agents:
+        entry = _require_workflow_entry(_AGENT_ALIAS_NOT_ENTRY, entry)
+
+    expanded: dict[str, Any] = {}
+
+    def _layer(agent_id: str, patch: Any) -> None:
+        if not isinstance(patch, dict):
+            return
+        existing = expanded.get(agent_id)
+        expanded[agent_id] = patch if existing is None else _keep_unresolved_ops(existing, patch)
+
+    if _AGENT_ALIAS_ALL in overlay_agents:
+        all_patch = overlay_agents[_AGENT_ALIAS_ALL]
+        for agent_id in agency_ids:
+            _layer(agent_id, all_patch)
+    if _AGENT_ALIAS_NOT_ENTRY in overlay_agents:
+        not_entry_patch = overlay_agents[_AGENT_ALIAS_NOT_ENTRY]
+        for agent_id in agency_ids:
+            if agent_id != entry:
+                _layer(agent_id, not_entry_patch)
+    if _AGENT_ALIAS_DELEGATES in overlay_agents:
+        delegates_patch = overlay_agents[_AGENT_ALIAS_DELEGATES]
+        for agent_id in _workflow_delegates(spec, entry=entry or _workflow_entry(spec)):
+            _layer(agent_id, delegates_patch)
+    if _AGENT_ALIAS_ENTRY in overlay_agents:
+        _layer(entry, overlay_agents[_AGENT_ALIAS_ENTRY])
+    for agent_id, patch in named.items():
+        _layer(str(agent_id), patch)
+    return expanded
 
 
 def merge_flavour_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
@@ -704,9 +841,8 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
         agency["agents"] = existing_agents
         base_spec["agency"] = agency
     elif isinstance(overlay_agents, dict):
-        had_entry_key = _ENTRY_AGENT_KEY in overlay_agents
-        entry_id = _workflow_entry(base_spec)
-        overlay_agents = _resolve_mas_agent_patches(overlay_agents, entry=entry_id)
+        had_entry_key = _AGENT_ALIAS_ENTRY in overlay_agents
+        overlay_agents = _resolve_mas_agent_patches(overlay_agents, base_spec)
         agency = base_spec.setdefault("agency", {})
         agents_list = list(agency.get("agents") or [])
         by_id = {
@@ -714,6 +850,7 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
             for a in agents_list
             if isinstance(a, dict) and (a.get("id") or a.get("name"))
         }
+        entry_id = _workflow_entry(base_spec)
         for agent_id, per_agent in overlay_agents.items():
             if not isinstance(per_agent, dict):
                 continue

@@ -390,6 +390,7 @@ def make_workflow_send(
         "correlation_id": 0,
         "call_seq": 0,
         "session_id": session_id or str(uuid.uuid4()),
+        "controllers": {},
     }
 
     def send(
@@ -414,21 +415,13 @@ def make_workflow_send(
         # materialized.instances to find it.
         parent_call_id = caller_call_id
         # RuntimeInstance.run_user_text builds this invocation's own exec_id
-        # as f"{agent_id}-{turn_id}-exec" (instance.py) and that literal
-        # string becomes every child call's parent_call_id on the wire. A
-        # fresh SessionController is created below on every send() call, so
-        # its internal turn counter always starts at 0 — passing no turn_id
-        # would make every single invocation of this agent resolve to the
-        # SAME "u1", so two calls to the same agent could never be told apart
-        # from their children's parent_call_id alone (only from which time
-        # window a child happened to fall in — a real runtime-side gap, not
-        # something to reconstruct downstream). caller_call_id is already a
-        # real, globally-unique id per delegation invocation (minted once by
-        # the driver — see InvokeEngineIo.call_id); reusing it here as this
-        # invocation's own turn_id costs no new state and makes exec_id
-        # unique per call. Sequential-workflow steps (no caller_call_id) get
-        # a per-closure monotonic sequence number instead — still exact, not
-        # a guess, just scoped to this one workflow run.
+        # as f"{agent_id}-{turn_id}-exec" (instance.py). turn_id is the
+        # unique caller_call_id (or a per-closure sequence number), so two
+        # calls to the same agent stay distinct even when we reuse one
+        # SessionController — that reuse is required so CliTraceExchangePlugin
+        # is subscribed once. Recreating the controller every send() stacked
+        # a new plugin on the shared driver and reprinted every later reply
+        # N times with non-monotonic +offsets.
         state["call_seq"] += 1
         turn_id = caller_call_id or f"{agent_id}-seq{state['call_seq']}"
         if bus is not None and prev_agent and prev_agent != agent_id:
@@ -470,20 +463,30 @@ def make_workflow_send(
                 user_prompt_echoed=True,
                 trace=getattr(base, "_trace", False),
             )
-        controller = SessionController(
-            instance=instance,
-            display=sub_display,
-            verbose=verbose,
-            agent_id=agent_id,
-            config=ConversationConfig(single_turn=True),
-            session_id=state["session_id"],
-            working_memory_key=memory_key,
-            trace=trace,
-            trace_timestamps=trace_timestamps,
-            trace_engine=trace_engine,
-            trace_summary=trace_summary,
-            trace_color=trace_color,
-        )
+        caller_agent_id = from_agent if parent_call_id and from_agent and from_agent != agent_id else ""
+        controllers: dict[str, Any] = state["controllers"]
+        controller = controllers.get(agent_id)
+        if controller is None:
+            controller = SessionController(
+                instance=instance,
+                display=sub_display,
+                verbose=verbose,
+                agent_id=agent_id,
+                config=ConversationConfig(single_turn=True),
+                session_id=state["session_id"],
+                working_memory_key=memory_key,
+                caller_agent_id=caller_agent_id,
+                trace=trace,
+                trace_timestamps=trace_timestamps,
+                trace_engine=trace_engine,
+                trace_summary=trace_summary,
+                trace_color=trace_color,
+            )
+            controllers[agent_id] = controller
+        else:
+            controller.caller_agent_id = caller_agent_id
+            controller.working_memory_key = memory_key
+            controller.display = sub_display
         result = controller.run_turn(prompt, turn_id=turn_id, parent_call_id=parent_call_id)
         # Do NOT close observability after a delegated sub-turn: in a multi-agent
         # run every agent shares one plugin set owned by the top-level session
@@ -501,7 +504,7 @@ def make_workflow_send(
             raise RuntimeError(f"agent {agent_id!r} turn failed")
 
         # Propagate awaiting_hitl state via side channel (not return value)
-        # This allows external systems (Webex bot) to detect and resolve HITL
+        # This allows external clients to detect and resolve HITL requests
         # from delegated agents without breaking the delegation contract.
         if result.awaiting_hitl:
             from mas.runtime.boundary.hitl.registry import get_hitl_resolver_registry

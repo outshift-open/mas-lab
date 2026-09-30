@@ -124,9 +124,9 @@ class RunSkillScriptPlugin(ToolContract):
             args=args,
             timeout=timeout,
             extra_env=sanitize_extra_env(env),
-            stdin=stdin,
             registry=registry,
             backend_plugin=backend_plugin,
+            stdin=stdin,
         )
 
     def on_collect_tools(self, **_: Any) -> list[dict[str, Any]]:
@@ -157,13 +157,23 @@ class RunSkillScriptPlugin(ToolContract):
 
         if backend_plugin is not None:
             try:
-                result = backend_plugin.run_script(
-                    skill_name=skill,
-                    script_name=script,
-                    args=args,
-                    timeout=timeout,
-                    env_extra=extra_env,
-                )
+                try:
+                    result = backend_plugin.run_script(
+                        skill_name=skill,
+                        script_name=script,
+                        args=args,
+                        timeout=timeout,
+                        env_extra=extra_env,
+                        stdin=stdin,
+                    )
+                except TypeError:
+                    result = backend_plugin.run_script(
+                        skill_name=skill,
+                        script_name=script,
+                        args=args,
+                        timeout=timeout,
+                        env_extra=extra_env,
+                    )
             except Exception as exc:
                 return {"error": f"Cannot run script {script!r} for skill {skill!r}: {exc}"}
             return {

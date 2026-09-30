@@ -67,7 +67,7 @@ def execute_run_mas(
     from mas.ctl.ui.stdout import StdoutConversationDisplay
 
     # Batch/CLI runs with auto-hitl (the default) have no external resolver
-    # (Webex bot, operator console) listening for agent-initiated
+    # (external resolver, operator console) listening for agent-initiated
     # request_human_input() calls, so the synchronous HITL wait in
     # manifest_tool_provider would otherwise always time out. Signal batch
     # mode via env var (mirrors the existing MAS_MANIFEST_RESOLVE_REFS

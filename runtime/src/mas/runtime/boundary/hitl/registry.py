@@ -46,7 +46,7 @@ class HitlResolverRegistry:
     1. Agent calls request_human_input tool
     2. Tool emits RequestHitlSignal
     3. Signal is caught and registered here
-    4. External system (Webex bot) polls pending requests
+    4. External client polls pending requests
     5. User responds via UI
     6. External system calls resolve() with user's choice
     7. Callback resumes agent's turn
@@ -61,7 +61,7 @@ class HitlResolverRegistry:
         self._user_updates: dict[tuple[str, str, int], PendingUserUpdate] = {}
         # Additive, never-reset subscriber lists -- same pattern as
         # ObservabilityOperator.subscribe()/KernelDriver.subscribe_exchange():
-        # multiple consumers (e.g. a Webex bot and a CLI console) can each
+        # multiple consumers (e.g. a chat client and a CLI console) can each
         # register once and coexist, instead of one overwriting another.
         self._hitl_subscribers: list[Callable[[PendingHitlRequest], None]] = []
         self._user_update_subscribers: list[Callable[[PendingUserUpdate], None]] = []
