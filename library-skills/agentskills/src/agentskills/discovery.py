@@ -201,17 +201,25 @@ class Discovery:
         there), then stops. Also stops after ancestor_walk_depth levels, if
         set.
         """
+        # ``git rev-parse`` needs an existing directory as cwd, but ``start``
+        # (the skill catalog base_dir) may point at a not-yet-created
+        # ``skills/`` dir — passing it to Popen raises FileNotFoundError. Fall
+        # back to the nearest existing ancestor, and tolerate git being absent
+        # or any other subprocess/OS error.
+        git_cwd = start if start.is_dir() else next(
+            (p for p in start.resolve().parents if p.is_dir()), Path.cwd()
+        )
         try:
             git_root = Path(
                 run(
                     ["git", "rev-parse", "--show-toplevel"],
-                    cwd=start,
+                    cwd=git_cwd,
                     capture_output=True,
                     text=True,
                     check=True,
                 ).stdout.strip()
             ).resolve()
-        except CalledProcessError:
+        except (CalledProcessError, OSError):
             git_root = None
 
         for depth, parent in enumerate(start.resolve().parents):
