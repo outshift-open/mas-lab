@@ -520,6 +520,7 @@ class ObservabilityOperator:
         usage: dict | None = None,
         finish_reason: str = "",
         tools: list | None = None,
+        model: str = "",
     ) -> ObservabilityEvent:
         machine = _machine_for_op(op)
         resolved_tool = str(tool_name or "").strip()
@@ -537,6 +538,8 @@ class ObservabilityOperator:
             payload["usage"] = dict(usage)
         if finish_reason:
             payload["finish_reason"] = finish_reason
+        if model:
+            payload["model"] = model
         if tools is not None:
             payload["tools"] = [str(name) for name in tools if str(name)]
         return self._emit(

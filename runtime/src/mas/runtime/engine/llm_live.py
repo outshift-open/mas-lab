@@ -329,6 +329,7 @@ class LiveLlmEngine:
                     usage=usage,
                     finish_reason=finish_reason,
                     offered_tools=self._names_from_tool_defs(tool_defs),
+                    model=self.model,
                 )
             name, args = parsed[0]
             self._pending_tool = name
@@ -343,6 +344,7 @@ class LiveLlmEngine:
                 usage=usage,
                 finish_reason=finish_reason,
                 offered_tools=self._names_from_tool_defs(tool_defs),
+                model=self.model,
             )
 
         text = str(message.get("content") or "").strip()
@@ -354,6 +356,7 @@ class LiveLlmEngine:
             usage=usage,
             finish_reason=finish_reason,
             offered_tools=self._names_from_tool_defs(tool_defs),
+            model=self.model,
         )
 
     def _build_messages(self, *, tools: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:

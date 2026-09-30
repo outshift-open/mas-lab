@@ -609,6 +609,8 @@ class MasOtelConverter:
             "mas.llm.finish_reason": ev.get("finish_reason") or "",
             "mas.llm.response": str(completion)[:2000],
         }
+        if ev.get("model"):
+            extra["mas.llm.model"] = ev["model"]
         if thinking:
             extra["mas.llm.thinking"] = str(thinking)[:2000]
         if isinstance(tokens, dict):
