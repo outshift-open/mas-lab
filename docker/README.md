@@ -241,9 +241,18 @@ docker/
     entrypoint-ui.sh
 ```
 
-## Build only (images are not published to a registry)
+## Release images and local builds
 
-Images must be built locally from this repository:
+Tagged releases publish the UI and backend images to GHCR via
+`.github/workflows/docker.yml` and `.github/workflows/build-push-ghcr.yaml`.
+The image names are:
+
+```bash
+ghcr.io/outshift-open/mas-lab/ui:tag
+ghcr.io/outshift-open/mas-lab/backend:tag
+```
+
+For local development or CI validation, you can still build from this repository:
 
 ```bash
 cd docker

@@ -2555,7 +2555,7 @@ wheels = [
 
 [[package]]
 name = "mas-ctl"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "ctl" }
 dependencies = [
     { name = "certifi" },
@@ -2597,7 +2597,7 @@ provides-extras = ["curses", "dev"]
 
 [[package]]
 name = "mas-lab"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "lab" }
 dependencies = [
     { name = "jsonschema" },
@@ -2622,7 +2622,7 @@ requires-dist = [
 
 [[package]]
 name = "mas-lab-bench"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "lab/components/bench" }
 dependencies = [
     { name = "click" },
@@ -2658,7 +2658,7 @@ requires-dist = [
 
 [[package]]
 name = "mas-lab-controller"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "lab/components/controller" }
 dependencies = [
     { name = "click" },
@@ -2702,7 +2702,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "mas-lab-core"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "lab/components/core" }
 dependencies = [
     { name = "mas-runtime" },
@@ -2717,7 +2717,7 @@ requires-dist = [
 
 [[package]]
 name = "mas-lab-workspace"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "mas-ctl" },
@@ -2778,7 +2778,7 @@ dev = [
 
 [[package]]
 name = "mas-library-eval"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "library-eval" }
 dependencies = [
     { name = "click" },
@@ -2814,7 +2814,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "mas-library-ioa"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "library-ioa" }
 dependencies = [
     { name = "a2a-sdk", extra = ["http-server", "sqlite"] },
@@ -2844,7 +2844,7 @@ provides-extras = ["cli", "all"]
 
 [[package]]
 name = "mas-library-lab"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "library-lab" }
 dependencies = [
     { name = "mas-lab" },
@@ -2855,12 +2855,12 @@ requires-dist = [{ name = "mas-lab", editable = "lab" }]
 
 [[package]]
 name = "mas-library-samples"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "library-samples" }
 
 [[package]]
 name = "mas-library-skills"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "library-skills" }
 dependencies = [
     { name = "mas-runtime" },
@@ -2894,7 +2894,7 @@ provides-extras = ["adk", "langchain", "all"]
 
 [[package]]
 name = "mas-library-standard"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "library-standard" }
 dependencies = [
     { name = "ddgs" },
@@ -2920,7 +2920,7 @@ provides-extras = ["otel"]
 
 [[package]]
 name = "mas-runtime"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "runtime" }
 dependencies = [
     { name = "certifi" },

@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mas-lab-controller"
-version = "0.1.0"
+version = "0.2.0"
 description = "MAS Lab controller daemon — workers, IPC, HTTP API for CLI and UI."
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
