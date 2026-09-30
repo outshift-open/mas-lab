@@ -11,7 +11,7 @@ without loading everything into the context window upfront.
 ## Core concept — progressive disclosure
 
 | Tier | What the model sees | When | Token cost |
-|------|---------------------|------|------------|
+| ------ | --------------------- | ------ | ------------ |
 | 1 — Catalog | Name + description of each skill | Session start (always) | ~50–100 per skill |
 | 2 — Instructions | Full `SKILL.md` body | When model calls `activate_skill(name)` | <5000 (recommended) |
 | 3 — Resources | Scripts, references, assets | When model calls `read_skill_file(skill, path)` | Varies |
@@ -56,6 +56,7 @@ tags: [formatting, qa]
 ```
 
 Required front matter fields:
+
 - `name` — must match the directory name (warning if not, still loaded)
 - `description` — when to use the skill, plus a cue to `activate_skill(name)`
   and follow the loaded body. The catalog lists this text so the model can
@@ -73,9 +74,16 @@ spec:
 ```
 
 The runtime searches for `SKILL.md` in:
+
 1. `<manifest_dir>/answer-formatting/SKILL.md`
 2. `<manifest_dir>/skills/answer-formatting/SKILL.md`
 3. Walking up to the nearest `skills/` directory (library-level shared skills)
+
+Every non-namespaced skill listed in `spec.skills` must resolve to an existing
+`SKILL.md` through these search paths. A missing skill fails bootstrap with an
+error naming the missing reference; it is never silently omitted from the
+system prompt. A present file with invalid front matter is still handled by
+the discovery parser and reported using its existing validation warnings.
 
 ---
 
@@ -229,7 +237,7 @@ spec:
 ## Overlays reference
 
 | Overlay | What it adds |
-|---------|-------------|
+| --------- | ------------- |
 | `skills:overlays/skills.yaml` | Explicit `{kind: system, name: activate_skill}` (same tools are implicit if `spec.skills` is listed) |
 | `skills:overlays/skills-shell.yaml` | Explicit `activate_skill` + `run_skill_script` |
 

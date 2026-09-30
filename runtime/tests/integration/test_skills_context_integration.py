@@ -2,8 +2,8 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Skills context integration — fully in library-skills; no runtime skill imports."""
 
-from pathlib import Path
 
+import pytest
 from mas.library.skills.lib.resolver import resolve_skill_path
 from mas.library.skills.lib.spec import skill_refs_from_manifest
 from mas.library.skills.plugins.sk_catalog import SkillCatalogPlugin, attach_skill_catalog_plugin
@@ -51,10 +51,10 @@ def test_resolve_skill_normalizes_underscore_slug(tmp_path):
     assert path.name == "SKILL.md"
 
 
-def test_catalog_plugin_missing_ref_returns_empty(tmp_path):
+def test_catalog_plugin_missing_ref_raises(tmp_path):
     manifest = {"spec": {"skills": ["missing-skill"]}}
-    plugin = SkillCatalogPlugin(manifest=manifest, base_dir=tmp_path)
-    assert plugin.collect_context() == []
+    with pytest.raises(ValueError, match="missing-skill"):
+        SkillCatalogPlugin(manifest=manifest, base_dir=tmp_path)
 
 
 def test_catalog_plugin_injects_catalog_only(tmp_path):
