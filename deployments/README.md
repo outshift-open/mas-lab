@@ -14,4 +14,14 @@ See [`docker/README.md`](../docker/README.md) for volume mounts, env vars, and o
 
 ## CI images
 
-Container images are built via `.github/workflows/build-push-ghcr.yaml`.
+Container images are built and published via
+`.github/workflows/build-push-ghcr.yaml` and triggered by the release workflow
+in `.github/workflows/docker.yml`.
+
+Published images for the release line include:
+
+- `ghcr.io/outshift-open/mas-lab/ui`
+- `ghcr.io/outshift-open/mas-lab/backend`
+
+The tag is derived from the release version and git SHA so the image stays tied
+to the exact source revision that produced it.

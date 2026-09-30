@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mas-lab-bench"
-version = "0.1.0"
+version = "0.2.0"
 description = "Benchmark engine, pipeline execution, plots and validation for MAS Lab."
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}

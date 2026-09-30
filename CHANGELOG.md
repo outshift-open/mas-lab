@@ -4,43 +4,133 @@
 -->
 # Changelog
 
-## Unreleased
+All notable changes to MAS-Lab are documented here. This branch is the
+v0.2 release-prep branch after rebasing onto the latest upstream main and
+reconciling the release notes with the code and docs currently on that branch.
+
+## [0.2.0] - 2026-09-30 (release candidate)
 
 ### Added
 
-- `mas-ctl compile`: dump the resolved Agent or MAS spec after overlay merge
-  and runtime default resolution (`--layout tree|bundle`, `--output` folder
-  or file). See [docs/cli/compile.md](docs/cli/compile.md).
-- `library-skills`: an [agentskills.io](https://agentskills.io)-compatible
-  implementation of the Agent Skills spec, with three swappable execution
-  backends (native filesystem, google-adk, deepagents/LangChain). Agents
-  declare skills via `spec.skills` and get progressive disclosure
-  (`activate_skill` / `list_skill_files` / `read_skill_file` tools) plus
-  optional sandboxed script execution (`run_skill_script`).
+#### IOA, MCP, and A2A first
 
-### Breaking
+- `library-ioa` is now the home for protocol-first integration work, with
+  explicit MCP client/server bridge support, typed tool adaptation, and the
+  `mas-mcp` CLI for serving and invoking tools.
+- MCP support is treated as an infra concern rather than a rewrite of agent
+  logic: the same agent manifest can be paired with distinct infra adapters for
+  local execution or remote MCP tool access.
+- A2A agent exposure and delegation are supported through the runtime and CLI,
+  with `mas-ctl serve --protocol a2a` and the `a2a` client commands for card
+  lookup and direct peer messaging.
+- `library-skills` provides the agentskills.io-compatible skill layer, with
+  swappable execution backends and progressive skill disclosure.
 
-- The old `context_manager.params.skills` field (agent + overlay schemas) has
-  been removed, along with the `mas.plugin.skill.builder` registry entry that
-  backed it. Skill injection is now done via `spec.skills` +
-  `SkillCatalogPlugin` (see `library-skills`) instead of the
-  `ContextFacetProvider`-based mechanism.
-- Flavour manifests (`kind: Flavour`) may no longer carry `spec.llm`,
-  `spec.skills`, or `spec.prefer_local` — the `FlavourSeparationValidator`
-  rejects them at load time. Move model choice / inference params / RAG
-  config to the agent's `kind: Agent` spec. Offline LLM turns use
-  `llm_cache` replay recorded against a live provider, not a Flavour or
-  Agent field. See `docs/schemas/runtime/flavour.schema.yaml` and
-  `docs/design/flavour-boundary.md` for the current boundary.
-- `spec.execution.mocking` is removed from the execution-binding schema
-  (not deprecated). Offline CI records a live provider into
-  `tests/fixtures/llm-cache/ci.llm-cache.json` and replays with
-  `raise_on_miss`.
-- LLM access now goes through `llm_provider` plugins registered by URN
-  (`runtime/src/mas/runtime/registry/llm_provider_registry.py`). Wire
-  protocol and cache live in `library-standard` (`plugins/llm/`). The old
-  `llm_proxy.model_access.module_path` / `class_name` infra config is no
-  longer read; a custom implementation must register as an `llm_provider`
-  plugin (see `library-standard/src/mas/library/standard/plugins/llm/README.md`).
+#### HITL and user communication
 
-## Initial release v0.1
+- First-class human approval gates and user communication contracts are now part
+  of the runtime boundary, enabling structured prompts and requests without
+  coupling agent logic to a specific UI implementation.
+- Runtime and session plumbing now preserve explicit user-facing signal handling
+  across tool calls and delegation boundaries, which is a key requirement for
+  production-style conversational workflows.
+
+#### Manifest and governance improvements
+
+- `mas-ctl compile` can emit the fully-resolved agent or MAS spec after overlays
+  and library substitutions are applied.
+- Semantic validation and tighter overlay validation improve manifest safety and
+  help catch invalid cross-field references before execution begins.
+- Core governance and plugin wiring continue to harden around explicit registry
+  declarations rather than implicit environment behavior.
+
+#### Runtime and observability
+
+- LLM traces and execution metadata remain central to the framework and are
+  increasingly used to debug delegation, tool routing, and provider-level
+  edge cases.
+- The runtime continues to harden around provider compatibility, malformed tool
+  arguments, and trace fidelity for long-running multi-agent runs.
+
+#### Protocol compliance results
+
+- Official MCP conformance results show `92.9%` of required checks passing for
+  revision `2025-11-25` and `98.3%` for the newer, stricter stateless revision
+  `2026-07-28`.
+- Deterministic A2A testing across JSON-RPC, HTTP+JSON, and gRPC passed `99/99`
+  executed requirements, for a `100%` executed-test pass rate. The official TCK
+  maps `79.8%` of the specification; `25` requirements were not exercised
+  because no corresponding TCK tests currently exist. This is a test coverage
+  limitation, not a reported failure of those implementation areas.
+
+#### Docker image and release artifacts
+
+- The GHCR-backed release pipeline now builds and publishes both the UI and
+  backend container images for tagged releases via
+  `.github/workflows/docker.yml` and `.github/workflows/build-push-ghcr.yaml`.
+- Release images are published under `ghcr.io/outshift-open/mas-lab/ui` and
+  `ghcr.io/outshift-open/mas-lab/backend`, using a tag scheme derived from the
+  release version and commit SHA. This keeps the Docker image in lockstep with
+  the package release.
+- The release documentation and image references were refreshed after the branch
+  rebase so the release notes match the current upstream Docker workflow.
+
+### Changed
+
+- Protocol integration is treated as an infra-layer concern instead of a change
+  to agent business logic.
+- Runtime control flow continues to separate model selection, tool access, and
+  governance policy so the same workflow can run locally or through a protocol
+  adapter without rewriting the agent.
+- Project tooling and validation now expect explicit registry and manifest
+  declarations for optional capabilities, which makes the environment more
+  deterministic and easier to audit.
+- The release branch was rebased onto the current upstream `main`, and the
+  release documentation and Docker release notes were reconciled to match the
+  state of the branch at the time of the cut.
+
+### Fixed
+
+- Tool-call recovery, malformed tool handling, empty-result preservation, and
+  history-trimming edge cases continue to be corrected in the runtime.
+- Manifest resolution and relative-path safety around library refs and overlays
+  are validated before execution.
+- Runtime traces are now more reliable for delegations and session-scoped
+  execution flows.
+
+### Deprecated / Breaking
+
+- `spec.llm` is no longer the preferred configuration surface; model config is
+  expected to live in the explicit model-slot structure instead of the legacy
+  top-level field.
+- Implicit plugin availability is reduced in favor of explicit registry-driven
+  registration, so the environment must declare what is required for a run.
+
+## [0.1.0] - 2026-06-15
+
+Initial public release.
+
+### Added
+
+- Declarative YAML agent and MAS specifications with overlays and runtime
+  contracts.
+- A stateful runtime with session/task tracking, observability, and governance
+  hooks.
+- `mas-ctl` commands for chat, validation, and MAS execution.
+- Reproducible lab and benchmarking workflows, plus the standard library and
+  sample assets.
+
+### Changed
+
+- Established the core contract-driven execution model and the multi-package
+  architecture used by the project today.
+
+### Fixed
+
+- Early runtime issues and compatibility gaps were resolved as the initial OSS
+  cut moved from prototype to reusable framework primitives.
+
+---
+
+[0.2.0]: https://github.com/outshift-open/mas-lab/releases/tag/v0.2.0
+[0.1.0]: https://github.com/outshift-open/mas-lab/releases/tag/v0.1.0
