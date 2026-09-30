@@ -19,6 +19,7 @@ from mas.runtime.contracts.context_contract import (
     ContextPart,
 )
 
+from ..lib.resolver import resolve_skill_path
 from .skill_plugin_registry import SkillImplementation, SkillPluginRegistry
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,7 @@ class SkillCatalogPlugin(ContextContract):
         refs = skill_refs_from_manifest(manifest)
         if not refs:
             return
+        _raise_for_missing_skill_refs(refs, base_dir)
 
         if self.impl is not SkillImplementation.NATIVE:
             self._build_from_selected_impl(refs=refs, base_dir=base_dir)
@@ -83,18 +85,19 @@ class SkillCatalogPlugin(ContextContract):
         )
         discovered_registry = discovery.discover()
 
-        for record in discovered_registry.all():
+        records = discovered_registry.all()
+        for record in records:
             self._registry.register(record)
 
-        records = self._registry.all()
-        if not records:
+        registered_records = self._registry.all()
+        if not registered_records:
             return
 
-        self._catalog_text = _format_catalog(records)
+        self._catalog_text = _format_catalog(registered_records)
         logger.debug(
             "SkillCatalogPlugin: built catalog with %d skill(s): %s",
-            len(records),
-            [r.name for r in records],
+            len(registered_records),
+            [r.name for r in registered_records],
         )
 
     def _build_from_selected_impl(self, refs: list[str], base_dir: Path) -> None:
@@ -238,3 +241,18 @@ def _declared_skill_names(refs: list[str]) -> set[str]:
 
 def _matches_declared_name(name: str, selected: set[str]) -> bool:
     return name in selected or name.replace("-", "_") in selected or name.replace("_", "-") in selected
+
+
+def _raise_for_missing_skill_refs(refs: list[str], base_dir: Path) -> None:
+    """Reject manifest skill references that have no local SKILL.md file."""
+    missing = [
+        str(ref)
+        for ref in refs
+        if str(ref).strip()
+        and not str(ref).strip().startswith("@")
+        and resolve_skill_path(str(ref), base_dir=base_dir) is None
+    ]
+    if missing:
+        raise ValueError(
+            "Declared skill(s) not found on disk: " + ", ".join(missing)
+        )

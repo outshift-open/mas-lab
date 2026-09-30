@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from mas.library.skills.plugins.sk_catalog import SkillCatalogPlugin, attach_skill_catalog_plugin
 from mas.runtime.contracts.context_contract import ContextPlacement
 
@@ -71,14 +72,18 @@ def test_catalog_empty_when_no_skills(tmp_path: Path):
     assert plugin.collect_context() == []
 
 
-def test_catalog_skips_missing_ref(tmp_path: Path, caplog):
-    import logging
-
+def test_catalog_rejects_missing_ref(tmp_path: Path):
     manifest = _manifest(["nonexistent-skill"])
-    with caplog.at_level(logging.WARNING, logger="mas.library.skills"):
-        plugin = SkillCatalogPlugin(manifest=manifest, base_dir=tmp_path)
-    assert plugin.collect_context() == []
-    assert any("not found" in r.message for r in caplog.records)
+    with pytest.raises(ValueError, match="nonexistent-skill"):
+        SkillCatalogPlugin(manifest=manifest, base_dir=tmp_path)
+
+
+def test_catalog_rejects_missing_ref_without_partial_registration(tmp_path: Path):
+    _skill_dir(tmp_path, "present-skill", "A valid skill.")
+    manifest = _manifest(["present-skill", "nonexistent-skill"])
+
+    with pytest.raises(ValueError, match="nonexistent-skill"):
+        SkillCatalogPlugin(manifest=manifest, base_dir=tmp_path)
 
 
 def test_catalog_skips_skill_without_description(tmp_path: Path, caplog):
@@ -155,7 +160,7 @@ def test_attach_returns_none_when_no_skills(tmp_path: Path):
     assert not hasattr(ctx, "plugin_collection")
 
 
-def test_attach_returns_none_when_all_refs_fail(tmp_path: Path):
+def test_attach_rejects_missing_refs(tmp_path: Path):
     ctx = _FakeCtx()
-    result = attach_skill_catalog_plugin(ctx, _manifest(["ghost"]), tmp_path)
-    assert result is None
+    with pytest.raises(ValueError, match="ghost"):
+        attach_skill_catalog_plugin(ctx, _manifest(["ghost"]), tmp_path)
