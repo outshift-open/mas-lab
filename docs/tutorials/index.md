@@ -18,8 +18,10 @@ verification. Same setup for CLI and web UI.
 | 1 | [Build an agent](01-building-an-agent/) | Agent manifest, tools, skills, memory, CLI, traces |
 | 2 | [Orchestrate your MAS](02-creating-a-mas/) | MAS manifest, delegation, topology overlays |
 | 3 | [Run an experiment](03-experiments-and-analysis/) | Experiments, benchmarks, pipelines, MCEv1 evaluation |
+| 4 | [MCP tools](04-mcp-tools/) | Discover and dispatch local and remote tools through a stable contract |
+| 5 | [A2A agents](05-a2a-agents/) | Discover and dispatch local and remote agents through a stable contract |
 
-After Tutorial 3, reproduce all paper results across 3 labs: [Paper](../paper/index.md).
+After Tutorial 5, reproduce all paper results across 3 labs: [Paper](../paper/index.md).
 
 Start from [Tutorial 0](00-environment-setup/README.md) for install and first commands —
 CLI and optional [web UI](../ui/index.md) use the same setup.
@@ -29,8 +31,8 @@ CLI and optional [web UI](../ui/index.md) use the same setup.
 See **[Tutorial 0 — Environment setup](00-environment-setup/README.md)** for Docker and
 developer install paths, LLM credentials, and verification steps.
 
-Each tutorial ships `demo/scenario.yaml` — structured steps with commands and
-expected output used by `tests/tutorials/test_scenario_commands.py`.
+Tutorials 0–3 ship `demo/scenario.yaml` files with structured steps, commands,
+and expected output used by `tests/tutorials/test_scenario_commands.py`.
 
 **Replay all offline commands with logs** (stdout/stderr per tutorial under `/tmp`):
 
@@ -47,8 +49,8 @@ benchmark pipelines on run logs directly.
 
 ## What's next
 
-After Tutorial 3:
+After Tutorial 5:
 
 - **Labs** — runnable experiment artifacts live in [`labs/`](../../labs/): `design-space.lab` (design patterns + topologies), `lifecycle-control.lab`, `extensions.lab` — see [paper index](../paper/index.md). Lab vs library: [labs-and-libraries.md](../labs-and-libraries.md)
 - **Custom evaluation** — extend the Tutorial 3 pipeline with your own metrics and reports
-- **New benchmark scenarios** — add datasets and overlays to compare routing and topology choices
+- **Protocol references** — see the [MCP ToolServerRegistry reference](../references/tool-server-registry.md) and [A2A developer reference](../a2a/developer.md)
