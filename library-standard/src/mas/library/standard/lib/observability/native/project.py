@@ -30,6 +30,8 @@ def boundary_dict_from_transition(event: TransitionEvent) -> dict:
         # scrambling real occurrence order.
         "timestamp": event.timestamp,
     }
+    if event.upstream_correlation_id is not None:
+        out["upstream_correlation_id"] = event.upstream_correlation_id
     if event.call_id is not None:
         out["call_id"] = event.call_id
     if event.parent_call_id is not None:
@@ -92,6 +94,8 @@ def _apply_transition_ids(rec: dict, *, transition: TransitionEvent | None) -> d
         out["call_id"] = transition.call_id
     if transition.parent_call_id and "parent_call_id" not in out:
         out["parent_call_id"] = transition.parent_call_id
+    if transition.upstream_correlation_id is not None:
+        out.setdefault("upstream_correlation_id", transition.upstream_correlation_id)
     return out
 
 

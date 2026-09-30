@@ -187,7 +187,24 @@ properties:
           - type: object
             additionalProperties:
               type: object
+              required: [url, protocol]
               additionalProperties: true
+              properties:
+                url:
+                  type: string
+                  format: uri
+                protocol:
+                  type: string
+                expose:
+                  type: boolean
+                  default: false
+                headers:
+                  type: object
+                  additionalProperties:
+                    type: string
+                timeout:
+                  type: number
+                  exclusiveMinimum: 0
           - type: array
             items:
               type: object

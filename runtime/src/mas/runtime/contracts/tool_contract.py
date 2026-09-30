@@ -613,11 +613,7 @@ class ToolContract(CapabilityContract):
             )
 
         if is_supported:
-            try:
-                return invoke_call_tool(self.call_tool, tool_name, arguments, **kwargs)
-            except Exception as exc:
-                return ToolResultEnvelope.inline(result={"error": str(exc)}, is_error=True)
-
+            return invoke_call_tool(self.call_tool, tool_name, arguments, **kwargs)
         return None
 
     # Hook methods (optional overrides for governance)

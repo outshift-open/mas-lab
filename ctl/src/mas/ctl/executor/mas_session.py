@@ -12,14 +12,16 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from mas.ctl.compose.models import EffectiveBindManifest
+from mas.ctl.compose.models import EffectiveBindManifest, ResolvedInfra
 from mas.ctl.compose.pattern_registry import resolve_design_pattern_registry_id
 from mas.ctl.compose.placement_registry import get_placement_backend
 from mas.ctl.compose.runner import ComposeResult
+from mas.ctl.infra.resolve import application_endpoint_is_used
 from mas.ctl.manifest.mas_agent_merge import enrich_entry_agent_for_delegation, wire_entry_engine_delegation
 from mas.ctl.session.controller import ConversationConfig, SessionController
 from mas.ctl.ui.turn_result import turn_failed
 from mas.runtime.agent_defaults import default_pattern_plugin_id
+from mas.runtime.boundary.agentcomm.routing import AgentCommRoute, build_agent_comm_routes
 
 logger = logging.getLogger(__name__)
 
@@ -263,12 +265,73 @@ def wire_peer_delegation(
         trace_summary=trace_summary,
         trace_color=trace_color,
     )
+    spec = compose.mas_config.get("spec") or compose.mas_config
+    agency_agents = ((spec.get("agency") or {}).get("agents") or [])
+    registry = None
+    peer_routes: dict[str, AgentCommRoute] = {}
+    if agency_agents:
+        from mas.runtime.registry import get_registry
+
+        registry = get_registry()
+        for peer in agency_agents:
+            if not isinstance(peer, dict):
+                continue
+            name = str(peer.get("name") or peer.get("id") or "")
+            if not name:
+                raise ValueError("spec.agency.agents entries require id")
+            application_endpoints = (materialized.compose.resolved_infra or ResolvedInfra()).applications
+            binding = application_endpoints.get(name)
+            if not isinstance(binding, dict) or not application_endpoint_is_used(binding):
+                continue
+            kind = str(binding.get("protocol") or binding.get("kind") or "a2a")
+            params = {
+                key: binding[key]
+                for key in ("url", "headers", "timeout")
+                if key in binding
+            }
+            if "url" not in params:
+                raise ValueError(f"infra Application endpoint for agent {name!r} requires url")
+            handler = registry.create(
+                "agent_comm",
+                binding={"type": kind, "params": params},
+            )
+            peer_routes[name] = AgentCommRoute(name, kind, handler)
+
+    delegated_names = {
+        str(target)
+        for node in ((spec.get("workflow") or {}).get("nodes") or [])
+        if isinstance(node, dict)
+        for target in (node.get("delegates_to") or [])
+        if str(target).strip()
+    }
+    if registry is None:
+        from mas.runtime.registry import get_registry
+
+        registry = get_registry()
+    local_handler = registry.create(
+        "agent_comm",
+        binding={"type": "local"},
+        run_turn=run_turn,
+    )
+    routes = build_agent_comm_routes(
+        local_agent_ids=list(materialized.materialized.instances),
+        local_handler=local_handler,
+        peer_routes=peer_routes,
+        delegated_names=delegated_names,
+    )
     newly_wired: list[str] = []
     for agent in compose.bind.agents:
         agent_id = agent.agent_id
-        if agent_id in wired:
-            continue
         instance = materialized.materialized.instances.get(agent_id)
+        if agent_id in wired:
+            if instance is not None:
+                engine = getattr(getattr(instance, "driver", None), "engine", None)
+                from mas.runtime.engine.leaf import leaf_engine
+
+                delegation = getattr(leaf_engine(engine), "delegation", None)
+                if hasattr(delegation, "set_routes"):
+                    delegation.set_routes(routes)
+            continue
         if instance is None:
             continue
         agent_manifest = load_agent_manifest_from_bind(compose.bind, agent_id) or {}
@@ -290,6 +353,7 @@ def wire_peer_delegation(
             entry_agent_id=agent_id,
             mas_config=compose.mas_config,
             mas_base_dir=materialized.mas_base_dir,
+            routes=routes,
         )
         wired.add(agent_id)
         newly_wired.append(agent_id)

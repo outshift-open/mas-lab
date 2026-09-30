@@ -1,2 +1,4 @@
-# Generated MCP conformance reports are published as CI artifacts.
-results/
+# Generated protocol reports and third-party TCK checkout.
+library-ioa/src/library_ioa/plugins/mcp/compliance/results/
+library-ioa/src/library_ioa/plugins/a2a/compliance/reports/
+library-ioa/src/library_ioa/plugins/a2a/compliance/vendor/

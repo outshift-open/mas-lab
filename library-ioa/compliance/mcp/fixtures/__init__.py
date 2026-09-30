@@ -1,0 +1,1 @@
+"""MCP protocol-compliance fixtures."""

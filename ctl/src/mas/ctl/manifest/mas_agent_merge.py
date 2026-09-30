@@ -12,6 +12,7 @@ from typing import Any
 
 import yaml
 from mas.ctl.overlay.merge import _ops_dict, _plugin_entry_key, merge_agent_overlay, merge_context_map
+from mas.runtime.boundary.agentcomm.routing import AgentCommRoute
 from mas.runtime.boundary.context.manifest_context import routing_description_from_agent
 from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
 from mas.runtime.boundary.delegation.policy import delegation_targets
@@ -22,7 +23,7 @@ from mas.runtime.engine.tools import resolve_manifest_tool_refs
 
 logger = logging.getLogger(__name__)
 
-RunTurnFn = Callable[[str, str, int], str]
+RunTurnFn = Callable[[str, str, int, str, str], str]
 
 
 def _load_agent_yaml(path: Path) -> dict[str, Any] | None:
@@ -250,6 +251,7 @@ def wire_entry_engine_delegation(
     entry_agent_id: str,
     mas_config: dict[str, Any] | None = None,
     mas_base_dir: Path | None = None,
+    routes: dict[str, AgentCommRoute] | None = None,
 ) -> None:
     """Set enriched manifest on the entry engine and bind ``LlmDelegator`` when peers exist.
 
@@ -277,7 +279,7 @@ def wire_entry_engine_delegation(
     if not peers:
         leaf.delegation = None
         return
-    leaf.delegation = LlmDelegator(run_turn=run_turn)
+    leaf.delegation = LlmDelegator(run_turn=run_turn, routes=routes)
     if hasattr(leaf, "use_tool_loop"):
         if not leaf.use_tool_loop:
             logger.warning(

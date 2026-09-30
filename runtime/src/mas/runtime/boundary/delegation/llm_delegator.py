@@ -7,6 +7,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from mas.runtime.boundary.agentcomm.local import LocalAgentComm
+from mas.runtime.boundary.agentcomm.protocol import AgentCommError, set_current_transport
+from mas.runtime.boundary.agentcomm.routing import AgentCommRoute
+
 RunTurnFn = Callable[[str, str, int, str, str], str]
 
 
@@ -17,8 +21,14 @@ class LlmDelegator:
         self,
         *,
         run_turn: RunTurnFn,
+        routes: dict[str, AgentCommRoute] | None = None,
     ) -> None:
         self._run_turn = run_turn
+        self._local_comm = LocalAgentComm(run_turn)
+        self._routes = dict(routes or {})
+
+    def set_routes(self, routes: dict[str, AgentCommRoute]) -> None:
+        self._routes = dict(routes)
 
     def reset_session(self) -> None:
         """Compatibility hook retained for lifecycle callers; no cache persists."""
@@ -43,10 +53,20 @@ class LlmDelegator:
         if not target_agent_id:
             return "[delegation] missing target agent id"
         task_key = task.strip()
+        route = self._routes.get(target_agent_id)
+        communication = route.handler if route is not None else self._local_comm
+        set_current_transport(route.kind if route is not None else "local-bus")
         try:
-            result = self._run_turn(
-                target_agent_id, task_key, correlation_id, caller_call_id, context_id
+            result = communication.send(
+                target_agent_id,
+                task_key,
+                correlation_id=correlation_id,
+                caller_call_id=caller_call_id,
+                context_id=context_id,
             )
+        except AgentCommError as exc:
+            protocol = route.kind if route is not None else "local"
+            return f"[delegation] agent {target_agent_id!r} via {protocol} failed: {exc}"
         except KeyError:
             return f"[delegation] agent {target_agent_id!r} not available on bus"
         except RuntimeError as exc:

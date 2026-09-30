@@ -40,7 +40,7 @@ tasks:
   mcp-conformance:
     desc: "Compatibility alias for the standalone MCP compliance workflow"
     cmds:
-      - task --dir compliance check
+      - task --dir library-ioa/compliance/mcp check
 
   install-lab:
     desc: "Install a lab's optional deps into a dedicated venv: task install-lab LAB=labs/extensions.lab"

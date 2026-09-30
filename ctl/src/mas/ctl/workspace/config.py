@@ -63,6 +63,12 @@ def runtime_refs_from_env() -> list[str]:
     return parts
 
 
+def collect_mas_infra_refs(config: dict[str, Any]) -> list[str]:
+    # Infrastructure is deployment configuration, supplied by workspace or CLI.
+    # MAS/Agent specs deliberately do not carry infra references.
+    return []
+
+
 def merge_runtime_refs(
     *,
     workspace_refs: list[str],
@@ -79,6 +85,10 @@ def merge_runtime_refs(
             seen.add(ref)
             ordered.append(ref)
     return ordered
+
+def collect_infra_interceptors(config: dict[str, Any]) -> list[str]:
+    """Read deployment middleware from workspace/CLI configuration only."""
+    return []
 
 
 def merge_infra_interceptors(

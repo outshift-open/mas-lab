@@ -843,4 +843,3 @@ properties:
           strategy: plugin_list_ops
           identity: plugin_id
         default: null
-

@@ -13,12 +13,12 @@ site — it is `mkdocs build` of this folder, driven by [`mkdocs.yml`](../mkdocs
 at the repository root.
 
 | Where | What |
-|-------|------|
+| ------- | ------ |
 | [docs/index.md](index.md) | Site home (≈ align with root [README.md](../README.md)) |
 | [mkdocs.yml](../mkdocs.yml) `nav:` | Left sidebar and top tabs on GitHub Pages |
 | [outshift-open.github.io/mas-lab](https://outshift-open.github.io/mas-lab/) | Published output |
 
-Local preview: `task docs-serve` → http://127.0.0.1:8000
+Local preview: `task docs-serve` → <http://127.0.0.1:8000>
 
 When you add or rename a doc page, update **`mkdocs.yml` nav** and cross-links in
 `README.md` / `docs/index.md` so the repo landing page and the site stay aligned.
@@ -72,7 +72,7 @@ When you add or rename a doc page, update **`mkdocs.yml` nav** and cross-links i
 ## Outside `docs/` (linked, not on Pages)
 
 | Path | Audience |
-|------|----------|
+| ------ | ---------- |
 | [`docker/README.md`](../docker/README.md) | Docker compose, mounts, env |
 | [`ui/README.md`](../ui/README.md) | UI package development (Yarn, Vite) |
 | [`runtime/docs/`](../runtime/docs/) | Runtime contributor docs |

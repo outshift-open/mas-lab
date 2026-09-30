@@ -177,13 +177,13 @@ uv sync --extra cli   # or install library-ioa[all]
 
 Official protocol conformance is Node, not a Python clone. For the reproducible
 MAS Lab fixture, install dependencies and run both pinned requirement sets with
-the [MCP compliance workflow](../../../../compliance/README.md):
+the [MCP compliance workflow](../../README.md):
 
 ```bash
-task --dir compliance install
-task --dir compliance validate-config
-MCP_CONFORMANCE_RESULTS="$PWD/compliance/results" \
-  task --dir compliance run
+task --dir library-ioa/compliance/mcp install
+task --dir library-ioa/compliance/mcp validate-config
+MCP_CONFORMANCE_RESULTS="$PWD/library-ioa/compliance/mcp/results" \
+  task --dir library-ioa/compliance/mcp run
 ```
 
 ---

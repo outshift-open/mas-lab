@@ -413,7 +413,8 @@ def _boundary_context_assembled(
             "mechanism": seg.get("mechanism") or ("rag" if is_rag else "inject"),
             "token_estimate": seg.get("tokens", 0),
             "retained": seg.get("retained", True),
-            "content_preview": seg.get("content_preview") or (seg.get("content", "")[:120] if seg.get("content") else ""),
+            "content_preview": seg.get("content_preview")
+            or (seg.get("content", "")[:120] if seg.get("content") else ""),
             "role": seg.get("role", ""),
         }
         _add_provenance_fields(cpc_event, seg, is_rag)

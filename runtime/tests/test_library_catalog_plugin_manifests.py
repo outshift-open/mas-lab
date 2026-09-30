@@ -19,6 +19,8 @@ from mas.library_catalog import (
     _declares_plugins,
     discover_plugin_manifests,
 )
+from mas.runtime.registry import PluginRegistry
+from mas.runtime.registry.bootstrap import _register_library_plugins
 
 
 def test_declares_plugins_checks_key_presence_not_value_shape() -> None:
@@ -57,6 +59,36 @@ plugins:
 
     manifests = discover_plugin_manifests()
     assert manifests == [(root / "library.yaml").resolve()]
+
+
+def test_register_library_plugins_loads_module_from_library_parent(tmp_path, monkeypatch) -> None:
+    root = tmp_path / "local_lib"
+    root.mkdir()
+    (root / "__init__.py").write_text("", encoding="utf-8")
+    (root / "plugin.py").write_text("class LocalPlugin:\n    pass\n", encoding="utf-8")
+    manifest = root / "library.yaml"
+    manifest.write_text(
+        """apiVersion: mas/v1
+kind: Library
+name: local-lib
+version: "0.1.0"
+types: [widget]
+plugins:
+  - type: widget
+    name: local
+    module: local_lib.plugin
+    class: LocalPlugin
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(library_catalog, "discover_plugin_manifests", lambda: [manifest])
+
+    registry = PluginRegistry()
+    _register_library_plugins(registry)
+
+    info = registry.resolve_by_type("widget", "local")
+    assert info is not None
+    assert info.load_class().__name__ == "LocalPlugin"
 
 
 def test_discover_plugin_manifests_scan_fallback_still_works(tmp_path, monkeypatch) -> None:

@@ -29,6 +29,12 @@ practical examples.
 
 ## Plugins by Category
 
+### Agent_Comm
+
+| Class            | Full module path                                            | Package                |
+| ---------------- | ----------------------------------------------------------- | ---------------------- |
+| `LocalAgentComm` | `mas.library.standard.mas.runtime.boundary.agentcomm.local` | `mas-library-standard` |
+
 ### Assembler
 
 | Class                    | Full module path                                 | Package                |
@@ -130,6 +136,7 @@ practical examples.
 | `DropSummarizer`                 | summarizer      | `mas-library-standard` |
 | `IntrospectionPlugin`            | design_pattern  | `mas-library-standard` |
 | `LlmSummarizer`                  | summarizer      | `mas-library-standard` |
+| `LocalAgentComm`                 | agent_comm      | `mas-library-standard` |
 | `LocalToolProvider`              | tool_provider   | `mas-library-standard` |
 | `NativeObservabilityPlugin`      | observability   | `mas-library-standard` |
 | `NoUndeclaredToolPlugin`         | governance      | `mas-library-standard` |

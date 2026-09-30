@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from mas.runtime.schema.observability import ObsEventKind, ObservabilityEvent
+from mas.runtime.schema.observability import ObservabilityEvent, ObsEventKind
 
 _CONTRACT_BY_MACHINE: dict[str, str] = {
     "M_model": "model",
@@ -40,6 +40,7 @@ class TransitionEvent:
     session_id: str = ""
     task_id: str = ""
     correlation_id: int = 0
+    upstream_correlation_id: int | None = None
     call_id: str | None = None
     parent_call_id: str | None = None
     attributes: dict[str, Any] = field(default_factory=dict)
@@ -60,6 +61,8 @@ class TransitionEvent:
             "boundary_kind": self.boundary_kind,
             **self.attributes,
         }
+        if self.upstream_correlation_id is not None:
+            out["upstream_correlation_id"] = self.upstream_correlation_id
         if self.call_id is not None:
             out["call_id"] = self.call_id
         if self.parent_call_id is not None:
@@ -136,6 +139,7 @@ def boundary_event_to_transition(
     timestamp: float | None = None,
     call_id: str | None = None,
     parent_call_id: str | None = None,
+    upstream_correlation_id: int | None = None,
 ) -> TransitionEvent:
     """Map v2 ObservabilityEvent → plugin-facing TransitionEvent."""
     payload = dict(event.payload or {})
@@ -163,6 +167,7 @@ def boundary_event_to_transition(
         session_id=session_id,
         task_id=task_id,
         correlation_id=cid,
+        upstream_correlation_id=upstream_correlation_id,
         call_id=resolved_call_id,
         parent_call_id=parent_call_id,
         attributes=payload,

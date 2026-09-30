@@ -1,0 +1,23 @@
+apiVersion: infra/v1
+kind: Application
+metadata:
+  name: a2a-tck-required-extension
+  description: Required-extension error profile for the A2A TCK.
+spec:
+  endpoints:
+    a2a-tck-agent:
+      protocol: a2a
+      url: http://127.0.0.1:9041
+      usage: deploy
+      a2a:
+        listen:
+          host: 127.0.0.1
+          port: 9041
+        capabilities:
+          streaming: false
+          pushNotifications: false
+          extendedAgentCard: false
+          extensions:
+            - uri: urn:a2a:tck:required-extension
+              description: TCK required-extension capability probe
+              required: true

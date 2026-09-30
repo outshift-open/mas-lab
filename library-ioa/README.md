@@ -70,12 +70,38 @@ The serve terminal must log `MCP tool call name=web-search` for both `mas-mcp to
 - `LocalToolProvider` — in-process Python tools (`local` flavour / implicit `standard:local-tools` infra)
 - `MCPToolProvider` — `kind: mcp` (`library_ioa.plugins.mcp.provider`)
 
+## A2A exposure
+
+The generic runtime server command applies an A2A exposure overlay to the agent
+manifest and starts the registered exposure/webserver plugins:
+
+```bash
+mas-ctl serve docs/tutorials/01-building-an-agent/agent.yaml \
+  --protocol a2a --host 127.0.0.1 --port 9005
+```
+
+Use the official A2A CLI for discovery and messaging:
+
+```bash
+a2a card get http://127.0.0.1:9005
+a2a send -a http://127.0.0.1:9005 "What is the capital of France?"
+```
+
+For a MAS, declare remote dependencies as named endpoints in an `infra/v1`
+Application manifest and keep `workflow.nodes[].delegates_to` as the topology.
+See the A2A feature page at [docs/a2a/README.md](docs/a2a/README.md).
+
+## Development notes
+
+- The bridge lives in the `library_ioa.plugins.mcp` package.
+- The runtime provider plugin registers `kind: mcp` manifests through `MCPProviderPlugin`.
+- The SDK-backed client connects using `mcp.client.stdio.stdio_client` and `ClientSession`.
+- A separate MCP server process can therefore expose the same business tool contract without changing the agent manifest contract.
+
 ## Related docs
 
 - [docs/README.md](docs/README.md)
 - [docs/tutorials/01-mcp-tools/README.md](docs/tutorials/01-mcp-tools/README.md)
-- [plugins/mcp/docs/quickstart/README.md](plugins/mcp/docs/quickstart/README.md)
-- [plugins/mcp/docs/reference/README.md](plugins/mcp/docs/reference/README.md)
 - [ToolContract](../docs/references/tool-contract.md)
 - [kind: Tool](../docs/manifests/tool.md)
 - [ToolServerRegistry](../docs/references/tool-server-registry.md)

@@ -283,8 +283,10 @@ def parse_control(raw: Any) -> None:
 
 
 def parse_infra_lists(raw_spec: dict[str, Any]) -> tuple[list[str], list[str]]:
-    """Validate ``infra_refs`` and ``infra_interceptors`` list shapes."""
+    """Reject deployment infrastructure from agent/MAS specs."""
     refs_raw = raw_spec.get("infra_refs") or raw_spec.get("infra_ref")
+    if refs_raw:
+        raise SpecBindingError("spec.infra_refs is forbidden; use workspace config or --infra-ref")
     interceptors_raw = raw_spec.get("infra_interceptors") or raw_spec.get("infra_interceptor")
     refs = _as_str_list(refs_raw, field="spec.infra_refs")
     interceptors = _as_str_list(interceptors_raw, field="spec.infra_interceptors")

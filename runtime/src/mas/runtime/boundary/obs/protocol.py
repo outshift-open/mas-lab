@@ -6,9 +6,9 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
+from mas.runtime.kernel.state import QProduct
 from mas.runtime.schema.egress import EgressSymbol
 from mas.runtime.schema.ingress import IngressSymbol
-from mas.runtime.kernel.state import QProduct
 
 
 @runtime_checkable

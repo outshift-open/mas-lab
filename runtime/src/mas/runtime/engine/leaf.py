@@ -8,6 +8,9 @@ from typing import Any
 
 from mas.runtime.contracts.tool_semantics import existing_attr
 
+# Distinct auto-vivifying mock wrappers evade id-based cycle detection.
+_MAX_UNWRAP_DEPTH = 50
+
 
 def leaf_engine(engine: Any) -> Any:
     """Return the innermost engine that handles LLM/tool IO.
@@ -17,12 +20,21 @@ def leaf_engine(engine: Any) -> Any:
     """
     seen: set[int] = set()
     current = engine
-    for _ in range(8):
-        if current is None or id(current) in seen:
-            return current
+    depth = 0
+    while current is not None and id(current) not in seen:
+        if depth >= _MAX_UNWRAP_DEPTH:
+            raise RuntimeError(
+                f"leaf_engine(): .inner chain exceeded {_MAX_UNWRAP_DEPTH} levels "
+                "without terminating. A real engine wrapper stack is never this "
+                "deep — this usually means `engine` is a test double (e.g. a bare "
+                "MagicMock()) whose `.inner` auto-vivifies a new object on every "
+                "access instead of returning None. Set `inner=None` explicitly "
+                "on the mock/stub."
+            )
         seen.add(id(current))
         inner = existing_attr(current, "inner")
         if inner is None or inner is current:
             return current
         current = inner
+        depth += 1
     return current

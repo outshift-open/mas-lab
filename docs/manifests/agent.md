@@ -33,7 +33,7 @@ field does. **Equivalent** is the object `mas-ctl compile` writes. Bindings:
 [Compiled agent defaults](../references/defaults.md).
 
 | Field | Default | Notes |
-|-------|---------|-------|
+| ------- | --------- | ------- |
 | `description` | *(required)* | Routing one-liner for `delegate_to_*` tools. Not the system prompt. |
 | `context` | `{}` | Named system-prompt chunks (`role`, `intent`, …). String, `{ref}`, or fragment list. |
 | `params` | `{}` | Free-form strings for middleware / sidecars. Not kernel config. |
@@ -109,7 +109,7 @@ spec:
 ## Responsibilities
 
 | Area | `spec` fields | Trajectory impact |
-|------|---------------|-------------------|
+| ------ | --------------- | ------------------- |
 | Reasoning loop | `design_pattern` | Selects DesignPatternContract (ReAct, CoT, …) — intra-agent δ transitions |
 | Peer delegation | MAS `workflow` (when embedded in a MAS) | `delegates_to` graph + `workflow.type`; executed by the entry agent's own `design_pattern` (ReAct tool loop) — see [mas.md](mas.md) |
 | Prompt assembly | `assembler` | default `assembler` (ContextAssemblerPlugin) — [context-assembly.md](context-assembly.md) · [plugin-bindings.md](plugin-bindings.md) |
@@ -130,7 +130,7 @@ spec:
 **Who** an agent may delegate to is declared on the **MAS** manifest, not on the agent alone:
 
 | Concern | Manifest | Field |
-|---------|----------|-------|
+| --------- | ---------- | ------- |
 | Delegation graph (peers) | MAS | `spec.workflow.nodes[].delegates_to`, `workflow.entry` |
 | Workflow driver | MAS | `spec.workflow.type` — `dynamic` (LLM picks peers), `sequential`, or `single` |
 | Per-peer tool text | Agent | `spec.description` — surfaced on `delegate_to_<id>` tools for the entry agent |
@@ -347,4 +347,3 @@ curl http://localhost:8090/api/schemas/agent
 - [plugin-bindings.md](plugin-bindings.md) — string shorthand vs `{type, params}` vs list slots
 - [Compiled agent defaults](../references/defaults.md) — a minimal manifest, fully expanded
 - [Tutorial: building an agent](../tutorials/01-building-an-agent/README.md)
-

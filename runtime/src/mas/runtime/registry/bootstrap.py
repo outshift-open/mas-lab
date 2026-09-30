@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -241,6 +242,9 @@ def _register_library_plugins(reg: PluginRegistry) -> None:
     from mas.library_catalog import discover_plugin_manifests
 
     for manifest_path in discover_plugin_manifests():
+        library_parent = str(manifest_path.parent.parent)
+        if library_parent not in sys.path:
+            sys.path.append(library_parent)
         try:
             register_manifest_file(reg, manifest_path)
         except Exception as exc:

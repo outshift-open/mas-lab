@@ -16,6 +16,9 @@ module_base: library_ioa
 
 types:
   - tool_provider
+  - agent_comm
+  - agent_expose
+  - webserver
 
 plugins:
   - type: tool_provider
@@ -25,3 +28,18 @@ plugins:
     class: MCPToolProvider
     shortcuts:
       - mcp
+  - type: agent_comm
+    name: a2a
+    urn: mas.agent_comm.a2a
+    module: library_ioa.plugins.a2a.agent_comm
+    class: A2AAgentComm
+  - type: agent_expose
+    name: a2a
+    urn: mas.agent_expose.a2a
+    module: library_ioa.plugins.a2a.exposure
+    class: A2AExposure
+  - type: webserver
+    name: uvicorn
+    urn: mas.webserver.uvicorn
+    module: library_ioa.plugins.webserver
+    class: UvicornWebServer
