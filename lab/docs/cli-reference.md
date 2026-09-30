@@ -21,6 +21,8 @@ mas-lab benchmark run experiment.yaml [OPTIONS]
 | `--dry-run` | off | Validate config and print plan only |
 | `--max-runs N` | from YAML | Override `run.n_runs` |
 | `--limit-scenarios N` | — | First N scenarios only |
+| `--scenario-id ID` | — | Run only the scenario with this exact ID |
+| `--dataset-item ID` | — | Run only the dataset item with this exact ID |
 | `--sample-scenarios N` | — | Random sample of N scenarios |
 | `--single-run` | off | One scenario, one run (CI shortcut) |
 | `-o`, `--output-dir PATH` | auto | Experiment output directory |
@@ -33,6 +35,10 @@ mas-lab benchmark run experiment.yaml [OPTIONS]
 | `--set STEP.KEY=VALUE` | — | Override pipeline step config (repeatable) |
 | `--clean-stale` | off | Remove outputs for dropped scenarios |
 | `-b`, `--background` | off | Submit via controller daemon |
+
+`--scenario-id` and `--dataset-item` may be used independently or together. They
+are applied before `--single-run` and scenario limits, and an unknown ID fails
+the run instead of silently executing a different selection.
 
 ### `--set` (step config overrides)
 

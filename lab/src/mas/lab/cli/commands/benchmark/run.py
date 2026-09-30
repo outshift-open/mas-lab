@@ -24,6 +24,10 @@ import click
               help="Override n_runs from YAML.")
 @click.option("--limit-scenarios", type=int, default=None,
               help="Limit to first N scenarios.")
+@click.option("--scenario-id", default=None,
+              help="Run only the scenario with this ID.")
+@click.option("--dataset-item", default=None,
+              help="Run only the dataset item with this ID.")
 @click.option("--sample-scenarios", type=int, default=None,
               help="Randomly sample N scenarios.")
 @click.option("--single-run", is_flag=True, default=False,
@@ -101,6 +105,7 @@ import click
 def run_cmd(experiment_yaml: Path, force: bool, resume: bool, benchmark_id: str | None,
             progress: bool, dry_run: bool, max_runs: int | None,
             limit_scenarios: int | None, sample_scenarios: int | None,
+            scenario_id: str | None, dataset_item: str | None,
             single_run: bool, output_dir: Path | None, trace_cache_dir: Path | None,
             data_cache_dir: Path | None,
             force_lock: bool, flavour: str | None, infra: str | None, strategy: str | None,
@@ -126,6 +131,8 @@ def run_cmd(experiment_yaml: Path, force: bool, resume: bool, benchmark_id: str 
                 force=force,
                 max_runs=max_runs,
                 limit_scenarios=limit_scenarios,
+                scenario_id=scenario_id,
+                dataset_item=dataset_item,
                 sample_scenarios=sample_scenarios,
                 single_run=single_run,
                 output_dir=output_dir,
@@ -153,6 +160,8 @@ def run_cmd(experiment_yaml: Path, force: bool, resume: bool, benchmark_id: str 
         "dry_run": dry_run,
         "max_runs": max_runs,
         "limit_scenarios": limit_scenarios,
+        "scenario_id": scenario_id,
+        "dataset_item": dataset_item,
         "sample_scenarios": sample_scenarios,
         "single_run": single_run,
         "output_dir": str(output_dir) if output_dir else None,

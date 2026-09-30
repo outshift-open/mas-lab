@@ -22,6 +22,8 @@ class BenchmarkRunOptions:
     dry_run: bool = False
     max_runs: int | None = None
     limit_scenarios: int | None = None
+    scenario_id: str | None = None
+    dataset_item: str | None = None
     sample_scenarios: int | None = None
     single_run: bool = False
     output_dir: Path | None = None
@@ -48,6 +50,8 @@ class BenchmarkRunOptions:
             dry_run=spec.get("dry_run", False),
             max_runs=spec.get("max_runs"),
             limit_scenarios=spec.get("limit_scenarios"),
+            scenario_id=spec.get("scenario_id"),
+            dataset_item=spec.get("dataset_item"),
             sample_scenarios=spec.get("sample_scenarios"),
             single_run=spec.get("single_run", False),
             output_dir=_path("output_dir"),
@@ -127,6 +131,8 @@ async def run_benchmark(
         dry_run=opts.dry_run,
         max_runs=opts.max_runs,
         limit_scenarios=opts.limit_scenarios,
+        scenario_id=opts.scenario_id,
+        dataset_item=opts.dataset_item,
         single_run=opts.single_run,
         flavour_name=opts.flavour_name,
         infra_name=opts.infra_name,
