@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import mas.third_party_otel  # noqa: F401
+
 from pathlib import Path
 
 import click

@@ -3,6 +3,8 @@
 """Shared pytest fixtures — controller daemon for functional / tutorial tests."""
 from __future__ import annotations
 
+import mas.third_party_otel  # noqa: F401
+
 import os
 import sys
 import tempfile

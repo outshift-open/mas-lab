@@ -35,6 +35,9 @@ def step_info_cmd(step_type: str | None, json_out: bool) -> None:
         click.echo(f"Registered step types ({len(types)}):\n")
         for t in types:
             cls = registry[t]
+            if cls is None:
+                click.echo(f"  {t}")
+                continue
             doc = (cls.__doc__ or "").strip().split("\n")[0].strip().rstrip(".")
             click.echo(f"  {t:40s}  {doc}")
         click.echo(f"\nRun: mas-lab benchmark step-info <type>  for detailed parameters.")

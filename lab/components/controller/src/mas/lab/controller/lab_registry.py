@@ -349,22 +349,25 @@ class LabRegistry:
 
     def pipeline_step_types(self) -> Dict[str, Any]:
         try:
-            from mas.lab.benchmark.pipeline import list_steps
+            from mas.runtime.registry import get_registry
 
-            registry = list_steps()
             step_types = []
             categories: Dict[str, dict] = {}
-            for step_id, cls in sorted(registry.items()):
-                doc = (cls.__doc__ or "").strip().split("\n")[0].strip()
-                category = getattr(cls, "CATEGORY", "general")
+            for item in get_registry().list("step"):
+                shortcuts = item.get("shortcuts") or []
+                step_id = str(shortcuts[0]) if shortcuts else str(item.get("urn") or "").rsplit(".", 1)[-1]
+                if not step_id:
+                    continue
+                attrs = item.get("attributes") or {}
+                category = str(attrs.get("category") or "general")
                 step_types.append(
                     {
                         "type": step_id,
                         "label": step_id.replace("_", " ").title(),
-                        "description": doc,
-                        "phase": getattr(cls, "PHASE", "post"),
+                        "description": str(item.get("description") or ""),
+                        "phase": str(attrs.get("phase") or "post"),
                         "category": category,
-                        "requires": getattr(cls, "REQUIRES", None),
+                        "requires": attrs.get("requires"),
                         "config": {},
                     }
                 )

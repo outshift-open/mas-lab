@@ -231,7 +231,8 @@ only of its `otel` extra.
 **Discovery is unaffected.** A plugin with unmet `requires:` is still
 registered and still shows up in `PluginRegistry.list()` — it is *marked*
 disabled, not hidden, so `mas plugin list` and `mas registry` can tell you
-it exists and how to turn it on.
+it exists and how to turn it on. Availability is a filesystem lookup of
+each `requires:` name: listing never imports those modules.
 
 **Resolving it is where the gate applies.** `PluginEntry.resolve()` — and
 therefore `PluginRegistry.resolve()`/`resolve_by_type()`/`get()`/`create()`,

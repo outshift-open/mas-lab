@@ -283,7 +283,9 @@ def wire_peer_delegation(
             binding = application_endpoints.get(name)
             if not isinstance(binding, dict) or not application_endpoint_is_used(binding):
                 continue
-            kind = str(binding.get("protocol") or binding.get("kind") or "a2a")
+            kind = str(binding.get("protocol") or binding.get("kind") or "").strip()
+            if not kind:
+                continue
             params = {
                 key: binding[key]
                 for key in ("url", "headers", "timeout")

@@ -36,7 +36,8 @@ def test_a2a_sdk_telemetry_is_disabled_by_default() -> None:
                 sys.executable,
                 "-c",
                 "import os; import library_ioa.plugins.a2a; import a2a.utils.telemetry; "
-                "print(os.environ['OTEL_INSTRUMENTATION_A2A_SDK_ENABLED'])",
+                "print(os.environ['OTEL_INSTRUMENTATION_A2A_SDK_ENABLED']); "
+                "print(getattr(a2a.utils.telemetry, 'otel_enabled', 'missing'))",
             ],
             check=True,
             capture_output=True,
@@ -44,7 +45,65 @@ def test_a2a_sdk_telemetry_is_disabled_by_default() -> None:
             text=True,
         )
 
-        assert result.stdout.strip() == expected
+        env_value, enabled_value = result.stdout.strip().splitlines()
+        assert env_value == expected
+        assert enabled_value == ("True" if expected == "true" else "False")
+
+
+def test_importing_a2a_plugin_package_does_not_import_a2a_sdk() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; import library_ioa.plugins.a2a; "
+            "print('loaded' if 'a2a' in sys.modules else 'lazy')",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert result.stdout.strip() == "lazy"
+
+
+def test_a2a_sdk_defaults_to_enabled_without_the_mas_pin() -> None:
+    """Recent a2a-sdk enables tracing whenever OpenTelemetry is importable."""
+    env = dict(os.environ)
+    env.pop("OTEL_INSTRUMENTATION_A2A_SDK_ENABLED", None)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import a2a.utils.telemetry; "
+            "print(a2a.utils.telemetry.otel_installed); "
+            "print(a2a.utils.telemetry.otel_enabled)",
+        ],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+    installed, enabled = result.stdout.strip().splitlines()
+    if installed != "True":
+        pytest.skip("opentelemetry is not installed")
+    assert enabled == "True"
+
+
+def test_importing_library_ioa_pins_a2a_telemetry_before_sdk_import() -> None:
+    env = dict(os.environ)
+    env.pop("OTEL_INSTRUMENTATION_A2A_SDK_ENABLED", None)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import library_ioa; import a2a.utils.telemetry; "
+            "print(a2a.utils.telemetry.otel_enabled)",
+        ],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+    assert result.stdout.strip() == "False"
 
 
 def test_sdk_backed_a2a_contract_is_available() -> None:
