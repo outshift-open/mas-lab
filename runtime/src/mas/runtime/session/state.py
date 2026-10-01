@@ -93,6 +93,32 @@ class Session:
     checkpoint_policy: CheckpointPolicy = field(default_factory=CheckpointPolicy)
     backtrack_policy: dict[str, Any] = field(default_factory=dict)
     backtrack_count: int = 0
+    pause_reason: str = ""
+    spec_revision: int = 0
+    snapshot_tree: Any | None = None
+
+    def pause(self, *, reason: str = "") -> None:
+        """Mark the session paused. User turns must refuse until ``resume``."""
+        self.status = SessionStatus.PAUSED
+        self.pause_reason = reason
+        pause = getattr(self.instance, "pause", None)
+        if callable(pause):
+            try:
+                pause(reason=reason)
+            except Exception:
+                pass
+
+    def resume(self) -> None:
+        if self.status is SessionStatus.TERMINATED:
+            raise RuntimeError("cannot resume a terminated session")
+        self.status = SessionStatus.ACTIVE
+        self.pause_reason = ""
+        resume = getattr(self.instance, "resume", None)
+        if callable(resume):
+            try:
+                resume()
+            except Exception:
+                pass
 
     def checkpoint(self, store: CheckpointStore, *, label: str = "") -> Path:
         """Persist a self-contained snapshot of kernel and conversation state."""
@@ -106,6 +132,7 @@ class Session:
             registry=self.working_memory,
         )
 
+        previous_status = self.status
         self.status = SessionStatus.CHECKPOINTING
         payload: dict[str, Any] = {
             "version": 2,
@@ -131,7 +158,10 @@ class Session:
             store_label = f"{self.session_id}-{turn_label}"
             path = store.save(payload, label=store_label)
         finally:
-            self.status = SessionStatus.ACTIVE
+            if previous_status in {SessionStatus.PAUSED, SessionStatus.TERMINATED}:
+                self.status = previous_status
+            else:
+                self.status = SessionStatus.ACTIVE
         self.checkpoint_history.append(str(path))
         retain = getattr(store, "retain", None)
         if callable(retain):
@@ -144,7 +174,36 @@ class Session:
             self.checkpoint_history = self.checkpoint_history[-1:]
         elif self.checkpoint_policy.retention_mode == "last_n":
             self.checkpoint_history = self.checkpoint_history[-self.checkpoint_policy.retention_n :]
+        self._record_snapshot(payload, label=label)
         return path
+
+    def _record_snapshot(self, payload: dict[str, Any], *, label: str) -> None:
+        tree = self.snapshot_tree
+        if tree is None:
+            return
+        from mas.runtime.session.snapshot import Snapshot, SnapshotRef
+
+        parent = tree.live(self.session_id)
+        ref = SnapshotRef.from_state(
+            session_id=self.session_id,
+            parent_snapshot_id=parent.snapshot_id if parent else None,
+            turn=int(payload.get("turn", 0)),
+            kernel=payload.get("kernel") or {},
+            working_memory=payload.get("working_memory") or [],
+            spec_revision=self.spec_revision,
+            label=label,
+        )
+        tree.record(
+            ref,
+            body=Snapshot(
+                ref=ref,
+                kernel=payload.get("kernel") or {},
+                working_memory=list(payload.get("working_memory") or []),
+                spec=self.manifest_ref.content if self.manifest_ref else None,
+                spec_revision=self.spec_revision,
+            ),
+            live=True,
+        )
 
     def backtrack(
         self,
@@ -176,7 +235,8 @@ class Session:
         self.controller.restore_turn(int(payload.get("turn", 0)))
         if automatic:
             self.backtrack_count += 1
-        self.status = SessionStatus.ACTIVE
+        if self.status not in {SessionStatus.PAUSED, SessionStatus.TERMINATED}:
+            self.status = SessionStatus.ACTIVE
         if steering_text.strip():
             self.controller.run_turn(f"/steer {steering_text.strip()}", auto_hitl=False)
         return path

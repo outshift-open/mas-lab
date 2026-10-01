@@ -27,6 +27,7 @@ from mas.runtime.driver.driver import DriverTrace, ExchangeRecord
 from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.schema.egress import EmitClientResponse
 from mas.runtime.session import BacktrackCapReached, Session, SessionStatus
+from mas.runtime.boundary.control.contract import SessionPaused
 
 _logger = logging.getLogger("mas.runtime")
 _RED = "\033[1;31m"
@@ -390,34 +391,13 @@ class SessionController:
         auto_hitl: bool = True,
         parent_call_id: str = "",
     ) -> TurnResult:
-        from mas.runtime.schema.ingress import OperatorSteerReceived
 
         if text.strip().lower() == "/backtrack" or text.strip().lower().startswith("/backtrack "):
             return self._handle_backtrack(text)
 
         if text.strip().lower().startswith("/steer "):
-            steer_text = text.strip()[7:].strip()
-            self._turn += 1
-            tid = turn_id or f"steer{self._turn}"
-            self.display.on_system(f"operator steer: {steer_text}")
-            self._setup_exchange_tracing()
-            # After a backtrack the live ctx still holds the rolled-back turns;
-            # steering must land on the restored snapshot, not on what it undid.
-            sync_working_memory_in(
-                self.instance,
-                memory_key=self._working_memory_key(),
-                agent_id=self.agent_id,
-                registry=self.working_memory_registry,
-            )
-            trace = self.instance.feed(
-                OperatorSteerReceived(steer_id=tid, context_text=steer_text)
-            )
-            if auto_hitl:
-                trace = self._drain_hitl(trace)
-            self._present_trace(trace)
-            return TurnResult(trace=trace, responses=list(trace.client_responses))
+            return self._handle_steer(text, turn_id=turn_id, auto_hitl=auto_hitl)
 
-        # User-explicit skill activation (agentskills.io Step 4 §User-explicit activation)
         stripped = text.strip()
         if stripped.lower() == "/skills":
             return self._handle_list_skills()
@@ -425,9 +405,52 @@ class SessionController:
             skill_name = stripped[len("/skill"):].strip()
             return self._handle_activate_skill(skill_name)
 
+        self._reject_if_paused()
+        text = self._take_queued_or_direct(text)
         return self._run_user_turn(
             text, turn_id=turn_id, auto_hitl=auto_hitl, parent_call_id=parent_call_id
         )
+
+    def _reject_if_paused(self) -> None:
+        session = self.managed_session
+        if session is not None and session.status is SessionStatus.PAUSED:
+            raise SessionPaused(session.session_id, reason=session.pause_reason)
+
+    def _take_queued_or_direct(self, text: str) -> str:
+        queue = getattr(self, "turn_queue", None)
+        session_id = getattr(self, "session_id", "") or ""
+        if queue is None or not session_id:
+            return text
+        if text:
+            queue.enqueue(session_id, text, source="run_turn")
+        item = queue.pop(session_id)
+        if item is None:
+            return text
+        return item.text
+
+    def _handle_steer(self, text: str, *, turn_id: str | None, auto_hitl: bool) -> TurnResult:
+        from mas.runtime.schema.ingress import OperatorSteerReceived
+
+        steer_text = text.strip()[7:].strip()
+        self._turn += 1
+        tid = turn_id or f"steer{self._turn}"
+        on_system = getattr(self.display, "on_system", None)
+        if callable(on_system):
+            on_system(f"operator steer: {steer_text}")
+        self._setup_exchange_tracing()
+        sync_working_memory_in(
+            self.instance,
+            memory_key=self._working_memory_key(),
+            agent_id=self.agent_id,
+            registry=self.working_memory_registry,
+        )
+        trace = self.instance.feed(
+            OperatorSteerReceived(steer_id=tid, context_text=steer_text)
+        )
+        if auto_hitl:
+            trace = self._drain_hitl(trace)
+        self._present_trace(trace)
+        return TurnResult(trace=trace, responses=list(trace.client_responses))
 
     async def arun_turn(
         self,
@@ -438,30 +461,12 @@ class SessionController:
         parent_call_id: str = "",
     ) -> TurnResult:
         """Async twin of :meth:`run_turn` — awaits ``instance.arun_user_text``."""
-        from mas.runtime.schema.ingress import OperatorSteerReceived
 
         if text.strip().lower() == "/backtrack" or text.strip().lower().startswith("/backtrack "):
             return self._handle_backtrack(text)
 
         if text.strip().lower().startswith("/steer "):
-            steer_text = text.strip()[7:].strip()
-            self._turn += 1
-            tid = turn_id or f"steer{self._turn}"
-            self.display.on_system(f"operator steer: {steer_text}")
-            self._setup_exchange_tracing()
-            sync_working_memory_in(
-                self.instance,
-                memory_key=self._working_memory_key(),
-                agent_id=self.agent_id,
-                registry=self.working_memory_registry,
-            )
-            trace = await self.instance.afeed(
-                OperatorSteerReceived(steer_id=tid, context_text=steer_text)
-            )
-            if auto_hitl:
-                trace = self._drain_hitl(trace)
-            self._present_trace(trace)
-            return TurnResult(trace=trace, responses=list(trace.client_responses))
+            return self._handle_steer(text, turn_id=turn_id, auto_hitl=auto_hitl)
 
         stripped = text.strip()
         if stripped.lower() == "/skills":
@@ -470,6 +475,8 @@ class SessionController:
             skill_name = stripped[len("/skill"):].strip()
             return self._handle_activate_skill(skill_name)
 
+        self._reject_if_paused()
+        text = self._take_queued_or_direct(text)
         return await self._arun_user_turn(
             text, turn_id=turn_id, auto_hitl=auto_hitl, parent_call_id=parent_call_id
         )

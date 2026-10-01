@@ -9,5 +9,17 @@ from mas.runtime.session.state import (
 	SessionLineage,
 	SessionStatus,
 )
+from mas.runtime.session.snapshot import Snapshot, SnapshotRef, SnapshotTree
+from mas.runtime.boundary.control.contract import SessionPaused
 
-__all__ = ["BacktrackCapReached", "ManifestRef", "Session", "SessionLineage", "SessionStatus"]
+__all__ = [
+    "BacktrackCapReached",
+    "ManifestRef",
+    "Session",
+    "SessionLineage",
+    "SessionPaused",
+    "SessionStatus",
+    "Snapshot",
+    "SnapshotRef",
+    "SnapshotTree",
+]

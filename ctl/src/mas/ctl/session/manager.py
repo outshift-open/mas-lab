@@ -11,8 +11,11 @@ from pathlib import Path
 from typing import Any
 
 from mas.ctl.adapters.checkpoint import JsonCheckpointStore
+from mas.ctl.session.turn_queue import TurnInputQueue
 from mas.runtime.boundary.context.working_memory_registry import WorkingMemoryRegistry
+from mas.runtime.boundary.control.contract import ControlCapability, ControlEvent
 from mas.runtime.session import ManifestRef, Session, SessionLineage, SessionStatus
+from mas.runtime.session.snapshot import SnapshotTree
 from mas.runtime.spec.checkpoint import parse_checkpoint_policy
 from mas.runtime.spec.gov import parse_gov_spec
 
@@ -26,6 +29,9 @@ class SessionManager:
     checkpoint_store: JsonCheckpointStore | None = None
     session_factory: SessionFactory | None = None
     sessions: dict[str, Session] = field(default_factory=dict)
+    turn_queue: TurnInputQueue = field(default_factory=TurnInputQueue)
+    snapshot_tree: SnapshotTree = field(default_factory=SnapshotTree)
+    control_events: list[ControlEvent] = field(default_factory=list)
 
     def create(
         self,
@@ -52,8 +58,24 @@ class SessionManager:
             ),
         )
         self._attach_controller(session)
+        session.snapshot_tree = self.snapshot_tree
         self.sessions[resolved_id] = session
         return session
+
+    def control(
+        self,
+        *,
+        capability: ControlCapability | None = None,
+        deny_navigate: Any | None = None,
+    ) -> Any:
+        from mas.ctl.session.control import SessionControl
+
+        return SessionControl(self, capability=capability, deny_navigate=deny_navigate)
+
+    def clear_session(self, session_id: str) -> None:
+        self.sessions.pop(session_id, None)
+        self.turn_queue.clear_session(session_id)
+        self.snapshot_tree.clear_session(session_id)
 
     def get(self, session_id: str) -> Session:
         """Return a managed session or raise a descriptive lookup error."""
@@ -180,12 +202,17 @@ class SessionManager:
         )
         controller.restore_turn(int(payload.get("turn", 0)))
         self._attach_controller(session)
+        session.snapshot_tree = self.snapshot_tree
         self.sessions[session_id] = session
         return session
 
     def _attach_controller(self, session: Session) -> None:
         session.controller.session_id = session.session_id
         session.controller.working_memory_registry = session.working_memory
+        session.controller.managed_session = session
+        session.controller.turn_queue = self.turn_queue
+        if self.checkpoint_store is not None:
+            session.controller.checkpoint_store = self.checkpoint_store
 
     @staticmethod
     def _manifest_content(
