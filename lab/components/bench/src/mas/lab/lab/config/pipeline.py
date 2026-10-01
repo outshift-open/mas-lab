@@ -53,6 +53,10 @@ class PipelineStepSpec:
     per_run: bool = False
     """(v1) When True, expand this step once for each benchmark run folder."""
 
+    concurrency: int = 1
+    """Max concurrent per-run instances when per_run=True / scope=run.
+    Values > 1 wrap all instances into a ConcurrentRunnerStep."""
+
     phase: str = "post"
     """Execution phase: ``pre`` (before benchmark loop) or ``post`` (after)."""
 
@@ -88,6 +92,7 @@ class PipelineStepSpec:
             name=data.get("name"),
             per_scenario=data.get("per_scenario", False),
             per_run=data.get("per_run", False),
+            concurrency=int(data.get("concurrency", 1)),
             phase=data.get("phase", "post"),
             scope=data.get("scope", ""),
             config=data.get("config", {}),

@@ -18,6 +18,7 @@ _STEP_KNOWN_KEYS: frozenset = frozenset({
     "name", "type", "config", "depends_on", "description", "persist", "phase",
     "per_scenario",
     "per_run",
+    "concurrency",
     "in",
     "out",
     "scope",

@@ -130,6 +130,13 @@ def _import_class(spec: str, base_dir: Optional[Path] = None) -> type:
 
 def resolve_step_class(name: str, *, base_dir: Optional[Path] = None, required_base: type | None = None) -> type:
     """Resolve a pipeline step class by name, with module/class fallback."""
+    if name == "__concurrent_runner__":
+        from mas.lab.benchmark.pipeline.concurrent import ConcurrentRunnerStep
+        cls = ConcurrentRunnerStep
+        if required_base and not issubclass(cls, required_base):
+            raise TypeError(f"step type {name!r} is not a {required_base.__name__} subclass.")
+        return cls
+
     try:
         cls = get_step(name)
     except Exception as exc:
