@@ -22,7 +22,6 @@ from mas.library.skills.plugins import (
     LangChainSkillPlugin,
     NativeSkillPlugin,
     SkillActivation,
-    SkillImplementation,
     SkillMetadata,
     SkillPlugin,
     SkillPluginRegistry,
@@ -90,11 +89,11 @@ class TestDataclasses:
 class TestSkillPluginRegistry:
     def test_enum_by_name(self):
         reg = SkillPluginRegistry(impl="native")
-        assert reg.impl is SkillImplementation.NATIVE
+        assert reg.impl == "native"
 
     def test_enum_by_value(self):
-        reg = SkillPluginRegistry(impl=SkillImplementation.LANGCHAIN)
-        assert reg.impl is SkillImplementation.LANGCHAIN
+        reg = SkillPluginRegistry(impl="langchain")
+        assert reg.impl == "langchain"
 
     def test_invalid_impl_raises(self):
         with pytest.raises(ValueError):
@@ -104,6 +103,13 @@ class TestSkillPluginRegistry:
         impls = SkillPluginRegistry.available_implementations()
         assert set(impls) >= {"native", "langchain", "adk"}
         assert "llamaindex" not in impls
+
+    def test_available_implementations_come_from_plugin_registry(self):
+        from mas.runtime.registry import get_registry
+
+        assert set(SkillPluginRegistry.available_implementations()) == set(
+            get_registry().list_names("skill_impl")
+        )
 
     def test_repr(self):
         reg = SkillPluginRegistry(impl="adk")

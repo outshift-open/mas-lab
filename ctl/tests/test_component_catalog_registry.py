@@ -13,8 +13,10 @@ from mas.ctl.compose.placement_registry import (
 )
 from mas.ctl.registry.catalog import (
     UnknownComponentError,
+    get_component,
     get_framework,
     get_placement,
+    validate_component_id,
     validate_framework_id,
     validate_placement_id,
 )
@@ -26,11 +28,20 @@ def test_framework_and_placement_catalogs_are_authoritative() -> None:
     assert get_framework("crewai").status == "planned"
     with pytest.raises(UnknownComponentError, match="not available"):
         validate_framework_id("crewai")
+    with pytest.raises(UnknownComponentError, match="not available"):
+        get_framework_adapter("crewai")
 
     assert validate_placement_id("local-inproc") == "local-inproc"
     assert get_placement("docker").status == "planned"
     with pytest.raises(UnknownComponentError, match="not available"):
         validate_placement_id("docker")
+
+
+def test_generic_catalog_accessors_match_typed_wrappers() -> None:
+    assert get_component("framework", "native").id == get_framework("native").id
+    assert validate_component_id("framework", "native") == "native"
+    with pytest.raises(UnknownComponentError, match="not available"):
+        validate_component_id("framework", "crewai")
 
 
 def test_framework_and_placement_registries_seed_from_catalog() -> None:

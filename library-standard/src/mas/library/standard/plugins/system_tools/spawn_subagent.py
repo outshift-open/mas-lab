@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from mas.runtime.engine.tools import SPAWN_SUBAGENT_TOOL
+
 
 class SpawnSubagentTool:
     """Advertise spawn_subagent only when the manifest grants the capability."""
@@ -23,7 +25,7 @@ class SpawnSubagentTool:
         ]
         return [
             {
-                "name": "spawn_subagent",
+                "name": SPAWN_SUBAGENT_TOOL,
                 "description": "Run one bounded subagent template: " + "; ".join(descriptions),
                 "parameters": {
                     "type": "object",

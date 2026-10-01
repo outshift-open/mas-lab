@@ -44,7 +44,6 @@ class _ErrorRecoveryIngressAdapter:
 
 def build_ingress_governance_plugins(
     *,
-    ingress_plugin_specs: list[dict],
     error_recovery_plugin: ErrorRecoveryPlugin | None,
 ) -> tuple[RegisteredIngressPlugin, ...]:
     entries: list[RegisteredIngressPlugin] = []

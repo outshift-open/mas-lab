@@ -18,7 +18,7 @@ from mas.ctl.manifest.spec_bindings import SpecBindingError, parse_subagent_temp
 from mas.library.standard.plugins.tools.containment import containment_roots, resolve_under_roots
 from mas.runtime.boundary.engine_tools import EngineToolBudgetExceeded, SubagentContract
 from mas.runtime.driver.instance import RuntimeInstance
-from mas.runtime.engine.tools import spawn_subagent_params
+from mas.runtime.engine.tools import SPAWN_SUBAGENT_TOOL, spawn_subagent_params
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +134,7 @@ class SubagentSpawner(SubagentContract):
         return factory
 
     def is_subagent_tool(self, tool_name: str) -> bool:
-        return tool_name == "spawn_subagent"
+        return tool_name == SPAWN_SUBAGENT_TOOL
 
     def claims(self, tool_name: str) -> bool:
         return self.is_subagent_tool(tool_name)
@@ -297,7 +297,7 @@ def wire_subagent_spawning(
     for existing in getattr(leaf, "engine_tool_contracts", ()) or ():
         if isinstance(existing, SubagentSpawner) and existing.parent_agent_id == parent_agent_id:
             return existing
-    spawner = _resolve_engine_tool_class("spawn_subagent", SubagentSpawner)(
+    spawner = _resolve_engine_tool_class(SPAWN_SUBAGENT_TOOL, SubagentSpawner)(
         materialized=materialized,
         parent_agent_id=parent_agent_id,
         session_id=session_id,

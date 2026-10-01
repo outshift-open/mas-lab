@@ -173,6 +173,11 @@ def openai_tools(
 SPAWN_SUBAGENT_TOOL = "spawn_subagent"
 
 
+def is_spawn_subagent_enabled(spec: dict[str, Any] | None) -> bool:
+    """True when the bound spec advertises an enabled ``spawn_subagent`` tool."""
+    return spawn_subagent_params(spec) is not None
+
+
 def spawn_subagent_params(spec: dict[str, Any] | None) -> dict[str, Any] | None:
     """Params of the enabled ``spawn_subagent`` system-tool entry, or ``None``.
 

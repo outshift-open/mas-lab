@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from mas.runtime.contracts.context_contract import ContextContract, ContextPart
 from mas.runtime.contracts.tool_contract import ToolContract
 
-from .skill_plugin_registry import SkillImplementation, SkillPluginRegistry
+from .skill_plugin_registry import SkillPluginRegistry
 
 if TYPE_CHECKING:
     from .skill_plugin_base import SkillPlugin
@@ -30,7 +30,7 @@ class SkillPluginContextAdapter(ContextContract):
 
     def __init__(
         self,
-        impl: SkillImplementation | str = SkillImplementation.NATIVE,
+        impl: str = "native",
         base_dir: Path | None = None,
     ):
         self.impl = impl
@@ -83,7 +83,7 @@ class SkillPluginToolAdapter(ToolContract):
 
     def __init__(
         self,
-        impl: SkillImplementation | str = SkillImplementation.NATIVE,
+        impl: str = "native",
         base_dir: Path | None = None,
     ):
         self.impl = impl

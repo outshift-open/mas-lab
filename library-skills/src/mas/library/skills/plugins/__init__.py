@@ -9,8 +9,8 @@ from mas.library.skills.plugins.skill_plugin_base import (
     SkillPlugin,
 )
 from mas.library.skills.plugins.skill_plugin_registry import (
-    SkillImplementation,
     SkillPluginRegistry,
+    coerce_skill_impl,
 )
 
 __all__ = [
@@ -18,8 +18,8 @@ __all__ = [
     "LangChainSkillPlugin",
     "NativeSkillPlugin",
     "SkillActivation",
-    "SkillImplementation",
     "SkillMetadata",
     "SkillPlugin",
     "SkillPluginRegistry",
+    "coerce_skill_impl",
 ]

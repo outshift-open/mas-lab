@@ -23,7 +23,7 @@ from .skill_plugin_base import (
     require_str_list_arg,
     sanitize_extra_env,
 )
-from .skill_plugin_registry import SkillImplementation, SkillPluginRegistry
+from .skill_plugin_registry import SkillPluginRegistry, coerce_skill_impl
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +36,11 @@ class RunSkillScriptPlugin(ToolContract):
 
     def __init__(
         self,
-        impl: SkillImplementation | str = SkillImplementation.NATIVE,
+        impl: str = "native",
         base_dir: str | Path | None = None,
     ) -> None:
         super().__init__()
-        self._impl = _coerce_impl(impl)
+        self._impl = coerce_skill_impl(impl)
         self._base_dir = Path(base_dir).resolve() if base_dir else None
         self._local_backend_plugin: Any | None = None
 
@@ -241,27 +241,17 @@ class RunSkillScriptPlugin(ToolContract):
         }
 
 
-def _coerce_impl(impl: SkillImplementation | str) -> SkillImplementation:
-    if isinstance(impl, SkillImplementation):
-        return impl
-    try:
-        return SkillImplementation(str(impl).strip().lower())
-    except ValueError:
-        logger.warning("Unknown skill implementation %r; defaulting to native", impl)
-        return SkillImplementation.NATIVE
-
-
 def _backend_plugin_from_ctx(
     ctx: Any,
     *,
-    impl: SkillImplementation,
+    impl: str,
     base_dir: Path | None,
     local_cache: RunSkillScriptPlugin,
 ) -> Any | None:
     plugin = getattr(ctx, "skill_backend_plugin", None) if ctx is not None else None
     if plugin is not None:
         return plugin
-    if impl is SkillImplementation.NATIVE:
+    if impl == "native":
         return None
     if local_cache._local_backend_plugin is None:
         resolved_base = (base_dir or Path.cwd()).resolve()
@@ -269,6 +259,4 @@ def _backend_plugin_from_ctx(
         plugin.discover(resolved_base)
         local_cache._local_backend_plugin = plugin
     return local_cache._local_backend_plugin
-
-
 

@@ -67,9 +67,17 @@ def list_registered_adapters() -> list[str]:
 
 def get_framework_adapter(adapter_id: FrameworkAdapterId) -> FrameworkAdapter:
     _register_from_catalog()
-    if adapter_id not in _ADAPTERS:
-        raise KeyError(f"unknown framework adapter: {adapter_id}")
-    return _ADAPTERS[adapter_id]
+    if adapter_id in _ADAPTERS:
+        return _ADAPTERS[adapter_id]
+    from mas.ctl.registry.catalog import UnknownComponentError, get_framework
+
+    try:
+        entry = get_framework(adapter_id)
+    except UnknownComponentError:
+        raise KeyError(f"unknown framework adapter: {adapter_id}") from None
+    if entry.status in {"planned", "future_release"}:
+        raise UnknownComponentError(f"framework {adapter_id!r} is not available yet")
+    raise KeyError(f"unknown framework adapter: {adapter_id}")
 
 
 def register_framework_adapter(adapter_id: FrameworkAdapterId, adapter: FrameworkAdapter) -> None:

@@ -34,13 +34,27 @@ def test_declaring_the_tool_requires_at_least_one_template():
 
 def test_a_manifest_without_the_tool_entry_is_valid_and_cannot_spawn():
     """No capability flag exists: absence of the tools entry is the gate."""
-    validate_agent_spec_bindings({"tools": [{"kind": "system", "name": "inform_user"}]})
+    from mas.runtime.engine.tools import is_spawn_subagent_enabled
+
+    spec = {"tools": [{"kind": "system", "name": "inform_user"}]}
+    validate_agent_spec_bindings(spec)
+    assert is_spawn_subagent_enabled(spec) is False
 
 
 def test_disabled_tool_entry_is_not_a_spawn_declaration():
-    validate_agent_spec_bindings(
-        {"tools": [{"kind": "system", "name": "spawn_subagent", "enabled": False}]}
-    )
+    from mas.runtime.engine.tools import is_spawn_subagent_enabled
+
+    spec = {"tools": [{"kind": "system", "name": "spawn_subagent", "enabled": False}]}
+    validate_agent_spec_bindings(spec)
+    assert is_spawn_subagent_enabled(spec) is False
+
+
+def test_enabled_spawn_tool_is_the_capability_gate():
+    from mas.runtime.engine.tools import is_spawn_subagent_enabled
+
+    spec = _spec({"templates": [{"id": "w", "ref": "w.yaml"}]})
+    validate_agent_spec_bindings(spec)
+    assert is_spawn_subagent_enabled(spec) is True
 
 
 @pytest.mark.parametrize(
