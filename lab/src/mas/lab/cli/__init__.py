@@ -11,6 +11,8 @@ Import and use programmatically::
 """
 from __future__ import annotations
 
+import mas.third_party_otel  # noqa: F401
+
 import logging
 
 import click

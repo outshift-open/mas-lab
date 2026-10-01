@@ -1,5 +1,7 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
 """A2A library plugin package."""
 
-import os
+from __future__ import annotations
 
-os.environ.setdefault("OTEL_INSTRUMENTATION_A2A_SDK_ENABLED", "false")
+import mas.third_party_otel  # noqa: F401

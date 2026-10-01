@@ -72,7 +72,12 @@ def get_step(name: str | None = None, *, attributes: dict[str, Any] | None = Non
 
 
 def list_steps() -> dict[str, Any]:
-    """Return all registered pipeline steps as ``{name: class}``."""
+    """Return registered pipeline steps as ``{name: class_or_none}``.
+
+    Listing does not import step modules or their dependencies. A class is
+    returned only when that module is already in ``sys.modules`` (typically
+    a programmatic :func:`register_step`). Use :func:`get_step` to load one.
+    """
     items: dict[str, Any] = {}
     for entry in get_registry().list():
         if str(entry.get("category") or "") != "step":
@@ -83,10 +88,12 @@ def list_steps() -> dict[str, Any]:
             continue
         module = str(entry.get("module") or "")
         class_name = str(entry.get("class_name") or "")
-        if not module or not class_name:
-            continue
-        mod = importlib.import_module(module)
-        items[step_name] = getattr(mod, class_name)
+        cls = None
+        if module and class_name:
+            loaded = sys.modules.get(module)
+            if loaded is not None:
+                cls = getattr(loaded, class_name, None)
+        items[step_name] = cls
     return dict(sorted(items.items()))
 
 

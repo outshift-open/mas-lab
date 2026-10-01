@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mas.ctl.compose.models import AgentBindSlice, EffectiveBindManifest
+from mas.ctl.compose.models import AgentBindSlice, EffectiveBindManifest, ResolvedInfra
 from mas.ctl.compose.models import PlacementPlan
 from mas.ctl.compose.runner import ComposeResult
 from mas.ctl.executor.mas_session import (
@@ -202,6 +202,36 @@ def test_wire_peer_delegation_wires_non_entry_agent_with_own_peers(tmp_path: Pat
     # separately) — only schedule_agent has its own peers among the rest.
     assert newly_wired == ["schedule_agent"]
     assert wired_engines == [materialized.materialized.instances["schedule_agent"].driver.engine]
+
+
+def test_wire_peer_delegation_does_not_load_a2a_without_explicit_protocol(tmp_path: Path):
+    """Used Application endpoints without protocol: a2a must not construct A2A."""
+    materialized = _materialized_with_agents(
+        ["moderator", "schedule_agent", "concierge_agent"], tmp_path
+    )
+    materialized.compose.mas_config.setdefault("spec", {})["agency"] = {
+        "agents": [{"id": "remote-peer"}]
+    }
+    materialized.compose.resolved_infra = ResolvedInfra(
+        applications={"remote-peer": {"url": "http://127.0.0.1:9", "usage": "use"}}
+    )
+
+    created: list[tuple[str, dict | None]] = []
+
+    def _create(spec_key: str, binding=None, **kwargs):
+        created.append((spec_key, binding))
+        return MagicMock()
+
+    def _fake_manifest(bind, agent_id):
+        return {"metadata": {"name": agent_id}, "spec": {}}
+
+    with patch("mas.ctl.executor.mas_session.load_agent_manifest_from_bind", side_effect=_fake_manifest):
+        with patch("mas.ctl.executor.mas_session.wire_entry_engine_delegation"):
+            with patch("mas.runtime.registry.get_registry", return_value=SimpleNamespace(create=_create)):
+                wire_peer_delegation(materialized, entry_id="moderator", already_wired=set())
+
+    assert all((binding or {}).get("type") != "a2a" for _, binding in created)
+    assert any((binding or {}).get("type") == "local" for _, binding in created)
 
 
 def test_wire_peer_delegation_skips_agents_without_their_own_peers(tmp_path: Path):

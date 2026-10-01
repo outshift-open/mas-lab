@@ -2,6 +2,8 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Tests for the centralized plugin registry (mas.runtime.registry)."""
 
+import sys
+
 import pytest
 from pathlib import Path
 from mas.runtime.registry import (
@@ -120,6 +122,45 @@ class TestPluginAvailability:
             requires=["pathlib", "no_such_package_xyz"],
         )
         assert info.missing_requires() == ["no_such_package_xyz"]
+
+    def test_missing_requires_does_not_import_optional_sdks(self, monkeypatch):
+        import importlib.util
+
+        imported: list[str] = []
+
+        def _boom_import(name: str, *args, **kwargs):
+            imported.append(name)
+            raise AssertionError(f"missing_requires must not import {name}")
+
+        def _boom_spec(name: str, *args, **kwargs):
+            imported.append(name)
+            raise AssertionError(f"missing_requires must not find_spec {name}")
+
+        monkeypatch.setattr(importlib.util, "find_spec", _boom_spec)
+        monkeypatch.setattr("mas.runtime.registry.importlib.import_module", _boom_import)
+        info = VariantInfo(
+            module="pathlib",
+            class_name="Path",
+            requires=["opentelemetry.sdk.trace", "no_such_package_xyz"],
+        )
+        assert "no_such_package_xyz" in info.missing_requires()
+        assert imported == []
+
+    def test_missing_requires_discovers_sys_path_without_import(self, tmp_path, monkeypatch):
+        pkg = tmp_path / "scanonly_dep"
+        sub = pkg / "sdk"
+        sub.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("raise RuntimeError('must not import')\n")
+        (sub / "__init__.py").write_text("raise RuntimeError('must not import')\n")
+        (sub / "trace.py").write_text("raise RuntimeError('must not import')\n")
+        monkeypatch.syspath_prepend(str(tmp_path))
+        info = VariantInfo(
+            module="pathlib",
+            class_name="Path",
+            requires=["scanonly_dep.sdk.trace", "scanonly_dep.missing"],
+        )
+        assert info.missing_requires() == ["scanonly_dep.missing"]
+        assert "scanonly_dep" not in sys.modules
 
     def test_resolve_raises_plugin_unavailable_for_missing_requires(self):
         variant = VariantInfo(

@@ -77,6 +77,29 @@ except ImportError:
     context_api = None  # type: ignore[assignment]
 
 
+def _safe_detach(token: Any) -> None:
+    """Detach an OTel context token without ERROR-logging cross-context resets.
+
+    ``opentelemetry.context.detach`` catches ``ValueError`` internally and
+    logs a full traceback at ERROR. Tokens created on one worker thread or
+    asyncio task and reset on another (A2A ``asyncio.run`` bridge, obs
+    plugin workers) produce the issue #127 log explosion. Bypass the
+    logging wrapper and ignore that ``ValueError``.
+    """
+    if token is None or not OTEL_AVAILABLE or context_api is None:
+        return
+    runtime = getattr(context_api, "_RUNTIME_CONTEXT", None)
+    try:
+        if runtime is not None:
+            runtime.detach(token)
+        else:
+            context_api.detach(token)
+    except ValueError:
+        return
+    except Exception:
+        return
+
+
 # ---------------------------------------------------------------------------
 # JSON-line file exporter
 # ---------------------------------------------------------------------------
@@ -450,10 +473,7 @@ class MasOtelConverter:
             else:
                 span.end()
         finally:
-            try:
-                context_api.detach(token)
-            except Exception:
-                pass
+            _safe_detach(token)
 
     def _point(
         self,

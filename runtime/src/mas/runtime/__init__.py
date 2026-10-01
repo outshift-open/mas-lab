@@ -2,6 +2,8 @@
 #  SPDX-License-Identifier: Apache-2.0
 """MAS Runtime V2 — library package (aligned to TLA MASRuntimeV2Full)."""
 
+import mas.third_party_otel  # noqa: F401
+
 from mas.runtime.kernel.orchestrator import RuntimeKernel, StepResult
 from mas.runtime.schema.ingress import IngressSymbol
 from mas.runtime.schema.egress import EgressSymbol

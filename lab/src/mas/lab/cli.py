@@ -5,6 +5,8 @@
 The ``mas-lab`` console script calls ``app()`` from this module.
 All sub-commands are defined in :mod:`mas.lab.cli.commands`.
 """
+import mas.third_party_otel  # noqa: F401
+
 from mas.lab.cli import app
 
 __all__ = ["app"]

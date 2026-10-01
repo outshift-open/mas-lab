@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import importlib
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -24,14 +25,64 @@ class VariantInfo:
         return getattr(mod, self.class_name)
 
     def missing_requires(self) -> list[str]:
-        """``requires`` entries that fail to import, in declared order."""
-        missing = []
-        for name in self.requires:
-            try:
-                importlib.import_module(name)
-            except ImportError:
-                missing.append(name)
-        return missing
+        """``requires`` entries that are not installed, without importing them.
+
+        Catalog scans (:meth:`PluginRegistry.list`, ``list_steps``, plugin
+        doctor) must not execute a ``requires`` module or its parents.
+        ``import_module`` and ``find_spec("a.b.c")`` both do.
+        """
+        return [name for name in self.requires if not _requirement_discoverable(name)]
+
+
+def _requirement_discoverable(dotted: str) -> bool:
+    """True when *dotted* is installed, without importing any of its parts.
+
+    Uses only ``sys.modules`` (already loaded), stdlib/builtin names, and
+    filesystem lookups on ``sys.path``. No ``find_spec`` / ``import_module``.
+    """
+    parts = [part for part in str(dotted).split(".") if part]
+    if not parts:
+        return False
+    top, rest = parts[0], parts[1:]
+    loaded = sys.modules.get(top)
+    if loaded is not None:
+        if not rest:
+            return True
+        search = [Path(entry) for entry in (getattr(loaded, "__path__", None) or [])]
+        return bool(search) and _path_has_parts(search, rest)
+    if top in sys.builtin_module_names:
+        return not rest
+    if top in getattr(sys, "stdlib_module_names", ()):
+        return not rest or _sys_path_has(top, rest)
+    return _sys_path_has(top, rest)
+
+
+def _sys_path_has(top: str, rest: list[str]) -> bool:
+    for entry in sys.path:
+        if not entry:
+            continue
+        root = Path(entry)
+        package = root / top
+        if package.is_dir():
+            if not rest or _path_has_parts([package], rest):
+                return True
+        elif not rest and (root / f"{top}.py").is_file():
+            return True
+    return False
+
+
+def _path_has_parts(search: list[Path], parts: list[str]) -> bool:
+    *dirs, last = parts
+    for base in search:
+        current = base
+        for name in dirs:
+            current = current / name
+            if not current.is_dir():
+                break
+        else:
+            if (current / last).is_dir() or (current / f"{last}.py").is_file():
+                return True
+    return False
 
 
 class PluginUnavailable(RuntimeError):
