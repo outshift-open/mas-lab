@@ -70,7 +70,7 @@ Extension properties (`x-*`) are allowed and ignored by the runtime.
 | `memory` | string \| string[] \| object | no | — | Memory backend configuration. See [`MemoryConfig`](#memoryconfig). |
 | `working_memory` | object | no | — | Cross-turn history persistence for delegated agents. See [`WorkingMemory`](#workingmemory). |
 | `skills` | `string[]` | no | `[]` | Skills to activate. Name-only or `@library/name`. Resolution: app-local → libraries → packages. |
-| `tools_ref` | `string` \| null | no | `null` | Logical tool-set name resolved by the infra `ToolRegistry` (e.g. `sre-tools`). No paths or extensions. |
+| `tools_ref` | `string` \| null | no | `null` | Logical tool-set name resolved by the infra `ToolRegistry` (e.g. `web-tools`). No paths or extensions. |
 | `tools` | `Tool[]` | no | `[]` | Per-agent tool declarations — three forms. Additive with `tools_ref`. See [`Tool`](#tool). |
 | `behavior` | object | no | — | Runtime capability flags. See [`Behavior`](#behavior). |
 | `governance` | `GovernanceBinding` | no | `{}` | Governance plugin list. See [`GovernanceBinding`](#governancebinding). |
@@ -446,7 +446,7 @@ References a `kind: Tool` manifest file or a `ToolBundle` entry.
 
 | Field | Type | Required | Default | Description |
 | ------- | ------ | ---------- | --------- | ------------- |
-| `ref` | `string` | **yes** | — | Path to a `kind: Tool` manifest (`./tools/calc.tool.yaml`) or a ToolBundle entry (`bundle://sre-tools/check-health`). |
+| `ref` | `string` | **yes** | — | Path to a `kind: Tool` manifest (`./tools/calc.tool.yaml`) or a ToolBundle entry (`bundle://web-tools/fetch-page`). |
 | `priority` | `integer` | no | `100` | Registration priority (higher = loaded first). |
 | `params` | `object` | no | `{}` | Init kwargs merged into the referenced tool's `spec.impl.params`. |
 

@@ -32,15 +32,6 @@ Field-by-field `config.yaml` keys (including `mas_ctl.trace`) are in the
 | `--8<-- "includes/mas-paths.md:xdg-llm-cache"` | under `$XDG_CACHE_HOME` | LLM cache — built-in: [execution.md](manifests/execution.md#cache--the-llm-response-cache); infra: [llm-cache.md](manifests/llm-cache.md) · [ref](references/llm-cache.md) |
 | `$XDG_STATE_HOME` | `~/.local/state` | Base for state files |
 | `--8<-- "includes/mas-paths.md:xdg-last-run"` | under `$XDG_STATE_HOME` | Last benchmark run pointer |
-| `MAS_LABS_ROOT` | — | Env override for labs root |
-| `MAS_RUNS_ROOT` | — | Env override for runs root |
-| `MAS_DATA_ROOT` / `MAS_LAB_DATA` | — | Env override for data root |
-| `MAS_TRACE_CACHE` | — | Env override for trace cache |
-| `MAS_DATA_CACHE` | — | Env override for pipeline cache |
-| `MAS_LLM_CACHE` | — | Env override for the LLM response cache file path |
-| `MAS_LLM_CACHE_READ` / `MAS_LLM_CACHE_WRITE` | — | Built-in engine cache — [execution.md](manifests/execution.md#cache--the-llm-response-cache). Infra middleware: [references/llm-cache.md](references/llm-cache.md) |
-| `MAS_HOME` | `--8<-- "includes/mas-paths.md:mas-home"` | Env override for controller data root |
-| `MAS_CONTROLLER_SOCKET` | `--8<-- "includes/mas-paths.md:controller-socket"` | Env override for controller socket |
 
 MAS-Lab and `mas-ctl` resolve storage paths from the active config file
 (see [Tutorial 0](tutorials/00-environment-setup/README.md)). Infra manifests
@@ -95,8 +86,8 @@ cp config/infra/openai.example.yaml "${XDG_CONFIG_HOME:-$HOME/.config}/mas/infra
 
 Workspace checkouts use the sample at
 [`library-samples/sample-workspace/config.yaml`](../library-samples/sample-workspace/config.yaml)
-(`MAS_WORKSPACE_ROOT` is set automatically in pytest; copy to your project root
-or export `MAS_WORKSPACE_ROOT` for local CLI runs).
+(copy it to your project root; commands find it by walking up from the
+current directory).
 
 For first-time setup via `mas-lab init`, generated files come from templates
 bundled in the `mas-lab` package:
@@ -130,38 +121,54 @@ Complete tables: [config.yaml](references/config.yaml.md#mas_ctl) ·
 The runtime searches for infra manifests in this order:
 
 1. **CLI flag**: `--infra-ref <path>`
-2. **Environment**: `MAS_INFRA_REFS` (comma-separated; overrides workspace `infra_refs`)
-3. **Workspace**: `infra_refs` in `config.yaml`
-4. **User default**: `$XDG_CONFIG_HOME/mas/infra/default.yaml` (if no CLI flag)
+2. **Workspace**: `infra_refs` in `config.yaml`
+3. **User default**: `$XDG_CONFIG_HOME/mas/infra/default.yaml` (if no CLI flag)
 
 Runtime engine manifests (`kind: RuntimeEngine`) resolve via optional
-`runtime_refs` in `config.yaml`, `MAS_RUNTIME_REFS`, `--runtime-ref`, or user
+`runtime_refs` in `config.yaml`, `--runtime-ref`, or user
 `default_runtime` in `$XDG_CONFIG_HOME/mas/config.yaml`. They are **not**
 declared on Agent or MAS manifests. Omit `runtime_refs` to use package defaults
 only. See [runtime-engine.md](manifests/runtime-engine.md).
 
-Model override for a single `mas-ctl chat` / `run-mas` (overrides manifest `spec.models`):
-
-- `MAS_CTL_MODEL` — e.g. `gpt-4o-mini` on direct OpenAI, or a provider-prefixed id (e.g. `azure/gpt-4o-mini`) when routing through an OpenAI-compatible proxy gateway
-- `MAS_LLM_MODEL` — alias (common in `.env` files)
+Model override for a single `mas-ctl chat` / `mas-ctl tui` run (overrides manifest
+`spec.models`): `--model ID`, e.g. `gpt-4o-mini` on direct OpenAI, or a
+provider-prefixed id (e.g. `azure/gpt-4o-mini`) through an OpenAI-compatible
+proxy gateway. For MAS runs and benchmarks, declare models in the manifest or
+pin them in the experiment (`model:` / `models:`).
 
 ### Data paths
 
 Lab and benchmark output locations use the unified ladder documented in
-`mas.lab.paths` (see `mas-lab config` for effective values).
-
-| Variable | Role |
-|----------|------|
-| `MAS_LABS_ROOT` | Override `labs_dir` |
-| `MAS_RUNS_ROOT` | Override `runs_dir` |
-| `MAS_DATA_ROOT` | Root for derived data paths (`data_dir`, trace cache when `cache_dir` is default) |
-| `MAS_LAB_DATA` | Override `data_dir` directly |
-| `MAS_TRACE_CACHE` | Override trace cache directory |
-| `MAS_DATA_CACHE` | Override pipeline step cache directory |
+`mas.lab.paths` (see `mas-lab config` for effective values). Set them under
+`paths:` in `config.yaml` (`labs_dir`, `runs_dir`, `cache_dir`); the data root
+is the parent of `labs_dir`.
 
 When `paths.cache_dir` is set in `config.yaml`, trace cache defaults to
-`<cache_dir>/traces`. Otherwise trace cache is `$XDG_CACHE_HOME/mas/traces`
-(unless `MAS_DATA_ROOT` / `MAS_LAB_DATA` redirect via `data_dir/trace-cache`).
+`<cache_dir>/traces`. Otherwise trace cache is `$XDG_CACHE_HOME/mas/traces`.
+
+### Environment overrides (last resort)
+
+Manifests, `config.yaml`, and CLI flags are the supported configuration
+surface: they are versioned with the project and give the same result on
+every machine. The variables below exist only as last-resort overrides for
+test harnesses and one-off debugging. Do not put them in `.env` files or
+shell profiles: they apply silently to every run in that environment,
+including the long-lived controller daemon, which keeps the environment it
+started with. Model and infra/runtime ref overrides log a warning when applied.
+
+| Variable | Overrides |
+|----------|-----------|
+| `MAS_CTL_MODEL` / `MAS_LLM_MODEL` | `spec.models` (use `--model` or the experiment's `models:`) |
+| `MAS_INFRA_REFS` / `MAS_RUNTIME_REFS` | Workspace `infra_refs` / `runtime_refs` (use `--infra-ref` / `--runtime-ref`) |
+| `MAS_WORKSPACE_ROOT` | Workspace discovery from the current directory |
+| `MAS_LABS_ROOT`, `MAS_RUNS_ROOT` | `paths.labs_dir`, `paths.runs_dir` |
+| `MAS_DATA_ROOT` / `MAS_LAB_DATA` | Data root (derived from `paths.labs_dir`) |
+| `MAS_TRACE_CACHE`, `MAS_DATA_CACHE` | Trace / pipeline step cache (use `--trace-cache` / `--data-cache`) |
+| `MAS_LLM_CACHE`, `MAS_LLM_CACHE_READ` / `MAS_LLM_CACHE_WRITE` | Built-in engine cache — [execution.md](manifests/execution.md#cache--the-llm-response-cache) |
+| `MAS_HOME`, `MAS_CONTROLLER_SOCKET` | Controller data root / socket |
+
+Secrets (`OPENAI_API_KEY`, proxy credentials) are the exception: they belong
+in the environment, never in YAML.
 
 Relative paths in any config file (`--8<-- "includes/mas-paths.md:workspace-config-filename"` or `--8<-- "includes/mas-paths.md:xdg-user-config"`)
 resolve from **that file's directory** — e.g. with user config at
@@ -212,7 +219,7 @@ instead:
 
 | Removed from manifests | Use instead |
 | --- | --- |
-| `spec.infra_refs`, `spec.runtime_refs`, `infra_interceptors` | `infra_refs` / `runtime_refs` in `config.yaml`, `MAS_INFRA_REFS` / `MAS_RUNTIME_REFS`, `--infra-ref` / `--runtime-ref` |
+| `spec.infra_refs`, `spec.runtime_refs`, `infra_interceptors` | `infra_refs` / `runtime_refs` in `config.yaml`, `--infra-ref` / `--runtime-ref` |
 | `spec.execution` (cache, stream, queue depth, parallel tools, …) | `kind: RuntimeEngine` refs (see [runtime-engine.md](manifests/runtime-engine.md)) |
 | Offline LLM turns (no live provider) | [llm_cache replay](manifests/llm-cache.md) (`raise_on_miss`) recorded against a live provider |
 

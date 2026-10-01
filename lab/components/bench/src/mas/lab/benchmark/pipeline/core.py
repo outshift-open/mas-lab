@@ -58,10 +58,8 @@ def register_step(name: str, obj: Any, *, attributes: dict[str, Any] | None = No
 def register_step_type(step_type: str, step_class: type) -> None:
     """Deprecated alias for :func:`register_step`, kept for backward compatibility.
 
-    Several `labs/*.lab/lib/steps/*.py` modules still import and call this
-    name. Removing it outright breaks those modules with an ``ImportError``
-    that gets silently swallowed by the lab's custom-step loader. Keep this
-    shim until every in-repo and downstream caller has migrated.
+    Lab-local step modules (``labs/*.lab/<lab>_lab/steps/*.py``) still import
+    and call this name.
     """
     register_step(step_type, step_class)
 

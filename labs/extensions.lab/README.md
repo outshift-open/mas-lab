@@ -61,7 +61,7 @@ mas-lab benchmark show last plots
 |------|------|
 | `experiment.yaml` | **Scenarios**, **dataset**, **pipeline** |
 | `overlays/` | **Overlay** manifests |
-| `lib/steps/` | Custom **pipeline steps** |
+| `extensions_lab/steps/` | Custom **pipeline steps** |
 | `RESULTS.md` | Interpretation |
 
 ## See also

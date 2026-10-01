@@ -20,7 +20,7 @@ def test_walk_up_finds_shared_skills_dir(tmp_path: Path):
     nested app dir that has no local skills/ of its own."""
     make_skill(tmp_path, "root-skill", description="Lives at the repo root.")
 
-    app_dir = tmp_path / "mas-lab" / "apps" / "sre-triage"
+    app_dir = tmp_path / "mas-lab" / "apps" / "trip-planner"
     app_dir.mkdir(parents=True)
 
     discovery = Discovery(manifest_skills=["root-skill"], base_dir=app_dir)
@@ -51,7 +51,7 @@ def test_ancestor_walk_depth_limit_excludes_distant_skills_dir(tmp_path: Path):
     """ancestor_walk_depth=0 stops before a skills/ dir several levels up."""
     make_skill(tmp_path, "root-skill", description="Lives at the repo root.")
 
-    app_dir = tmp_path / "mas-lab" / "apps" / "sre-triage"
+    app_dir = tmp_path / "mas-lab" / "apps" / "trip-planner"
     app_dir.mkdir(parents=True)
 
     discovery = Discovery(

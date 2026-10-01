@@ -60,38 +60,28 @@ def test_role_list_user_warns(caplog) -> None:
     assert "dataset-migration" in caplog.text
 
 
-def test_incident_fixture_warns(tmp_path: Path, caplog) -> None:
-    (tmp_path / "scene.yaml").write_text("services: {}\n", encoding="utf-8")
-    with caplog.at_level(logging.WARNING, logger="mas.lab.deprecations"):
-        load_run_input(
-            {
-                "id": "x",
-                "inputs": {
-                    "user": "Q",
-                    "tool_fixtures": {"incident_fixture": "scene.yaml"},
-                },
-            },
-            base_path=tmp_path,
-        )
-    assert "dataset.incident_fixture" in caplog.text
-
-
-def test_incident_fixture_retains_source_reference(tmp_path: Path) -> None:
-    (tmp_path / "scene.yaml").write_text("services: {}\n", encoding="utf-8")
-
-    run = load_run_input(
+def test_tool_fixtures_survive_dataset_item_round_trip(tmp_path: Path) -> None:
+    """The batch runner reloads RunInput from Dataset item dicts."""
+    (tmp_path / "fixture.yaml").write_text("services: {}\n", encoding="utf-8")
+    path = tmp_path / "dataset.yaml"
+    yaml.dump(
         {
-            "id": "x",
-            "inputs": {
-                "user": "Q",
-                "tool_fixtures": {"incident_fixture": "scene.yaml"},
+            "apiVersion": "lab/v1",
+            "kind": "Dataset",
+            "metadata": {"name": "d"},
+            "spec": {
+                "items": [
+                    {"id": "x", "inputs": {"user": "Q", "tool_fixtures": "fixture.yaml"}}
+                ]
             },
         },
-        base_path=tmp_path,
+        path.open("w"),
     )
+    item = [i.to_dict() for i in Dataset.from_yaml(path)][0]
 
-    assert run.tool_fixtures == {"services": {}}
-    assert run.tool_fixture_ref == "scene.yaml"
+    run = load_run_input(item, base_path=tmp_path / "elsewhere")
+
+    assert run.tool_fixtures == {"by_tool": {"*": {"services": {}}}}
 
 
 def test_bare_list_dataset_warns(tmp_path: Path, caplog) -> None:

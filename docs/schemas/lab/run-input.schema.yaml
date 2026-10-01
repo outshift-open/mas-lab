@@ -34,7 +34,7 @@ properties:
           - type: array
             deprecated: true
             description: >
-              DEPRECATED. OpenAI-style [{role, content}] from older SRE
+              DEPRECATED. OpenAI-style [{role, content}] from older
               datasets. Use a string or list of strings. Loader warns.
               See https://outshift-open.github.io/mas-lab/manifests/dataset-migration/
             minItems: 1
@@ -90,15 +90,11 @@ properties:
                   $ref: "urn:mas-lab:fragments:memory-seed-entry:v1"
       tool_fixtures:
         description: >
-          Mapping (which tool gets which payload) plus opaque per-tool YAML.
-          Prefer sibling files. Ground truth is not stored here.
-        oneOf:
-          - $ref: "urn:mas-lab:fragments:tool-fixture-mapping:v1"
-          - type: object
-            additionalProperties: true
-            description: Inline opaque payload the tool reads.
-            not:
-              required: [incident_fixture]
+          Generic mapping (which tool gets which payload). Payloads are
+          free-form and only read by the tools: put them in referenced files
+          or inline under by_tool ("*" for every tool). Ground truth is not
+          stored here.
+        $ref: "urn:mas-lab:fragments:tool-fixture-mapping:v1"
       checkpoint:
         type: object
         additionalProperties: false
@@ -120,13 +116,16 @@ properties:
         minLength: 1
 
   expectations:
-    description: Ground truth for eval. Named keys; values are free-form.
+    description: >
+      Ground truth for evaluation. Generic keys are read by mas-lab metrics;
+      app- or tool-specific ground truth goes under ``details`` (free-form).
     oneOf:
       - $ref: "urn:mas-lab:fragments:ref:v1"
       - type: object
-        additionalProperties: true
+        additionalProperties: false
         properties:
           ground_truth:
+            description: Expected answer compared by generic metrics.
             oneOf:
               - type: string
               - type: integer
@@ -135,24 +134,12 @@ properties:
               - type: object
                 additionalProperties: true
               - type: array
-          correct_action:
-            type: object
-            additionalProperties: true
-          governance:
-            type: object
-            additionalProperties: true
           metrics:
+            description: Metric names this item is scored on.
             type: array
             items:
               type: string
-          tool_calls:
+          details:
+            description: Free-form ground truth owned by the app or its evaluators.
             type: object
             additionalProperties: true
-          recovery:
-            type: object
-            additionalProperties: true
-          source_evidence:
-            type: array
-            items:
-              type: object
-              additionalProperties: true

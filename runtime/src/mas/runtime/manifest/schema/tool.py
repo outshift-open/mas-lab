@@ -19,7 +19,7 @@ An agent manifest references tools via ``tools[].ref``:
 
   tools:
     - ref: samples:tools/calc.tool.yaml       # kind: Tool manifest
-    - ref: bundle://sre-tools/check-health    # ToolBundle entry
+    - ref: bundle://web-tools/fetch-page       # ToolBundle entry
     - module_path: ./tools/my_tool.py          # inline anonymous (backward compat)
 
 Tool manifests are also accepted inline inside ToolBundle entries: the

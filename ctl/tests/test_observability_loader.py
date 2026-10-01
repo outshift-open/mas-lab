@@ -15,7 +15,7 @@ def test_load_obs_config_to_binding_and_plugins(tmp_path) -> None:
         enabled=True,
         plugins=["native"],
         plugin_configs={"native": {"path": "traces/events.jsonl"}},
-        agent_id="sre",
+        agent_id="planner",
     )
     binding = obs_config_to_binding(config)
     assert binding is not None
@@ -33,7 +33,7 @@ def test_load_obs_plugins_native(tmp_path) -> None:
         plugins=["native"],
         plugin_configs={"native": {"path": "traces/events.jsonl"}},
     )
-    plugins = build_observability_plugins(binding, base_dir=tmp_path, agent_id="sre")
+    plugins = build_observability_plugins(binding, base_dir=tmp_path, agent_id="planner")
     assert len(plugins) == 1
     assert isinstance(plugins[0], NativeObservabilityPlugin)
 

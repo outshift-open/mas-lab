@@ -4,6 +4,7 @@ lab:
   name: lifecycle-control
   description: "Lab 2 — Lifecycle control and governance stacking"
 
-  # Local library (lib/library.yaml). Scheme name is the listed basename: lib
+  # Local library (lifecycle_control_lab/library.yaml). Scheme name is the
+  # listed basename; the package name must be unique across loaded libraries.
   libraries:
-    - lib/
+    - lifecycle_control_lab/

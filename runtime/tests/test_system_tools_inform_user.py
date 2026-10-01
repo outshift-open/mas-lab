@@ -128,11 +128,14 @@ def test_inform_user_wrapper_routes_through_user_io_contract(empty_tool_tree: Pa
     assert registry.get_pending_user_updates_for_session(ctx.session_id) == {}
 
 
-def test_request_human_input_still_auto_resolves_in_batch_mode(empty_tool_tree: Path, monkeypatch):
+def test_request_human_input_still_auto_resolves_in_batch_mode(empty_tool_tree: Path):
     """Regression check: refactoring the wrapper into a shared base class must not
-    change the MAS_HITL_AUTO_RESOLVE short-circuit behavior for request_human_input."""
-    monkeypatch.setenv("MAS_HITL_AUTO_RESOLVE", "1")
-    provider = build_manifest_tool_provider([], empty_tool_tree, system_tools=USER_IO)
+    change the auto-resolve behavior for request_human_input."""
+    from mas.runtime.contracts.user_communication_contract import AutoResolveHitlContract
+
+    provider = build_manifest_tool_provider(
+        [], empty_tool_tree, system_tools=USER_IO, hitl_contract=AutoResolveHitlContract()
+    )
     ctx = _FakeCtx()
 
     result = provider.call_tool(

@@ -1,21 +1,23 @@
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
-LIBRARY_ROOT = Path(__file__).resolve().parents[1]
-os.environ.setdefault("MAS_LIBRARY_PATHS", str(LIBRARY_ROOT))
+LIBRARY_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(LIBRARY_ROOT))
 
 from mas.runtime.kernel.config import KernelConfig  # noqa: E402
 from mas.runtime.kernel.state import QProduct, RunLedger  # noqa: E402
 from mas.runtime.registry import get_registry  # noqa: E402
+from mas.runtime.registry.bootstrap import register_manifest_file  # noqa: E402
 from mas.runtime.schema.ingress import UserInputReceived  # noqa: E402
 
 
 def _run(params: dict, *, turn_id: str, prompt: str = "test"):
-    plugin_info = get_registry().resolve_by_type("design_pattern", "scripted_response")
+    registry = get_registry()
+    if registry.resolve_by_type("design_pattern", "scripted_response") is None:
+        register_manifest_file(registry, LIBRARY_ROOT / "a2a_compliance_lib" / "library.yaml")
+    plugin_info = registry.resolve_by_type("design_pattern", "scripted_response")
     assert plugin_info is not None
     plugin = plugin_info.load_class()()
     config = KernelConfig(

@@ -14,21 +14,24 @@ Start with [labs-quickstart.md](labs-quickstart.md). Terms: [glossary.md](../../
 Put the step in a **local library** inside the lab (not on the lab root).
 Register that folder in `lab-config.yaml` and give it `library.yaml`:
 
-1. Add `lib/steps/my_step.py` — implement `PipelineStep`, `register_step_type`.
+1. Add `my_lab/steps/my_step.py` — implement `PipelineStep`, `register_step`.
+   Name the package after the lab (`my_lab/`, not `lib/`): every library's
+   parent directory is on one `sys.path`, so two libraries with the same
+   package name shadow each other. The registry fails on such a clash.
 2. List the folder and catalog it:
 
    ```yaml
    # lab-config.yaml
    lab:
      libraries:
-       - lib/
+       - my_lab/
    ```
 
    ```yaml
-   # lib/library.yaml
+   # my_lab/library.yaml
    apiVersion: mas/v1
    kind: Library
-   name: lifecycle-control-lib
+   name: my-lab-lib
    description: Lab-local pipeline figure steps for this lab.
    version: "0.1.0"
    ```
@@ -38,7 +41,7 @@ Register that folder in `lab-config.yaml` and give it `library.yaml`:
    ```yaml
    post:
      - name: my-step
-       type: lib.steps.my_step:MyStep
+       type: my_lab.steps.my_step:MyStep
        depends_on: [gather-experiment]
        config:
          output: "{output_dir}/results/my-figure.png"
@@ -48,7 +51,7 @@ Do not create a separate top-level plugins folder. Pipeline steps and
 runtime plugins belong *in* the library. Lab vs library:
 [labs-and-libraries.md](../../docs/labs-and-libraries.md).
 
-Examples: [lifecycle-control.lab/lib/steps/](../../labs/lifecycle-control.lab/lib/steps/).
+Examples: [lifecycle-control.lab/lifecycle_control_lab/steps/](../../labs/lifecycle-control.lab/lifecycle_control_lab/steps/).
 
 ## Scenarios and overlays
 

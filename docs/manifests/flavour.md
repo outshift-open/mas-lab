@@ -53,7 +53,7 @@ declared sections are:
 | Forbidden in Flavour | Belongs in |
 |---------------------|------------|
 | `model`, `api_base` | Agent `models` + infra `LLMProxy` |
-| `infra_refs` | Workspace `config.yaml`, env `MAS_INFRA_REFS`, CLI `--infra-ref` |
+| `infra_refs` | Workspace `config.yaml`, CLI `--infra-ref` |
 
 Enforced by `FlavourSeparationValidator` and `mas-lab check-config`.
 

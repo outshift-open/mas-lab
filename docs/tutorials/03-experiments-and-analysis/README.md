@@ -74,8 +74,8 @@ Tutorial 3's experiment (`name: "t3-observability-patterns"`) writes to:
 
 For example, with default user config: `--8<-- "includes/mas-paths.md:xdg-labs-dir"`/t3-observability-patterns/.
 
-> **Override:** `labs_dir` / `cache_dir` in `--8<-- "includes/mas-paths.md:xdg-user-config"`, or env vars
-> `$MAS_LABS_ROOT`, `$MAS_TRACE_CACHE`, `$MAS_DATA_CACHE`.  Inside a `.lab`
+> **Override:** `labs_dir` / `cache_dir` in `--8<-- "includes/mas-paths.md:xdg-user-config"`
+> or workspace `config.yaml`.  Inside a `.lab`
 > workspace the path becomes `<labs_root>/<lab_name>/<experiment_name>/`.
 
 Resolve paths once per shell session (values depend on your `--8<-- "includes/mas-paths.md:xdg-user-config"`):
@@ -295,8 +295,8 @@ scenarios:
 ```
 
 **Tests** come from the dataset, which is **app-specific** — a Q&A agent
-gets prompts, a trip planner gets trip requests, an SRE system gets
-incident scenarios:
+gets prompts, a trip planner gets trip requests (destination, dates,
+budget):
 
 ```yaml
 dataset:
@@ -425,7 +425,7 @@ re-executing the benchmark.
 ## Part C — Trip Planner Topology Comparison
 
 Now for a real experiment. The trip planner MAS
-([`library-samples/apps/trip-planner/`](../../library-samples/apps/trip-planner/)) uses a moderator + 3 specialists. But is
+([`library-samples/apps/trip-planner/`](../../../library-samples/apps/trip-planner/)) uses a moderator + 3 specialists. But is
 that topology actually better? Let's compare three approaches:
 
 | Topology | Schema-backed fields | Description | Config |
@@ -496,7 +496,7 @@ spec:
 The moderator overlay preserves LLM-directed delegation: the embedded MAS
 workflow schema has no strategy selector. It declares the entry agent and peers
 it may call; the entry agent's LLM chooses which peer tools to invoke. See the
-current [trip-planner MAS manifest](../../library-samples/apps/trip-planner/mas.yaml)
+current [trip-planner MAS manifest](../../../library-samples/apps/trip-planner/mas.yaml)
 for the complete participant roster.
 
 ### C.2 — The dataset

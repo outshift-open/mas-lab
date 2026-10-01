@@ -278,27 +278,20 @@ def _select_by_id(
 
 
 def _load_dataset_items(exp: Any) -> list:
-    dataset_items: list = []
-    if exp.dataset and Path(exp.dataset).exists():
-        from mas.lab.benchmark.dataset import Dataset
+    if not exp.dataset:
+        raise ValueError("experiment declares no dataset; set experiment.dataset.path")
+    if not Path(exp.dataset).exists():
+        raise FileNotFoundError(f"experiment dataset not found: {exp.dataset}")
+    from mas.lab.benchmark.dataset import Dataset
 
-        ds = Dataset.from_yaml(
-            Path(exp.dataset),
-            source_overlay=getattr(exp, "dataset_source", None),
-        )
-        dataset_items = [item.to_dict() for item in ds]
-        logger.info(f"Dataset: {exp.dataset} ({len(dataset_items)} items)")
-    elif exp.dataset:
-        logger.warning(f"Dataset not found: {exp.dataset}")
-
+    ds = Dataset.from_yaml(
+        Path(exp.dataset),
+        source_overlay=getattr(exp, "dataset_source", None),
+    )
+    dataset_items = [item.to_dict() for item in ds]
     if not dataset_items:
-        dataset_items = [
-            {
-                "id": 0,
-                "inputs": {"user": "Triage an SRE incident."},
-            }
-        ]
-        logger.warning("No dataset items loaded; using default prompt")
+        raise ValueError(f"experiment dataset has no items: {exp.dataset}")
+    logger.info(f"Dataset: {exp.dataset} ({len(dataset_items)} items)")
     return dataset_items
 
 

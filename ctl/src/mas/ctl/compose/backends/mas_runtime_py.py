@@ -25,7 +25,11 @@ class MasRuntimePyKernelBackend:
         self._infra = resolved_infra
 
     def create_agent_runtime(self, bind: EffectiveBindManifest, agent_id: str) -> RuntimeInstance:
-        from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
+        from mas.ctl.session.bootstrap import (
+            InstantiationOptions,
+            hitl_contract_for_mode,
+            instantiate_runtime,
+        )
 
         slice_ = _find_agent(bind, agent_id)
         manifest_path = slice_.manifest_path
@@ -96,6 +100,7 @@ class MasRuntimePyKernelBackend:
                 experiment_default_model=bind.experiment_default_model,
                 experiment_model_slots=bind.experiment_model_slots,
                 parent_spec=mas_config if isinstance(mas_config, dict) else None,
+                hitl_contract=hitl_contract_for_mode(bind.hitl_mode),
             ),
         )
         instance.driver.agent_id = agent_id

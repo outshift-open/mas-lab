@@ -48,16 +48,16 @@ def test_discover_lab_context_finds_lab_config_one_level_up(tmp_path) -> None:
 def test_discover_lab_context_finds_lab_config_several_levels_up(tmp_path) -> None:
     """The actual regression case: experiments/<hackathon>/<pattern>/pipelines/
     is 4 levels below the lab root, not 1."""
-    lab_dir = tmp_path / "sre-triage.lab"
+    lab_dir = tmp_path / "trip-planner.lab"
     exp_dir = lab_dir / "experiments" / "hackathon-experiments" / "centralized-moderator"
     pipelines_dir = exp_dir / "pipelines"
     pipelines_dir.mkdir(parents=True)
-    _write_lab_config(lab_dir, name="sre-triage", libraries=["lib/"])
+    _write_lab_config(lab_dir, name="trip-planner", libraries=["lib/"])
 
     ctx = discover_lab_context(exp_dir / "experiment.yaml")
 
     assert ctx.lab_dir == lab_dir.resolve()
-    assert ctx.lab_name == "sre-triage"
+    assert ctx.lab_name == "trip-planner"
     assert ctx.libraries == ["lib/"]
 
 
@@ -89,12 +89,12 @@ def test_discover_lab_context_falls_back_to_experiment_dir_when_no_lab_config(
 
 
 def test_discover_lab_name_matches_discover_lab_context(tmp_path) -> None:
-    lab_dir = tmp_path / "cognitive-mas" / "sre-triage.lab"
+    lab_dir = tmp_path / "cognitive-mas" / "trip-planner.lab"
     exp_dir = lab_dir / "experiments" / "top1-smoke"
     exp_dir.mkdir(parents=True)
-    _write_lab_config(lab_dir, name="sre-triage")
+    _write_lab_config(lab_dir, name="trip-planner")
 
-    assert _discover_lab_name(exp_dir / "experiment.yaml") == "sre-triage"
+    assert _discover_lab_name(exp_dir / "experiment.yaml") == "trip-planner"
 
 
 def test_inject_lab_libraries_puts_the_lab_root_on_sys_path_not_the_experiment_dir(

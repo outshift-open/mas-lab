@@ -129,7 +129,10 @@ async def finalize_batch(
             logger.error("Post-pipeline failed: %s", exc)
             pipeline_ok = False
 
-    runs_ok = execution.total_fail == 0
+    runs_ok = execution.total_fail == 0 and bool(execution.results_rows)
+    if not execution.results_rows:
+        print("Benchmark failed: no run was executed (check scenarios and dataset items).")
+        logger.error("Benchmark executed no runs")
     if not pipeline_ok:
         if not pipeline_error:
             pipeline_error = "post-pipeline failed"

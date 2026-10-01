@@ -476,7 +476,7 @@ prompt.
 ```json
 {
     "kind": "context_part_contributed",
-    "agent_id": "sre-agent",
+    "agent_id": "planner",
     "timestamp": 1744376431.5,
     "part_id": "fba8fb4a-...",
     "source": "memory:episodic",
@@ -494,10 +494,10 @@ prompt.
 ```json
 {
     "kind": "context_part_contributed",
-    "agent_id": "sre-agent",
+    "agent_id": "planner",
     "timestamp": 1744376431.5,
     "source": "skills",
-    "section_id": "skills/network-analysis",
+    "section_id": "skills/itinerary-protocol",
     "token_estimate": 400,
     "retained": false,
     "eviction_reason": "budget_exceeded"

@@ -33,14 +33,14 @@ def test_kg_enrich_synthesizes_agents_and_cpr() -> None:
             {
                 "node_type": "AgentCall",
                 "callId": "root-exec",
-                "agentId": "sre",
+                "agentId": "planner",
                 "startTime": 1_000_000_000.0,
                 "endTime": 1_000_000_100.0,
             },
             {
                 "node_type": "LLMCall",
                 "callId": "llm-a",
-                "agentId": "telemetry",
+                "agentId": "flights",
                 "parentCallId": "root-exec",
                 "modelName": "gpt-test",
                 "startTime": 1_000_000_010.0,
@@ -49,7 +49,7 @@ def test_kg_enrich_synthesizes_agents_and_cpr() -> None:
             {
                 "node_type": "ContextContribution",
                 "id": "cpr-1",
-                "agentId": "telemetry",
+                "agentId": "flights",
                 "timestamp": 1_000_000_010.0,
                 "source": "context/system",
                 "content": "hello",
@@ -69,7 +69,7 @@ def test_kg_enrich_synthesizes_agents_and_cpr() -> None:
     records, events = _enrich_kg_plot_data(kg, records, events)
 
     agent_ids = {r["agent_id"] for r in records if r["call_type"] == "AgentCall"}
-    assert "telemetry" in agent_ids
+    assert "flights" in agent_ids
     assert max(r["end_ts"] for r in records) < 200.0
     cpr = [e for e in events if e.get("kind") == "context_part_contributed"]
     assert len(cpr) == 1
@@ -86,14 +86,14 @@ def test_kg_enrich_is_idempotent_on_already_synthesized_cpr_events() -> None:
             {
                 "node_type": "AgentCall",
                 "callId": "root-exec",
-                "agentId": "sre",
+                "agentId": "planner",
                 "startTime": 1_000_000_000.0,
                 "endTime": 1_000_000_100.0,
             },
             {
                 "node_type": "LLMCall",
                 "callId": "llm-a",
-                "agentId": "telemetry",
+                "agentId": "flights",
                 "parentCallId": "root-exec",
                 "modelName": "gpt-test",
                 "startTime": 1_000_000_010.0,
@@ -102,7 +102,7 @@ def test_kg_enrich_is_idempotent_on_already_synthesized_cpr_events() -> None:
             {
                 "node_type": "ContextContribution",
                 "id": "cpr-1",
-                "agentId": "telemetry",
+                "agentId": "flights",
                 "timestamp": 1_000_000_010.0,
                 "source": "context/system",
                 "content": "hello",

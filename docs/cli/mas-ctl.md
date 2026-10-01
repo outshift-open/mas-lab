@@ -78,16 +78,16 @@ mas-ctl chat agent.yaml -i -o overlays/tools.yaml --trace
 | `--flavour NAME` | `local` | Flavour from library-standard |
 | `--infra-ref REF` | workspace / user | Infra bundle; repeatable; wins over `config.yaml` |
 | `--runtime-ref REF` | workspace / user | `RuntimeEngine` ref; repeatable |
-| `--model ID` | spec.models / `MAS_CTL_MODEL` / `MAS_LLM_MODEL` | Force the engine model for this run |
+| `--model ID` | spec.models | Force the engine model for this run |
 | `--no-validate` | off | Skip schema checks for seeds/checkpoints |
 
 ### Cache, stream, envelope
 
 | Flag | Default | Effect |
 |------|---------|--------|
-| `--cache-read` / `--no-cache-read` | RuntimeEngine / `MAS_LLM_CACHE_READ` / true | Lookup before the LLM call |
-| `--cache-write` / `--no-cache-write` | RuntimeEngine / `MAS_LLM_CACHE_WRITE` / true | Persist after the LLM call |
-| `--stream` / `--no-stream` | RuntimeEngine / `MAS_LLM_STREAM` / false | SSE streaming |
+| `--cache-read` / `--no-cache-read` | RuntimeEngine / true | Lookup before the LLM call |
+| `--cache-write` / `--no-cache-write` | RuntimeEngine / true | Persist after the LLM call |
+| `--stream` / `--no-stream` | RuntimeEngine / false | SSE streaming |
 | `--without-obs` | off | Disable observability summand (`M_obs`) and event recording |
 | `--without-gov` | off | Disable governance summand (`M_gov`) and HITL chokepoints |
 
@@ -181,7 +181,7 @@ No `--trace` (the TUI renders exchanges itself).
 | `--infra-ref` / `--infra REF` | — | Infra bundle; repeatable |
 | `--runtime-ref REF` | — | RuntimeEngine ref; repeatable |
 | `--no-validate` | off | Skip schema checks |
-| `--model ID` | spec.models / `MAS_CTL_MODEL` / `MAS_LLM_MODEL` | Force the engine model |
+| `--model ID` | spec.models | Force the engine model |
 
 Plus **`--events*`**. Guide: [ctl/tui.md](../ctl/tui.md).
 

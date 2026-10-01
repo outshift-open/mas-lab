@@ -92,6 +92,14 @@ class InstantiationOptions:
     parent_spec: dict | None = None
 
 
+def hitl_contract_for_mode(mode: str) -> object | None:
+    """``auto``: unattended run, answer HITL at once; ``block``: default registry wait."""
+    if mode == "auto":
+        from mas.runtime.contracts.user_communication_contract import AutoResolveHitlContract
+
+        return AutoResolveHitlContract()
+    return None
+
 def instantiate_runtime(
     options: InstantiationOptions,
     *,

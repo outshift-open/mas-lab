@@ -17,15 +17,15 @@ def test_coupled_plan_is_id_pairs_not_cartesian():
 
 def test_coupled_plan_pairs_scenario_to_item_id():
     items = [
-        {"id": "routing-policy-rollback", "inputs": {"user": "A"}},
-        {"id": "profile-api-restart", "inputs": {"user": "B"}},
+        {"id": "celestia-weekend", "inputs": {"user": "A"}},
+        {"id": "verdantia-budget", "inputs": {"user": "B"}},
     ]
     couplings = [
-        {"scenario": "routing-policy-rollback", "items": ["routing-policy-rollback"]},
-        {"scenario": "profile-api-restart", "items": ["profile-api-restart"]},
+        {"scenario": "celestia-weekend", "items": ["celestia-weekend"]},
+        {"scenario": "verdantia-budget", "items": ["verdantia-budget"]},
     ]
     plan = _build_coupled_plan(couplings, items, n_runs=1)
     assert [(s, i["id"]) for s, i, _ in plan] == [
-        ("routing-policy-rollback", "routing-policy-rollback"),
-        ("profile-api-restart", "profile-api-restart"),
+        ("celestia-weekend", "celestia-weekend"),
+        ("verdantia-budget", "verdantia-budget"),
     ]

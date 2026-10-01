@@ -197,7 +197,6 @@ mas-lab config
 | `mas-lab benchmark run` | `-o` / `--output-dir PATH` | Write this experiment under `PATH` instead of the global labs tree |
 | `mas-lab benchmark run` | `--trace-cache PATH` | Separate trace cache (bypass shared cache) |
 | `mas-ctl chat` | `--events-file PATH` | Write `events.jsonl` to `PATH` |
-| Env | `MAS_LABS_ROOT`, `MAS_TRACE_CACHE`, `MAS_RUNS_ROOT` | Override globals (see `mas-lab config`) |
 
 Workspace `paths:` keys in `config.yaml` mirror `$XDG_CONFIG_HOME/mas/config.yaml`
 when you want per-project defaults (schema: `paths.labs_dir`, `paths.cache_dir`,
@@ -247,8 +246,8 @@ MAS_DATA_MOUNT=/path/to/persistent-data
 ```
 
 The sample workspace is at [`library-samples/sample-workspace/`](../../../library-samples/sample-workspace/).
-Copy `config.yaml` to your project root, or set
-`MAS_WORKSPACE_ROOT=library-samples/sample-workspace` when working from this checkout.
+Copy `config.yaml` to your project root, or run commands from
+`library-samples/sample-workspace/` when working from this checkout.
 
 `mas-lab init` uses templates bundled in the `mas-lab` package (no `library-samples` install required):
 - [`lab/src/mas/lab/templates/init/config.yaml`](../../../lab/src/mas/lab/templates/init/config.yaml)
@@ -371,18 +370,24 @@ automatically. **Never** commit API keys.
 
 ### 4 — Per-run overrides
 
-Configure LLM access via `mas-lab init` (writes `~/.config/mas/config.yaml`). The variables
-below are for **one-run overrides** only — they take precedence over `config.yaml` for that
-shell session and should not substitute for a proper config file.
+Configure LLM access via `mas-lab init` (writes `~/.config/mas/config.yaml`) or
+workspace `config.yaml`. For a single run, use CLI flags — they are visible in
+the command and do not leak into other runs:
+
+| Flag | Purpose |
+| ---------- | --------- |
+| `--infra-ref REF` | Use another infra bundle (e.g. `standard:llm-proxy`) |
+| `--model ID` (`mas-ctl chat` / `tui`) | Override the agent model (e.g. `gpt-4o-mini`, or a provider-prefixed id via a proxy gateway) |
+
+The environment is for secrets only:
 
 | Variable | Purpose |
 | ---------- | --------- |
-| `MAS_INFRA_REFS` | Replace `infra_refs` from `config.yaml` (e.g. `standard:llm-proxy`) |
-| `MAS_CTL_MODEL` | Override the agent model for one run (e.g. `gpt-4o-mini`, or a provider-prefixed id via a proxy gateway) |
-| `MAS_LLM_MODEL` | Alias for `MAS_CTL_MODEL` (legacy `.env` name) |
-| `MAS_WORKSPACE_ROOT` | Point at a project root when cwd is elsewhere |
 | `LLM_PROXY_API_BASE` | API base for `standard:llm-proxy` (read from `.env`) |
 | `OPENAI_API_KEY` | Credential named by the LLMProxy manifest |
+
+`MAS_*` override variables exist for test harnesses only; see
+[Environment overrides](../../user-config.md#environment-overrides-last-resort).
 
 ### 5 — User config (`$XDG_CONFIG_HOME/mas/config.yaml`)
 
@@ -481,7 +486,7 @@ mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
 | `cache_dir/traces/` | Content-addressed trace store |
 | `cache_dir/artifacts/` | Pipeline step cache |
 
-Override: `MAS_LABS_ROOT`, `MAS_TRACE_CACHE`, or fields in `$XDG_CONFIG_HOME/mas/config.yaml`.
+Override: fields in `$XDG_CONFIG_HOME/mas/config.yaml` or workspace `config.yaml`.
 Always confirm with `mas-lab config`.
 
 More detail: [user-config.md](../../user-config.md).

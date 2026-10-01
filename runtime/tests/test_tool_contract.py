@@ -199,3 +199,20 @@ def test_tool_document_optional_spec_fields_round_trip() -> None:
     assert advertised["annotations"]["destructiveHint"] is False
     assert advertised["execution"]["taskSupport"] == "optional"
     assert advertised["_meta"] == {"vendor": "ioa"}
+
+
+def test_tool_fixture_reads_by_tool_then_wildcard():
+    from types import SimpleNamespace
+
+    import pytest
+
+    from mas.runtime.contracts import tool_fixture
+
+    ctx = SimpleNamespace(tool_fixtures={"by_tool": {"get_logs": {"a": 1}, "*": {"b": 2}}})
+    assert tool_fixture(ctx, "get_logs") == {"a": 1}
+    assert tool_fixture(ctx, "get_metrics") == {"b": 2}
+    assert tool_fixture(SimpleNamespace(tool_fixtures={"by_tool": {}}), "x") is None
+    assert tool_fixture(SimpleNamespace(), "x") is None
+    assert tool_fixture(None, "x") is None
+    with pytest.raises(TypeError):
+        tool_fixture(SimpleNamespace(tool_fixtures={"c": 3}), "x")

@@ -60,20 +60,9 @@ def execute_run_mas(
     trace_color: bool = False,
 ) -> int:
     """Compose → materialize → SessionController on entry agent."""
-    import os
-
     from mas.ctl.session.controller import ConversationConfig, SessionController, close_observability, run_session_loop
     from mas.ctl.session.hitl_config import resolve_hitl_from_manifest
     from mas.ctl.ui.stdout import StdoutConversationDisplay
-
-    # Batch/CLI runs with auto-hitl (the default) have no external resolver
-    # (external resolver, operator console) listening for agent-initiated
-    # request_human_input() calls, so the synchronous HITL wait in
-    # manifest_tool_provider would otherwise always time out. Signal batch
-    # mode via env var (mirrors the existing MAS_MANIFEST_RESOLVE_REFS
-    # pattern) so it auto-resolves instead of blocking. Interactive sessions
-    # never set this, so real HITL resolution still blocks as intended.
-    os.environ["MAS_HITL_AUTO_RESOLVE"] = "1" if (auto_hitl and not interactive) else "0"
 
     scripted = list(queries or [])
     if prompt:
@@ -89,15 +78,13 @@ def execute_run_mas(
         validate=validate,
     )
     result = compose_run(req)
+    result.bind.hitl_mode = "auto" if (auto_hitl and not interactive) else "block"
     from mas.ctl.session.params_sidecar import (
         apply_runtime_params_to_instance,
         params_from_mas_config,
-        stage_runtime_params,
     )
 
     runtime_params = params_from_mas_config(result.mas_config)
-    if runtime_params:
-        stage_runtime_params(runtime_params)
 
     materialized = materialize_mas_compose(result, mas_base_dir=manifest_dir or manifest.parent)
 
@@ -158,8 +145,8 @@ def execute_run_mas(
         trace_color=trace_color,
     )
 
-    if runtime_params:
-        apply_runtime_params_to_instance(runtime_params, instance)
+    for agent_instance in materialized.materialized.instances.values():
+        apply_runtime_params_to_instance(runtime_params, agent_instance)
     hitl_responder, _ = resolve_hitl_from_manifest(
         enriched_manifest,
         session_interactive=interactive or not auto_hitl,

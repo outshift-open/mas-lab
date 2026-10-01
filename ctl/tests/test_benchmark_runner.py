@@ -336,3 +336,56 @@ def test_mas_bench_forwards_infra_refs_to_compose(tmp_path: Path):
                 )
     req = compose_run.call_args[0][0]
     assert req.infra_refs == ["standard:llm-proxy"]
+
+
+def test_mas_bench_composes_library_app_with_experiment_workspace(tmp_path: Path):
+    """An app from a library must use the experiment's workspace infra, not the library's."""
+    library_app = tmp_path / "library" / "apps" / "demo"
+    library_app.mkdir(parents=True)
+    mas_path = library_app / "mas.yaml"
+    mas_path.write_text("kind: mas\nmetadata:\n  name: demo\n", encoding="utf-8")
+    experiment_dir = tmp_path / "experiment"
+    experiment_dir.mkdir()
+    compose = ComposeResult(
+        mas_id="demo",
+        mas_config={"kind": "mas", "metadata": {"name": "demo"}, "spec": {}},
+        effective_bind={},
+        placement_plan={},
+        deployment={},
+        infra_refs=[],
+        bind=EffectiveBindManifest(
+            mas_id="demo",
+            spec_revision="",
+            runtime_id="mas-runtime-py",
+            deployment_name="local",
+            agents=[AgentBindSlice(agent_id="alpha", pattern_plugin_id="react@v1")],
+        ),
+        plan=PlacementPlan(),
+    )
+
+    with patch("mas.ctl.benchmark.runner.compose_run", return_value=compose) as compose_run:
+        with patch("mas.ctl.benchmark.runner.entry_agent_from_compose", return_value=({}, mas_path)):
+            with patch("mas.ctl.benchmark.runner.instantiate_runtime") as inst:
+                inst.return_value = (object(), None)
+                with patch("mas.ctl.benchmark.runner.WorkspaceConfig.load") as ws_load:
+                    with patch.object(MasBenchRunner, "_run_controller_turns") as turns:
+                        turns.return_value = RunResult(content="ok")
+                        MasBenchRunner().run(
+                            "hello",
+                            config=compose.mas_config,
+                            spec_path=mas_path,
+                            output_dir=tmp_path / "out",
+                            workspace_root=experiment_dir,
+                        )
+    assert compose_run.call_args[0][0].workspace_root == experiment_dir
+    ws_load.assert_called_with(experiment_dir)
+
+
+def test_attach_tool_fixtures_sets_every_agent_context():
+    from mas.ctl.benchmark.runner import _attach_tool_fixtures
+
+    agents = [SimpleNamespace(driver=SimpleNamespace(ctx=SimpleNamespace())) for _ in range(2)]
+    fixtures = {"by_tool": {"*": {"services": {}}}}
+    _attach_tool_fixtures(agents, fixtures, {"region": "eu-west-1"})
+    assert all(a.driver.ctx.tool_fixtures is fixtures for a in agents)
+    assert all(a.driver.ctx.runtime_params == {"region": "eu-west-1"} for a in agents)

@@ -149,6 +149,39 @@ class RegistryHitlContract:
         }
 
 
+class AutoResolveHitlContract:
+    """HITLContract for unattended runs (batch CLI, benchmarks): answer at once.
+
+    Selected explicitly by the host that knows no human is present, so the
+    resolution mode is part of the run's configuration rather than process state.
+    """
+
+    def __init__(self, decision: str = "approve") -> None:
+        self.decision = decision
+
+    def request_approval(
+        self,
+        *,
+        question: str,
+        session_id: str,
+        requesting_user_id: str,
+        agent_id: str,
+        correlation_id: int,
+        question_type: str,
+        choices: list[str],
+        context_data: dict[str, Any],
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        # Same shape as RegistryHitlContract: the result is embedded in history
+        # and therefore part of every later llm_cache key.
+        return {
+            "choice": self.decision,
+            "steering": "",
+            "question": question,
+            "resolved": True,
+        }
+
+
 class RegistryUserIOContract:
     """The default UserIOContract: register a fire-and-forget entry in
     HitlResolverRegistry's user-update channel (e.g. polled by an external integration via

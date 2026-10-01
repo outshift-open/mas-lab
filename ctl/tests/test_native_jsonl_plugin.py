@@ -23,35 +23,35 @@ def test_stamp_envelope_fields_llm_call() -> None:
 
 def test_native_jsonl_plugin_tool_call_with_arguments(tmp_path) -> None:
     events_path = tmp_path / "events.jsonl"
-    ctx = TransformContext(agent_id="sre", run_id="run-deleg")
+    ctx = TransformContext(agent_id="planner", run_id="run-deleg")
     plugin = NativeObservabilityPlugin(
         transforms=[NativeObservabilityTransform()],
         emitters=[JsonlFileEmitter(events_path)],
         context=ctx,
-        mas_id="sre-triage",
+        mas_id="trip-planner",
     )
     plugin.on_transition(
         TransitionEvent(
             contract_id="tool",
             mealy_symbol="TOOL_CALL",
             phase="start",
-            agent_id="sre",
+            agent_id="planner",
             run_id="run-deleg",
             correlation_id=9,
             boundary_kind="engine.io",
             attributes={
                 "op": "TOOL_CALL",
-                "tool_name": "delegate_to_telemetry",
-                "tool_arguments": {"task": "check latency"},
+                "tool_name": "delegate_to_flights",
+                "tool_arguments": {"task": "check fares"},
                 "envelope": True,
             },
         )
     )
     event = json.loads(events_path.read_text().strip())
     assert event["kind"] == "tool_call_start"
-    assert event["tool_name"] == "delegate_to_telemetry"
-    assert event["arguments"] == {"task": "check latency"}
-    assert event["mas_id"] == "sre-triage"
+    assert event["tool_name"] == "delegate_to_flights"
+    assert event["arguments"] == {"task": "check fares"}
+    assert event["mas_id"] == "trip-planner"
     assert event["block"] == "execution"
     assert event["summand"] == "tool"
     assert event["mealy_symbol"] == "TOOL_CALL"
@@ -66,14 +66,14 @@ def test_native_jsonl_plugin_engine_io_llm(tmp_path) -> None:
     plugin = NativeObservabilityPlugin(
         transforms=[NativeObservabilityTransform()],
         emitters=[JsonlFileEmitter(events_path)],
-        context=TransformContext(agent_id="sre", run_id="run-test"),
+        context=TransformContext(agent_id="planner", run_id="run-test"),
     )
     plugin.on_transition(
         TransitionEvent(
             contract_id="model",
             mealy_symbol="LLM_CALL",
             phase="start",
-            agent_id="sre",
+            agent_id="planner",
             run_id="run-test",
             correlation_id=5,
             boundary_kind="engine.io",
@@ -96,14 +96,14 @@ def test_native_jsonl_plugin_contract_call_alone_produces_no_llm_call(tmp_path) 
     plugin = NativeObservabilityPlugin(
         transforms=[NativeObservabilityTransform()],
         emitters=[JsonlFileEmitter(events_path)],
-        context=TransformContext(agent_id="sre", run_id="run-test"),
+        context=TransformContext(agent_id="planner", run_id="run-test"),
     )
     plugin.on_transition(
         TransitionEvent(
             contract_id="model",
             mealy_symbol="LLM_CALL",
             phase="start",
-            agent_id="sre",
+            agent_id="planner",
             run_id="run-test",
             correlation_id=5,
             boundary_kind="envelope.activity",

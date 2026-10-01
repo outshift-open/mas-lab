@@ -126,7 +126,7 @@ for GSR/AR numbers. What this session adds is:
 | 1.6  | Demonstrate memory `hit` on profile-recall | **Surfaced now**  | Memory overlays produced 0 `memory_*` events on this dataset — agent never autonomously called `memory-search`. Either the prompt set must be sharpened or the overlay must expose memory via passive injection (Letta) more aggressively. |
 | 2.1  | n ≥ 20 runs                             | **Pipeline-ready**  | Flip `n_runs: 3` → `20`. |
 | 2.2  | Statistical tests (Wilcoxon / t)        | **Pending eval**    | Needs `compute_ci` to complete. |
-| 2.3  | Second judge                            | **Step ready**      | `inter_rater_agreement` in `lib/steps/`. |
+| 2.3  | Second judge                            | **Step ready**      | `inter_rater_agreement` in `extensions_lab/steps/`. |
 | 2.4  | Investigate GSR=0 for no-memory         | **Pending eval**    | — |
 
 ---

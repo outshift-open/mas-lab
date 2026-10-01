@@ -95,10 +95,10 @@ def test_resolve_context_chunk_array_joins_fragments(tmp_path: Path):
 
 def test_resolve_context_chunk_array_mixes_inline_and_ref(tmp_path: Path):
     escalation = tmp_path / "escalation.md"
-    escalation.write_text("Escalate P1 incidents immediately.", encoding="utf-8")
-    value = ["You are a triage agent.", {"ref": "escalation.md"}]
+    escalation.write_text("Confirm the budget before booking.", encoding="utf-8")
+    value = ["You are a travel planner.", {"ref": "escalation.md"}]
     assert resolve_context_chunk(value, base_dir=tmp_path) == (
-        "You are a triage agent.\nEscalate P1 incidents immediately."
+        "You are a travel planner.\nConfirm the budget before booking."
     )
 
 

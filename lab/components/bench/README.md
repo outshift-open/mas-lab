@@ -67,7 +67,7 @@ mas-lab benchmark show last
 
 ```yaml
 experiment:
-  name: my-sre-ablation
+  name: my-trip-planner-ablation
   default_flavour: local
   application:
     manifest: path/to/mas.yaml
@@ -318,7 +318,6 @@ components/bench/src/mas/lab/benchmark/
 ├── lock.py                 Advisory file lock (concurrent-run safety)
 ├── deduplication.py        Trace-cache dedup (skip already-seen prompts)
 ├── analysis.py             Statistical analysis helpers
-├── otel_collector.py       OTel span collection bridge
 ├── migrate.py              Run directory migration utilities
 └── pipeline/
     ├── pipeline.py         Pipeline loader + validator

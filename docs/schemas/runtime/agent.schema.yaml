@@ -600,7 +600,7 @@ properties:
 
             # @library/name — explicit library source:
             skills:
-              - "@sre-skills/triage-protocol"
+              - "@web-skills/search-protocol"
               - "@mas.library.samples/web-search-skill"
 
           No file paths, no directory references.  Resolution order:
@@ -625,7 +625,7 @@ properties:
           Logical tool-set name resolved by the infra manifest ToolRegistry.
           No file paths, no extensions — a simple identifier only.
           The infra ToolRegistry maps this name to the actual JSON tool-index
-          file path. E.g. sre-tools, backend-tools, verifier-tools.
+          file path. E.g. web-tools, backend-tools, verifier-tools.
         pattern: "^[a-z0-9][a-z0-9_-]*$"
         default: null
 
@@ -640,7 +640,7 @@ properties:
           Form A — ref to a kind: Tool manifest (recommended):
             tools:
               - ref: ./tools/calculator.tool.yaml
-              - ref: bundle://sre-tools/check-health   # ToolBundle entry
+              - ref: bundle://web-tools/fetch-page   # ToolBundle entry
 
           Form B — inline anonymous (backward-compatible):
             tools:
@@ -686,7 +686,7 @@ properties:
                   type: string
                   description: >
                     Path to a kind: Tool manifest (./tools/calculator.tool.yaml) or a
-                    ToolBundle entry reference (bundle://sre-tools/check-health).
+                    ToolBundle entry reference (bundle://web-tools/fetch-page).
                 priority:
                   type: integer
                   description: "Registration priority (higher = loaded first)."

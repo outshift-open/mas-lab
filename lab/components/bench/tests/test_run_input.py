@@ -60,7 +60,7 @@ def test_catalog_id_ref_not_resolved():
         load_run_input(
             {
                 "id": "x",
-                "inputs": {"user": {"id": "library-ioc:prompts@v1#a"}},
+                "inputs": {"user": {"id": "example-library:prompts@v1#a"}},
             }
         )
 
@@ -100,17 +100,17 @@ def test_load_run_input_envelope_item():
         "id": "002",
         "inputs": {
             "user": "Plan a trip",
-            "tool_fixtures": {"routes": []},
+            "tool_fixtures": {"by_tool": {"*": {"routes": []}}},
         },
         "expectations": {
             "ground_truth": "PolicyDenial",
-            "governance": {"expected": "guardrail_triggered"},
+            "details": {"governance": {"expected": "guardrail_triggered"}},
         },
     }
     run = load_run_input(item)
     assert run.primary_prompt == "Plan a trip"
-    assert run.tool_fixtures == {"routes": []}
-    assert run.expectations["governance"]["expected"] == "guardrail_triggered"
+    assert run.tool_fixtures == {"by_tool": {"*": {"routes": []}}}
+    assert run.expectations["details"]["governance"]["expected"] == "guardrail_triggered"
 
 
 def test_load_run_input_empty_item_still_loads():
@@ -252,12 +252,13 @@ def test_tool_fixtures_path_and_fragment(tmp_path: Path):
             "user": "Q",
             "tool_fixtures": "tool_fixtures.yaml#a",
         },
-        "expectations": {"correct_action": {"action": "rollback"}},
+        "expectations": {"details": {"action": "rollback"}},
     }
     run = load_run_input(item, base_path=tmp_path)
-    assert run.tool_fixtures["id"] == "a"
-    assert "svc" in run.tool_fixtures["services"]
-    assert run.expectations["correct_action"]["action"] == "rollback"
+    shared = run.tool_fixtures["by_tool"]["*"]
+    assert shared["id"] == "a"
+    assert "svc" in shared["services"]
+    assert run.expectations["details"]["action"] == "rollback"
 
 
 def test_tool_fixtures_fragment_falls_back_to_next_candidate_key(tmp_path: Path):
@@ -281,13 +282,13 @@ def test_tool_fixtures_fragment_falls_back_to_next_candidate_key(tmp_path: Path)
         },
     }
     run = load_run_input(item, base_path=tmp_path)
-    assert run.tool_fixtures["id"] == "target"
-    assert "svc" in run.tool_fixtures["services"]
+    assert run.tool_fixtures["by_tool"]["*"]["id"] == "target"
+    assert "svc" in run.tool_fixtures["by_tool"]["*"]["services"]
 
 
 def test_tool_fixtures_by_tool_mapping(tmp_path: Path):
-    (tmp_path / "scene.yaml").write_text(
-        yaml.dump({"id": "scene", "services": {"edge-gateway": {}}}),
+    (tmp_path / "celestia-weekend.yaml").write_text(
+        yaml.dump({"id": "celestia-weekend", "services": {"celestia-inn": {}}}),
         encoding="utf-8",
     )
     item = {
@@ -296,50 +297,57 @@ def test_tool_fixtures_by_tool_mapping(tmp_path: Path):
             "user": "Q",
             "tool_fixtures": {
                 "by_tool": {
-                    "*": "scene.yaml",
+                    "*": "celestia-weekend.yaml",
                     "query_db": {"rows": []},
                 }
             },
         },
     }
     run = load_run_input(item, base_path=tmp_path)
-    assert run.tool_fixtures["by_tool"]["*"]["id"] == "scene"
+    assert run.tool_fixtures["by_tool"]["*"]["id"] == "celestia-weekend"
     assert run.tool_fixtures["by_tool"]["query_db"] == {"rows": []}
 
 
-def test_overlay_incident_fixture_fills_missing_tool_fixtures(tmp_path: Path):
-    (tmp_path / "scene.yaml").write_text(
-        "services:\n  edge-gateway: {}\n",
-        encoding="utf-8",
-    )
+def test_tool_fixtures_rejects_inline_payload_outside_by_tool(tmp_path: Path):
+    with pytest.raises(ValueError, match="by_tool"):
+        load_run_input(
+            {"id": "x", "inputs": {"user": "Q", "tool_fixtures": {"services": {}}}},
+            base_path=tmp_path,
+        )
+
+
+def test_tool_fixtures_rejects_unknown_mapping_keys(tmp_path: Path):
+    with pytest.raises(ValueError, match="by_tool"):
+        load_run_input(
+            {"id": "x", "inputs": {"user": "Q", "tool_fixtures": {"custom_fixture": "a.yaml"}}},
+            base_path=tmp_path,
+        )
+
+
+def test_scenario_params_are_not_tool_fixtures(tmp_path: Path):
     run = load_run_input(
         {"id": "x", "inputs": {"user": "Q"}},
-        scenario={
-            "spec": {
-                "patch": {"params": {"incident_fixture": "scene.yaml"}},
-            }
-        },
+        scenario={"spec": {"patch": {"params": {"fixture": "celestia-weekend.yaml"}}}},
         base_path=tmp_path,
     )
-    assert "edge-gateway" in run.tool_fixtures["services"]
+    assert run.tool_fixtures is None
 
 
-def test_overlay_incident_fixture_does_not_override_item(tmp_path: Path):
-    (tmp_path / "item.yaml").write_text("services:\n  item-svc: {}\n", encoding="utf-8")
-    (tmp_path / "overlay.yaml").write_text("services:\n  overlay-svc: {}\n", encoding="utf-8")
-    run = load_run_input(
-        {
-            "id": "x",
-            "inputs": {"user": "Q", "tool_fixtures": "item.yaml"},
-        },
-        scenario={
-            "spec": {"patch": {"params": {"incident_fixture": "overlay.yaml"}}},
-        },
-        base_path=tmp_path,
-    )
-    assert "item-svc" in run.tool_fixtures["services"]
+def test_expectations_reject_app_keys_outside_details(tmp_path: Path):
+    with pytest.raises(ValueError, match="custom_check"):
+        load_run_input(
+            {
+                "id": "x",
+                "inputs": {"user": "Q"},
+                "expectations": {"ground_truth": "42", "custom_check": {"k": 1}},
+            },
+            base_path=tmp_path,
+        )
+
+
+def test_tool_fixtures_binding_list(tmp_path: Path):
     (tmp_path / "metrics.yaml").write_text(
-        yaml.dump({"id": "m", "services": {"edge-gateway": {}}}),
+        yaml.dump({"id": "m", "services": {"celestia-inn": {}}}),
         encoding="utf-8",
     )
     item = {
@@ -357,31 +365,35 @@ def test_overlay_incident_fixture_does_not_override_item(tmp_path: Path):
     assert run.tool_fixtures["by_tool"]["get_logs"]["id"] == "m"
 
 
-def test_tool_fixtures_data_alias_and_by_tool_ref(tmp_path: Path):
-    (tmp_path / "scene.yaml").write_text("id: scene\nservices: {}\n", encoding="utf-8")
+def test_tool_fixtures_by_tool_ref_and_inline_payload(tmp_path: Path):
+    (tmp_path / "fixture.yaml").write_text("id: f\nservices: {}\n", encoding="utf-8")
     run = load_run_input(
-        {
-            "id": "x",
-            "inputs": {
-                "user": "Q",
-                "tool_fixtures": [
-                    {"tool": "get_metrics", "data": "scene.yaml"},
-                ],
-            },
-        },
-        base_path=tmp_path,
-    )
-    assert run.tool_fixtures["by_tool"]["get_metrics"]["id"] == "scene"
-    run2 = load_run_input(
         {
             "id": "y",
             "inputs": {
                 "user": "Q",
                 "tool_fixtures": {
-                    "by_tool": {"query_db": {"data": "scene.yaml"}},
+                    "by_tool": {"query_db": {"ref": "fixture.yaml"}, "get_weather": {"data": "sunny"}},
                 },
             },
         },
         base_path=tmp_path,
     )
-    assert run2.tool_fixtures["by_tool"]["query_db"]["id"] == "scene"
+    assert run.tool_fixtures["by_tool"]["query_db"]["id"] == "f"
+    assert run.tool_fixtures["by_tool"]["get_weather"] == {"data": "sunny"}
+
+
+def test_tool_fixtures_missing_ref_is_an_error(tmp_path: Path):
+    with pytest.raises(FileNotFoundError, match="missing.yaml"):
+        load_run_input(
+            {"id": "x", "inputs": {"user": "Q", "tool_fixtures": "missing.yaml"}},
+            base_path=tmp_path,
+        )
+
+
+def test_tool_fixtures_binding_requires_ref(tmp_path: Path):
+    with pytest.raises(TypeError, match="ref"):
+        load_run_input(
+            {"id": "x", "inputs": {"user": "Q", "tool_fixtures": [{"tool": "t", "data": "a.yaml"}]}},
+            base_path=tmp_path,
+        )

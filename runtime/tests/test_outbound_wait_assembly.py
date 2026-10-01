@@ -231,7 +231,7 @@ def test_issue_65_stuck_retry_loop_ages_out_of_working_memory() -> None:
     repeat into the prompt forever — old attempts should age out like any other
     over-limit working memory, instead of only the newest ones ever being seen.
     """
-    ctx = AutoCtxAssembler(last_user_text="triage payment-service incident")
+    ctx = AutoCtxAssembler(last_user_text="plan a weekend trip to Celestia")
     for n in range(1, 16):  # 15 retries = 30 messages, well past the default cap of 20
         _record_malformed_get_metrics_retry(ctx, n)
     assert len(ctx.working_memory.messages) == 30
@@ -259,7 +259,7 @@ def test_working_memory_messages_configurable_via_manifest() -> None:
     """``working_memory_messages`` must be usable alongside any context_manager
     type — it's a generic assembly knob, not a ConversationStrategy ctor kwarg.
     """
-    ctx = AutoCtxAssembler(last_user_text="triage payment-service incident")
+    ctx = AutoCtxAssembler(last_user_text="plan a weekend trip to Celestia")
     for n in range(1, 6):
         _record_malformed_get_metrics_retry(ctx, n)
     manifest = {

@@ -95,7 +95,7 @@ mas-lab export --list
 mas-lab export path/to/mas.yaml --schema oasf -o out.oasf.json
 
 # Export to AgentCard (Google agent-remote compatible)
-mas-lab export path/to/mas.yaml --schema agentcard --url https://agents.example.com/sre
+mas-lab export path/to/mas.yaml --schema agentcard --url https://agents.example.com/trip-planner
 
 # YAML output enriched with a workflow
 mas-lab export path/to/mas.yaml --schema oasf --format yaml \

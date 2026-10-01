@@ -39,6 +39,7 @@ Manual CLI usage::
 import logging
 import os
 import subprocess
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
@@ -50,6 +51,11 @@ import yaml
 logger = logging.getLogger(__name__)
 
 _COMPOSE_PROJECT_PREFIX = "mas-lab-svc"
+
+# name -> (value, holders, value before the first export); one process may run
+# several benchmarks (controller daemon), so exports are shared and refcounted.
+_EXPORTED: dict[str, tuple[str, int, Optional[str]]] = {}
+_EXPORTED_LOCK = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -358,25 +364,49 @@ class ServiceManager:
         for k, v in svc.env.items():
             try:
                 resolved[k] = v.format(**self._template_vars)
-            except KeyError:
-                resolved[k] = v
+            except KeyError as exc:
+                raise ValueError(
+                    f"service {svc.name!r}: env {k}={v!r} uses unknown placeholder {exc}; "
+                    f"available: {sorted(self._template_vars)}"
+                ) from exc
         return resolved
 
     def _apply_env(self, svc: ServiceDef) -> None:
-        """Set resolved env vars in the current process; cache previous values."""
+        """Export resolved env vars to this process (shared by concurrent benchmarks)."""
+        if svc._prev_env:
+            return
         resolved = self._resolve_env(svc)
-        for k, v in resolved.items():
-            svc._prev_env[k] = os.environ.get(k)
-            os.environ[k] = v
-            logger.debug("Set %s=%s", k, v)
+        with _EXPORTED_LOCK:
+            for k, v in resolved.items():
+                current = _EXPORTED.get(k)
+                if current is not None and current[0] != v:
+                    raise RuntimeError(
+                        f"service {svc.name!r}: env {k}={v!r} conflicts with {current[0]!r} "
+                        "exported by a service of another running benchmark"
+                    )
+            for k, v in resolved.items():
+                if k in _EXPORTED:
+                    value, count, prev = _EXPORTED[k]
+                    _EXPORTED[k] = (value, count + 1, prev)
+                else:
+                    _EXPORTED[k] = (v, 1, os.environ.get(k))
+                    os.environ[k] = v
+                svc._prev_env[k] = None
+                logger.debug("Set %s=%s", k, v)
 
     def _restore_env(self, svc: ServiceDef) -> None:
-        """Restore env vars to their pre-start values."""
-        for k, prev in svc._prev_env.items():
-            if prev is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = prev
+        """Release this service's exports; the last holder restores the previous value."""
+        with _EXPORTED_LOCK:
+            for k in svc._prev_env:
+                value, count, prev = _EXPORTED[k]
+                if count > 1:
+                    _EXPORTED[k] = (value, count - 1, prev)
+                    continue
+                del _EXPORTED[k]
+                if prev is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = prev
         svc._prev_env.clear()
 
     def _compose_up(self, svc: ServiceDef) -> bool:

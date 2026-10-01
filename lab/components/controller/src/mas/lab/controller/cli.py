@@ -20,11 +20,14 @@ def control_group() -> None:
 @click.option("--foreground", "-f", is_flag=True, help="Run daemon in foreground (dev).")
 def control_start(port: int, no_http: bool, foreground: bool) -> None:
     """Start the MAS Lab controller daemon."""
-    from mas.lab.controller.client import ControllerClient, start_daemon
+    from mas.lab.controller.client import ControllerClient, drift_message, start_daemon
 
     client = ControllerClient()
     if client.is_running():
         click.echo("Controller is already running.")
+        drift = client.drift()
+        if drift:
+            click.echo(f"Warning: {drift_message(drift)}", err=True)
         return
     if foreground:
         import sys
@@ -56,7 +59,7 @@ def control_stop() -> None:
 @control_group.command("status")
 def control_status() -> None:
     """Show controller daemon status."""
-    from mas.lab.controller.client import ControllerClient
+    from mas.lab.controller.client import ControllerClient, drift_message
     from mas.lab.controller import config as cfg
 
     client = ControllerClient()
@@ -68,6 +71,9 @@ def control_status() -> None:
     pid = pid_path.read_text(encoding="utf-8").strip() if pid_path.exists() else "?"
     click.echo(f"Controller: running (pid {pid})")
     click.echo(json.dumps(info, indent=2))
+    drift = client.drift()
+    if drift:
+        click.echo(f"Warning: {drift_message(drift)}", err=True)
 
 
 @click.group("worker")

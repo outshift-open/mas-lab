@@ -25,9 +25,8 @@ _ENV_RUNTIME_REFS = "MAS_RUNTIME_REFS"
 def infra_refs_from_env() -> list[str]:
     """Parse ``MAS_INFRA_REFS`` (comma- or space-separated bundle refs).
 
-    When set, overrides ``infra_refs`` from the active workspace config (CLI
-    ``--infra-ref`` still wins). Useful for CI and corporate LLM proxies
-  without editing workspace files.
+    Last-resort override of workspace ``infra_refs`` (CLI ``--infra-ref`` still
+    wins); declare refs in ``config.yaml`` or pass ``--infra-ref`` instead.
     """
     raw = os.environ.get(_ENV_INFRA_REFS, "").strip()
     if not raw:
@@ -142,9 +141,12 @@ class WorkspaceConfig:
 
     @property
     def effective_infra_refs(self) -> list[str]:
-        """Workspace ``infra_refs`` with ``MAS_INFRA_REFS`` env override."""
+        """Workspace ``infra_refs`` with the last-resort ``MAS_INFRA_REFS`` override."""
         env_refs = infra_refs_from_env()
         if env_refs:
+            from mas.ctl.env import warn_env_override
+
+            warn_env_override(_ENV_INFRA_REFS, ",".join(env_refs), replaces="workspace infra_refs")
             return env_refs
         return self.infra_refs
 
@@ -155,9 +157,12 @@ class WorkspaceConfig:
 
     @property
     def effective_runtime_refs(self) -> list[str]:
-        """Workspace ``runtime_refs`` with ``MAS_RUNTIME_REFS`` env override."""
+        """Workspace ``runtime_refs`` with the last-resort ``MAS_RUNTIME_REFS`` override."""
         env_refs = runtime_refs_from_env()
         if env_refs:
+            from mas.ctl.env import warn_env_override
+
+            warn_env_override(_ENV_RUNTIME_REFS, ",".join(env_refs), replaces="workspace runtime_refs")
             return env_refs
         return self.runtime_refs
 

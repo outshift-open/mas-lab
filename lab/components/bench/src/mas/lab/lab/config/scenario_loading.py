@@ -195,9 +195,8 @@ def load_scenario_config(
     * ``spec.patch.capabilities``  → ``config["capabilities"]``  (merge/update)
     * ``spec.patch.telemetry``     → ``config["mas"]["telemetry"]`` (merge/update)
     * ``spec.patch.params``        → ``config["params"]`` (replace)
-      Domain-specific key/value pairs opaque to the runner.  Consumers (e.g.
-      the demo server) may extract and act on them — for instance by writing
-      ``artifacts/scene.yaml`` from ``params.incident_fixture``.
+      Key/value pairs opaque to the runner; tools read them as
+      ``ctx.runtime_params``.
     * ``spec.patch.skills_exclude``→ ``config["skills_exclude"]`` (replace list)
 
     Returns
@@ -274,8 +273,7 @@ def load_scenario_config(
             config.setdefault("capabilities", {}).update(overlay_spec["capabilities"])
         if "telemetry" in overlay_spec:
             config.setdefault("mas", {}).setdefault("telemetry", {}).update(overlay_spec["telemetry"])
-        # Domain-specific params — opaque to the runtime, consumed by the caller
-        # (e.g. the demo server writes artifacts/scene.yaml from params.incident_fixture).
+        # Opaque params; tools read them as ctx.runtime_params.
         if "params" in overlay_spec:
             config["params"] = overlay_spec["params"]
         # Tool / skill filtering declared at overlay level

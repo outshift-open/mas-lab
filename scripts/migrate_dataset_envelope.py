@@ -51,11 +51,42 @@ def _flatten_role_list(value):
     return (users[0] if len(users) == 1 else users), hitls
 
 
+def _generic_expectations(expectations: dict, item_id) -> dict:
+    """Move app-specific keys under ``details``; generic keys stay at the top."""
+    generic = {"ground_truth", "metrics", "details"}
+    extra = {k: v for k, v in expectations.items() if k not in generic}
+    if not extra:
+        return expectations
+    details = dict(expectations.get("details") or {})
+    clash = sorted(set(details) & set(extra))
+    if clash:
+        raise ValueError(f"item {item_id!r}: expectations keys {clash} already exist in details")
+    out = {k: v for k, v in expectations.items() if k in generic}
+    out["details"] = {**details, **extra}
+    return out
+
+
+def _generic_tool_fixtures(value, item_id):
+    """``{<key>: path}`` (one app-named pointer) → ``path``; other shapes are kept."""
+    if not isinstance(value, dict) or "by_tool" in value or set(value) <= {"ref", "id"}:
+        return value
+    if len(value) == 1:
+        (pointer,) = value.values()
+        if isinstance(pointer, str) or (isinstance(pointer, dict) and set(pointer) <= {"ref", "id"}):
+            return pointer
+    raise ValueError(
+        f"item {item_id!r}: tool_fixtures keys {sorted(value)} are not generic; "
+        "use a path, {ref: path}, or by_tool"
+    )
+
+
 def _migrate_item(item: dict) -> dict:
     if "inputs" in item:
         if any(k in item for k in LEGACY_ITEM_KEYS):
             raise ValueError(f"item {item.get('id')!r} mixes envelope and legacy fields")
         inputs = dict(item["inputs"])
+        if "tool_fixtures" in inputs:
+            inputs["tool_fixtures"] = _generic_tool_fixtures(inputs["tool_fixtures"], item.get("id"))
         flattened, extra_hitl = _flatten_role_list(inputs.get("user"))
         if flattened is not inputs.get("user"):
             inputs["user"] = flattened
@@ -67,9 +98,12 @@ def _migrate_item(item: dict) -> dict:
                 inputs["hitl"] = [existing, *extra_hitl]
             elif isinstance(existing, list):
                 inputs["hitl"] = list(existing) + extra_hitl
-        if inputs != item["inputs"]:
-            return {**item, "inputs": inputs}
-        return item
+        out = {**item, "inputs": inputs} if inputs != item["inputs"] else item
+        if isinstance(item.get("expectations"), dict):
+            expectations = _generic_expectations(item["expectations"], item.get("id"))
+            if expectations is not item["expectations"]:
+                out = {**out, "expectations": expectations}
+        return out
 
     if "prompt" not in item:
         raise ValueError(f"item {item.get('id')!r} has no prompt")
@@ -108,7 +142,7 @@ def _migrate_item(item: dict) -> dict:
     if item.get("hitl_responses"):
         gov["hitl_responses"] = item["hitl_responses"]
     if gov:
-        expectations["governance"] = gov
+        expectations["details"] = {"governance": gov}
 
     out: dict = {"id": item["id"], "inputs": inputs}
     if expectations:
@@ -149,25 +183,46 @@ def _leading_comments(text: str) -> str:
     return "".join(lines)
 
 
-def _dump_yaml(path: Path, data: dict, original_text: str) -> None:
+def _body_comment_lines(text: str) -> list[int]:
+    """1-based lines holding YAML comments after the leading header (a dump drops them)."""
+    in_scalar: set[int] = set()
+    for token in yaml.scan(text, Loader=yaml.SafeLoader):
+        if isinstance(token, yaml.ScalarToken):
+            in_scalar.update(range(token.start_mark.line, token.end_mark.line + 1))
+    header_len = len(_leading_comments(text).splitlines())
+    return [
+        i + 1
+        for i, line in enumerate(text.splitlines())
+        if i >= header_len and line.lstrip().startswith("#") and i not in in_scalar
+    ]
+
+
+def _dump_yaml(path: Path, data: dict, original_text: str, *, add_header: bool = True) -> None:
+    lost = _body_comment_lines(original_text)
+    if lost:
+        raise ValueError(f"{path}: comments on lines {lost} would be lost; migrate this file by hand")
     body = yaml.dump(
         data, allow_unicode=True, default_flow_style=False, sort_keys=False, width=120
     )
     header = _leading_comments(original_text)
-    if "SPDX-License-Identifier" not in header:
-        header = COPYRIGHT_HEADER + ("\n" if header else "\n")
+    if add_header and "SPDX-License-Identifier" not in header:
+        header = COPYRIGHT_HEADER + "\n" + header
     elif header and not header.endswith("\n"):
         header += "\n"
     path.write_text(header + body, encoding="utf-8")
 
 
-def _migrate_yaml(path: Path) -> bool:
+def _migrate_yaml(path: Path, *, datasets_only: bool = False, add_header: bool = True) -> bool:
     original = path.read_text(encoding="utf-8")
     data = yaml.safe_load(original)
     if not isinstance(data, dict):
         return False
+    if datasets_only and data.get("kind") != "Dataset":
+        return False
     changed = False
     if data.get("kind") == "Dataset" and isinstance(data.get("spec"), dict):
+        if data["spec"].pop("item_schema", None) is not None:
+            changed = True
         items = data["spec"].get("items")
         if isinstance(items, list) and items:
             new_items = _migrate_items(items)
@@ -180,7 +235,7 @@ def _migrate_yaml(path: Path) -> bool:
             data["items"] = new_items
             changed = True
     if changed:
-        _dump_yaml(path, data, original)
+        _dump_yaml(path, data, original, add_header=add_header)
     return changed
 
 
@@ -212,7 +267,29 @@ def _migrate_experiment_overlays(path: Path) -> bool:
     return changed
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    """Migrate this repo's datasets, or the Dataset files / directories given as arguments."""
+    targets = [Path(a).resolve() for a in (sys.argv[1:] if argv is None else argv)]
+    if targets:
+        n = 0
+        failed: list[str] = []
+        for target in targets:
+            paths = sorted(target.rglob("*.yaml")) if target.is_dir() else [target]
+            for path in paths:
+                if path.is_symlink():
+                    continue
+                try:
+                    migrated = _migrate_yaml(path, datasets_only=target.is_dir(), add_header=False)
+                except ValueError as exc:
+                    failed.append(str(exc))
+                    continue
+                if migrated:
+                    print(f"migrated dataset {path}")
+                    n += 1
+        print(f"done — {n} files updated")
+        for message in failed:
+            print(f"NOT MIGRATED: {message}", file=sys.stderr)
+        return 1 if failed else 0
     patterns = [
         "library-samples/datasets/**/*.yaml",
         "labs/**/datasets/**/*.yaml",

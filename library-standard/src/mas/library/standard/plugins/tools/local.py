@@ -518,13 +518,11 @@ class _SystemToolWrapperBase:
 class _SystemToolHitlWrapper(_SystemToolWrapperBase):
     """Wrapper for system tools that emit HITL signals.
 
-    Catches RequestHitlSignal and resolves it, in priority order:
-    1. Batch/CLI/bench mode (MAS_HITL_AUTO_RESOLVE set): auto-resolve immediately,
-       no external resolver is listening.
-    2. hitl_contract.request_approval() -- defaults to RegistryHitlContract
-       (register in the shared HitlResolverRegistry and BLOCK until an external
-       resolver, e.g. an external integration or an interactive CLI prompt, provides the
-       user's response) unless a different HITLContract was supplied.
+    Catches RequestHitlSignal and resolves it through ``hitl_contract`` --
+    ``RegistryHitlContract`` by default (register in the shared
+    HitlResolverRegistry and BLOCK until an external resolver provides the
+    user's response), or ``AutoResolveHitlContract`` when the host runs
+    unattended (batch CLI, benchmarks).
 
     Timeout handling (RegistryHitlContract path):
     - The call's own `timeout` argument wins; otherwise `default_timeout_seconds`
@@ -543,15 +541,17 @@ class _SystemToolHitlWrapper(_SystemToolWrapperBase):
         auto_resolve_decision: str | None = None,
     ) -> None:
         super().__init__(tool_instance)
-        if hitl_contract is None:
-            from mas.runtime.contracts.user_communication_contract import RegistryHitlContract
+        from mas.runtime.contracts.user_communication_contract import (
+            AutoResolveHitlContract,
+            RegistryHitlContract,
+        )
 
+        if hitl_contract is None:
             hitl_contract = RegistryHitlContract()
+        elif isinstance(hitl_contract, AutoResolveHitlContract) and auto_resolve_decision:
+            hitl_contract = AutoResolveHitlContract(auto_resolve_decision)
         self._hitl_contract: HITLContract = hitl_contract
         self._default_timeout_seconds = default_timeout_seconds
-        self._auto_resolve_decision = (
-            auto_resolve_decision or os.environ.get("MAS_HITL_AUTO_RESOLVE_DECISION") or "approve"
-        )
 
     def on_execute_tool(
         self,
@@ -563,8 +563,8 @@ class _SystemToolHitlWrapper(_SystemToolWrapperBase):
     ) -> Any:
         """Execute tool and catch HITL signal.
 
-        If the tool raises RequestHitlSignal, resolve it via auto-resolve or
-        self._hitl_contract.request_approval() (in that order).
+        If the tool raises RequestHitlSignal, resolve it via
+        self._hitl_contract.request_approval().
         """
         from mas.runtime.system_tools.signal import RequestHitlSignal
 
@@ -572,32 +572,6 @@ class _SystemToolHitlWrapper(_SystemToolWrapperBase):
             return self._execute_wrapped(tool_name, arguments, ctx=ctx, user=user)
         except RequestHitlSignal as signal:
             session_id, agent_id, correlation_id = self._extract_context(ctx)
-
-            # Batch/CLI auto-hitl mode (e.g. `mas-ctl run-mas --auto-hitl`, the
-            # default): there is no external resolver (integration adapter, operator
-            # console, etc.) listening on the registry, so blocking for the
-            # full timeout would always fail. Resolve immediately with a
-            # default choice instead, mirroring the existing AutoApproveResponder
-            # semantics used for the older governance-triggered HITL path.
-            # Real interactive/production sessions never set this env var, so
-            # they keep blocking for an actual external resolver as before.
-            if os.environ.get("MAS_HITL_AUTO_RESOLVE", "0") not in ("0", "false", "False", ""):
-                logger.info(
-                    f"Agent {agent_id} HITL auto-resolved in batch mode "
-                    f"(session={session_id}, correlation_id={correlation_id}): "
-                    f"question={signal.question!r} choice={self._auto_resolve_decision!r}"
-                )
-                # Shape must match RegistryHitlContract.request_approval()'s
-                # return exactly: this dict is returned verbatim as the tool's
-                # result and embedded in conversation history, so any
-                # difference changes the llm_cache key for every subsequent
-                # LLM_CALL.
-                return {
-                    "choice": self._auto_resolve_decision,
-                    "steering": "",
-                    "question": signal.question,
-                    "resolved": True,
-                }
 
             timeout_seconds = signal.timeout if signal.timeout is not None else self._default_timeout_seconds
             logger.info(

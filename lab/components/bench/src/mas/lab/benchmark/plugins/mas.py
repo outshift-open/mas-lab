@@ -5,15 +5,12 @@ from __future__ import annotations
 
 """Native MAS machinery runner — thin lab adapter over :class:`MasBenchRunner`."""
 
-import logging
 from pathlib import Path
 from typing import Any
 
 from mas.lab.inputs import RunInput
 from mas.lab.runners.constants import DEFAULT_LAB_RUNNER_ID
 from mas.lab.runners.protocol import ApplicationRunnerProtocol, RunResult
-
-logger = logging.getLogger(__name__)
 
 _SUPPORTED_CONTRACTS = (
     "budget",
@@ -47,7 +44,6 @@ class MasRuntimeRunner(ApplicationRunnerProtocol):
     ) -> RunResult:
         from mas.ctl.benchmark.runner import MasBenchRunner
 
-        self._write_params_sidecar(config, output_dir)
         return MasBenchRunner().run(
             prompt,
             config=config,
@@ -64,19 +60,3 @@ class MasRuntimeRunner(ApplicationRunnerProtocol):
 
     def get_supported_contracts(self) -> list[str]:
         return list(_SUPPORTED_CONTRACTS)
-
-    @staticmethod
-    def _write_params_sidecar(config: dict[str, Any], output_dir: Path) -> None:
-        params = config.get("params") or {}
-        if not params:
-            return
-        try:
-            import yaml as _yaml
-
-            sidecar_dir = output_dir / "artifacts"
-            sidecar_dir.mkdir(parents=True, exist_ok=True)
-            sidecar_path = sidecar_dir / "scene.yaml"
-            with open(sidecar_path, "w", encoding="utf-8") as fh:
-                _yaml.safe_dump(params, fh, default_flow_style=False, allow_unicode=True)
-        except Exception as exc:
-            logger.debug("Could not write params sidecar: %s", exc)

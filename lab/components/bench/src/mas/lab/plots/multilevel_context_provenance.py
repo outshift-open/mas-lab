@@ -48,7 +48,7 @@ Python API::
     from mas.lab.plots.kg_adapter import load_kg
 
     kg   = load_kg("path/to/kg.json")
-    html = plot_multilevel_context_provenance(kg, title="SRE — Context Flow", fmt="html")
+    html = plot_multilevel_context_provenance(kg, title="Context Flow", fmt="html")
 
 CLI::
 

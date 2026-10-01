@@ -30,7 +30,7 @@ def test_boundary_event_to_transition_llm_start() -> None:
         correlation_id=7,
         payload={"op": "LLM_CALL", "tool_name": ""},
     )
-    t = boundary_event_to_transition(ev, agent_id="sre", run_id="run-abc")
+    t = boundary_event_to_transition(ev, agent_id="planner", run_id="run-abc")
     assert t.contract_id == "model"
     assert t.phase == "start"
     assert t.mealy_symbol == "LLM_CALL"
@@ -158,7 +158,7 @@ def test_operator_record_session_notifies_subscribers() -> None:
     op = ObservabilityOperator()
     cap = _CapturePlugin()
     op.subscribe(cap)
-    op.set_context(agent_id="sre", run_id="run-1")
+    op.set_context(agent_id="planner", run_id="run-1")
     op.record_session("user_input", text="hi", call_id="t1-exec")
     assert len(cap.seen) == 1
     assert cap.seen[0].boundary_kind == "session"
@@ -177,12 +177,12 @@ def test_native_plugin_contract_call_alone_does_not_emit_llm_call(tmp_path) -> N
         plugins=["native"],
         plugin_configs={"native": {"path": "events.jsonl"}},
     )
-    plugins = build_observability_plugins(binding, base_dir=tmp_path, agent_id="sre")
+    plugins = build_observability_plugins(binding, base_dir=tmp_path, agent_id="planner")
     assert plugins
     op = ObservabilityOperator()
     for plugin in plugins:
         op.subscribe(plugin)
-    op.set_context(agent_id="sre", run_id="run-test")
+    op.set_context(agent_id="planner", run_id="run-test")
     op.record_envelope_activity(
         symbol="CONTRACT_START",
         activity="contract_call",
@@ -209,11 +209,11 @@ def test_native_plugin_engine_io_is_sole_source_of_llm_call(tmp_path) -> None:
         plugins=["native"],
         plugin_configs={"native": {"path": "events.jsonl"}},
     )
-    plugins = build_observability_plugins(binding, base_dir=tmp_path, agent_id="sre")
+    plugins = build_observability_plugins(binding, base_dir=tmp_path, agent_id="planner")
     op = ObservabilityOperator()
     for plugin in plugins:
         op.subscribe(plugin)
-    op.set_context(agent_id="sre", run_id="run-test")
+    op.set_context(agent_id="planner", run_id="run-test")
     op.record_envelope_activity(
         symbol="CONTRACT_START", activity="contract_call", boundary="start",
         phase=ObsPhase.REQUEST, correlation_id=5, payload={"op": "LLM_CALL"},

@@ -71,14 +71,22 @@ def resolve_model_name(
 ) -> str:
     """Resolve the turn-model LiteLLM id.
 
-    Precedence: CLI / ``MAS_CTL_MODEL`` → Agent ``spec.models[id=main]`` →
-    MAS default → ``experiment.models.main`` / ``experiment.model`` →
-    ``config.yaml`` ``defaults.model`` → package ``defaults.yaml``.
+    Precedence: CLI ``--model`` → last-resort env override → Agent
+    ``spec.models[id=main]`` → MAS default → ``experiment.models.main`` /
+    ``experiment.model`` → ``config.yaml`` ``defaults.model`` → package
+    ``defaults.yaml``. An env override is logged, never silent.
     """
     llm_proxy = (infra.llm_proxy if infra else {}) or {}
-    forced = (forced or "").strip() or (
-        os.environ.get("MAS_CTL_MODEL", "").strip() or os.environ.get("MAS_LLM_MODEL", "").strip()
-    )
+    forced = (forced or "").strip()
+    if not forced:
+        for env_name in ("MAS_CTL_MODEL", "MAS_LLM_MODEL"):
+            env_model = os.environ.get(env_name, "").strip()
+            if env_model:
+                from mas.ctl.env import warn_env_override
+
+                warn_env_override(env_name, env_model, replaces="the declared model")
+                forced = env_model
+                break
     if forced:
         raw = forced
     else:

@@ -25,10 +25,7 @@ def _library_yaml_paths() -> list[Path]:
     for path in sorted(_ROOT.rglob("library.yaml")):
         if any(part in _SKIP_PARTS for part in path.parts):
             continue
-        try:
-            doc = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except Exception:
-            continue
+        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
         if isinstance(doc, dict) and doc.get("kind") == "Library":
             paths.append(path)
     return paths
@@ -85,10 +82,22 @@ def test_library_plugins_is_a_list_and_types_cover_entries(path: Path) -> None:
     ],
     ids=lambda p: str(p.relative_to(_ROOT)),
 )
-def test_packaged_library_plugin_classes_import(path: Path) -> None:
+def test_packaged_library_plugin_classes_import(path: Path, monkeypatch) -> None:
     doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    monkeypatch.syspath_prepend(str(path.parent.parent))
     for entry in doc.get("plugins") or []:
         module = importlib.import_module(str(entry["module"]))
         assert hasattr(module, str(entry["class"])), (
             f"{path}: {entry['module']}:{entry['class']} is not importable"
         )
+
+
+def test_library_packages_are_unique() -> None:
+    """Library dirs that are their own plugin package share one sys.path namespace."""
+    owners: dict[str, Path] = {}
+    for path in _library_yaml_paths():
+        doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        name = path.parent.name
+        if any(str(e.get("module", "")).startswith(name + ".") for e in doc.get("plugins") or []):
+            assert name not in owners, f"package {name!r}: {owners[name]} and {path}"
+            owners[name] = path

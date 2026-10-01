@@ -159,15 +159,13 @@ def preload_scenario_configs(
                     workspace_root=experiment_yaml.parent,
                 )
             _scenario_configs[_sid] = (_cfg, _bp)
-        except FileNotFoundError:
-            logger.warning(f"Scenario config not found, skipping: {_sid} in {configs_dir}")
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(
+                f"scenario {_sid!r}: cannot load its configuration ({exc}). Declare "
+                "scenarios[].overlays explicitly (use empty lists for none)."
+            ) from exc
 
-    _loaded_ids = [sid for sid in scenario_ids if sid in _scenario_configs]
-    if len(_loaded_ids) < len(scenario_ids):
-        _skipped = len(scenario_ids) - len(_loaded_ids)
-        logger.warning(f"{_skipped} scenario(s) skipped (config not found)")
-
-    return _scenario_configs, _scenario_overlay_stacks, _loaded_ids
+    return _scenario_configs, _scenario_overlay_stacks, list(scenario_ids)
 
 
 def resolve_scenario_flavours(

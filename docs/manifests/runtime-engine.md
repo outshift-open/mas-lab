@@ -44,7 +44,6 @@ manifest kind (`RuntimeEngine` vs `LLMProxy` / bundles):
 | Source | Infra (`infra_refs`) | Runtime (`runtime_refs`) |
 |--------|----------------------|---------------------------|
 | CLI | `--infra-ref` | `--runtime-ref` |
-| Environment | `MAS_INFRA_REFS` | `MAS_RUNTIME_REFS` |
 | Workspace | `config.yaml` → `infra_refs` | `config.yaml` → `runtime_refs` |
 | User default | `default_infra` in `~/.config/mas/config.yaml` | `default_runtime` in same file |
 | Search dirs | `infra/`, `~/.config/mas/infra/` | `runtime/`, `~/.config/mas/runtime/` |

@@ -44,7 +44,7 @@ from mas.ctl.ui.curses_app import build_curses_controller, run_curses_session
 @click.option(
     "--model",
     default=None,
-    help="Override spec.models for this run (same as MAS_CTL_MODEL)",
+    help="Override spec.models for this run",
 )
 @observability_options
 @click.pass_context

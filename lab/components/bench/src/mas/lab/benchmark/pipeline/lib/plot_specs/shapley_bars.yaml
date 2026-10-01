@@ -4,12 +4,12 @@ plot:
   name: shapley_bars
   type: bar_h
   title: "Shapley values: marginal contribution per capability"
-  subtitle: "Mean Shapley value across incidents  (higher = more valuable capability)"
+  subtitle: "Mean Shapley value across items  (higher = more valuable capability)"
   description: >
     Horizontal bar chart of Shapley values. Each bar represents one
     capability (e.g. Memory, Orchestration, Skills) and its mean marginal
     contribution to the composite MCE score. Error bars show ±1 standard
-    deviation across incident items.
+    deviation across dataset items.
 
   data:
     key: shapley_values     # list[{capability, mean, std, n}]

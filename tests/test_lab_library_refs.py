@@ -151,14 +151,17 @@ def test_unknown_library_name_path_ref_is_rejected(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "lab_dir",
-    [_LABS / "lifecycle-control.lab", _LABS / "extensions.lab"],
+    "lab_dir, package",
+    [
+        (_LABS / "lifecycle-control.lab", "lifecycle_control_lab"),
+        (_LABS / "extensions.lab", "extensions_lab"),
+    ],
     ids=["lifecycle-control", "extensions"],
 )
-def test_in_repo_lab_local_dir_resolves_as_named_library(lab_dir: Path) -> None:
+def test_in_repo_lab_local_dir_resolves_as_named_library(lab_dir: Path, package: str) -> None:
     from mas.library_roots import resolve_named_library_root
 
-    listed = lab_dir / "lib"
+    listed = lab_dir / package
     assert (listed / "library.yaml").is_file()
-    root = resolve_named_library_root("lib", lab_dir)
+    root = resolve_named_library_root(package, lab_dir)
     assert root == listed.resolve()

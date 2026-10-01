@@ -89,23 +89,23 @@ def test_create_shared_observability_begin_run_on_first_setup(tmp_path) -> None:
 def test_sh_user_input_updates_turn_context() -> None:
     """_sh_user_input should propagate turn_id and exec_call_id into context."""
     transform = NativeObservabilityTransform()
-    ctx = TransformContext(agent_id="sre", run_id="run-1")
+    ctx = TransformContext(agent_id="planner", run_id="run-1")
     ctx._seen_engine_ops.add((1, "LLM_CALL"))
 
     out = transform.transform(
         {"_source": "session", "session_kind": "user_input", "text": "hi",
-         "call_id": "sre-u2-exec", "turn_id": "u2"},
+         "call_id": "planner-u2-exec", "turn_id": "u2"},
         ctx=ctx,
     )
     assert out  # produces at least one event
-    assert ctx.exec_call_id == "sre-u2-exec"
+    assert ctx.exec_call_id == "planner-u2-exec"
     assert ctx.turn_id == "u2"
     assert ctx._seen_engine_ops == set()  # reset on new turn
 
 
 def test_client_response_emits_distinct_kind() -> None:
     transform = NativeObservabilityTransform()
-    ctx = TransformContext(agent_id="sre", run_id="run-1")
+    ctx = TransformContext(agent_id="planner", run_id="run-1")
     out = transform.transform(
         {
             "_source": "boundary",
@@ -122,7 +122,7 @@ def test_client_response_emits_distinct_kind() -> None:
 
 def test_cross_turn_dedup_not_suppressed_after_new_user_turn() -> None:
     transform = NativeObservabilityTransform()
-    ctx = TransformContext(agent_id="sre", run_id="run-1")
+    ctx = TransformContext(agent_id="planner", run_id="run-1")
     boundary = {
         "_source": "boundary",
         "kind": ObsEventKind.ENGINE_IO.value,

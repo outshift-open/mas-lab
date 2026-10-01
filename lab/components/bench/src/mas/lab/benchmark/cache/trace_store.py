@@ -167,9 +167,6 @@ def materialize_config(config: dict, base_path: "Path | None") -> dict:
       - ``agents[*].skills_dir``
             → inlined as ``_skills: {"rel/path.md": text, …}`` (sorted);
               ``skills_dir`` key removed.
-      - ``params.incident_fixture``
-            → inlined as ``params._incident_fixture`` (parsed YAML);
-              ``incident_fixture`` key removed.
 
     All other fields pass through unchanged.  Missing files are silently
     skipped (they will produce a runtime warning during execution).
@@ -260,53 +257,7 @@ def materialize_config(config: dict, base_path: "Path | None") -> dict:
                     for md in sorted(sd.rglob("*.md"))
                 }
 
-    # params.incident_fixture → inline parsed YAML.
-    params = mat.get("params") or {}
-    fixture_ref = params.pop("incident_fixture", None)
-    if fixture_ref:
-        content = _load_yaml(_resolve(str(fixture_ref), base_dir))
-        if content is not None:
-            params["_incident_fixture"] = content
-        mat["params"] = params
-
     return mat
-
-
-def write_runtime_params_sidecar(config: dict, spec_path: Path) -> None:
-    """For overlay-only runs (no dataset item), copy ``params.incident_fixture``.
-
-    Experiments that pin a dataset should set tool fixtures on the dataset
-    item instead. This path exists so UI/demo overlays still work.
-    """
-    params = dict(config.get("params") or {})
-    if not params:
-        return
-
-    sidecar_dir = spec_path.parent / "artifacts"
-    sidecar_dir.mkdir(parents=True, exist_ok=True)
-
-    import yaml as _yaml
-
-    payload: dict = dict(params)
-    fixture_ref = payload.pop("incident_fixture", None)
-    if fixture_ref:
-        try:
-            from mas.runtime.package_refs import resolve_path_ref
-            from mas.runtime.spec.source import load_yaml_file
-
-            path = resolve_path_ref(str(fixture_ref), spec_path.parent)
-            if path.is_file():
-                env = load_yaml_file(path)
-                if isinstance(env, dict):
-                    for key in ("correct_action", "source_evidence"):
-                        env.pop(key, None)
-                    payload = {**payload, **env}
-        except Exception:
-            payload["incident_fixture"] = fixture_ref
-
-    sidecar_path = sidecar_dir / "scene.yaml"
-    with open(sidecar_path, "w", encoding="utf-8") as fh:
-        _yaml.safe_dump(payload, fh, default_flow_style=False, allow_unicode=True)
 
 
 def compute_run_hash(
@@ -316,6 +267,7 @@ def compute_run_hash(
     run_idx: int,
     flavour_info: dict,
     base_path: "Path | None" = None,
+    infra_info: "dict | None" = None,
 ) -> str:
     """Compute a 20-character SHA-256 prefix that uniquely identifies a MAS run.
 
@@ -332,6 +284,7 @@ def compute_run_hash(
       - ``run_idx``:      0-based repetition index
       - ``flavour_info``: full non-secret FlavourManifest dict from _extract_flavour_info
       - ``base_path``:    config file / mas.yaml path for resolving relative refs
+      - ``infra_info``:   non-secret resolved infra (endpoint, model mappings, engine)
       - ``turns``:        optional multi-turn conversation list (included in hash)
 
     Excluded (organisational, not computational):
@@ -376,6 +329,7 @@ def compute_run_hash(
         "item_id": str(item_id),
         "run_idx": run_idx,
         "flavour": _effective_flavour,
+        "infra": infra_info,
     }
     serialized = json.dumps(payload, sort_keys=True, default=str)
     return hashlib.sha256(serialized.encode()).hexdigest()[:20]

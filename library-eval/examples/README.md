@@ -9,7 +9,7 @@ to sample apps. Layout: `examples/<category>/<name>/`.
 
 Tests load these as fixtures. `mas-ctl validate` works from the repo root.
 
-**Not here:** trip-planner / SRE apps. Those live in `library-samples/apps/`.
+**Not here:** use-case apps such as the trip planner. Those live in `library-samples/apps/`.
 
 ## Index
 

@@ -33,6 +33,8 @@ class AutoCtxAssembler:
     manifest: dict[str, Any] | None = None
     pattern_plugin_id: str = "react@v1"
     runtime_params: dict[str, Any] = field(default_factory=dict)
+    # Per-run dataset fixtures for mock tools; read via contracts.tool_fixture().
+    tool_fixtures: Any = None
     q_product: QProduct | None = None
     observability: Any | None = None
     _assembly_correlation_id: int = 0

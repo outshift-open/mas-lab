@@ -56,8 +56,8 @@ properties:
         description: >
           App this dataset is bound to (omit for general-purpose datasets).
           Package-dependency form: `[library:]name` (any version) or
-          `[library:]name@<tag-or-range>` (`sre-triage@v1`, `sre-triage@>=v1,<v3`,
-          `sre-triage@^v1`). Dataset versions are independent of the app;
+          `[library:]name@<tag-or-range>` (`my-app@v1`, `my-app@>=v1,<v3`,
+          `my-app@^v1`). Dataset versions are independent of the app;
           this field is the compatible app range.
         oneOf:
           - type: string
@@ -126,10 +126,6 @@ properties:
               deprecated: true
               description: >
                 DEPRECATED at item top-level. Use expectations.ground_truth.
-            correct_action:
-              deprecated: true
-              description: >
-                DEPRECATED at item top-level. Use expectations.correct_action.
             category:
               type: string
             group:
@@ -192,9 +188,21 @@ properties:
         type: string
         enum: [yaml, jsonl, csv]
         default: yaml
-      item_schema:
+      schemas:
         type: object
-        additionalProperties: true
+        description: >
+          Optional JSON Schemas for the free-form parts of each resolved item,
+          keyed by dotted envelope path (same vocabulary as source.map):
+          expectations.details[.key...] or inputs.tool_fixtures.by_tool.<tool|*>[.key...].
+          A tool key checks the payload that tool receives (by_tool[tool], else by_tool["*"]).
+          Value: inline schema, a path, or {ref: path} (catalog refs allowed).
+          Parts without a schema are not checked.
+        propertyNames:
+          pattern: '^(expectations\.details|inputs\.tool_fixtures\.by_tool\.[^.]+)(\.[^.]+)*$'
+        additionalProperties:
+          anyOf:
+            - type: string
+            - type: object
       groups:
         type: array
         items:

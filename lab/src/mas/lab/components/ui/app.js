@@ -611,10 +611,9 @@ async function applyDemoMode() {
   selectOption(scenarioSelect, (option) => option.value === "baseline");
   await setScenario(scenarioSelect.value);
 
-  selectOption(promptSelect, (option) => {
-    const text = `${option.textContent || ""} ${option.value || ""}`.toLowerCase();
-    return text.includes("triage") || text.includes("checkout-service");
-  });
+  if (promptSelect && promptSelect.options.length > 0) {
+    promptSelect.selectedIndex = 0;
+  }
 
   if (layoutSelect) {
     const appId = getCurrentAppId();

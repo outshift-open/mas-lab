@@ -13,17 +13,6 @@ oneOf:
     minLength: 1
     description: "Shorthand for a {ref} object whose ref is this string."
   - type: object
-    deprecated: true
-    description: >
-      DEPRECATED. SRE-era incident_fixture alias. Use {ref:} or by_tool.
-      See https://outshift-open.github.io/mas-lab/manifests/dataset-migration/
-    additionalProperties: true
-    required: [incident_fixture]
-    properties:
-      incident_fixture:
-        type: string
-        minLength: 1
-  - type: object
     additionalProperties: false
     required: [by_tool]
     properties:
@@ -31,8 +20,8 @@ oneOf:
         type: object
         minProperties: 1
         additionalProperties:
-          description: Path, {ref}, {data} alias, or inline tool payload (opaque).
-          oneOf:
+          description: Path, {ref}, or inline tool payload (free-form, owned by the tool).
+          anyOf:
             - $ref: "urn:mas-lab:fragments:ref:v1"
             - type: string
               minLength: 1
@@ -44,9 +33,7 @@ oneOf:
     items:
       type: object
       additionalProperties: false
-      anyOf:
-        - required: [ref]
-        - required: [data]
+      required: [ref]
       properties:
         tool:
           type: string
@@ -57,6 +44,3 @@ oneOf:
         ref:
           type: string
           minLength: 1
-        data:
-          type: string
-          description: Alias for ref.

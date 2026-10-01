@@ -9,7 +9,6 @@ Pipeline executor with automatic dependency resolution and caching.
 import asyncio
 import json
 import logging
-import os
 import re
 import sys
 import time
@@ -415,13 +414,9 @@ class PipelineExecutor:
         self.resource_registry = resource_registry
         self.progress = progress
         self.scope_context = scope_context or ScopeContext()
-        # workspace_data: prefer explicit arg, then MAS_DATA_ROOT env var, then default
-        if workspace_data is not None:
-            self.workspace_data: Optional[Path] = workspace_data
-        elif os.environ.get(_paths.MAS_DATA_ROOT_ENV):
-            self.workspace_data = Path(os.environ[_paths.MAS_DATA_ROOT_ENV]).expanduser()
-        else:
-            self.workspace_data = _paths.data_root()
+        self.workspace_data: Optional[Path] = (
+            workspace_data if workspace_data is not None else _paths.data_root()
+        )
 
         # Derive lab_name and lab_data_dir by finding lab-config.yaml in parent dirs
         self.lab_name, self.lab_data_dir = _find_lab_meta(
@@ -890,21 +885,13 @@ class PipelineExecutor:
     ) -> Dict[str, Any]:
         """Substitute ``{key}`` placeholders in string config values.
 
-        The substitution namespace is built from (in priority order):
-        1. ``ctx.template_vars`` — user-supplied variables
-        2. ``output_dir`` from ``ctx.output_dir``
-        3. ``os.environ`` — environment variables
+        The namespace is ``output_dir`` plus ``ctx.template_vars`` (CLI
+        ``--var``); the process environment is deliberately not consulted.
 
         Non-string values are returned unchanged.  Missing keys are left as-is
         so that steps can carry ``{key}`` literals through without erroring.
         """
-        namespace: Dict[str, str] = {}
-        # Lowest priority: env
-        for k, v in os.environ.items():
-            namespace[k] = v
-        # Mid priority: output_dir
-        namespace["output_dir"] = str(ctx.output_dir)
-        # High priority: user-supplied template vars
+        namespace: Dict[str, str] = {"output_dir": str(ctx.output_dir)}
         for k, v in ctx.template_vars.items():
             namespace[k] = str(v)
 

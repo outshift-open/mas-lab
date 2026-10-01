@@ -161,7 +161,7 @@ class Artifact:
             if workspace_data is None:
                 raise RuntimeError(
                     f"Artifact '{self.name}' is SHARED but ctx.workspace_data is not set. "
-                    "Set MAS_DATA env var or workspace_data in the experiment config."
+                    "Set data_dir in the user config.yaml (see `mas-lab config`)."
                 )
             base = workspace_data / lab_name / "shared"
         elif self.scope == Scope.EXPERIMENT:

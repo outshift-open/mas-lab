@@ -195,3 +195,101 @@ def test_ensure_running_failure(temp_mas_home, monkeypatch):
     client = ControllerClient()
     with pytest.raises(RuntimeError, match="failed to start"):
         client.ensure_running(auto_start=True)
+
+
+def _fake_daemon(monkeypatch, *, code, running=0, env=None):
+    import mas.lab.controller.client as client_mod
+
+    state = {"alive": True, "started": False, "stopped": False, "code": code, "env": env or {}}
+
+    def fake_call(self, method, params=None, timeout=30.0):
+        if method == "ping":
+            return {"status": "ok", "code": state["code"], "env": state["env"]}
+        if method == "status":
+            return {"running": running}
+        return {"ok": True}
+
+    def fake_stop():
+        state["stopped"] = True
+        state["alive"] = False
+        return True
+
+    def fake_start(**kw):
+        state["started"] = True
+        state["alive"] = True
+        state["code"] = "current"
+        state["env"] = {}
+
+    monkeypatch.setattr(client_mod.cfg, "code_fingerprint", lambda: "current")
+    monkeypatch.setattr(client_mod.cfg, "env_fingerprint", lambda: {})
+    monkeypatch.setattr(client_mod.ControllerClient, "call", fake_call)
+    monkeypatch.setattr(client_mod.ControllerClient, "is_running", lambda self: state["alive"])
+    monkeypatch.setattr(client_mod, "stop_daemon", fake_stop)
+    monkeypatch.setattr(client_mod, "start_daemon", fake_start)
+    return state
+
+
+def test_ensure_running_restarts_idle_stale_daemon(temp_mas_home, monkeypatch):
+    state = _fake_daemon(monkeypatch, code=None)
+    ControllerClient().ensure_running(restart_stale=True)
+    assert state["stopped"] and state["started"]
+
+
+def test_ensure_running_keeps_current_daemon(temp_mas_home, monkeypatch):
+    state = _fake_daemon(monkeypatch, code="current")
+    ControllerClient().ensure_running(restart_stale=True)
+    assert not state["stopped"] and not state["started"]
+
+
+def test_ensure_running_refuses_busy_stale_daemon(temp_mas_home, monkeypatch):
+    state = _fake_daemon(monkeypatch, code="old", running=1)
+    with pytest.raises(RuntimeError, match="another mas-lab installation.*1 running worker"):
+        ControllerClient().ensure_running(restart_stale=True)
+    assert not state["stopped"]
+
+
+def test_ensure_running_warns_on_stale_daemon_by_default(temp_mas_home, monkeypatch, caplog):
+    state = _fake_daemon(monkeypatch, code="old")
+    with caplog.at_level("WARNING", logger="mas.lab.controller.client"):
+        ControllerClient().ensure_running()
+    assert not state["stopped"]
+    assert "mas-lab control stop" in caplog.text
+
+
+def test_drift_names_changed_environment_variables(temp_mas_home, monkeypatch):
+    _fake_daemon(monkeypatch, code="current", env={"MAS_INFRA_REFS": "aaa", "OPENAI_API_KEY": "k"})
+    import mas.lab.controller.client as client_mod
+
+    monkeypatch.setattr(client_mod.cfg, "env_fingerprint", lambda: {"OPENAI_API_KEY": "k", "MAS_CTL_MODEL": "m"})
+    assert ControllerClient().drift() == ["its environment differs for MAS_CTL_MODEL, MAS_INFRA_REFS"]
+
+
+def test_ensure_running_restarts_idle_daemon_on_env_drift(temp_mas_home, monkeypatch):
+    state = _fake_daemon(monkeypatch, code="current", env={"MAS_INFRA_REFS": "aaa"})
+    ControllerClient().ensure_running(restart_stale=True)
+    assert state["stopped"] and state["started"]
+
+
+def test_env_fingerprint_hashes_run_relevant_variables_only():
+    from mas.lab.controller import config as cfg
+
+    fp = cfg.env_fingerprint(
+        {"MAS_INFRA_REFS": "x", "OPENAI_API_KEY": "secret", "MAS_CONTROLLER_PORT": "9000", "HOME": "/h"}
+    )
+    assert set(fp) == {"MAS_INFRA_REFS", "OPENAI_API_KEY"}
+    assert "secret" not in fp.values()
+
+
+def test_code_fingerprint_tracks_source_changes(tmp_path, monkeypatch):
+    import mas
+    from mas.lab.controller import config as cfg
+
+    pkg = tmp_path / "mas"
+    pkg.mkdir()
+    module = pkg / "engine.py"
+    module.write_text("A = 1\n", encoding="utf-8")
+    monkeypatch.setattr(mas, "__path__", [str(pkg)])
+    before = cfg.code_fingerprint()
+    assert cfg.code_fingerprint() == before
+    module.write_text("A = 22\n", encoding="utf-8")
+    assert cfg.code_fingerprint() != before

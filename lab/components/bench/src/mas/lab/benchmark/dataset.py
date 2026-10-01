@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
 from mas.lab.inputs import RunInput, load_run_input, run_input_to_dict
+from mas.lab.inputs.schemas import load_part_schemas, part_schema_violations
 
 
 # ``spec.path`` sidecar suffix/format_hint -> the same ``spec.source.kind``
@@ -111,6 +112,7 @@ class Dataset:
         description: str = "",
         metadata: Optional[Dict[str, Any]] = None,
         app: Optional[Any] = None,
+        schemas: Optional[Dict[str, Dict[str, Any]]] = None,
     ):
         self.name = name
         self.version = version
@@ -118,6 +120,7 @@ class Dataset:
         self.items = items
         self.metadata = metadata or {}
         self.app = app
+        self.schemas = schemas or {}
 
     @classmethod
     def from_yaml(
@@ -161,6 +164,16 @@ class Dataset:
             for item in raw_items
             if isinstance(item, dict)
         ]
+        schemas = load_part_schemas(spec.get("schemas"), base_path)
+        violations = [
+            msg
+            for item in items
+            for msg in part_schema_violations(
+                run_input_to_dict(item.run_input), schemas, where=f"{path}#{item.id}"
+            )
+        ]
+        if violations:
+            raise ValueError("Dataset items fail spec.schemas:\n  " + "\n  ".join(violations))
 
         meta = data.get("metadata") or {}
         return cls(
@@ -169,6 +182,7 @@ class Dataset:
             description=meta.get("description") or data.get("description", ""),
             items=items,
             app=spec.get("app") or meta.get("app") or data.get("app"),
+            schemas=schemas,
             metadata={
                 k: v
                 for k, v in data.items()
@@ -192,6 +206,8 @@ class Dataset:
         import yaml
 
         spec: Dict[str, Any] = {"items": [item.to_dict() for item in self.items]}
+        if self.schemas:
+            spec = {"schemas": self.schemas, **spec}
         if self.app:
             spec = {"app": self.app, **spec}
         data = {
@@ -238,6 +254,7 @@ class Dataset:
             description=f"Filtered: {self.description}",
             metadata=self.metadata,
             app=self.app,
+            schemas=self.schemas,
         )
 
     def __len__(self) -> int:
