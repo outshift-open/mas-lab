@@ -16,6 +16,8 @@ class EngineContract(Protocol):
 
     def invoke(self, io: InvokeEngineIo) -> EngineIoReturn: ...
 
+    async def ainvoke(self, io: InvokeEngineIo) -> EngineIoReturn: ...
+
 
 @runtime_checkable
 class CompactionSummarizeEngine(Protocol):

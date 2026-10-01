@@ -57,6 +57,7 @@ class OpenAILLMProvider:
         self.extra_body = dict(extra_body or {})
         self.http_timeout = http_timeout
         self._client: httpx.Client | None = None
+        self._aclient: httpx.AsyncClient | None = None
 
     def _timeout(self) -> float:
         proxy = self.llm_proxy if isinstance(self.llm_proxy, dict) else {}
@@ -71,6 +72,12 @@ class OpenAILLMProvider:
         if self._client is None:
             self._client = httpx.Client(timeout=self._timeout(), verify=resolve_ssl_verify(self.llm_proxy))
         return self._client
+
+    def _get_async_client(self) -> httpx.AsyncClient:
+        """Reused async keep-alive client — one connection pool per provider instance."""
+        if self._aclient is None:
+            self._aclient = httpx.AsyncClient(timeout=self._timeout(), verify=resolve_ssl_verify(self.llm_proxy))
+        return self._aclient
 
     @classmethod
     def from_provider_spec(cls, spec: dict[str, Any]) -> "OpenAILLMProvider":
@@ -148,7 +155,57 @@ class OpenAILLMProvider:
             logger.debug("OpenAI-compatible LLM call failed", exc_info=True)
             raise RuntimeError(classify_llm_http_error(exc)) from exc
 
-    def _post_chat(
+    async def achat_completion(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2000,
+        stream: bool | None = None,
+        on_stream_chunk: Callable[[str], None] | None = None,
+        api_key: str | None = None,
+        reasoning_effort: str | None = None,
+        reasoning: ReasoningSettings | dict[str, Any] | None = None,
+        extra_body: dict[str, Any] | None = None,
+        extra_headers: dict[str, Any] | None = None,
+        extra_query: dict[str, Any] | None = None,
+        sampling: dict[str, Any] | None = None,
+        tool_choice: Any = None,
+        stream_options: dict[str, Any] | None = None,
+        **_: Any,
+    ) -> dict[str, Any]:
+        key = api_key if api_key is not None else os.environ.get(self.api_key_env, "")
+        if not key:
+            raise RuntimeError(f"Missing API key env {self.api_key_env} for live LLM.")
+        use_stream = self.stream if stream is None else stream
+        settings = coerce_reasoning_settings(reasoning if reasoning is not None else self.reasoning, effort=reasoning_effort)
+        try:
+            return await self._apost_chat(
+                model=model,
+                messages=messages,
+                tools=tools,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                api_key=key,
+                stream=use_stream,
+                on_stream_chunk=on_stream_chunk,
+                reasoning=settings,
+                extra_body=extra_body,
+                extra_headers=extra_headers,
+                extra_query=extra_query,
+                sampling=sampling,
+                tool_choice=tool_choice,
+                stream_options=stream_options,
+            )
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            logger.debug("OpenAI-compatible LLM call failed", exc_info=True)
+            raise RuntimeError(classify_llm_http_error(exc)) from exc
+
+    def _build_chat_request(
         self,
         *,
         model: str,
@@ -157,8 +214,6 @@ class OpenAILLMProvider:
         temperature: float,
         max_tokens: int,
         api_key: str,
-        stream: bool,
-        on_stream_chunk: Callable[[str], None] | None,
         reasoning: ReasoningSettings,
         extra_body: dict[str, Any] | None = None,
         extra_headers: dict[str, Any] | None = None,
@@ -166,9 +221,7 @@ class OpenAILLMProvider:
         sampling: dict[str, Any] | None = None,
         tool_choice: Any = None,
         stream_options: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        import httpx
-
+    ) -> tuple[str, dict[str, Any], dict[str, str], dict[str, Any] | None]:
         url = self.api_base.rstrip("/") + "/chat/completions"
         payload: dict[str, Any] = apply_reasoning_payload(
             {
@@ -211,18 +264,10 @@ class OpenAILLMProvider:
         if extra_headers:
             headers.update({str(k): str(v) for k, v in extra_headers.items()})
         query = {str(k): v for k, v in extra_query.items()} if extra_query else None
-        if stream:
-            return self._chat_completion_streamed(
-                url,
-                payload,
-                headers,
-                on_stream_chunk=on_stream_chunk,
-                reasoning=reasoning,
-                params=query,
-            )
-        resp = self._get_client().post(url, json=payload, headers=headers, params=query)
-        resp.raise_for_status()
-        data = resp.json()
+        return url, payload, headers, query
+
+    @staticmethod
+    def _message_from_completion(data: dict[str, Any], reasoning: ReasoningSettings) -> dict[str, Any]:
         choices = data.get("choices") or []
         if not choices:
             return {}
@@ -234,6 +279,100 @@ class OpenAILLMProvider:
         if finish_reason:
             message["finish_reason"] = finish_reason
         return sanitize_assistant_message(message, exclude=reasoning.exclude)
+
+    def _post_chat(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+        temperature: float,
+        max_tokens: int,
+        api_key: str,
+        stream: bool,
+        on_stream_chunk: Callable[[str], None] | None,
+        reasoning: ReasoningSettings,
+        extra_body: dict[str, Any] | None = None,
+        extra_headers: dict[str, Any] | None = None,
+        extra_query: dict[str, Any] | None = None,
+        sampling: dict[str, Any] | None = None,
+        tool_choice: Any = None,
+        stream_options: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        url, payload, headers, query = self._build_chat_request(
+            model=model,
+            messages=messages,
+            tools=tools,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            api_key=api_key,
+            reasoning=reasoning,
+            extra_body=extra_body,
+            extra_headers=extra_headers,
+            extra_query=extra_query,
+            sampling=sampling,
+            tool_choice=tool_choice,
+            stream_options=stream_options,
+        )
+        if stream:
+            return self._chat_completion_streamed(
+                url,
+                payload,
+                headers,
+                on_stream_chunk=on_stream_chunk,
+                reasoning=reasoning,
+                params=query,
+            )
+        resp = self._get_client().post(url, json=payload, headers=headers, params=query)
+        resp.raise_for_status()
+        return self._message_from_completion(resp.json(), reasoning)
+
+    async def _apost_chat(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+        temperature: float,
+        max_tokens: int,
+        api_key: str,
+        stream: bool,
+        on_stream_chunk: Callable[[str], None] | None,
+        reasoning: ReasoningSettings,
+        extra_body: dict[str, Any] | None = None,
+        extra_headers: dict[str, Any] | None = None,
+        extra_query: dict[str, Any] | None = None,
+        sampling: dict[str, Any] | None = None,
+        tool_choice: Any = None,
+        stream_options: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        url, payload, headers, query = self._build_chat_request(
+            model=model,
+            messages=messages,
+            tools=tools,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            api_key=api_key,
+            reasoning=reasoning,
+            extra_body=extra_body,
+            extra_headers=extra_headers,
+            extra_query=extra_query,
+            sampling=sampling,
+            tool_choice=tool_choice,
+            stream_options=stream_options,
+        )
+        if stream:
+            return await self._achat_completion_streamed(
+                url,
+                payload,
+                headers,
+                on_stream_chunk=on_stream_chunk,
+                reasoning=reasoning,
+                params=query,
+            )
+        resp = await self._get_async_client().post(url, json=payload, headers=headers, params=query)
+        resp.raise_for_status()
+        return self._message_from_completion(resp.json(), reasoning)
 
     def _chat_completion_streamed(
         self,
@@ -258,6 +397,84 @@ class OpenAILLMProvider:
         with self._get_client().stream("POST", url, json=stream_payload, headers=headers, params=params) as resp:
             resp.raise_for_status()
             for raw_line in resp.iter_lines():
+                line = raw_line if isinstance(raw_line, str) else raw_line.decode("utf-8", "replace")
+                if not line.startswith("data:"):
+                    continue
+                data_str = line[len("data:") :].strip()
+                if not data_str or data_str == "[DONE]":
+                    continue
+                try:
+                    chunk = json.loads(data_str)
+                except (TypeError, ValueError):
+                    continue
+                if isinstance(chunk.get("usage"), dict):
+                    usage = chunk["usage"]
+                choices = chunk.get("choices") or []
+                if not choices:
+                    continue
+                choice = choices[0]
+                fr = choice.get("finish_reason")
+                if fr:
+                    finish_reason = fr
+                delta = choice.get("delta") or {}
+                text = delta.get("content")
+                if text:
+                    if think_filter is not None:
+                        text = think_filter.feed(text)
+                    if text:
+                        content_parts.append(text)
+                        if callable(on_stream_chunk):
+                            try:
+                                on_stream_chunk(text)
+                            except Exception:
+                                logger.exception("on_stream_chunk callback failed")
+                for tc in delta.get("tool_calls") or []:
+                    idx = int(tc.get("index", 0) or 0)
+                    slot = tool_call_accum.setdefault(
+                        idx, {"id": "", "type": "function", "function": {"name": "", "arguments": ""}}
+                    )
+                    if tc.get("id"):
+                        slot["id"] = tc["id"]
+                    fn = tc.get("function") or {}
+                    if fn.get("name"):
+                        slot["function"]["name"] += fn["name"]
+                    if fn.get("arguments"):
+                        slot["function"]["arguments"] += fn["arguments"]
+
+        message: dict[str, Any] = {"content": "".join(content_parts) or None}
+        if tool_call_accum:
+            message["tool_calls"] = [tool_call_accum[i] for i in sorted(tool_call_accum)]
+        if usage:
+            message["usage"] = usage
+        if finish_reason:
+            message["finish_reason"] = finish_reason
+        return sanitize_assistant_message(message, exclude=reasoning.exclude)
+
+    async def _achat_completion_streamed(
+        self,
+        url: str,
+        payload: dict[str, Any],
+        headers: dict[str, str],
+        *,
+        on_stream_chunk: Callable[[str], None] | None,
+        reasoning: ReasoningSettings,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Async SSE-streamed variant — same OpenAI-compatible message shape."""
+        stream_payload = dict(payload)
+        stream_payload["stream"] = True
+
+        content_parts: list[str] = []
+        tool_call_accum: dict[int, dict[str, Any]] = {}
+        finish_reason = ""
+        usage: dict[str, Any] = {}
+        think_filter = ThinkTagStreamFilter() if reasoning.exclude else None
+
+        async with self._get_async_client().stream(
+            "POST", url, json=stream_payload, headers=headers, params=params
+        ) as resp:
+            resp.raise_for_status()
+            async for raw_line in resp.aiter_lines():
                 line = raw_line if isinstance(raw_line, str) else raw_line.decode("utf-8", "replace")
                 if not line.startswith("data:"):
                     continue

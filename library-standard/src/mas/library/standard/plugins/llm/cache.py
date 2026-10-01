@@ -103,6 +103,41 @@ class CacheLLMProvider:
             self._persist_message(model, messages, tools, message, params=params)
         return message
 
+    async def achat_completion(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2000,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        params = completion_cache_params(temperature=temperature, max_tokens=max_tokens, **kwargs)
+        if self.allow_read:
+            content, cached_usage, _source = lookup_response(
+                self._cache, model, messages, tools=tools, params=params
+            )
+            cached = assistant_message_from_cache_content(content)
+            if cached is not None:
+                if cached_usage:
+                    cached["usage"] = cached_usage
+                return cached
+            if self.raise_on_miss:
+                key = llm_cache_key(model, messages, tools, params=params)
+                raise RuntimeError(f"llm_cache miss (raise_on_miss=true) for key {key}")
+        message = await self.inner.achat_completion(
+            model=model,
+            messages=messages,
+            tools=tools,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            **kwargs,
+        )
+        if self.allow_write and self.cache_path:
+            self._persist_message(model, messages, tools, message, params=params)
+        return message
+
     def _persist_message(
         self,
         model: str,

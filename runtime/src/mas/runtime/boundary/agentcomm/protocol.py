@@ -36,3 +36,13 @@ class AgentCommContract(Protocol):
         caller_call_id: str = "",
         context_id: str = "",
     ) -> str: ...
+
+    async def asend(
+        self,
+        target_agent_id: str,
+        task: str,
+        *,
+        correlation_id: int = 0,
+        caller_call_id: str = "",
+        context_id: str = "",
+    ) -> str: ...

@@ -43,6 +43,28 @@ def test_concurrent_siblings_are_checked_independently():
     assert not ledger.allow_spawn("s", "root.worker.1")
 
 
+def test_spawn_ledger_siblings_stay_independent_under_asyncio_gather():
+    """allow_spawn/enter stay await-free, so two sibling checks cannot race."""
+    import asyncio
+
+    ledger = SpawnLedger(max_depth=1, max_spawns=4)
+
+    async def spawn_one(child_id: str) -> int:
+        assert ledger.allow_spawn("s", "root")
+        ledger.enter("s", child_agent_id=child_id, parent_agent_id="root")
+        await asyncio.sleep(0.01)
+        return ledger.agent_depth("s", child_id)
+
+    async def _run():
+        return await asyncio.gather(
+            spawn_one("root.worker.1"), spawn_one("root.worker.2")
+        )
+
+    depths = asyncio.run(_run())
+    assert list(depths) == [1, 1]
+    assert ledger.spawn_count("s") == 2
+
+
 def test_spawn_ledger_scopes_budgets_and_ids_by_parent_template():
     ledger = SpawnLedger(max_depth=1, max_spawns=1)
     first_id = ledger.mint_agent_id("root", "worker")

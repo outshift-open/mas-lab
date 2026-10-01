@@ -429,6 +429,51 @@ class SessionController:
             text, turn_id=turn_id, auto_hitl=auto_hitl, parent_call_id=parent_call_id
         )
 
+    async def arun_turn(
+        self,
+        text: str,
+        *,
+        turn_id: str | None = None,
+        auto_hitl: bool = True,
+        parent_call_id: str = "",
+    ) -> TurnResult:
+        """Async twin of :meth:`run_turn` — awaits ``instance.arun_user_text``."""
+        from mas.runtime.schema.ingress import OperatorSteerReceived
+
+        if text.strip().lower() == "/backtrack" or text.strip().lower().startswith("/backtrack "):
+            return self._handle_backtrack(text)
+
+        if text.strip().lower().startswith("/steer "):
+            steer_text = text.strip()[7:].strip()
+            self._turn += 1
+            tid = turn_id or f"steer{self._turn}"
+            self.display.on_system(f"operator steer: {steer_text}")
+            self._setup_exchange_tracing()
+            sync_working_memory_in(
+                self.instance,
+                memory_key=self._working_memory_key(),
+                agent_id=self.agent_id,
+                registry=self.working_memory_registry,
+            )
+            trace = await self.instance.afeed(
+                OperatorSteerReceived(steer_id=tid, context_text=steer_text)
+            )
+            if auto_hitl:
+                trace = self._drain_hitl(trace)
+            self._present_trace(trace)
+            return TurnResult(trace=trace, responses=list(trace.client_responses))
+
+        stripped = text.strip()
+        if stripped.lower() == "/skills":
+            return self._handle_list_skills()
+        if stripped.lower() == "/skill" or stripped.lower().startswith("/skill "):
+            skill_name = stripped[len("/skill"):].strip()
+            return self._handle_activate_skill(skill_name)
+
+        return await self._arun_user_turn(
+            text, turn_id=turn_id, auto_hitl=auto_hitl, parent_call_id=parent_call_id
+        )
+
     def _handle_backtrack(self, text: str) -> TurnResult:
         """Restore retained session state and optionally inject a steering note."""
         if self.managed_session is None or self.checkpoint_store is None:
@@ -483,6 +528,59 @@ class SessionController:
             on_working()
         self._setup_exchange_tracing()
         trace = self.instance.run_user_text(
+            text, turn_id=tid, parent_call_id=parent_call_id, session_id=self.session_id
+        )
+        end_working = getattr(self.display, "end_working", None)
+        if callable(end_working):
+            end_working()
+        while True:
+            if auto_hitl:
+                trace = self._drain_hitl(trace)
+            if not auto_hitl:
+                break
+            if not self._session_awaiting_operator():
+                break
+            if self.hitl_terminal is None or not trace.hitl_requests:
+                break
+        self._present_trace(trace)
+        result = TurnResult(
+            trace=trace,
+            responses=list(trace.client_responses),
+            awaiting_hitl=trace.awaiting_hitl,
+        )
+        if self._handle_automatic_backtrack(trace):
+            return result
+        self._finalize_turn(result, trace=trace)
+        return result
+
+    async def _arun_user_turn(
+        self,
+        text: str,
+        *,
+        turn_id: str | None = None,
+        auto_hitl: bool = True,
+        parent_call_id: str = "",
+    ) -> TurnResult:
+        from mas.ctl.manifest.mas_agent_merge import reset_engine_delegation
+
+        reset_engine_delegation(getattr(self.instance.driver, "engine", None))
+        sync_working_memory_in(
+            self.instance,
+            memory_key=self._working_memory_key(),
+            agent_id=self.agent_id,
+            registry=self.working_memory_registry,
+        )
+        self._turn += 1
+        tid = turn_id or f"u{self._turn}"
+        if hasattr(self.instance, "driver") and hasattr(self.instance.driver, "caller_agent_id"):
+            self.instance.driver.caller_agent_id = self.caller_agent_id
+        if self.display is not None:
+            self.display.on_user(text, turn_id=tid)
+        on_working = getattr(self.display, "on_working", None)
+        if callable(on_working):
+            on_working()
+        self._setup_exchange_tracing()
+        trace = await self.instance.arun_user_text(
             text, turn_id=tid, parent_call_id=parent_call_id, session_id=self.session_id
         )
         end_working = getattr(self.display, "end_working", None)

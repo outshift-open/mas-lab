@@ -77,6 +77,9 @@ class _StubProvider:
         self.calls += 1
         return dict(self.message)
 
+    async def achat_completion(self, **kwargs):
+        return self.chat_completion(**kwargs)
+
 
 def test_cache_provider_misses_when_reasoning_changes(tmp_path) -> None:
     inner = _StubProvider({"role": "assistant", "content": "a"})

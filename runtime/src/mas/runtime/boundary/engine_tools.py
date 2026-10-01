@@ -32,6 +32,17 @@ class EngineToolContext(Protocol):
         """Run one turn on an existing peer agent."""
         ...
 
+    async def arun_turn(
+        self,
+        agent_id: str,
+        task: str,
+        *,
+        correlation_id: int = 0,
+        caller_call_id: str = "",
+    ) -> str:
+        """Async twin of :meth:`run_turn`."""
+        ...
+
     def spawn_instance(self, manifest: dict[str, Any], *, template_id: str) -> str:
         """Materialize a new child agent and return its minted id.
 
@@ -69,6 +80,16 @@ class EngineToolContract(Protocol):
         caller_call_id: str = "",
     ) -> str: ...
 
+    async def acall(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any],
+        *,
+        ctx: Any = None,
+        correlation_id: int = 0,
+        caller_call_id: str = "",
+    ) -> str: ...
+
 
 class SubagentContract(Protocol):
     """Spawn a bounded, named subagent template for one task."""
@@ -76,6 +97,15 @@ class SubagentContract(Protocol):
     def is_subagent_tool(self, tool_name: str) -> bool: ...
 
     def spawn(
+        self,
+        template_id: str,
+        task: str,
+        *,
+        correlation_id: int = 0,
+        caller_call_id: str = "",
+    ) -> str: ...
+
+    async def aspawn(
         self,
         template_id: str,
         task: str,

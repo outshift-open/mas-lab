@@ -338,8 +338,15 @@ spec:
 | Pattern | ctl behaviour |
 | --------- | --------------- |
 | Dynamic delegation | Default multi-agent: entry agent session; LLM uses delegation tools |
+| `dispatch: parallel` | A node with `dispatch: parallel` (or `all`) fans out to its `delegates_to` peers in one act. Parallel tool-call batches run concurrently on the async engine path (`ainvoke` / `afeed`); the sync path still drains the same batch sequentially. |
 | Explicit sequential graph | Standalone `kind: Workflow` (`workflow/v1`) declares `nodes` + `edges`; embedded MAS workflow does not support `edges` |
 | Single agent | `topo-single-agent` overlay — one generalist, no inter-agent workflow |
+
+### Concurrency model
+
+The runtime stays **synchronous by default**. Single-agent CLI chat, unit tests, and the benchmark harness keep calling `invoke` / `feed` / `run_turn`. Concurrent fan-out (parallel tool calls, `dispatch: parallel` peers, concurrent `spawn_subagent`) uses additive async twins (`ainvoke`, `afeed`, `arun_turn`, `adelegate`, `aspawn`) on one cooperative event loop.
+
+LLM providers must implement `achat_completion` as the async twin of `chat_completion`. Missing implementations fail at plugin load — they are not run on a worker thread, because that would reintroduce real OS-thread parallelism against lock-free run state (`SpawnLedger`, `InProcessCommBus`, `WorkingMemoryRegistry`).
 
 There is no `WorkflowContract.register_impl()` in OSS. Topology + workflow are **declarative** in YAML; ctl composes and runs them.
 

@@ -157,6 +157,62 @@ class SubagentSpawner(SubagentContract):
             caller_call_id=caller_call_id,
         )
 
+    async def acall(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any],
+        *,
+        ctx: Any = None,
+        correlation_id: int = 0,
+        caller_call_id: str = "",
+    ) -> str:
+        if not self.is_subagent_tool(tool_name):
+            return f"[spawn_subagent] unsupported tool {tool_name!r}"
+        return await self.aspawn(
+            str(arguments.get("template") or ""),
+            str(arguments.get("task") or ""),
+            correlation_id=correlation_id,
+            caller_call_id=caller_call_id,
+        )
+
+    async def aspawn(
+        self,
+        template_id: str,
+        task: str,
+        *,
+        correlation_id: int = 0,
+        caller_call_id: str = "",
+    ) -> str:
+        template = self.templates.get(template_id)
+        if template is None:
+            return f"[spawn_subagent] unknown template {template_id!r}"
+        task = task.strip()
+        if not task:
+            return "[spawn_subagent] task must not be empty"
+        try:
+            child_id = self.context.spawn_instance(
+                template.manifest,
+                template_id=template_id,
+                manifest_dir=template.path.parent,
+            )
+        except EngineToolBudgetExceeded:
+            return "[spawn_subagent] blocked: depth or spawn-count budget exceeded"
+        except Exception:
+            logger.exception("spawn_subagent template %r could not be materialized", template_id)
+            return f"[spawn_subagent] {template_id!r} failed"
+        try:
+            return await self.context.arun_turn(
+                child_id,
+                task,
+                correlation_id=correlation_id,
+                caller_call_id=caller_call_id,
+            )
+        except Exception:
+            logger.exception("spawn_subagent template %r failed", template_id)
+            return f"[spawn_subagent] {template_id!r} failed"
+        finally:
+            self.context.teardown_instance(child_id)
+
     def spawn(
         self,
         template_id: str,

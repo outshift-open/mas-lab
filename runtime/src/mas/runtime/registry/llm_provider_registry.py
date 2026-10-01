@@ -15,6 +15,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from mas.runtime.registry.llm_provider_protocol import require_achat_completion
+
 _NON_PROTOCOL_KINDS = frozenset({"cache", "llm_cache", "mock"})
 
 
@@ -74,12 +76,18 @@ def instantiate_llm_provider(
 ) -> Any:
     """Instantiate an LLM provider plugin by kind (``from_provider_spec`` first)."""
     cls = llm_provider_class(kind)
+    require_achat_completion(cls, name=kind)
     payload = dict(spec or {})
+    provider: Any
     for name in ("from_provider_spec", "from_infra_spec"):
         factory = getattr(cls, name, None)
         if callable(factory):
-            return factory(payload)
-    return cls()
+            provider = factory(payload)
+            require_achat_completion(provider, name=kind)
+            return provider
+    provider = cls()
+    require_achat_completion(provider, name=kind)
+    return provider
 
 
 def apply_llm_endpoint_defaults(
@@ -181,6 +189,7 @@ class LLMProviderRegistry:
     ) -> None:
         if not callable(getattr(provider, "chat_completion", None)):
             raise TypeError(f"LLM provider must implement chat_completion, got {type(provider)}")
+        require_achat_completion(provider, name=type(provider).__name__)
         claim: str | tuple[str, ...]
         if models == "*" or models is None:
             claim = "*"
@@ -239,6 +248,21 @@ class LLMProviderRegistry:
 
     def chat_completion(self, *, model: str, **kwargs: Any) -> dict[str, Any]:
         return self.provider_for(model).chat_completion(model=model, **kwargs)
+
+    async def achat_completion(self, *, model: str, **kwargs: Any) -> dict[str, Any]:
+        return await self.provider_for(model).achat_completion(model=model, **kwargs)
+
+
+def enforce_llm_provider_async_contract(reg: Any) -> None:
+    """Fail plugin load if any ``llm_provider`` class omits ``achat_completion``."""
+    from mas.runtime.registry import PluginUnavailable
+
+    for entry in reg.get_by_category("llm_provider"):
+        try:
+            info = entry.resolve()
+        except PluginUnavailable:
+            continue
+        require_achat_completion(info.load_class(), name=entry.urn)
 
 
 def llm_providers_from_manifest(

@@ -45,6 +45,31 @@ class _DelegationEngineTool:
             caller_call_id=caller_call_id,
         )
 
+    async def acall(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any],
+        *,
+        ctx: Any = None,
+        correlation_id: int = 0,
+        caller_call_id: str = "",
+    ) -> str:
+        adelegate = getattr(self.delegation, "acall_delegate_tool", None)
+        if callable(adelegate):
+            return await adelegate(
+                tool_name,
+                arguments,
+                correlation_id=correlation_id,
+                caller_call_id=caller_call_id,
+            )
+        return self.call(
+            tool_name,
+            arguments,
+            ctx=ctx,
+            correlation_id=correlation_id,
+            caller_call_id=caller_call_id,
+        )
+
 
 def format_tool_result(result: Any) -> str:
     """Format tool result as string for LLM consumption.
@@ -77,6 +102,59 @@ def execute_engine_tool(
         contracts.insert(0, _DelegationEngineTool(delegation))
     for contract in contracts:
         if contract.claims(tool):
+            return contract.call(
+                tool,
+                arguments or {},
+                ctx=ctx,
+                correlation_id=correlation_id,
+                caller_call_id=caller_call_id,
+            )
+    if tool_provider is None:
+        raise ToolExecutionError(f"No manifest tool provider configured; cannot execute {tool!r}")
+    try:
+        result = tool_provider.call_tool(
+            tool,
+            arguments or {},
+            ctx=ctx,
+            user=user,
+        )
+    except (ManifestToolLoadError, UnclaimedToolError, ExplicitToolUnavailableError) as exc:
+        raise ToolExecutionError(str(exc)) from exc
+    return format_tool_result(result)
+
+
+async def aexecute_engine_tool(
+    tool: str,
+    *,
+    delegation: DelegationContract | None = None,
+    engine_contracts: tuple[EngineToolContract, ...] | list[EngineToolContract] = (),
+    ctx: Any = None,
+    user: str = "",
+    arguments: dict[str, Any] | None = None,
+    tool_provider: ManifestToolProvider | None = None,
+    correlation_id: int = 0,
+    caller_call_id: str = "",
+) -> str:
+    """Async twin of :func:`execute_engine_tool`.
+
+    Routes to ``acall`` / ``adelegate`` / ``aspawn`` when present so nested
+    agent turns can overlap. Local manifest tools stay on the sync
+    ``call_tool`` path — they are not network I/O.
+    """
+    contracts = list(engine_contracts)
+    if delegation is not None:
+        contracts.insert(0, _DelegationEngineTool(delegation))
+    for contract in contracts:
+        if contract.claims(tool):
+            acall = getattr(contract, "acall", None)
+            if callable(acall):
+                return await acall(
+                    tool,
+                    arguments or {},
+                    ctx=ctx,
+                    correlation_id=correlation_id,
+                    caller_call_id=caller_call_id,
+                )
             return contract.call(
                 tool,
                 arguments or {},

@@ -30,3 +30,22 @@ class DelegationContract(Protocol):
     ) -> str: ...
 
     def is_delegate_tool(self, tool_name: str) -> bool: ...
+
+    async def adelegate(
+        self,
+        target_agent_id: str,
+        task: str,
+        *,
+        correlation_id: int = 0,
+        caller_call_id: str = "",
+        context_id: str = "",
+    ) -> str: ...
+
+    async def acall_delegate_tool(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any] | None,
+        *,
+        correlation_id: int = 0,
+        caller_call_id: str = "",
+    ) -> str: ...
