@@ -692,6 +692,26 @@ $defs:
         items:
           type: string
         description: "Names of upstream steps that must complete first."
+      per_run:
+        type: boolean
+        default: false
+        description: >
+          When true, this step is materialized once per discovered benchmark
+          run folder. Use with concurrency to control parallel execution.
+      per_scenario:
+        type: boolean
+        default: false
+        description: "When true, this step is materialized once per scenario."
+      concurrency:
+        type: integer
+        minimum: 1
+        default: 1
+        description: >
+          Maximum number of run-scope instances that may execute concurrently.
+          Only effective when scope: run (or per_run: true).
+          concurrency: 1 (default) preserves sequential behavior.
+          concurrency: N > 1 wraps all run instances in a concurrent runner
+          backed by asyncio.Semaphore(N).
       streaming:
         type: boolean
         default: false

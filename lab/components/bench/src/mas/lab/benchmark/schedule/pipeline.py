@@ -150,11 +150,18 @@ def _expand_deps(
     name_scope: dict[str, str],
     nodes: dict[str, list[_Node]],
     batched: set[str],
+    collapsed: set[str] | None = None,
 ) -> list[str]:
-    """Rewrite each dependency to the child instances under *node*."""
+    """Rewrite each dependency to the child instances under *node*.
+
+    ``collapsed`` contains step base names that will be emitted as a single
+    wrapper step (batched types + concurrent wrappers). Deps in this set
+    are never suffixed — they reference the wrapper/batch name directly.
+    """
+    all_collapsed = batched | (collapsed or set())
     expanded: list[str] = []
     for dep in depends_on or []:
-        if dep in batched:
+        if dep in all_collapsed:
             expanded.append(dep)
             continue
         child_scope = name_scope.get(dep)
@@ -290,9 +297,36 @@ def _emit_instances(
     base_name: str,
     instances: list[tuple[str, dict[str, Any], list[str]]],
 ) -> list[dict]:
-    """One PipelineStep when siblings share a batchable type; else one dict each."""
+    """One PipelineStep when siblings share a batchable type or concurrency>1; else one dict each."""
     if not instances:
         return []
+
+    concurrency = int(getattr(spec, "concurrency", 1))
+
+    # Concurrent wrapper: N per-run instances → one ConcurrentRunnerStep
+    if concurrency > 1 and _effective_scope(spec) == "run" and len(instances) > 1:
+        child_dicts = [_step_dict(spec, name, cfg, deps) for name, cfg, deps in instances]
+        wrapper_deps: list[str] = []
+        seen: set[str] = set()
+        for _name, _cfg, inst_deps in instances:
+            for dep in inst_deps:
+                if dep not in seen:
+                    seen.add(dep)
+                    wrapper_deps.append(dep)
+        logger.info(
+            "Step '%s' (%s): wrapping %d run instances with concurrency=%d",
+            base_name, spec.type, len(instances), concurrency,
+        )
+        return [
+            {
+                "name": base_name,
+                "type": "__concurrent_runner__",
+                "phase": getattr(spec, "phase", "post"),
+                "config": {"steps": child_dicts, "concurrency": concurrency},
+                "depends_on": wrapper_deps,
+            }
+        ]
+
     if (
         spec.type not in _BATCHABLE_TYPES
         or _effective_scope(spec) not in _BATCHABLE_SCOPES
@@ -360,6 +394,15 @@ def materialize_step_dicts(
         and _effective_scope(spec) in _BATCHABLE_SCOPES
         and len(nodes[_effective_scope(spec)]) > 1
     }
+    # Concurrent wrappers also collapse N run instances into one step in the DAG.
+    # Deps onto them must use the base name, not per-run suffixed names.
+    concurrent = {
+        _base_step_name(spec)
+        for spec in phase_specs
+        if int(getattr(spec, "concurrency", 1)) > 1
+        and _effective_scope(spec) == "run"
+        and len(nodes["run"]) > 1
+    }
     level_arts = level_artifacts or {}
 
     step_dicts: list[dict] = []
@@ -378,7 +421,8 @@ def materialize_step_dicts(
             suffix = node.suffix()
             name = f"{base_name}-{suffix}" if suffix else base_name
             deps = _expand_deps(
-                list(spec.depends_on or []), node, name_scope, nodes, batched
+                list(spec.depends_on or []), node, name_scope, nodes, batched,
+                collapsed=concurrent,
             )
             instances.append((name, cfg, deps))
         step_dicts.extend(_emit_instances(spec, base_name, instances))
