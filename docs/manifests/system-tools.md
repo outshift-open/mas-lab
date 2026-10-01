@@ -6,9 +6,12 @@
 
 System tools are tools that the runtime owns and implements. Agent authors do
 not write them. Examples are loading a skill, running a skill script, asking
-the user a question, and sending the user a progress update.
+the user a question, sending the user a progress update, and spawning a
+pre-authored subagent template.
 
 They reach the model through the same `ToolContract` as application tools.
+System tools are discovered from the `system_tool` category in the plugin
+registry; plugin entries carry their `default_enabled` policy.
 Unlike application tools, they are not loaded from a `kind: Tool` manifest.
 Each tool is either **implicit**, meaning another part of the manifest implies
 it, or **declared**, meaning it is listed by name.
@@ -22,6 +25,8 @@ An agent is offered a system tool only when one of these conditions is true:
 
 1. **Implicit.** Another part of the manifest requires the tool.
 2. **Declared.** `spec.tools` contains `{kind: system, name: <tool>}`.
+  `enabled: true|false` explicitly opts one tool in or out. Otherwise the
+  registry entry's `default_enabled` attribute applies.
 3. **Host-requested.** The embedding host passes the tool in `system_tools`.
    This is a programmatic API; see [Host-requested tools](#host-requested-tools).
 
@@ -80,6 +85,24 @@ You can also declare the skill tools explicitly, for example to offer
 
 An unknown name, such as a typo, fails at load time and lists the available
 names. The runtime does not silently skip it.
+
+`spawn_subagent` is opt-in like the others, and carries its configuration in
+the same entry: `params.templates` must declare at least one pre-authored
+Agent manifest, with optional `params.max_spawns` and `params.max_depth`
+bounds. See [Spawned subagents](subagents.md).
+
+Third-party system tools can register with a library manifest:
+
+```yaml
+types: [system_tool]
+plugins:
+  - type: system_tool
+    name: audit_event
+    urn: mas.system_tool.audit_event
+    module: example.audit_tools
+    class: AuditEventTool
+    attributes: {default_enabled: false}
+```
 
 ## Host-requested tools
 

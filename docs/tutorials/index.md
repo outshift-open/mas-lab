@@ -21,8 +21,9 @@ verification. Same setup for CLI and web UI.
 | 4 | [MCP tools](04-mcp-tools/) | Discover and dispatch local and remote tools through a stable contract |
 | 5 | [A2A agents](05-a2a-agents/) | Discover and dispatch local and remote agents through a stable contract |
 | 6 | [Sessions and recovery](06-sessions-and-recovery/) | Checkpoint, fork, resume and recover a conversation |
+| 7 | [Spawned subagents](07-subagents/) | Run bounded, pre-authored subagent templates during a turn |
 
-After Tutorial 6, reproduce all paper results across 3 labs: [Paper](../paper/index.md).
+After Tutorial 7, reproduce all paper results across 3 labs: [Paper](../paper/index.md).
 
 Start from [Tutorial 0](00-environment-setup/README.md) for install and first commands —
 CLI and optional [web UI](../ui/index.md) use the same setup.

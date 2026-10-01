@@ -36,6 +36,30 @@ def test_execute_engine_tool_forwards_caller_call_id_to_delegation():
     assert seen == ["tool-call-xyz"]
 
 
+def test_execute_engine_tool_routes_ordered_contract_before_manifest_provider():
+    calls = []
+
+    class EngineTool:
+        def claims(self, tool_name):
+            return tool_name == "spawn_subagent"
+
+        def call(self, tool_name, arguments, **kwargs):
+            calls.append((tool_name, arguments, kwargs["caller_call_id"]))
+            return "spawned"
+
+    result = execute_engine_tool(
+        "spawn_subagent",
+        engine_contracts=[EngineTool()],
+        arguments={"template": "worker", "task": "review"},
+        caller_call_id="parent-call",
+    )
+
+    assert result == "spawned"
+    assert calls == [
+        ("spawn_subagent", {"template": "worker", "task": "review"}, "parent-call")
+    ]
+
+
 def test_execute_engine_tool_uses_manifest_provider(tmp_path):
     tool_dir = tmp_path / "tools"
     tool_dir.mkdir()

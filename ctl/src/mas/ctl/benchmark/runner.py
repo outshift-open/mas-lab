@@ -5,8 +5,10 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from mas.ctl.adapters.memory_seed import MemorySeed, MemorySeedLoader, apply_memory_seeds
@@ -23,10 +25,12 @@ from mas.ctl.executor.mas_session import (
     resolve_entry_pattern_plugin_id,
     wire_peer_delegation,
 )
+from mas.ctl.executor.subagent_spawner import wire_subagent_spawning
 from mas.ctl.infra.resolve import resolve_infra_refs
 from mas.ctl.session.bootstrap import InstantiationOptions, hitl_contract_for_mode, instantiate_runtime
 from mas.ctl.session.controller import ConversationConfig, SessionController, close_observability
 from mas.ctl.workspace.config import UserConfig, WorkspaceConfig, merge_infra_refs
+from mas.runtime.boundary.context.working_memory_registry import WorkingMemoryRegistry
 from mas.lab.manifest.load import (
     agent_manifest_from_path,
     entry_agent_from_compose,
@@ -328,6 +332,7 @@ class MasBenchRunner:
             run_seed=run_seed,
             topology=resolved.topology,
             session_id=resolved.session_id,
+            working_memory_registry=resolved.working_memory_registry,
             obs_recorder=resolved.obs_recorder,
             obs_pipeline=resolved.obs_pipeline,
             scoped_recorders=resolved.scoped_recorders,
@@ -536,7 +541,7 @@ class MasBenchRunner:
             obs_pipeline=shared_pipeline,
             scoped_recorders=scoped_recorders,
             session_id=prepared.session_id,
-                working_memory_registry=getattr(prepared, "working_memory_registry", None),
+            working_memory_registry=getattr(prepared, "working_memory_registry", None),
         )
 
     def _standalone_controller_target(
@@ -584,7 +589,26 @@ class MasBenchRunner:
             ),
         )
         _attach_tool_fixtures([instance], tool_fixtures, run_params)
-        return _ControllerTarget(instance, store, entry_manifest, entry_manifest_path)
+        session_id = str(uuid.uuid4())
+        working_memory_registry = WorkingMemoryRegistry()
+        # Without this the tool is advertised but has no contract behind it.
+        wire_subagent_spawning(
+            getattr(getattr(instance, "driver", None), "engine", None),
+            materialized=SimpleNamespace(instances={entry_id: instance}, bus=None),
+            manifest=entry_manifest,
+            manifest_dir=entry_manifest_path.parent,
+            parent_agent_id=entry_id,
+            session_id=session_id,
+            working_memory_registry=working_memory_registry,
+        )
+        return _ControllerTarget(
+            instance,
+            store,
+            entry_manifest,
+            entry_manifest_path,
+            session_id=session_id,
+            working_memory_registry=working_memory_registry,
+        )
 
     @staticmethod
     def _checkpoint_store(
@@ -614,7 +638,7 @@ class MasBenchRunner:
         run_seed: int,
         topology: str | None = None,
         session_id: str = "",
-            working_memory_registry: Any = None,
+        working_memory_registry: Any = None,
         obs_recorder: Any = None,
         obs_pipeline: Any = None,
         scoped_recorders: Any = (),

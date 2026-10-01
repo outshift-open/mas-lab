@@ -64,6 +64,7 @@ class LiveLlmEngine:
     http_timeout: float | None = None
     manifest_dir: Path | None = None
     delegation: Any | None = None
+    engine_tool_contracts: tuple[Any, ...] = ()
     delegation_peer_descriptions: dict[str, str] | None = None
     tool_provider: Any | None = None
     llm_provider: Any | None = None
@@ -218,6 +219,7 @@ class LiveLlmEngine:
                     user=user,
                     arguments=args,
                     tool_provider=self.tool_provider,
+                    engine_contracts=self.engine_tool_contracts,
                     correlation_id=io.correlation_id,
                     # This TOOL_CALL's own resolved call_id (attached by the
                     # driver — see InvokeEngineIo.call_id) — forwarded as the

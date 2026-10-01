@@ -163,6 +163,12 @@ def attach_manifest_tools(
     )
     overlay_providers = provider_kw.pop("overlay_providers", None)
     ctx = provider_kw.pop("ctx", None)
+    if ctx is not None:
+        from mas.runtime.engine.tools import spawn_subagent_params
+
+        spawn_params = spawn_subagent_params(spec)
+        ctx.allow_subagent_spawning = spawn_params is not None
+        ctx.subagent_templates = list((spawn_params or {}).get("templates") or [])
     active_providers = list(overlay_providers or [])
     has_external = any(provider_origin(p) == "external" for p in active_providers)
     has_local = overlay_providers is None or any(provider_origin(p) == "local" for p in active_providers)

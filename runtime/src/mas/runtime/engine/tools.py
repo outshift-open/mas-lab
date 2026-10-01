@@ -168,3 +168,26 @@ def openai_tools(
                 out.append(tool)
                 seen.add(name)
     return out
+
+
+SPAWN_SUBAGENT_TOOL = "spawn_subagent"
+
+
+def spawn_subagent_params(spec: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Params of the enabled ``spawn_subagent`` system-tool entry, or ``None``.
+
+    The ``tools`` entry is the capability gate, exactly as it is for
+    ``request_human_input``. No entry means the agent cannot spawn, and every
+    subagent setting (``templates``, ``max_spawns``, ``max_depth``) lives under
+    that one entry's ``params`` instead of separate top-level spec keys.
+    """
+    for tool in (spec or {}).get("tools") or []:
+        if (
+            isinstance(tool, dict)
+            and tool.get("kind") == "system"
+            and tool.get("name") == SPAWN_SUBAGENT_TOOL
+            and tool.get("enabled") is not False
+        ):
+            params = tool.get("params")
+            return params if isinstance(params, dict) else {}
+    return None

@@ -20,6 +20,10 @@ class InProcessCommBus:
     def register(self, agent_id: str, endpoint: CommEndpoint) -> None:
         self._endpoints[agent_id] = endpoint
 
+    def unregister(self, agent_id: str) -> None:
+        """Remove one dynamically materialized endpoint after its turn ends."""
+        self._endpoints.pop(agent_id, None)
+
     def resolve_address(self, agent_id: str) -> str:
         return f"inproc://{agent_id}"
 

@@ -28,8 +28,28 @@ types:
   - tool_provider
   - llm_provider
   - agent_comm
+  - system_tool
 
 plugins:
+  - type: system_tool
+    name: request_human_input
+    urn: mas.system_tool.request_human_input
+    module: mas.runtime.system_tools.request_human_input
+    class: RequestHumanInputTool
+    attributes: {default_enabled: false, communication: hitl}
+  - type: system_tool
+    name: inform_user
+    urn: mas.system_tool.inform_user
+    module: mas.runtime.system_tools.inform_user
+    class: InformUserTool
+    attributes: {default_enabled: false, communication: user_io}
+  - type: system_tool
+    name: spawn_subagent
+    urn: mas.system_tool.spawn_subagent
+    module: mas.library.standard.plugins.system_tools.spawn_subagent
+    class: SpawnSubagentTool
+    attributes: {default_enabled: false, capability: orchestration}
+
   # Wire protocols (routed by spec.models[].kind / infra spec.protocol)
   - type: llm_provider
     name: openai

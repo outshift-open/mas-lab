@@ -32,6 +32,7 @@ from typing import Any
 # ObservabilityBinding and GovernanceBinding now live in the runtime — import
 # and re-export so all existing ctl importers continue to work unchanged.
 from mas.runtime.boundary.obs.binding import ObservabilityBinding
+from mas.runtime.engine.tools import spawn_subagent_params
 from mas.runtime.spec.gov import GovernanceBinding
 from mas.runtime.spec.checkpoint import parse_checkpoint_policy
 from mas.runtime.spec.schema_bindings_generated import (
@@ -321,6 +322,10 @@ def validate_agent_spec_bindings(spec: Any) -> None:
         parse_observability(spec["observability"])
     if "checkpoint" in spec:
         parse_checkpoint_policy(spec["checkpoint"])
+    behavior = spec.get("behavior") or {}
+    if not isinstance(behavior, dict):
+        raise SpecBindingError("spec.behavior must be an object")
+    parse_spawn_subagent_params(spawn_subagent_params(spec))
     if "llm" in spec:
         parse_llm(spec["llm"])
     if "execution" in spec:
@@ -352,6 +357,65 @@ def validate_agent_spec_bindings(spec: Any) -> None:
         raise SpecBindingError(
             "spec.context_plugin was removed; use spec.assembler"
         )
+
+
+def parse_spawn_subagent_params(raw: Any) -> dict[str, Any] | None:
+    """Validate the ``spawn_subagent`` tools entry's ``params`` block.
+
+    ``None`` means the tool is not declared, which is the only way to say
+    "this agent cannot spawn" — there is no separate capability flag.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or set(raw) - {"templates", "max_spawns", "max_depth"}:
+        raise SpecBindingError(
+            "spawn_subagent params must contain only templates, max_spawns, and max_depth"
+        )
+    templates = parse_subagent_templates(raw.get("templates"))
+    if not templates:
+        raise SpecBindingError("spawn_subagent params.templates must declare at least one template")
+    bounds = {"max_spawns": 8, "max_depth": 3}
+    for key, default in bounds.items():
+        value = raw.get(key, default)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+            raise SpecBindingError(f"spawn_subagent params.{key} must be an integer >= 1")
+        bounds[key] = value
+    return {"templates": templates, **bounds}
+
+
+def parse_subagent_templates(raw: Any) -> list[dict[str, str]]:
+    """Validate named, local-reference subagent templates."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise SpecBindingError("spawn_subagent params.templates must be a list")
+    templates: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for index, entry in enumerate(raw):
+        if not isinstance(entry, dict) or set(entry) - {"id", "ref", "description"}:
+            raise SpecBindingError(
+                f"spawn_subagent params.templates[{index}] must contain only id, ref, and description"
+            )
+        template_id = entry.get("id")
+        ref = entry.get("ref")
+        description = entry.get("description", "")
+        if not isinstance(template_id, str) or not template_id.strip():
+            raise SpecBindingError(
+                f"spawn_subagent params.templates[{index}].id must be a non-empty string"
+            )
+        if not isinstance(ref, str) or not ref.strip():
+            raise SpecBindingError(
+                f"spawn_subagent params.templates[{index}].ref must be a non-empty string"
+            )
+        if not isinstance(description, str):
+            raise SpecBindingError(
+                f"spawn_subagent params.templates[{index}].description must be a string"
+            )
+        if template_id in seen:
+            raise SpecBindingError(f"duplicate subagent template id {template_id!r}")
+        seen.add(template_id)
+        templates.append({"id": template_id, "ref": ref, "description": description})
+    return templates
 
 
 def parse_sink_from_deployment(deployment: dict | None) -> str | None:

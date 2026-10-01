@@ -91,7 +91,7 @@ Sample overlays and bindings under [`schemas/examples/`](../schemas/examples/):
 - [`tools/annotated.tool.yaml`](../schemas/examples/tools/annotated.tool.yaml)
 - [`checkpoint-axis.yaml`](../schemas/examples/checkpoint-axis.yaml)
 - [`checkpoint-v2.json`](../schemas/examples/checkpoint-v2.json)
-- [`checkpoint-axis.yaml`](../schemas/examples/checkpoint-axis.yaml)
+- [`subagent-agent.yaml`](../schemas/examples/subagent-agent.yaml)
 
 Plus `*.example.yaml` siblings next to deployment, placement, memory-seed, and
 runtime-profile schemas.

@@ -174,6 +174,7 @@ def prepare_delegation_entry_session(
 
     resolved_session_id = session_id or str(uuid.uuid4())
     working_memory_registry = WorkingMemoryRegistry()
+    materialized.materialized._session_working_memory_registry = working_memory_registry
 
     manifest_path = entry_manifest_path or agent_manifest_path(compose.bind, entry_id)
     agent_manifest = entry_manifest or load_agent_manifest_from_bind(compose.bind, entry_id) or {}
@@ -184,6 +185,14 @@ def prepare_delegation_entry_session(
         compose.mas_config,
         manifest_dir=entry_manifest_dir,
         mas_base_dir=materialized.mas_base_dir,
+    )
+    from mas.ctl.executor.spawn_ledger import SpawnLedger
+    from mas.runtime.engine.tools import spawn_subagent_params
+
+    spawn_params = spawn_subagent_params(enriched.get("spec")) or {}
+    materialized.materialized._subagent_spawn_ledger = SpawnLedger(
+        max_depth=spawn_params.get("max_depth", 3),
+        max_spawns=spawn_params.get("max_spawns", 8),
     )
     wire_entry_engine_delegation(
         getattr(getattr(instance, "driver", None), "engine", None),
@@ -205,6 +214,19 @@ def prepare_delegation_entry_session(
         entry_agent_id=entry_id,
         mas_config=compose.mas_config,
         mas_base_dir=materialized.mas_base_dir,
+    )
+    from mas.ctl.executor.subagent_spawner import wire_subagent_spawning
+
+    wire_subagent_spawning(
+        getattr(instance.driver, "engine", None),
+        materialized=materialized.materialized,
+        manifest=enriched,
+        manifest_dir=entry_manifest_dir,
+        parent_agent_id=entry_id,
+        session_id=resolved_session_id,
+        working_memory_registry=working_memory_registry,
+        display=display,
+        verbose=verbose,
     )
     return PreparedEntrySession(
         instance=instance,
@@ -337,9 +359,27 @@ def wire_peer_delegation(
                 engine = getattr(getattr(instance, "driver", None), "engine", None)
                 from mas.runtime.engine.leaf import leaf_engine
 
-                delegation = getattr(leaf_engine(engine), "delegation", None)
+                leaf = leaf_engine(engine)
+                delegation = getattr(leaf, "delegation", None)
                 if hasattr(delegation, "set_routes"):
                     delegation.set_routes(routes)
+                manifest = getattr(leaf, "manifest", None) or load_agent_manifest_from_bind(
+                    compose.bind, agent_id
+                ) or {}
+                manifest_path = agent_manifest_path(compose.bind, agent_id)
+                from mas.ctl.executor.subagent_spawner import wire_subagent_spawning
+
+                wire_subagent_spawning(
+                    engine,
+                    materialized=materialized.materialized,
+                    manifest=manifest,
+                    manifest_dir=manifest_path.parent if manifest_path else materialized.mas_base_dir,
+                    parent_agent_id=agent_id,
+                    session_id=session_id,
+                    working_memory_registry=working_memory_registry,
+                    display=display,
+                    verbose=verbose,
+                )
             continue
         if instance is None:
             continue
@@ -351,6 +391,19 @@ def wire_peer_delegation(
             compose.mas_config,
             manifest_dir=manifest_dir,
             mas_base_dir=materialized.mas_base_dir,
+        )
+        from mas.ctl.executor.subagent_spawner import wire_subagent_spawning
+
+        wire_subagent_spawning(
+            getattr(getattr(instance, "driver", None), "engine", None),
+            materialized=materialized.materialized,
+            manifest=enriched,
+            manifest_dir=manifest_dir,
+            parent_agent_id=agent_id,
+            session_id=session_id,
+            working_memory_registry=working_memory_registry,
+            display=display,
+            verbose=verbose,
         )
         if not delegation_targets(enriched, agent_id=agent_id):
             continue

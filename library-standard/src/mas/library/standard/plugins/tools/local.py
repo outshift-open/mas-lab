@@ -21,6 +21,10 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from mas.library.standard.plugins.tools.containment import (
+    containment_roots,
+    resolve_under_roots,
+)
 from mas.runtime.contracts.tool_contract import ToolContract, overlay_tool_advertise
 from mas.runtime.contracts.user_communication_contract import HITLContract, UserIOContract
 from mas.runtime.manifest.schema import ToolDocument
@@ -30,10 +34,6 @@ logger = logging.getLogger(__name__)
 
 _TOOL_MODULE_LOAD_LOCK = threading.RLock()
 
-#: User-communication system tools owned by the runtime (never implicit).
-USER_IO_SYSTEM_TOOLS: frozenset[str] = frozenset({"request_human_input", "inform_user"})
-
-
 def _containment_roots(
     manifest_dir: Path,
     app_root: Path | None,
@@ -41,24 +41,12 @@ def _containment_roots(
     workspace_root: Path | None = None,
     tools_dir: Path | None = None,
 ) -> tuple[Path, ...]:
-    seen = {manifest_dir.resolve(): None}
-    if app_root is not None:
-        app = app_root.resolve()
-        if workspace_root is not None:
-            stop = workspace_root.resolve()
-            for parent in (app, *app.parents):
-                seen[parent.resolve()] = None
-                if parent == stop:
-                    break
-        else:
-            seen[app] = None
-    if tools_dir is not None:
-        seen[tools_dir.resolve()] = None
-    from mas.library_roots import discover_library_roots
-
-    for lib_root in discover_library_roots(manifest_dir, app_root):
-        seen[lib_root.resolve()] = None
-    return tuple(seen)
+    return containment_roots(
+        manifest_dir,
+        app_root,
+        workspace_root=workspace_root,
+        tools_dir=tools_dir,
+    )
 
 
 def _resolve_under_roots(
@@ -67,32 +55,7 @@ def _resolve_under_roots(
     *,
     containment_roots: tuple[Path, ...],
 ) -> Path:
-    """Resolve *ref* (relative, ``samples:…``, or ``pkg://``); must stay under a containment root."""
-    if Path(ref).is_absolute():
-        raise ManifestToolLoadError(f"absolute tool path not allowed: {ref!r}")
-
-    from mas.runtime.package_refs import resolve_path_ref
-
-    if ref.startswith("pkg://"):
-        path = resolve_path_ref(ref, ref_base).resolve()
-    elif ":" in ref and not ref.startswith(("/", "\\")):
-        scheme, _, rel = ref.partition(":")
-        if scheme and "/" not in scheme and "\\" not in scheme and rel:
-            path = resolve_path_ref(ref, ref_base).resolve()
-        else:
-            path = (ref_base.resolve() / ref).resolve()
-    else:
-        path = (ref_base.resolve() / ref).resolve()
-
-    for root in containment_roots:
-        try:
-            path.relative_to(root)
-            return path
-        except ValueError:
-            continue
-    raise ManifestToolLoadError(
-        f"path escapes allowed roots: {ref!r} from {ref_base} (roots: {', '.join(str(r) for r in containment_roots)})"
-    )
+    return resolve_under_roots(ref_base, ref, containment_roots=containment_roots)
 
 
 def _tool_class_candidates(module: Any) -> list[type]:
@@ -289,22 +252,19 @@ def load_local_tool_provider(
 
     # request_human_input / inform_user stay opt-in: a model reaching for them
     # unprompted substitutes a non-answer the driving protocol cannot detect.
-    host_entries = [{"kind": "system", "name": str(n)} for n in system_tools]
+    host_entries = [
+        {"kind": "system", "name": str(name), "_host": True}
+        for name in system_tools
+    ]
     system_spec = [*(tools_spec or []), *host_entries]
     requested = _requested_system_tools(system_spec)
-    user_io = requested & USER_IO_SYSTEM_TOOLS
-    if user_io:
-        hitl_params = _system_tool_params(tools_spec, "request_human_input")
-        inform_user_params = _system_tool_params(tools_spec, "inform_user")
+    if requested:
         _inject_system_tools(
             local,
-            names=user_io,
+            names=requested,
+            tools_spec=tools_spec,
             hitl_contract=hitl_contract,
             user_io_contract=user_io_contract,
-            hitl_default_timeout_seconds=hitl_params.get("timeout"),
-            hitl_auto_resolve_decision=hitl_params.get("auto_resolve_decision"),
-            max_question_length=hitl_params.get("max_question_length"),
-            max_message_length=inform_user_params.get("max_message_length"),
         )
     _inject_skill_system_tools(
         local,
@@ -366,18 +326,40 @@ def _skill_system_tool_names() -> frozenset[str]:
 
 def _requested_system_tools(tools_spec: list[Any]) -> set[str]:
     """Names of ``{kind: system}`` entries; unknown names are a load error."""
-    names = {
-        str(raw.get("name") or "").strip()
-        for raw in tools_spec
-        if isinstance(raw, dict) and raw.get("kind") == "system"
-    }
-    known = USER_IO_SYSTEM_TOOLS | _skill_system_tool_names()
-    unknown = sorted(names - known)
+    enabled: set[str] = set()
+    disabled: set[str] = set()
+    host_requested: set[str] = set()
+    for raw in tools_spec:
+        if not isinstance(raw, dict) or raw.get("kind") != "system":
+            continue
+        name = str(raw.get("name") or "").strip()
+        if not name:
+            continue
+        if raw.get("_host"):
+            host_requested.add(name)
+        elif raw.get("enabled") is False:
+            disabled.add(name)
+        else:
+            enabled.add(name)
+    from mas.runtime.registry import get_registry
+
+    registry = get_registry()
+    known: set[str] = set(_skill_system_tool_names())
+    default_enabled: set[str] = set()
+    for entry in registry.get_by_category("system_tool"):
+        canonical_name = entry.urn.rsplit(".", 1)[-1]
+        known.add(canonical_name)
+        known.update(str(alias) for alias in entry.shortcuts)
+        if entry.attributes.get("default_enabled") is True:
+            default_enabled.add(canonical_name)
+    # Validate every declared name, including disabled ones: a typo there is a
+    # tool the author believes they turned off and did not.
+    unknown = sorted((enabled | disabled | host_requested) - known)
     if unknown:
         raise ManifestToolLoadError(
             f"unknown system tool(s) {unknown}; available: {sorted(known)}"
         )
-    return names
+    return (default_enabled | enabled | host_requested) - disabled
 
 
 def _system_tool_params(tools_spec: list[Any], name: str) -> dict[str, Any]:
@@ -394,13 +376,10 @@ def _system_tool_params(tools_spec: list[Any], name: str) -> dict[str, Any]:
 def _inject_system_tools(
     provider: LocalToolProvider,
     *,
-    names: set[str] | frozenset[str] = USER_IO_SYSTEM_TOOLS,
+    names: set[str] | frozenset[str] = frozenset(),
+    tools_spec: list[Any] | None = None,
     hitl_contract: HITLContract | None = None,
     user_io_contract: UserIOContract | None = None,
-    hitl_default_timeout_seconds: float | None = None,
-    hitl_auto_resolve_decision: str | None = None,
-    max_question_length: int | None = None,
-    max_message_length: int | None = None,
 ) -> None:
     """Add built-in system tools to the provider.
 
@@ -408,30 +387,51 @@ def _inject_system_tools(
     - request_human_input: blocking agent-initiated HITL
     - inform_user: non-blocking user progress updates
     """
-    from mas.runtime.system_tools import InformUserTool, RequestHumanInputTool
+    from mas.runtime.registry import get_registry
 
-    request_human_input_kwargs: dict[str, Any] = {}
-    if max_question_length is not None:
-        request_human_input_kwargs["max_question_length"] = int(max_question_length)
-    inform_user_kwargs: dict[str, Any] = {}
-    if max_message_length is not None:
-        inform_user_kwargs["max_message_length"] = int(max_message_length)
-
-    if "request_human_input" in names:
-        provider._add_instance(
-            _SystemToolHitlWrapper(
-                RequestHumanInputTool(**request_human_input_kwargs),
+    registry = get_registry()
+    entries = registry.get_by_category("system_tool")
+    ordered_names = [name for name in ("request_human_input", "inform_user") if name in names]
+    ordered_set = set(ordered_names)
+    for entry in entries:
+        for name in (entry.urn.rsplit(".", 1)[-1], *entry.shortcuts):
+            if name in names and name not in ordered_set:
+                ordered_names.append(name)
+                ordered_set.add(name)
+    ordered_names.extend(sorted(names - ordered_set))
+    for name in ordered_names:
+        variant = registry.resolve_by_type("system_tool", name)
+        if variant is None:
+            if name in _skill_system_tool_names():
+                continue
+            raise ManifestToolLoadError(f"system tool {name!r} is not registered")
+        entry = registry.get_entry(registry.urn_for(name) or "")
+        attributes = entry.attributes if entry is not None else {}
+        tool_cls = variant.load_class()
+        if attributes.get("communication") == "hitl":
+            params = _system_tool_params(tools_spec or [], name)
+            tool_kwargs = {}
+            if params.get("max_question_length") is not None:
+                tool_kwargs["max_question_length"] = int(params["max_question_length"])
+            tool = tool_cls(**tool_kwargs)
+            instance = _SystemToolHitlWrapper(
+                tool,
                 hitl_contract=hitl_contract,
-                default_timeout_seconds=hitl_default_timeout_seconds,
-                auto_resolve_decision=hitl_auto_resolve_decision,
-            ),
-            manifest_contract=None,
-        )
-    if "inform_user" in names:
-        provider._add_instance(
-            _SystemToolUserUpdateWrapper(InformUserTool(**inform_user_kwargs), user_io_contract=user_io_contract),
-            manifest_contract=None,
-        )
+                default_timeout_seconds=params.get("timeout"),
+                auto_resolve_decision=params.get("auto_resolve_decision"),
+            )
+        elif attributes.get("communication") == "user_io":
+            params = _system_tool_params(tools_spec or [], name)
+            tool_kwargs = {}
+            if params.get("max_message_length") is not None:
+                tool_kwargs["max_message_length"] = int(params["max_message_length"])
+            tool = tool_cls(**tool_kwargs)
+            instance = _SystemToolUserUpdateWrapper(tool, user_io_contract=user_io_contract)
+        else:
+            # Params of other system tools are manifest config read by their own
+            # wiring (spawn_subagent's templates/bounds), not constructor kwargs.
+            instance = tool_cls()
+        provider._add_instance(instance, manifest_contract=None)
 
 
 def _inject_skill_system_tools(

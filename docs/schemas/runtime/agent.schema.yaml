@@ -716,11 +716,11 @@ properties:
                   const: system
                 name:
                   type: string
-                  enum:
-                    - request_human_input
-                    - inform_user
-                    - activate_skill
-                    - run_skill_script
+                  minLength: 1
+                enabled:
+                  type: boolean
+                  default: true
+                  description: Explicit per-tool opt-in/out. `false` overrides host requests.
                 params:
                   type: object
                   additionalProperties: true
@@ -798,8 +798,8 @@ properties:
               IDs are fixed at compose time — the LLM cannot call agents outside
               the topology.
 
-              generic (delegate_task with free-form agent_id) is a design target
-              — not implemented in OSS; see ROADMAP.
+              generic (delegate_task with free-form agent_id) is a design target —
+              not implemented in OSS; see ROADMAP.
 
       checkpoint:
         type: object

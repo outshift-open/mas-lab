@@ -13,10 +13,37 @@ from mas.runtime.engine.tool_routing import ExplicitToolUnavailableError, Unclai
 if TYPE_CHECKING:
     from mas.runtime.boundary.delegation.protocol import DelegationContract
     from mas.runtime.engine.manifest_tool_provider import ManifestToolProvider
+    from mas.runtime.boundary.engine_tools import EngineToolContract
 
 
 class ToolExecutionError(RuntimeError):
     """Raised when a tool cannot be executed."""
+
+
+class _DelegationEngineTool:
+    """Adapt the existing DelegationContract to the ordered engine-tool seam."""
+
+    def __init__(self, delegation: DelegationContract) -> None:
+        self.delegation = delegation
+
+    def claims(self, tool_name: str) -> bool:
+        return self.delegation.is_delegate_tool(tool_name)
+
+    def call(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any],
+        *,
+        ctx: Any = None,
+        correlation_id: int = 0,
+        caller_call_id: str = "",
+    ) -> str:
+        return self.delegation.call_delegate_tool(
+            tool_name,
+            arguments,
+            correlation_id=correlation_id,
+            caller_call_id=caller_call_id,
+        )
 
 
 def format_tool_result(result: Any) -> str:
@@ -37,6 +64,7 @@ def execute_engine_tool(
     tool: str,
     *,
     delegation: DelegationContract | None = None,
+    engine_contracts: tuple[EngineToolContract, ...] | list[EngineToolContract] = (),
     ctx: Any = None,
     user: str = "",
     arguments: dict[str, Any] | None = None,
@@ -44,10 +72,18 @@ def execute_engine_tool(
     correlation_id: int = 0,
     caller_call_id: str = "",
 ) -> str:
-    if delegation is not None and delegation.is_delegate_tool(tool):
-        return delegation.call_delegate_tool(
-            tool, arguments, correlation_id=correlation_id, caller_call_id=caller_call_id
-        )
+    contracts = list(engine_contracts)
+    if delegation is not None:
+        contracts.insert(0, _DelegationEngineTool(delegation))
+    for contract in contracts:
+        if contract.claims(tool):
+            return contract.call(
+                tool,
+                arguments or {},
+                ctx=ctx,
+                correlation_id=correlation_id,
+                caller_call_id=caller_call_id,
+            )
     if tool_provider is None:
         raise ToolExecutionError(f"No manifest tool provider configured; cannot execute {tool!r}")
     try:

@@ -116,6 +116,14 @@ practical examples.
 | `DropSummarizer` | `mas.library.standard.plugins.context.summarizer` | `mas-library-standard` |
 | `LlmSummarizer`  | `mas.library.standard.plugins.context.summarizer` | `mas-library-standard` |
 
+### System_Tool
+
+| Class                   | Full module path                                                    | Package                |
+| ----------------------- | ------------------------------------------------------------------- | ---------------------- |
+| `InformUserTool`        | `mas.library.standard.mas.runtime.system_tools.inform_user`         | `mas-library-standard` |
+| `RequestHumanInputTool` | `mas.library.standard.mas.runtime.system_tools.request_human_input` | `mas-library-standard` |
+| `SpawnSubagentTool`     | `mas.library.standard.plugins.system_tools.spawn_subagent`          | `mas-library-standard` |
+
 ### Tool_Provider
 
 | Class               | Full module path                           | Package                |
@@ -136,6 +144,7 @@ practical examples.
 | `DeterministicParallelPlugin`    | design_pattern  | `mas-library-standard` |
 | `DeterministicSingleAgentPlugin` | design_pattern  | `mas-library-standard` |
 | `DropSummarizer`                 | summarizer      | `mas-library-standard` |
+| `InformUserTool`                 | system_tool     | `mas-library-standard` |
 | `IntrospectionPlugin`            | design_pattern  | `mas-library-standard` |
 | `LlmSummarizer`                  | summarizer      | `mas-library-standard` |
 | `LocalAgentComm`                 | agent_comm      | `mas-library-standard` |
@@ -146,6 +155,7 @@ practical examples.
 | `OtelObservabilityPlugin`        | observability   | `mas-library-standard` |
 | `PlanExecutePlugin`              | design_pattern  | `mas-library-standard` |
 | `ReactPlugin`                    | design_pattern  | `mas-library-standard` |
+| `RequestHumanInputTool`          | system_tool     | `mas-library-standard` |
 | `RunSkillScriptPlugin`           | skill_shell     | `mas-library-skills`   |
 | `SampleGovernancePlugin`         | governance      | `mas-library-standard` |
 | `SemanticMemoryPlugin`           | memory          | `mas-library-standard` |
@@ -153,6 +163,7 @@ practical examples.
 | `SkillCatalogPlugin`             | skill_catalog   | `mas-library-skills`   |
 | `SkillToolsPlugin`               | skill_tools     | `mas-library-skills`   |
 | `SlidingWindowConversation`      | context_manager | `mas-library-standard` |
+| `SpawnSubagentTool`              | system_tool     | `mas-library-standard` |
 | `StackConversation`              | context_manager | `mas-library-standard` |
 | `SummarizingConversation`        | context_manager | `mas-library-standard` |
 | `TreeOfThoughtsPlugin`           | design_pattern  | `mas-library-standard` |
