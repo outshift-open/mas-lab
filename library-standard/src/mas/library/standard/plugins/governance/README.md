@@ -17,5 +17,10 @@ Manifest `spec.governance.hitl_mode` selects the operator plugin at ctl bootstra
 Plugin card: [no-undeclared-tool.md](no-undeclared-tool.md).
 Overlay index: [../../overlays/README.md](../../overlays/README.md).
 
+Ingress-only governance plugins may be selected under
+`spec.governance[].ingress_plugins`; their implementations resolve through the
+same `governance` PluginRegistry category and receive an ingress intent, not a
+kernel handle.
+
 Kernel emits `EmitHitlRequest` only from `M_gov` egress gate. Only `M_gov` enters `HITL_PENDING`.
 `M_tool` enters `WAIT_GOV`; `M_dp` stays `AWAITING_INGRESS` (waiting on the tool chain).

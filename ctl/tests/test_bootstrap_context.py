@@ -188,3 +188,32 @@ def test_resolve_skill_plugin_config_auto_inject_defaults_false(tmp_path: Path):
 
     cfg = _resolve_skill_plugin_config({"spec": {}}, default_base_dir=tmp_path)
     assert cfg.auto_inject_scripts is False
+
+
+def test_interface_contracts_resolve_from_full_agent_manifest_and_keep_overrides():
+    from mas.ctl.manifest.spec_bindings import validate_agent_spec_bindings
+    from mas.ctl.session.bootstrap import _resolve_interface_contract
+    from mas.runtime.contracts.user_communication_contract import (
+        RegistryHitlContract,
+        RegistryUserIOContract,
+    )
+
+    manifest = {
+        "apiVersion": "mas/v1",
+        "kind": "Agent",
+        "metadata": {"name": "contract-test"},
+        "spec": {
+            "description": "contract test",
+            "hitl_contract": {"type": "registry"},
+            "user_io_contract": "registry",
+        },
+    }
+    validate_agent_spec_bindings(manifest["spec"])
+
+    hitl_contract = _resolve_interface_contract(None, manifest, "hitl_contract")
+    user_io_contract = _resolve_interface_contract(None, manifest, "user_io_contract")
+    override = object()
+
+    assert isinstance(hitl_contract, RegistryHitlContract)
+    assert isinstance(user_io_contract, RegistryUserIOContract)
+    assert _resolve_interface_contract(override, manifest, "hitl_contract") is override

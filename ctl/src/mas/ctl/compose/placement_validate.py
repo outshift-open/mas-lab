@@ -4,9 +4,13 @@
 
 from __future__ import annotations
 
-OSS_SUPPORTED_STRATEGIES = frozenset({"local-inproc"})
+from mas.ctl.registry.catalog import (
+    UnknownComponentError,
+    list_placement_ids,
+    validate_placement_id,
+)
 
-_LIBRARY_NEXT_STRATEGIES = frozenset({"local-multiprocess", "docker", "kubernetes"})
+OSS_SUPPORTED_STRATEGIES = frozenset(list_placement_ids())
 
 
 def _library_next_installed() -> bool:
@@ -20,18 +24,16 @@ def _library_next_installed() -> bool:
 
 def validate_placement_strategy(strategy: str) -> None:
     """Reject unsupported placement strategies with a clear error at compose time."""
-    if strategy in OSS_SUPPORTED_STRATEGIES:
-        return
-
-    if strategy in _LIBRARY_NEXT_STRATEGIES:
-        if not _library_next_installed():
+    try:
+        validate_placement_id(strategy)
+    except UnknownComponentError as exc:
+        message = str(exc.args[0]) if exc.args else str(exc)
+        if message.startswith("unknown placement id"):
             raise RuntimeError(
-                f"placement strategy {strategy!r} is not available in mas-lab OSS "
-                f"(only {sorted(OSS_SUPPORTED_STRATEGIES)} is supported)."
-            )
-        return
-
-    raise RuntimeError(
-        f"unknown placement strategy {strategy!r}; "
-        f"expected one of {sorted(OSS_SUPPORTED_STRATEGIES | _LIBRARY_NEXT_STRATEGIES)}"
-    )
+                f"unknown placement strategy {strategy!r}; "
+                f"expected one of {sorted(OSS_SUPPORTED_STRATEGIES)}"
+            ) from exc
+        raise RuntimeError(
+            f"placement strategy {strategy!r} is not available in mas-lab OSS "
+            f"(only {sorted(OSS_SUPPORTED_STRATEGIES)} is supported)."
+        ) from exc

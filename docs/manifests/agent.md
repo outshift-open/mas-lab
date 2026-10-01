@@ -75,6 +75,8 @@ Extension properties (`x-*`) are allowed and ignored by the runtime.
 | `tools` | `Tool[]` | no | `[]` | Per-agent tool declarations — three forms. Additive with `tools_ref`. See [`Tool`](#tool). |
 | `behavior` | object | no | — | Runtime capability flags. See [`Behavior`](#behavior). |
 | `governance` | `GovernanceBinding` | no | `{}` | Governance plugin list. See [`GovernanceBinding`](#governancebinding). |
+| `hitl_contract` | `string` | no | `registry` | Human-approval Protocol plugin. An explicit `InstantiationOptions.hitl_contract` instance overrides this binding, preserving interactive CLI adapters. |
+| `user_io_contract` | `string` | no | `registry` | User progress-update Protocol plugin. Overridden the same way as `hitl_contract`. |
 | `llm` | `LlmBinding` | no | `{}` | Engine overrides (model, temperature, …). See [`LlmBinding`](#llmbinding). |
 | `control` | `ControlBinding` | no | `{}` | Control-plane plugin configs. See [`ControlBinding`](#controlbinding). |
 | `observability` | `ObservabilityBinding` | no | `null` | Observability sink plugin list. See [`ObservabilityBinding`](#observabilitybinding). |

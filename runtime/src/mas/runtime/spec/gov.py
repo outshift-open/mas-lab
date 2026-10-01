@@ -322,8 +322,43 @@ def build_kernel_config(
         except PolicyParseError as exc:
             raise SpecBindingError(f"spec.governance: {exc}") from exc
 
-    # Build ingress chain (no ctl ingress loader needed at runtime level)
+    # Extend the ingress chain with explicitly declared ingress-only plugins.
     chain = list(ingress_entries)
+    for entry in binding.ingress_plugins:
+        if not isinstance(entry, dict):
+            raise SpecBindingError("spec.governance.ingress_plugins entries must be objects")
+        name = str(entry.get("type") or entry.get("name") or "").strip()
+        if not name:
+            raise SpecBindingError(
+                f"spec.governance.ingress_plugins entry missing type/name: {entry!r}"
+            )
+        chain_mode = str(entry.get("chain") or "stop")
+        if chain_mode not in {"stop", "continue"}:
+            raise SpecBindingError(
+                "spec.governance.ingress_plugins.chain must be stop or continue"
+            )
+        plugin_cfg = {key: value for key, value in entry.items() if key not in {"type", "name", "chain", "response_kind"}}
+        plugin = _instantiate(name, plugin_cfg)
+        if plugin is None:
+            raise SpecBindingError(f"ingress governance plugin {name!r} was not found")
+        raw_kinds = entry.get("response_kind")
+        if raw_kinds is None:
+            kinds: tuple[str, ...] = ("TOOL_RESULT",)
+        elif isinstance(raw_kinds, str) and raw_kinds.strip():
+            kinds = (raw_kinds.strip(),)
+        elif isinstance(raw_kinds, (list, tuple)) and raw_kinds and all(isinstance(k, str) and k.strip() for k in raw_kinds):
+            kinds = tuple(str(k).strip() for k in raw_kinds)
+        else:
+            raise SpecBindingError(
+                "spec.governance.ingress_plugins.response_kind must be a string or a list of strings"
+            )
+        chain.append(
+            RegisteredIngressPlugin(
+                plugin=plugin,
+                filter=GovTransitionFilter(hook="ingress", response_kind=kinds),
+                chain=chain_mode,
+            )
+        )
     if chain:
         kwargs["ingress_governance_plugins"] = chain
 

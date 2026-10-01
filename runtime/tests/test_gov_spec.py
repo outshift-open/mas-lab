@@ -36,6 +36,19 @@ class _CompositeBlockPlugin:
         return GovDecision.BLOCK, "block", "nope"
 
 
+class _IngressOnlyPlugin:
+    plugin_id = "test_ingress_only"
+
+    def __init__(self, **config):
+        self.config = config
+
+    def evaluate_ingress(self, intent, *, config):
+        from mas.runtime.boundary.gov.ingress_plugin import IngressGovDecision
+        from mas.runtime.schema.governance import GovernanceAction
+
+        return IngressGovDecision(action=GovernanceAction.BLOCK, message="ingress test")
+
+
 def test_same_plugin_key_merges_policies_instead_of_overwriting_regression() -> None:
     """Regression: two overlay entries both using "sample_governance" used to
     silently overwrite (configs[name] = dict(cfg)), dropping the first
@@ -287,3 +300,35 @@ def test_backtrack_plugin_retries_first_error_and_requests_rollback_on_repeat() 
 
     assert first.action is ErrorRecoveryAction.RETRY
     assert second.action is ErrorRecoveryAction.BACKTRACK
+
+
+def test_ingress_plugins_from_manifest_are_wired_to_kernel_config() -> None:
+    from mas.runtime.registry import get_registry, register_plugin
+
+    urn = "mas.gov.test_ingress_only"
+    shortcut = "test_ingress_only"
+    try:
+        register_plugin(
+            urn,
+            _IngressOnlyPlugin,
+            shortcuts=[shortcut],
+            attributes={"plugin_type": "governance"},
+        )
+        binding = parse_gov_spec(
+            [{"sample_governance": {"ingress_plugins": [{"type": shortcut, "chain": "continue"}]}}]
+        )
+
+        config = build_kernel_config(binding)
+
+        assert len(config.ingress_governance_plugins) == 1
+        entry = config.ingress_governance_plugins[0]
+        assert isinstance(entry.plugin, _IngressOnlyPlugin)
+        assert entry.chain == "continue"
+        assert entry.filter.response_kind == ("TOOL_RESULT",)
+    finally:
+        registry = get_registry()
+        registry._entries.pop(urn, None)
+        registry._aliases.pop(shortcut, None)
+        typed = registry._by_type.get("governance")
+        if typed:
+            registry._by_type["governance"] = [item for item in typed if item.urn != urn]

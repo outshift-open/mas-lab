@@ -29,8 +29,21 @@ types:
   - llm_provider
   - agent_comm
   - system_tool
+  - hitl_contract
+  - user_io_contract
+  - engine_tool_provider
 
 plugins:
+  - type: engine_tool_provider
+    name: delegation
+    urn: mas.engine_tool_provider.delegation
+    module: mas.runtime.boundary.delegation.llm_delegator
+    class: LlmDelegator
+  - type: engine_tool_provider
+    name: spawn_subagent
+    urn: mas.engine_tool_provider.spawn_subagent
+    module: mas.ctl.executor.subagent_spawner
+    class: SubagentSpawner
   - type: system_tool
     name: request_human_input
     urn: mas.system_tool.request_human_input
@@ -218,8 +231,20 @@ plugins:
     urn: mas.gov.backtrack_on_error
     module: mas.library.standard.plugins.governance.backtrack_on_error
     class: BacktrackOnErrorPlugin
+  - type: hitl_contract
+    name: registry
+    urn: mas.hitl_contract.registry
+    module: mas.runtime.contracts.user_communication_contract
+    class: RegistryHitlContract
+  - type: user_io_contract
+    name: registry
+    urn: mas.user_io_contract.registry
+    module: mas.runtime.contracts.user_communication_contract
+    class: RegistryUserIOContract
 
 defaults:
   tool_provider: local
   summarizer: llm
   llm_provider: openai
+  hitl_contract: registry
+  user_io_contract: registry

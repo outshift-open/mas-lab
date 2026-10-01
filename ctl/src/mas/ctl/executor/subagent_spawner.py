@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import copy
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,15 +11,27 @@ from typing import Any, Callable
 
 import yaml
 
+from mas.ctl.executor.engine_tool_context import MaterializedEngineToolContext
 from mas.runtime.boundary.context.working_memory_registry import WorkingMemoryRegistry
-from mas.runtime.boundary.engine_tools import SubagentContract
 from mas.ctl.executor.spawn_ledger import SpawnLedger
 from mas.ctl.manifest.spec_bindings import SpecBindingError, parse_subagent_templates
 from mas.library.standard.plugins.tools.containment import containment_roots, resolve_under_roots
+from mas.runtime.boundary.engine_tools import EngineToolBudgetExceeded, SubagentContract
 from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.engine.tools import spawn_subagent_params
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_engine_tool_class(name: str, fallback: type) -> type:
+    """Resolve an ``engine_tool_provider`` variant, falling back when unregistered."""
+    from mas.runtime.registry import get_registry
+
+    variant = get_registry().resolve_by_type("engine_tool_provider", name)
+    if variant is None:
+        logger.debug("engine_tool_provider %r not registered; using %s", name, fallback.__name__)
+        return fallback
+    return variant.load_class()
 
 
 @dataclass(frozen=True)
@@ -79,7 +90,7 @@ class SubagentSpawner(SubagentContract):
     def __init__(
         self,
         *,
-        materialized: Any,
+        materialized: Any = None,
         parent_agent_id: str,
         session_id: str,
         templates: dict[str, SubagentTemplate],
@@ -89,8 +100,8 @@ class SubagentSpawner(SubagentContract):
         verbose: int = 0,
         instance_factory: Callable[[SubagentTemplate, str], RuntimeInstance] | None = None,
         controller_factory: Callable[..., Any] | None = None,
+        context: Any = None,
     ) -> None:
-        self.materialized = materialized
         self.parent_agent_id = parent_agent_id
         self.session_id = session_id
         self.templates = dict(templates)
@@ -98,8 +109,29 @@ class SubagentSpawner(SubagentContract):
         self.working_memory_registry = working_memory_registry
         self.display = display
         self.verbose = verbose
-        self.instance_factory = instance_factory or self._instantiate
-        self.controller_factory = controller_factory
+        self.context = context or MaterializedEngineToolContext(
+            materialized=materialized,
+            session_id=session_id,
+            parent_agent_id=parent_agent_id,
+            ledger=ledger,
+            working_memory_registry=working_memory_registry,
+            display=display,
+            verbose=verbose,
+            instance_factory=self._adapt_instance_factory(instance_factory),
+            controller_factory=controller_factory,
+        )
+
+    def _adapt_instance_factory(
+        self, legacy: Callable[[SubagentTemplate, str], RuntimeInstance] | None
+    ) -> Callable[..., RuntimeInstance] | None:
+        """Keep the template-shaped factory seam the spawner's own tests use."""
+        if legacy is None:
+            return None
+
+        def factory(_manifest: Any, _manifest_dir: Any, child_id: str, template_id: str) -> RuntimeInstance:
+            return legacy(self.templates[template_id], child_id)
+
+        return factory
 
     def is_subagent_tool(self, tool_name: str) -> bool:
         return tool_name == "spawn_subagent"
@@ -139,111 +171,30 @@ class SubagentSpawner(SubagentContract):
         task = task.strip()
         if not task:
             return "[spawn_subagent] task must not be empty"
-        if not self.ledger.allow_spawn(self.session_id, self.parent_agent_id):
-            return "[spawn_subagent] blocked: depth or spawn-count budget exceeded"
-
-        child_id = self.ledger.mint_agent_id(self.parent_agent_id, template_id)
-        instances = self.materialized.instances
-        bus = self.materialized.bus
-        instance: RuntimeInstance | None = None
-        shared_obs_plugin_set = None
-        entered = False
         try:
-            instance = self.instance_factory(template, child_id)
-            if child_id in instances:
-                raise RuntimeError(f"subagent id collision: {child_id}")
-            instance.driver.agent_id = child_id
-            ctx = getattr(instance.driver, "ctx", None)
-            if ctx is not None:
-                ctx.session_id = self.session_id
-                ctx.agent_id = child_id
-            instances[child_id] = instance
-            parent_instance = instances.get(self.parent_agent_id)
-            shared_obs_plugin_set = getattr(parent_instance, "obs_plugin_set", None)
-            if shared_obs_plugin_set is not None and instance.obs_plugin_set is None:
-                from mas.runtime.boundary.obs.plugins import attach_observability_plugin_set
-
-                attach_observability_plugin_set(
-                    shared_obs_plugin_set,
-                    instance,
-                    agent_id=child_id,
-                    begin_run=False,
-                )
-            if bus is not None:
-                from mas.ctl.placement.bus.adapter import RuntimeCommEndpoint
-
-                bus.register(child_id, RuntimeCommEndpoint(child_id, instance))
-
-            wire_subagent_spawning(
-                getattr(instance.driver, "engine", None),
-                materialized=self.materialized,
-                manifest=template.manifest,
+            child_id = self.context.spawn_instance(
+                template.manifest,
+                template_id=template_id,
                 manifest_dir=template.path.parent,
-                parent_agent_id=child_id,
-                session_id=self.session_id,
-                working_memory_registry=self.working_memory_registry,
-                ledger=self.ledger,
-                display=self.display,
-                verbose=self.verbose,
             )
-
-            from mas.ctl.session.controller import ConversationConfig, SessionController
-            from mas.ctl.ui.turn_result import turn_failed
-
-            self.ledger.enter(self.session_id)
-            entered = True
-            controller_factory = self.controller_factory or SessionController
-            controller = controller_factory(
-                instance=instance,
-                display=self.display,
-                verbose=self.verbose,
-                agent_id=child_id,
-                config=ConversationConfig(single_turn=True),
-                session_id=self.session_id,
-                working_memory_key=self.session_id,
-                working_memory_registry=self.working_memory_registry,
-                caller_agent_id=self.parent_agent_id,
-            )
-            result = controller.run_turn(
+        except EngineToolBudgetExceeded:
+            return "[spawn_subagent] blocked: depth or spawn-count budget exceeded"
+        except Exception:
+            logger.exception("spawn_subagent template %r could not be materialized", template_id)
+            return f"[spawn_subagent] {template_id!r} failed"
+        try:
+            return self.context.run_turn(
+                child_id,
                 task,
-                turn_id=f"{child_id}-spawn",
-                parent_call_id=caller_call_id,
+                correlation_id=correlation_id,
+                caller_call_id=caller_call_id,
             )
-            if turn_failed(result):
-                return f"[spawn_subagent] {template_id!r} failed"
-            return result.text
         except Exception:
             # Exception text can carry absolute paths; keep it out of the parent's context.
             logger.exception("spawn_subagent template %r failed", template_id)
             return f"[spawn_subagent] {template_id!r} failed"
         finally:
-            if entered:
-                self.ledger.exit(self.session_id)
-            if instance is not None:
-                if bus is not None:
-                    unregister = getattr(bus, "unregister", None)
-                    if callable(unregister):
-                        unregister(child_id)
-                instances.pop(child_id, None)
-                self.working_memory_registry.drop(self.session_id, child_id)
-                plugin_set = getattr(instance, "obs_plugin_set", None)
-                if plugin_set is not None and plugin_set is not shared_obs_plugin_set:
-                    plugin_set.close()
-
-    @staticmethod
-    def _instantiate(template: SubagentTemplate, child_id: str) -> RuntimeInstance:
-        from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
-
-        instance, _store = instantiate_runtime(
-            InstantiationOptions(
-                agent_manifest=copy.deepcopy(template.manifest),
-                manifest_dir=template.path.parent,
-                app_root=template.path.parent,
-                enable_observability=True,
-            )
-        )
-        instance.driver.agent_id = child_id
-        return instance
+            self.context.teardown_instance(child_id)
 
 
 def wire_subagent_spawning(
@@ -290,7 +241,7 @@ def wire_subagent_spawning(
     for existing in getattr(leaf, "engine_tool_contracts", ()) or ():
         if isinstance(existing, SubagentSpawner) and existing.parent_agent_id == parent_agent_id:
             return existing
-    spawner = SubagentSpawner(
+    spawner = _resolve_engine_tool_class("spawn_subagent", SubagentSpawner)(
         materialized=materialized,
         parent_agent_id=parent_agent_id,
         session_id=session_id,

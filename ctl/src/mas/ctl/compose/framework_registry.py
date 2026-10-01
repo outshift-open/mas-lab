@@ -40,16 +40,33 @@ class LangGraphFrameworkAdapter:
 
 
 _ADAPTERS: dict[str, FrameworkAdapter] = {
-    "native": NativeFrameworkAdapter(),
-    "langgraph": LangGraphFrameworkAdapter(),
 }
+
+_CATALOG_REGISTERED = False
+
+
+def _register_from_catalog() -> None:
+    global _CATALOG_REGISTERED
+    if _CATALOG_REGISTERED:
+        return
+    from mas.ctl.registry.catalog import get_framework, import_class, list_framework_ids
+
+    for framework_id in list_framework_ids():
+        if framework_id in _ADAPTERS:
+            continue
+        entry = get_framework(framework_id)
+        if entry.module:
+            _ADAPTERS[framework_id] = import_class(entry.module)()
+    _CATALOG_REGISTERED = True
 
 
 def list_registered_adapters() -> list[str]:
+    _register_from_catalog()
     return sorted(_ADAPTERS.keys())
 
 
 def get_framework_adapter(adapter_id: FrameworkAdapterId) -> FrameworkAdapter:
+    _register_from_catalog()
     if adapter_id not in _ADAPTERS:
         raise KeyError(f"unknown framework adapter: {adapter_id}")
     return _ADAPTERS[adapter_id]

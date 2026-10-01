@@ -167,6 +167,7 @@ class PluginRegistry:
         self._known_types: set[str] = set()
         self._spec_defaults: dict[str, str] = {}
         self._runtime_spec_keys: set[str] = set()
+        self._by_type: dict[str, list[PluginEntry]] = {}
 
     # ── Registration ─────────────────────────────────────────────────────
 
@@ -176,7 +177,18 @@ class PluginRegistry:
             if inferred_type:
                 entry.attributes["plugin_type"] = inferred_type
                 self.register_type(inferred_type)
+        previous = self._entries.get(entry.urn)
+        if previous is not None:
+            old_type = self._entry_type(previous)
+            bucket = self._by_type.get(old_type) if old_type else None
+            if bucket:
+                self._by_type[old_type] = [item for item in bucket if item.urn != entry.urn]
         self._entries[entry.urn] = entry
+        plugin_type = self._entry_type(entry)
+        if plugin_type:
+            typed = self._by_type.setdefault(plugin_type, [])
+            if all(item.urn != entry.urn for item in typed):
+                typed.append(entry)
         # register_alias() can append to entry.shortcuts (for the entry
         # that owns the alias' target URN). Iterate a snapshot rather than
         # the live list so registering an alias mid-loop can't change what
@@ -250,7 +262,7 @@ class PluginRegistry:
 
     def _entries_for_type(self, plugin_type: str) -> list[PluginEntry]:
         canonical = _canonical_type_name(plugin_type)
-        return [entry for entry in self._entries.values() if self._entry_type(entry) == canonical]
+        return list(self._by_type.get(canonical, ()))
 
     @staticmethod
     def _matches_name(entry: PluginEntry, name: str) -> bool:
@@ -376,6 +388,19 @@ class PluginRegistry:
         if aliased and aliased in self._entries:
             return self._entries[aliased]
         return None
+
+    def list_names(self, plugin_type: str) -> list[str]:
+        """List manifest-facing names for a plugin category without loading variants."""
+        names: set[str] = set()
+        for entry in self._entries_for_type(plugin_type):
+            names.add(entry.urn.rsplit(".", 1)[-1])
+            names.update(str(shortcut).strip().lower() for shortcut in entry.shortcuts if str(shortcut).strip())
+            names.update(
+                alias
+                for alias, target in self._aliases.items()
+                if target == entry.urn
+            )
+        return sorted(names)
 
     # ── Query (UI / CLI / lab delegation) ────────────────────────────────
 

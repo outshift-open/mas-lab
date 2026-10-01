@@ -418,6 +418,24 @@ class TestTypeResolution:
         info = registry.resolve_by_type("context_manager", "stack")
         assert info is not None
 
+    def test_list_names_returns_manifest_names_without_resolving_plugins(self):
+        registry = PluginRegistry()
+        registry.register(
+            PluginEntry(
+                urn="mas.skill_impl.custom",
+                shortcuts=["custom-skill"],
+                variants={
+                    "builtin": VariantInfo(
+                        module="pathlib",
+                        class_name="Path",
+                        requires=["missing_optional_skill_runtime"],
+                    )
+                },
+            )
+        )
+
+        assert registry.list_names("skill_impl") == ["custom", "custom-skill"]
+
 
 class TestRealPlugins:
     """Test with real built-in plugins."""

@@ -851,6 +851,34 @@ properties:
           identity: plugin_id
         default: {}
 
+      hitl_contract:
+        description: Human approval contract; caller-injected options override this manifest binding.
+        x-merge:
+          strategy: plugin_binding_merge
+        oneOf:
+          - type: string
+            minLength: 1
+          - type: object
+            additionalProperties: false
+            properties:
+              type: { type: string }
+              ref: { type: string }
+              params: { type: object, additionalProperties: true }
+
+      user_io_contract:
+        description: User progress-update contract; caller-injected options override this manifest binding.
+        x-merge:
+          strategy: plugin_binding_merge
+        oneOf:
+          - type: string
+            minLength: 1
+          - type: object
+            additionalProperties: false
+            properties:
+              type: { type: string }
+              ref: { type: string }
+              params: { type: object, additionalProperties: true }
+
       llm:
         $ref: "./fragments/llm-binding.schema.yaml"
         description: >

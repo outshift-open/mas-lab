@@ -38,7 +38,11 @@ _SKILL_SHELL_REFS = {
     "skills:tools/run-skill-script.tool.yaml",
     "pkg://skills/tools/run-skill-script.tool.yaml",
 }
-_SUPPORTED_SKILL_IMPLS = {"native", "adk", "langchain"}
+def _supported_skill_impls() -> set[str]:
+    """Discover accepted skill implementation names from PluginRegistry."""
+    from mas.runtime.registry import get_registry
+
+    return set(get_registry().list_names("skill_impl"))
 
 
 def _overlay_providers_from_manifest(
@@ -274,14 +278,24 @@ def instantiate_runtime(
     if options.agent_manifest:
         from mas.runtime.engine.manifest_tool_provider import attach_manifest_tools_to_instance
 
+        hitl_contract = _resolve_interface_contract(
+            options.hitl_contract,
+            options.agent_manifest,
+            "hitl_contract",
+        )
+        user_io_contract = _resolve_interface_contract(
+            options.user_io_contract,
+            options.agent_manifest,
+            "user_io_contract",
+        )
         attach_manifest_tools_to_instance(
             instance,
             options.agent_manifest,
             options.manifest_dir or Path.cwd(),
             app_root=options.app_root or options.manifest_dir,
             workspace_root=ws.root if ws.found else None,
-            hitl_contract=options.hitl_contract,
-            user_io_contract=options.user_io_contract,
+            hitl_contract=hitl_contract,
+            user_io_contract=user_io_contract,
             auto_inject_scripts=skill_cfg.auto_inject_scripts,
             tools_dir=tools_dir,
             skills_dir=skill_cfg.base_dir or skills_dir,
@@ -291,6 +305,18 @@ def instantiate_runtime(
             ),
         )
     return instance, store
+
+
+def _resolve_interface_contract(explicit: object | None, manifest: dict | None, spec_key: str) -> object:
+    """Resolve a manifest contract binding unless the caller supplied an instance."""
+    if explicit is not None:
+        return explicit
+    from mas.runtime.registry import get_registry
+
+    try:
+        return get_registry().create(spec_key, manifest=manifest)
+    except KeyError as exc:
+        raise ValueError(f"unable to resolve spec.{spec_key}: {exc}") from exc
 
 
 def _apply_manifest_context(
@@ -324,7 +350,8 @@ def _resolve_skill_plugin_config(
     > legacy manifest tool/context declarations > env var > default.
     """
     env_impl = str(os.getenv("MAS_SKILL_IMPL") or "").strip().lower() or "native"
-    impl = env_impl if env_impl in _SUPPORTED_SKILL_IMPLS else "native"
+    supported_impls = _supported_skill_impls()
+    impl = env_impl if env_impl in supported_impls else "native"
     rel_base: str | None = None
     auto_inject_scripts = False
 
@@ -335,13 +362,13 @@ def _resolve_skill_plugin_config(
 
         plugins, configs = parse_context_sources(context_sources_raw)
         for candidate_impl in plugins:
-            if candidate_impl in _SUPPORTED_SKILL_IMPLS:
+            if candidate_impl in supported_impls:
                 impl = candidate_impl
             else:
                 logger.warning(
                     "Unknown context_sources plugin %r; expected one of %s",
                     candidate_impl,
-                    sorted(_SUPPORTED_SKILL_IMPLS),
+                    sorted(supported_impls),
                 )
         for cfg in configs.values():
             candidate_base = cfg.get("base_dir")
@@ -354,13 +381,13 @@ def _resolve_skill_plugin_config(
         candidate_impl = _entry_skill_impl(entry)
         if candidate_impl:
             normalized = candidate_impl.strip().lower()
-            if normalized in _SUPPORTED_SKILL_IMPLS:
+            if normalized in supported_impls:
                 impl = normalized
             else:
                 logger.warning(
                     "Unknown skill impl %r; expected one of %s",
                     candidate_impl,
-                    sorted(_SUPPORTED_SKILL_IMPLS),
+                    sorted(supported_impls),
                 )
         candidate_base = _entry_skill_base_dir(entry)
         if candidate_base:

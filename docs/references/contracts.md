@@ -32,6 +32,54 @@ These boundaries are wired in the kernel and exercised by tutorials and paper la
 The [plugin registry](../schemas/contracts-registry.yaml) lists ingress/egress
 events and Python modules for each registered contract.
 
+### Manifest-selected Protocol categories
+
+`PluginRegistry` categories are declared by library packages and selected by
+manifest name. Current examples include `tool_provider`, `governance`,
+`hitl_contract`, `user_io_contract`, `skill_impl`, and the design/context
+categories. `hitl_contract` implements `HITLContract.request_approval(...)`;
+`user_io_contract` implements `UserIOContract.send_progress_update(...)`.
+Both default to `registry` in `mas-library-standard`. A caller-supplied
+`InstantiationOptions.hitl_contract` or `.user_io_contract` instance wins over
+the manifest, preserving interactive CLI adapters.
+
+Governance ingress plugins register under the `governance` category and are
+selected in `spec.governance[].ingress_plugins` with `type` (or `name`) and
+optional `chain: stop|continue`. They receive the ingress intent snapshot and
+cannot access mutable kernel state.
+
+### `engine_tool_provider` and `EngineToolContext`
+
+Orchestration-level tools — the ones that run another agent rather than call
+a function — register under `engine_tool_provider`. `mas-library-standard`
+ships two variants: `delegation` (existing peers) and `spawn_subagent`
+(new children from pre-authored templates).
+
+A plugin in this category never receives the materialized run or the comm
+bus. It receives an `EngineToolContext`, which exposes exactly three
+operations plus three read-only properties:
+
+| Member | Purpose |
+| --- | --- |
+| `run_turn(agent_id, task, ...)` | Run one turn on an agent of this run |
+| `spawn_instance(manifest, *, template_id, manifest_dir=None)` | Materialize a child, return its minted id |
+| `teardown_instance(agent_id)` | Release the child, its working memory, and its ledger depth |
+| `depth` | Current spawn depth for the session |
+| `session_id` / `parent_agent_id` | Identity of the calling scope |
+
+The budget check lives inside `spawn_instance`, not in its callers, so a
+third-party plugin is subject to the same `SpawnLedger` ceilings as a
+shipped one. When a ceiling is reached the facade raises
+`EngineToolBudgetExceeded` rather than returning a value a plugin could
+ignore. A plugin holding this object cannot enumerate other agents, read
+another agent's working memory, or send arbitrary bus messages — none of
+those are reachable from the facade.
+
+Manifest-facing behaviour is unchanged:
+`spec.behavior.allow_subagent_spawning` and `spec.behavior.delegation_style`
+still decide whether the tool surface exists at all. This category only
+changes how the implementing class is found and constructed.
+
 ---
 
 ## Taxonomy (design target)

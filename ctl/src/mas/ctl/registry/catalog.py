@@ -39,7 +39,7 @@ def _load_registry_text() -> str | None:
     try:
         from importlib.resources import as_file, files
 
-        resource = files("mas.ctl").joinpath("schemas", "component-registry.yaml")
+        resource = files("mas.ctl").joinpath("_schemas", "component-registry.yaml")
         with as_file(resource) as path:
             if path.is_file():
                 return path.read_text(encoding="utf-8")
@@ -105,8 +105,40 @@ def list_placement_ids() -> list[str]:
     return [e.id for e in _load_catalog().get("placement", []) if e.status not in _UNAVAILABLE_STATUSES]
 
 
+def get_placement(placement_id: str) -> ComponentEntry:
+    """Return the catalog entry for one placement strategy, including planned IDs."""
+    entry = _by_id("placement").get(placement_id)
+    if entry is None:
+        raise UnknownComponentError(f"unknown placement id: {placement_id!r}")
+    return entry
+
+
+def validate_placement_id(placement_id: str) -> str:
+    """Return an available placement ID or reject planned/unknown entries."""
+    entry = get_placement(placement_id)
+    if entry.status in _UNAVAILABLE_STATUSES:
+        raise UnknownComponentError(f"placement {placement_id!r} is not available yet")
+    return entry.id
+
+
 def list_framework_ids() -> list[str]:
     return [e.id for e in _load_catalog().get("framework", []) if e.status not in _UNAVAILABLE_STATUSES]
+
+
+def get_framework(framework_id: str) -> ComponentEntry:
+    """Return the catalog entry for one framework adapter, including planned IDs."""
+    entry = _by_id("framework").get(framework_id)
+    if entry is None:
+        raise UnknownComponentError(f"unknown framework id: {framework_id!r}")
+    return entry
+
+
+def validate_framework_id(framework_id: str) -> str:
+    """Return an available framework ID or reject planned/unknown entries."""
+    entry = get_framework(framework_id)
+    if entry.status in _UNAVAILABLE_STATUSES:
+        raise UnknownComponentError(f"framework {framework_id!r} is not available yet")
+    return entry.id
 
 
 def import_class(dotted: str) -> type:
@@ -134,7 +166,7 @@ def registry_path() -> Path:
     try:
         from importlib.resources import as_file, files
 
-        resource = files("mas.ctl").joinpath("schemas", "component-registry.yaml")
+        resource = files("mas.ctl").joinpath("_schemas", "component-registry.yaml")
         with as_file(resource) as path:
             return Path(path)
     except Exception:

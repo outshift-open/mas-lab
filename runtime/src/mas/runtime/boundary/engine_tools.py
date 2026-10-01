@@ -7,6 +7,53 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 
+class EngineToolBudgetExceeded(RuntimeError):
+    """A governed orchestration action was refused by the facade."""
+
+
+class EngineToolContext(Protocol):
+    """What an engine-tool plugin receives instead of the raw materialized run.
+
+    Sized to the three operations `LlmDelegator.delegate()` and
+    `SubagentSpawner.spawn()` actually perform. A plugin holding this cannot
+    enumerate other agents, reach the comm bus, or skip the spawn ledger,
+    because enforcement lives in the implementation of these methods rather
+    than in plugin discipline.
+    """
+
+    def run_turn(
+        self,
+        agent_id: str,
+        task: str,
+        *,
+        correlation_id: int = 0,
+        caller_call_id: str = "",
+    ) -> str:
+        """Run one turn on an existing peer agent."""
+        ...
+
+    def spawn_instance(self, manifest: dict[str, Any], *, template_id: str) -> str:
+        """Materialize a new child agent and return its minted id.
+
+        Raises ``EngineToolBudgetExceeded`` rather than silently no-opping
+        when the spawn ledger refuses.
+        """
+        ...
+
+    def teardown_instance(self, agent_id: str) -> None:
+        """Remove a child agent and release everything scoped to it."""
+        ...
+
+    @property
+    def depth(self) -> int: ...
+
+    @property
+    def session_id(self) -> str: ...
+
+    @property
+    def parent_agent_id(self) -> str: ...
+
+
 class EngineToolContract(Protocol):
     """Claim and execute one orchestration-level tool call."""
 

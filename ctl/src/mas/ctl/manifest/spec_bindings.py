@@ -259,6 +259,23 @@ def parse_llm(raw: Any) -> None:
     _reject_unknown_keys(raw, allowed=LLM_BINDING_KEYS, field="spec.llm")
 
 
+def parse_contract_binding(raw: Any, *, field: str) -> None:
+    """Validate one manifest-selected Protocol contract binding."""
+    if raw is None:
+        return
+    if isinstance(raw, str):
+        if not raw.strip():
+            raise SpecBindingError(f"{field} must not be empty")
+        return
+    if not isinstance(raw, dict):
+        raise SpecBindingError(f"{field} must be a plugin name or object")
+    _reject_unknown_keys(raw, allowed=frozenset({"type", "ref", "params"}), field=field)
+    if not (str(raw.get("type") or raw.get("ref") or "").strip()):
+        raise SpecBindingError(f"{field} requires type or ref")
+    if "params" in raw and not isinstance(raw["params"], dict):
+        raise SpecBindingError(f"{field}.params must be an object")
+
+
 def parse_execution(raw: Any) -> None:
     if raw is None:
         return
@@ -328,6 +345,9 @@ def validate_agent_spec_bindings(spec: Any) -> None:
     parse_spawn_subagent_params(spawn_subagent_params(spec))
     if "llm" in spec:
         parse_llm(spec["llm"])
+    for field in ("hitl_contract", "user_io_contract"):
+        if field in spec:
+            parse_contract_binding(spec[field], field=f"spec.{field}")
     if "execution" in spec:
         raise SpecBindingError(
             "spec.execution is not allowed on Agent manifests — configure RuntimeEngine "
