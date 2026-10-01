@@ -20,6 +20,7 @@ on:
       - "pyproject.toml"
       - "scripts/**"
       - ".github/workflows/test.yml"
+      - ".github/workflows/docker.yml"
   push:
     branches: [ main ]
   workflow_dispatch:
