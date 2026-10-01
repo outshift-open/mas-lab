@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -33,6 +34,7 @@ class GovernanceBinding:
     policies: list[dict[str, Any]] = field(default_factory=list)
     active_profile: str | None = None
     error_recovery_plugin: str | None = None
+    backtrack: dict[str, Any] | None = None
     ingress_plugins: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -129,8 +131,26 @@ def parse_gov_spec(raw: list | None) -> GovernanceBinding:
             if flat.get("error_recovery_plugin") is not None
             else None
         ),
+        backtrack=flat.get("backtrack"),
         ingress_plugins=ingress_plugins,
     )
+
+
+def _constructor_kwargs(plugin_cls: Any, cfg: dict[str, Any]) -> dict[str, Any]:
+    """Drop config a plugin cannot accept.
+
+    ``spec.governance.backtrack`` mixes plugin tuning (``repeat_threshold``)
+    with session-level policy the controller enforces
+    (``max_backtracks_per_session``, ``steps``, ``on_cap_reached``), so the
+    whole dict cannot be splatted into every recovery plugin.
+    """
+    try:
+        params = inspect.signature(plugin_cls).parameters
+    except (TypeError, ValueError):
+        return dict(cfg)
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return dict(cfg)
+    return {key: value for key, value in cfg.items() if key in params}
 
 
 def build_kernel_config(
@@ -176,7 +196,7 @@ def build_kernel_config(
             )
             return None
         plugin_cls = variant.load_class()
-        return plugin_cls(**cfg)
+        return plugin_cls(**_constructor_kwargs(plugin_cls, cfg))
 
     def _ingress_entry_for(plugin: GovernancePlugin) -> Any | None:
         # Ingress (tool-result) participation is opt-in and duck-typed via
@@ -194,7 +214,10 @@ def build_kernel_config(
     ingress_entries: list[RegisteredIngressPlugin] = []
 
     for name in binding.plugins:
-        plugin = _instantiate(name, dict(binding.plugin_configs.get(name) or {}))
+        plugin_cfg = dict(binding.plugin_configs.get(name) or {})
+        plugin_cfg.pop("error_recovery_plugin", None)
+        plugin_cfg.pop("backtrack", None)
+        plugin = _instantiate(name, plugin_cfg)
         if plugin is not None:
             egress_plugins.append(plugin)
             entry = _ingress_entry_for(plugin)
@@ -255,6 +278,39 @@ def build_kernel_config(
             kwargs[key] = value
     if isinstance(binding.gov_ingress_profile, str):
         kwargs["gov_ingress_profile"] = GovIngressProfile(binding.gov_ingress_profile)
+
+    if binding.backtrack is not None:
+        if not isinstance(binding.backtrack, dict):
+            raise SpecBindingError("spec.governance.backtrack must be an object")
+        allowed = {"repeat_threshold", "max_backtracks_per_session", "steps", "on_cap_reached"}
+        unknown = set(binding.backtrack) - allowed
+        if unknown:
+            raise SpecBindingError(f"spec.governance.backtrack: unknown field {sorted(unknown)[0]!r}")
+        for key in ("repeat_threshold", "max_backtracks_per_session", "steps"):
+            value = binding.backtrack.get(key)
+            if value is not None and (
+                not isinstance(value, int) or isinstance(value, bool) or value < 1
+            ):
+                raise SpecBindingError(f"spec.governance.backtrack.{key} must be an integer >= 1")
+        if binding.backtrack.get("on_cap_reached", "hitl") not in {
+            "hitl",
+            "terminate",
+            "stop_backtracking",
+        }:
+            raise SpecBindingError(
+                "spec.governance.backtrack.on_cap_reached must be hitl, terminate, or stop_backtracking"
+            )
+
+    if binding.error_recovery_plugin:
+        recovery_plugin = _instantiate(
+            binding.error_recovery_plugin,
+            dict(binding.backtrack or {}),
+        )
+        if recovery_plugin is None:
+            raise SpecBindingError(
+                f"spec.governance.error_recovery_plugin {binding.error_recovery_plugin!r} was not found"
+            )
+        kwargs["error_recovery_plugin"] = recovery_plugin
 
     if binding.policies:
         from mas.runtime.boundary.gov.policy_engine import PolicyParseError

@@ -10,6 +10,7 @@ from __future__ import annotations
 from mas.ctl.session.controller import ConversationConfig, SessionController
 from mas.runtime.boundary.context.working_memory_registry import (
     WorkingMemoryConfig,
+    WorkingMemoryRegistry,
     get_working_memory_registry,
     reset_working_memory_registry,
 )
@@ -73,6 +74,7 @@ def _controller(
     session_id: str,
     agent_id: str = "schedule_agent",
     persistent: bool = True,
+    registry: WorkingMemoryRegistry | None = None,
 ) -> SessionController:
     instance = RuntimeInstance.from_parts(engine=_scripted_text_engine(responses))
     instance.working_memory = WorkingMemoryConfig(persistent=persistent)
@@ -83,6 +85,7 @@ def _controller(
         config=ConversationConfig(single_turn=False),
         agent_id=agent_id,
         session_id=session_id,
+        working_memory_registry=registry,
     )
 
 
@@ -124,6 +127,28 @@ def test_different_agent_id_same_session_does_not_share_history() -> None:
     contents = [m["content"] for m in b.instance.driver.ctx.committed_messages]
     assert "hello a" not in contents
     assert "hello b" in contents
+
+
+def test_separate_session_registries_do_not_share_history() -> None:
+    session_id = "session-isolation"
+    first = _controller(
+        responses=["private answer"],
+        session_id=session_id,
+        registry=WorkingMemoryRegistry(),
+    )
+    second = _controller(
+        responses=["independent answer"],
+        session_id=session_id,
+        registry=WorkingMemoryRegistry(),
+    )
+
+    first.run_turn("private question", auto_hitl=False)
+    second.run_turn("independent question", auto_hitl=False)
+
+    second_contents = [m["content"] for m in second.instance.driver.ctx.committed_messages]
+    assert "private question" not in second_contents
+    assert "private answer" not in second_contents
+    assert "independent question" in second_contents
 
 
 def test_persistent_false_starts_fresh_every_turn_even_on_the_same_controller() -> None:

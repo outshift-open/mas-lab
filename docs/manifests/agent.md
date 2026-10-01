@@ -69,6 +69,7 @@ Extension properties (`x-*`) are allowed and ignored by the runtime.
 | `memory_seed` | `MemorySeedEntry[]` | no | — | Documents to pre-index into memory at startup. See [`MemorySeedEntry`](#memoryseedentry). |
 | `memory` | string \| string[] \| object | no | — | Memory backend configuration. See [`MemoryConfig`](#memoryconfig). |
 | `working_memory` | object | no | — | Cross-turn history persistence for delegated agents. See [`WorkingMemory`](#workingmemory). |
+| `checkpoint` | object | no | `{mode: none}` | Session checkpoint cadence, retention, portability and automatic resume. See [checkpoint.md](checkpoint.md). |
 | `skills` | `string[]` | no | `[]` | Skills to activate. Name-only or `@library/name`. Resolution: app-local → libraries → packages. |
 | `tools_ref` | `string` \| null | no | `null` | Logical tool-set name resolved by the infra `ToolRegistry` (e.g. `web-tools`). No paths or extensions. |
 | `tools` | `Tool[]` | no | `[]` | Per-agent tool declarations — three forms. Additive with `tools_ref`. See [`Tool`](#tool). |

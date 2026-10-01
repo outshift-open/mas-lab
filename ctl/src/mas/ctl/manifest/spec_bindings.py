@@ -33,6 +33,7 @@ from typing import Any
 # and re-export so all existing ctl importers continue to work unchanged.
 from mas.runtime.boundary.obs.binding import ObservabilityBinding
 from mas.runtime.spec.gov import GovernanceBinding
+from mas.runtime.spec.checkpoint import parse_checkpoint_policy
 from mas.runtime.spec.schema_bindings_generated import (
     ASSEMBLER_BINDING_KEYS,
     CONTEXT_MANAGER_BINDING_KEYS,
@@ -318,6 +319,8 @@ def validate_agent_spec_bindings(spec: Any) -> None:
         parse_governance(spec["governance"])
     if "observability" in spec:
         parse_observability(spec["observability"])
+    if "checkpoint" in spec:
+        parse_checkpoint_policy(spec["checkpoint"])
     if "llm" in spec:
         parse_llm(spec["llm"])
     if "execution" in spec:

@@ -67,6 +67,7 @@ practical examples.
 
 | Class                    | Full module path                                             | Package                |
 | ------------------------ | ------------------------------------------------------------ | ---------------------- |
+| `BacktrackOnErrorPlugin` | `mas.library.standard.plugins.governance.backtrack_on_error` | `mas-library-standard` |
 | `NoUndeclaredToolPlugin` | `mas.library.standard.plugins.governance.no_undeclared_tool` | `mas-library-standard` |
 | `SampleGovernancePlugin` | `mas.library.standard.plugins.governance.sample`             | `mas-library-standard` |
 
@@ -127,6 +128,7 @@ practical examples.
 
 | Class                            | Category        | Package                |
 | -------------------------------- | --------------- | ---------------------- |
+| `BacktrackOnErrorPlugin`         | governance      | `mas-library-standard` |
 | `CacheLLMProvider`               | llm_provider    | `mas-library-standard` |
 | `ContextAssemblerPlugin`         | assembler       | `mas-library-standard` |
 | `CotPlugin`                      | design_pattern  | `mas-library-standard` |

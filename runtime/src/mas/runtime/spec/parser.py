@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from mas.runtime.spec.gov import GovernanceBinding, build_kernel_config, parse_gov_spec
 from mas.runtime.spec.obs import parse_obs_spec
+from mas.runtime.spec.checkpoint import parse_checkpoint_policy
 from mas.runtime.spec.plugin_binding import plugin_binding_id, plugin_binding_params
 
 if TYPE_CHECKING:
@@ -66,6 +67,7 @@ def parse_agent_spec(
     """
     gov_raw = spec.get("governance")
     obs_raw = spec.get("observability")
+    parse_checkpoint_policy(spec.get("checkpoint"))
     gov_binding: GovernanceBinding = parse_gov_spec(gov_raw)
     pattern_plugin_id = _resolve_pattern_plugin_id(spec)
 

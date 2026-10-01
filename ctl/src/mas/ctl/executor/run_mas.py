@@ -138,6 +138,7 @@ def execute_run_mas(
         verbose=verbose,
         already_wired={entry},
         session_id=prepared.session_id,
+        working_memory_registry=getattr(prepared, "working_memory_registry", None),
         trace=trace,
         trace_timestamps=trace_timestamps,
         trace_engine=trace_engine,
@@ -186,6 +187,7 @@ def execute_run_mas(
             single_turn=single_turn or (bool(scripted) and not interactive),
         ),
         session_id=prepared.session_id,
+        working_memory_registry=getattr(prepared, "working_memory_registry", None),
     )
     exit_code = run_session_loop(
         controller,

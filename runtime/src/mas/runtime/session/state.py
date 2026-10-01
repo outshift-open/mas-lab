@@ -1,0 +1,182 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+"""Session aggregate state above the kernel snapshot."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import Enum
+from pathlib import Path
+from typing import Any, Protocol
+
+from mas.runtime.boundary.context.working_memory_registry import (
+    WorkingMemoryRegistry,
+    sync_working_memory_out,
+)
+from mas.runtime.driver.instance import RuntimeInstance
+from mas.runtime.spec.checkpoint import CheckpointPolicy
+
+
+class CheckpointStore(Protocol):
+    """Persistence boundary used by a session to write a complete snapshot."""
+
+    def save(self, snapshot: dict[str, Any], *, label: str = "") -> Path: ...
+
+    def load_payload(self, path: Path) -> dict[str, Any]: ...
+
+    def retain(self, session_id: str, mode: str, n: int) -> None: ...
+
+
+@dataclass
+class SessionLineage:
+    """Identity and ancestry for one independently addressable session."""
+
+    session_id: str
+    parent_session_id: str | None = None
+    forked_from_checkpoint: str | None = None
+    root_session_id: str | None = None
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+    def __post_init__(self) -> None:
+        if self.root_session_id is None:
+            self.root_session_id = self.parent_session_id or self.session_id
+
+
+class SessionStatus(str, Enum):
+    """Lifecycle state for a session independently of kernel automaton state."""
+
+    CREATED = "created"
+    ACTIVE = "active"
+    PAUSED = "paused"
+    CHECKPOINTING = "checkpointing"
+    TERMINATED = "terminated"
+
+
+class BacktrackCapReached(RuntimeError):
+    """Automatic rollback budget is exhausted; caller applies the cap policy."""
+
+    def __init__(self, action: str) -> None:
+        self.action = action
+        super().__init__(f"automatic backtrack limit reached ({action})")
+
+
+@dataclass(frozen=True)
+class ManifestRef:
+    """Self-contained manifest content and its canonical SHA-256 digest."""
+
+    content: dict[str, Any]
+    content_hash: str
+
+    @classmethod
+    def from_content(cls, content: dict[str, Any]) -> ManifestRef:
+        """Build an integrity reference without embedding external secrets."""
+        encoded = json.dumps(content, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+        return cls(content=json.loads(encoded), content_hash=digest)
+
+
+@dataclass
+class Session:
+    """Own runtime, controller, working memory, and checkpoint lineage."""
+
+    session_id: str
+    instance: RuntimeInstance
+    controller: Any
+    working_memory: WorkingMemoryRegistry
+    lineage: SessionLineage
+    status: SessionStatus = SessionStatus.CREATED
+    manifest_ref: ManifestRef | None = None
+    checkpoint_history: list[str] = field(default_factory=list)
+    checkpoint_policy: CheckpointPolicy = field(default_factory=CheckpointPolicy)
+    backtrack_policy: dict[str, Any] = field(default_factory=dict)
+    backtrack_count: int = 0
+
+    def checkpoint(self, store: CheckpointStore, *, label: str = "") -> Path:
+        """Persist a self-contained snapshot of kernel and conversation state."""
+        if self.manifest_ref is None:
+            raise ValueError("self-contained checkpoint requires manifest content")
+
+        sync_working_memory_out(
+            self.instance,
+            memory_key=self.session_id,
+            agent_id=str(getattr(self.controller, "agent_id", "agent")),
+            registry=self.working_memory,
+        )
+
+        self.status = SessionStatus.CHECKPOINTING
+        payload: dict[str, Any] = {
+            "version": 2,
+            "label": label,
+            "turn": int(getattr(self.controller, "_turn", 0)),
+            "backtrack_count": self.backtrack_count,
+            "lineage": {
+                "session_id": self.lineage.session_id,
+                "parent_session_id": self.lineage.parent_session_id,
+                "forked_from_checkpoint": self.lineage.forked_from_checkpoint,
+                "root_session_id": self.lineage.root_session_id,
+                "created_at": self.lineage.created_at,
+            },
+            "kernel": self.instance.snapshot(),
+            "working_memory": self.working_memory.export_session(self.session_id),
+            "manifest": {
+                "content": self.manifest_ref.content,
+                "content_hash": self.manifest_ref.content_hash,
+            },
+        }
+        try:
+            turn_label = label or f"turn-{payload['turn']:04d}"
+            store_label = f"{self.session_id}-{turn_label}"
+            path = store.save(payload, label=store_label)
+        finally:
+            self.status = SessionStatus.ACTIVE
+        self.checkpoint_history.append(str(path))
+        retain = getattr(store, "retain", None)
+        if callable(retain):
+            retain(
+                self.session_id,
+                self.checkpoint_policy.retention_mode,
+                self.checkpoint_policy.retention_n,
+            )
+        if self.checkpoint_policy.retention_mode == "single":
+            self.checkpoint_history = self.checkpoint_history[-1:]
+        elif self.checkpoint_policy.retention_mode == "last_n":
+            self.checkpoint_history = self.checkpoint_history[-self.checkpoint_policy.retention_n :]
+        return path
+
+    def backtrack(
+        self,
+        store: CheckpointStore,
+        *,
+        steps: int = 1,
+        steering_text: str = "",
+        automatic: bool = False,
+    ) -> Path:
+        """Restore a retained checkpoint and optionally steer the next turn."""
+        if automatic:
+            max_backtracks = self.backtrack_policy.get("max_backtracks_per_session", 3)
+            if self.backtrack_count >= max_backtracks:
+                raise BacktrackCapReached(self.backtrack_policy.get("on_cap_reached", "hitl"))
+        if steps < 1:
+            raise ValueError("backtrack steps must be at least 1")
+        if steps > len(self.checkpoint_history):
+            raise ValueError("backtrack exceeds retained checkpoint history")
+
+        target_index = len(self.checkpoint_history) - steps
+        path = Path(self.checkpoint_history[target_index])
+        payload = store.load_payload(path)
+        self.instance.load_checkpoint(payload["kernel"])
+        self.working_memory.restore_session(
+            self.session_id,
+            payload.get("working_memory") or [],
+        )
+        self.checkpoint_history = self.checkpoint_history[: target_index + 1]
+        self.controller.restore_turn(int(payload.get("turn", 0)))
+        if automatic:
+            self.backtrack_count += 1
+        self.status = SessionStatus.ACTIVE
+        if steering_text.strip():
+            self.controller.run_turn(f"/steer {steering_text.strip()}", auto_hitl=False)
+        return path

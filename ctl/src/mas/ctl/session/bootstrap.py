@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from mas.ctl.adapters.checkpoint import JsonCheckpointStore
+from mas.ctl.adapters.checkpoint import InMemoryCheckpointStore, JsonCheckpointStore
 from mas.ctl.adapters.memory_seed import (
     MemorySeed,
     MemorySeedLoader,
@@ -104,7 +104,7 @@ def instantiate_runtime(
     options: InstantiationOptions,
     *,
     hitl=None,
-) -> tuple[RuntimeInstance, JsonCheckpointStore | None]:
+) -> tuple[RuntimeInstance, JsonCheckpointStore | InMemoryCheckpointStore | None]:
     """Ctl-owned bootstrap: validate seeds/checkpoints, build instance, restore state."""
     seeds: list[MemorySeed] = []
     if options.memory_seed_path:
@@ -249,13 +249,20 @@ def instantiate_runtime(
         index_seeds_in_semantic_memory(seeds, agent_id=agent_id)
 
     if options.checkpoint_path:
-        cp_store = store or JsonCheckpointStore(options.checkpoint_path.parent)
-        kernel_snap = cp_store.load(options.checkpoint_path)
-        instance.load_checkpoint(kernel_snap)
-        if cp_store.memory_seeds:
+        reader = store or JsonCheckpointStore(options.checkpoint_path.parent)
+        payload = reader.load_payload(options.checkpoint_path)
+        instance.load_checkpoint(payload["kernel"])
+        spec = (options.agent_manifest or {}).get("spec") or {}
+        from mas.runtime.spec.checkpoint import parse_checkpoint_policy
+
+        if parse_checkpoint_policy(spec.get("checkpoint")).mode == "in_memory":
+            store = InMemoryCheckpointStore()
+        else:
+            store = reader
+        if reader.memory_seeds:
             apply_memory_seeds(
                 instance,
-                [MemorySeed(key=r["key"], content=r["content"]) for r in cp_store.memory_seeds],
+                [MemorySeed(key=r["key"], content=r["content"]) for r in reader.memory_seeds],
             )
 
     instance.capture_session_baseline()

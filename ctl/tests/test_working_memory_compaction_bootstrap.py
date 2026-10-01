@@ -7,7 +7,7 @@ from pathlib import Path
 from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
 
 
-def _instantiate(manifest: dict, tmp_path: Path, monkeypatch):
+def _instantiate(manifest: dict, tmp_path: Path, monkeypatch, **options):
     from mas.ctl.infra.resolve import resolve_infra_refs
     from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
 
@@ -22,6 +22,7 @@ def _instantiate(manifest: dict, tmp_path: Path, monkeypatch):
             resolved_infra=infra,
             enable_observability=False,
             enable_governance=False,
+            **options,
         )
     )
 
@@ -76,3 +77,39 @@ def test_summarize_sugar_writes_context_manager_without_runtime_callables(tmp_pa
     assert cm["params"]["keep_turns"] == 4
     assert "summarize_fn" not in cm["params"]
     assert getattr(instance.driver.ctx, "engine", None) is instance.driver.engine
+
+
+def test_in_memory_resume_does_not_keep_a_disk_store(tmp_path: Path, monkeypatch):
+    from mas.ctl.adapters.checkpoint import InMemoryCheckpointStore, JsonCheckpointStore
+    from mas.runtime.session import ManifestRef
+
+    manifest = {
+        "metadata": {"name": "agent"},
+        "spec": {"checkpoint": {"mode": "in_memory"}},
+    }
+    instance, _ = _instantiate(manifest, tmp_path, monkeypatch)
+    kernel = instance.snapshot()
+    disk = JsonCheckpointStore(tmp_path)
+    path = disk.save(
+        {
+            "version": 2,
+            "label": "seed",
+            "turn": 1,
+            "lineage": {
+                "session_id": "s",
+                "parent_session_id": None,
+                "forked_from_checkpoint": None,
+                "root_session_id": "s",
+                "created_at": "2026-09-30T12:00:00+00:00",
+            },
+            "kernel": kernel,
+            "working_memory": [],
+            "manifest": {
+                "content": manifest,
+                "content_hash": ManifestRef.from_content(manifest).content_hash,
+            },
+        },
+        label="seed",
+    )
+    _, store = _instantiate(manifest, tmp_path, monkeypatch, checkpoint_path=path)
+    assert isinstance(store, InMemoryCheckpointStore)

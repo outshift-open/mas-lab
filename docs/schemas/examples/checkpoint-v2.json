@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "label": "example",
+  "turn": 0,
+  "lineage": {
+    "session_id": "checkpoint-example-session",
+    "parent_session_id": null,
+    "forked_from_checkpoint": null,
+    "root_session_id": "checkpoint-example-session",
+    "created_at": "2026-09-30T12:00:00+00:00"
+  },
+  "kernel": {"q": {}, "run": {}},
+  "working_memory": [],
+  "manifest": {
+    "content": {
+      "kind": "Agent",
+      "metadata": {"name": "checkpoint-example"},
+      "spec": {"description": "Example manifest"}
+    },
+    "content_hash": "2850b6ca59fcb62e16e9b88f7cbd240329f58310897faf97e334f639ac1cdea5"
+  }
+}

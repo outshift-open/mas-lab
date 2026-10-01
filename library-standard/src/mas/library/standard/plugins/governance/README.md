@@ -12,6 +12,7 @@ Manifest `spec.governance.hitl_mode` selects the operator plugin at ctl bootstra
 | `hitl-auto-deny@v1` | `HitlResponder` | `KernelDriver.hitl` | Negative tests |
 | `hitl-interactive@ctl` | `HitlTerminal` | ctl session boundary | TTY / TUI operator |
 | `gov_no_undeclared_tool` | `GovernancePlugin` | `spec.governance` chain | BLOCK tool names not in this LLM call's `tools` list (pass otherwise); reason is fed back as a tool observation. Example: [examples/governance/undeclared-tool/](../../../../../../examples/governance/undeclared-tool/). Overlay: `with-hardened`. |
+| `backtrack_on_error` | `ErrorRecoveryPlugin` | `spec.governance[].error_recovery_plugin` | Retry an identical engine error, then request session-level rollback at the configured repeat threshold. |
 
 Plugin card: [no-undeclared-tool.md](no-undeclared-tool.md).
 Overlay index: [../../overlays/README.md](../../overlays/README.md).

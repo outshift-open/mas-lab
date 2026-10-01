@@ -78,6 +78,32 @@ def test_clear_session_drops_every_agent_in_that_session_only():
     assert registry.get("session-b", "agent-a") is not None
 
 
+def test_clone_for_fork_and_export_restore_keep_independent_snapshots():
+    registry = WorkingMemoryRegistry()
+    registry.put(
+        "parent",
+        "agent-a",
+        WorkingMemorySnapshot(
+            turn_history=[("hello", "world")],
+            committed_messages=[{"role": "user", "content": "hello"}],
+        ),
+    )
+
+    registry.clone_for_fork("parent", "child")
+    child = registry.get("child", "agent-a")
+    assert child is not None
+    child.committed_messages[0]["content"] = "changed"
+    assert registry.get("parent", "agent-a").committed_messages[0]["content"] == "hello"
+
+    exported = registry.export_session("parent")
+    restored = WorkingMemoryRegistry()
+    restored.restore_session("resumed", exported)
+    resumed = restored.get("resumed", "agent-a")
+    assert resumed is not None
+    assert resumed.turn_history == [("hello", "world")]
+    assert resumed.committed_messages == [{"role": "user", "content": "hello"}]
+
+
 def test_put_ignores_empty_session_or_agent_id():
     registry = WorkingMemoryRegistry()
     registry.put("", "agent-a", WorkingMemorySnapshot(turn_history=[("q", "a")]))
@@ -204,3 +230,22 @@ def test_sync_working_memory_round_trips_conversation_chunks():
 
     assert fresh.conversation_chunks.project_messages()
     assert any(m.get("content") == "hello" for m in fresh.conversation_chunks.project_messages())
+
+
+def test_registry_round_trips_in_turn_tool_context():
+    ctx = AutoCtxAssembler()
+    ctx.working_memory.record_assistant_tool_call(
+        call_id="tool-call-1",
+        tool_name="lookup",
+        arguments={"query": "current turn"},
+    )
+    registry = WorkingMemoryRegistry()
+    registry.put("session", "agent", snapshot_ctx(ctx))
+
+    restored_registry = WorkingMemoryRegistry()
+    restored_registry.restore_session("restored", registry.export_session("session"))
+    fresh = AutoCtxAssembler()
+    restore_ctx(fresh, restored_registry.get("restored", "agent"))
+
+    assert fresh.working_memory.messages[0]["tool_calls"][0]["id"] == "tool-call-1"
+    assert fresh.working_memory._open_tool_call_id == "tool-call-1"

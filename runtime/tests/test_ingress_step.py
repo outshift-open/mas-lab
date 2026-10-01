@@ -125,3 +125,32 @@ def test_hitl_skipped_still_closes_envelope() -> None:
     assert EnvelopeSymbol.OBSERVABILITY_POST_EXECUTE.value in symbols
     assert EnvelopeSymbol.CONTRACT_END.value in symbols
     assert EnvelopeSymbol.GOVERNANCE_VALIDATE.value not in symbols
+
+
+def test_backtrack_decision_returns_session_boundary_signal_without_committing_error():
+    q = QProduct()
+    q.pending_engine_correlation_id = 9
+    run = RunLedger()
+    event = EngineIoReturn(
+        correlation_id=9,
+        response_kind="ERROR",
+        next_step="STOP",
+        text="connection refused",
+    )
+
+    with patch(
+        "mas.runtime.kernel.ingress_step.ingress_governance_valid",
+        return_value=True,
+    ), patch(
+        "mas.runtime.kernel.ingress_step.run_ingress_validate_envelope",
+        return_value=IngressGovDecision(
+            action=GovernanceAction.BACKTRACK,
+            message="connection refused",
+        ),
+    ):
+        output = apply_engine_io_return(q, run, event, config=KernelConfig(), evaluate=MagicMock())
+
+    assert isinstance(output[0], RaiseBoundaryError)
+    assert output[0].code == "INGRESS_BACKTRACK"
+    assert output[0].message == "connection refused"
+    assert run.events == []

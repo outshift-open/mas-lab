@@ -38,6 +38,7 @@ class _ErrorRecoveryIngressAdapter:
             boundary_code=decision.boundary_code,
             message=decision.message,
             recoverable=decision.recoverable,
+            chain=decision.chain,
         )
 
 

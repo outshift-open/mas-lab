@@ -18,6 +18,9 @@ from mas.ctl.session.controller import (
     close_observability,
     run_session_loop,
 )
+from mas.ctl.session.manager import SessionManager
+from mas.runtime.spec.checkpoint import parse_checkpoint_policy
+from mas.runtime.session import ManifestRef
 from mas.ctl.session.display_user_io_contract import ConversationDisplayUserIOContract
 from mas.ctl.session.hitl_config import resolve_hitl_from_manifest
 from mas.ctl.session.interactive_hitl_contract import InteractiveHitlContract
@@ -171,6 +174,18 @@ def chat_cmd(
             pattern=pattern,
             validate=not no_validate,
         )
+        if not manifest and load_checkpoint:
+            checkpoint_path = resolve_overlay_path(
+                load_checkpoint,
+                orig_cwd=session.original_cwd,
+                manifest_dir=session.manifest_dir,
+            )
+            embedded_manifest = _embedded_checkpoint_manifest(checkpoint_path)
+            if embedded_manifest is not None:
+                agent_data = embedded_manifest
+                from mas.runtime.spec.parser import parse_agent_spec
+
+                plugin = parse_agent_spec(agent_data.get("spec") or {})[0].pattern_plugin_id
 
         from mas.ctl.session.flavour import FlavourError, resolve_flavour
 
@@ -248,13 +263,45 @@ def chat_cmd(
                 create_dir=True,
             )
 
+        spec_data = (agent_data or {}).get("spec") or {}
+        checkpoint_policy = parse_checkpoint_policy(spec_data.get("checkpoint"))
+        resolved_checkpoint_dir = _opt_dir(checkpoint_dir)
+        if resolved_checkpoint_dir is None and (
+            checkpoint_policy.mode in {"every_turn", "on_event"}
+            or checkpoint_policy.auto_resume_latest
+        ):
+            checkpoint_anchor = session.manifest_dir or session.original_cwd
+            resolved_checkpoint_dir = checkpoint_anchor / ".mas" / "checkpoints"
+
+        load_checkpoint_path = _opt_file(load_checkpoint)
+        if checkpoint_policy.auto_resume_latest and load_checkpoint_path is None:
+            from mas.ctl.adapters.checkpoint import JsonCheckpointStore
+
+            expected_hash = ManifestRef.from_content(agent_data or {}).content_hash
+            candidates = []
+            for candidate in JsonCheckpointStore(resolved_checkpoint_dir).list_checkpoints():
+                try:
+                    payload = JsonCheckpointStore(resolved_checkpoint_dir).load_payload(candidate)
+                except (OSError, ValueError):
+                    continue
+                manifest_payload = payload.get("manifest") or {}
+                if (
+                    payload.get("version") == 2
+                    and manifest_payload.get("content_hash") == expected_hash
+                ):
+                    candidates.append(candidate)
+            if candidates:
+                load_checkpoint_path = max(candidates, key=lambda item: item.stat().st_mtime_ns)
+
         try:
             instance, store = instantiate_runtime(
                 InstantiationOptions(
                     pattern_plugin_id=plugin,
                     memory_seed_path=_opt_file(memory_seed_path),
-                    checkpoint_path=_opt_file(load_checkpoint),
-                    checkpoint_dir=_opt_dir(checkpoint_dir),
+                    checkpoint_path=load_checkpoint_path,
+                    checkpoint_dir=(
+                        None if checkpoint_policy.mode == "in_memory" else resolved_checkpoint_dir
+                    ),
                     validate_manifests=not no_validate,
                     cache_read_override=cache_read,
                     cache_write_override=cache_write,
@@ -283,6 +330,17 @@ def chat_cmd(
         except RuntimeError as exc:
             click.echo(f"error: {exc}", err=True)
             raise SystemExit(1) from None
+
+        if checkpoint_policy.mode == "in_memory":
+            from mas.ctl.adapters.checkpoint import InMemoryCheckpointStore
+
+            if load_checkpoint_path is None:
+                store = InMemoryCheckpointStore()
+                controller_store = store
+            else:
+                controller_store = store
+        else:
+            controller_store = store
 
         obs_cfg = resolve_observability_config(
             events=events,
@@ -321,7 +379,7 @@ def chat_cmd(
             instance=instance,
             display=display,
             hitl_terminal=hitl_terminal,
-            checkpoint_store=store,
+            checkpoint_store=controller_store,
             verbose=verbose,
             **trace.as_session_kwargs(),
             obs_recorder=obs_rec,
@@ -332,6 +390,15 @@ def chat_cmd(
                 save_checkpoint_each_turn=save_checkpoint,
             ),
         )
+        session_manager = SessionManager(checkpoint_store=controller_store)
+        managed_session = session_manager.create(instance, controller, agent_data or {})
+        if load_checkpoint_path is not None:
+            session_manager.restore_checkpoint(
+                managed_session,
+                load_checkpoint_path,
+                manifest_content=agent_data or {},
+            )
+        controller.managed_session = managed_session
 
         if interactive:
             emit_session_protocol_hints(
@@ -345,8 +412,24 @@ def chat_cmd(
             )
         rc = run_session_loop(controller, interactive=interactive, scripted=scripted)
 
-        if save_checkpoint and store is not None:
-            path = store.save(instance.record_checkpoint("final"), label="final")
+        if save_checkpoint and controller_store is not None:
+            path = session_manager.checkpoint(managed_session.session_id, label="final")
             display.on_system(f"checkpoint saved: {path}")
         close_observability(controller)
         raise SystemExit(rc)
+
+
+def _embedded_checkpoint_manifest(path: Path) -> dict | None:
+    """Read verified manifest content for resume without a local manifest file."""
+    from mas.ctl.adapters.checkpoint import JsonCheckpointStore
+
+    payload = JsonCheckpointStore(path.parent).load_payload(path)
+    if payload.get("version") != 2:
+        return None
+    manifest = payload.get("manifest") or {}
+    content = manifest.get("content")
+    if not isinstance(content, dict):
+        raise click.ClickException("checkpoint has no embedded manifest")
+    if ManifestRef.from_content(content).content_hash != manifest.get("content_hash"):
+        raise click.ClickException("checkpoint manifest hash mismatch")
+    return content

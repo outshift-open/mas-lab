@@ -22,6 +22,7 @@ from mas.ctl.session.controller import ConversationConfig, SessionController
 from mas.ctl.ui.turn_result import turn_failed
 from mas.runtime.agent_defaults import default_pattern_plugin_id
 from mas.runtime.boundary.agentcomm.routing import AgentCommRoute, build_agent_comm_routes
+from mas.runtime.boundary.context.working_memory_registry import WorkingMemoryRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,7 @@ class PreparedEntrySession:
     # reuse this same value for the entry agent's own SessionController and
     # for wire_peer_delegation, so every agent in the run shares it.
     session_id: str = ""
+    working_memory_registry: WorkingMemoryRegistry | None = None
 
 
 def entry_agent_id(mas_config: dict[str, Any]) -> str:
@@ -171,6 +173,7 @@ def prepare_delegation_entry_session(
         instance.driver.agent_id = entry_id
 
     resolved_session_id = session_id or str(uuid.uuid4())
+    working_memory_registry = WorkingMemoryRegistry()
 
     manifest_path = entry_manifest_path or agent_manifest_path(compose.bind, entry_id)
     agent_manifest = entry_manifest or load_agent_manifest_from_bind(compose.bind, entry_id) or {}
@@ -192,6 +195,7 @@ def prepare_delegation_entry_session(
             verbose=verbose,
             from_agent=entry_id,
             session_id=resolved_session_id,
+            working_memory_registry=working_memory_registry,
             trace=trace,
             trace_timestamps=trace_timestamps,
             trace_engine=trace_engine,
@@ -208,6 +212,7 @@ def prepare_delegation_entry_session(
         manifest_path=manifest_path or entry_manifest_dir / f"{entry_id}.yaml",
         entry_agent_id=entry_id,
         session_id=resolved_session_id,
+        working_memory_registry=working_memory_registry,
     )
 
 
@@ -219,6 +224,7 @@ def wire_peer_delegation(
     verbose: int = 0,
     already_wired: "set[str] | None" = None,
     session_id: str = "",
+    working_memory_registry: WorkingMemoryRegistry | None = None,
     trace: bool = False,
     trace_timestamps: bool = False,
     trace_engine: bool = False,
@@ -259,6 +265,7 @@ def wire_peer_delegation(
         verbose=verbose,
         from_agent=entry_id,
         session_id=session_id,
+        working_memory_registry=working_memory_registry,
         trace=trace,
         trace_timestamps=trace_timestamps,
         trace_engine=trace_engine,
@@ -369,6 +376,7 @@ def make_workflow_send(
     verbose: int,
     from_agent: str = "",
     session_id: str = "",
+    working_memory_registry: WorkingMemoryRegistry | None = None,
     trace: bool = False,
     trace_timestamps: bool = False,
     trace_engine: bool = False,
@@ -393,6 +401,7 @@ def make_workflow_send(
         "call_seq": 0,
         "session_id": session_id or str(uuid.uuid4()),
         "controllers": {},
+        "working_memory_registry": working_memory_registry or WorkingMemoryRegistry(),
     }
 
     def send(
@@ -477,6 +486,7 @@ def make_workflow_send(
                 config=ConversationConfig(single_turn=True),
                 session_id=state["session_id"],
                 working_memory_key=memory_key,
+                working_memory_registry=state["working_memory_registry"],
                 caller_agent_id=caller_agent_id,
                 trace=trace,
                 trace_timestamps=trace_timestamps,

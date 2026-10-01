@@ -78,6 +78,7 @@ class KernelIngressGovernancePlugin:
                 boundary_code=decision.boundary_code,
                 message=decision.message,
                 recoverable=decision.recoverable,
+                chain=decision.chain,
             )
 
         action, reason = ingress_governance_outcome(

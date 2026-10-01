@@ -22,6 +22,7 @@ for it).
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -36,6 +37,9 @@ class WorkingMemorySnapshot:
     turn_history: list[tuple[str, str]] = field(default_factory=list)
     committed_messages: list[dict[str, Any]] = field(default_factory=list)
     conversation_chunks: dict[str, Any] | None = None
+    working_messages: list[dict[str, Any]] = field(default_factory=list)
+    open_tool_call_id: str = ""
+    synced_tool_result_cids: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -75,6 +79,45 @@ class WorkingMemoryRegistry:
         for key in [k for k in self._store if k[0] == session_id]:
             del self._store[key]
 
+    def clone_for_fork(self, session_id: str, new_session_id: str) -> None:
+        """Copy one session's snapshots into a distinct session namespace."""
+        for (source_id, agent_id), snapshot in list(self._store.items()):
+            if source_id == session_id:
+                self.put(new_session_id, agent_id, deepcopy(snapshot))
+
+    def export_session(self, session_id: str) -> list[dict[str, Any]]:
+        """Return JSON-compatible working-memory state for one session."""
+        return [
+            {
+                "agent_id": agent_id,
+                "turn_history": deepcopy(snapshot.turn_history),
+                "committed_messages": deepcopy(snapshot.committed_messages),
+                "conversation_chunks": deepcopy(snapshot.conversation_chunks),
+                "working_messages": deepcopy(snapshot.working_messages),
+                "open_tool_call_id": snapshot.open_tool_call_id,
+                "synced_tool_result_cids": list(snapshot.synced_tool_result_cids),
+            }
+            for (stored_session_id, agent_id), snapshot in sorted(self._store.items())
+            if stored_session_id == session_id
+        ]
+
+    def restore_session(self, session_id: str, entries: list[dict[str, Any]]) -> None:
+        """Replace one session's snapshots from checkpoint data."""
+        self.clear_session(session_id)
+        for entry in entries:
+            self.put(
+                session_id,
+                entry["agent_id"],
+                WorkingMemorySnapshot(
+                    turn_history=[tuple(turn) for turn in entry.get("turn_history", [])],
+                    committed_messages=deepcopy(entry.get("committed_messages", [])),
+                    conversation_chunks=deepcopy(entry.get("conversation_chunks")),
+                    working_messages=deepcopy(entry.get("working_messages", [])),
+                    open_tool_call_id=str(entry.get("open_tool_call_id") or ""),
+                    synced_tool_result_cids=list(entry.get("synced_tool_result_cids", [])),
+                ),
+            )
+
     def clear(self) -> None:
         self._store.clear()
 
@@ -87,10 +130,16 @@ def snapshot_ctx(ctx: "AutoCtxAssembler") -> WorkingMemorySnapshot:
         if chunk_store.order or chunk_store.summary_chunk_id
         else None
     )
+    working_memory = getattr(ctx, "working_memory", None)
     return WorkingMemorySnapshot(
         turn_history=list(ctx.turn_history),
         committed_messages=list(ctx.committed_messages),
         conversation_chunks=chunks_dict,
+        working_messages=deepcopy(getattr(working_memory, "messages", [])),
+        open_tool_call_id=str(getattr(working_memory, "_open_tool_call_id", "")),
+        synced_tool_result_cids=sorted(
+            getattr(working_memory, "_synced_tool_result_cids", set())
+        ),
     )
 
 
@@ -99,6 +148,11 @@ def restore_ctx(ctx: "AutoCtxAssembler", snapshot: WorkingMemorySnapshot) -> Non
     ctx.turn_history = list(snapshot.turn_history)
     ctx.committed_messages = list(snapshot.committed_messages)
     ctx.conversation_chunks = ConversationChunkStore.from_dict(snapshot.conversation_chunks)
+    working_memory = getattr(ctx, "working_memory", None)
+    if working_memory is not None:
+        working_memory.messages = deepcopy(snapshot.working_messages)
+        working_memory._open_tool_call_id = snapshot.open_tool_call_id
+        working_memory._synced_tool_result_cids = set(snapshot.synced_tool_result_cids)
 
 
 def clear_ctx_working_memory(ctx: "AutoCtxAssembler") -> None:
@@ -106,6 +160,9 @@ def clear_ctx_working_memory(ctx: "AutoCtxAssembler") -> None:
     ctx.turn_history = []
     ctx.committed_messages = []
     ctx.conversation_chunks = ConversationChunkStore()
+    working_memory = getattr(ctx, "working_memory", None)
+    if working_memory is not None:
+        working_memory.clear()
 
 
 def is_persistent(instance: Any) -> bool:
@@ -121,7 +178,13 @@ def is_persistent(instance: Any) -> bool:
     return bool(getattr(getattr(instance, "working_memory", None), "persistent", True))
 
 
-def sync_working_memory_in(instance: Any, *, memory_key: str, agent_id: str) -> None:
+def sync_working_memory_in(
+    instance: Any,
+    *,
+    memory_key: str,
+    agent_id: str,
+    registry: WorkingMemoryRegistry | None = None,
+) -> None:
     """Before a turn: restore or clear this agent's cross-turn buffer.
 
     ``spec.working_memory.persistent`` (default true): true restores any
@@ -144,21 +207,29 @@ def sync_working_memory_in(instance: Any, *, memory_key: str, agent_id: str) -> 
     if not is_persistent(instance):
         clear_ctx_working_memory(ctx)
         return
-    snapshot = get_working_memory_registry().get(memory_key, agent_id)
+    owner = registry or get_working_memory_registry()
+    snapshot = owner.get(memory_key, agent_id)
     if snapshot is not None:
         restore_ctx(ctx, snapshot)
     else:
         clear_ctx_working_memory(ctx)
 
 
-def sync_working_memory_out(instance: Any, *, memory_key: str, agent_id: str) -> None:
+def sync_working_memory_out(
+    instance: Any,
+    *,
+    memory_key: str,
+    agent_id: str,
+    registry: WorkingMemoryRegistry | None = None,
+) -> None:
     """After a turn: save this agent's cross-turn buffer for next time."""
     if not is_persistent(instance):
         return
     ctx = getattr(instance.driver, "ctx", None)
     if ctx is None:
         return
-    get_working_memory_registry().put(memory_key, agent_id, snapshot_ctx(ctx))
+    owner = registry or get_working_memory_registry()
+    owner.put(memory_key, agent_id, snapshot_ctx(ctx))
 
 
 _REGISTRY = WorkingMemoryRegistry()

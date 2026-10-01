@@ -147,7 +147,6 @@ def test_flags_only_fallback_also_resolves_sample_governance_via_registry() -> N
     assert config.egress_governance_plugin is not None
     assert config.egress_governance_plugin.config.hitl_on_tool is True
 
-
 def test_agent_spec_threads_through_to_kernel_config() -> None:
     spec = {"tools": ["lookup_schedule"], "models": [{"model": "gpt-4o"}]}
     binding = parse_gov_spec(None)
@@ -191,3 +190,100 @@ def test_distinct_plugins_are_chained_not_last_wins() -> None:
         ):
             reg._entries.pop(urn, None)
             reg._aliases.pop(shortcut, None)
+
+
+def test_error_recovery_plugin_resolves_from_manifest_governance_binding() -> None:
+    from mas.library.standard.plugins.governance.backtrack_on_error import BacktrackOnErrorPlugin
+    from mas.runtime.registry import get_registry, register_plugin
+
+    urn = "mas.gov.test_backtrack_on_error"
+    shortcut = "test_backtrack_on_error"
+    try:
+        register_plugin(
+            urn,
+            BacktrackOnErrorPlugin,
+            shortcuts=[shortcut],
+            attributes={"plugin_type": "governance"},
+        )
+        binding = parse_gov_spec(
+            [
+                {
+                    "sample_governance": {
+                        "error_recovery_plugin": shortcut,
+                        "backtrack": {"repeat_threshold": 2},
+                    }
+                }
+            ]
+        )
+
+        config = build_kernel_config(binding)
+
+        assert isinstance(config.error_recovery_plugin, BacktrackOnErrorPlugin)
+        assert config.error_recovery_plugin.repeat_threshold == 2
+    finally:
+        registry = get_registry()
+        registry._entries.pop(urn, None)
+        registry._aliases.pop(shortcut, None)
+
+
+def test_error_recovery_plugin_ignores_session_level_backtrack_fields() -> None:
+    """The shipped openclaw overlay mixes plugin tuning with session policy."""
+    from mas.library.standard.plugins.governance.backtrack_on_error import BacktrackOnErrorPlugin
+    from mas.runtime.registry import get_registry, register_plugin
+
+    urn = "mas.gov.test_backtrack_full_config"
+    shortcut = "test_backtrack_full_config"
+    try:
+        register_plugin(
+            urn,
+            BacktrackOnErrorPlugin,
+            shortcuts=[shortcut],
+            attributes={"plugin_type": "governance"},
+        )
+        binding = parse_gov_spec(
+            [
+                {
+                    "sample_governance": {
+                        "error_recovery_plugin": shortcut,
+                        "backtrack": {
+                            "repeat_threshold": 2,
+                            "max_backtracks_per_session": 3,
+                            "steps": 1,
+                            "on_cap_reached": "hitl",
+                        },
+                    }
+                }
+            ]
+        )
+
+        config = build_kernel_config(binding)
+
+        assert isinstance(config.error_recovery_plugin, BacktrackOnErrorPlugin)
+        assert config.error_recovery_plugin.repeat_threshold == 2
+    finally:
+        registry = get_registry()
+        registry._entries.pop(urn, None)
+        registry._aliases.pop(shortcut, None)
+
+
+def test_backtrack_plugin_retries_first_error_and_requests_rollback_on_repeat() -> None:
+    from mas.library.standard.plugins.governance.backtrack_on_error import BacktrackOnErrorPlugin
+    from mas.runtime.boundary.gov.error_recovery import ErrorRecoveryAction, IngressErrorContext
+    from mas.runtime.schema.governance import GovIngressProfile
+
+    plugin = BacktrackOnErrorPlugin(repeat_threshold=2)
+    context = IngressErrorContext(
+        response_kind="ERROR",
+        error_text="connection refused",
+        retry_count=0,
+        max_retries=2,
+        profile=GovIngressProfile.PERMISSIVE,
+    )
+
+    first = plugin.decide(context)
+    second = plugin.decide(
+        IngressErrorContext(**{**context.__dict__, "retry_count": 1})
+    )
+
+    assert first.action is ErrorRecoveryAction.RETRY
+    assert second.action is ErrorRecoveryAction.BACKTRACK

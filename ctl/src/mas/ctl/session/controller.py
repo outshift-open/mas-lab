@@ -17,6 +17,7 @@ from mas.ctl.session.exchange_log import (
 )
 from mas.ctl.ui.display import ConversationDisplay
 from mas.runtime.boundary.context.working_memory_registry import (
+    WorkingMemoryRegistry,
     get_working_memory_registry,
     sync_working_memory_in,
     sync_working_memory_out,
@@ -25,6 +26,7 @@ from mas.runtime.boundary.obs.exchange_plugin import ExchangePlugin
 from mas.runtime.driver.driver import DriverTrace, ExchangeRecord
 from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.schema.egress import EmitClientResponse
+from mas.runtime.session import BacktrackCapReached, Session, SessionStatus
 
 _logger = logging.getLogger("mas.runtime")
 _RED = "\033[1;31m"
@@ -52,12 +54,25 @@ class _ToolErrorAndListenerBridge(ExchangePlugin):
     def __init__(self) -> None:
         self.agent_id = "n/a"
         self.exchange_listener: Any | None = None
+        self.checkpoint_callback: Any | None = None
 
-    def configure(self, *, agent_id: str, exchange_listener: Any | None) -> None:
+    def configure(
+        self,
+        *,
+        agent_id: str,
+        exchange_listener: Any | None,
+        checkpoint_callback: Any | None = None,
+    ) -> None:
         self.agent_id = agent_id
         self.exchange_listener = exchange_listener
+        self.checkpoint_callback = checkpoint_callback
 
     def on_exchange(self, record: ExchangeRecord) -> None:
+        if callable(self.checkpoint_callback):
+            try:
+                self.checkpoint_callback(record)
+            except Exception:
+                _logger.exception("session checkpoint callback failed")
         if record.kind == "tool_result" and '"error"' in record.text:
             message = f"[{self.agent_id}] TOOL ERROR: {record.text.strip()}"
             print(f"{_RED}{message}{_RESET}", file=sys.stderr, flush=True)
@@ -96,6 +111,7 @@ class SessionController:
     display: ConversationDisplay
     hitl_terminal: Any | None = None
     checkpoint_store: Any | None = None
+    managed_session: Session | None = field(default=None, repr=False)
     config: ConversationConfig = field(default_factory=ConversationConfig)
     verbose: int = 0
     trace: bool = False
@@ -122,10 +138,22 @@ class SessionController:
     # controller's own agent (see _working_memory_key). Empty means use
     # session_id. Set by make_workflow_send when a delegate supplies context_id.
     working_memory_key: str = ""
+    working_memory_registry: WorkingMemoryRegistry | None = field(default=None, repr=False)
     _turn: int = 0
     _trace_turn_start: float = 0.0
     _trace_plugin: CliTraceExchangePlugin | None = field(default=None, repr=False)
     _bridge_plugin: _ToolErrorAndListenerBridge | None = field(default=None, repr=False)
+    _checkpoint_event_counter: int = field(default=0, repr=False)
+
+    @property
+    def turn(self) -> int:
+        return self._turn
+
+    def restore_turn(self, n: int) -> None:
+        """Set the completed-turn counter after checkpoint restore or backtrack."""
+        if n < 0:
+            raise ValueError("turn must be >= 0")
+        self._turn = int(n)
 
     def __post_init__(self) -> None:
         if not self.session_id:
@@ -175,7 +203,11 @@ class SessionController:
         if self._bridge_plugin is None:
             self._bridge_plugin = _ToolErrorAndListenerBridge()
             self.instance.driver.subscribe_exchange(self._bridge_plugin)
-        self._bridge_plugin.configure(agent_id=self.agent_id, exchange_listener=self.exchange_listener)
+        self._bridge_plugin.configure(
+            agent_id=self.agent_id,
+            exchange_listener=self.exchange_listener,
+            checkpoint_callback=self._checkpoint_after_exchange,
+        )
 
         # Skip normal display if neither trace nor verbose logging requested
         # (the error/listener bridge stays active regardless).
@@ -271,8 +303,10 @@ class SessionController:
         # turn's sync_working_memory_in() would restore the pre-reset
         # history right back, silently undoing the reset the user just asked
         # for (see docs/design/working-memory-compaction.md).
-        get_working_memory_registry().drop(self._working_memory_key(), self.agent_id)
-        self._turn = 0
+        (self.working_memory_registry or get_working_memory_registry()).drop(
+            self._working_memory_key(), self.agent_id
+        )
+        self.restore_turn(0)
         self.display.on_system(
             "session reset — working memory and turn history cleared; system prompt restored"
         )
@@ -300,15 +334,53 @@ class SessionController:
         if callable(note_resp) and (response_text or has_working_memory):
             note_resp(response_text)
         sync_working_memory_out(
-            self.instance, memory_key=self._working_memory_key(), agent_id=self.agent_id
+            self.instance,
+            memory_key=self._working_memory_key(),
+            agent_id=self.agent_id,
+            registry=self.working_memory_registry,
         )
         if result.awaiting_hitl:
             return
-        if self.config.save_checkpoint_each_turn and self.checkpoint_store is not None:
-            snap = self.instance.record_checkpoint(
-                f"{self.config.checkpoint_label_prefix}-{self._turn}"
+        policy = self.managed_session.checkpoint_policy if self.managed_session is not None else None
+        policy_checkpoint = bool(
+            policy
+            and (
+                policy.mode == "every_turn"
+                or (
+                    policy.mode == "on_event"
+                    and "every_n_turns" in policy.triggers
+                    and policy.every_n_turns is not None
+                    and self._turn % policy.every_n_turns == 0
+                )
             )
-            self.checkpoint_store.save(snap)
+        )
+        if (self.config.save_checkpoint_each_turn or policy_checkpoint) and self.checkpoint_store is not None:
+            label = f"{self.config.checkpoint_label_prefix}-{self._turn}"
+            if self.managed_session is not None:
+                self.managed_session.checkpoint(self.checkpoint_store, label=label)
+            else:
+                self.checkpoint_store.save(self.instance.record_checkpoint(label))
+
+    def _checkpoint_after_exchange(self, record: ExchangeRecord) -> None:
+        session = self.managed_session
+        policy = session.checkpoint_policy if session is not None else None
+        if policy is None or policy.mode != "on_event" or self.checkpoint_store is None:
+            return
+        trigger = (
+            (record.kind == "llm_response" and "after_llm_call" in policy.triggers)
+            or (record.kind == "tool_result" and "after_tool_call" in policy.triggers)
+            or (
+                record.kind == "tool_call"
+                and record.destructive
+                and "before_destructive_tool" in policy.triggers
+            )
+        )
+        if trigger:
+            self._checkpoint_event_counter += 1
+            session.checkpoint(
+                self.checkpoint_store,
+                label=f"event-{self._turn:04d}-{self._checkpoint_event_counter:04d}",
+            )
 
     def run_turn(
         self,
@@ -320,12 +392,23 @@ class SessionController:
     ) -> TurnResult:
         from mas.runtime.schema.ingress import OperatorSteerReceived
 
+        if text.strip().lower() == "/backtrack" or text.strip().lower().startswith("/backtrack "):
+            return self._handle_backtrack(text)
+
         if text.strip().lower().startswith("/steer "):
             steer_text = text.strip()[7:].strip()
             self._turn += 1
             tid = turn_id or f"steer{self._turn}"
             self.display.on_system(f"operator steer: {steer_text}")
             self._setup_exchange_tracing()
+            # After a backtrack the live ctx still holds the rolled-back turns;
+            # steering must land on the restored snapshot, not on what it undid.
+            sync_working_memory_in(
+                self.instance,
+                memory_key=self._working_memory_key(),
+                agent_id=self.agent_id,
+                registry=self.working_memory_registry,
+            )
             trace = self.instance.feed(
                 OperatorSteerReceived(steer_id=tid, context_text=steer_text)
             )
@@ -346,6 +429,32 @@ class SessionController:
             text, turn_id=turn_id, auto_hitl=auto_hitl, parent_call_id=parent_call_id
         )
 
+    def _handle_backtrack(self, text: str) -> TurnResult:
+        """Restore retained session state and optionally inject a steering note."""
+        if self.managed_session is None or self.checkpoint_store is None:
+            self.display.on_system("backtrack unavailable: no managed checkpoint session")
+            return TurnResult(trace=None, responses=[])
+        parts = text.strip().split(maxsplit=2)
+        steps = 1
+        steering_text = ""
+        if len(parts) > 1:
+            try:
+                steps = int(parts[1])
+                steering_text = parts[2] if len(parts) > 2 else ""
+            except ValueError:
+                steering_text = " ".join(parts[1:])
+        try:
+            path = self.managed_session.backtrack(
+                self.checkpoint_store,
+                steps=steps,
+                steering_text=steering_text,
+            )
+        except (OSError, ValueError) as exc:
+            self.display.on_system(f"backtrack failed: {exc}")
+            return TurnResult(trace=None, responses=[])
+        self.display.on_system(f"backtracked to checkpoint: {path}")
+        return TurnResult(trace=None, responses=[])
+
     def _run_user_turn(
         self,
         text: str,
@@ -358,7 +467,10 @@ class SessionController:
 
         reset_engine_delegation(getattr(self.instance.driver, "engine", None))
         sync_working_memory_in(
-            self.instance, memory_key=self._working_memory_key(), agent_id=self.agent_id
+            self.instance,
+            memory_key=self._working_memory_key(),
+            agent_id=self.agent_id,
+            registry=self.working_memory_registry,
         )
         self._turn += 1
         tid = turn_id or f"u{self._turn}"
@@ -391,8 +503,50 @@ class SessionController:
             responses=list(trace.client_responses),
             awaiting_hitl=trace.awaiting_hitl,
         )
+        if self._handle_automatic_backtrack(trace):
+            return result
         self._finalize_turn(result, trace=trace)
         return result
+
+    def _handle_automatic_backtrack(self, trace: DriverTrace) -> bool:
+        """Restore on the explicit kernel signal; patterns never own rollback."""
+        session = self.managed_session
+        if session is None or self.checkpoint_store is None:
+            return False
+        error = next(
+            (
+                item
+                for item in trace.boundary_errors
+                if getattr(item, "code", "") == "INGRESS_BACKTRACK"
+            ),
+            None,
+        )
+        if error is None:
+            return False
+        error_text = getattr(error, "message", "")
+        steering_text = (
+            f"A previous attempt failed with: {error_text}. Avoid repeating that approach."
+        )
+        try:
+            session.backtrack(
+                self.checkpoint_store,
+                steps=session.backtrack_policy.get("steps", 1),
+                steering_text=steering_text,
+                automatic=True,
+            )
+        except BacktrackCapReached as exc:
+            if exc.action == "stop_backtracking":
+                return False
+            if exc.action == "terminate":
+                self.instance.abort(reason=str(exc))
+                session.status = SessionStatus.TERMINATED
+            else:
+                self.instance.pause(reason=str(exc))
+                session.status = SessionStatus.PAUSED
+            self.display.on_system(str(exc))
+        except (OSError, ValueError) as exc:
+            self.display.on_system(f"automatic backtrack failed: {exc}")
+        return True
 
     def submit_hitl(self, resolve, *, auto_hitl: bool = True) -> TurnResult:
         """Feed HITL_RESOLVE after UI collects operator choice."""

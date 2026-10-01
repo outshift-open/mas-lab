@@ -70,6 +70,7 @@ class ExchangeRecord:
     tool_name: str | None = None
     tool_arguments: dict[str, Any] | None = None
     semantics: dict[str, Any] | None = None
+    destructive: bool = False
     model: str | None = None
     messages: list[dict[str, Any]] | None = None
     tools: list[dict[str, Any]] | None = None
@@ -201,6 +202,7 @@ def _engine_invoke_record(
                 tool_name=tool_name or None,
                 tool_arguments=tool_arguments,
                 semantics=bound_tool_semantics(engine, tool_name or None, tool_arguments, ctx=ctx),
+                destructive=sym.destructive,
                 model=engine_model_id(engine) or None,
                 engine_raw=engine_raw,
             ),

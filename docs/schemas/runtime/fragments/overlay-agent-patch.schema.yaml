@@ -42,6 +42,8 @@ properties:
     $ref: "../agent.schema.yaml#/properties/spec/properties/memory"
   working_memory:
     $ref: "../agent.schema.yaml#/properties/spec/properties/working_memory"
+  checkpoint:
+    $ref: "../agent.schema.yaml#/properties/spec/properties/checkpoint"
   context_manager:
     $ref: "../agent.schema.yaml#/properties/spec/properties/context_manager"
   assembler:

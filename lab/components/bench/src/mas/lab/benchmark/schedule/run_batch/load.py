@@ -195,6 +195,12 @@ def load_experiment(
         logger.error("%s", exc)
         return None
 
+    dataset_items = _cross_checkpoint_axis(
+        dataset_items,
+        exp.checkpoints,
+        explicit=exp.checkpoints_explicit,
+    )
+
     n_runs = max_runs if max_runs is not None else exp.execution.n_runs if exp.execution else 1
     if single_run:
         limit_scenarios = 1
@@ -259,6 +265,42 @@ def _select_dataset_items(items: list[dict], dataset_item: str | None) -> list[d
         label="Dataset item",
         id_of=lambda item: item.get("id"),
     )
+
+
+def _cross_checkpoint_axis(items: list[dict], checkpoints: list[Any], *, explicit: bool) -> list[dict]:
+    """Cross a declared checkpoint axis without changing legacy item identities."""
+    if not explicit or (len(checkpoints) == 1 and checkpoints[0].id == "none"):
+        return items
+
+    expanded: list[dict] = []
+    for item in items:
+        original_id = str(item.get("id", "item"))
+        original_inputs = dict(item.get("inputs") or {})
+        item_checkpoint = original_inputs.get("checkpoint")
+        if item_checkpoint:
+            logger.warning(
+                "experiment.checkpoints axis overrides inputs.checkpoint for dataset item %s",
+                original_id,
+            )
+        for checkpoint in checkpoints:
+            expanded_item = dict(item)
+            inputs = dict(original_inputs)
+            checkpoint_settings = dict(inputs.get("checkpoint") or {})
+            if checkpoint.id == "none":
+                checkpoint_settings.pop("load", None)
+            else:
+                checkpoint_settings["load"] = str(checkpoint.path)
+            if checkpoint_settings:
+                inputs["checkpoint"] = checkpoint_settings
+            else:
+                inputs.pop("checkpoint", None)
+            expanded_item["inputs"] = inputs
+            expanded_item["source_item_id"] = original_id
+            expanded_item["checkpoint_id"] = "" if checkpoint.id == "none" else checkpoint.id
+            expanded_item["forked_from_checkpoint"] = str(checkpoint.path) if checkpoint.path else ""
+            expanded_item["id"] = f"{original_id}--checkpoint-{checkpoint.id}"
+            expanded.append(expanded_item)
+    return expanded
 
 
 def _select_by_id(

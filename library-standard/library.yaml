@@ -193,6 +193,11 @@ plugins:
     shortcuts:
       - gov_no_undeclared_tool
       - no_undeclared_tool
+  - type: governance
+    name: backtrack_on_error
+    urn: mas.gov.backtrack_on_error
+    module: mas.library.standard.plugins.governance.backtrack_on_error
+    class: BacktrackOnErrorPlugin
 
 defaults:
   tool_provider: local

@@ -13,11 +13,15 @@ from mas.runtime.spec.source import (
     resolve_yaml_source,
 )
 from mas.runtime.spec.parser import parse_agent_spec
+from mas.runtime.spec.checkpoint import CheckpointPolicy, CheckpointSpecError, parse_checkpoint_policy
 
 __all__ = [
     "load_yaml_file",
     "load_yaml_mapping",
     "parse_agent_spec",
+    "CheckpointPolicy",
+    "CheckpointSpecError",
+    "parse_checkpoint_policy",
     "resolve_app_resource",
     "resolve_manifest_source",
     "resolve_path",

@@ -6,8 +6,13 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from mas.ctl.session.controller import ConversationConfig, SessionController, TurnResult
 from mas.runtime.driver.mocks import AutoCtxAssembler
+from mas.runtime.driver.driver import ExchangeRecord
+from mas.runtime.spec.checkpoint import CheckpointPolicy
+from mas.runtime.session import BacktrackCapReached
 
 
 def _controller_with_ctx(ctx: AutoCtxAssembler, **config_kwargs) -> SessionController:
@@ -116,3 +121,99 @@ def test_finalize_turn_completed_turn_still_commits_and_checkpoints():
 
     assert ctx.committed_messages[-1] == {"role": "assistant", "content": "hi there"}
     assert len(saved) == 1
+
+
+def test_backtrack_command_delegates_steps_and_note_to_managed_session():
+    controller = _controller_with_ctx(AutoCtxAssembler())
+    calls = []
+    controller.managed_session = SimpleNamespace(
+        backtrack=lambda store, *, steps, steering_text: calls.append(
+            (store, steps, steering_text)
+        ) or "turn-2.checkpoint.json"
+    )
+    controller.checkpoint_store = object()
+    controller.display = SimpleNamespace(on_system=lambda _message: None)
+
+    result = controller.run_turn("/backtrack 2 explain the correction")
+
+    assert result.trace is None
+    assert calls == [(controller.checkpoint_store, 2, "explain the correction")]
+
+
+def test_on_event_policy_checkpoints_only_matching_exchange_events():
+    controller = _controller_with_ctx(AutoCtxAssembler())
+    checkpoints = []
+    controller.managed_session = SimpleNamespace(
+        checkpoint_policy=CheckpointPolicy(mode="on_event", triggers=("after_llm_call",)),
+        checkpoint=lambda store, *, label: checkpoints.append(label),
+    )
+    controller.checkpoint_store = object()
+
+    controller._checkpoint_after_exchange(ExchangeRecord(kind="llm_request"))
+    controller._checkpoint_after_exchange(ExchangeRecord(kind="llm_response"))
+
+    assert len(checkpoints) == 1
+    assert checkpoints[0].startswith("event-")
+
+
+def test_every_turn_policy_checkpoints_completed_turns():
+    controller = _controller_with_ctx(AutoCtxAssembler())
+    checkpoints = []
+    controller.managed_session = SimpleNamespace(
+        checkpoint_policy=CheckpointPolicy(mode="every_turn"),
+        checkpoint=lambda store, *, label: checkpoints.append(label),
+    )
+    controller.checkpoint_store = object()
+    controller._turn = 2
+
+    controller._finalize_turn(TurnResult(trace=None, responses=[], awaiting_hitl=False))
+
+    assert checkpoints == ["turn-2"]
+
+
+def test_restore_turn_sets_and_rejects_negative():
+    controller = _controller_with_ctx(AutoCtxAssembler())
+    controller.restore_turn(4)
+    assert controller.turn == 4
+    with pytest.raises(ValueError, match="turn must be"):
+        controller.restore_turn(-1)
+
+
+def test_automatic_backtrack_uses_policy_steps_and_error_as_steering():
+    controller = _controller_with_ctx(AutoCtxAssembler())
+    calls = []
+    controller.managed_session = SimpleNamespace(
+        backtrack_policy={"steps": 2},
+        backtrack=lambda store, **kwargs: calls.append((store, kwargs)),
+    )
+    controller.checkpoint_store = object()
+    trace = SimpleNamespace(
+        boundary_errors=[SimpleNamespace(code="INGRESS_BACKTRACK", message="tool failed")]
+    )
+
+    handled = controller._handle_automatic_backtrack(trace)
+
+    assert handled is True
+    assert calls[0][0] is controller.checkpoint_store
+    assert calls[0][1]["steps"] == 2
+    assert calls[0][1]["automatic"] is True
+    assert "tool failed" in calls[0][1]["steering_text"]
+
+
+def test_automatic_backtrack_cap_pauses_for_operator_policy():
+    controller = _controller_with_ctx(AutoCtxAssembler())
+    controller.managed_session = SimpleNamespace(
+        backtrack_policy={"steps": 1},
+        status=None,
+        backtrack=lambda *_args, **_kwargs: (_ for _ in ()).throw(BacktrackCapReached("hitl")),
+    )
+    controller.checkpoint_store = object()
+    controller.instance.pause = lambda **_kwargs: None
+    messages = []
+    controller.display = SimpleNamespace(on_system=messages.append)
+    trace = SimpleNamespace(
+        boundary_errors=[SimpleNamespace(code="INGRESS_BACKTRACK", message="repeat")]
+    )
+
+    assert controller._handle_automatic_backtrack(trace) is True
+    assert messages == ["automatic backtrack limit reached (hitl)"]
