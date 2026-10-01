@@ -410,6 +410,14 @@
   box-sizing: border-box;
 }
 
+.mas-blog-figure--wide {
+  max-width: 50rem;
+}
+
+.mas-blog-figure--wide img {
+  max-width: 100%;
+}
+
 [data-md-color-scheme="slate"] .mas-blog-figure img {
   border-color: rgba(255, 255, 255, 0.22);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
