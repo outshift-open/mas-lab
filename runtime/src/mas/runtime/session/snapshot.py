@@ -163,3 +163,23 @@ class SnapshotTree:
         self._cursor.pop(session_id, None)
         for snapshot_id in bodies:
             self._bodies.pop(snapshot_id, None)
+
+
+def persist(snapshot: Snapshot, store: Any, *, manifest: dict[str, Any], lineage: dict[str, Any], backtrack_count: int = 0) -> Any:
+    """Write a Snapshot through PLAN-02's CheckpointStore. Disk is optional."""
+    from mas.runtime.session.state import ManifestRef
+
+    ref = ManifestRef.from_content(manifest)
+    payload = {
+        "version": 2,
+        "label": snapshot.ref.label,
+        "turn": snapshot.ref.turn,
+        "backtrack_count": backtrack_count,
+        "spec_revision": snapshot.spec_revision,
+        "lineage": lineage,
+        "kernel": snapshot.kernel,
+        "working_memory": snapshot.working_memory,
+        "manifest": {"content": ref.content, "content_hash": ref.content_hash},
+    }
+    label = snapshot.ref.label or f"turn-{snapshot.ref.turn:04d}"
+    return store.save(payload, label=f"{snapshot.ref.session_id}-{label}")

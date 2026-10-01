@@ -239,4 +239,114 @@ class Session:
             self.status = SessionStatus.ACTIVE
         if steering_text.strip():
             self.controller.run_turn(f"/steer {steering_text.strip()}", auto_hitl=False)
+        if "spec_revision" in payload:
+            self.spec_revision = int(payload["spec_revision"] or 0)
         return path
+
+    def take_snapshot(self, *, label: str = "", live: bool = True) -> Any:
+        """Cheap in-memory node. Does not touch disk."""
+        from mas.runtime.session.snapshot import Snapshot, SnapshotRef, SnapshotTree
+
+        sync_working_memory_out(
+            self.instance,
+            memory_key=self.session_id,
+            agent_id=str(getattr(self.controller, "agent_id", "agent")),
+            registry=self.working_memory,
+        )
+        kernel = self.instance.snapshot()
+        working_memory = self.working_memory.export_session(self.session_id)
+        tree = self.snapshot_tree or SnapshotTree()
+        parent = tree.live(self.session_id)
+        ref = SnapshotRef.from_state(
+            session_id=self.session_id,
+            parent_snapshot_id=parent.snapshot_id if parent else None,
+            turn=int(getattr(self.controller, "_turn", 0)),
+            kernel=kernel,
+            working_memory=working_memory,
+            spec_revision=self.spec_revision,
+            label=label,
+        )
+        snap = Snapshot(
+            ref=ref,
+            kernel=kernel,
+            working_memory=list(working_memory),
+            spec=self.manifest_ref.content if self.manifest_ref else None,
+            spec_revision=self.spec_revision,
+        )
+        if self.snapshot_tree is not None:
+            self.snapshot_tree.record(ref, body=snap, live=live)
+        return snap
+
+    def restore_snapshot(self, snapshot: Any) -> None:
+        """Restore kernel, working memory, turn, and spec revision from a node."""
+        self.instance.load_checkpoint(snapshot.kernel)
+        self.working_memory.restore_session(self.session_id, snapshot.working_memory)
+        restore_turn = getattr(self.controller, "restore_turn", None)
+        if callable(restore_turn):
+            restore_turn(int(snapshot.ref.turn))
+        if snapshot.spec_revision is not None:
+            self.spec_revision = int(snapshot.spec_revision)
+        if snapshot.spec is not None:
+            self.manifest_ref = ManifestRef.from_content(snapshot.spec)
+        if self.snapshot_tree is not None:
+            self.snapshot_tree.set_live(self.session_id, snapshot.ref.snapshot_id)
+
+    def persist_snapshot(self, snapshot: Any, store: CheckpointStore) -> Path:
+        from mas.runtime.session.snapshot import persist
+
+        if self.manifest_ref is None:
+            raise ValueError("self-contained checkpoint requires manifest content")
+        path = persist(
+            snapshot,
+            store,
+            manifest=self.manifest_ref.content,
+            lineage={
+                "session_id": self.lineage.session_id,
+                "parent_session_id": self.lineage.parent_session_id,
+                "forked_from_checkpoint": self.lineage.forked_from_checkpoint,
+                "root_session_id": self.lineage.root_session_id,
+                "created_at": self.lineage.created_at,
+            },
+            backtrack_count=self.backtrack_count,
+        )
+        self.checkpoint_history.append(str(path))
+        return path
+
+    def branch(self, *, steering: str | None = None):
+        """Sibling timeline. Discarded on exit unless ``promote`` or ``persist``."""
+        from contextlib import contextmanager
+
+        @contextmanager
+        def _branch():
+            origin = self.take_snapshot(label="branch-origin")
+            handle = _BranchHandle(self, origin)
+            if steering:
+                self.controller.run_turn(f"/steer {steering}", auto_hitl=False)
+            try:
+                yield handle
+            finally:
+                if not handle.kept:
+                    self.restore_snapshot(origin)
+
+        return _branch()
+
+
+class _BranchHandle:
+    def __init__(self, session: Session, origin: Any) -> None:
+        self.session = session
+        self.origin = origin
+        self.kept = False
+
+    def inspect(self) -> Any:
+        return self.session.take_snapshot(label="inspect", live=False)
+
+    def persist(self, store: CheckpointStore) -> Path:
+        snap = self.session.take_snapshot(label="branch")
+        path = self.session.persist_snapshot(snap, store)
+        self.kept = True
+        return path
+
+    def promote(self) -> Any:
+        snap = self.session.take_snapshot(label="promoted")
+        self.kept = True
+        return snap

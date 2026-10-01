@@ -186,15 +186,16 @@ class SessionControl:
 
     def fork_investigation(self, session_id: str) -> str:
         session = self._require("fork_investigation", session_id)
-        live = self._manager.snapshot_tree.live(session_id)
-        parent_id = live.snapshot_id if live else None
-        child_id = f"{session_id}-investigate"
-        # Real Session.branch (PLAN-09) replaces this placeholder id with a
-        # cheap in-memory sibling. v1 records the intent as a governed event.
+        origin = session.take_snapshot(label="investigate-origin")
+        child = session.take_snapshot(label="investigate", live=False)
         self._trace(
             "fork_investigation",
             session_id,
             kind="branch_opened",
-            payload={"child": child_id, "from": parent_id, "parent_status": session.status.value},
+            payload={
+                "from": origin.ref.snapshot_id,
+                "child": child.ref.snapshot_id,
+                "parent_status": session.status.value,
+            },
         )
-        return child_id
+        return child.ref.snapshot_id

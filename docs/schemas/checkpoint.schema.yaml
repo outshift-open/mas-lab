@@ -34,6 +34,7 @@ oneOf:
       label: { type: string }
       turn: { type: integer, minimum: 0 }
       backtrack_count: { type: integer, minimum: 0 }
+      spec_revision: { type: integer, minimum: 0 }
       lineage:
         type: object
         required: [session_id, parent_session_id, forked_from_checkpoint, root_session_id, created_at]

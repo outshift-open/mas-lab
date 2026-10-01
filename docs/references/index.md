@@ -36,6 +36,7 @@ Execution kernel, contracts, and plugins (`mas-runtime`, `mas-ctl`).
 | Runtime manifests (Agent, MAS, overlay) | [Manifest fields](../manifests/runtime.md) |
 | Contracts & Mealy envelope | [Contracts](contracts.md) · [runtime package docs](runtime.md) |
 | Thin waist (plugin vs catalog) | [thin-waist.md](thin-waist.md) |
+| Snapshots vs checkpoints | [snapshots.md](snapshots.md) |
 | CLI (`mas-ctl`, `mas-runtime`) | [ctl user guide](https://github.com/outshift-open/mas-lab/blob/main/ctl/docs/user-guide.md) |
 | **Web UI** | [ui/index.md](../ui/index.md) |
 | Run logs | [Observability](../cli/observability.md) |
