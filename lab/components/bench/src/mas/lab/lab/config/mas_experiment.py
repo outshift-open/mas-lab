@@ -6,9 +6,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from mas.lab.deprecations import warn_deprecated
 from mas.lab.manifests import load_experiment_data
 
-from .execution import MASExecutionSpec
+from .execution import (
+    EmulationSpec,
+    ExperimentDesignSpec,
+    ExperimentScheduleSpec,
+    MASExecutionSpec,
+    ReplaySpec,
+    split_legacy_execution,
+)
 from .experiment_base import MASRunBase, _is_mas_binding, canonicalize_experiment_dict
 
 
@@ -19,12 +27,36 @@ class CheckpointAxisEntry:
     id: str
     path: Path | None = None
 
+
+def _n_runs_from_levels(base: dict, fallback: int) -> int:
+    run_level = base.get("levels", {}).get("run")
+    if run_level is not None and run_level.n_runs is not None:
+        return int(run_level.n_runs)
+    return fallback
+
+
 @dataclass
 class MASExperimentConfig(MASRunBase):
     """Batch experiment configuration for running a MAS across scenarios."""
 
+    schedule: ExperimentScheduleSpec = field(default_factory=ExperimentScheduleSpec)
+    """How the bench walks the design matrix (parallelism, ordering, runner)."""
+
+    design: ExperimentDesignSpec = field(default_factory=ExperimentDesignSpec)
+    """What conditions are compared (mode, couplings, cartesian guard)."""
+
+    bench_emulation: EmulationSpec = field(default_factory=EmulationSpec)
+    """Mock/replay/trace-cache posture held constant unless declared a factor."""
+
+    replay: Optional[ReplaySpec] = None
+    """Multi-turn replay configuration (dataset-level design)."""
+
     execution: MASExecutionSpec = field(default_factory=MASExecutionSpec)
-    """Batch execution parameters."""
+    """Compatibility view of schedule + design + bench_emulation.
+
+    Synthesized from the split blocks (and from a deprecated ``execution:``
+    mapping during the dual-read window). Prefer the named fields above.
+    """
 
     default_flavour: Optional[str] = "local"
     """Default flavour name (library-standard)."""
@@ -36,6 +68,16 @@ class MASExperimentConfig(MASRunBase):
         default_factory=lambda: [CheckpointAxisEntry(id="none")]
     )
     checkpoints_explicit: bool = False
+
+    @property
+    def n_runs(self) -> int:
+        """Replication count — a design field, sourced from ``run.n_runs``."""
+        run_level = self.levels.get("run")
+        if run_level is not None and run_level.n_runs is not None:
+            return int(run_level.n_runs)
+        if self.execution and self.execution.n_runs:
+            return int(self.execution.n_runs)
+        return 1
 
     @classmethod
     def from_yaml(cls, path: Path) -> "MASExperimentConfig":
@@ -50,6 +92,10 @@ class MASExperimentConfig(MASRunBase):
         Accepts the same ``data`` shape that :func:`load_experiment_data`
         returns — a raw YAML dict that may have been modified in-memory
         before construction (e.g. ``merge_pipeline_attachments``).
+
+        Dual-read: a top-level ``execution:`` mapping still loads, with a
+        structured deprecation warning, and is mapped onto ``schedule`` /
+        ``design`` / ``bench_emulation``. New keys win when both are present.
         """
         exp_data = data.get("experiment", data)
         base_dir = path.parent
@@ -68,10 +114,42 @@ class MASExperimentConfig(MASRunBase):
 
         base = cls._load_base_fields(exp_data, base_dir, yaml_path=path)
 
-        execution = MASExecutionSpec.from_dict(exp_data.get("execution", {}))
-        run_level = base.get("levels", {}).get("run")
-        if run_level is not None and run_level.n_runs is not None:
-            execution.n_runs = run_level.n_runs
+        legacy = exp_data.get("execution")
+        if legacy:
+            warn_deprecated("experiment.execution", where=str(path))
+
+        mapped = split_legacy_execution(legacy) if isinstance(legacy, dict) else {}
+
+        schedule_src = dict(mapped.get("schedule") or {})
+        if "schedule" in exp_data and isinstance(exp_data["schedule"], dict):
+            schedule_src.update(exp_data["schedule"])
+        schedule = ExperimentScheduleSpec.from_dict(schedule_src)
+
+        design_src = dict(mapped.get("design") or {})
+        if "design" in exp_data and isinstance(exp_data["design"], dict):
+            design_src.update(exp_data["design"])
+        design = ExperimentDesignSpec.from_dict(design_src)
+
+        emu_src = dict(mapped.get("bench_emulation") or {})
+        if "bench_emulation" in exp_data and isinstance(exp_data["bench_emulation"], dict):
+            emu_src.update(exp_data["bench_emulation"])
+        bench_emulation = EmulationSpec.from_dict(emu_src)
+
+        replay_data = exp_data.get("replay") or mapped.get("replay")
+        replay = ReplaySpec.from_dict(replay_data) if replay_data else None
+
+        fallback_n_runs = 3
+        if isinstance(legacy, dict) and "n_runs" in legacy:
+            fallback_n_runs = int(legacy["n_runs"])
+        n_runs = _n_runs_from_levels(base, fallback_n_runs)
+
+        execution = MASExecutionSpec.from_split(
+            schedule=schedule,
+            design=design,
+            bench_emulation=bench_emulation,
+            replay=replay,
+            n_runs=n_runs,
+        )
 
         default_flavour = exp_data.get("default_flavour") or "local"
         default_infra = exp_data.get("default_infra") or None
@@ -80,6 +158,10 @@ class MASExperimentConfig(MASRunBase):
 
         config = cls(
             **base,
+            schedule=schedule,
+            design=design,
+            bench_emulation=bench_emulation,
+            replay=replay,
             execution=execution,
             default_flavour=default_flavour,
             default_infra=default_infra,

@@ -171,3 +171,22 @@ def test_bare_experiment_dict_without_experiment_wrapper(tmp_path: Path) -> None
     bare = {"name": "x", "run": {"n_runs": 3}}
     result = apply_experiment_overlays(bare, [overlay])
     assert result["run"]["n_runs"] == 4
+
+
+def test_schedule_overlay_merge(tmp_path: Path) -> None:
+    overlay = _write_overlay(tmp_path, "o.yaml", {
+        "bench_emulation": {"runtime": {"cache": "content-addressed"}},
+        "schedule": {"parallel_scenarios": 8},
+    })
+    base = {
+        "experiment": {
+            "name": "my-exp",
+            "schedule": {"parallel_scenarios": 2, "ordering": "coverage"},
+            "bench_emulation": {"runtime": {"cache": "disabled"}},
+            "run": {"n_runs": 3},
+        }
+    }
+    result = apply_experiment_overlays(base, [overlay])
+    assert result["experiment"]["bench_emulation"]["runtime"]["cache"] == "content-addressed"
+    assert result["experiment"]["schedule"]["parallel_scenarios"] == 8
+    assert result["experiment"]["schedule"]["ordering"] == "coverage"

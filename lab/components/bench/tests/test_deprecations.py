@@ -262,3 +262,72 @@ def test_former_ioc_dataset_still_loads_and_new_envelope_is_preferred(
     )
     assert "dataset.legacy_item" not in caplog.text
     assert "dataset.legacy_expectations" not in caplog.text
+
+
+def test_docs_url_design_vs_schedule_fragment() -> None:
+    assert (
+        docs_url("manifests/experiment.md#design-vs-schedule")
+        == "https://outshift-open.github.io/mas-lab/manifests/experiment/#design-vs-schedule"
+    )
+
+
+def test_warn_deprecated_execution_once_per_where(caplog) -> None:
+    with caplog.at_level(logging.WARNING, logger="mas.lab.deprecations"):
+        warn_deprecated("experiment.execution", where="a.yaml")
+        warn_deprecated("experiment.execution", where="a.yaml")
+        warn_deprecated("experiment.execution", where="b.yaml")
+    assert caplog.text.count("experiment.execution") == 2
+    assert "design-vs-schedule" in caplog.text
+
+
+def _write_split_experiment(tmp_path: Path, extra: str) -> Path:
+    path = tmp_path / "experiment.yaml"
+    path.write_text(
+        "experiment:\n"
+        "  name: dual-read\n"
+        "  application:\n"
+        "    manifest: ./mas.yaml\n"
+        "  run:\n"
+        "    n_runs: 2\n"
+        f"{extra}",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_legacy_execution_warns_once_and_maps(tmp_path: Path, caplog) -> None:
+    path = _write_split_experiment(
+        tmp_path,
+        "  execution:\n"
+        "    parallel_scenarios: 8\n"
+        "    strategy: depth\n"
+        "    emulation:\n"
+        "      runtime:\n"
+        "        cache: disabled\n",
+    )
+    with caplog.at_level(logging.WARNING, logger="mas.lab.deprecations"):
+        cfg = MASExperimentConfig.from_yaml(path)
+        MASExperimentConfig.from_yaml(path)
+    assert caplog.text.count("experiment.execution") == 1
+    assert "https://outshift-open.github.io/mas-lab/manifests/experiment/#design-vs-schedule" in caplog.text
+    assert cfg.schedule.parallel_scenarios == 8
+    assert cfg.schedule.ordering == "depth"
+    assert cfg.bench_emulation.runtime.cache == "disabled"
+    assert cfg.execution.strategy == "depth"
+
+
+def test_new_shape_does_not_warn(tmp_path: Path, caplog) -> None:
+    path = _write_split_experiment(
+        tmp_path,
+        "  schedule:\n"
+        "    parallel_scenarios: 1\n"
+        "    ordering: coverage\n"
+        "  bench_emulation:\n"
+        "    runtime:\n"
+        "      cache: forced\n",
+    )
+    with caplog.at_level(logging.WARNING, logger="mas.lab.deprecations"):
+        cfg = MASExperimentConfig.from_yaml(path)
+    assert "experiment.execution" not in caplog.text
+    assert cfg.schedule.parallel_scenarios == 1
+    assert cfg.bench_emulation.runtime.cache == "forced"

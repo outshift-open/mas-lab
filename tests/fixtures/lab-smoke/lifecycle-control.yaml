@@ -21,10 +21,9 @@ experiment:
     limit: 1
   evaluation:
     method: trace_only
-  execution:
-    emulation:
-      runtime:
-        cache: disabled
+  bench_emulation:
+    runtime:
+      cache: disabled
   run:
     n_runs: 1
   post:

@@ -83,11 +83,11 @@ experiment:
         in: trace
         out: df
 
-  # ── Execution ── batch orchestration only (last)
-  execution:
+  # ── Schedule ── how the bench walks the matrix (last)
+  schedule:
     parallel_scenarios: 4
     timeout: 300
-    strategy: coverage
+    ordering: coverage
 ```
 
 ---
@@ -265,26 +265,57 @@ dict above>}`; see [pipeline-steps.md](../../lab/docs/pipeline-steps.md).
 
 ---
 
-## Execution (batch orchestration) — legacy shape
+## Design vs schedule {#design-vs-schedule}
 
-> **Planned breaking change (deferred, last in queue):** `experiment.execution` mixes
-> **experimental design** (what we compare) with **bench scheduling** (how we walk the
-> matrix) and **emulation posture** (replay/trace cache). A future release will
-> split these into separate top-level blocks (`experiment.design`, `experiment.schedule`,
-> and bench emulation posture). Until then, the key name is historical.
+The former `experiment.execution` grab-bag is split into three concerns. Schema
+`$id` stays `experiment/v1`. A top-level `execution:` mapping still loads for one
+release and emits `experiment.execution` via `mas.lab.deprecations.warn_deprecated`.
 
-The top-level `experiment.execution` block is **only** for `mas-lab benchmark` batch
-runs. It is **not** the removed `spec.execution` field from `kind: Agent` manifests.
+Rule of thumb: if changing a field would change the **label or meaning** of a
+result cell, it is **design**. If it only changes how fast or safely the same
+cells are collected, it is **schedule**. If it changes live-vs-recorded behavior
+but is held fixed across the study, it is **bench emulation**.
 
-| Concern | Where it lives |
-| --- | --- |
-| LLM endpoints, cache middleware | Workspace `infra_refs`, `--infra-ref`, optional `mas-lab benchmark --infra <name>` (local `infra/<name>.yaml`) |
-| Per-turn engine tuning (queue depth, LLM response cache read/write, stream, parallel tools) | `kind: RuntimeEngine` via `runtime_refs` / `--runtime-ref` — see [runtime-engine.md](runtime-engine.md) |
-| How many MAS runs run in parallel, timeouts, ordering | `experiment.execution.parallel_scenarios`, `timeout`, `strategy`, … |
-| Whole-run trace skip/replay (content-addressed lab cache) | `experiment.execution.emulation.runtime.cache` (`content-addressed` \| `disabled` \| `forced`) |
-| Live vs replay for LLM, tools, memory during a benchmark | `experiment.execution.emulation.infra.*` |
+| Concern | Question | In analysis design? | YAML home |
+| --- | --- | --- | --- |
+| **Design** | What conditions are we comparing? | **Yes** | `scenarios[]`, `design`, `dataset`, `evaluation`, `run.n_runs`, `checkpoints` |
+| **Schedule** | How do we walk the matrix? | **No** | `schedule` (`ordering`, `parallel_scenarios`, `timeout`, `runner`, …) |
+| **Bench emulation** | Mock/replay/trace-cache posture? | Only if it is an intentional factor | `bench_emulation` |
+| **Deployment wiring** | Which LLM bundle / runtime profile? | **No** (unless a declared factor) | Workspace `infra_refs` / `runtime_refs`, `--infra-ref` / `--runtime-ref` |
 
-Example (smoke run — disable trace cache, keep infra live). Put `execution:` last:
+`emulation.infra.llm: mock` remains a first-class `bench_emulation` field for a
+study-wide constant mock. When infra **is** a factor, use scenario `overlays.infra`.
+The lab trace cache (`bench_emulation.runtime.cache`) is **not** the
+`RuntimeEngine` LLM response cache — see [runtime-engine.md](runtime-engine.md).
+
+### `design`
+
+```yaml
+experiment:
+  design:
+    mode: cartesian          # cartesian | coupled | one_factor
+    max_executions: 200      # fail if the planned grid is larger
+```
+
+Replication is **design**, not a retry knob: `run.n_runs` only.
+
+### `schedule`
+
+```yaml
+experiment:
+  schedule:
+    parallel_scenarios: 4
+    timeout: 300
+    pause_between_runs: 1.0
+    ordering: coverage       # coverage | depth  (legacy alias: strategy)
+    runner: native           # optional override of inferred adapter
+    reset_state: false
+```
+
+`--strategy` on `mas-lab benchmark run` still exists; it writes/overrides
+`schedule.ordering`.
+
+### `bench_emulation`
 
 ```yaml
 experiment:
@@ -294,13 +325,16 @@ experiment:
     configs_dir: ./overlays
   run:
     n_runs: 1
-  execution:
-    emulation:
-      runtime:
-        cache: disabled
+  bench_emulation:
+    runtime:
+      cache: disabled
 ```
 
-Implementation types: `mas.lab.lab.config.execution` (`MASExecutionSpec`, `EmulationSpec`).
+Implementation types: `ExperimentScheduleSpec`, `ExperimentDesignSpec`,
+`EmulationSpec` (`mas.lab.lab.config.execution`). `MASExecutionSpec` is a
+compatibility view synthesized during dual-read.
+
+Migrate in-repo YAML with `scripts/migrate_experiment_execution.py`.
 
 ---
 
@@ -327,5 +361,5 @@ dataset:
 - [lab.md](lab.md)
 - [pipeline.md](pipeline.md)
 - [summarization.md](summarization.md) — judge model + conversation summarization
+- [runtime-engine.md](runtime-engine.md)
 - [Tutorial 03](../tutorials/03-experiments-and-analysis/README.md)
-- [Tutorial 3](../tutorials/03-experiments-and-analysis/README.md)

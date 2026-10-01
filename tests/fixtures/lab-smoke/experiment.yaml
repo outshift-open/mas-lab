@@ -20,10 +20,9 @@ experiment:
   dataset:
     path: dataset.yaml
     limit: 1
-  execution:
-    emulation:
-      runtime:
-        cache: disabled
+  bench_emulation:
+    runtime:
+      cache: disabled
   run:
     n_runs: 1
   post:

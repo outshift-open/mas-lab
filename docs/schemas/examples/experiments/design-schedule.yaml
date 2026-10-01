@@ -1,0 +1,34 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+#
+# Example: design vs schedule vs bench emulation (PLAN-06).
+experiment:
+  name: design-schedule-example
+  description: >
+    Demonstrates the split of the former experiment.execution grab-bag.
+    run.n_runs and design: define what is compared. schedule: only walks
+    the matrix. bench_emulation: is held constant across cells.
+  applications:
+    - manifest: ./mas.yaml
+      configs_dir: ./overlays
+  scenarios:
+    - id: baseline
+    - id: treatment
+  dataset:
+    path: ./dataset.yaml
+  run:
+    n_runs: 3
+  design:
+    mode: cartesian
+    max_executions: 200
+  schedule:
+    parallel_scenarios: 4
+    timeout: 300
+    pause_between_runs: 1.0
+    ordering: coverage
+  bench_emulation:
+    infra:
+      llm: live
+      tools: live
+    runtime:
+      cache: content-addressed

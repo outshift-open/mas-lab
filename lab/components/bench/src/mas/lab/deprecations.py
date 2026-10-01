@@ -54,6 +54,10 @@ NOTICES: Dict[str, Tuple[str, str]] = {
         "manifests/dataset-migration.md",
         "put app- or tool-specific ground truth under expectations.details",
     ),
+    "experiment.execution": (
+        "manifests/experiment.md#design-vs-schedule",
+        "use experiment.design, experiment.schedule, and experiment.bench_emulation",
+    ),
 }
 
 _emitted: set[tuple[str, str]] = set()

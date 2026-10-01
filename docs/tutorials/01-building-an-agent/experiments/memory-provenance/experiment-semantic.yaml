@@ -26,17 +26,16 @@ experiment:
   evaluation:
     method: "trace_only"
 
-  execution:
+  schedule:
     parallel_scenarios: 1
     timeout: 180
     pause_between_runs: 1.0
-    strategy: depth
-
-    emulation:
-      infra:
-        llm: live
-        tools: live
-      runtime:
-        cache: content-addressed
+    ordering: depth
+  bench_emulation:
+    infra:
+      llm: live
+      tools: live
+    runtime:
+      cache: content-addressed
   run:
     n_runs: 5

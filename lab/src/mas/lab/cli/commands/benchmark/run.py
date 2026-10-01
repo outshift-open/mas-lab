@@ -59,7 +59,7 @@ import click
               type=click.Choice(["coverage", "depth"], case_sensitive=False),
               default=None,
               help=(
-                  "Execution ordering strategy (overrides YAML execution.strategy). "
+                  "Execution ordering (overrides YAML schedule.ordering). "
                   "coverage (default): breadth-first — every condition gets one run before "
                   "any gets a second run, maximising coverage after partial execution. "
                   "depth: depth-first — complete all runs for each condition before moving on."

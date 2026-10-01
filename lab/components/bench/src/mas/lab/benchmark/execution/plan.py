@@ -15,10 +15,11 @@ def build_execution_plan(
     *,
     execution: dict | None = None,
     strategy: str = "coverage",
+    design: dict | None = None,
 ) -> list[tuple[str, dict, int]]:
     """Return ordered ``(scenario_id, item, run_idx)`` triples."""
     execution = execution or {}
-    design = execution.get("design") or {}
+    design = design or execution.get("design") or {}
     mode = design.get("mode", "cartesian")
 
     if mode == "coupled":
@@ -33,7 +34,7 @@ def build_execution_plan(
     else:
         plan = _build_cartesian_plan(scenario_ids, dataset_items, n_runs, strategy)
 
-    enforce_max_executions(len(plan), execution)
+    enforce_max_executions(len(plan), execution, design=design)
     return plan
 
 
@@ -121,10 +122,16 @@ def _build_one_factor_plan(
     return plan
 
 
-def enforce_max_executions(plan_len: int, execution: dict | None) -> None:
-    if not execution:
-        return
-    design = execution.get("design")
+def enforce_max_executions(
+    plan_len: int,
+    execution: dict | None = None,
+    *,
+    design: dict | None = None,
+) -> None:
+    if design is None:
+        if not execution:
+            return
+        design = execution.get("design")
     if not isinstance(design, dict):
         return
     max_executions = design.get("max_executions")
@@ -134,6 +141,6 @@ def enforce_max_executions(plan_len: int, execution: dict | None) -> None:
     if plan_len > limit:
         raise RuntimeError(
             f"Execution grid {plan_len} exceeds "
-            f"execution.design.max_executions={limit}. "
+            f"design.max_executions={limit}. "
             "Reduce scenarios/items/n_runs or raise the limit."
         )
