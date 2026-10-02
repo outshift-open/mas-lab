@@ -20,6 +20,7 @@ def resolve_session_infra(
     user: Any,
     *,
     infra_refs_cli: tuple[str, ...] | list[str],
+    overrides: tuple[str, ...] | list[str] = (),
     anchor: Path | str,
     with_interceptors: bool = False,
     runtime_refs_cli: tuple[str, ...] | list[str] = (),
@@ -48,4 +49,9 @@ def resolve_session_infra(
             cli_interceptors=[],
         )
     kwargs["runtime_refs"] = list(runtime_refs_cli)
+    from mas.ctl.overrides.parser import parse_override
+
+    kwargs["overrides"] = [
+        source for source in overrides if parse_override(source).path.root == "infra"
+    ]
     return resolve_infra_refs(merged, **kwargs)

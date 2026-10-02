@@ -567,6 +567,7 @@ class OverlayTargetError(ValueError):
 # live on the MAS document.
 _FORM_A_ROW_KEYS = frozenset({"id", "ref", "name"})
 _MAS_KINDS = frozenset({"mas", "app", "workflow"})
+_LOADED_AGENT_OVERRIDES = "__mas_cli_overrides__"
 
 
 def _is_ref_based_agency_row(row: dict[str, Any]) -> bool:
@@ -657,6 +658,7 @@ def extract_agent_overlay_fanout(overlay: dict[str, Any], mas: dict[str, Any]) -
     rows = _nested_agent_rows(spec if isinstance(spec, dict) else {})
     target_name = _overlay_target_name(overlay)
     raw_patch = _overlay_patch_body(overlay)
+    inline_overrides = list((overlay.get("spec") or {}).get("overrides") or [])
     matched = 0
     out: dict[str, Any] = {}
     for row in rows:
@@ -666,8 +668,10 @@ def extract_agent_overlay_fanout(overlay: dict[str, Any], mas: dict[str, Any]) -
         if _is_inline_agent_row(row):
             continue
         aid = str(row.get("id") or row.get("name") or "")
-        if aid and raw_patch:
+        if aid and (raw_patch or inline_overrides):
             out[aid] = deepcopy(raw_patch)
+            if inline_overrides:
+                out[aid][_LOADED_AGENT_OVERRIDES] = inline_overrides
     if matched == 0:
         named = f" named {target_name!r}" if target_name else ""
         raise OverlayTargetError(
@@ -705,7 +709,20 @@ def accumulate_agent_patches(
         if not agent_id or not isinstance(patch, dict) or not patch:
             continue
         aid = str(agent_id)
-        out[aid] = _keep_unresolved_ops(out.get(aid), patch)
+        existing_patch = out.get(aid, {})
+        incoming_body = {key: value for key, value in patch.items() if key != _LOADED_AGENT_OVERRIDES}
+        if incoming_body:
+            existing_body = {
+                key: value for key, value in existing_patch.items() if key != _LOADED_AGENT_OVERRIDES
+            } if isinstance(existing_patch, dict) else {}
+            out[aid] = _keep_unresolved_ops(existing_body, incoming_body)
+        elif aid not in out:
+            out[aid] = {}
+        if _LOADED_AGENT_OVERRIDES in patch:
+            if not isinstance(out.get(aid), dict):
+                out[aid] = {}
+            prior = out[aid].get(_LOADED_AGENT_OVERRIDES, [])
+            out[aid][_LOADED_AGENT_OVERRIDES] = list(prior) + list(patch[_LOADED_AGENT_OVERRIDES])
     return out
 
 
@@ -1104,6 +1121,33 @@ def fanout_agent_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[
     return merged
 
 
+def fanout_agent_overrides(
+    base: dict[str, Any], overrides: tuple[str, ...], target_name: str | None
+) -> dict[str, Any]:
+    """Apply root-qualified Agent overrides to selected MAS agency rows."""
+    merged = deepcopy(base)
+    spec = merged.setdefault("spec", {})
+    rows = _nested_agent_rows(spec if isinstance(spec, dict) else {})
+    matched = 0
+    from mas.ctl.overrides import apply_cli_overrides
+
+    for row in rows:
+        if target_name and not _row_matches_agent_target(row, target_name):
+            continue
+        if _is_inline_agent_row(row):
+            updated = apply_cli_overrides(row, overrides, root="agent")
+            row.clear()
+            row.update(updated)
+        matched += 1
+    if matched == 0:
+        named = f" named {target_name!r}" if target_name else ""
+        raise OverlayTargetError(
+            f"target.kind: Agent override{named} matched no agents in "
+            "spec.agency.agents / spec.agents"
+        )
+    return merged
+
+
 def merge_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
     """Merge an Agent, MAS, Flavour, or Infra patch overlay into a base manifest.
 
@@ -1113,6 +1157,7 @@ def merge_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, An
     on a MAS -> :func:`fanout_agent_overlay`.
     """
     from mas.ctl.overlay.normalize import normalize_overlay
+    from mas.ctl.overrides import apply_cli_overrides
 
     if "spec" not in overlay:
         base_kind = str(base.get("kind", "")).lower()
@@ -1136,6 +1181,10 @@ def merge_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, An
     if not canonical:
         overlay = normalize_overlay(overlay, name=str((overlay.get("metadata") or {}).get("name") or "overlay"))
 
+    overlay = deepcopy(overlay)
+    overlay_spec = overlay.get("spec") or {}
+    inline_overrides = list(overlay_spec.pop("overrides", []) or [])
+    overlay["spec"] = overlay_spec
     _validate_patch_fields_against_target_schema(overlay)
 
     target_kind = str((overlay.get("spec") or {}).get("target", {}).get("kind", "")).lower()
@@ -1150,11 +1199,24 @@ def merge_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, An
             patch = {k: v for k, v in patch.items() if not _is_extension_key(k)}
             merged_spec = apply_merge_patch(deepcopy(merged.get("spec") or {}), patch)
             merged["spec"] = merged_spec
+    elif target_kind in ("experiment", "workspace"):
+        merged = apply_merge_patch(deepcopy(base), deepcopy((overlay.get("spec") or {}).get("patch") or {}))
     elif target_kind == "agent":
         if _base_is_mas(base):
             merged = fanout_agent_overlay(base, overlay)
         else:
             merged = merge_agent_overlay(base, overlay)
     else:
-        raise OverlayTargetError("overlay spec.target.kind must be one of Agent, MAS, Flavour, Infra")
+        raise OverlayTargetError(
+            "overlay spec.target.kind must be one of Agent, MAS, Flavour, Infra, Experiment, Workspace"
+        )
+    if inline_overrides:
+        if target_kind == "agent" and _base_is_mas(merged):
+            merged = fanout_agent_overrides(
+                merged,
+                tuple(inline_overrides),
+                _overlay_target_name(overlay),
+            )
+        else:
+            merged = apply_cli_overrides(merged, tuple(inline_overrides), root=target_kind)
     return apply_document_extensions(merged, overlay)

@@ -6,11 +6,12 @@
 
 **Package:** `mas-runtime` · **Schema:** `overlay.schema.yaml` · **apiVersion:** `mas/v1`
 
-An **overlay** is a manifest that patches an **agent**, **MAS**, or **flavour** manifest
+An **overlay** is a manifest that patches an **Agent**, **MAS**, **Infra**, **Flavour**,
+**Experiment**, or in-memory **Workspace** document
 without copying the whole file. **Experiments** reference overlays per **scenario**
 (`scenarios[].overlays`); the CLI applies them with `-o path/to/overlay.yaml`.
 
-**Terms:** [glossary.md](../glossary.md)
+## Merge semantics
 
 Symmetrical partial or full override of Agent, MAS, or Flavour documents. Used as
 benchmark **scenarios**, runtime overlays, and UI overlay builder output.
@@ -18,6 +19,43 @@ benchmark **scenarios**, runtime overlays, and UI overlay builder output.
 Contract boundaries are expressed through schema fields such as `design_pattern`,
 `governance`, `observability`, `workflow`, and `tools` — there is no separate
 `spec.contracts` list.
+
+## CLI overlays
+
+Command-line overrides become the same canonical Overlay document and are
+applied after all `-o` overlays:
+
+```bash
+mas-ctl chat agent.yaml --override 'agent:spec.context.role=reviewer'
+mas-ctl run-mas mas.yaml \
+  --override 'mas:spec.agency.agents[id=qa].spec.memory=long'
+```
+
+The `$op` operators and `x-merge` strategies are shared with file overlays.
+
+## Selector overrides in an overlay
+
+An overlay may group the same root-qualified assignments accepted by the CLI in
+`spec.overrides`. They are applied in list order after `spec.patch`, so identity
+selectors and `[*]` wildcards can update several existing list entries without
+repeating the surrounding manifest structure:
+
+```yaml
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: reviewer-policy
+spec:
+  target: {kind: MAS}
+  patch: {}
+  overrides:
+    - 'mas:spec.agency.agents[id=reviewer].spec.memory=long'
+    - 'mas:spec.agency.agents[*].spec.context.environment=staging'
+```
+
+The root must match `spec.target.kind` (`mas`, `agent`, `infra`, `flavour`,
+`experiment`, or `workspace`). Values use YAML syntax, including `$op`
+collections. A selector that matches no entry remains an error.
 
 ---
 
@@ -30,7 +68,7 @@ metadata:
   name: cot-ablation
 spec:
   target:
-    kind: MAS          # MAS | Agent | Flavour | Infra
+    kind: MAS          # Agent | MAS | Infra | Flavour | Experiment | Workspace
     name: optional-filter
   patch:
     workflow:
@@ -55,6 +93,37 @@ spec:
 `target.kind` must be `Agent`, `MAS`, `Flavour`, or `Infra`.
 
 ---
+
+## Target contract
+
+`spec.target` is required and controls both validation and merge dispatch:
+
+| Field | Required | Semantics |
+| --- | --- | --- |
+| `kind` | yes | Target document kind: `Agent`, `MAS`, `Infra`, `Flavour`, `Experiment`, or `Workspace`. |
+| `name` | no | For an `Agent` overlay applied to a MAS, selects one agency row by `id`, `name`, or `metadata.name`. For a standalone target, the document is already selected by the command. |
+
+The target kind must match the root used by every `spec.overrides` expression.
+An overlay with an unsupported kind, an unknown target name, or a selector with
+no match fails instead of being silently ignored.
+
+## Patch contract
+
+`spec.patch` is required and must be a mapping. Its allowed fields come from
+the target-specific schema fragment:
+
+| Target kind | Patch schema | Merge behavior |
+| --- | --- | --- |
+| `Agent` | `overlay-agent-patch.schema.yaml` | Agent fields, `$op`, and `x-merge` metadata |
+| `MAS` | `overlay-mas-patch.schema.yaml` | Workflow, agency entries, and MAS collection operators |
+| `Infra` | `overlay-infra-patch.schema.yaml` | RFC 7396 merge of the Infra `spec` |
+| `Flavour` | `overlay-flavour-patch.schema.yaml` | Deployment posture and plugin collection operators |
+| `Experiment`, `Workspace` | target document schema | In-memory RFC 7396 merge |
+
+Plain values follow the field's declared merge strategy. Use an explicit
+`$op` mapping for collection operations such as `replace`, `add`, `remove`,
+`clear`, or `merge`. Unknown fields are rejected by schema validation; this
+keeps a typo from becoming a new configuration field.
 
 ## Merge semantics
 

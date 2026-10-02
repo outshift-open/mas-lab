@@ -17,6 +17,7 @@ from mas.lab.benchmark.schedule.run_batch.prepare import prepare_batch
 async def run_mas_benchmark(
     experiment_yaml: Path,
     progress: bool = True,
+    overrides: Optional[list[str]] = None,
     dry_run: bool = False,
     max_runs: Optional[int] = None,
     limit_scenarios: Optional[int] = None,
@@ -49,6 +50,7 @@ async def run_mas_benchmark(
     """
     loaded = load_experiment(
         experiment_yaml,
+        overrides=overrides,
         max_runs=max_runs,
         limit_scenarios=limit_scenarios,
         scenario_id=scenario_id,

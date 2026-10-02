@@ -9,8 +9,9 @@ from typing import Any
 
 from mas.ctl.overlay import merge_overlay
 from mas.ctl.overlay.normalize import normalize_overlay
-from mas.runtime.spec.source import load_yaml_file, resolve_manifest_source
+from mas.ctl.overrides import apply_cli_overrides
 from mas.ctl.validate import validate_data, validate_file, validation_enabled
+from mas.runtime.spec.source import load_yaml_file, resolve_manifest_source
 
 
 def build_cli_overlay(
@@ -19,8 +20,9 @@ def build_cli_overlay(
     skills: tuple[str, ...] = (),
     memory: str | None = None,
     set_values: tuple[str, ...] = (),
+    overrides: tuple[str, ...] = (),
 ) -> dict[str, Any] | None:
-    if not any([tools, skills, memory, set_values]):
+    if not any([tools, skills, memory, set_values, overrides]):
         return None
     spec: dict[str, Any] = {}
     if tools:
@@ -55,7 +57,12 @@ def _agent_from_cli_overlay(cli_ov: dict[str, Any]) -> dict[str, Any]:
     is no base manifest we merge it into an empty ``kind: Agent`` so downstream
     receives an agent manifest, not an overlay document.
     """
-    base = {"apiVersion": "mas/v1", "kind": "Agent", "metadata": {"name": "agent"}, "spec": {}}
+    base = {
+        "apiVersion": "mas/v1",
+        "kind": "Agent",
+        "metadata": {"name": "agent"},
+        "spec": {"context": {}},
+    }
     return merge_overlay(base, cli_ov)
 
 
@@ -74,14 +81,24 @@ def load_merged_agent_manifest(
     skills: tuple[str, ...] = (),
     memory: str | None = None,
     set_values: tuple[str, ...] = (),
+    overrides: tuple[str, ...] = (),
     pattern: str | None = None,
     validate: bool = True,
 ) -> tuple[dict | None, str]:
     """Load agent YAML (path, ref, or inline dict), apply overlays + CLI patches."""
     if manifest is None:
         plugin = pattern or "react@v1"
-        cli_ov = build_cli_overlay(tools=tools, skills=skills, memory=memory, set_values=set_values)
-        return (_agent_from_cli_overlay(cli_ov), plugin) if cli_ov else (None, plugin)
+        cli_ov = build_cli_overlay(
+            tools=tools,
+            skills=skills,
+            memory=memory,
+            set_values=set_values,
+            overrides=overrides,
+        )
+        data = _agent_from_cli_overlay(cli_ov) if cli_ov else None
+        if data is not None and overrides:
+            data = apply_cli_overrides(data, overrides, root="agent")
+        return (data, plugin) if data else (None, plugin)
 
     anchor = manifest_dir or (manifest.parent if isinstance(manifest, Path) else Path.cwd())
     if isinstance(manifest, Path) and validate and validation_enabled():
@@ -94,8 +111,17 @@ def load_merged_agent_manifest(
     data = resolve_manifest_source(manifest, anchor=anchor)
     if data is None:
         plugin = pattern or "react@v1"
-        cli_ov = build_cli_overlay(tools=tools, skills=skills, memory=memory, set_values=set_values)
-        return (_agent_from_cli_overlay(cli_ov), plugin) if cli_ov else (None, plugin)
+        cli_ov = build_cli_overlay(
+            tools=tools,
+            skills=skills,
+            memory=memory,
+            set_values=set_values,
+            overrides=overrides,
+        )
+        data = _agent_from_cli_overlay(cli_ov) if cli_ov else None
+        if data is not None and overrides:
+            data = apply_cli_overrides(data, overrides, root="agent")
+        return (data, plugin) if data else (None, plugin)
 
     for ov in overlays:
         ov_path = Path(ov)
@@ -107,6 +133,10 @@ def load_merged_agent_manifest(
     cli_ov = build_cli_overlay(tools=tools, skills=skills, memory=memory, set_values=set_values)
     if cli_ov:
         data = merge_overlay(data, cli_ov)
+    if overrides:
+        data = apply_cli_overrides(data, overrides, root="agent")
+        if validate and validation_enabled():
+            validate_data(data, source="CLI overrides", kind="agent").raise_if_failed()
     plugin = pattern or pattern_from_manifest(data)
     return data, plugin
 

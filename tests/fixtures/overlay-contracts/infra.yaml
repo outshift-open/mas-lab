@@ -1,0 +1,12 @@
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: infra-contract
+spec:
+  target:
+    kind: Infra
+    name: local
+  patch:
+    protocol: mock
+  overrides:
+    - "infra:spec.protocol=offline"

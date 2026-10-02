@@ -24,6 +24,8 @@ properties:
     $ref: "../infra.schema.yaml#/properties/spec/properties/middleware"
   applies_to:
     $ref: "../infra.schema.yaml#/properties/spec/properties/applies_to"
+  protocol:
+    $ref: "../infra.schema.yaml#/properties/spec/properties/protocol"
   proxy:
     $ref: "../infra.schema.yaml#/properties/spec/properties/proxy"
   server:

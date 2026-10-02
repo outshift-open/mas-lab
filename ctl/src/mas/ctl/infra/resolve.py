@@ -75,6 +75,7 @@ def application_endpoint_is_deployed(endpoint: dict[str, Any]) -> bool:
 def resolve_infra_refs(
     refs: list[str],
     *,
+    overrides: list[str] | None = None,
     anchor: Path | None = None,
     workspace: WorkspaceConfig | None = None,
     user: UserConfig | None = None,
@@ -123,6 +124,14 @@ def resolve_infra_refs(
         except Exception as exc:
             errors.append((ref, exc))
 
+    if overrides:
+        from mas.ctl.overrides import apply_cli_overrides
+        from mas.ctl.validate import validate_data
+
+        merged_document = apply_cli_overrides(_infra_document(merged), tuple(overrides), root="infra")
+        validate_data(merged_document, source="CLI overrides", kind="infra").raise_if_failed()
+        merged = _from_dict(merged_document)
+
     runtime_effective = merge_runtime_refs(
         workspace_refs=ws.effective_runtime_refs,
         user_refs=[usr.default_runtime] if usr.default_runtime else [],
@@ -161,6 +170,36 @@ def resolve_infra_refs(
         runtime_refs=list(runtime_effective),
         applications=dict(merged.applications),
     )
+
+
+def _infra_document(manifest: InfraManifest) -> dict[str, Any]:
+    """Serialize the effective infra model for schema-backed CLI patching."""
+    proxy: dict[str, Any] = {
+        "api_base": manifest.proxy.api_base,
+        "api_key_env": manifest.proxy.api_key_env,
+    }
+    if manifest.proxy.timeout is not None:
+        proxy["timeout"] = manifest.proxy.timeout
+    models: dict[str, Any] = {
+        "allowed": list(manifest.models.allowed),
+        "defaults": {
+            "llm": manifest.models.default_llm,
+            "embed": manifest.models.default_embed,
+        },
+        "mappings": dict(manifest.models.mappings),
+    }
+    return {
+        "apiVersion": "infra/v1",
+        "kind": manifest.kind or "InfraBundle",
+        "metadata": {"name": manifest.name},
+        "spec": {
+            "proxy": proxy,
+            "models": models,
+            "model_access": dict(manifest.model_access),
+            "protocol": manifest.protocol,
+            "tool_servers": list(manifest.tool_servers),
+        },
+    }
 
 
 def bidirectional_pipeline_for(

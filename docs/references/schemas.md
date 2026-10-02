@@ -9,6 +9,23 @@ benchmark UI. Files live under [`docs/schemas/`](../schemas/).
 
 Human-readable field docs are in [Specifications](index.md#specifications).
 
+## Overlay and CLI merge metadata
+
+`x-merge` annotations define collection identity and merge behavior for both
+YAML overlays and CLI `--override` patches. CLI overrides become canonical
+`kind: Overlay` documents, are validated against the target schema, and apply
+last. Root-qualified paths identify the document, for example
+`agent:spec.tools`, `mas:spec.agency.agents[id=qa].spec.memory`, or
+`experiment:experiment.run.n_runs`.
+
+The canonical overlay schema is [`runtime/overlay.schema.yaml`](../schemas/runtime/overlay.schema.yaml).
+Its target-specific patch fragments are [`overlay-agent-patch.schema.yaml`](../schemas/runtime/fragments/overlay-agent-patch.schema.yaml),
+[`overlay-mas-patch.schema.yaml`](../schemas/runtime/fragments/overlay-mas-patch.schema.yaml),
+[`overlay-infra-patch.schema.yaml`](../schemas/runtime/fragments/overlay-infra-patch.schema.yaml),
+and [`overlay-flavour-patch.schema.yaml`](../schemas/runtime/fragments/overlay-flavour-patch.schema.yaml).
+The [Overlay manifest reference](../manifests/overlay.md) defines `target.kind`,
+`target.name`, `spec.patch`, and grouped `spec.overrides` together.
+
 ---
 
 ## Workspace & project

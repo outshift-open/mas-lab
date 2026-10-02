@@ -18,6 +18,13 @@ from mas.ctl.executor.run_mas import execute_run_mas
 @click.option("-p", "--prompt", default=None)
 @click.option("-q", "--query", "queries", multiple=True, help="Single or multi-turn query")
 @click.option("-o", "--overlay", "overlays", multiple=True, type=click.Path())
+@click.option(
+    "--override",
+    "overrides",
+    multiple=True,
+    metavar="ROOT:PATH=VALUE",
+    help="Schema-validated overlay override (repeatable; applied last).",
+)
 @click.option("-d", "--deployment", "deployment", default=None, type=click.Path())
 @click.option(
     "--flavour",
@@ -48,6 +55,7 @@ def run_mas_cmd(
     prompt: str | None,
     queries: tuple[str, ...],
     overlays: tuple[str, ...],
+    overrides: tuple[str, ...],
     deployment: str | None,
     flavour: str,
     infra_refs: tuple[str, ...],
@@ -78,7 +86,7 @@ def run_mas_cmd(
     from mas.ctl.session.flavour import FlavourError, resolve_flavour
 
     try:
-        flavour_spec = resolve_flavour(flavour)
+        flavour_spec = resolve_flavour(flavour, overrides=overrides)
     except FlavourError as exc:
         click.echo(f"error: {exc}", err=True)
         raise SystemExit(2) from None
@@ -87,6 +95,7 @@ def run_mas_cmd(
         from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
 
         workspace = WorkspaceConfig.load(session.manifest_dir or session.original_cwd)
+        workspace = workspace.with_cli_overrides(overrides)
         user = UserConfig.load()
         trace = resolve_trace_settings(
             trace_mode=trace_mode,
@@ -124,6 +133,7 @@ def run_mas_cmd(
             prompt=prompt,
             queries=list(queries) if queries else None,
             overlay_paths=list(session.overlays),
+            overrides=list(overrides),
             infra_refs=list(infra_refs),
             deployment_path=deployment_path,
             kernel_backend=kernel,

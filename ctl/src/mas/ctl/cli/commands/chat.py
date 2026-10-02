@@ -45,6 +45,13 @@ from mas.ctl.ui.stdout import StdoutConversationDisplay
 @click.option("--skill", "skills", multiple=True, help="Inline overlay: skill name")
 @click.option("--memory", default=None, help="Inline overlay: memory backend id")
 @click.option("--set", "set_values", multiple=True, help="Inline overlay: spec.context KEY=VALUE")
+@click.option(
+    "--override",
+    "overrides",
+    multiple=True,
+    metavar="ROOT:PATH=VALUE",
+    help="Schema-validated overlay override (repeatable; applied last).",
+)
 @click.option("--pattern", default=None, help="Design pattern plugin id (default from manifest)")
 @click.option(
     "--flavour",
@@ -117,6 +124,7 @@ def chat_cmd(
     skills: tuple[str, ...],
     memory: str | None,
     set_values: tuple[str, ...],
+    overrides: tuple[str, ...],
     pattern: str | None,
     flavour: str,
     infra_refs_cli: tuple[str, ...],
@@ -162,6 +170,7 @@ def chat_cmd(
     with manifest_cwd(manifest, overlay_paths=overlays) as session:
         load_dotenv(cwd=session.original_cwd, manifest_dir=session.manifest_dir)
         workspace = WorkspaceConfig.load(session.manifest_dir or session.original_cwd)
+        workspace = workspace.with_cli_overrides(overrides)
         user = UserConfig.load()
         overlay_strs = tuple(str(p) for p in session.overlays)
         agent_data, plugin = load_merged_agent_manifest(
@@ -171,6 +180,7 @@ def chat_cmd(
             skills=skills,
             memory=memory,
             set_values=set_values,
+            overrides=overrides,
             pattern=pattern,
             validate=not no_validate,
         )
@@ -193,7 +203,7 @@ def chat_cmd(
         # Surviving deployment concerns (currently: observability plugin
         # selection) are folded in below — see docs/design/flavour-boundary.md.
         try:
-            flavour_spec = resolve_flavour(flavour)
+            flavour_spec = resolve_flavour(flavour, overrides=overrides)
         except FlavourError as exc:
             click.echo(f"error: {exc}", err=True)
             raise SystemExit(2) from None
@@ -315,6 +325,7 @@ def chat_cmd(
                         workspace,
                         user,
                         infra_refs_cli=infra_refs_cli,
+                        overrides=overrides,
                         runtime_refs_cli=runtime_refs_cli,
                         anchor=session.manifest_dir or session.original_cwd,
                         with_interceptors=True,

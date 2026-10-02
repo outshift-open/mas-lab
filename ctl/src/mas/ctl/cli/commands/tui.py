@@ -18,6 +18,13 @@ from mas.ctl.ui.curses_app import build_curses_controller, run_curses_session
 @click.command("tui")
 @click.argument("manifest", required=False)
 @click.option("-o", "--overlay", "overlays", multiple=True, type=click.Path())
+@click.option(
+    "--override",
+    "overrides",
+    multiple=True,
+    metavar="ROOT:PATH=VALUE",
+    help="Schema-validated overlay override (repeatable; applied last).",
+)
 @click.option("--pattern", default=None)
 @click.option(
     "--flavour",
@@ -52,6 +59,7 @@ def tui_cmd(
     ctx: click.Context,
     manifest: str | None,
     overlays: tuple[str, ...],
+    overrides: tuple[str, ...],
     pattern: str | None,
     flavour: str,
     single_turn: bool,
@@ -87,7 +95,7 @@ def tui_cmd(
         from mas.ctl.session.flavour import FlavourError, resolve_flavour
 
         try:
-            flavour_spec = resolve_flavour(flavour)
+            flavour_spec = resolve_flavour(flavour, overrides=overrides)
         except FlavourError as exc:
             click.echo(f"error: {exc}", err=True)
             raise SystemExit(2) from None

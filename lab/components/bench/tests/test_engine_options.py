@@ -8,6 +8,14 @@ import pytest
 from mas.lab.benchmark.engine import BenchmarkRunOptions, _is_mas_experiment_yaml, run_benchmark
 
 
+def test_benchmark_options_preserve_cli_overrides() -> None:
+    options = BenchmarkRunOptions.from_spec(
+        {"overrides": ["experiment:experiment.run.n_runs=1"]}
+    )
+
+    assert options.overrides == ["experiment:experiment.run.n_runs=1"]
+
+
 @pytest.mark.asyncio
 async def test_run_benchmark_missing_file_returns_false(tmp_path: Path) -> None:
     ok = await run_benchmark(tmp_path / "missing.yaml")

@@ -18,8 +18,9 @@ from mas.ctl.compose.pipeline import (
 from mas.ctl.compose.placement_validate import validate_placement_strategy
 from mas.ctl.deployment.load import load_deployment, resolve_runtime_id
 from mas.ctl.infra.resolve import resolve_infra_refs
-from mas.runtime.spec.source import load_yaml_mapping
 from mas.ctl.overlay import accumulate_agent_patches, loaded_agent_patches, merge_overlay
+from mas.ctl.overrides import apply_cli_overrides
+from mas.ctl.overrides.parser import parse_override
 from mas.ctl.validate import validate_file, validation_enabled
 from mas.ctl.workspace.config import (
     UserConfig,
@@ -27,6 +28,7 @@ from mas.ctl.workspace.config import (
     merge_infra_interceptors,
     merge_infra_refs,
 )
+from mas.runtime.spec.source import load_yaml_mapping
 
 
 def resolve_workspace_infra(
@@ -35,6 +37,7 @@ def resolve_workspace_infra(
     anchor: Path,
     cli_refs: list[str],
     runtime_refs: list[str] | None = None,
+    overrides: list[str] | None = None,
 ) -> ResolvedInfra:
     """Merge workspace, user-default and CLI infra refs, then resolve them."""
     user = UserConfig.load()
@@ -54,6 +57,7 @@ def resolve_workspace_infra(
             cli_interceptors=[],
         ),
         runtime_refs=list(runtime_refs or []),
+        overrides=list(overrides or []),
     )
 
 
@@ -74,6 +78,7 @@ class ComposeRequest:
     deployment_path: Path | None = None
     overlay_ids: list[str] = field(default_factory=list)
     overlay_paths: list[Path] = field(default_factory=list)
+    overrides: list[str] = field(default_factory=list)
     infra_refs: list[str] = field(default_factory=list)
     runtime_refs: list[str] = field(default_factory=list)
     kernel_backend: str | None = None  # CLI override of deployment.spec.runtime_id
@@ -142,6 +147,12 @@ def compose_run(req: ComposeRequest) -> ComposeResult:
         overlay = load_yaml_mapping(ov_path)
         mas = merge_overlay(mas, overlay)
         agent_patches = accumulate_agent_patches(agent_patches, loaded_agent_patches(overlay, mas))
+    if req.overrides:
+        mas = apply_cli_overrides(mas, req.overrides, root="mas")
+        if req.validate and validation_enabled():
+            from mas.ctl.validate import validate_data
+
+            validate_data(mas, source="CLI overrides", kind="mas").raise_if_failed()
     mas_id = mas.get("metadata", {}).get("name") or req.manifest.stem
 
     workspace = WorkspaceConfig.load(req.workspace_root or req.manifest.parent)
@@ -150,6 +161,11 @@ def compose_run(req: ComposeRequest) -> ComposeResult:
         anchor=req.manifest.parent,
         cli_refs=list(req.infra_refs),
         runtime_refs=list(req.runtime_refs),
+        overrides=[
+            source
+            for source in req.overrides
+            if parse_override(source).path.root == "infra"
+        ],
     )
 
     if req.deployment_path:

@@ -3,8 +3,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
 from jsonschema import Draft7Validator
 from mas.ctl.validate.schemas import load_schema
+import yaml
 
 
 def test_overlay_schema_rejects_global_design_pattern_params_on_mas_target() -> None:
@@ -163,3 +167,64 @@ def test_overlay_schema_rejects_missing_target_kind() -> None:
 
     errors = sorted(Draft7Validator(schema).iter_errors(doc), key=lambda e: e.path)
     assert errors
+
+
+@pytest.mark.parametrize(
+    ("kind", "root"),
+    [
+        ("Agent", "agent"),
+        ("MAS", "mas"),
+        ("Infra", "infra"),
+        ("Flavour", "flavour"),
+        ("Experiment", "experiment"),
+        ("Workspace", "workspace"),
+    ],
+)
+def test_overlay_schema_accepts_target_name_and_grouped_overrides(kind: str, root: str) -> None:
+    schema = load_schema("overlay")
+    doc = {
+        "apiVersion": "mas/v1",
+        "kind": "Overlay",
+        "metadata": {"name": f"{root}-contract"},
+        "spec": {
+            "target": {"kind": kind, "name": "named-target"},
+            "patch": {},
+            "overrides": [f"{root}:spec.value=updated"],
+        },
+    }
+
+    errors = sorted(Draft7Validator(schema).iter_errors(doc), key=lambda e: e.path)
+    assert not errors, [error.message for error in errors]
+
+
+def test_overlay_schema_rejects_non_string_grouped_override() -> None:
+    schema = load_schema("overlay")
+    doc = {
+        "apiVersion": "mas/v1",
+        "kind": "Overlay",
+        "metadata": {"name": "bad-overrides"},
+        "spec": {
+            "target": {"kind": "MAS"},
+            "patch": {},
+            "overrides": [{"path": "mas:spec.value", "value": "updated"}],
+        },
+    }
+
+    errors = sorted(Draft7Validator(schema).iter_errors(doc), key=lambda e: e.path)
+    assert errors
+
+
+def test_infra_overlay_fragment_covers_infra_spec_properties() -> None:
+    root = Path(__file__).parents[1]
+    infra_schema = yaml.safe_load(
+        (root / "docs/schemas/runtime/infra.schema.yaml").read_text(encoding="utf-8")
+    )
+    overlay_fragment = yaml.safe_load(
+        (
+            root / "docs/schemas/runtime/fragments/overlay-infra-patch.schema.yaml"
+        ).read_text(encoding="utf-8")
+    )
+
+    infra_properties = set(infra_schema["properties"]["spec"]["properties"])
+    overlay_properties = set(overlay_fragment["properties"])
+    assert infra_properties <= overlay_properties

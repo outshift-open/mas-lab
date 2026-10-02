@@ -12,6 +12,13 @@ import click
 @click.argument("experiment_yaml", type=Path, metavar="EXPERIMENT_YAML")
 @click.option("--force", is_flag=True, default=False,
               help="Force a new run even if a previous run exists (Makefile --force semantics).")
+@click.option(
+    "--override",
+    "overrides",
+    multiple=True,
+    metavar="ROOT:PATH=VALUE",
+    help="Schema-validated experiment override (repeatable; applied last).",
+)
 @click.option("--resume", is_flag=True, default=False, hidden=True,
               help="(Deprecated) Resume an interrupted run — default behaviour now.")
 @click.option("--benchmark-id", default=None,
@@ -103,6 +110,7 @@ import click
               help="Remove benchmark output for scenarios no longer in the experiment YAML "
                    "(and unreferenced trace-cache entries when enabled in config).")
 def run_cmd(experiment_yaml: Path, force: bool, resume: bool, benchmark_id: str | None,
+            overrides: tuple[str, ...],
             progress: bool, dry_run: bool, max_runs: int | None,
             limit_scenarios: int | None, sample_scenarios: int | None,
             scenario_id: str | None, dataset_item: str | None,
@@ -128,6 +136,7 @@ def run_cmd(experiment_yaml: Path, force: bool, resume: bool, benchmark_id: str 
             ok = run_benchmark_sync(
                 experiment_yaml,
                 dry_run=True,
+                overrides=list(overrides),
                 force=force,
                 max_runs=max_runs,
                 limit_scenarios=limit_scenarios,
@@ -153,6 +162,7 @@ def run_cmd(experiment_yaml: Path, force: bool, resume: bool, benchmark_id: str 
 
     spec = {
         "experiment_yaml": str(experiment_yaml.resolve()),
+        "overrides": list(overrides),
         "progress": progress,
         "resume": resume,
         "force": force,

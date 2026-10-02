@@ -66,6 +66,18 @@ class TestResolveFlavour:
         spec = resolve_flavour("mcp")
         assert spec["tools"]["exposure_protocol"] == "mcp"
 
+    def test_cli_override_applies_to_bundled_flavour(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            flavour_mod,
+            "_load_bundled_flavour",
+            lambda name: {"apiVersion": "mas/v1", "kind": "Flavour", "spec": {"observability": ["native"]}},
+        )
+        monkeypatch.setattr("mas.ctl.validate.validation_enabled", lambda: False)
+
+        spec = resolve_flavour("local", overrides=("flavour:spec.observability=[]",))
+
+        assert spec["observability"] == []
+
     def test_missing_library_returns_empty_dict(self, monkeypatch) -> None:
         monkeypatch.setattr(flavour_mod, "_load_bundled_flavour", lambda name: {})
         assert resolve_flavour("local") == {}

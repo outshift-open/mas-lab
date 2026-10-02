@@ -1,0 +1,13 @@
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: workspace-contract
+spec:
+  target:
+    kind: Workspace
+    name: local
+  patch:
+    defaults:
+      model: patched
+  overrides:
+    - "workspace:defaults.model=overridden"

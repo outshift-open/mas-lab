@@ -8,7 +8,6 @@ from pathlib import Path
 
 import click
 import yaml
-
 from mas.ctl.cli.runtime_flags import runtime_id_choice
 from mas.ctl.compose.runner import ComposeRequest, compose_run
 from mas.ctl.deployment.runtime_id import DEFAULT_RUNTIME_ID
@@ -20,6 +19,7 @@ def _compose_run(
     *,
     deployment_path: str | None,
     overlay_paths: tuple[str, ...],
+    overrides: tuple[str, ...] = (),
     infra_refs: tuple[str, ...],
     runtime_refs: tuple[str, ...],
     kernel_backend: str,
@@ -37,6 +37,7 @@ def _compose_run(
             manifest=session.local_manifest,
             deployment_path=dep,
             overlay_paths=list(session.overlays),
+            overrides=list(overrides),
             infra_refs=list(infra_refs),
             runtime_refs=list(runtime_refs),
             kernel_backend=kernel_backend,
@@ -56,6 +57,13 @@ def _compose_run(
 @click.argument("manifest")
 @click.option("--deployment", "-d", "deployment_path", default=None, type=click.Path())
 @click.option("--overlay", "-o", "overlay_paths", multiple=True, type=click.Path())
+@click.option(
+    "--override",
+    "overrides",
+    multiple=True,
+    metavar="ROOT:PATH=VALUE",
+    help="Schema-validated overlay override (repeatable; applied last).",
+)
 @click.option("--infra-ref", "infra_refs", multiple=True)
 @click.option("--runtime-ref", "runtime_refs", multiple=True)
 @click.option(
@@ -70,6 +78,7 @@ def compose_cmd(
     manifest: str,
     deployment_path: str | None,
     overlay_paths: tuple[str, ...],
+    overrides: tuple[str, ...],
     infra_refs: tuple[str, ...],
     runtime_refs: tuple[str, ...],
     kernel_backend: str,
@@ -81,6 +90,7 @@ def compose_cmd(
         manifest,
         deployment_path=deployment_path,
         overlay_paths=overlay_paths,
+        overrides=overrides,
         infra_refs=infra_refs,
         runtime_refs=runtime_refs,
         kernel_backend=kernel_backend,
