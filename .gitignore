@@ -73,9 +73,3 @@ compliance/vendor/
 # Session / scratch (do not commit — not gitignored; keep local only)
 COVERAGE_REPORT.md
 MANIFEST_SCHEMA_MAPPING.md
-
-# Local working notes and internal planning (never commit)
-docs/references/execute-world.md
-PLAN-*.md
-PAPER-*.md
-*.canvas.tsx
