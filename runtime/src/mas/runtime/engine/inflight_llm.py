@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""In-flight LLM tasks — PLAN-08 v2 hard interrupt of ``ainvoke`` only."""
+"""In-flight LLM tasks — hard interrupt of ``ainvoke`` only."""
 
 from __future__ import annotations
 

@@ -37,7 +37,7 @@ oneOf:
       spec_revision: { type: integer, minimum: 0 }
       related:
         type: array
-        description: Fingerprints for execute-world adapters; bytes stay in the adapter.
+        description: Fingerprints for related-state adapters; bytes stay in the adapter.
         items:
           type: object
           additionalProperties: false

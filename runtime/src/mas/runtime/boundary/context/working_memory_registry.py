@@ -128,8 +128,8 @@ class WorkingMemoryRegistry:
 
         Message dicts are copied one level so a later append on the live
         list cannot alias the snapshot; string payloads are shared.
-        ``persist()`` is what serializes. ``deepcopy`` here was the PLAN-09
-        cost center.
+        ``persist()`` is what serializes. ``deepcopy`` here was the
+        snapshot cost center.
         """
         return [
             {

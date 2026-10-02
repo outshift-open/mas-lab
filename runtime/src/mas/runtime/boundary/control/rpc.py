@@ -3,8 +3,8 @@
 """JSON-lines unix-socket adapter over ControlContract.
 
 Same verbs as in-process ``SessionControl``. The wire is not a second
-implementation: the server calls the local contract. PLAN-08 deferred
-distributed attach; this is the smallest cross-process surface.
+implementation: the server calls the local contract. This is the
+smallest local cross-process surface; it is not a distributed attach.
 """
 
 from __future__ import annotations

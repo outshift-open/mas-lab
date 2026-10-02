@@ -290,7 +290,7 @@ def _event_payload(event: Any) -> dict[str, Any]:
 
 
 def persist(snapshot: Snapshot, store: Any, *, manifest: dict[str, Any], lineage: dict[str, Any], backtrack_count: int = 0) -> Any:
-    """Write a Snapshot through PLAN-02's CheckpointStore. Disk is optional."""
+    """Write a Snapshot through CheckpointStore. Disk is optional."""
     from mas.runtime.session.state import ManifestRef
 
     ref = ManifestRef.from_content(manifest)

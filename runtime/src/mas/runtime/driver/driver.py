@@ -749,8 +749,8 @@ class KernelDriver:
     async def _ainvoke_engine(self, io: InvokeEngineIo) -> EngineIoReturn:
         """Async twin of :meth:`_invoke_engine` — awaits ``engine.ainvoke``.
 
-        PLAN-08 v2 hard interrupt cancels the inner LLM task only. Tools are
-        not rolled back. An outer cancellation of this driver still propagates.
+        Hard interrupt cancels the inner LLM task only. Tools are not
+        rolled back. An outer cancellation of this driver still propagates.
         """
         if self.engine is None:
             raise RuntimeError("no engine configured")

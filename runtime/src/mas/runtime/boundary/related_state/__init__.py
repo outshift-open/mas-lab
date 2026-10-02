@@ -52,7 +52,7 @@ class RelatedStatePlugin(Protocol):
 
 
 class NullRelatedState:
-    """Default: no execute-world. Chat agents do not need a filesystem."""
+    """Default: no related filesystem. Chat agents do not need one."""
 
     name = "none"
 

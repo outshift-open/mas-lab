@@ -2,11 +2,11 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Copy-on-write freeze for kernel product state and the run ledger.
 
-PLAN-09 §2.2: a snapshot should hold a reference, and the *live* kernel
-pays for a clone only on the next mutation. ``RuntimeKernel.transition``
-mutates ``q`` in place today, so the CoW seam is one chokepoint at the
-start of ``transition`` (and of restore): if the live object is frozen,
-clone it, then mutate the clone. Snapshots keep the frozen original.
+A snapshot holds a reference; the live kernel pays for a clone only on
+the next mutation. ``RuntimeKernel.transition`` mutates ``q`` in place
+today, so the CoW seam is one chokepoint at the start of ``transition``
+(and of restore): if the live object is frozen, clone it, then mutate
+the clone. Snapshots keep the frozen original.
 
 Working memory uses the same freeze bit on ``WorkingMemorySnapshot``:
 in-memory snapshot cost is a pointer; the next ``sync_working_memory_out``

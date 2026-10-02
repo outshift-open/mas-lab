@@ -1,6 +1,6 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Git adapter for related execute-world state.
+"""Git adapter for related filesystem state.
 
 Uses the system ``git`` binary (libgit2/pygit2 optional later). The
 snapshot holds a commit hash, not the tree bytes. Commits land on
