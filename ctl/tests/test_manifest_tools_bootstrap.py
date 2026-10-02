@@ -42,6 +42,7 @@ class CalcTool:
     manifest = {
         "metadata": {"name": "agent"},
         "spec": {
+            "models": [{"id": "main", "model": "gpt-4o"}],
             "tools": [{"ref": "./tools/calculator.tool.yaml"}],
         },
     }

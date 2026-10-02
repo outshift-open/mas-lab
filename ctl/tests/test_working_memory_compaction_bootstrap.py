@@ -14,6 +14,8 @@ def _instantiate(manifest: dict, tmp_path: Path, monkeypatch, **options):
     monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: WorkspaceConfig({}))
     monkeypatch.setattr(UserConfig, "load", lambda *a, **k: UserConfig({}))
     monkeypatch.setenv("OPENAI_API_KEY", "ci-test-unused")
+    spec = manifest.setdefault("spec", {})
+    spec.setdefault("models", [{"id": "main", "model": "gpt-4o"}])
     infra = resolve_infra_refs(["standard:openai"], anchor=tmp_path)
     return instantiate_runtime(
         InstantiationOptions(

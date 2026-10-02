@@ -562,6 +562,153 @@ class OverlayTargetError(ValueError):
     """Overlay target kind, name, or patch field does not match the base document."""
 
 
+# Form A agency rows are `{id, ref}` (optional `name`). Agent fields from a
+# MAS overlay are extracted and merged onto loaded Agent YAML — they never
+# live on the MAS document.
+_FORM_A_ROW_KEYS = frozenset({"id", "ref", "name"})
+_MAS_KINDS = frozenset({"mas", "app", "workflow"})
+
+
+def _is_ref_based_agency_row(row: dict[str, Any]) -> bool:
+    return "ref" in row and str(row.get("kind") or "").lower() != "agent"
+
+
+def _strip_form_a_extras(row: dict[str, Any]) -> None:
+    extra = [k for k in list(row) if k not in _FORM_A_ROW_KEYS]
+    for key in extra:
+        row.pop(key, None)
+
+
+def _overlay_patch_body(overlay: dict[str, Any]) -> dict[str, Any]:
+    overlay_spec = overlay.get("spec") or {}
+    if isinstance(overlay_spec.get("patch"), dict):
+        return overlay_spec["patch"]
+    if isinstance(overlay_spec, dict):
+        return {k: v for k, v in overlay_spec.items() if k not in {"target", "patch"}}
+    return {}
+
+
+def _raise_if_legacy_transport(per_agent: dict[str, Any]) -> None:
+    legacy = {"agent_comm", "agent_transport", "expose"} & per_agent.keys()
+    if legacy:
+        raise OverlayTargetError(
+            "MAS agency overlays cannot set transport or exposure fields "
+            f"{sorted(legacy)!r}; use an infra Application endpoint "
+            "for remote peers and `mas-ctl serve` for inbound exposure"
+        )
+
+
+def extract_mas_agent_patches(
+    overlay: dict[str, Any],
+    mas_spec: dict[str, Any],
+    *,
+    ref_based_only: bool = True,
+) -> dict[str, Any]:
+    """Per-agent overlay patches to merge onto loaded Agent YAML.
+
+    ``patch.agents.$entry`` (and ``$all`` / ``$not-entry`` / ``$delegates``)
+    expand against *mas_spec* after that overlay's ``workflow`` patch, so
+    ``$entry`` follows this overlay. Form A rows stay ``{id, ref}``; the
+    returned map is applied later with :func:`merge_agent_overlay`.
+    """
+    overlay_agents = _overlay_patch_body(overlay).get("agents")
+    if not isinstance(overlay_agents, dict) or _ops_dict(overlay_agents) is not None:
+        return {}
+    had_entry_key = _AGENT_ALIAS_ENTRY in overlay_agents
+    resolved = _resolve_mas_agent_patches(overlay_agents, mas_spec)
+    agency = mas_spec.get("agency") if isinstance(mas_spec.get("agency"), dict) else {}
+    agents_list = list(agency.get("agents") or [])
+    by_id = {
+        str(a.get("id") or a.get("name")): a
+        for a in agents_list
+        if isinstance(a, dict) and (a.get("id") or a.get("name"))
+    }
+    entry_id = _workflow_entry(mas_spec)
+    out: dict[str, Any] = {}
+    for agent_id, per_agent in resolved.items():
+        if not isinstance(per_agent, dict):
+            continue
+        aid = str(agent_id)
+        target = by_id.get(aid)
+        if target is None:
+            if had_entry_key and aid == entry_id:
+                raise OverlayTargetError(
+                    f"patch.agents.$entry resolved to {aid!r}, which is not in spec.agency.agents"
+                )
+            continue
+        _raise_if_legacy_transport(per_agent)
+        incoming = {k: v for k, v in per_agent.items() if k != "ref"}
+        if not incoming:
+            continue
+        if ref_based_only and not _is_ref_based_agency_row(target):
+            continue
+        out[aid] = deepcopy(incoming)
+    return out
+
+
+def extract_agent_overlay_fanout(overlay: dict[str, Any], mas: dict[str, Any]) -> dict[str, Any]:
+    """Patches from a ``target.kind: Agent`` overlay applied to a MAS.
+
+    Form B (inline Agent) rows are merged in :func:`fanout_agent_overlay`.
+    Form A rows stay ``{id, ref}``; this map is applied when those YAML
+    files load. Zero matches is an error — the overlay must attach somewhere.
+    """
+    spec = mas.get("spec") if isinstance(mas.get("spec"), dict) else mas
+    rows = _nested_agent_rows(spec if isinstance(spec, dict) else {})
+    target_name = _overlay_target_name(overlay)
+    raw_patch = _overlay_patch_body(overlay)
+    matched = 0
+    out: dict[str, Any] = {}
+    for row in rows:
+        if target_name and not _row_matches_agent_target(row, target_name):
+            continue
+        matched += 1
+        if _is_inline_agent_row(row):
+            continue
+        aid = str(row.get("id") or row.get("name") or "")
+        if aid and raw_patch:
+            out[aid] = deepcopy(raw_patch)
+    if matched == 0:
+        named = f" named {target_name!r}" if target_name else ""
+        raise OverlayTargetError(
+            f"target.kind: Agent overlay{named} matched no agents in "
+            "spec.agency.agents / spec.agents"
+        )
+    return out
+
+
+def loaded_agent_patches(overlay: dict[str, Any], mas: dict[str, Any]) -> dict[str, Any]:
+    """Patches to apply to separately loaded Agent YAML after this overlay merge.
+
+    Call after :func:`merge_overlay` so ``$entry`` follows this overlay's
+    workflow. The MAS document itself is unchanged.
+    """
+    spec = overlay.get("spec") or {}
+    target = spec.get("target") if isinstance(spec.get("target"), dict) else {}
+    overlay_kind = str(target.get("kind") or "").strip().lower()
+    kind = str(mas.get("kind") or "").strip().lower()
+    if overlay_kind in _MAS_KINDS:
+        mas_spec = mas.get("spec") if isinstance(mas.get("spec"), dict) else mas
+        return extract_mas_agent_patches(overlay, mas_spec if isinstance(mas_spec, dict) else {})
+    if overlay_kind == "agent" and (kind in _MAS_KINDS or _base_is_mas(mas)):
+        return extract_agent_overlay_fanout(overlay, mas)
+    return {}
+
+
+def accumulate_agent_patches(
+    existing: dict[str, Any] | None,
+    incoming: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Stack per-agent overlay patches; keep ``$op`` intact until Agent YAML loads."""
+    out: dict[str, Any] = dict(existing or {})
+    for agent_id, patch in (incoming or {}).items():
+        if not agent_id or not isinstance(patch, dict) or not patch:
+            continue
+        aid = str(agent_id)
+        out[aid] = _keep_unresolved_ops(out.get(aid), patch)
+    return out
+
+
 def _compose_list_op_patches(left: Any, right: Any) -> dict[str, Any]:
     """Stack two `$op` collection patches (add lists concatenate)."""
     a = _ops_dict(left) or {}
@@ -589,12 +736,11 @@ def _compose_list_op_patches(left: Any, right: Any) -> dict[str, Any]:
 
 
 def _keep_unresolved_ops(existing: Any, incoming: Any) -> Any:
-    """Park `$op` on a MAS agent-alias patch ($all/$not-entry/$delegates/$entry)
-    until the Agent YAML is loaded, when two aliases stack onto the same
-    agency id (see _resolve_mas_agent_patches._layer).
+    """Park `$op` until the Agent YAML is loaded, when two aliases stack onto
+    the same agency id (see _resolve_mas_agent_patches._layer).
 
-    Resolving `$op.add` against an empty agent spec here would collapse it to
-    a short list; the later per-agent overlay merge (once that Agent's own
+    Resolving `$op.add` against an empty agent spec would collapse it to a
+    short list; the later per-agent overlay merge (once that Agent's own
     document is loaded) needs the `$op` wrapper intact to compose correctly.
     Nested maps (e.g. context.role) are walked the same way.
     """
@@ -841,7 +987,9 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
         agency["agents"] = existing_agents
         base_spec["agency"] = agency
     elif isinstance(overlay_agents, dict):
-        had_entry_key = _AGENT_ALIAS_ENTRY in overlay_agents
+        # Validate aliases / unknown $entry. Form A patches are returned to
+        # the caller (compile / compose) — they are not stored on this MAS.
+        extract_mas_agent_patches(overlay, base_spec)
         overlay_agents = _resolve_mas_agent_patches(overlay_agents, base_spec)
         agency = base_spec.setdefault("agency", {})
         agents_list = list(agency.get("agents") or [])
@@ -850,45 +998,28 @@ def merge_mas_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
             for a in agents_list
             if isinstance(a, dict) and (a.get("id") or a.get("name"))
         }
-        entry_id = _workflow_entry(base_spec)
         for agent_id, per_agent in overlay_agents.items():
             if not isinstance(per_agent, dict):
                 continue
             target = by_id.get(str(agent_id))
             if target is None:
-                if had_entry_key and str(agent_id) == entry_id:
-                    raise OverlayTargetError(
-                        f"patch.agents.$entry resolved to {agent_id!r}, which is not in spec.agency.agents"
-                    )
                 continue
-            # Ref-based entries have no real content here yet (it lives in the
-            # ref'd file, loaded later by apply_agency_entry_overlay) -- hand
-            # context through raw rather than pre-merging $op.add against an
-            # empty spec, or the base gets silently dropped. Check "ref", not
-            # spec emptiness: spec fills in here after the first overlay.
-            is_ref_based = "ref" in target and str(target.get("kind") or "").lower() != "agent"
             if "ref" in per_agent:
                 target["ref"] = deepcopy(per_agent["ref"])
-            legacy_transport_keys = {"agent_comm", "agent_transport", "expose"} & per_agent.keys()
-            if legacy_transport_keys:
-                raise OverlayTargetError(
-                    "MAS agency overlays cannot set transport or exposure fields "
-                    f"{sorted(legacy_transport_keys)!r}; use an infra Application endpoint "
-                    "for remote peers and `mas-ctl serve` for inbound exposure"
-                )
-            agent_spec = target.setdefault("spec", {})
-            raw_context = per_agent.get("context") if is_ref_based else None
-            per_agent_for_merge = (
-                {k: v for k, v in per_agent.items() if k not in {"context", "ref"}}
-                if raw_context is not None
-                else {k: v for k, v in per_agent.items() if k != "ref"}
-            )
-            per_agent_overlay = {"spec": {"patch": deepcopy(per_agent_for_merge)}}
-            merged_agent = merge_agent_overlay({"spec": deepcopy(agent_spec)}, per_agent_overlay)
-            agent_spec.clear()
-            agent_spec.update(merged_agent.get("spec", {}))
-            if raw_context is not None:
-                agent_spec["context"] = deepcopy(raw_context)
+            _raise_if_legacy_transport(per_agent)
+            incoming_patch = {k: v for k, v in per_agent.items() if k != "ref"}
+            if _is_ref_based_agency_row(target):
+                _strip_form_a_extras(target)
+            elif incoming_patch:
+                agent_spec = target.setdefault("spec", {})
+                per_agent_overlay = {"spec": {"patch": deepcopy(incoming_patch)}}
+                merged_agent = merge_agent_overlay({"spec": deepcopy(agent_spec)}, per_agent_overlay)
+                agent_spec.clear()
+                agent_spec.update(merged_agent.get("spec", {}))
+
+        for row in agents_list:
+            if isinstance(row, dict) and _is_ref_based_agency_row(row):
+                _strip_form_a_extras(row)
 
     return merged
 
@@ -940,12 +1071,12 @@ def _is_inline_agent_row(row: dict[str, Any]) -> bool:
 
 
 def fanout_agent_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
-    """Copy a ``target.kind: Agent`` overlay onto nested MAS agency rows.
+    """Apply a ``target.kind: Agent`` overlay to inline (Form B) MAS agency rows.
 
-    ``compile`` already merges Agent overlays onto separately loaded agent
-    YAML. ``compose`` / ``run-mas`` only call :func:`merge_overlay` on the MAS
-    document, so without this step the patch never reaches
-    ``spec.agency.agents`` and instantiate loads the unpatched files.
+    Form A rows stay ``{id, ref}``. Callers that load those Agent files
+    (``compile``, ``compose`` / ``run-mas``) apply :func:`extract_agent_overlay_fanout`
+    onto the YAML. This function still validates that the overlay matches at
+    least one agency row.
 
     ``spec.target.name``, when set, selects one row (id, name, or
     metadata.name). Use the agency row id, which should match the agent
@@ -958,9 +1089,9 @@ def fanout_agent_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[
     if not isinstance(spec, dict):
         spec = {}
         merged["spec"] = spec
+    extract_agent_overlay_fanout(overlay, merged)
     rows = _nested_agent_rows(spec)
     target_name = _overlay_target_name(overlay)
-    matched = 0
     for row in rows:
         if target_name and not _row_matches_agent_target(row, target_name):
             continue
@@ -968,21 +1099,8 @@ def fanout_agent_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[
             updated = merge_agent_overlay(row, overlay)
             row.clear()
             row.update(updated)
-        else:
-            stub = {
-                "apiVersion": "mas/v1",
-                "kind": "Agent",
-                "spec": deepcopy(row.get("spec") or {}),
-            }
-            updated = merge_agent_overlay(stub, overlay)
-            row["spec"] = deepcopy(updated.get("spec") or {})
-        matched += 1
-    if matched == 0:
-        named = f" named {target_name!r}" if target_name else ""
-        raise OverlayTargetError(
-            f"target.kind: Agent overlay{named} matched no agents in "
-            "spec.agency.agents / spec.agents"
-        )
+        elif _is_ref_based_agency_row(row):
+            _strip_form_a_extras(row)
     return merged
 
 

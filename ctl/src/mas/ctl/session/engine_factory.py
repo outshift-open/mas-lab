@@ -14,7 +14,7 @@ from mas.ctl.compose.models import ResolvedInfra
 from mas.ctl.infra.resolve import api_key_for_infra, resolution_anchor, resolve_infra_refs
 from mas.ctl.session.manifest_config import engine_use_tool_loop, kernel_config_from_manifest
 from mas.ctl.workspace.config import UserConfig, WorkspaceConfig, merge_infra_refs
-from mas.runtime.agent_defaults import default_pattern_plugin_id, resolve_default_model
+from mas.runtime.agent_defaults import default_pattern_plugin_id
 from mas.runtime.spec.model_ref import concrete_model, first_concrete, primary_model_binding
 from mas.runtime.driver.mocks import AutoCtxAssembler
 from mas.runtime.engine.llm_cache import resolve_cache_path
@@ -60,6 +60,33 @@ def _strict_replay(llm_proxy: dict[str, Any] | None) -> bool:
     return False
 
 
+class UnresolvedModelError(RuntimeError):
+    """spec.models is any/omitted and nothing explicit pinned a provider id."""
+
+
+_NO_LLM_PATTERNS = frozenset({"scripted_response"})
+
+
+def _design_pattern_base(
+    manifest: dict | None, pattern_plugin_id: str | None = None
+) -> str:
+    spec = (manifest or {}).get("spec") or {}
+    from mas.runtime.spec.plugin_binding import plugin_binding_id
+
+    from_manifest = plugin_binding_id(
+        spec.get("design_pattern"), field="spec.design_pattern"
+    )
+    raw = from_manifest or pattern_plugin_id or ""
+    return str(raw).split("@", 1)[0].strip().lower()
+
+
+def _requires_concrete_model(
+    manifest: dict | None, pattern_plugin_id: str | None = None
+) -> bool:
+    """False for patterns that never call an LLM (e.g. scripted_response)."""
+    return _design_pattern_base(manifest, pattern_plugin_id) not in _NO_LLM_PATTERNS
+
+
 def resolve_model_name(
     manifest: dict | None,
     infra: ResolvedInfra | None,
@@ -73,8 +100,13 @@ def resolve_model_name(
 
     Precedence: CLI ``--model`` → last-resort env override → Agent
     ``spec.models[id=main]`` → MAS default → ``experiment.models.main`` /
-    ``experiment.model`` → ``config.yaml`` ``defaults.model`` → package
-    ``defaults.yaml``. An env override is logged, never silent.
+    ``experiment.model`` → workspace ``config.yaml`` ``defaults.model``.
+    An env override is logged, never silent.
+
+    ``model: any`` (or an omitted pin) does **not** fall through to the
+    package ``defaults.yaml`` value. If nothing explicit remains, this
+    raises :class:`UnresolvedModelError` instead of substituting
+    ``gpt-4o-mini``.
     """
     llm_proxy = (infra.llm_proxy if infra else {}) or {}
     forced = (forced or "").strip()
@@ -103,14 +135,14 @@ def resolve_model_name(
             (parent_default, "mas.spec.models"),
             (experiment_default, "experiment.model"),
             (workspace_default, "config.defaults.model"),
-            (resolve_default_model(), "defaults.model"),
         )
         if not raw:
-            raw = resolve_default_model()
-        if not declared and not parent_default and not experiment_default and not workspace_default:
-            default = llm_proxy.get("default_model")
-            if default and concrete_model(default):
-                raw = str(default)
+            raise UnresolvedModelError(
+                "No concrete LLM model: spec.models is 'any' or omitted and "
+                "nothing pinned it. Set spec.models[].model, experiment.models.main, "
+                "config.yaml defaults.model, or pass --model / MAS_CTL_MODEL. "
+                "mas-lab will not substitute gpt-4o-mini."
+            )
     mappings = llm_proxy.get("mappings") or {}
     return str(mappings.get(raw, raw))
 
@@ -197,6 +229,14 @@ def build_engine(
     model_override: str | None = None,
 ) -> EngineSelection:
     pid = pattern_plugin_id or default_pattern_plugin_id()
+    if not _requires_concrete_model(manifest, pattern_plugin_id):
+        from mas.runtime.engine.simulated import SimulatedEngine
+
+        return EngineSelection(
+            engine=SimulatedEngine(),
+            mode="scripted",
+            reason="design_pattern scripted_response",
+        )
     kernel_cfg = (
         kernel_config if kernel_config is not None else kernel_config_from_manifest(manifest, pattern_plugin_id=pid)
     )

@@ -26,6 +26,9 @@ class ComposedApplication:
     config: dict[str, Any]
     spec_revision: str = ""
     overlay_ids: list[str] = field(default_factory=list)
+    # Per-agent overlay patches to merge onto loaded Agent YAML. Not stored
+    # on the MAS document; Form A rows stay {id, ref}.
+    agent_patches: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass

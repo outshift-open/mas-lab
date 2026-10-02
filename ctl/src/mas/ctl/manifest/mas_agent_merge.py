@@ -11,7 +11,11 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from mas.ctl.overlay.merge import _ops_dict, _plugin_entry_key, merge_agent_overlay, merge_context_map
+from mas.ctl.overlay.merge import (
+    _ops_dict,
+    _plugin_entry_key,
+    merge_agent_overlay,
+)
 from mas.runtime.boundary.agentcomm.routing import AgentCommRoute
 from mas.runtime.boundary.context.manifest_context import routing_description_from_agent
 from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
@@ -154,47 +158,96 @@ def _plugin_list_as_add(value: Any) -> Any:
     return copy.deepcopy(value)
 
 
+def _patch_from_agency_entry(agency_entry: dict[str, Any]) -> dict[str, Any]:
+    """Read leftover Agent fields off an agency row (pre-fix composed MAS)."""
+    entry_spec = agency_entry.get("spec")
+    if not isinstance(entry_spec, dict):
+        entry_spec = {}
+    patch: dict[str, Any] = {}
+    for field in (
+        "skills",
+        "tools",
+        "context",
+        "description",
+        "design_pattern",
+        "context_manager",
+        "assembler",
+        "memory",
+        "governance",
+        "observability",
+        "memory_seed",
+        "llm",
+        "budget",
+    ):
+        val = _entry_val(agency_entry, entry_spec, field)
+        if val is not None:
+            patch[field] = copy.deepcopy(val)
+    for key, val in entry_spec.items():
+        if key not in patch:
+            patch[key] = copy.deepcopy(val)
+    return patch
+
+
 def apply_agency_entry_overlay(
     agent_manifest: dict[str, Any],
     agency_entry: dict[str, Any],
+    *,
+    mas_config: dict[str, Any] | None = None,
+    agent_patch: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Merge per-agent MAS overlay fields onto a loaded agent manifest."""
+    """Merge an overlay's per-agent patch onto a loaded agent manifest.
+
+    Pass *agent_patch* from :func:`mas.ctl.overlay.merge.loaded_agent_patches`
+    (compile / compose collect these after each overlay). Leftover Agent
+    fields on *agency_entry* still apply when the caller passes them
+    explicitly (stacked bench rows). The MAS agency row itself stays
+    ``{id, ref}``; nothing is read from the MAS document.
+    """
+    _ = mas_config
     out = copy.deepcopy(agent_manifest)
-    spec = out.setdefault("spec", {})
-    entry_spec = agency_entry.get("spec") or {}
-    if not isinstance(entry_spec, dict):
-        entry_spec = {}
+    patch = agent_patch
+    if patch is None:
+        patch = _patch_from_agency_entry(agency_entry)
+    if not patch:
+        return out
 
-    ctx = entry_spec.get("context")
-    if isinstance(ctx, dict) and ctx:
-        spec["context"] = merge_context_map(spec.get("context"), ctx)
-
-    _apply_description_overlay(spec, agency_entry, entry_spec)
-
-    tools_val = _entry_val(agency_entry, entry_spec, "tools")
-    if tools_val:
-        spec["tools"] = _merge_agency_entry_tools(list(spec.get("tools") or []), tools_val)
-
-    for field in ("design_pattern", "context_manager", "assembler", "skills", "memory"):
-        if (val := _entry_val(agency_entry, entry_spec, field)) is not None:
-            spec[field] = copy.deepcopy(val)
-
-    plugin_patch: dict[str, Any] = {}
+    normalized = copy.deepcopy(patch)
     for field in ("governance", "observability"):
-        val = _entry_val(agency_entry, entry_spec, field)
-        if val is not None:
-            plugin_patch[field] = _plugin_list_as_add(val)
-    if plugin_patch:
-        merged = merge_agent_overlay(out, {"spec": {"patch": plugin_patch}})
-        out["spec"] = merged.get("spec") or spec
-        spec = out["spec"]
+        if field in normalized:
+            normalized[field] = _plugin_list_as_add(normalized[field])
+    merged = merge_agent_overlay(out, {"spec": {"patch": normalized}})
+    spec = merged.setdefault("spec", {})
 
-    memory_seed = _entry_val(agency_entry, entry_spec, "memory_seed")
+    # Tools keep agency-entry semantics (plain list = ADD; $op.remove matches
+    # by ref). merge_agent_overlay's list_ops compares items by identity.
+    tools_val = patch.get("tools")
+    if tools_val is not None:
+        base_tools = list((agent_manifest.get("spec") or {}).get("tools") or [])
+        spec["tools"] = _merge_agency_entry_tools(base_tools, tools_val)
+
+    memory_seed = patch.get("memory_seed")
     if memory_seed:
-        existing_seed = list(spec.get("memory_seed") or [])
+        existing_seed = list((agent_manifest.get("spec") or {}).get("memory_seed") or [])
         spec["memory_seed"] = existing_seed + list(copy.deepcopy(memory_seed))
 
-    return out
+    return merged
+
+
+def apply_loaded_agent_patch(
+    agent_manifest: dict[str, Any],
+    *,
+    agent_id: str,
+    agent_patches: dict[str, Any] | None,
+    mas_config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Apply a compose/compile per-agent overlay patch onto loaded Agent YAML."""
+    patch = (agent_patches or {}).get(str(agent_id))
+    if not isinstance(patch, dict) or not patch:
+        return agent_manifest
+    entry = find_agency_entry(mas_config, agent_id) if mas_config else None
+    return apply_agency_entry_overlay(
+        agent_manifest, entry or {"id": agent_id}, agent_patch=patch
+    )
 
 
 def _peer_manifests_for_ids(
@@ -217,7 +270,9 @@ def _peer_manifests_for_ids(
         if peer_manifest is None:
             logger.warning("peer agent %r manifest not found: %s", peer_id, path)
             continue
-        out[peer_id] = apply_agency_entry_overlay(peer_manifest, entry)
+        out[peer_id] = apply_agency_entry_overlay(
+            peer_manifest, entry, mas_config=mas_config
+        )
     return out
 
 

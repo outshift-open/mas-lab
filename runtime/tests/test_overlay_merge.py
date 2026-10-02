@@ -393,8 +393,10 @@ def test_merge_mas_overlay_patches_agency_agent_context():
     )
     merged = merge_overlay(base, overlay)
     agent = merged["spec"]["agency"]["agents"][0]
-    assert agent["spec"]["context"]["role"] == "patched role"
-    assert agent["spec"]["memory_seed"] == [{"key": "f001", "content": "seed"}]
+    assert set(agent) <= {"id", "ref", "name"}
+    patch = _patches(overlay, merged)["moderator"]
+    assert patch["context"]["role"] == "patched role"
+    assert patch["memory_seed"] == {"$op": {"add": [{"key": "f001", "content": "seed"}]}}
 
 
 def _trip_mas(*, entry: str = "moderator") -> dict:
@@ -419,8 +421,13 @@ def test_merge_mas_overlay_entry_patches_workflow_entry_only():
     )
     merged = merge_overlay(_trip_mas(), overlay)
     by_id = {a["id"]: a for a in merged["spec"]["agency"]["agents"]}
-    assert by_id["moderator"]["spec"]["design_pattern"] == {"type": "cot", "config": {"max_steps": 10}}
+    assert _patches(overlay, merged)["moderator"]["design_pattern"] == {
+        "type": "cot",
+        "config": {"max_steps": 10},
+    }
+    assert "spec" not in by_id["moderator"]
     assert "spec" not in by_id["schedule_agent"]
+    assert "schedule_agent" not in (_patches(overlay, merged))
 
 
 def test_merge_mas_overlay_entry_follows_this_overlay_workflow_patch():
@@ -433,8 +440,10 @@ def test_merge_mas_overlay_entry_follows_this_overlay_workflow_patch():
     )
     merged = merge_overlay(_trip_mas(entry="moderator"), overlay)
     by_id = {a["id"]: a for a in merged["spec"]["agency"]["agents"]}
-    assert by_id["schedule_agent"]["spec"]["design_pattern"] == {"type": "react"}
+    assert _patches(overlay, merged)["schedule_agent"]["design_pattern"] == {"type": "react"}
+    assert "spec" not in by_id["schedule_agent"]
     assert "spec" not in by_id["moderator"]
+    assert "moderator" not in (_patches(overlay, merged))
 
 
 def test_merge_mas_overlay_entry_requires_workflow_entry():
@@ -493,7 +502,8 @@ def test_merge_mas_overlay_keeps_name_only_agents():
     agents = merged["spec"]["agency"]["agents"]
     assert len(agents) == 2
     by_key = {a.get("id") or a.get("name"): a for a in agents}
-    assert by_key["moderator"]["spec"]["context"]["role"] == "patched role"
+    assert "spec" not in by_key["moderator"]
+    assert _patches(overlay, merged)["moderator"]["context"]["role"] == "patched role"
     assert by_key["helper"]["ref"] == "agents/helper.yaml"
 
 
@@ -538,9 +548,19 @@ def _trip_mas_with_delegates(*, entry: str = "moderator") -> dict:
     }
 
 
-def _skills(merged: dict, agent_id: str):
-    by_id = {item["id"]: item for item in merged["spec"]["agency"]["agents"]}
-    return (by_id[agent_id].get("spec") or {}).get("skills")
+def _patches(overlay: dict, merged: dict) -> dict:
+    from mas.ctl.overlay.merge import loaded_agent_patches
+
+    return loaded_agent_patches(overlay, merged)
+
+
+def _skills(merged: dict, agent_id: str, overlay: dict):
+    """Effective skills once the overlay patch is applied to agent YAML."""
+    from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
+
+    return apply_agency_entry_overlay(
+        {"spec": {}}, {"id": agent_id}, agent_patch=_patches(overlay, merged).get(agent_id)
+    )["spec"].get("skills")
 
 
 def test_merge_mas_overlay_not_entry_skips_chair():
@@ -550,11 +570,8 @@ def test_merge_mas_overlay_not_entry_skips_chair():
     )
     merged = merge_overlay(_trip_mas_with_delegates(), overlay)
     assert "spec" not in {item["id"]: item for item in merged["spec"]["agency"]["agents"]}["moderator"]
-    # Resolved against each agency row's own (still-empty, ref-only) spec --
-    # merge_agent_overlay always resolves $op eagerly here, same as a named
-    # per-agent patch (see test_merge_mas_overlay_keeps_name_only_agents).
-    assert _skills(merged, "finance") == ["l9-concord-v2-receiver"]
-    assert _skills(merged, "deal_desk") == ["l9-concord-v2-receiver"]
+    assert _skills(merged, "finance", overlay) == ["l9-concord-v2-receiver"]
+    assert _skills(merged, "deal_desk", overlay) == ["l9-concord-v2-receiver"]
 
 
 def test_merge_mas_overlay_all_then_entry_stacks():
@@ -570,10 +587,12 @@ def test_merge_mas_overlay_all_then_entry_stacks():
     )
     merged = merge_overlay(_trip_mas_with_delegates(), overlay)
     by_id = {item["id"]: item for item in merged["spec"]["agency"]["agents"]}
-    assert by_id["moderator"]["spec"]["budget"] == {"max_llm_calls": 40}
-    assert by_id["finance"]["spec"]["budget"] == {"max_llm_calls": 40}
-    assert _skills(merged, "moderator") == ["l9-concord-v2-orchestrator"]
-    assert _skills(merged, "finance") == ["l9-concord-v2-receiver"]
+    assert "spec" not in by_id["moderator"]
+    assert "spec" not in by_id["finance"]
+    assert _patches(overlay, merged)["moderator"]["budget"] == {"max_llm_calls": 40}
+    assert _patches(overlay, merged)["finance"]["budget"] == {"max_llm_calls": 40}
+    assert _skills(merged, "moderator", overlay) == ["l9-concord-v2-orchestrator"]
+    assert _skills(merged, "finance", overlay) == ["l9-concord-v2-receiver"]
 
 
 def test_merge_mas_overlay_delegates_matches_workflow_edges():
@@ -582,8 +601,8 @@ def test_merge_mas_overlay_delegates_matches_workflow_edges():
         target_kind="MAS",
     )
     merged = merge_overlay(_trip_mas_with_delegates(), overlay)
-    assert _skills(merged, "finance") == ["l9-concord-v2-receiver"]
-    assert _skills(merged, "deal_desk") == ["l9-concord-v2-receiver"]
+    assert _skills(merged, "finance", overlay) == ["l9-concord-v2-receiver"]
+    assert _skills(merged, "deal_desk", overlay) == ["l9-concord-v2-receiver"]
     assert "spec" not in {item["id"]: item for item in merged["spec"]["agency"]["agents"]}["moderator"]
 
 
@@ -601,10 +620,10 @@ def test_merge_mas_overlay_all_and_delegates_compose_on_same_agent_keep_op():
         target_kind="MAS",
     )
     merged = merge_overlay(_trip_mas_with_delegates(), overlay)
-    assert _skills(merged, "finance") == ["base-skill", "delegate-skill"]
-    assert _skills(merged, "deal_desk") == ["base-skill", "delegate-skill"]
+    assert _skills(merged, "finance", overlay) == ["base-skill", "delegate-skill"]
+    assert _skills(merged, "deal_desk", overlay) == ["base-skill", "delegate-skill"]
     # moderator only ever matches $all (not a delegate of itself)
-    assert _skills(merged, "moderator") == ["base-skill"]
+    assert _skills(merged, "moderator", overlay) == ["base-skill"]
 
 
 def test_merge_mas_overlay_rejects_unsupported_patch_field() -> None:
@@ -856,8 +875,10 @@ def test_agent_overlay_fans_out_onto_mas_agency_rows() -> None:
     assert "observability" not in (merged.get("spec") or {})
     for agent in merged["spec"]["agency"]["agents"]:
         assert agent["ref"].startswith("agents/")
-        assert agent["spec"]["observability"] == ["native"]
-        assert "sample_governance" in _gov_names(agent["spec"])
+        assert "spec" not in agent
+        patch = _patches(overlay, merged)[agent["id"]]
+        assert patch["observability"] == ["native"]
+        assert "sample_governance" in _gov_names(patch)
 
 
 def test_agent_overlay_on_mas_with_no_agents_raises() -> None:
@@ -894,7 +915,9 @@ def test_agent_overlay_target_name_filters_agency_row() -> None:
     merged = merge_overlay(base, overlay)
     by_id = {a["id"]: a for a in merged["spec"]["agency"]["agents"]}
     assert "spec" not in by_id["moderator"]
-    assert by_id["helper"]["spec"]["observability"] == ["native"]
+    assert "spec" not in by_id["helper"]
+    assert "moderator" not in (_patches(overlay, merged))
+    assert _patches(overlay, merged)["helper"]["observability"] == ["native"]
 
 
 def test_agent_overlay_target_name_miss_raises() -> None:

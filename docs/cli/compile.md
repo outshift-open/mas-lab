@@ -10,9 +10,10 @@ dict `chat` / `run-mas` hold **before** bootstrap wiring (delegation tools,
 skill injection, expanding tool refs to files).
 
 `mas-ctl compile` applies `target.kind: Agent` overlays onto each nested agent
-file. `compose` / `run-mas` merge those same overlays onto the MAS document:
-`merge_overlay` copies the patch onto `spec.agency.agents[]`, then instantiate
-unions each row onto the agent YAML. See [overlay.md](../manifests/overlay.md).
+file. `compose` / `run-mas` merge MAS overlays onto the MAS document (workflow,
+agency `$op`, models) and merge per-agent overlay patches onto the referenced
+Agent YAML when that file is loaded. Form A rows stay `{id, ref}`. See
+[overlay.md](../manifests/overlay.md).
 
 `mas-ctl compose` is different: it emits **EffectiveBind** + **placement**.
 Use `compile` to inspect or snapshot YAML; use `compose` to inspect runtime

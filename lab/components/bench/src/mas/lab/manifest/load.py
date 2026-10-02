@@ -84,8 +84,15 @@ def entry_agent_from_compose(
         manifest_dir=mas_path.parent,
     )
     agency_entry = find_agency_entry(result.mas_config, entry)
-    if agency_entry is not None and agent:
-        agent = apply_agency_entry_overlay(agent, agency_entry)
+    if agent:
+        patches = {}
+        if result.bind.composed_application is not None:
+            patches = result.bind.composed_application.agent_patches or {}
+        agent = apply_agency_entry_overlay(
+            agent,
+            agency_entry or {"id": entry},
+            agent_patch=patches.get(entry),
+        )
     return agent or {}, agent_path
 
 
@@ -217,8 +224,13 @@ def load_mas_config(
         if "ref" in entry:
             ap = resolve_yaml_path(str(entry["ref"]), base_dir)
             agent_doc, _ = load_merged_agent_manifest(ap, validate=False)
-            agent_doc = apply_agency_entry_overlay(agent_doc or {}, entry)
+            patches = {}
+            if result.bind.composed_application is not None:
+                patches = result.bind.composed_application.agent_patches or {}
             aid = str(entry.get("id") or (agent_doc or {}).get("metadata", {}).get("name") or ap.stem)
+            agent_doc = apply_agency_entry_overlay(
+                agent_doc or {}, entry, agent_patch=patches.get(aid)
+            )
             raw_agents.append(_agent_runtime_dict(agent_doc or {}, agent_id=aid, agent_dir=ap.parent))
         elif entry.get("kind", "").lower() == "agent" or "metadata" in entry:
             aid = str(entry.get("metadata", {}).get("name") or entry.get("id") or "agent")

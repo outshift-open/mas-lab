@@ -8,6 +8,25 @@ All notable changes to MAS-Lab are documented here. This branch is the
 v0.2 release-prep branch after rebasing onto the latest upstream main and
 reconciling the release notes with the code and docs currently on that branch.
 
+## Unreleased
+
+### Fixed
+
+- Overlay patches that target one agent of a MAS (`patch.agents.<id>`,
+  `$entry`, `$not-entry`, `$all`, `$delegates`) are merged onto the loaded
+  Agent YAML. An agency row stays `{id, ref}`. The MAS document is
+  not a parking lot for Agent fields (no in-memory `_agent_patches` map,
+  no leftover skills/tools/context on the row). Resolving `$op.add`
+  against an empty row used to replace the agent's own skills; that drop
+  is gone. A base MAS still cannot declare skills (or tools, context, …)
+  on an agency row. `spec.models` remains the MAS-level agent-inherited
+  attribute.
+- `model: any` (or an omitted pin) no longer falls through to package
+  `defaults.yaml` (`gpt-4o-mini`). Engine construction raises if nothing
+  explicit remains: `spec.models`, MAS default, `experiment.models.main`,
+  workspace `config.yaml` `defaults.model`, `--model`, or `MAS_CTL_MODEL`.
+  A `scripted_response` agent does not need a pin; it uses SimulatedEngine.
+
 ## [0.2.0] - 2026-09-30 (release candidate)
 
 ### Added

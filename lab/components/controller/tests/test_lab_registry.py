@@ -46,11 +46,17 @@ def test_list_spec_design_pattern():
     reset_lab_registry()
 
 
-def test_resolve_default_model_never_empty():
-    from mas.ctl.session.engine_factory import resolve_model_name
+def test_resolve_model_name_any_without_pin_raises(monkeypatch):
+    monkeypatch.delenv("MAS_CTL_MODEL", raising=False)
+    monkeypatch.delenv("MAS_LLM_MODEL", raising=False)
+    from mas.ctl.session.engine_factory import resolve_model_name, UnresolvedModelError
 
-    assert resolve_model_name({"spec": {"llm": {"model": None}}}, None)
-    assert resolve_model_name(None, None)
+    import pytest
+
+    with pytest.raises(UnresolvedModelError, match="will not substitute gpt-4o-mini"):
+        resolve_model_name({"spec": {"llm": {"model": None}}}, None)
+    with pytest.raises(UnresolvedModelError, match="will not substitute gpt-4o-mini"):
+        resolve_model_name(None, None)
 
 
 def test_default_model_is_gpt4o_mini():

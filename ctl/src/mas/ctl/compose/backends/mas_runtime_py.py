@@ -46,22 +46,18 @@ class MasRuntimePyKernelBackend:
                 agent_manifest = yaml.safe_load(mp.read_text(encoding="utf-8"))
                 manifest_dir = mp.parent
                 if agent_manifest:
-                    from mas.ctl.manifest.mas_agent_merge import (
-                        apply_agency_entry_overlay,
-                        find_agency_entry,
-                    )
+                    from mas.ctl.manifest.mas_agent_merge import apply_loaded_agent_patch
                     from mas.runtime.engine.tools import resolve_manifest_tool_refs
 
-                    mas_config = (
-                        bind.composed_application.config
-                        if bind.composed_application is not None
-                        else None
+                    composed = bind.composed_application
+                    mas_config = composed.config if composed is not None else None
+                    patches = composed.agent_patches if composed is not None else {}
+                    agent_manifest = apply_loaded_agent_patch(
+                        agent_manifest,
+                        agent_id=agent_id,
+                        agent_patches=patches,
+                        mas_config=mas_config,
                     )
-                    agency_entry = find_agency_entry(mas_config, agent_id)
-                    if agency_entry is not None:
-                        agent_manifest = apply_agency_entry_overlay(
-                            agent_manifest, agency_entry
-                        )
                     # Make MAS topology available inside per-agent spec for
                     # runtime design-pattern plugins that are deterministic and
                     # infer participant routing from workflow/agency metadata.
