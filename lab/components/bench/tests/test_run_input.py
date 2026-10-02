@@ -153,6 +153,68 @@ def test_legacy_role_list_still_loads():
     assert run.primary_prompt == "Old shape"
 
 
+def test_legacy_expectations_correct_action_folds_into_details(caplog):
+    import logging
+
+    from mas.lab.deprecations import clear_deprecation_warnings
+
+    clear_deprecation_warnings()
+    with caplog.at_level(logging.WARNING, logger="mas.lab.deprecations"):
+        run = load_run_input(
+            {
+                "id": "routing-policy-rollback",
+                "inputs": {"user": "Triage the edge-gateway regression."},
+                "expectations": {
+                    "correct_action": {"service": "edge-gateway", "action": "rollback"}
+                },
+            }
+        )
+    assert run.expectations["details"]["correct_action"] == {
+        "service": "edge-gateway",
+        "action": "rollback",
+    }
+    assert "dataset.legacy_expectations" in caplog.text
+
+
+def test_canonical_details_correct_action_does_not_warn(caplog):
+    import logging
+
+    from mas.lab.deprecations import clear_deprecation_warnings
+
+    clear_deprecation_warnings()
+    with caplog.at_level(logging.WARNING, logger="mas.lab.deprecations"):
+        run = load_run_input(
+            {
+                "id": "routing-policy-rollback",
+                "inputs": {"user": "Triage the edge-gateway regression."},
+                "expectations": {
+                    "details": {
+                        "correct_action": {
+                            "service": "edge-gateway",
+                            "action": "rollback",
+                        }
+                    }
+                },
+            }
+        )
+    assert run.expectations["details"]["correct_action"]["action"] == "rollback"
+    assert "dataset.legacy_expectations" not in caplog.text
+
+
+def test_legacy_expectations_clash_with_details_raises():
+    with pytest.raises(ValueError, match="already exist in details"):
+        load_run_input(
+            {
+                "id": "clash",
+                "inputs": {"user": "Q"},
+                "expectations": {
+                    "correct_action": {"action": "restart"},
+                    "details": {"correct_action": {"action": "rollback"}},
+                },
+            }
+        )
+
+
 def test_user_string_is_not_a_path(tmp_path: Path):
     run = load_run_input(
         {
@@ -333,9 +395,14 @@ def test_scenario_params_are_not_tool_fixtures(tmp_path: Path):
     assert run.tool_fixtures is None
 
 
-def test_expectations_reject_app_keys_outside_details(tmp_path: Path):
-    with pytest.raises(ValueError, match="custom_check"):
-        load_run_input(
+def test_expectations_fold_app_keys_outside_details(tmp_path: Path, caplog):
+    import logging
+
+    from mas.lab.deprecations import clear_deprecation_warnings
+
+    clear_deprecation_warnings()
+    with caplog.at_level(logging.WARNING, logger="mas.lab.deprecations"):
+        run = load_run_input(
             {
                 "id": "x",
                 "inputs": {"user": "Q"},
@@ -343,6 +410,9 @@ def test_expectations_reject_app_keys_outside_details(tmp_path: Path):
             },
             base_path=tmp_path,
         )
+    assert run.expectations["ground_truth"] == "42"
+    assert run.expectations["details"]["custom_check"] == {"k": 1}
+    assert "dataset.legacy_expectations" in caplog.text
 
 
 def test_tool_fixtures_binding_list(tmp_path: Path):

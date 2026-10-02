@@ -106,3 +106,67 @@ def test_application_as_pipeline_level_is_spotted() -> None:
     schema = load_schema("experiment")
     warnings = collect_experiment_deprecations(data, schema)
     assert any("pipeline level" in msg for msg in warnings)
+
+
+def test_dataset_path_without_name_validates() -> None:
+    data = _canonical()
+    data["experiment"]["dataset"] = {"path": "./datasets/queries.yaml"}
+    warnings = validate_manifest(
+        data,
+        source="experiment.yaml",
+        kind="experiment",
+        strict=True,
+        resolve_refs=False,
+    )
+    assert warnings == []
+
+
+def test_former_and_canonical_dataset_items_validate() -> None:
+    pytest.importorskip("jsonschema")
+    former = {
+        "apiVersion": "lab/v1",
+        "kind": "Dataset",
+        "metadata": {"name": "sre-triage-incidents"},
+        "spec": {
+            "app": "sre-triage@^v2",
+            "items": [
+                {
+                    "id": "routing-policy-rollback",
+                    "prompt": "Triage the edge-gateway regression.",
+                    "expectations": {
+                        "correct_action": {
+                            "service": "edge-gateway",
+                            "action": "rollback",
+                        }
+                    },
+                }
+            ],
+        },
+    }
+    modern = {
+        "apiVersion": "lab/v1",
+        "kind": "Dataset",
+        "metadata": {"name": "sre-triage-incidents"},
+        "spec": {
+            "app": "sre-triage@^v2",
+            "items": [
+                {
+                    "id": "routing-policy-rollback",
+                    "inputs": {"user": "Triage the edge-gateway regression."},
+                    "expectations": {
+                        "details": {
+                            "correct_action": {
+                                "service": "edge-gateway",
+                                "action": "rollback",
+                            }
+                        }
+                    },
+                }
+            ],
+        },
+    }
+    validate_manifest(former, source="former.yaml", kind="dataset", strict=True, resolve_refs=False)
+    warnings = validate_manifest(
+        modern, source="modern.yaml", kind="dataset", strict=True, resolve_refs=False
+    )
+    assert warnings == []

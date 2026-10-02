@@ -6,12 +6,14 @@ import logging
 import textwrap
 from pathlib import Path
 
+import pytest
 import yaml
 
 from mas.lab.benchmark.dataset import Dataset
+from mas.lab.benchmark.experiment import ExperimentConfig
 from mas.lab.deprecations import clear_deprecation_warnings, docs_url, warn_deprecated
 from mas.lab.inputs import load_run_input
-from mas.lab.lab.config import MASExperimentConfig
+from mas.lab.lab.config import LabConfig, MASExperimentConfig
 
 
 def setup_function() -> None:
@@ -115,3 +117,148 @@ def test_legacy_mas_key_warns(tmp_path: Path, caplog) -> None:
     assert cfg.mas is not None
     assert "experiment.mas" in caplog.text
     assert "manifests/experiment/#applications" in caplog.text
+
+
+def test_legacy_lab_config_fields_still_load(tmp_path: Path) -> None:
+    path = tmp_path / "lab-config.yaml"
+    path.write_text(
+        textwrap.dedent(
+            """\
+            lab:
+              name: legacy-lab
+              default_flavour: local
+              output_dir: ./legacy-runs
+              scenarios:
+                - id: baseline
+                  user_prompt: Start with the legacy prompt
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    config = LabConfig.from_yaml(path)
+
+    assert config.default_flavour == "local"
+    assert config.output_dir == (tmp_path / "legacy-runs").resolve()
+    assert config.scenarios[0].user_prompt == "Start with the legacy prompt"
+
+
+def test_experiment_output_dir_remains_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "experiment.yaml"
+    path.write_text(
+        textwrap.dedent(
+            """\
+            experiment:
+              name: removed-output-dir
+              application:
+                manifest: ./mas.yaml
+              output_dir: ./legacy-runs
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="removed key 'output_dir'"):
+        MASExperimentConfig.from_yaml(path)
+
+
+def test_experiment_dataset_path_without_name_still_loads(tmp_path: Path) -> None:
+    dataset_path = tmp_path / "datasets" / "queries.yaml"
+    dataset_path.parent.mkdir()
+    dataset_path.write_text("kind: Dataset\n", encoding="utf-8")
+    (tmp_path / "mas.yaml").write_text("kind: MAS\n", encoding="utf-8")
+    path = tmp_path / "experiment.yaml"
+    path.write_text(
+        textwrap.dedent(
+            """\
+            experiment:
+              name: legacy-dataset-path
+              application:
+                manifest: ./mas.yaml
+              scenarios:
+                - id: baseline
+              dataset:
+                path: ./datasets/queries.yaml
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    config = ExperimentConfig.from_yaml(path)
+
+    assert config.dataset == dataset_path.resolve()
+
+
+def test_former_ioc_dataset_still_loads_and_new_envelope_is_preferred(
+    tmp_path: Path, caplog
+) -> None:
+    former = tmp_path / "former.yaml"
+    former.write_text(
+        textwrap.dedent(
+            """\
+            apiVersion: lab/v1
+            kind: Dataset
+            metadata:
+              name: sre-triage-incidents
+              version: v2
+            spec:
+              app: sre-triage@^v2
+              items:
+                - id: routing-policy-rollback
+                  prompt: Triage the edge-gateway regression.
+                  expectations:
+                    correct_action:
+                      service: edge-gateway
+                      action: rollback
+            """
+        ),
+        encoding="utf-8",
+    )
+    fixtures = tmp_path / "tool_fixtures"
+    fixtures.mkdir()
+    (fixtures / "routing-policy-rollback.yaml").write_text("scene: edge-gateway\n")
+    modern = tmp_path / "modern.yaml"
+    modern.write_text(
+        textwrap.dedent(
+            """\
+            apiVersion: lab/v1
+            kind: Dataset
+            metadata:
+              name: sre-triage-incidents
+              version: v2
+            spec:
+              app: sre-triage@^v2
+              items:
+                - id: routing-policy-rollback
+                  inputs:
+                    user: Triage the edge-gateway regression.
+                    tool_fixtures: tool_fixtures/routing-policy-rollback.yaml
+                  expectations:
+                    details:
+                      correct_action:
+                        service: edge-gateway
+                        action: rollback
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    with caplog.at_level(logging.WARNING, logger="mas.lab.deprecations"):
+        former_ds = Dataset.from_yaml(former)
+    assert former_ds[0].prompt == "Triage the edge-gateway regression."
+    assert former_ds[0].run_input.expectations["details"]["correct_action"]["action"] == (
+        "rollback"
+    )
+    assert "dataset.legacy_item" in caplog.text
+    assert "dataset.legacy_expectations" in caplog.text
+
+    caplog.clear()
+    clear_deprecation_warnings()
+    with caplog.at_level(logging.WARNING, logger="mas.lab.deprecations"):
+        modern_ds = Dataset.from_yaml(modern)
+    assert modern_ds[0].prompt == "Triage the edge-gateway regression."
+    assert modern_ds[0].run_input.expectations["details"]["correct_action"]["service"] == (
+        "edge-gateway"
+    )
+    assert "dataset.legacy_item" not in caplog.text
+    assert "dataset.legacy_expectations" not in caplog.text

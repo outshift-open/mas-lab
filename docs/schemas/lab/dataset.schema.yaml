@@ -126,6 +126,10 @@ properties:
               deprecated: true
               description: >
                 DEPRECATED at item top-level. Use expectations.ground_truth.
+            correct_action:
+              deprecated: true
+              description: >
+                DEPRECATED at item top-level. Use expectations.details.correct_action.
             category:
               type: string
             group:

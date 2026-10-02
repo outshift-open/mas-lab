@@ -50,6 +50,10 @@ NOTICES: Dict[str, Tuple[str, str]] = {
         "manifests/dataset.md#1-manifest-format",
         "wrap items in apiVersion/kind: Dataset and spec.items",
     ),
+    "dataset.legacy_expectations": (
+        "manifests/dataset-migration.md",
+        "put app- or tool-specific ground truth under expectations.details",
+    ),
 }
 
 _emitted: set[tuple[str, str]] = set()

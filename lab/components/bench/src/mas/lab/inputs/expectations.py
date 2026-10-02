@@ -24,10 +24,21 @@ def resolve_expectations(value: Any, base_path: Optional[Path], *, where: str) -
         raise TypeError(f"{where}: expectations must resolve to a mapping")
     unknown = sorted(set(resolved) - EXPECTATION_KEYS)
     if unknown:
-        raise ValueError(
-            f"{where}: expectations keys {unknown} are not generic; put app- or "
-            "tool-specific ground truth under expectations.details"
-        )
+        from mas.lab.deprecations import warn_deprecated
+
+        warn_deprecated("dataset.legacy_expectations", where=where)
+        details = dict(resolved.get("details") or {})
+        clash = [key for key in unknown if key in details]
+        if clash:
+            raise ValueError(
+                f"{where}: expectations keys {clash} already exist in details"
+            )
+        for key in unknown:
+            details[key] = resolved[key]
+        resolved = {
+            key: value for key, value in resolved.items() if key in EXPECTATION_KEYS
+        }
+        resolved["details"] = details
     details = resolved.get("details")
     if details is not None and not isinstance(details, dict):
         raise TypeError(f"{where}: expectations.details must be a mapping")

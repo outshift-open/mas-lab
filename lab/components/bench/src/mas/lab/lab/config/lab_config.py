@@ -41,7 +41,9 @@ class LabConfig(MASRunBase):
         lab_data = data.get("lab", data)
         base_dir = path.parent
 
-        base = cls._load_base_fields(lab_data, base_dir, yaml_path=path)
+        base = cls._load_base_fields(
+            lab_data, base_dir, yaml_path=path, allow_output_dir=True
+        )
         ui = UISpec.from_dict(lab_data.get("ui", {}))
 
         config = cls(**base, ui=ui, default_flavour=lab_data.get("default_flavour"))

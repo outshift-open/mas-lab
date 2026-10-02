@@ -89,9 +89,16 @@ def canonicalize_experiment_dict(
     return data
 
 
-def _reject_deprecated_experiment_keys(data: Dict[str, Any], *, path: Optional[Path]) -> None:
+def _reject_deprecated_experiment_keys(
+    data: Dict[str, Any],
+    *,
+    path: Optional[Path],
+    allow_output_dir: bool = False,
+) -> None:
     label = str(path) if path else "experiment"
     for key, hint in _DEPRECATED_EXPERIMENT_KEYS.items():
+        if key == "output_dir" and allow_output_dir:
+            continue
         if key in data:
             raise ValueError(f"{label}: removed key {key!r}; {hint}")
 
@@ -312,6 +319,7 @@ class MASRunBase:
         data: Dict[str, Any],
         base_dir: Path,
         yaml_path: Optional[Path] = None,
+        allow_output_dir: bool = False,
     ) -> Dict[str, Any]:
         """Parse the shared fields from a raw YAML dict.
 
@@ -324,7 +332,9 @@ class MASRunBase:
         """
         from mas.lab import paths as _paths
 
-        _reject_deprecated_experiment_keys(data, path=yaml_path)
+        _reject_deprecated_experiment_keys(
+            data, path=yaml_path, allow_output_dir=allow_output_dir
+        )
         canonicalize_experiment_dict(data, path=yaml_path)
 
         mas: Optional[MASSpec] = None
@@ -425,12 +435,19 @@ class MASRunBase:
         if "evaluation" in data:
             evaluation = EvaluationSpec.from_dict(data["evaluation"])
 
-        # Output directory is always auto-derived from lab context.
+        # Explicit output paths remain supported by interactive lab configs.
         exp_name = data.get("name", "unnamed")
         lab_name: Optional[str] = None
         if yaml_path is not None:
             lab_name = _discover_lab_name(yaml_path)
-        if lab_name:
+        if allow_output_dir and "output_dir" in data:
+            explicit_output_dir = Path(data["output_dir"]).expanduser()
+            output_dir = (
+                explicit_output_dir
+                if explicit_output_dir.is_absolute()
+                else base_dir / explicit_output_dir
+            ).resolve()
+        elif lab_name:
             output_dir = _paths.labs_root() / lab_name / exp_name
         else:
             output_dir = _paths.benchmark_root() / exp_name

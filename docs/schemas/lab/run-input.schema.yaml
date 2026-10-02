@@ -143,3 +143,13 @@ properties:
             description: Free-form ground truth owned by the app or its evaluators.
             type: object
             additionalProperties: true
+          correct_action:
+            deprecated: true
+            description: >
+              DEPRECATED. Use expectations.details.correct_action.
+              Loader still accepts this key and folds it under details.
+          governance:
+            deprecated: true
+            description: >
+              DEPRECATED. Use expectations.details.governance.
+              Loader still accepts this key and folds it under details.

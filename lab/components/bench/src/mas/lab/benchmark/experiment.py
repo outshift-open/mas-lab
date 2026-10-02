@@ -392,9 +392,13 @@ class ExperimentConfig:
         lab_context = discover_lab_context(path)
         inject_lab_libraries(lab_context)
 
-        # Parse dataset — resolved by name (optionally scoped with locator:)
+        # Explicit paths take precedence over registry-based name resolution.
         dataset_config = exp_data["dataset"]
-        if "name" in dataset_config:
+        if "path" in dataset_config:
+            from mas.runtime.spec.source import resolve_yaml_path
+
+            dataset_path = resolve_yaml_path(str(dataset_config["path"]), base_dir)
+        elif "name" in dataset_config:
             dataset_path = _resolve_dataset_by_name(
                 base_dir,
                 dataset_config["name"],
@@ -402,9 +406,8 @@ class ExperimentConfig:
             )
         else:
             raise ValueError(
-                "dataset must have a 'name' key.  "
-                "Use 'name: <dataset-name>' and declare the library in lab-config.yaml "
-                "if the dataset lives outside the lab's own datasets/ folder."
+                "dataset must have a 'path' or 'name' key. Use 'path' for an explicit "
+                "dataset YAML, or 'name' for registry-based resolution."
             )
         
         # Parse agent(s) - support both single and multi-scenario formats
