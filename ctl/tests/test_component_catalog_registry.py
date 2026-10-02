@@ -37,6 +37,18 @@ def test_framework_and_placement_catalogs_are_authoritative() -> None:
         validate_placement_id("docker")
 
 
+def test_docker_placement_unlocks_when_library_next_is_importable(monkeypatch) -> None:
+    import mas.ctl.registry.catalog as catalog
+
+    monkeypatch.setattr(
+        catalog.importlib,
+        "import_module",
+        lambda name, *args, **kwargs: object() if name == "mas.library.next" else (_ for _ in ()).throw(ImportError(name)),
+    )
+    assert validate_placement_id("docker") == "docker"
+    assert "docker" in catalog.list_placement_ids()
+
+
 def test_generic_catalog_accessors_match_typed_wrappers() -> None:
     assert get_component("framework", "native").id == get_framework("native").id
     assert validate_component_id("framework", "native") == "native"

@@ -24,12 +24,16 @@ spec:
       status: available
     - id: docker
       layer: ctl.placement
-      description: Docker placement — not in this OSS release; future release
-      status: future_release
+      module: mas.ctl.placement.docker.DockerBackend
+      description: Docker placement — unlocks when mas.library.next is installed
+      status: planned
+      availability_check: mas.library.next
     - id: kubernetes
       layer: ctl.placement
-      description: Kubernetes placement — not in this OSS release; future release
-      status: future_release
+      module: mas.ctl.placement.k8s.K8sBackend
+      description: Kubernetes placement — unlocks when mas.library.next is installed
+      status: planned
+      availability_check: mas.library.next
 
   framework:
     - id: native

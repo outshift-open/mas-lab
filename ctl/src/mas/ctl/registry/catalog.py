@@ -19,6 +19,7 @@ class ComponentEntry:
     module: str | None = None
     description: str = ""
     status: str = "available"
+    availability_check: str | None = None
 
 
 class UnknownComponentError(KeyError):
@@ -69,6 +70,7 @@ def _load_catalog() -> dict[str, list[ComponentEntry]]:
                 module=item.get("module"),
                 description=str(item.get("description", "")),
                 status=str(item.get("status", "available")),
+                availability_check=item.get("availability_check"),
             )
             for item in items
             if isinstance(item, dict) and item.get("id")
@@ -88,6 +90,18 @@ def _by_id(section: str) -> dict[str, ComponentEntry]:
     return {e.id: e for e in _load_catalog().get(section, [])}
 
 
+def _availability_unlocked(entry: ComponentEntry) -> bool:
+    """A planned catalog row can unlock when its optional package is importable."""
+    module = (entry.availability_check or "").strip()
+    if not module:
+        return False
+    try:
+        importlib.import_module(module)
+    except ImportError:
+        return False
+    return True
+
+
 def get_component(section: str, component_id: str) -> ComponentEntry:
     """Return one catalog entry, including planned IDs."""
     label = _SECTION_LABEL.get(section, section)
@@ -101,7 +115,7 @@ def validate_component_id(section: str, component_id: str, label: str | None = N
     """Return an available component ID or reject planned/unknown entries."""
     resolved = label or _SECTION_LABEL.get(section, section)
     entry = get_component(section, component_id)
-    if entry.status in _UNAVAILABLE_STATUSES:
+    if entry.status in _UNAVAILABLE_STATUSES and not _availability_unlocked(entry):
         raise UnknownComponentError(f"{resolved} {component_id!r} is not available yet")
     return entry.id
 
@@ -122,7 +136,11 @@ def list_runtimes() -> list[ComponentEntry]:
 
 
 def list_placement_ids() -> list[str]:
-    return [e.id for e in _load_catalog().get("placement", []) if e.status not in _UNAVAILABLE_STATUSES]
+    return [
+        e.id
+        for e in _load_catalog().get("placement", [])
+        if e.status not in _UNAVAILABLE_STATUSES or _availability_unlocked(e)
+    ]
 
 
 def get_placement(placement_id: str) -> ComponentEntry:

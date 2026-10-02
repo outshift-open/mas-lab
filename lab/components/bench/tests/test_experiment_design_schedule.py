@@ -22,8 +22,8 @@ def _load(tmp_path: Path, body: str) -> MASExperimentConfig:
     path.write_text(
         "experiment:\n"
         "  name: split-test\n"
-        "  applications:\n"
-        "    - manifest: ./mas.yaml\n"
+        "  application:\n"
+        "    manifest: ./mas.yaml\n"
         "  scenarios:\n"
         "    - id: s1\n"
         "    - id: s2\n"

@@ -28,12 +28,14 @@ spec:
       layer: ctl.placement
       module: mas.ctl.placement.docker.DockerBackend
       status: planned
-      description: Planned — not in this OSS release
+      availability_check: mas.library.next
+      description: Planned — unlocks when mas.library.next is installed
     - id: kubernetes
       layer: ctl.placement
       module: mas.ctl.placement.k8s.K8sBackend
       status: planned
-      description: Planned — not in this OSS release
+      availability_check: mas.library.next
+      description: Planned — unlocks when mas.library.next is installed
 
   framework:
     - id: native
