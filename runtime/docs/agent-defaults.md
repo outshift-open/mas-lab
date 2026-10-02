@@ -5,15 +5,15 @@
 # Agent Defaults
 
 `mas-runtime` needs a handful of package-wide defaults for values a manifest
-is allowed to omit: the LLM model **fill-in for `any`**, the design pattern,
-the context manager, and the assembler.
+is allowed to omit: the design pattern, the context manager, and the assembler.
 
-**`defaults.model` is not written into the committed spec.** Compile records
+**`defaults.model` is a workspace pin, not a live fallback.** Compile records
 `model: any` when the Agent/MAS/experiment omitted a pin. Named
 `experiment.models` slots fill matching `any` ids first. Local
-`config.yaml` `defaults.model` (then package `defaults.yaml`) only resolves
-remaining `any` at engine time, so a checkout stays reproducible unless the
-author explicitly chose `any`.
+`config.yaml` `defaults.model` may resolve remaining `any` at engine time.
+Package `defaults.yaml` `model` is **not** used as a substitute: if nothing
+explicit remains, engine construction raises instead of silently running
+`gpt-4o-mini`.
 
 ## Discovery order
 
@@ -42,9 +42,10 @@ under its own `defaults:` property).
 ## How the values are used
 
 - `model` is exposed via `mas.runtime.agent_defaults.default_model()` /
-  `resolve_default_model(workspace=None)`. It fills the compiled ``any``
-  sentinel at engine time; compile never writes this value into Agent/MAS
-  YAML. It is *not* a registry plugin type.
+  `resolve_default_model(workspace=None)` for UI/catalog. Engine construction
+  does **not** fill compiled ``any`` from the package value. Pin a model in
+  the Agent/MAS spec, `experiment.models.main`, workspace `config.yaml`,
+  `--model`, or `MAS_CTL_MODEL`. It is *not* a registry plugin type.
 - `design_pattern`, `context_manager`, and `assembler` *are* registry spec keys: on
   startup, `bootstrap.load_registry()` reads `defaults.yaml` (merged with
   any `config.yaml` override) via `mas.runtime.registry.defaults.

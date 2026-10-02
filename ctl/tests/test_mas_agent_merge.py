@@ -300,6 +300,137 @@ def test_apply_agency_entry_overlay_tools_op_add_still_dedups():
     assert merged["spec"]["tools"] == ["calc", "web-search"]
 
 
+def test_apply_agency_entry_overlay_skills_op_add_keeps_agent_skills():
+    """An agency entry adding a skill must not drop the ones the agent
+    manifest already declares. ``skills`` used to bypass the list_ops merge
+    and assign straight onto the spec, so ``{"$op": {"add": [...]}}`` silently
+    replaced the agent's own list -- the skill was gone in that arm only."""
+    from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
+
+    manifest = {"metadata": {"name": "d"}, "spec": {"skills": ["settlement-protocol"]}}
+    entry = {"id": "d", "skills": {"$op": {"add": ["l9-accord-v2-receiver"]}}}
+    merged = apply_agency_entry_overlay(manifest, entry)
+    assert merged["spec"]["skills"] == ["settlement-protocol", "l9-accord-v2-receiver"]
+
+
+def test_apply_agency_entry_overlay_skills_op_add_dedups():
+    from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
+
+    manifest = {"metadata": {"name": "e"}, "spec": {"skills": ["a"]}}
+    entry = {"id": "e", "skills": {"$op": {"add": ["a", "b"]}}}
+    merged = apply_agency_entry_overlay(manifest, entry)
+    assert merged["spec"]["skills"] == ["a", "b"]
+
+
+def test_apply_agency_entry_overlay_skills_op_remove_and_clear():
+    from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
+
+    manifest = {"metadata": {"name": "f"}, "spec": {"skills": ["a", "b"]}}
+    assert apply_agency_entry_overlay(manifest, {"id": "f", "skills": {"$op": {"remove": ["a"]}}})["spec"][
+        "skills"
+    ] == ["b"]
+    assert (
+        apply_agency_entry_overlay(manifest, {"id": "f", "skills": {"$op": {"clear": True}}})["spec"]["skills"] == []
+    )
+
+
+def test_apply_agency_entry_overlay_skills_plain_list_still_replaces():
+    """Unchanged ergonomics: a raw list is an explicit replace, matching the
+    ``list_ops`` strategy declared for ``spec.skills`` in agent.schema.yaml."""
+    from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
+
+    manifest = {"metadata": {"name": "g"}, "spec": {"skills": ["a", "b"]}}
+    entry = {"id": "g", "skills": ["c"]}
+    merged = apply_agency_entry_overlay(manifest, entry)
+    assert merged["spec"]["skills"] == ["c"]
+
+
+def test_apply_agency_entry_overlay_skills_empty_list_clears():
+    from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
+
+    manifest = {"metadata": {"name": "h"}, "spec": {"skills": ["a"]}}
+    merged = apply_agency_entry_overlay(manifest, {"id": "h", "skills": []})
+    assert merged["spec"]["skills"] == []
+
+
+def test_base_mas_rejects_skills_on_agency_row():
+    """Skills belong to the agent manifest. An agency row only carries them
+    when an overlay patches that agent, never in a hand-written MAS."""
+    from mas.ctl.validate.validator import validate_data
+
+    mas = {
+        "apiVersion": "mas/v1",
+        "kind": "MAS",
+        "metadata": {"name": "m"},
+        "spec": {
+            "agency": {"agents": [{"id": "a", "ref": "agents/a.yaml", "skills": ["s"]}]},
+            "workflow": {"entry": "a", "nodes": [{"id": "a"}]},
+        },
+    }
+    result = validate_data(mas, resolve_refs=False)
+    assert not result.ok
+    assert any("spec.agency.agents.0" in str(issue) for issue in result.issues)
+
+
+def test_stacked_mas_overlays_add_skills_on_top_of_agent_manifest():
+    """End-to-end path: two MAS overlays add skills through $entry/$not-entry,
+    then the referenced agent YAML is loaded. The agent's own skills survive.
+    Form A rows stay {id, ref} — the patch is not parked on the MAS."""
+    from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
+    from mas.ctl.overlay.merge import accumulate_agent_patches, loaded_agent_patches, merge_mas_overlay
+    from mas.ctl.validate.validator import validate_data
+
+    mas = {
+        "kind": "MAS",
+        "spec": {
+            "agency": {"agents": [{"id": "lead", "ref": "agents/lead.yaml"}, {"id": "role", "ref": "agents/role.yaml"}]},
+            "workflow": {"entry": "lead", "nodes": [{"id": "lead"}, {"id": "role"}]},
+        },
+    }
+
+    def overlay(entry_skill: str, other_skill: str) -> dict:
+        return {
+            "spec": {
+                "target": {"kind": "MAS"},
+                "patch": {
+                    "agents": {
+                        "$entry": {"skills": {"$op": {"add": [entry_skill]}}},
+                        "$not-entry": {"skills": {"$op": {"add": [other_skill]}}},
+                    }
+                },
+            }
+        }
+
+    patches: dict = {}
+    first = overlay("orch-a", "recv-a")
+    mas = merge_mas_overlay(mas, first)
+    patches = accumulate_agent_patches(patches, loaded_agent_patches(first, mas))
+    second = overlay("orch-b", "recv-b")
+    mas = merge_mas_overlay(mas, second)
+    patches = accumulate_agent_patches(patches, loaded_agent_patches(second, mas))
+    rows = {row["id"]: row for row in mas["spec"]["agency"]["agents"]}
+    assert set(rows["role"]) <= {"id", "ref", "name"}
+    assert set(rows["lead"]) <= {"id", "ref", "name"}
+    assert "_agent_patches" not in mas
+
+    role = apply_agency_entry_overlay(
+        {"spec": {"skills": ["own"]}}, rows["role"], agent_patch=patches.get("role")
+    )
+    lead = apply_agency_entry_overlay({"spec": {}}, rows["lead"], agent_patch=patches.get("lead"))
+    assert role["spec"]["skills"] == ["own", "recv-a", "recv-b"]
+    assert lead["spec"]["skills"] == ["orch-a", "orch-b"]
+
+    mas_for_validate = {
+        "apiVersion": "mas/v1",
+        "kind": "MAS",
+        "metadata": {"name": "m"},
+        "spec": mas["spec"],
+    }
+    result = validate_data(mas_for_validate, resolve_refs=False)
+    assert result.ok, [str(i) for i in result.issues]
+
+
+
 def test_apply_agency_entry_overlay_plain_tools_list_still_adds_not_replaces():
     """Unchanged, long-standing behavior: a plain list (no $op) is an ADD,
     dedup-merged onto the existing tools -- not a replace."""
@@ -404,7 +535,7 @@ def test_apply_agency_entry_overlay_empty_governance_clears():
 
 def test_fanout_agency_row_merges_onto_agent_yaml():
     from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
-    from mas.ctl.overlay.merge import merge_overlay
+    from mas.ctl.overlay.merge import loaded_agent_patches, merge_overlay
 
     mas = {
         "kind": "MAS",
@@ -430,11 +561,15 @@ def test_fanout_agency_row_merges_onto_agent_yaml():
     }
     fanned = merge_overlay(mas, overlay)
     entry = fanned["spec"]["agency"]["agents"][0]
+    assert set(entry) <= {"id", "ref", "name"}
+    assert "_agent_patches" not in fanned
     agent = {
         "metadata": {"name": "moderator"},
         "spec": {"governance": ["sample_governance"], "observability": ["otel"]},
     }
-    merged = apply_agency_entry_overlay(agent, entry)
+    merged = apply_agency_entry_overlay(
+        agent, entry, agent_patch=loaded_agent_patches(overlay, fanned).get("moderator")
+    )
     names = [g if isinstance(g, str) else next(iter(g)) for g in merged["spec"]["governance"]]
     assert "sample_governance" in names
     assert merged["spec"]["observability"] == ["otel", "native"] or set(merged["spec"]["observability"]) == {
@@ -520,7 +655,11 @@ def test_create_agent_runtime_applies_mas_overlay_context(monkeypatch, tmp_path:
         yaml.safe_dump(
             {
                 "metadata": {"name": "moderator"},
-                "spec": {"context": {"role": "base"}, "design_pattern": {"type": "react"}},
+                "spec": {
+                    "context": {"role": "base"},
+                    "design_pattern": {"type": "react"},
+                    "models": [{"id": "main", "model": "gpt-4o"}],
+                },
             }
         ),
         encoding="utf-8",
@@ -530,11 +669,7 @@ def test_create_agent_runtime_applies_mas_overlay_context(monkeypatch, tmp_path:
         "spec": {
             "agency": {
                 "agents": [
-                    {
-                        "id": "moderator",
-                        "ref": "agents/moderator/agent.yaml",
-                        "spec": {"context": {"role": "from overlay"}},
-                    }
+                    {"id": "moderator", "ref": "agents/moderator/agent.yaml"},
                 ]
             }
         },
@@ -550,7 +685,11 @@ def test_create_agent_runtime_applies_mas_overlay_context(monkeypatch, tmp_path:
                 manifest_path=str(agent_yaml.relative_to(tmp_path)),
             )
         ],
-        composed_application=ComposedApplication(mas_id="trip", config=mas),
+        composed_application=ComposedApplication(
+            mas_id="trip",
+            config=mas,
+            agent_patches={"moderator": {"context": {"role": "from overlay"}}},
+        ),
         mas_base_dir=tmp_path,
     )
     instance = MasRuntimePyKernelBackend(resolved_infra=infra).create_agent_runtime(bind, "moderator")

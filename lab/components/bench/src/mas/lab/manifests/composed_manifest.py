@@ -113,13 +113,17 @@ def materialize_composed_mas_tree(
             raise FileNotFoundError(f"Overlay {overlay_entry!r} not found: {overlay_path}")
         overlay_paths.append(overlay_path)
 
-    mas = compose_run(
+    mas_result = compose_run(
         ComposeRequest(
             manifest=mas_yaml,
             overlay_paths=overlay_paths,
             validate=False,
         )
-    ).mas_config
+    )
+    mas = mas_result.mas_config
+    agent_patches = {}
+    if mas_result.bind.composed_application is not None:
+        agent_patches = mas_result.bind.composed_application.agent_patches or {}
 
     agents_by_id: dict[str, dict[str, Any]] = {}
     spec = mas.get("spec") or {}
@@ -131,7 +135,9 @@ def materialize_composed_mas_tree(
         from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
 
         if not _is_inline_agent(entry):
-            doc = apply_agency_entry_overlay(doc, entry)
+            doc = apply_agency_entry_overlay(
+                doc, entry, agent_patch=agent_patches.get(aid)
+            )
         agents_by_id[aid] = doc
 
     for overlay_path in overlay_paths:

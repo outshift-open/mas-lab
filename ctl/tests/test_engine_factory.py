@@ -75,7 +75,12 @@ def test_build_engine_replay_does_not_require_api_key(monkeypatch, tmp_path):
     infra = resolve_infra_refs([str(_CI_REPLAY)], anchor=tmp_path)
     assert _strict_replay(infra.llm_proxy) is True
 
-    sel = build_engine(ctx, {"spec": {}}, infra, anchor=tmp_path)
+    sel = build_engine(
+        ctx,
+        {"spec": {"models": [{"id": "main", "model": "gpt-4o"}]}},
+        infra,
+        anchor=tmp_path,
+    )
     assert sel.mode == "replay"
     leaf = leaf_engine(sel.engine)
     assert isinstance(leaf, LiveLlmEngine)
@@ -118,14 +123,42 @@ def test_resolve_model_name_prefers_spec_models(monkeypatch):
     assert resolve_model_name(manifest, None) == "vertex_ai/gemini-2.5-pro"
 
 
-def test_resolve_model_name_any_uses_workspace_then_package(monkeypatch):
+def test_resolve_model_name_any_uses_workspace_then_fails(monkeypatch):
     monkeypatch.delenv("MAS_CTL_MODEL", raising=False)
     monkeypatch.delenv("MAS_LLM_MODEL", raising=False)
     manifest = {"spec": {"models": [{"model": "any"}]}}
     assert resolve_model_name(manifest, None, workspace_default="gpt-local") == "gpt-local"
-    from mas.runtime.agent_defaults import default_model
+    import pytest
+    from mas.ctl.session.engine_factory import UnresolvedModelError
 
-    assert resolve_model_name(manifest, None) == default_model()
+    with pytest.raises(UnresolvedModelError, match="will not substitute gpt-4o-mini"):
+        resolve_model_name(manifest, None)
+
+
+def test_build_engine_scripted_response_does_not_require_model(monkeypatch, tmp_path):
+    from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
+    from mas.runtime.engine.simulated import SimulatedEngine
+
+    monkeypatch.setattr(WorkspaceConfig, "load", lambda *a, **k: WorkspaceConfig({}))
+    monkeypatch.setattr(UserConfig, "load", lambda *a, **k: UserConfig({}))
+    monkeypatch.delenv("MAS_CTL_MODEL", raising=False)
+    monkeypatch.delenv("MAS_LLM_MODEL", raising=False)
+    ctx = AutoCtxAssembler()
+    manifest = {
+        "spec": {
+            "models": [],
+            "design_pattern": {"type": "scripted_response", "params": {"default": {"text": "ok"}}},
+        }
+    }
+    sel = build_engine(
+        ctx,
+        manifest,
+        ResolvedInfra(refs=[], llm_proxy={}),
+        pattern_plugin_id="react@v1",
+        anchor=tmp_path,
+    )
+    assert sel.mode == "scripted"
+    assert isinstance(sel.engine, SimulatedEngine)
 
 
 def test_resolve_model_name_parent_mas_default(monkeypatch):

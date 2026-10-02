@@ -19,7 +19,7 @@ from mas.ctl.compose.placement_validate import validate_placement_strategy
 from mas.ctl.deployment.load import load_deployment, resolve_runtime_id
 from mas.ctl.infra.resolve import resolve_infra_refs
 from mas.runtime.spec.source import load_yaml_mapping
-from mas.ctl.overlay import merge_overlay
+from mas.ctl.overlay import accumulate_agent_patches, loaded_agent_patches, merge_overlay
 from mas.ctl.validate import validate_file, validation_enabled
 from mas.ctl.workspace.config import (
     UserConfig,
@@ -135,10 +135,13 @@ def compose_run(req: ComposeRequest) -> ComposeResult:
         validate_file(req.manifest, kind="mas").raise_if_failed()
 
     mas = load_yaml_mapping(req.manifest)
+    agent_patches: dict[str, dict] = {}
     for ov_path in req.overlay_paths:
         if req.validate and validation_enabled():
             validate_file(ov_path, kind="overlay").raise_if_failed()
-        mas = merge_overlay(mas, load_yaml_mapping(ov_path))
+        overlay = load_yaml_mapping(ov_path)
+        mas = merge_overlay(mas, overlay)
+        agent_patches = accumulate_agent_patches(agent_patches, loaded_agent_patches(overlay, mas))
     mas_id = mas.get("metadata", {}).get("name") or req.manifest.stem
 
     workspace = WorkspaceConfig.load(req.workspace_root or req.manifest.parent)
@@ -167,7 +170,9 @@ def compose_run(req: ComposeRequest) -> ComposeResult:
     spec = deployment.setdefault("spec", {})
     spec["runtime_id"] = runtime_id
 
-    composed = compose_application(mas, mas_id=mas_id, overlay_ids=req.overlay_ids)
+    composed = compose_application(
+        mas, mas_id=mas_id, overlay_ids=req.overlay_ids, agent_patches=agent_patches
+    )
     plan = compose_placement_from_deployment(deployment, composed)
     validate_placement_strategy(plan.strategy)
     bind = compose_effective_bind(

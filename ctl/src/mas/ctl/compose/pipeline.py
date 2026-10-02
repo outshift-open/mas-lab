@@ -37,6 +37,7 @@ def compose_application(
     mas_id: str,
     overlay_ids: list[str] | None = None,
     spec_revision: str = "",
+    agent_patches: dict[str, dict[str, Any]] | None = None,
 ) -> ComposedApplication:
     """Step 1: MAS + overlays (overlay merge done by caller today)."""
     return ComposedApplication(
@@ -44,6 +45,7 @@ def compose_application(
         config=dict(mas_config),
         spec_revision=spec_revision,
         overlay_ids=list(overlay_ids or []),
+        agent_patches=dict(agent_patches or {}),
     )
 
 

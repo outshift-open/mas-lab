@@ -112,7 +112,19 @@ def load_agent_manifest_from_bind(bind: EffectiveBindManifest, agent_id: str) ->
     if mp is None or not mp.is_file():
         return None
     doc = yaml.safe_load(mp.read_text(encoding="utf-8"))
-    return doc if isinstance(doc, dict) else None
+    if not isinstance(doc, dict):
+        return None
+    composed = bind.composed_application
+    if composed is None:
+        return doc
+    from mas.ctl.manifest.mas_agent_merge import apply_loaded_agent_patch
+
+    return apply_loaded_agent_patch(
+        doc,
+        agent_id=agent_id,
+        agent_patches=composed.agent_patches,
+        mas_config=composed.config,
+    )
 
 
 def resolve_entry_pattern_plugin_id(

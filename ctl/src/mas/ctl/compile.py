@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from mas.ctl.manifest.mas_agent_merge import apply_agency_entry_overlay
-from mas.ctl.overlay import merge_overlay
+from mas.ctl.manifest.mas_agent_merge import apply_loaded_agent_patch
+from mas.ctl.overlay import accumulate_agent_patches, loaded_agent_patches, merge_overlay
 from mas.ctl.overlay.normalize import normalize_overlay
 from mas.ctl.validate import validate_data, validate_file, validation_enabled
 from mas.ctl.workspace.config import WorkspaceConfig
@@ -174,12 +174,18 @@ def compile_manifest(
         )
 
     mas = doc
+    agent_patches: dict[str, dict] = {}
     for _ov_path, overlay in classified.mas:
         mas = merge_overlay(mas, overlay)
+        agent_patches = accumulate_agent_patches(agent_patches, loaded_agent_patches(overlay, mas))
     if fill_defaults:
         mas = fill_mas_defaults(mas)
 
     agents, agent_ids, relpaths = _load_mas_agents(mas, mas_dir=manifest.parent)
+    for aid, adoc in list(agents.items()):
+        agents[aid] = apply_loaded_agent_patch(
+            adoc, agent_id=aid, agent_patches=agent_patches, mas_config=mas
+        )
     for ov_path, overlay in classified.agent:
         target_name = _overlay_target_name(overlay)
         if target_name:
@@ -439,7 +445,6 @@ def _load_mas_agents(
                 raise CompileError(f"agency agent {aid!r} is missing ref and is not an inline Agent")
             path = resolve_yaml_path(ref.strip(), mas_dir)
             doc = load_yaml_mapping(path)
-            doc = apply_agency_entry_overlay(doc, entry)
         agents[aid] = doc
         agent_ids.append(aid)
         relpaths[aid] = _agent_relpath(entry, aid)
