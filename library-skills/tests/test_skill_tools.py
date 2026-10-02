@@ -347,13 +347,15 @@ def test_list_tools_enum_unaffected_when_nothing_activated(tmp_path: Path):
     assert name_schema["enum"] == ["skill-a", "skill-b"]
 
 
-def test_on_collect_tools_excludes_activated_skills_from_ctx_session_state(tmp_path: Path):
+def test_on_collect_tools_keeps_activated_names_for_unload(tmp_path: Path):
+    """Unload uses the same tool, so activated names stay in the enum."""
     reg = _registry_with_skills(tmp_path, ["skill-a", "skill-b"])
     plugin = SkillToolsPlugin()
     ctx = _FakeCtx(reg, skill_session_state=_FakeSessionState(["skill-a"]))
     tools = plugin.on_collect_tools(ctx=ctx)
     name_schema = next(t for t in tools if t["name"] == "activate_skill")["parameters"]["properties"]["name"]
-    assert name_schema["enum"] == ["skill-b"]
+    assert name_schema["enum"] == ["skill-a", "skill-b"]
+    assert "active" in next(t for t in tools if t["name"] == "activate_skill")["parameters"]["properties"]
 
 
 def test_on_collect_tools_without_session_state_keeps_full_enum(tmp_path: Path):

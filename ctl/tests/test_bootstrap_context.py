@@ -190,6 +190,21 @@ def test_resolve_skill_plugin_config_auto_inject_defaults_false(tmp_path: Path):
     assert cfg.auto_inject_scripts is False
 
 
+def test_resolve_skill_plugin_config_reads_pin_and_unload(tmp_path: Path):
+    from mas.ctl.session.bootstrap import _resolve_skill_plugin_config
+
+    manifest = {
+        "spec": {
+            "context_sources": [
+                {"native": {"pin_activated": False, "allow_unload": False}}
+            ]
+        }
+    }
+    cfg = _resolve_skill_plugin_config(manifest, default_base_dir=tmp_path)
+    assert cfg.pin_activated is False
+    assert cfg.allow_unload is False
+
+
 def test_interface_contracts_resolve_from_full_agent_manifest_and_keep_overrides():
     from mas.ctl.manifest.spec_bindings import validate_agent_spec_bindings
     from mas.ctl.session.bootstrap import _resolve_interface_contract

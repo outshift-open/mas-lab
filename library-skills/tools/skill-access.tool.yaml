@@ -25,7 +25,7 @@ spec:
     Multi-tool provider for agent-skill progressive disclosure (tier 2 + tier 3).
     Exposes three tools:
 
-      activate_skill(name)          — load full SKILL.md body on demand
+      activate_skill(name, active=true|false)  — load or unload SKILL.md body
       list_skill_files(skill)       — enumerate bundled resources
       read_skill_file(skill, path)  — read a specific resource file
 
