@@ -25,7 +25,6 @@ properties:
     description: "Interactive MAS demo configuration."
 
     properties:
-
       # ── Identity ──────────────────────────────────────────────────────────
       name:
         type: string
@@ -42,6 +41,14 @@ properties:
         description: "Free-text description shown in the demo UI."
 
       # ── MAS applications ──────────────────────────────────────────────────
+      default_flavour:
+        type: string
+        description: "Legacy-compatible default runtime flavour for interactive runs."
+
+      output_dir:
+        type: string
+        description: "Legacy-compatible output directory; relative paths are resolved from this file."
+
       applications:
         type: array
         minItems: 1
@@ -127,6 +134,9 @@ properties:
             description:
               type: string
               description: "Human-readable label shown in the UI dropdown."
+            user_prompt:
+              type: string
+              description: "Legacy-compatible default prompt pre-filled when this scenario is selected."
             tags:
               type: array
               items:

@@ -67,3 +67,23 @@ def test_lab_dataset_strict_schema(path: Path) -> None:
         resolve_refs=False,
         base_dir=path.parent,
     )
+
+
+def test_lab_config_legacy_fields_strict_schema() -> None:
+    pytest.importorskip("jsonschema")
+    validate_manifest(
+        {
+            "lab": {
+                "name": "legacy-lab",
+                "default_flavour": "local",
+                "output_dir": "./legacy-runs",
+                "scenarios": [
+                    {"id": "baseline", "user_prompt": "Start with the legacy prompt"}
+                ],
+            }
+        },
+        source="lab-config.yaml",
+        kind="lab-config",
+        strict=True,
+        resolve_refs=False,
+    )
