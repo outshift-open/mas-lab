@@ -41,9 +41,10 @@ one child, registers it on the local bus, runs one turn, returns the result, and
 removes the instance and endpoint in a `finally` block. Parent-call identity is
 preserved for trace attribution.
 
-This release is synchronous and one-shot. A child is not retained for later
-turns. Concurrent fan-out is gated on the async driver work in
-[PLAN-04](../../../../PLAN-04-concurrency.md).
+This release can run a child synchronously (one shot) or concurrently
+when the async driver is enabled (`ainvoke`, `dispatch: parallel` on a
+workflow). A child is torn down after its turn unless the session keeps
+it. Bounds still apply.
 
 See [Tutorial 7](../tutorials/07-subagents/README.md) and the runnable
 [manifest pair](../schemas/examples/subagent-agent.yaml).
