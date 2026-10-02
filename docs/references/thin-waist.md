@@ -19,7 +19,7 @@ use `skill_impl` rows in `library.yaml`; there is no parallel
 
 Boundary slots are a closed set. `register_type(..., layer="boundary")`
 rejects unknown envelope types. Library types (`related_state`,
-`execute_sandbox`, `skill_*`, lab steps) are not envelope slots.
+`execute_sandbox`, `circuit_breaker`, `skill_*`, lab steps) are not envelope slots.
 
 ## Component catalog
 

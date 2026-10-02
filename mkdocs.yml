@@ -120,9 +120,11 @@ nav:
       - Overview: references/index.md
       - "ADR 0001 — lab terminology": references/adr-0001-lab-terminology.md
       - Specifications:
-          - Agent: manifests/agent.md
-          - Session checkpoints: manifests/checkpoint.md
-          - Subagents: manifests/subagents.md
+          - Agent:
+              - Overview: manifests/agent.md
+              - Governance: manifests/governance.md
+              - Session checkpoints: manifests/checkpoint.md
+              - Subagents: manifests/subagents.md
           - System tools: manifests/system-tools.md
           - Plugin bindings: manifests/plugin-bindings.md
           - Context assembly: manifests/context-assembly.md
@@ -142,6 +144,7 @@ nav:
           - Schemas: references/schemas.md
       - Runtime:
           - Manifest fields: manifests/runtime.md
+          - Reliability: references/reliability.md
           - "LLM cache (reference)": references/llm-cache.md
           - Contracts: references/contracts.md
           - Snapshots vs checkpoints: references/snapshots.md

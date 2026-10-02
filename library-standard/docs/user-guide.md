@@ -49,7 +49,7 @@ Index: [src/mas/library/standard/overlays/README.md](../src/mas/library/standard
 | Overlay | Apply |
 |---------|--------|
 | `observability-native` | native `events.jsonl` |
-| `with-hardened` | append `gov_no_undeclared_tool` |
+| `with-hardened` | append `gov_no_undeclared_tool` + `retry_on_error`; merge retry/circuit knobs |
 | `cheap-summarizer` | `summarizer.params.model: gpt-4o-mini` |
 
 ```bash
@@ -68,7 +68,10 @@ Enable budget and policy plugins to constrain calls, tokens, or tool access.
 Refuse tool names the model was not given in this LLM call's `tools` list
 (even if they appear on the agent spec) with `with-hardened`, or list the
 plugin on the governance *chain* (`spec.observability` is a sequence;
-`spec.governance` is not — BLOCK stops, ALLOW continues):
+`spec.governance` is not — BLOCK stops, ALLOW continues). The same overlay
+also installs `retry_on_error` and `spec.control` retry/circuit knobs —
+[reliability.md](../../docs/references/reliability.md),
+[governance.md](../../docs/manifests/governance.md).
 
 ```yaml
 governance:

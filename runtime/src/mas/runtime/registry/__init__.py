@@ -316,6 +316,13 @@ class PluginRegistry:
             )
         return info
 
+    def instantiate_by_type(self, plugin_type: str, name: str, *args: Any, **kwargs: Any) -> Any:
+        """Construct a registered plugin by type and name. No class is named here."""
+        info = self.resolve_by_type(plugin_type, name)
+        if info is None:
+            raise KeyError(f"{plugin_type} plugin {name!r} was not found")
+        return info.load_class()(*args, **kwargs)
+
     def create(
         self,
         spec_key: str,

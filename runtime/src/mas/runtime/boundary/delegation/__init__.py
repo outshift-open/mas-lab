@@ -1,8 +1,7 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Delegation boundary — workflow policy and peer-delegation plugins."""
+"""Delegation boundary — workflow policy and the DelegationContract protocol."""
 
-from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
 from mas.runtime.boundary.delegation.policy import (
     DELEGATE_TOOL_PREFIX,
     delegate_tool_name,
@@ -17,7 +16,6 @@ from mas.runtime.boundary.delegation.protocol import DelegationContract
 __all__ = [
     "DELEGATE_TOOL_PREFIX",
     "DelegationContract",
-    "LlmDelegator",
     "delegate_tool_name",
     "delegation_targets",
     "entry_agent_id",

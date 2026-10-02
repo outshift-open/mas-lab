@@ -4,7 +4,7 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from mas.runtime.boundary.agentcomm.local import LocalAgentComm
+from mas.library.standard.plugins.agentcomm.local import LocalAgentComm
 from mas.runtime.boundary.agentcomm.protocol import AgentCommContract
 
 

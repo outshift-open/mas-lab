@@ -45,7 +45,7 @@ class MemorySearchTool:
 
     def _plugin(self, ctx: Any) -> SemanticMemoryPlugin:
         agent_id = getattr(ctx, "agent_id", None) or "default"
-        from mas.runtime.boundary.memory.semantic import default_store_path
+        from mas.library.standard.plugins.memory.semantic_store import default_store_path
 
         mem = SemanticMemoryPlugin(
             db_path=str(default_store_path(str(agent_id))),

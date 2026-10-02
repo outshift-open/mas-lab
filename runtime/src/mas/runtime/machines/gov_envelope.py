@@ -60,6 +60,7 @@ class GovEnvelopeMachine:
             obs_phase = ObsPhase.VALID
         decision = ctx.gov_decision if checkpoint == "after" else ""
         reason = ctx.gov_reason if checkpoint == "after" else ""
+        ev = ctx.ingress_event
         obs.record_governance_decision(
             hook=hook,
             phase=checkpoint,
@@ -69,4 +70,7 @@ class GovEnvelopeMachine:
             policy_name=ctx.policy_name or "kernel",
             obs_phase=obs_phase,
             op=ctx.scheduled_op,
+            failure_class=getattr(ev, "failure_class", "") or "" if hook == "ingress" else "",
+            failure_code=getattr(ev, "failure_code", "") or "" if hook == "ingress" else "",
+            retry_attempts=getattr(ev, "retry_attempts", 0) or 0 if hook == "ingress" else 0,
         )

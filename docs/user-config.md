@@ -165,6 +165,8 @@ started with. Model and infra/runtime ref overrides log a warning when applied.
 | `MAS_DATA_ROOT` / `MAS_LAB_DATA` | Data root (derived from `paths.labs_dir`) |
 | `MAS_TRACE_CACHE`, `MAS_DATA_CACHE` | Trace / pipeline step cache (use `--trace-cache` / `--data-cache`) |
 | `MAS_LLM_CACHE`, `MAS_LLM_CACHE_READ` / `MAS_LLM_CACHE_WRITE` | Built-in engine cache — [execution.md](manifests/execution.md#cache--the-llm-response-cache) |
+| `MAS_LLM_HTTP_RETRIES` | Extra LLM HTTP retries (`attempts = retries + 1`). Prefer `spec.control.retry.llm` — [reliability.md](references/reliability.md) |
+| `MAS_LLM_HTTP_RETRY_BACKOFF` | LLM HTTP base backoff seconds (also disables jitter) |
 | `MAS_HOME`, `MAS_CONTROLLER_SOCKET` | Controller data root / socket |
 
 Secrets (`OPENAI_API_KEY`, proxy credentials) are the exception: they belong

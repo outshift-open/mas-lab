@@ -10,7 +10,10 @@ from mas.runtime.boundary.gov.error_recovery import (
     ErrorRecoveryAction,
     ErrorRecoveryDecision,
     IngressErrorContext,
+    map_recovery_to_governance,
 )
+from mas.runtime.boundary.gov.ingress_plugin import IngressGovDecision, IngressIntentView
+from mas.runtime.kernel.config import KernelConfig
 
 
 @dataclass
@@ -48,3 +51,25 @@ class BacktrackOnErrorPlugin:
         if ctx.retry_count < ctx.max_retries:
             return ErrorRecoveryDecision(action=ErrorRecoveryAction.RETRY, recoverable=True)
         return ErrorRecoveryDecision(action=ErrorRecoveryAction.ALLOW, recoverable=True)
+
+    def evaluate_ingress(
+        self, intent: IngressIntentView, *, config: KernelConfig
+    ) -> IngressGovDecision:
+        decision = self.decide(
+            IngressErrorContext(
+                response_kind=intent.response_kind,
+                error_text=intent.error_text,
+                retry_count=intent.retry_count,
+                max_retries=intent.max_retries,
+                profile=intent.profile,
+                failure_class=intent.failure_class,
+                failure_code=intent.failure_code,
+            )
+        )
+        return IngressGovDecision(
+            action=map_recovery_to_governance(decision),
+            boundary_code=decision.boundary_code,
+            message=decision.message,
+            recoverable=decision.recoverable,
+            chain=decision.chain,
+        )

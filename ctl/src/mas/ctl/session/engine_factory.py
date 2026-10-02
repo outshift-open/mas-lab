@@ -252,6 +252,13 @@ def build_engine(
         runtime_refs_cli=runtime_refs_cli,
     )
     llm_proxy = dict(resolved.llm_proxy or {})
+    spec = (manifest or {}).get("spec") or {}
+    reliability = getattr(kernel_cfg, "reliability", None)
+    if reliability is None:
+        from mas.runtime.reliability.policy import ReliabilitySettings
+
+        reliability = ReliabilitySettings.from_spec(spec, llm_proxy=llm_proxy)
+    llm_proxy["retry"] = reliability.llm_retry.to_mapping()
     strict_replay = _strict_replay(llm_proxy)
 
     api_base = str(llm_proxy.get("api_base") or "").strip()
@@ -328,6 +335,7 @@ def build_engine(
             llm_proxy=llm_proxy,
             http_timeout=http_timeout,
             llm_provider=llm_provider,
+            reliability=reliability,
         ),
         llm_proxy.get("pipeline") or [],
     )

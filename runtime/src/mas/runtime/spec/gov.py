@@ -35,6 +35,7 @@ class GovernanceBinding:
     active_profile: str | None = None
     error_recovery_plugin: str | None = None
     backtrack: dict[str, Any] | None = None
+    error_policy: dict[str, Any] | None = None
     ingress_plugins: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -132,6 +133,7 @@ def parse_gov_spec(raw: list | None) -> GovernanceBinding:
             else None
         ),
         backtrack=flat.get("backtrack"),
+        error_policy=flat.get("error_policy") if isinstance(flat.get("error_policy"), dict) else None,
         ingress_plugins=ingress_plugins,
     )
 
@@ -217,6 +219,7 @@ def build_kernel_config(
         plugin_cfg = dict(binding.plugin_configs.get(name) or {})
         plugin_cfg.pop("error_recovery_plugin", None)
         plugin_cfg.pop("backtrack", None)
+        plugin_cfg.pop("error_policy", None)
         plugin = _instantiate(name, plugin_cfg)
         if plugin is not None:
             egress_plugins.append(plugin)
@@ -301,16 +304,26 @@ def build_kernel_config(
                 "spec.governance.backtrack.on_cap_reached must be hitl, terminate, or stop_backtracking"
             )
 
+    recovery_entry: RegisteredIngressPlugin | None = None
     if binding.error_recovery_plugin:
+        recovery_cfg = dict(binding.backtrack or {})
+        plugin_cfg = dict(binding.plugin_configs.get(binding.error_recovery_plugin) or {})
+        recovery_cfg.update(plugin_cfg)
+        if binding.error_policy:
+            recovery_cfg.setdefault("error_policy", binding.error_policy)
         recovery_plugin = _instantiate(
             binding.error_recovery_plugin,
-            dict(binding.backtrack or {}),
+            recovery_cfg,
         )
         if recovery_plugin is None:
             raise SpecBindingError(
                 f"spec.governance.error_recovery_plugin {binding.error_recovery_plugin!r} was not found"
             )
-        kwargs["error_recovery_plugin"] = recovery_plugin
+        recovery_entry = RegisteredIngressPlugin(
+            plugin=recovery_plugin,
+            filter=GovTransitionFilter(hook="ingress", response_kind=("ERROR",)),
+            chain="stop",
+        )
 
     if binding.policies:
         from mas.runtime.boundary.gov.policy_engine import PolicyParseError
@@ -324,6 +337,8 @@ def build_kernel_config(
 
     # Extend the ingress chain with explicitly declared ingress-only plugins.
     chain = list(ingress_entries)
+    if recovery_entry is not None:
+        chain.insert(0, recovery_entry)
     for entry in binding.ingress_plugins:
         if not isinstance(entry, dict):
             raise SpecBindingError("spec.governance.ingress_plugins entries must be objects")

@@ -32,28 +32,33 @@ types:
   - hitl_contract
   - user_io_contract
   - engine_tool_provider
+  - related_state
+  - execute_sandbox
+  - circuit_breaker
+  - infra_middleware
+  - hitl_responder
 
 plugins:
   - type: engine_tool_provider
     name: delegation
     urn: mas.engine_tool_provider.delegation
-    module: mas.runtime.boundary.delegation.llm_delegator
+    module: mas.library.standard.plugins.delegation.llm_delegator
     class: LlmDelegator
   - type: engine_tool_provider
     name: spawn_subagent
     urn: mas.engine_tool_provider.spawn_subagent
-    module: mas.ctl.executor.subagent_spawner
+    module: mas.library.standard.plugins.engine_tools.subagent_spawner
     class: SubagentSpawner
   - type: system_tool
     name: request_human_input
     urn: mas.system_tool.request_human_input
-    module: mas.runtime.system_tools.request_human_input
+    module: mas.library.standard.plugins.system_tools.request_human_input
     class: RequestHumanInputTool
     attributes: {default_enabled: false, communication: hitl}
   - type: system_tool
     name: inform_user
     urn: mas.system_tool.inform_user
-    module: mas.runtime.system_tools.inform_user
+    module: mas.library.standard.plugins.system_tools.inform_user
     class: InformUserTool
     attributes: {default_enabled: false, communication: user_io}
   - type: system_tool
@@ -99,8 +104,11 @@ plugins:
   - type: agent_comm
     name: local
     urn: mas.agent_comm.local
-    module: mas.runtime.boundary.agentcomm.local
+    module: mas.library.standard.plugins.agentcomm.local
     class: LocalAgentComm
+    shortcuts:
+      - local
+      - agent-local
 
   # Observability plugins
   - type: observability
@@ -237,20 +245,103 @@ plugins:
     urn: mas.gov.backtrack_on_error
     module: mas.library.standard.plugins.governance.backtrack_on_error
     class: BacktrackOnErrorPlugin
+  - type: governance
+    name: retry_on_error
+    urn: mas.gov.retry_on_error
+    module: mas.library.standard.plugins.governance.retry_on_error
+    class: RetryOnErrorPlugin
+    description: >
+      Ingress classifier: map failure_class through error_policy to
+      allow/retry/block/skip. Egress always PASSes. Kernel applies the
+      decision; this plugin owns the policy table.
+    shortcuts:
+      - retry_on_error
+  - type: circuit_breaker
+    name: threshold
+    urn: mas.circuit_breaker.threshold
+    module: mas.library.standard.plugins.reliability.circuit_breaker
+    class: ThresholdCircuitBreaker
+    description: >
+      Engine I/O wrapper: fail-fast after consecutive matching failures
+      (spec.control.circuit_breaker). Not a kernel op or governance plugin.
+    shortcuts:
+      - circuit_breaker
+      - threshold
   - type: hitl_contract
     name: registry
     urn: mas.hitl_contract.registry
-    module: mas.runtime.contracts.user_communication_contract
+    module: mas.library.standard.plugins.hitl.contracts
     class: RegistryHitlContract
+  - type: hitl_contract
+    name: auto_resolve
+    urn: mas.hitl_contract.auto_resolve
+    module: mas.library.standard.plugins.hitl.contracts
+    class: AutoResolveHitlContract
+    shortcuts:
+      - auto
+      - auto_resolve
   - type: user_io_contract
     name: registry
     urn: mas.user_io_contract.registry
-    module: mas.runtime.contracts.user_communication_contract
+    module: mas.library.standard.plugins.hitl.contracts
     class: RegistryUserIOContract
+  - type: related_state
+    name: git_worktree
+    urn: mas.related_state.git_worktree
+    module: mas.library.standard.plugins.related_state.git_worktree
+    class: GitWorktreeRelatedState
+  - type: related_state
+    name: copy_dir
+    urn: mas.related_state.copy_dir
+    module: mas.library.standard.plugins.related_state.copy_dir
+    class: CopyDirRelatedState
+  - type: execute_sandbox
+    name: workdir
+    urn: mas.execute_sandbox.workdir
+    module: mas.library.standard.plugins.sandbox.workdir
+    class: WorkdirSandbox
+    shortcuts:
+      - workdir
+      - git_worktree
+  - type: infra_middleware
+    name: llm_cache
+    urn: mas.infra_middleware.llm_cache
+    module: mas.library.standard.plugins.infra.llm_cache
+    class: LlmCacheMiddleware
+    shortcuts:
+      - llm_cache
+      - llm-cache
+  - type: infra_middleware
+    name: fault_inject
+    urn: mas.infra_middleware.fault_inject
+    module: mas.library.standard.plugins.infra.fault_inject
+    class: FaultInjectMiddleware
+    shortcuts:
+      - fault_inject
+      - fault-inject
+      - chaos_lite
+      - chaos-lite
+  - type: hitl_responder
+    name: auto_approve
+    urn: mas.hitl_responder.auto_approve
+    module: mas.library.standard.plugins.hitl.responders
+    class: AutoApproveResponder
+    shortcuts:
+      - auto-approve
+      - auto_approve
+  - type: hitl_responder
+    name: auto_deny
+    urn: mas.hitl_responder.auto_deny
+    module: mas.library.standard.plugins.hitl.responders
+    class: AutoDenyResponder
+    shortcuts:
+      - auto-deny
+      - auto_deny
 
 defaults:
   tool_provider: local
   summarizer: llm
   llm_provider: openai
+  agent_comm: local
   hitl_contract: registry
   user_io_contract: registry

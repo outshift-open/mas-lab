@@ -170,3 +170,21 @@ def test_former_and_canonical_dataset_items_validate() -> None:
         modern, source="modern.yaml", kind="dataset", strict=True, resolve_refs=False
     )
     assert warnings == []
+
+
+def test_execution_max_attempts_validates() -> None:
+    data = _canonical()
+    data["experiment"]["execution"] = {"max_attempts": 3, "retry_backoff_s": 2.0}
+    warnings = validate_manifest(
+        data, source="experiment.yaml", kind="experiment", strict=True, resolve_refs=False
+    )
+    assert warnings == []
+
+
+def test_execution_max_attempts_zero_fails_schema() -> None:
+    data = _canonical()
+    data["experiment"]["execution"] = {"max_attempts": 0}
+    with pytest.raises(ManifestValidationError, match="minimum of 1"):
+        validate_manifest(
+            data, source="experiment.yaml", kind="experiment", strict=True, resolve_refs=False
+        )

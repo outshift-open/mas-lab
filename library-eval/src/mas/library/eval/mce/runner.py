@@ -33,8 +33,6 @@ import importlib
 import json
 import logging
 import os
-import random
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -225,30 +223,18 @@ def install_openai_llm_service(
         # the prompt already instructs the model to return JSON.
         kwargs.pop("response_format", None)
         model = self.model or effective_model
-        delay = _MCE_BASE_DELAY
-        last_exc: Optional[Exception] = None
-        for attempt in range(_MCE_MAX_RETRIES + 1):
-            try:
-                return _client.chat.completions.create(
-                    model=model, messages=messages, **kwargs
-                )
-            except Exception as exc:
-                if not _is_ratelimit_error(exc) or attempt == _MCE_MAX_RETRIES:
-                    raise RuntimeError(
-                        f"MCE LLM call failed (model={model!r}): {exc}"
-                    ) from exc
-                jitter = random.uniform(0.0, delay * 0.25)
-                wait = delay + jitter
-                logger.warning(
-                    "MCE rate-limit on attempt %d/%d — retrying in %.1fs (%s)",
-                    attempt + 1, _MCE_MAX_RETRIES, wait, exc,
-                )
-                time.sleep(wait)
-                delay = min(delay * 2.0, 120.0)
-                last_exc = exc
-        raise RuntimeError(
-            f"MCE LLM call failed after {_MCE_MAX_RETRIES} retries: {last_exc}"
-        )
+
+        def _once() -> Any:
+            return _client.chat.completions.create(
+                model=model, messages=messages, **kwargs
+            )
+
+        try:
+            return _call_with_mce_retry(_once, model=model)
+        except Exception as exc:
+            raise RuntimeError(
+                f"MCE LLM call failed (model={model!r}): {exc}"
+            ) from exc
 
     LLMClient.query = _query_patch  # type: ignore[method-assign]
 
@@ -332,36 +318,61 @@ def _is_ratelimit_error(exc: Exception) -> bool:
     return any(tok in s for tok in ("429", "rate", "quota", "too many", "budget"))
 
 
+def _mce_retry_policy():
+    from mas.runtime.reliability.classes import FailureClass
+    from mas.runtime.reliability.policy import RetryPolicy
+
+    return RetryPolicy(
+        max_attempts=_MCE_MAX_RETRIES + 1,
+        backoff_s=_MCE_BASE_DELAY,
+        backoff_multiplier=2.0,
+        jitter=True,
+        retry_on=(FailureClass.TRANSIENT,),
+        max_backoff_s=120.0,
+    )
+
+
+def _classify_mce_failure(exc: BaseException):
+    from mas.runtime.reliability.classes import ClassifiedFailure, FailureClass
+    from mas.runtime.reliability.classify import classify_http_exception
+
+    if _is_ratelimit_error(exc if isinstance(exc, Exception) else Exception(str(exc))):
+        return ClassifiedFailure(str(exc), failure_class=FailureClass.TRANSIENT, code="RATE_LIMIT")
+    classified = classify_http_exception(exc, message=str(exc))
+    if classified.failure_class is FailureClass.TRANSIENT:
+        return classified
+    return ClassifiedFailure(str(exc), failure_class=FailureClass.APPLICATION, code="ERROR")
+
+
+def _call_with_mce_retry(fn, *, model: str):
+    from mas.runtime.reliability.retry import call_with_retry
+
+    return call_with_retry(
+        fn,
+        policy=_mce_retry_policy(),
+        classify=_classify_mce_failure,
+        target=f"MCE LLM {model}",
+        idempotent=True,
+    )
+
+
 def _llm_call_with_retry(client: Any, model: str, messages: list) -> str:
     """Call the OpenAI-compatible chat endpoint with exponential-backoff retry.
 
-    Retries on rate-limit errors (HTTP 401 / 429 / quota messages) up to
-    ``_MCE_MAX_RETRIES`` times.  Non-rate-limit errors are re-raised immediately.
+    Retries on rate-limit / transient errors up to ``_MCE_MAX_RETRIES`` times.
+    Non-retryable errors are re-raised immediately as RuntimeError.
     """
-    delay = _MCE_BASE_DELAY
-    last_exc: Optional[Exception] = None
-    for attempt in range(_MCE_MAX_RETRIES + 1):
-        try:
-            resp = client.chat.completions.create(model=model, messages=messages)
-            return resp.choices[0].message.content or ""
-        except Exception as exc:
-            if not _is_ratelimit_error(exc) or attempt == _MCE_MAX_RETRIES:
-                raise RuntimeError(
-                    f"MCE LLM call failed (model={model!r}): {exc}"
-                ) from exc
-            jitter = random.uniform(0.0, delay * 0.25)
-            wait = delay + jitter
-            logger.warning(
-                "MCE rate-limit on attempt %d/%d — retrying in %.1fs (%s)",
-                attempt + 1, _MCE_MAX_RETRIES, wait, exc,
-            )
-            time.sleep(wait)
-            delay = min(delay * 2.0, 120.0)
-            last_exc = exc
-    # Should never reach here
-    raise RuntimeError(
-        f"MCE LLM call failed after {_MCE_MAX_RETRIES} retries (model={model!r}): {last_exc}"
-    )
+
+    def _once() -> str:
+        resp = client.chat.completions.create(model=model, messages=messages)
+        return resp.choices[0].message.content or ""
+
+    try:
+        return _call_with_mce_retry(_once, model=model)
+    except Exception as exc:
+        raise RuntimeError(
+            f"MCE LLM call failed (model={model!r}): {exc}"
+        ) from exc
 
 
 # ---------------------------------------------------------------------------

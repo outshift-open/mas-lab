@@ -4,11 +4,11 @@ import pytest
 
 from mas.runtime.boundary.agentcomm import (
     AgentCommRoute,
-    LocalAgentComm,
     UnknownDelegationPeerError,
     build_agent_comm_routes,
 )
-from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
+from mas.library.standard.plugins.agentcomm.local import LocalAgentComm
+from mas.library.standard.plugins.delegation.llm_delegator import LlmDelegator
 
 
 class RemoteAgentComm:
@@ -36,7 +36,7 @@ def test_explicit_peer_route_overrides_materialized_local_agent() -> None:
         delegated_names={"schedule_agent"},
     )
 
-    delegator = LlmDelegator(run_turn=lambda *_: "unused", routes=routes)
+    delegator = LlmDelegator(comm=local, routes=routes)
 
     assert delegator.delegate("schedule_agent", "find a train") == "remote result"
     assert remote.calls == [("schedule_agent", "find a train")]

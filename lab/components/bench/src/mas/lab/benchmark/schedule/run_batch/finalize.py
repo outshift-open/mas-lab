@@ -41,6 +41,7 @@ def write_results_csv(csv_path: Path, results_rows: list) -> None:
         "trace_path",
         "elapsed_ms",
         "error",
+        "attempts",
     ]
     with open(csv_path, "w", newline="") as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)

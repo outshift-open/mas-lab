@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 from mas.runtime.boundary.hitl.registry import get_hitl_resolver_registry
-from mas.runtime.contracts.user_communication_contract import (
+from mas.library.standard.plugins.hitl.contracts import (
     RegistryHitlContract,
     RegistryUserIOContract,
 )
@@ -127,7 +127,7 @@ class _RecordingUserIOContract:
 
 def test_custom_hitl_contract_is_used_instead_of_registry(empty_tool_tree: Path):
     from mas.library.standard.plugins.tools.local import _SystemToolHitlWrapper
-    from mas.runtime.system_tools.request_human_input import RequestHumanInputTool
+    from mas.library.standard.plugins.system_tools.request_human_input import RequestHumanInputTool
 
     contract = _RecordingHitlContract()
     wrapper = _SystemToolHitlWrapper(RequestHumanInputTool(), hitl_contract=contract)
@@ -149,7 +149,7 @@ def test_custom_hitl_contract_is_used_instead_of_registry(empty_tool_tree: Path)
 
 def test_custom_user_io_contract_is_used_instead_of_registry(empty_tool_tree: Path):
     from mas.library.standard.plugins.tools.local import _SystemToolUserUpdateWrapper
-    from mas.runtime.system_tools.inform_user import InformUserTool
+    from mas.library.standard.plugins.system_tools.inform_user import InformUserTool
 
     contract = _RecordingUserIOContract()
     wrapper = _SystemToolUserUpdateWrapper(InformUserTool(), user_io_contract=contract)
@@ -173,8 +173,8 @@ def test_default_contract_is_registry_backed(empty_tool_tree: Path):
         _SystemToolHitlWrapper,
         _SystemToolUserUpdateWrapper,
     )
-    from mas.runtime.system_tools.inform_user import InformUserTool
-    from mas.runtime.system_tools.request_human_input import RequestHumanInputTool
+    from mas.library.standard.plugins.system_tools.inform_user import InformUserTool
+    from mas.library.standard.plugins.system_tools.request_human_input import RequestHumanInputTool
 
     hitl_wrapper = _SystemToolHitlWrapper(RequestHumanInputTool())
     assert isinstance(hitl_wrapper._hitl_contract, RegistryHitlContract)

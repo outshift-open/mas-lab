@@ -128,6 +128,10 @@ Deep dives (GitHub):
 
 ## Governance (OSS)
 
+User reference: [governance.md](../manifests/governance.md) (chain, plugins).
+Retries, circuit breaker, `error_policy`, defaults, and logging:
+[reliability.md](reliability.md).
+
 Stateful governance plugins enforce policy across turns. The paper
 **lifecycle-control** lab stacks budget caps, guardrails, and HITL via overlays
 (e.g. `budget-cap` on `budget_threshold`).

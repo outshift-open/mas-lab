@@ -77,18 +77,24 @@ def index_seeds_in_semantic_memory(
     agent_id: str = "default",
     db_path: str | None = None,
 ) -> None:
-    """Index memory_seed entries into SemanticMemoryPlugin's SQLite store."""
+    """Index memory_seed entries into the registered semantic memory plugin."""
     if not seeds:
         return
+    from mas.runtime.registry import get_registry
+
     try:
-        from mas.library.standard.plugins.memory.memory_semantic import SemanticMemoryPlugin
-        from mas.runtime.boundary.memory.semantic import default_store_path
-    except ImportError:
-        logger.debug("SemanticMemoryPlugin unavailable — skipping seed indexing")
+        mem_cls = get_registry().resolve_by_type("memory", "semantic")
+        if mem_cls is None:
+            logger.debug("semantic memory plugin is not registered — skipping seed indexing")
+            return
+        plugin_cls = mem_cls.load_class()
+    except Exception:
+        logger.debug("semantic memory plugin unavailable — skipping seed indexing", exc_info=True)
         return
 
-    resolved = db_path or str(default_store_path(agent_id))
-    mem = SemanticMemoryPlugin(db_path=resolved, context_inject=False)
+    path_fn = getattr(plugin_cls, "default_store_path", None)
+    resolved = db_path or (str(path_fn(agent_id)) if callable(path_fn) else "")
+    mem = plugin_cls(db_path=resolved, context_inject=False)
     mem.agent_id = agent_id
     for seed in seeds:
         payload: dict[str, Any] = {

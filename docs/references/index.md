@@ -17,7 +17,7 @@ Declarative YAML kinds and how they compose.
 | Topic | Reference |
 |-------|-----------|
 | Overview & composition | [Manifest overview](../manifests/README.md) |
-| Agent | [agent.md](../manifests/agent.md) |
+| Agent | [agent.md](../manifests/agent.md) · [governance.md](../manifests/governance.md) (`spec.governance`) |
 | MAS & workflow | [mas.md](../manifests/mas.md) |
 | Overlay | [overlay.md](../manifests/overlay.md) |
 | Flavour & environment | [flavour.md](../manifests/flavour.md), [infra.md](../manifests/infra.md) |
@@ -34,6 +34,7 @@ Execution kernel, contracts, and plugins (`mas-runtime`, `mas-ctl`).
 | Topic | Reference |
 |-------|-----------|
 | Runtime manifests (Agent, MAS, overlay) | [Manifest fields](../manifests/runtime.md) |
+| Reliability (retries, circuit, `error_policy`, logging) | [reliability.md](reliability.md) |
 | Contracts & Mealy envelope | [Contracts](contracts.md) · [runtime package docs](runtime.md) |
 | Thin waist (plugin vs catalog) | [thin-waist.md](thin-waist.md) |
 | Snapshots vs checkpoints | [snapshots.md](snapshots.md) |

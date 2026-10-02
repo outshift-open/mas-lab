@@ -12,7 +12,7 @@ from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.kernel.ingress_step import apply_engine_io_return
 from mas.runtime.kernel.runtime_context import runtime_binding
 from mas.runtime.kernel.state import QProduct, RunLedger
-from mas.runtime.schema.egress import NoOp, RaiseBoundaryError
+from mas.runtime.schema.egress import InvokeEngineIo, NoOp, RaiseBoundaryError
 from mas.runtime.schema.envelope import INGRESS_ENVELOPE_SYMBOLS, EnvelopeSymbol
 from mas.runtime.schema.governance import GovernanceAction
 from mas.runtime.schema.ingress import EngineIoReturn
@@ -154,3 +154,47 @@ def test_backtrack_decision_returns_session_boundary_signal_without_committing_e
     assert output[0].code == "INGRESS_BACKTRACK"
     assert output[0].message == "connection refused"
     assert run.events == []
+
+
+def test_ingress_retry_reschedules_llm_call() -> None:
+    """Typed engine ERROR + error_policy.retry → kernel re-emits LLM_CALL."""
+    from mas.library.standard.plugins.governance.retry_on_error import ErrorPolicy, RetryOnErrorPlugin
+    from mas.runtime.boundary.gov.filter import GovTransitionFilter
+    from mas.runtime.boundary.gov.ingress_chain import RegisteredIngressPlugin
+    from mas.runtime.kernel.types import ModelState
+
+    q = QProduct()
+    q.pending_engine_correlation_id = 1
+    q.model = ModelState.CALLING
+    q.inflight_kind = "MODEL"
+    run = RunLedger()
+    event = EngineIoReturn(
+        correlation_id=1,
+        response_kind="ERROR",
+        next_step="STOP",
+        text="timeout",
+        failure_class="transient",
+        failure_code="TIMEOUT",
+    )
+    config = KernelConfig(
+        ingress_governance_plugins=(
+            RegisteredIngressPlugin(
+                plugin=RetryOnErrorPlugin(
+                    error_policy=ErrorPolicy(transient="retry", fatal="block"),
+                ),
+                filter=GovTransitionFilter(hook="ingress", response_kind=("ERROR",)),
+            ),
+        ),
+        max_gov_retries=2,
+    )
+    obs = ObservabilityOperator()
+    with runtime_binding(None, obs):
+        out = apply_engine_io_return(
+            q,
+            run,
+            event,
+            config=config,
+            evaluate=MagicMock(),
+        )
+    assert q.gov_retry_count == 1
+    assert any(isinstance(sym, InvokeEngineIo) and sym.op == "LLM_CALL" for sym in out)

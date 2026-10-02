@@ -4,13 +4,16 @@
 
 import pytest
 
-from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
+from mas.library.standard.plugins.agentcomm.local import LocalAgentComm
+from mas.library.standard.plugins.delegation.llm_delegator import LlmDelegator
 from mas.runtime.engine.manifest_tool_provider import build_manifest_tool_provider
 from mas.runtime.engine.tool_dispatch import ToolExecutionError, execute_engine_tool
 
 
 def test_execute_engine_tool_routes_delegate_tools():
-    delegator = LlmDelegator(run_turn=lambda aid, task, cid, ccid, ctx_id: f"delegated:{aid}:{task}")
+    delegator = LlmDelegator(
+        comm=LocalAgentComm(lambda aid, task, cid, ccid, ctx_id: f"delegated:{aid}:{task}")
+    )
     out = execute_engine_tool(
         "delegate_to_db",
         delegation=delegator,
@@ -25,7 +28,7 @@ def test_execute_engine_tool_forwards_caller_call_id_to_delegation():
     delegate's own execution_start.parent_call_id is a real native value."""
     seen: list[str] = []
     delegator = LlmDelegator(
-        run_turn=lambda aid, task, cid, ccid, ctx_id: seen.append(ccid) or f"delegated:{aid}"
+        comm=LocalAgentComm(lambda aid, task, cid, ccid, ctx_id: seen.append(ccid) or f"delegated:{aid}")
     )
     execute_engine_tool(
         "delegate_to_db",
@@ -133,5 +136,9 @@ class CalcTool:
         [{"ref": "tools/calculator.tool.yaml"}],
         tmp_path,
     )
-    with pytest.raises(ToolExecutionError, match="not found"):
+    from mas.runtime.reliability.classes import ClassifiedFailure, FailureClass
+
+    with pytest.raises(ClassifiedFailure, match="not found") as caught:
         execute_engine_tool("missing", tool_provider=provider)
+    assert caught.value.failure_class is FailureClass.APPLICATION
+    assert caught.value.code == "TOOL_UNKNOWN"

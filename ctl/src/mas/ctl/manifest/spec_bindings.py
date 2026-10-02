@@ -130,77 +130,15 @@ def parse_observability(raw: Any) -> ObservabilityBinding:
     )
 
 
-def _parse_gov_plugin_list(items: list[Any]) -> tuple[list[str], dict[str, dict[str, Any]]]:
-    plugins: list[str] = []
-    configs: dict[str, dict[str, Any]] = {}
-    for item in items:
-        if isinstance(item, str):
-            name = item.strip()
-            plugins.append(name)
-            configs.setdefault(name, {})
-        elif isinstance(item, dict):
-            for raw_name, cfg in item.items():
-                name = str(raw_name).strip()
-                plugins.append(name)
-                if isinstance(cfg, dict):
-                    configs[name] = dict(cfg)
-                else:
-                    configs[name] = {}
-        else:
-            raise SpecBindingError(
-                f"governance list entries must be str or dict, got {type(item).__name__}"
-            )
-    return plugins, configs
-
-
 def parse_governance(raw: Any) -> GovernanceBinding:
     """Parse ``spec.governance`` — plugin list only (see governance-binding.schema.yaml)."""
-    if raw is None:
-        return GovernanceBinding()
+    from mas.runtime.spec.gov import SpecBindingError as RuntimeSpecBindingError
+    from mas.runtime.spec.gov import parse_gov_spec
 
-    if not isinstance(raw, list):
-        raise SpecBindingError(
-            f"spec.governance must be a plugin list, got {type(raw).__name__}. "
-            "Wrap kernel fields in a plugin stanza, e.g. "
-            "governance: [{sample_governance: {hitl_on_tool: true}}]"
-        )
-
-    plugins, configs = _parse_gov_plugin_list(raw)
-    flat: dict[str, Any] = {}
-    policies: list[dict[str, Any]] = []
-    ingress_plugins: list[dict[str, Any]] = []
-    for cfg in configs.values():
-        for key, value in cfg.items():
-            if key == "policies" and isinstance(value, list):
-                policies.extend(p for p in value if isinstance(p, dict))
-            elif key == "ingress_plugins" and isinstance(value, list):
-                ingress_plugins.extend(p for p in value if isinstance(p, dict))
-            elif key not in {"policies", "ingress_plugins", "profiles"}:
-                flat.setdefault(key, value)
-    return GovernanceBinding(
-        plugins=plugins,
-        plugin_configs=configs,
-        hitl_on_tool=flat.get("hitl_on_tool"),
-        hitl_on_tool_result=flat.get("hitl_on_tool_result"),
-        gov_policy_profile=flat.get("gov_policy_profile"),
-        gov_block_destructive=flat.get("gov_block_destructive"),
-        gov_trigger_destructive=flat.get("gov_trigger_destructive"),
-        gov_ingress_profile=flat.get("gov_ingress_profile"),
-        enable_memory_egress=flat.get("enable_memory_egress"),
-        enable_transport_egress=flat.get("enable_transport_egress"),
-        max_cot_pass=flat.get("max_cot_pass"),
-        max_gov_retries=flat.get("max_gov_retries"),
-        hitl_mode=str(flat["hitl_mode"]) if flat.get("hitl_mode") is not None else None,
-        hitl_once_per_turn=flat.get("hitl_once_per_turn"),
-        policies=policies,
-        active_profile=flat.get("active_profile"),
-        error_recovery_plugin=(
-            str(flat["error_recovery_plugin"])
-            if flat.get("error_recovery_plugin") is not None
-            else None
-        ),
-        ingress_plugins=ingress_plugins,
-    )
+    try:
+        return parse_gov_spec(raw)
+    except RuntimeSpecBindingError as exc:
+        raise SpecBindingError(str(exc)) from exc
 
 
 def _reject_unknown_keys(raw: dict[str, Any], *, allowed: frozenset[str], field: str) -> None:
@@ -299,6 +237,13 @@ def parse_control(raw: Any) -> None:
     if not isinstance(raw, dict):
         raise SpecBindingError(f"spec.control must be an object, got {type(raw).__name__}")
     _reject_unknown_keys(raw, allowed=CONTROL_BINDING_KEYS, field="spec.control")
+    from mas.runtime.reliability.policy import ReliabilitySettings
+    from mas.runtime.spec.gov import SpecBindingError as RuntimeSpecBindingError
+
+    try:
+        ReliabilitySettings.from_spec({"control": raw})
+    except RuntimeSpecBindingError as exc:
+        raise SpecBindingError(str(exc)) from exc
 
 
 def parse_infra_lists(raw_spec: dict[str, Any]) -> tuple[list[str], list[str]]:

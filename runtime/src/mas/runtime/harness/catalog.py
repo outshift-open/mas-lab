@@ -69,6 +69,9 @@ LIBRARY_TYPES = frozenset(
         "harness",
         "related_state",
         "execute_sandbox",
+        "circuit_breaker",
+        "infra_middleware",
+        "hitl_responder",
     }
 )
 

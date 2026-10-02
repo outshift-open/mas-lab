@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 from mas.ctl.session.controller import SessionController
 from mas.ctl.session.manager import SessionManager
-from mas.runtime.boundary.related_state.copy_dir import CopyDirRelatedState
-from mas.runtime.boundary.related_state.git_worktree import GitWorktreeRelatedState
+from mas.library.standard.plugins.related_state.copy_dir import CopyDirRelatedState
+from mas.library.standard.plugins.related_state.git_worktree import GitWorktreeRelatedState
 from mas.runtime.driver.mocks import AutoCtxAssembler
 from mas.runtime.session.snapshot import SnapshotTree
 

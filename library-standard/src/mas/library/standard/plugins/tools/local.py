@@ -541,7 +541,7 @@ class _SystemToolHitlWrapper(_SystemToolWrapperBase):
         auto_resolve_decision: str | None = None,
     ) -> None:
         super().__init__(tool_instance)
-        from mas.runtime.contracts.user_communication_contract import (
+        from mas.library.standard.plugins.hitl.contracts import (
             AutoResolveHitlContract,
             RegistryHitlContract,
         )
@@ -609,7 +609,7 @@ class _SystemToolUserUpdateWrapper(_SystemToolWrapperBase):
     def __init__(self, tool_instance: Any, user_io_contract: UserIOContract | None = None) -> None:
         super().__init__(tool_instance)
         if user_io_contract is None:
-            from mas.runtime.contracts.user_communication_contract import (
+            from mas.library.standard.plugins.hitl.contracts import (
                 RegistryUserIOContract,
             )
 

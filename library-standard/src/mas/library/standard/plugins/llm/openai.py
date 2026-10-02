@@ -16,7 +16,16 @@ from typing import Any, Callable
 import httpx
 
 from mas.runtime.boundary.context.assemble import llm_tool_choice
-from mas.runtime.engine.llm_http import classify_llm_http_error, resolve_ssl_verify
+from mas.library.standard.plugins.llm.http import (
+    arequest_with_retries,
+    request_with_retries,
+    resolve_ssl_verify,
+)
+from mas.runtime.reliability.classify import (
+    classify_llm_failure,
+    classify_llm_http_error,
+)
+from mas.runtime.reliability.policy import llm_retry_policy
 from mas.runtime.engine.llm_reasoning import (
     ReasoningSettings,
     ThinkTagStreamFilter,
@@ -58,6 +67,10 @@ class OpenAILLMProvider:
         self.http_timeout = http_timeout
         self._client: httpx.Client | None = None
         self._aclient: httpx.AsyncClient | None = None
+        retry_raw = (llm_proxy or {}).get("retry") if isinstance(llm_proxy, dict) else None
+        self._retry_policy = llm_retry_policy(**retry_raw) if isinstance(retry_raw, dict) else llm_retry_policy()
+        raw_breaker = (llm_proxy or {}).get("circuit_breaker") if isinstance(llm_proxy, dict) else None
+        self._circuit_breaker = raw_breaker if hasattr(raw_breaker, "before_call") else None
 
     def _timeout(self) -> float:
         proxy = self.llm_proxy if isinstance(self.llm_proxy, dict) else {}
@@ -315,15 +328,34 @@ class OpenAILLMProvider:
             stream_options=stream_options,
         )
         if stream:
-            return self._chat_completion_streamed(
-                url,
-                payload,
-                headers,
-                on_stream_chunk=on_stream_chunk,
-                reasoning=reasoning,
-                params=query,
+            from mas.runtime.reliability.retry import call_with_retry
+
+            return call_with_retry(
+                lambda: self._chat_completion_streamed(
+                    url,
+                    payload,
+                    headers,
+                    on_stream_chunk=on_stream_chunk,
+                    reasoning=reasoning,
+                    params=query,
+                ),
+                policy=self._retry_policy,
+                classify=classify_llm_failure,
+                breaker=self._circuit_breaker,
+                target=f"llm:{self.api_base}",
+                idempotent=True,
             )
-        resp = self._get_client().post(url, json=payload, headers=headers, params=query)
+        resp = request_with_retries(
+            self._get_client(),
+            "POST",
+            url,
+            json=payload,
+            headers=headers,
+            params=query,
+            retry_policy=self._retry_policy,
+            circuit_breaker=self._circuit_breaker,
+            retry_target=f"llm:{self.api_base}",
+        )
         resp.raise_for_status()
         return self._message_from_completion(resp.json(), reasoning)
 
@@ -362,15 +394,34 @@ class OpenAILLMProvider:
             stream_options=stream_options,
         )
         if stream:
-            return await self._achat_completion_streamed(
-                url,
-                payload,
-                headers,
-                on_stream_chunk=on_stream_chunk,
-                reasoning=reasoning,
-                params=query,
+            from mas.runtime.reliability.retry import acall_with_retry
+
+            return await acall_with_retry(
+                lambda: self._achat_completion_streamed(
+                    url,
+                    payload,
+                    headers,
+                    on_stream_chunk=on_stream_chunk,
+                    reasoning=reasoning,
+                    params=query,
+                ),
+                policy=self._retry_policy,
+                classify=classify_llm_failure,
+                breaker=self._circuit_breaker,
+                target=f"llm:{self.api_base}",
+                idempotent=True,
             )
-        resp = await self._get_async_client().post(url, json=payload, headers=headers, params=query)
+        resp = await arequest_with_retries(
+            self._get_async_client(),
+            "POST",
+            url,
+            json=payload,
+            headers=headers,
+            params=query,
+            retry_policy=self._retry_policy,
+            circuit_breaker=self._circuit_breaker,
+            retry_target=f"llm:{self.api_base}",
+        )
         resp.raise_for_status()
         return self._message_from_completion(resp.json(), reasoning)
 

@@ -96,7 +96,7 @@ in `mas-runtime`. In manifests, agent and MAS behavior is declared via:
 - `spec.design_pattern` — intra-agent Mealy step selection (`DesignPatternPlugin` via registry); peer
   delegation (`delegate_to_*` tool calls) runs through this same contract — there is no separate
   delegation-transport plugin binding on the agent
-- `spec.governance[]`, `spec.observability[]`, `spec.control` and `spec.context_sources` — schema-declared governance, observation, control, and context-source bindings
+- `spec.governance[]`, `spec.observability[]`, `spec.control` and `spec.context_sources` — schema-declared governance, observation, control, and context-source bindings ([governance.md](governance.md), [reliability.md](../references/reliability.md))
 - `MAS.spec.workflow` — topology (`entry`, `nodes`, `delegates_to`, `dispatch`); standalone `kind: Workflow` has a separate `workflow/v1` schema with `edges`
 
 There is no `spec.plugins[]`, `spec.workflow.type`, or `spec.workflow.plugin` field
@@ -109,6 +109,8 @@ Authoring detail: [agent.md](agent.md#delegation) · [mas.md](mas.md).
 ## Further reading
 
 - [agent.md](agent.md)
+- [governance.md](governance.md)
+- [reliability.md](../references/reliability.md)
 - [mas.md](mas.md)
 - [infra.md](infra.md)
 - [tool.md](tool.md)

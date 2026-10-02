@@ -9,7 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from mas.ctl.executor.spawn_ledger import SpawnLedger
-from mas.ctl.executor.subagent_spawner import SubagentSpawner, SubagentTemplate
+from mas.ctl.executor.subagent_spawner import make_subagent_spawner, SubagentTemplate
 from mas.ctl.placement.bus.inproc import InProcessCommBus
 from mas.ctl.session.controller import TurnResult
 from mas.runtime.boundary.context.working_memory_registry import (
@@ -69,7 +69,7 @@ def test_aspawn_two_siblings_via_gather_no_crosstalk(tmp_path: Path):
 
     ledger = SpawnLedger(max_depth=1, max_spawns=4)
     registry = WorkingMemoryRegistry()
-    spawner = SubagentSpawner(
+    spawner = make_subagent_spawner(
         materialized=materialized,
         parent_agent_id="root",
         session_id="session",

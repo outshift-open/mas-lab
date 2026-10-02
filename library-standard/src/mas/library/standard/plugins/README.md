@@ -75,8 +75,10 @@ from the manifest, not from `mas.runtime`.
 | ID | Alias | Implementation |
 |----|-------|----------------|
 | `gov_no_undeclared_tool@v1` | `gov_no_undeclared_tool`, `no_undeclared_tool` | `NoUndeclaredToolPlugin` — BLOCK names not in this LLM call's `tools` list; chain rule (pass or stop) |
+| `retry_on_error@v1` | `retry_on_error` | `RetryOnErrorPlugin` — ingress `error_policy` classifier; egress PASSes |
 
 - Card: [governance/no-undeclared-tool.md](governance/no-undeclared-tool.md)
+- Card: [governance/retry-on-error.md](governance/retry-on-error.md)
 - Example (not an app): [examples/governance/undeclared-tool/](../../../../../examples/governance/undeclared-tool/)
   ([index](../../../../../examples/README.md))
 - Overlay: `pkg://mas.library.standard/overlays/with-hardened.yaml` — [overlays/README.md](../overlays/README.md)

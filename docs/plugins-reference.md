@@ -31,15 +31,21 @@ practical examples.
 
 ### Agent_Comm
 
-| Class            | Full module path                                            | Package                |
-| ---------------- | ----------------------------------------------------------- | ---------------------- |
-| `LocalAgentComm` | `mas.library.standard.mas.runtime.boundary.agentcomm.local` | `mas-library-standard` |
+| Class            | Full module path                               | Package                |
+| ---------------- | ---------------------------------------------- | ---------------------- |
+| `LocalAgentComm` | `mas.library.standard.plugins.agentcomm.local` | `mas-library-standard` |
 
 ### Assembler
 
 | Class                    | Full module path                                 | Package                |
 | ------------------------ | ------------------------------------------------ | ---------------------- |
 | `ContextAssemblerPlugin` | `mas.library.standard.plugins.context.assembler` | `mas-library-standard` |
+
+### Circuit_Breaker
+
+| Class                     | Full module path                                           | Package                |
+| ------------------------- | ---------------------------------------------------------- | ---------------------- |
+| `ThresholdCircuitBreaker` | `mas.library.standard.plugins.reliability.circuit_breaker` | `mas-library-standard` |
 
 ### Context_Manager
 
@@ -65,10 +71,16 @@ practical examples.
 
 ### Engine_Tool_Provider
 
-| Class             | Full module path                                                     | Package                |
-| ----------------- | -------------------------------------------------------------------- | ---------------------- |
-| `LlmDelegator`    | `mas.library.standard.mas.runtime.boundary.delegation.llm_delegator` | `mas-library-standard` |
-| `SubagentSpawner` | `mas.library.standard.mas.ctl.executor.subagent_spawner`             | `mas-library-standard` |
+| Class             | Full module path                                             | Package                |
+| ----------------- | ------------------------------------------------------------ | ---------------------- |
+| `LlmDelegator`    | `mas.library.standard.plugins.delegation.llm_delegator`      | `mas-library-standard` |
+| `SubagentSpawner` | `mas.library.standard.plugins.engine_tools.subagent_spawner` | `mas-library-standard` |
+
+### Execute_Sandbox
+
+| Class            | Full module path                               | Package                |
+| ---------------- | ---------------------------------------------- | ---------------------- |
+| `WorkdirSandbox` | `mas.library.standard.plugins.sandbox.workdir` | `mas-library-standard` |
 
 ### Governance
 
@@ -76,13 +88,29 @@ practical examples.
 | ------------------------ | ------------------------------------------------------------ | ---------------------- |
 | `BacktrackOnErrorPlugin` | `mas.library.standard.plugins.governance.backtrack_on_error` | `mas-library-standard` |
 | `NoUndeclaredToolPlugin` | `mas.library.standard.plugins.governance.no_undeclared_tool` | `mas-library-standard` |
+| `RetryOnErrorPlugin`     | `mas.library.standard.plugins.governance.retry_on_error`     | `mas-library-standard` |
 | `SampleGovernancePlugin` | `mas.library.standard.plugins.governance.sample`             | `mas-library-standard` |
 
 ### Hitl_Contract
 
-| Class                  | Full module path                                                         | Package                |
-| ---------------------- | ------------------------------------------------------------------------ | ---------------------- |
-| `RegistryHitlContract` | `mas.library.standard.mas.runtime.contracts.user_communication_contract` | `mas-library-standard` |
+| Class                     | Full module path                              | Package                |
+| ------------------------- | --------------------------------------------- | ---------------------- |
+| `AutoResolveHitlContract` | `mas.library.standard.plugins.hitl.contracts` | `mas-library-standard` |
+| `RegistryHitlContract`    | `mas.library.standard.plugins.hitl.contracts` | `mas-library-standard` |
+
+### Hitl_Responder
+
+| Class                  | Full module path                               | Package                |
+| ---------------------- | ---------------------------------------------- | ---------------------- |
+| `AutoApproveResponder` | `mas.library.standard.plugins.hitl.responders` | `mas-library-standard` |
+| `AutoDenyResponder`    | `mas.library.standard.plugins.hitl.responders` | `mas-library-standard` |
+
+### Infra_Middleware
+
+| Class                   | Full module path                                  | Package                |
+| ----------------------- | ------------------------------------------------- | ---------------------- |
+| `FaultInjectMiddleware` | `mas.library.standard.plugins.infra.fault_inject` | `mas-library-standard` |
+| `LlmCacheMiddleware`    | `mas.library.standard.plugins.infra.llm_cache`    | `mas-library-standard` |
 
 ### Llm_Provider
 
@@ -103,6 +131,13 @@ practical examples.
 | --------------------------- | ---------------------------------------------------------- | ---------------------- |
 | `NativeObservabilityPlugin` | `mas.library.standard.plugins.observability.native_plugin` | `mas-library-standard` |
 | `OtelObservabilityPlugin`   | `mas.library.standard.plugins.observability.otel_plugin`   | `mas-library-standard` |
+
+### Related_State
+
+| Class                     | Full module path                                          | Package                |
+| ------------------------- | --------------------------------------------------------- | ---------------------- |
+| `CopyDirRelatedState`     | `mas.library.standard.plugins.related_state.copy_dir`     | `mas-library-standard` |
+| `GitWorktreeRelatedState` | `mas.library.standard.plugins.related_state.git_worktree` | `mas-library-standard` |
 
 ### Skill_Catalog
 
@@ -139,12 +174,12 @@ practical examples.
 
 ### System_Tool
 
-| Class                   | Full module path                                                    | Package                |
-| ----------------------- | ------------------------------------------------------------------- | ---------------------- |
-| `ControlTools`          | `mas.library.standard.plugins.system_tools.control`                 | `mas-library-standard` |
-| `InformUserTool`        | `mas.library.standard.mas.runtime.system_tools.inform_user`         | `mas-library-standard` |
-| `RequestHumanInputTool` | `mas.library.standard.mas.runtime.system_tools.request_human_input` | `mas-library-standard` |
-| `SpawnSubagentTool`     | `mas.library.standard.plugins.system_tools.spawn_subagent`          | `mas-library-standard` |
+| Class                   | Full module path                                                | Package                |
+| ----------------------- | --------------------------------------------------------------- | ---------------------- |
+| `ControlTools`          | `mas.library.standard.plugins.system_tools.control`             | `mas-library-standard` |
+| `InformUserTool`        | `mas.library.standard.plugins.system_tools.inform_user`         | `mas-library-standard` |
+| `RequestHumanInputTool` | `mas.library.standard.plugins.system_tools.request_human_input` | `mas-library-standard` |
+| `SpawnSubagentTool`     | `mas.library.standard.plugins.system_tools.spawn_subagent`      | `mas-library-standard` |
 
 ### Tool_Provider
 
@@ -154,9 +189,9 @@ practical examples.
 
 ### User_Io_Contract
 
-| Class                    | Full module path                                                         | Package                |
-| ------------------------ | ------------------------------------------------------------------------ | ---------------------- |
-| `RegistryUserIOContract` | `mas.library.standard.mas.runtime.contracts.user_communication_contract` | `mas-library-standard` |
+| Class                    | Full module path                              | Package                |
+| ------------------------ | --------------------------------------------- | ---------------------- |
+| `RegistryUserIOContract` | `mas.library.standard.plugins.hitl.contracts` | `mas-library-standard` |
 
 ---
 
@@ -165,18 +200,25 @@ practical examples.
 | Class                            | Category             | Package                |
 | -------------------------------- | -------------------- | ---------------------- |
 | `ADKSkillPlugin`                 | skill_impl           | `mas-library-skills`   |
+| `AutoApproveResponder`           | hitl_responder       | `mas-library-standard` |
+| `AutoDenyResponder`              | hitl_responder       | `mas-library-standard` |
+| `AutoResolveHitlContract`        | hitl_contract        | `mas-library-standard` |
 | `BacktrackOnErrorPlugin`         | governance           | `mas-library-standard` |
 | `CacheLLMProvider`               | llm_provider         | `mas-library-standard` |
 | `ContextAssemblerPlugin`         | assembler            | `mas-library-standard` |
 | `ControlTools`                   | system_tool          | `mas-library-standard` |
+| `CopyDirRelatedState`            | related_state        | `mas-library-standard` |
 | `CotPlugin`                      | design_pattern       | `mas-library-standard` |
 | `DeterministicLinearPlugin`      | design_pattern       | `mas-library-standard` |
 | `DeterministicParallelPlugin`    | design_pattern       | `mas-library-standard` |
 | `DeterministicSingleAgentPlugin` | design_pattern       | `mas-library-standard` |
 | `DropSummarizer`                 | summarizer           | `mas-library-standard` |
+| `FaultInjectMiddleware`          | infra_middleware     | `mas-library-standard` |
+| `GitWorktreeRelatedState`        | related_state        | `mas-library-standard` |
 | `InformUserTool`                 | system_tool          | `mas-library-standard` |
 | `IntrospectionPlugin`            | design_pattern       | `mas-library-standard` |
 | `LangChainSkillPlugin`           | skill_impl           | `mas-library-skills`   |
+| `LlmCacheMiddleware`             | infra_middleware     | `mas-library-standard` |
 | `LlmDelegator`                   | engine_tool_provider | `mas-library-standard` |
 | `LlmSummarizer`                  | summarizer           | `mas-library-standard` |
 | `LocalAgentComm`                 | agent_comm           | `mas-library-standard` |
@@ -191,6 +233,7 @@ practical examples.
 | `RegistryHitlContract`           | hitl_contract        | `mas-library-standard` |
 | `RegistryUserIOContract`         | user_io_contract     | `mas-library-standard` |
 | `RequestHumanInputTool`          | system_tool          | `mas-library-standard` |
+| `RetryOnErrorPlugin`             | governance           | `mas-library-standard` |
 | `RunSkillScriptPlugin`           | skill_shell          | `mas-library-skills`   |
 | `SampleGovernancePlugin`         | governance           | `mas-library-standard` |
 | `SemanticMemoryPlugin`           | memory               | `mas-library-standard` |
@@ -202,7 +245,9 @@ practical examples.
 | `StackConversation`              | context_manager      | `mas-library-standard` |
 | `SubagentSpawner`                | engine_tool_provider | `mas-library-standard` |
 | `SummarizingConversation`        | context_manager      | `mas-library-standard` |
+| `ThresholdCircuitBreaker`        | circuit_breaker      | `mas-library-standard` |
 | `TreeOfThoughtsPlugin`           | design_pattern       | `mas-library-standard` |
+| `WorkdirSandbox`                 | execute_sandbox      | `mas-library-standard` |
 
 ---
 

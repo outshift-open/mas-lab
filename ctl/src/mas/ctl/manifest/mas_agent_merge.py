@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import copy
 import logging
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -16,18 +15,17 @@ from mas.ctl.overlay.merge import (
     _plugin_entry_key,
     merge_agent_overlay,
 )
+from mas.runtime.boundary.agentcomm.protocol import AgentCommContract
 from mas.runtime.boundary.agentcomm.routing import AgentCommRoute
 from mas.runtime.boundary.context.manifest_context import routing_description_from_agent
-from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
 from mas.runtime.boundary.delegation.policy import delegation_targets
 from mas.runtime.contracts.tool_semantics import existing_attr
 from mas.runtime.engine.leaf import leaf_engine
 from mas.runtime.engine.llm_live import LiveLlmEngine
 from mas.runtime.engine.tools import resolve_manifest_tool_refs
+from mas.runtime.registry import get_registry
 
 logger = logging.getLogger(__name__)
-
-RunTurnFn = Callable[[str, str, int, str, str], str]
 
 
 def _load_agent_yaml(path: Path) -> dict[str, Any] | None:
@@ -302,13 +300,13 @@ def wire_entry_engine_delegation(
     manifest: dict[str, Any],
     manifest_dir: Path,
     *,
-    run_turn: RunTurnFn,
+    comm: AgentCommContract,
     entry_agent_id: str,
     mas_config: dict[str, Any] | None = None,
     mas_base_dir: Path | None = None,
     routes: dict[str, AgentCommRoute] | None = None,
 ) -> None:
-    """Set enriched manifest on the entry engine and bind ``LlmDelegator`` when peers exist.
+    """Set enriched manifest on the entry engine and bind the delegation plugin when peers exist.
 
     When peers exist, ``use_tool_loop`` is enabled on the leaf engine so the LLM can
     emit ``delegate_to_*`` tool calls. A manifest or instantiation that set
@@ -334,7 +332,17 @@ def wire_entry_engine_delegation(
     if not peers:
         leaf.delegation = None
         return
-    leaf.delegation = LlmDelegator(run_turn=run_turn, routes=routes)
+    # ``delegation`` names the job slot, not a swappable backend — see
+    # ``subagent_spawner.py`` for the parallel ``spawn_subagent`` slot. A user
+    # wanting a different delegation implementation registers a plugin under
+    # the same ``delegation`` name; swapping job identifiers is not a
+    # supported axis.
+    leaf.delegation = get_registry().instantiate_by_type(
+        "engine_tool_provider",
+        "delegation",
+        comm=comm,
+        routes=routes,
+    )
     if hasattr(leaf, "use_tool_loop"):
         if not leaf.use_tool_loop:
             logger.warning(

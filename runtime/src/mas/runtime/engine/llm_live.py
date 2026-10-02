@@ -19,9 +19,11 @@ from mas.runtime.boundary.context.assemble import (
 )
 from mas.runtime.boundary.gov.budget import BudgetTracker, budget_from_manifest
 from mas.runtime.engine.exchange_preview import ExchangeSnapshot, format_exchange_snapshot
-from mas.runtime.engine.llm_http import classify_llm_http_error
+from mas.runtime.reliability.classify import classify_llm_failure, classify_llm_http_error
 from mas.runtime.engine.textual_tool_calls import maybe_recover_textual_tool_calls, repair_merged_arg_keys
 from mas.runtime.engine.tool_dispatch import ToolExecutionError, execute_engine_tool
+from mas.runtime.reliability.classes import ClassifiedFailure, FailureClass
+from mas.runtime.reliability.policy import ReliabilitySettings
 from mas.runtime.engine.tools import openai_tools
 from mas.runtime.engine.llm_reasoning import (
     ReasoningSettings,
@@ -69,6 +71,7 @@ class LiveLlmEngine:
     delegation_peer_descriptions: dict[str, str] | None = None
     tool_provider: Any | None = None
     llm_provider: Any | None = None
+    reliability: ReliabilitySettings | None = None
     _pending_tool: str = field(default="", init=False)
     _pending_tool_args: dict[str, Any] = field(default_factory=dict, init=False)
     _pending_tools_by_cid: dict[int, tuple[str, dict[str, Any]]] = field(default_factory=dict, init=False)
@@ -96,6 +99,10 @@ class LiveLlmEngine:
         if self.extra_body is None:
             self.extra_body = extra_from_manifest(self.manifest, model=self.model)
         self._budget = budget_from_manifest(self.manifest)
+        spec = ((self.manifest or {}).get("spec") or {}) if isinstance(self.manifest, dict) else {}
+        if self.reliability is None:
+            self.reliability = ReliabilitySettings.from_spec(spec, llm_proxy=self.llm_proxy)
+        self._circuit = self.reliability.circuit_breaker
         if self.llm_provider is None:
             self.llm_provider = self._default_llm_provider()
         self.llm_provider = self._wrap_cache(self.llm_provider)
@@ -110,6 +117,9 @@ class LiveLlmEngine:
         proxy.setdefault("api_key_env", self.api_key_env)
         if self.http_timeout is not None:
             proxy.setdefault("timeout", self.http_timeout)
+        if self.reliability is not None:
+            proxy["retry"] = self.reliability.llm_retry.to_mapping()
+            proxy["circuit_breaker"] = self.reliability.circuit_breaker
         return llm_provider_from_infra(
             proxy,
             manifest=self.manifest,
@@ -222,18 +232,25 @@ class LiveLlmEngine:
                     tool_provider=self.tool_provider,
                     engine_contracts=self.engine_tool_contracts,
                     correlation_id=io.correlation_id,
-                    # This TOOL_CALL's own resolved call_id (attached by the
-                    # driver — see InvokeEngineIo.call_id) — forwarded as the
-                    # caller identity for a delegate_to_* call, so the
-                    # delegate's own execution_start.parent_call_id is real,
-                    # not reconstructed from timestamps.
                     caller_call_id=io.call_id,
+                    retry_policy=None if self.reliability is None else self.reliability.tool_retry,
+                    circuit_breaker=getattr(self, "_circuit", None),
+                    agent_spec=((self.manifest or {}).get("spec") if isinstance(self.manifest, dict) else None),
                 )
-            except ToolExecutionError as exc:
-                # The model named a tool this agent cannot run. Return that as
-                # the tool observation so the same agent can pick a tool it
-                # was actually given, instead of aborting the turn.
-                text = self._unavailable_tool_observation(tool, exc)
+            except (ClassifiedFailure, ToolExecutionError) as exc:
+                classified = exc if isinstance(exc, ClassifiedFailure) else ClassifiedFailure(
+                    str(exc), failure_class=FailureClass.APPLICATION, code="TOOL_ERROR"
+                )
+                text = self._unavailable_tool_observation(tool, classified)
+                return EngineIoReturn(
+                    correlation_id=io.correlation_id,
+                    response_kind="TOOL_RESULT",
+                    next_step="LLM_CALL" if self.use_tool_loop else "STOP",
+                    text=text,
+                    failure_class=classified.failure_class.value,
+                    failure_code=classified.code,
+                    retry_attempts=classified.attempts,
+                )
             return EngineIoReturn(
                 correlation_id=io.correlation_id,
                 response_kind="TOOL_RESULT",
@@ -288,9 +305,24 @@ class LiveLlmEngine:
                     engine_contracts=self.engine_tool_contracts,
                     correlation_id=io.correlation_id,
                     caller_call_id=io.call_id,
+                    retry_policy=None if self.reliability is None else self.reliability.tool_retry,
+                    circuit_breaker=getattr(self, "_circuit", None),
+                    agent_spec=((self.manifest or {}).get("spec") if isinstance(self.manifest, dict) else None),
                 )
-            except ToolExecutionError as exc:
-                text = self._unavailable_tool_observation(tool, exc)
+            except (ClassifiedFailure, ToolExecutionError) as exc:
+                classified = exc if isinstance(exc, ClassifiedFailure) else ClassifiedFailure(
+                    str(exc), failure_class=FailureClass.APPLICATION, code="TOOL_ERROR"
+                )
+                text = self._unavailable_tool_observation(tool, classified)
+                return EngineIoReturn(
+                    correlation_id=io.correlation_id,
+                    response_kind="TOOL_RESULT",
+                    next_step="LLM_CALL" if self.use_tool_loop else "STOP",
+                    text=text,
+                    failure_class=classified.failure_class.value,
+                    failure_code=classified.code,
+                    retry_attempts=classified.attempts,
+                )
             return EngineIoReturn(
                 correlation_id=io.correlation_id,
                 response_kind="TOOL_RESULT",
@@ -335,12 +367,33 @@ class LiveLlmEngine:
             )
         except Exception as exc:
             logger.debug("LLM provider call failed", exc_info=True)
+            classified = exc if isinstance(exc, ClassifiedFailure) else classify_llm_failure(exc)
+            from mas.runtime.reliability.log import LOGGER as reliability_log
+            from mas.runtime.reliability.log import extra as reliability_extra
+
+            reliability_log.error(
+                "LLM call exhausted (%s %s, %s attempts): %s",
+                classified.failure_class.value if isinstance(classified, ClassifiedFailure) else "",
+                classified.code if isinstance(classified, ClassifiedFailure) else "",
+                classified.attempts if isinstance(classified, ClassifiedFailure) else 0,
+                classified,
+                extra=reliability_extra(
+                    target=self.model,
+                    failure_class=classified.failure_class.value if isinstance(classified, ClassifiedFailure) else "",
+                    failure_code=classified.code if isinstance(classified, ClassifiedFailure) else "",
+                    attempt=classified.attempts if isinstance(classified, ClassifiedFailure) else 0,
+                    outcome="llm_error",
+                ),
+            )
             return EngineIoReturn(
                 correlation_id=io.correlation_id,
                 response_kind="ERROR",
                 next_step="STOP",
-                text=classify_llm_http_error(exc),
+                text=str(classified) if isinstance(classified, ClassifiedFailure) else classify_llm_http_error(exc),
                 offered_tools=list(self._offered_tool_names),
+                failure_class=classified.failure_class.value if isinstance(classified, ClassifiedFailure) else "",
+                failure_code=classified.code if isinstance(classified, ClassifiedFailure) else "",
+                retry_attempts=classified.attempts if isinstance(classified, ClassifiedFailure) else 0,
             )
 
         usage = message.pop("usage", None) or {}

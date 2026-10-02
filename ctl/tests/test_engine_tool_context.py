@@ -62,7 +62,7 @@ def test_teardown_releases_instance_memory_and_depth():
 
 
 def test_engine_tool_provider_category_resolves_the_spawner():
-    from mas.ctl.executor.subagent_spawner import SubagentSpawner
+    from mas.library.standard.plugins.engine_tools.subagent_spawner import SubagentSpawner
     from mas.runtime.registry import get_registry
 
     variant = get_registry().resolve_by_type("engine_tool_provider", "spawn_subagent")

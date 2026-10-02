@@ -108,7 +108,8 @@ def test_with_hardened_overlay_appends_the_plugin() -> None:
     )
     doc = yaml.safe_load(overlay_path.read_text(encoding="utf-8"))
     add = doc["spec"]["patch"]["governance"]["$op"]["add"]
-    assert "gov_no_undeclared_tool" in add
+    names = [g if isinstance(g, str) else next(iter(g)) for g in add]
+    assert "gov_no_undeclared_tool" in names
 
 
 def test_spec_tools_as_dicts_are_resolved_by_name() -> None:

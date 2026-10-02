@@ -6,10 +6,13 @@ from types import SimpleNamespace
 import pytest
 
 from mas.ctl.executor.subagent_spawner import (
-    SubagentSpawner,
     SubagentTemplate,
     load_subagent_templates,
+    make_subagent_spawner,
     wire_subagent_spawning,
+)
+from mas.library.standard.plugins.engine_tools.subagent_spawner import (
+    SubagentSpawner as LibrarySubagentSpawner,
 )
 from mas.ctl.placement.bus.inproc import InProcessCommBus
 from mas.runtime.boundary.context.working_memory_registry import (
@@ -58,7 +61,7 @@ def test_spawner_materializes_runs_and_always_tears_down(tmp_path: Path):
 
     ledger = SpawnLedger(max_depth=1, max_spawns=1)
     registry = WorkingMemoryRegistry()
-    spawner = SubagentSpawner(
+    spawner = make_subagent_spawner(
         materialized=materialized,
         parent_agent_id="root",
         session_id="session",
@@ -114,7 +117,7 @@ def test_wire_subagent_spawning_loads_validated_manifest_templates(tmp_path: Pat
         session_id="session",
     )
 
-    assert isinstance(spawner, SubagentSpawner)
+    assert isinstance(spawner, LibrarySubagentSpawner)
     assert list(spawner.templates) == ["worker"]
     assert engine.engine_tool_contracts == (spawner,)
 

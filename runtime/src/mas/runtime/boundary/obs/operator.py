@@ -624,6 +624,9 @@ class ObservabilityOperator:
         policy_name: str = "",
         obs_phase: ObsPhase = ObsPhase.AUTHZ,
         op: str = "",
+        failure_class: str = "",
+        failure_code: str = "",
+        retry_attempts: int = 0,
     ) -> ObservabilityEvent:
         """Emit a ``governance_decision`` event for one egress or ingress
         check (``hook``) at one lifecycle point (``phase``) on a call,
@@ -652,6 +655,15 @@ class ObservabilityOperator:
                 # field) because the live TransitionEvent pipeline
                 # (boundary_dict_from_transition) only forwards payload/attributes.
                 "policy_name": policy_name or "kernel",
+                **{
+                    key: value
+                    for key, value in {
+                        "failure_class": failure_class,
+                        "failure_code": failure_code,
+                        "retry_attempts": retry_attempts,
+                    }.items()
+                    if value not in (None, "", 0)
+                },
             },
         )
 

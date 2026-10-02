@@ -1,58 +1,19 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Infra access pipeline — middleware wraps EngineContract before real provider."""
+"""Infra access pipeline — middleware wraps EngineContract before real provider.
+
+Implementations register as ``type: infra_middleware``. This module owns the
+protocol, registry dispatch, and the bidirectional reply facade — no plugin
+class names.
+"""
 
 from __future__ import annotations
 
-import hashlib
-import json
-import random
-import time
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Any, Protocol
 
-from mas.runtime.engine.llm_cache import (
-    load_cache,
-    middleware_cache_deserialize,
-    middleware_cache_serialize,
-    persist_cache,
-)
 from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.ingress import EngineIoReturn
-
-_SHARED_LLM_CACHES: dict[str, dict[str, Any]] = {}
-
-# First LlmCacheMiddleware in this process that asks for write_mode=replace
-# truncates cache_path. Later instances for the same path must load/merge so
-# a MAS (one middleware per agent) does not wipe siblings' writes.
-_REPLACE_STARTED: set[str] = set()
-
-
-def reset_llm_cache_replace_guard() -> None:
-    """Test helper: allow another replace-on-startup in this process."""
-    _REPLACE_STARTED.clear()
-
-
-def _cache_for_path(path: Path | None) -> dict[str, Any]:
-    """One in-memory dict per resolved cache file.
-
-    MAS peer engines each wrap their own LiveLlmEngine with llm_cache. Without
-    sharing, each persist() dumped a stale snapshot and clobbered keys written
-    by the other agent in the same process. Only used for the default
-    write_mode="append" -- write_mode="replace" manages its own disk-backed
-    dict directly (see LlmCacheMiddleware.__post_init__/_persist) so a later
-    instance for the same path picks up on-disk changes made outside this
-    process-shared cache.
-    """
-    if path is None:
-        return {}
-    key = str(path.expanduser().resolve())
-    cached = _SHARED_LLM_CACHES.get(key)
-    if cached is None:
-        cached = load_cache(path)
-        _SHARED_LLM_CACHES[key] = cached
-    return cached
 
 
 class InfraMiddleware(Protocol):
@@ -65,279 +26,22 @@ class InfraMiddleware(Protocol):
     def exchange_preview(self, op: str, *, correlation_id: int = 0) -> str: ...
 
 
-@dataclass
-class LlmCacheMiddleware:
-    """Cache LLM_CALL results on disk — sits in front of live infra.
-
-    allow_read / allow_write are independent (both default True, like a
-    normal read-through cache); a demo can compose write-only (build the
-    cache), read-only (replay it), or both (default) purely via infra
-    manifest params — no code branching per mode.
-    """
-
-    inner: Any
-    middleware_id: str = "llm_cache"
-    cache_path: Path | None = None
-    allow_read: bool = True
-    allow_write: bool = True
-    # Replay-only mode: never falls through to `inner` on a cache miss, so a
-    # stacked infra manifest can guarantee zero calls reach the real provider
-    # (e.g. a fast demo replay with no live LLM/network configured at all).
-    raise_on_miss: bool = False
-    include_preview: bool = False
-    # A cache hit returns in ~0ms, which removes the pacing real LLM latency
-    # gave calling code for free -- e.g. a multi-agent demo where a moderator
-    # posts a "Round N" card on delegation start while a specialist's HITL
-    # request is posted synchronously the instant it registers can visibly
-    # race (HITL card before the round card) once every delegate answers
-    # instantly. Sleep for a random uniform delay in
-    # [replay_delay_min_s, replay_delay_max_s] on a hit to restore demo-worthy
-    # pacing; both default to 0 (no delay, existing behavior unchanged). Set
-    # both to the same value for a fixed delay.
-    replay_delay_min_s: float = 0.0
-    replay_delay_max_s: float = 0.0
-    # Optional: append {key, preview} as a JSONL line to this file on every
-    # raise_on_miss -- turns an opaque "key mismatch" into an inspectable
-    # diff (e.g. parallel-delegation timing making a peer-context prompt
-    # non-deterministic between record and replay runs).
-    miss_log_path: Path | None = None
-    # append (default): load existing keys (shared across sibling MAS
-    # engines via _cache_for_path), persist merges new ones.
-    # replace: first instance in this process truncates cache_path (startup
-    # recording); later instances for the same path load/merge straight off
-    # disk instead of the process-shared cache, since a fresh recording run
-    # is expected to have rewritten the file out-of-process.
-    write_mode: str = "append"
-    _cache: dict[str, Any] = field(default_factory=dict, init=False)
-
-    def __post_init__(self) -> None:
-        mode = (self.write_mode or "append").strip().lower()
-        if mode not in {"append", "replace"}:
-            raise ValueError(f"write_mode must be 'append' or 'replace', got {self.write_mode!r}")
-        self.write_mode = mode
-        if not self.cache_path:
-            return
-        self.cache_path = Path(self.cache_path).expanduser().resolve()
-        if mode == "replace" and self.allow_write:
-            token = str(self.cache_path)
-            if token not in _REPLACE_STARTED:
-                _REPLACE_STARTED.add(token)
-                self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-                self.cache_path.write_text("{}", encoding="utf-8")
-                self._cache = {}
-                return
-        self._cache = load_cache(self.cache_path) if mode == "replace" else _cache_for_path(self.cache_path)
-
-    def exchange_preview(self, op: str, *, correlation_id: int = 0) -> str:
-        preview = getattr(self.inner, "exchange_preview", None)
-        if callable(preview):
-            head = str(preview(op, correlation_id=correlation_id) or "")
-            return f"[llm_cache middleware]\n{head}".strip()
-        return "[llm_cache middleware]"
-
-    def invoke(self, io: InvokeEngineIo) -> EngineIoReturn:
-        if not (self.allow_read or self.allow_write) or io.op != "LLM_CALL":
-            return self.inner.invoke(io)
-        # Exactly one exchange_preview() call per invoke(): LiveLlmEngine's
-        # preview resets ctx._assembly_correlation_id as a side effect, so
-        # calling it more than once here (as the old separate tool-results
-        # check + cache-key computation did) corrupted textual tool-call
-        # parsing correlation state on every cached turn.
-        # No tool-results skip: the cache key is the full preview text
-        # (conversation so far, including any prior tool result), so a
-        # different tool outcome naturally produces a different key and a
-        # fresh miss -- there is nothing to protect against by excluding
-        # these turns, and skipping them defeats caching a whole agentic
-        # turn, where the useful answer is almost always the post-tool-call
-        # completion.
-        preview = self._preview(io)
-        key = hashlib.sha256(preview.encode("utf-8")).hexdigest()
-        if self.allow_read and key in self._cache:
-            self._simulate_replay_delay()
-            return middleware_cache_deserialize(self._cache[key], io.correlation_id)
-        if self.allow_read and self.raise_on_miss:
-            self._log_miss(key, preview)
-            shown = preview if len(preview) <= 4000 else preview[:4000] + "\n…"
-            raise RuntimeError(f"llm_cache miss (raise_on_miss=true) for key {key}\n{shown}")
-        ret = self.inner.invoke(io)
-        if (
-            self.allow_write
-            and ret.response_kind == "MODEL_TEXT"
-            and ret.next_step in {"STOP", "TOOL_CALL", "PARALLEL_TOOL_CALLS"}
-        ):
-            self._cache[key] = middleware_cache_serialize(
-                ret,
-                include_preview=self.include_preview,
-                preview=preview,
-            )
-            self._persist()
-        return ret
-
-    async def ainvoke(self, io: InvokeEngineIo) -> EngineIoReturn:
-        if not (self.allow_read or self.allow_write) or io.op != "LLM_CALL":
-            return await self.inner.ainvoke(io)
-        preview = self._preview(io)
-        key = hashlib.sha256(preview.encode("utf-8")).hexdigest()
-        if self.allow_read and key in self._cache:
-            await self._asimulate_replay_delay()
-            return middleware_cache_deserialize(self._cache[key], io.correlation_id)
-        if self.allow_read and self.raise_on_miss:
-            self._log_miss(key, preview)
-            shown = preview if len(preview) <= 4000 else preview[:4000] + "\n…"
-            raise RuntimeError(f"llm_cache miss (raise_on_miss=true) for key {key}\n{shown}")
-        ret = await self.inner.ainvoke(io)
-        if (
-            self.allow_write
-            and ret.response_kind == "MODEL_TEXT"
-            and ret.next_step in {"STOP", "TOOL_CALL", "PARALLEL_TOOL_CALLS"}
-        ):
-            self._cache[key] = middleware_cache_serialize(
-                ret,
-                include_preview=self.include_preview,
-                preview=preview,
-            )
-            self._persist()
-        return ret
-
-    def reset_turn_state(self) -> None:
-        reset_fn = getattr(self.inner, "reset_turn_state", None)
-        if callable(reset_fn):
-            reset_fn()
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self.inner, name)
-
-    def _simulate_replay_delay(self) -> None:
-        lo = max(0.0, self.replay_delay_min_s)
-        hi = max(lo, self.replay_delay_max_s)
-        if hi <= 0:
-            return
-        time.sleep(random.uniform(lo, hi))
-
-    async def _asimulate_replay_delay(self) -> None:
-        lo = max(0.0, self.replay_delay_min_s)
-        hi = max(lo, self.replay_delay_max_s)
-        if hi <= 0:
-            return
-        import asyncio
-
-        await asyncio.sleep(random.uniform(lo, hi))
-
-    def _log_miss(self, key: str, preview: str) -> None:
-        if not self.miss_log_path:
-            return
-        try:
-            self.miss_log_path.parent.mkdir(parents=True, exist_ok=True)
-            with self.miss_log_path.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps({"key": key, "preview": preview}) + "\n")
-        except Exception:
-            pass
-
-    def _preview(self, io: InvokeEngineIo) -> str:
-        preview = getattr(self.inner, "exchange_preview", None)
-        return str(
-            preview("LLM_CALL", correlation_id=io.correlation_id)
-            if callable(preview)
-            else io.correlation_id
-        )
-
-    def _persist(self) -> None:
-        if not self.cache_path:
-            return
-        if self.write_mode == "replace":
-            # write_mode="replace" isn't backed by the process-shared cache
-            # (see __post_init__/_cache_for_path) -- merge with whatever's on
-            # disk now so this doesn't clobber entries another instance for
-            # the same path already wrote since this one's own load.
-            on_disk = load_cache(self.cache_path)
-            on_disk.update(self._cache)
-            self._cache = on_disk
-        persist_cache(self.cache_path, self._cache)
-
-
-@dataclass
-class FaultInjectMiddleware:
-    """Inject random LLM failures — chaos-lite in front of any provider."""
-
-    inner: Any
-    middleware_id: str = "fault_inject"
-    rate: float = 0.0
-    status_codes: list[int] = field(default_factory=lambda: [503])
-    message: str = "injected fault"
-
-    def exchange_preview(self, op: str, *, correlation_id: int = 0) -> str:
-        preview = getattr(self.inner, "exchange_preview", None)
-        if callable(preview):
-            head = str(preview(op, correlation_id=correlation_id) or "")
-            return f"[fault_inject middleware rate={self.rate}]\n{head}".strip()
-        return f"[fault_inject middleware rate={self.rate}]"
-
-    def invoke(self, io: InvokeEngineIo) -> EngineIoReturn:
-        if io.op == "LLM_CALL" and self.rate > 0 and random.random() < self.rate:
-            code = self.status_codes[0] if self.status_codes else 503
-            return EngineIoReturn(
-                correlation_id=io.correlation_id,
-                response_kind="ERROR",
-                next_step="STOP",
-                text=f"{code}: {self.message}",
-            )
-        return self.inner.invoke(io)
-
-    async def ainvoke(self, io: InvokeEngineIo) -> EngineIoReturn:
-        if io.op == "LLM_CALL" and self.rate > 0 and random.random() < self.rate:
-            code = self.status_codes[0] if self.status_codes else 503
-            return EngineIoReturn(
-                correlation_id=io.correlation_id,
-                response_kind="ERROR",
-                next_step="STOP",
-                text=f"{code}: {self.message}",
-            )
-        return await self.inner.ainvoke(io)
-
-    def reset_turn_state(self) -> None:
-        reset_fn = getattr(self.inner, "reset_turn_state", None)
-        if callable(reset_fn):
-            reset_fn()
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self.inner, name)
-
-
 def apply_middleware(engine: Any, spec: dict[str, Any]) -> Any:
-    """Wrap engine with one infra middleware entry from resolved pipeline."""
-    mid = str(spec.get("middleware") or spec.get("id") or "")
+    """Wrap engine with one registered infra middleware, or leave it unchanged."""
+    mid = str(spec.get("middleware") or spec.get("id") or "").strip().lower()
+    if not mid:
+        return engine
     params = dict(spec.get("params") or {})
-    if mid in {"llm_cache", "llm-cache"}:
-        path_raw = params.get("cache_path") or params.get("path")
-        path = Path(str(path_raw)) if path_raw else None
-        allow_read = params.get("allow_read", params.get("enabled", True)) is not False
-        allow_write = params.get("allow_write", params.get("enabled", True)) is not False
-        raise_on_miss = params.get("raise_on_miss", False) is True
-        include_preview = params.get("include_preview", False) is True
-        replay_delay_min_s = float(params.get("replay_delay_min_s") or 0.0)
-        replay_delay_max_s = float(params.get("replay_delay_max_s") or 0.0)
-        miss_log_raw = params.get("miss_log_path")
-        miss_log_path = Path(str(miss_log_raw)) if miss_log_raw else None
-        write_mode = str(params.get("write_mode") or "append")
-        return LlmCacheMiddleware(
-            inner=engine,
-            cache_path=path,
-            allow_read=bool(allow_read),
-            allow_write=bool(allow_write),
-            raise_on_miss=raise_on_miss,
-            include_preview=bool(include_preview),
-            replay_delay_min_s=replay_delay_min_s,
-            replay_delay_max_s=replay_delay_max_s,
-            miss_log_path=miss_log_path,
-            write_mode=write_mode,
-        )
-    if mid in {"fault_inject", "fault-inject", "chaos_lite", "chaos-lite"}:
-        rate = float(params.get("rate") or params.get("failure_rate") or 0.0)
-        codes_raw = params.get("status_codes") or params.get("errors") or [503]
-        codes = [int(c) for c in codes_raw] if isinstance(codes_raw, list) else [503]
-        msg = str(params.get("message") or "injected fault")
-        return FaultInjectMiddleware(inner=engine, rate=max(0.0, min(1.0, rate)), status_codes=codes, message=msg)
-    return engine
+    from mas.runtime.registry import get_registry
+
+    variant = get_registry().resolve_by_type("infra_middleware", mid)
+    if variant is None:
+        return engine
+    plugin_cls = variant.load_class()
+    wrap = getattr(plugin_cls, "wrap", None)
+    if callable(wrap):
+        return wrap(engine, params)
+    return plugin_cls(inner=engine, **params)
 
 
 def wrap_pipeline(engine: Any, pipeline: list[dict[str, Any]]) -> Any:

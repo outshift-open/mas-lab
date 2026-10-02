@@ -9,9 +9,12 @@ from dataclasses import dataclass, field
 import pytest
 from mas.runtime.engine.infra_pipeline import (
     BidirectionalPipelineEngine,
-    LlmCacheMiddleware,
     apply_middleware,
     wrap_bidirectional_pipeline,
+)
+from mas.library.standard.plugins.infra.llm_cache import (
+    LlmCacheMiddleware,
+    reset_llm_cache_replace_guard,
 )
 from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.ingress import EngineIoReturn
@@ -53,7 +56,7 @@ def test_wrap_bidirectional_pipeline_uses_cache(tmp_path):
 
 
 def test_write_mode_replace_truncates_once_per_process(tmp_path):
-    from mas.runtime.engine.infra_pipeline import reset_llm_cache_replace_guard
+    from mas.library.standard.plugins.infra.llm_cache import reset_llm_cache_replace_guard
 
     reset_llm_cache_replace_guard()
     cache_path = tmp_path / "cache.json"
@@ -83,7 +86,7 @@ def test_write_mode_replace_truncates_once_per_process(tmp_path):
 
 
 def test_write_mode_append_keeps_existing_keys(tmp_path):
-    from mas.runtime.engine.infra_pipeline import reset_llm_cache_replace_guard
+    from mas.library.standard.plugins.infra.llm_cache import reset_llm_cache_replace_guard
 
     reset_llm_cache_replace_guard()
     cache_path = tmp_path / "cache.json"

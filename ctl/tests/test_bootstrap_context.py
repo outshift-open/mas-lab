@@ -193,7 +193,7 @@ def test_resolve_skill_plugin_config_auto_inject_defaults_false(tmp_path: Path):
 def test_interface_contracts_resolve_from_full_agent_manifest_and_keep_overrides():
     from mas.ctl.manifest.spec_bindings import validate_agent_spec_bindings
     from mas.ctl.session.bootstrap import _resolve_interface_contract
-    from mas.runtime.contracts.user_communication_contract import (
+    from mas.library.standard.plugins.hitl.contracts import (
         RegistryHitlContract,
         RegistryUserIOContract,
     )

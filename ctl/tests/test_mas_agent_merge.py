@@ -10,6 +10,11 @@ from mas.runtime.engine.llm_live import LiveLlmEngine
 from mas.runtime.engine.tools import openai_tools, resolve_manifest_tool_refs
 
 
+class _StubComm:
+    def send(self, *args: object, **kwargs: object) -> str:
+        return "ok"
+
+
 def test_enrich_entry_agent_injects_workflow(tmp_path: Path):
     peer_yaml = tmp_path / "agents" / "alpha.yaml"
     peer_yaml.parent.mkdir(parents=True)
@@ -47,7 +52,7 @@ def test_enrich_entry_agent_injects_workflow(tmp_path: Path):
         engine,
         enriched,
         tmp_path,
-        run_turn=lambda _a, _t: "ok",
+        comm=_StubComm(),
         entry_agent_id="entry",
         mas_config=mas,
         mas_base_dir=tmp_path,
@@ -122,7 +127,7 @@ def test_wire_entry_engine_delegation_skips_when_no_peers():
         engine,
         manifest,
         Path("."),
-        run_turn=lambda _a, _t: "",
+        comm=_StubComm(),
         entry_agent_id="solo",
     )
     assert engine.delegation is None
@@ -150,7 +155,7 @@ def test_wire_entry_engine_delegation_skips_when_delegates_to_empty():
         engine,
         manifest,
         Path("."),
-        run_turn=lambda _a, _t: "",
+        comm=_StubComm(),
         entry_agent_id="leaf",
     )
     assert engine.delegation is None
@@ -176,7 +181,7 @@ def test_wire_entry_engine_delegation_enables_tool_loop_on_leaf():
         engine,
         manifest,
         Path("."),
-        run_turn=lambda _a, _t: "ok",
+        comm=_StubComm(),
         entry_agent_id="entry",
     )
     assert inner.use_tool_loop is True
@@ -186,7 +191,8 @@ def test_wire_entry_engine_delegation_enables_tool_loop_on_leaf():
 
 def test_reset_engine_delegation_does_not_suppress_repeated_delegation():
     from mas.ctl.manifest.mas_agent_merge import reset_engine_delegation
-    from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
+    from mas.library.standard.plugins.agentcomm.local import LocalAgentComm
+    from mas.library.standard.plugins.delegation.llm_delegator import LlmDelegator
 
     calls: list[str] = []
 
@@ -196,7 +202,7 @@ def test_reset_engine_delegation_does_not_suppress_repeated_delegation():
 
     class _Engine:
         def __init__(self) -> None:
-            self.delegation = LlmDelegator(run_turn=run_turn)
+            self.delegation = LlmDelegator(comm=LocalAgentComm(run_turn))
 
     engine = _Engine()
     assert engine.delegation.delegate("peer", "task") == "findings:peer:task"
@@ -207,7 +213,8 @@ def test_reset_engine_delegation_does_not_suppress_repeated_delegation():
 
 def test_reset_engine_delegation_walks_inner_wrapper():
     from mas.ctl.manifest.mas_agent_merge import reset_engine_delegation
-    from mas.runtime.boundary.delegation.llm_delegator import LlmDelegator
+    from mas.library.standard.plugins.agentcomm.local import LocalAgentComm
+    from mas.library.standard.plugins.delegation.llm_delegator import LlmDelegator
 
     calls: list[str] = []
 
@@ -217,7 +224,7 @@ def test_reset_engine_delegation_walks_inner_wrapper():
 
     class _Engine:
         def __init__(self) -> None:
-            self.delegation = LlmDelegator(run_turn=run_turn)
+            self.delegation = LlmDelegator(comm=LocalAgentComm(run_turn))
 
     class _Wrapper:
         def __init__(self, inner: object) -> None:
@@ -630,7 +637,7 @@ def test_wire_entry_engine_delegation_uses_overlay_peer_description(tmp_path: Pa
         engine,
         manifest,
         tmp_path,
-        run_turn=lambda _a, _t: "ok",
+        comm=_StubComm(),
         entry_agent_id="entry",
         mas_config=mas,
         mas_base_dir=tmp_path,

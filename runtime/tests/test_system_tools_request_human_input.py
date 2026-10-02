@@ -12,9 +12,9 @@ from pathlib import Path
 import pytest
 
 from mas.runtime.boundary.hitl.registry import get_hitl_resolver_registry
-from mas.runtime.contracts.user_communication_contract import AutoResolveHitlContract
+from mas.library.standard.plugins.hitl.contracts import AutoResolveHitlContract
 from mas.runtime.engine.manifest_tool_provider import build_manifest_tool_provider
-from mas.runtime.system_tools.request_human_input import RequestHumanInputTool
+from mas.library.standard.plugins.system_tools.request_human_input import RequestHumanInputTool
 
 
 @dataclass
@@ -189,7 +189,7 @@ def test_auto_resolve_decision_configurable_via_manifest_params(empty_tool_tree:
 
 
 def test_default_max_question_length_matches_schema_constant():
-    from mas.runtime.system_tools.request_human_input import DEFAULT_MAX_QUESTION_LENGTH
+    from mas.library.standard.plugins.system_tools.request_human_input import DEFAULT_MAX_QUESTION_LENGTH
 
     tool = RequestHumanInputTool()
     assert tool.max_question_length == DEFAULT_MAX_QUESTION_LENGTH

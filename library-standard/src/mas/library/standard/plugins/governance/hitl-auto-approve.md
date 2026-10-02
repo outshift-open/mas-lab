@@ -4,7 +4,7 @@
 -->
 # hitl-auto-approve@v1 — in-process HitlResponder (CI / batch)
 
-Maps to `AutoApproveResponder` in `mas.runtime.boundary.hitl.responders`.
+Maps to `AutoApproveResponder` in `mas.library.standard.plugins.hitl.responders`.
 
 Manifest:
 

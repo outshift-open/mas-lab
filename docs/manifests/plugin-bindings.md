@@ -59,9 +59,20 @@ spec:
         hitl_on_tool: true
         hitl_mode: interactive
     - no_undeclared_tool
+    - retry_on_error:
+        error_recovery_plugin: retry_on_error
+        error_policy:
+          transient: retry
+          fatal: block
   observability:
     - native
 ```
+
+YAML fields such as `error_recovery_plugin` and `error_policy` may appear
+on any governance stanza; the parser flattens them and installs the
+recovery plugin on the ingress chain (not on `KernelConfig`).
+Full chain: [governance.md](governance.md). Retry defaults:
+[reliability.md](../references/reliability.md).
 
 Default for every list slot is **empty** (no plugins). Native observability is
 attached by the flavour / CLI, not by omitting `spec.observability`.
@@ -179,7 +190,7 @@ Shorthand `memory: semantic` ≡ plugin `semantic`. Full object form is
 
 | Slot | Default | Shipped plugins |
 |------|---------|-----------------|
-| `governance` | `[]` | `sample` / `sample_governance`, `no_undeclared_tool` |
+| `governance` | `[]` | `sample` / `sample_governance`, `gov_no_undeclared_tool`, `retry_on_error` |
 | `observability` | `[]` (flavour/CLI may attach `native`) | `native`, `otel` |
 | `context_sources` | `[]` | `native`, `adk`, `langchain` (skill engines) |
 | `providers` | `[]` (implicit local owns `spec.tools`) | `local` |

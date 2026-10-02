@@ -108,6 +108,12 @@ class SemanticMemoryPlugin(MemoryProviderPlugin, ContextContract):
     requires: List[str] = []
     governed_by: List[str] = []
 
+    @staticmethod
+    def default_store_path(agent_id: str = "default"):
+        from mas.library.standard.plugins.memory.semantic_store import default_store_path
+
+        return default_store_path(agent_id)
+
     def __init__(
         self,
         db_path: str = "",

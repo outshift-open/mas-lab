@@ -30,6 +30,13 @@ Governance plugins that **alter trajectory** are declared through Agent
 `governance[]` (directly or via an **Overlay**). Agent control-plane plugins
 use `control`; Flavour selects deployment posture and plugin defaults.
 
+A flavour that should mimic another product (for example an OpenClaw-like
+profile) **composes overlays** — `with-hardened` (undeclared-tool BLOCK +
+typed retry/circuit) plus observability plus later checkpoint/backtrack —
+instead of copying every plugin into the flavour YAML. See
+[governance.md](governance.md) and
+[reliability.md](../references/reliability.md#composing-a-flavour-openclaw-style).
+
 ## Schema fields
 
 The schema keeps `spec` forward-compatible (`additionalProperties: true`). Its

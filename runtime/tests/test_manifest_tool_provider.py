@@ -332,8 +332,11 @@ def test_unknown_bare_tool_name_reports_local_directory(tmp_path: Path):
 
 
 def test_execute_engine_tool_requires_provider():
-    with pytest.raises(ToolExecutionError, match="No manifest tool provider"):
+    from mas.runtime.reliability.classes import ClassifiedFailure, FailureClass
+
+    with pytest.raises(ClassifiedFailure, match="No manifest tool provider") as caught:
         execute_engine_tool("calculator", arguments={"expression": "1"})
+    assert caught.value.failure_class is FailureClass.APPLICATION
 
 
 def test_execute_engine_tool_via_provider(calculator_tool_tree: Path):

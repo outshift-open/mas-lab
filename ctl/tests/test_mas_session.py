@@ -231,7 +231,94 @@ def test_wire_peer_delegation_does_not_load_a2a_without_explicit_protocol(tmp_pa
                 wire_peer_delegation(materialized, entry_id="moderator", already_wired=set())
 
     assert all((binding or {}).get("type") != "a2a" for _, binding in created)
-    assert any((binding or {}).get("type") == "local" for _, binding in created)
+    assert any(binding in (None, {}) for _, binding in created)
+
+
+def test_wire_peer_delegation_uses_spec_agent_comm_protocol(tmp_path: Path):
+    """spec.agent_comm.protocol names the in-process comm variant; ctl must
+    not ignore it and construct LocalAgentComm under a hardcoded ``local``."""
+    materialized = _materialized_with_agents(
+        ["moderator", "schedule_agent", "concierge_agent"], tmp_path
+    )
+    materialized.compose.mas_config.setdefault("spec", {})["agent_comm"] = {
+        "protocol": "probe"
+    }
+    created: list[tuple[str, dict | None]] = []
+    probe = MagicMock(name="probe-comm")
+
+    def _create(spec_key: str, binding=None, **kwargs):
+        created.append((spec_key, binding))
+        return probe
+
+    def _fake_manifest(bind, agent_id):
+        return {"metadata": {"name": agent_id}, "spec": {}}
+
+    wired_comms: list[object] = []
+    with patch("mas.ctl.executor.mas_session.load_agent_manifest_from_bind", side_effect=_fake_manifest):
+        with patch(
+            "mas.ctl.executor.mas_session.wire_entry_engine_delegation",
+            side_effect=lambda engine, *a, **k: wired_comms.append(k.get("comm")),
+        ):
+            with patch("mas.runtime.registry.get_registry", return_value=SimpleNamespace(create=_create)):
+                wire_peer_delegation(materialized, entry_id="moderator", already_wired=set())
+
+    assert created == [("agent_comm", {"type": "probe"})]
+    assert wired_comms == [probe, probe]
+
+
+def test_prepare_delegation_entry_session_uses_spec_agent_comm_protocol(tmp_path: Path):
+    driver = SimpleNamespace(agent_id=None, engine=MagicMock(inner=None))
+    instance = SimpleNamespace(driver=driver)
+    compose = ComposeResult(
+        mas_id="demo",
+        mas_config={
+            "spec": {
+                "workflow": {"entry": "moderator"},
+                "agent_comm": {"protocol": "probe"},
+            }
+        },
+        effective_bind={},
+        placement_plan={},
+        deployment={},
+        infra_refs=[],
+        bind=EffectiveBindManifest(
+            mas_id="demo",
+            spec_revision="",
+            runtime_id="mas-runtime-py",
+            deployment_name="local",
+            agents=[AgentBindSlice(agent_id="moderator", pattern_plugin_id="react@v1")],
+        ),
+        plan=PlacementPlan(),
+    )
+    materialized = SimpleNamespace(
+        compose=compose,
+        materialized=SimpleNamespace(instances={"moderator": instance}),
+        mas_base_dir=tmp_path,
+    )
+    entry_manifest = {"metadata": {"name": "moderator"}, "spec": {}}
+    created: list[tuple[str, dict | None]] = []
+    probe = MagicMock(name="probe-comm")
+
+    def _create(spec_key: str, binding=None, **kwargs):
+        created.append((spec_key, binding))
+        return probe
+
+    wired_comms: list[object] = []
+    with patch("mas.ctl.executor.mas_session.enrich_entry_agent_for_delegation", return_value=entry_manifest):
+        with patch(
+            "mas.ctl.executor.mas_session.wire_entry_engine_delegation",
+            side_effect=lambda engine, *a, **k: wired_comms.append(k.get("comm")),
+        ):
+            with patch("mas.ctl.executor.subagent_spawner.wire_subagent_spawning"):
+                with patch("mas.runtime.registry.get_registry", return_value=SimpleNamespace(create=_create)):
+                    prepare_delegation_entry_session(
+                        materialized,
+                        entry_id="moderator",
+                        entry_manifest=entry_manifest,
+                    )
+
+    assert created == [("agent_comm", {"type": "probe"})]
+    assert wired_comms == [probe]
 
 
 def test_wire_peer_delegation_skips_agents_without_their_own_peers(tmp_path: Path):

@@ -395,6 +395,21 @@ properties:
             minimum: 1
             default: 300
             description: "Per-run timeout in seconds."
+          max_attempts:
+            type: integer
+            minimum: 1
+            default: 3
+            description: >
+              Re-issue a failed scenario×item×run this many times (including
+              the first try). Independent of run.n_runs. Default 3 so an
+              LLM HTTP failure can recover after in-call retries. Set 1 to disable.
+          retry_backoff_s:
+            type: number
+            minimum: 0
+            default: 2.0
+            description: >
+              Base delay in seconds before the first lab-level reattempt;
+              doubles on each subsequent reattempt.
           pause_between_runs:
             type: number
             minimum: 0

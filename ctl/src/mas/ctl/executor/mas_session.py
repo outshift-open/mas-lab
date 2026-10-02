@@ -28,6 +28,44 @@ logger = logging.getLogger(__name__)
 
 RunTurnFn = Callable[[str, str, int, str, str], str]
 
+
+def _agent_comm_binding(mas_config: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Translate ``spec.agent_comm`` into a registry binding.
+
+    Flavour YAML uses ``protocol``; ``registry.create`` expects ``type``.
+    An omitted slot returns ``None`` so the registry default applies
+    (``library.yaml`` ``defaults.agent_comm``). Extra flavour keys such as
+    ``mode`` / ``emulation`` are not constructor params.
+    """
+    root = mas_config or {}
+    spec = root.get("spec") if isinstance(root.get("spec"), dict) else root
+    if not isinstance(spec, dict):
+        return None
+    raw = spec.get("agent_comm")
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        name = raw.strip()
+        return {"type": name} if name else None
+    if not isinstance(raw, dict):
+        return None
+    variant = str(raw.get("type") or raw.get("protocol") or raw.get("kind") or "").strip()
+    params = dict(raw.get("params") or {}) if isinstance(raw.get("params"), dict) else {}
+    binding: dict[str, Any] = {}
+    if variant:
+        binding["type"] = variant
+    if params:
+        binding["params"] = params
+    return binding or None
+
+
+def _create_agent_comm(registry: Any, mas_config: dict[str, Any] | None, **params: Any) -> Any:
+    return registry.create(
+        "agent_comm",
+        binding=_agent_comm_binding(mas_config),
+        **params,
+    )
+
 # Max length for a single-line context value probed as a relative file path.
 _MAX_PROBE_PATH_LEN = 512
 
@@ -206,23 +244,26 @@ def prepare_delegation_entry_session(
         max_depth=spawn_params.get("max_depth", 3),
         max_spawns=spawn_params.get("max_spawns", 8),
     )
+    from mas.runtime.registry import get_registry
+
+    run_turn = make_workflow_send(
+        materialized.materialized,
+        display=display,
+        verbose=verbose,
+        from_agent=entry_id,
+        session_id=resolved_session_id,
+        working_memory_registry=working_memory_registry,
+        trace=trace,
+        trace_timestamps=trace_timestamps,
+        trace_engine=trace_engine,
+        trace_summary=trace_summary,
+        trace_color=trace_color,
+    )
     wire_entry_engine_delegation(
         getattr(getattr(instance, "driver", None), "engine", None),
         enriched,
         entry_manifest_dir,
-        run_turn=make_workflow_send(
-            materialized.materialized,
-            display=display,
-            verbose=verbose,
-            from_agent=entry_id,
-            session_id=resolved_session_id,
-            working_memory_registry=working_memory_registry,
-            trace=trace,
-            trace_timestamps=trace_timestamps,
-            trace_engine=trace_engine,
-            trace_summary=trace_summary,
-            trace_color=trace_color,
-        ),
+        comm=_create_agent_comm(get_registry(), compose.mas_config, run_turn=run_turn),
         entry_agent_id=entry_id,
         mas_config=compose.mas_config,
         mas_base_dir=materialized.mas_base_dir,
@@ -351,11 +392,7 @@ def wire_peer_delegation(
         from mas.runtime.registry import get_registry
 
         registry = get_registry()
-    local_handler = registry.create(
-        "agent_comm",
-        binding={"type": "local"},
-        run_turn=run_turn,
-    )
+    local_handler = _create_agent_comm(registry, compose.mas_config, run_turn=run_turn)
     routes = build_agent_comm_routes(
         local_agent_ids=list(materialized.materialized.instances),
         local_handler=local_handler,
@@ -423,7 +460,7 @@ def wire_peer_delegation(
             getattr(getattr(instance, "driver", None), "engine", None),
             enriched,
             manifest_dir,
-            run_turn=run_turn,
+            comm=local_handler,
             entry_agent_id=agent_id,
             mas_config=compose.mas_config,
             mas_base_dir=materialized.mas_base_dir,
