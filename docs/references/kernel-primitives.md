@@ -39,3 +39,15 @@ call these same functions. The LLM tool is only an advertisement.
 
 If a new harness cannot be written as a row in this table, either an
 operation is missing (justify it first) or it does not belong in the kernel.
+
+## Layers (closed boundary, open harness DAG)
+
+Layer 0 is the table above — frozen. Layer 1 (`BOUNDARY_SLOTS`) is a
+closed set of envelope/spec slots; `register_type("pre_tool_use",
+layer="boundary")` is rejected (that is a 15th hook). Layer 2 is
+`mas.runtime.harness`: named compositions whose leaves are kernel ops
+(`detective` requires `whatif`; `evolution` requires `detective`).
+Layer 3 is lab/product (steps, CRDs, channels) and never steps δ.
+
+A plugin that calls `httpx` outside the envelope execute slot is a
+fourth path: no authorize, no τ, no snapshot, nothing to reverse.

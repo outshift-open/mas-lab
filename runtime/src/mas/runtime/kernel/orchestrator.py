@@ -49,6 +49,10 @@ class RuntimeKernel:
 
     def transition(self, event: IngressSymbol) -> StepResult:
         from mas.runtime.machines.lifecycle import step_lifecycle
+        from mas.runtime.session.cow import writable
+
+        self.q = writable(self.q)
+        self.run = writable(self.run)
 
         egress: list[EgressSymbol] = []
         egress.extend(step_lifecycle(self.q, event))
@@ -110,6 +114,11 @@ class RuntimeKernel:
             "run": run_to_dict(self.run),
             "pattern_plugin_id": self.config.pattern_plugin_id,
         }
+
+    def freeze_cow(self):
+        from mas.runtime.session.cow import freeze_kernel
+
+        return freeze_kernel(self)
 
     def restore(self, data: dict) -> None:
         from mas.runtime.kernel.state_serialize import q_product_from_dict, run_from_dict

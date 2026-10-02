@@ -23,7 +23,13 @@ def _canonical_hash(payload: dict[str, Any]) -> str:
 
 @dataclass(frozen=True)
 class SnapshotRef:
-    """Identity of one snapshot node. ``snapshot_id`` is a content hash."""
+    """Identity of one snapshot node.
+
+    ``state_digest`` is the cheap CoW token (kernel version ⊕ working-memory
+    version ⊕ spec revision). ``snapshot_id`` also includes parent, seq,
+    and the governance label so two identical states at two decisions stay
+    distinct tree nodes — content equality is ``state_digest``, not the id.
+    """
 
     snapshot_id: str
     session_id: str
@@ -32,6 +38,13 @@ class SnapshotRef:
     taken_at: str
     spec_revision: int | None = None
     label: str = ""
+    kind: str = "explicit"
+    hook: str = ""
+    decision: str = ""
+    op: str = ""
+    correlation_id: int = 0
+    state_digest: str = ""
+    seq: int = 0
 
     @classmethod
     def from_state(
@@ -40,18 +53,44 @@ class SnapshotRef:
         session_id: str,
         parent_snapshot_id: str | None,
         turn: int,
-        kernel: dict[str, Any],
-        working_memory: Any,
+        kernel: dict[str, Any] | Any = None,
+        working_memory: Any = None,
         spec_revision: int | None = None,
         label: str = "",
+        kind: str = "explicit",
+        hook: str = "",
+        decision: str = "",
+        op: str = "",
+        correlation_id: int = 0,
+        kernel_version: int = 0,
+        wm_version: int = 0,
+        seq: int = 0,
     ) -> SnapshotRef:
         taken_at = datetime.now(UTC).isoformat()
-        snapshot_id = _canonical_hash(
+        from mas.runtime.session.cow import CowKernel
+
+        if isinstance(kernel, CowKernel):
+            kernel_version = kernel.version
+        state_digest = _canonical_hash(
             {
-                "kernel": kernel,
-                "working_memory": working_memory,
+                "kernel_version": kernel_version,
+                "wm_version": wm_version,
                 "spec_revision": spec_revision,
                 "turn": turn,
+            }
+        )
+        snapshot_id = _canonical_hash(
+            {
+                "session_id": session_id,
+                "parent_snapshot_id": parent_snapshot_id,
+                "state_digest": state_digest,
+                "seq": seq,
+                "kind": kind,
+                "hook": hook,
+                "decision": decision,
+                "op": op,
+                "correlation_id": correlation_id,
+                "label": label,
             }
         )
         return cls(
@@ -62,6 +101,13 @@ class SnapshotRef:
             taken_at=taken_at,
             spec_revision=spec_revision,
             label=label,
+            kind=kind,
+            hook=hook,
+            decision=decision,
+            op=op,
+            correlation_id=correlation_id,
+            state_digest=state_digest,
+            seq=seq,
         )
 
 
@@ -70,10 +116,19 @@ class Snapshot:
     """In-memory capture. Never expected to cross a process boundary."""
 
     ref: SnapshotRef
-    kernel: dict[str, Any]
+    kernel: Any
     working_memory: list[Any]
     spec: dict[str, Any] | None = None
     spec_revision: int | None = None
+
+    def kernel_dict(self) -> dict[str, Any]:
+        from mas.runtime.session.cow import CowKernel
+
+        if isinstance(self.kernel, CowKernel):
+            return self.kernel.materialize()
+        if isinstance(self.kernel, dict):
+            return self.kernel
+        return dict(self.kernel or {})
 
 
 class SnapshotTree:
@@ -84,6 +139,11 @@ class SnapshotTree:
         self._live: dict[str, str] = {}
         self._cursor: dict[str, str] = {}
         self._bodies: dict[str, Snapshot] = {}
+        self._seq: dict[str, int] = {}
+
+    def next_seq(self, session_id: str) -> int:
+        self._seq[session_id] = self._seq.get(session_id, 0) + 1
+        return self._seq[session_id]
 
     def record(self, ref: SnapshotRef, *, body: Snapshot | None = None, live: bool = True) -> None:
         bucket = self._nodes.setdefault(ref.session_id, {})
@@ -161,6 +221,7 @@ class SnapshotTree:
         bodies = self._nodes.pop(session_id, {})
         self._live.pop(session_id, None)
         self._cursor.pop(session_id, None)
+        self._seq.pop(session_id, None)
         for snapshot_id in bodies:
             self._bodies.pop(snapshot_id, None)
 
@@ -177,7 +238,7 @@ def persist(snapshot: Snapshot, store: Any, *, manifest: dict[str, Any], lineage
         "backtrack_count": backtrack_count,
         "spec_revision": snapshot.spec_revision,
         "lineage": lineage,
-        "kernel": snapshot.kernel,
+        "kernel": snapshot.kernel_dict(),
         "working_memory": snapshot.working_memory,
         "manifest": {"content": ref.content, "content_hash": ref.content_hash},
     }

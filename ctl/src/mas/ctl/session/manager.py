@@ -232,6 +232,12 @@ class SessionManager:
             ctx.current_spec = self.spec_log.current_spec(session.session_id)
         if self.checkpoint_store is not None:
             session.controller.checkpoint_store = self.checkpoint_store
+        kernel = getattr(session.instance, "kernel", None)
+        config = getattr(kernel, "config", None)
+        if config is not None:
+            from dataclasses import replace
+
+            kernel.config = replace(config, on_decision_snapshot=session.on_governance_decision)
 
     @staticmethod
     def _manifest_content(

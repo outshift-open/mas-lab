@@ -253,6 +253,7 @@ def _evaluate_egress(ctx: EnvelopeContext) -> GovDecision:
         config=ctx.config,
         hitl_gov_override=ctx.hitl_gov_override,
     )
+    _notify_decision_snapshot(ctx, hook="egress", decision=decision.value)
     return decision
 
 
@@ -277,7 +278,28 @@ def _evaluate_ingress(ctx: EnvelopeContext) -> IngressGovDecision:
     # SampleGovernancePlugin) always populates message; this generic fallback
     # only matters for a custom third-party plugin that doesn't.
     ctx.gov_reason = decision.message or f"{decision.action.value} (no reason supplied by ingress plugin)"
+    _notify_decision_snapshot(ctx, hook="ingress", decision=decision.action.value)
     return decision
+
+
+def _notify_decision_snapshot(ctx: EnvelopeContext, *, hook: str, decision: str) -> None:
+    """Snapshot at the governance chokepoint — not every Mealy tick.
+
+    The authorize/validate verdict is the counterfactual cut: world-touch
+    either happens or it does not. Internal EVALUATING loops are not
+    independently reversible.
+    """
+    cfg = ctx.config
+    hook_fn = getattr(cfg, "on_decision_snapshot", None) if cfg is not None else None
+    if not callable(hook_fn):
+        return
+    hook_fn(
+        hook=hook,
+        decision=decision,
+        correlation_id=ctx.correlation_id,
+        op=ctx.scheduled_op,
+        tool_name=ctx.tool_name,
+    )
 
 
 def contract_kind_for_op(op: str) -> ContractKind:

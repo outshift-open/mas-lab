@@ -213,8 +213,17 @@ class PluginRegistry:
             if target == urn:
                 del self._aliases[alias]
 
-    def register_type(self, plugin_type: str) -> None:
-        self._known_types.add(_canonical_type_name(plugin_type))
+    def register_type(self, plugin_type: str, *, layer: str | None = None) -> None:
+        from mas.runtime.harness.catalog import UnknownBoundarySlotError, classify_plugin_type
+
+        canonical = _canonical_type_name(plugin_type)
+        inferred = classify_plugin_type(canonical)
+        if layer == "boundary" and inferred != "boundary":
+            raise UnknownBoundarySlotError(
+                f"{plugin_type!r} is not a boundary slot. The envelope alphabet "
+                "is closed; a new slot is a 15th hook. Use a harness composition."
+            )
+        self._known_types.add(canonical)
 
     def register_types(self, plugin_types: set[str]) -> None:
         for plugin_type in plugin_types:

@@ -32,6 +32,14 @@ if TYPE_CHECKING:
     from mas.runtime.driver.mocks import AutoCtxAssembler
 
 
+def _shallow_maps(messages: Any) -> list[Any]:
+    """Copy list + dict shells; share string payloads. The CoW grain for WM."""
+    out: list[Any] = []
+    for item in messages or []:
+        out.append(dict(item) if isinstance(item, dict) else item)
+    return out
+
+
 @dataclass
 class WorkingMemorySnapshot:
     turn_history: list[tuple[str, str]] = field(default_factory=list)
@@ -40,6 +48,8 @@ class WorkingMemorySnapshot:
     working_messages: list[dict[str, Any]] = field(default_factory=list)
     open_tool_call_id: str = ""
     synced_tool_result_cids: list[int] = field(default_factory=list)
+    frozen: bool = False
+    version: int = 0
 
 
 @dataclass
@@ -74,7 +84,31 @@ class WorkingMemoryRegistry:
     def put(self, session_id: str, agent_id: str, snapshot: WorkingMemorySnapshot) -> None:
         if not session_id or not agent_id:
             return
-        self._store[(session_id, agent_id)] = snapshot
+        key = (session_id, agent_id)
+        previous = self._store.get(key)
+        if previous is not None and previous.frozen:
+            snapshot.version = previous.version + 1
+        elif previous is not None:
+            snapshot.version = previous.version
+        self._store[key] = snapshot
+
+    def freeze_session(self, session_id: str) -> int:
+        """O(1) per agent: mark live snapshots immutable. Returns max version."""
+        max_version = 0
+        for (stored_session_id, _agent_id), snapshot in self._store.items():
+            if stored_session_id != session_id:
+                continue
+            snapshot.frozen = True
+            max_version = max(max_version, snapshot.version)
+        return max_version
+
+    def wm_version(self, session_id: str) -> int:
+        versions = [
+            snap.version
+            for (stored_session_id, _agent_id), snap in self._store.items()
+            if stored_session_id == session_id
+        ]
+        return max(versions) if versions else 0
 
     def drop(self, session_id: str, agent_id: str) -> None:
         self._store.pop((session_id, agent_id), None)
@@ -90,14 +124,20 @@ class WorkingMemoryRegistry:
                 self.put(new_session_id, agent_id, deepcopy(snapshot))
 
     def export_session(self, session_id: str) -> list[dict[str, Any]]:
-        """Return JSON-compatible working-memory state for one session."""
+        """JSON-compatible working-memory state. Shallow CoW spine, not deepcopy.
+
+        Message dicts are copied one level so a later append on the live
+        list cannot alias the snapshot; string payloads are shared.
+        ``persist()`` is what serializes. ``deepcopy`` here was the PLAN-09
+        cost center.
+        """
         return [
             {
                 "agent_id": agent_id,
-                "turn_history": deepcopy(snapshot.turn_history),
-                "committed_messages": deepcopy(snapshot.committed_messages),
-                "conversation_chunks": deepcopy(snapshot.conversation_chunks),
-                "working_messages": deepcopy(snapshot.working_messages),
+                "turn_history": list(snapshot.turn_history),
+                "committed_messages": _shallow_maps(snapshot.committed_messages),
+                "conversation_chunks": snapshot.conversation_chunks,
+                "working_messages": _shallow_maps(snapshot.working_messages),
                 "open_tool_call_id": snapshot.open_tool_call_id,
                 "synced_tool_result_cids": list(snapshot.synced_tool_result_cids),
             }
@@ -114,9 +154,9 @@ class WorkingMemoryRegistry:
                 entry["agent_id"],
                 WorkingMemorySnapshot(
                     turn_history=[tuple(turn) for turn in entry.get("turn_history", [])],
-                    committed_messages=deepcopy(entry.get("committed_messages", [])),
-                    conversation_chunks=deepcopy(entry.get("conversation_chunks")),
-                    working_messages=deepcopy(entry.get("working_messages", [])),
+                    committed_messages=_shallow_maps(entry.get("committed_messages", [])),
+                    conversation_chunks=entry.get("conversation_chunks"),
+                    working_messages=_shallow_maps(entry.get("working_messages", [])),
                     open_tool_call_id=str(entry.get("open_tool_call_id") or ""),
                     synced_tool_result_cids=list(entry.get("synced_tool_result_cids", [])),
                 ),
@@ -137,9 +177,9 @@ def snapshot_ctx(ctx: "AutoCtxAssembler") -> WorkingMemorySnapshot:
     working_memory = getattr(ctx, "working_memory", None)
     return WorkingMemorySnapshot(
         turn_history=list(ctx.turn_history),
-        committed_messages=list(ctx.committed_messages),
+        committed_messages=_shallow_maps(ctx.committed_messages),
         conversation_chunks=chunks_dict,
-        working_messages=deepcopy(getattr(working_memory, "messages", [])),
+        working_messages=_shallow_maps(getattr(working_memory, "messages", [])),
         open_tool_call_id=str(getattr(working_memory, "_open_tool_call_id", "")),
         synced_tool_result_cids=sorted(
             getattr(working_memory, "_synced_tool_result_cids", set())
@@ -150,11 +190,11 @@ def snapshot_ctx(ctx: "AutoCtxAssembler") -> WorkingMemorySnapshot:
 def restore_ctx(ctx: "AutoCtxAssembler", snapshot: WorkingMemorySnapshot) -> None:
     """Replace ``ctx``'s cross-turn conversation buffer with a saved snapshot."""
     ctx.turn_history = list(snapshot.turn_history)
-    ctx.committed_messages = list(snapshot.committed_messages)
+    ctx.committed_messages = _shallow_maps(snapshot.committed_messages)
     ctx.conversation_chunks = ConversationChunkStore.from_dict(snapshot.conversation_chunks)
     working_memory = getattr(ctx, "working_memory", None)
     if working_memory is not None:
-        working_memory.messages = deepcopy(snapshot.working_messages)
+        working_memory.messages = _shallow_maps(snapshot.working_messages)
         working_memory._open_tool_call_id = snapshot.open_tool_call_id
         working_memory._synced_tool_result_cids = set(snapshot.synced_tool_result_cids)
 

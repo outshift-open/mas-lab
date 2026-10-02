@@ -97,6 +97,8 @@ class Session:
     spec_revision: int = 0
     snapshot_tree: Any | None = None
     spec_log: Any | None = None
+    snapshot_policy: str = "governance"
+    _capturing_snapshot: bool = field(default=False, repr=False, compare=False)
 
     def pause(self, *, reason: str = "") -> None:
         """Mark the session paused. User turns must refuse until ``resume``."""
@@ -244,8 +246,23 @@ class Session:
             self.spec_revision = int(payload["spec_revision"] or 0)
         return path
 
-    def take_snapshot(self, *, label: str = "", live: bool = True) -> Any:
-        """Cheap in-memory node. Does not touch disk."""
+    def take_snapshot(
+        self,
+        *,
+        label: str = "",
+        live: bool = True,
+        kind: str = "explicit",
+        hook: str = "",
+        decision: str = "",
+        op: str = "",
+        correlation_id: int = 0,
+    ) -> Any:
+        """In-memory CoW node. Does not touch disk.
+
+        Freezes live kernel + working memory (O(1) sharing). The next
+        ``transition`` / ``sync_working_memory_out`` copies only if it writes.
+        """
+        from mas.runtime.session.cow import capture_kernel
         from mas.runtime.session.snapshot import Snapshot, SnapshotRef, SnapshotTree
 
         sync_working_memory_out(
@@ -254,22 +271,42 @@ class Session:
             agent_id=str(getattr(self.controller, "agent_id", "agent")),
             registry=self.working_memory,
         )
-        kernel = self.instance.snapshot()
+        kernel_obj = getattr(self.instance, "kernel", None)
+        if kernel_obj is not None and hasattr(kernel_obj, "q"):
+            cow = capture_kernel(kernel_obj)
+            kernel_payload: Any = cow
+            kernel_version = cow.version
+        else:
+            kernel_payload = self.instance.snapshot()
+            kernel_version = 0
+        wm_version = 0
+        freeze_session = getattr(self.working_memory, "freeze_session", None)
+        if callable(freeze_session):
+            wm_version = freeze_session(self.session_id)
         working_memory = self.working_memory.export_session(self.session_id)
         tree = self.snapshot_tree or SnapshotTree()
         parent = tree.live(self.session_id)
+        seq = tree.next_seq(self.session_id) if hasattr(tree, "next_seq") else 0
         ref = SnapshotRef.from_state(
             session_id=self.session_id,
             parent_snapshot_id=parent.snapshot_id if parent else None,
             turn=int(getattr(self.controller, "_turn", 0)),
-            kernel=kernel,
+            kernel=kernel_payload,
             working_memory=working_memory,
             spec_revision=self.spec_revision,
             label=label,
+            kind=kind,
+            hook=hook,
+            decision=decision,
+            op=op,
+            correlation_id=correlation_id,
+            kernel_version=kernel_version,
+            wm_version=wm_version,
+            seq=seq,
         )
         snap = Snapshot(
             ref=ref,
-            kernel=kernel,
+            kernel=kernel_payload,
             working_memory=list(working_memory),
             spec=self.manifest_ref.content if self.manifest_ref else None,
             spec_revision=self.spec_revision,
@@ -278,9 +315,41 @@ class Session:
             self.snapshot_tree.record(ref, body=snap, live=live)
         return snap
 
+    def on_governance_decision(
+        self,
+        *,
+        hook: str,
+        decision: str,
+        correlation_id: int = 0,
+        op: str = "",
+        tool_name: str = "",
+    ) -> Any | None:
+        """Automatic snapshot at the envelope authorize/validate chokepoint."""
+        if self.snapshot_policy != "governance" or self._capturing_snapshot:
+            return None
+        self._capturing_snapshot = True
+        try:
+            return self.take_snapshot(
+                label=f"gov:{hook}:{decision}:{op or tool_name}",
+                kind="governance",
+                hook=hook,
+                decision=decision,
+                op=op,
+                correlation_id=correlation_id,
+            )
+        finally:
+            self._capturing_snapshot = False
+
     def restore_snapshot(self, snapshot: Any) -> None:
         """Restore kernel, working memory, turn, and spec revision from a node."""
-        self.instance.load_checkpoint(snapshot.kernel)
+        from mas.runtime.session.cow import CowKernel, restore_kernel
+
+        kernel_obj = getattr(self.instance, "kernel", None)
+        if isinstance(getattr(snapshot, "kernel", None), CowKernel) and kernel_obj is not None:
+            restore_kernel(kernel_obj, snapshot.kernel)
+        else:
+            payload = snapshot.kernel_dict() if hasattr(snapshot, "kernel_dict") else snapshot.kernel
+            self.instance.load_checkpoint(payload)
         self.working_memory.restore_session(self.session_id, snapshot.working_memory)
         restore_turn = getattr(self.controller, "restore_turn", None)
         if callable(restore_turn):
