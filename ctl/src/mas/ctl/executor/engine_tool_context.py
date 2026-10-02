@@ -109,6 +109,16 @@ class MaterializedEngineToolContext:
 
         self.ledger.enter(self.session_id, child_agent_id=child_id, parent_agent_id=self.parent_agent_id)
         self._children[child_id] = _Child(instance, shared_obs_plugin_set)
+        parent_ctx = getattr(getattr(parent_instance, "driver", None), "ctx", None) if parent_instance is not None else None
+        spec_log = getattr(self, "spec_log", None) or getattr(parent_ctx, "spec_log", None)
+        if spec_log is not None:
+            latest = spec_log.latest(self.session_id)
+            if latest is not None:
+                instance.spec_revision = latest.revision
+                if driver_ctx is not None:
+                    driver_ctx.spec_revision = latest.revision
+                    driver_ctx.spec_log = spec_log
+                    driver_ctx.current_spec = spec_log.current_spec(self.session_id)
         return child_id
 
     def run_turn(

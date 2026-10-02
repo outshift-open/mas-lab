@@ -37,6 +37,7 @@ Execution kernel, contracts, and plugins (`mas-runtime`, `mas-ctl`).
 | Contracts & Mealy envelope | [Contracts](contracts.md) · [runtime package docs](runtime.md) |
 | Thin waist (plugin vs catalog) | [thin-waist.md](thin-waist.md) |
 | Snapshots vs checkpoints | [snapshots.md](snapshots.md) |
+| Kernel operations | [kernel-primitives.md](kernel-primitives.md) |
 | CLI (`mas-ctl`, `mas-runtime`) | [ctl user guide](https://github.com/outshift-open/mas-lab/blob/main/ctl/docs/user-guide.md) |
 | **Web UI** | [ui/index.md](../ui/index.md) |
 | Run logs | [Observability](../cli/observability.md) |

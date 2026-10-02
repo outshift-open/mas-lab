@@ -199,3 +199,33 @@ class SessionControl:
             },
         )
         return child.ref.snapshot_id
+
+    def disable_tool(self, session_id: str, *, name: str, reason: str) -> int:
+        session = self._require("disable_tool", session_id)
+        from mas.runtime.session.spec_revision import SpecDelta
+        from mas.runtime.session.state import ManifestRef
+
+        rev = self._manager.spec_log.apply(
+            session_id,
+            SpecDelta("disable_tool", {"name": name}),
+            actor=self.capability.actor,
+            reason=reason,
+        )
+        session.spec_revision = rev.revision
+        session.manifest_ref = ManifestRef.from_content(self._manager.spec_log.current_manifest(session_id))
+        ctx = getattr(getattr(session.instance, "driver", None), "ctx", None)
+        if ctx is not None:
+            from mas.runtime.engine.tools import is_spawn_subagent_enabled, spawn_subagent_params
+
+            spec = self._manager.spec_log.current_spec(session_id)
+            ctx.current_spec = spec
+            ctx.allow_subagent_spawning = is_spawn_subagent_enabled(spec)
+            ctx.subagent_templates = list((spawn_subagent_params(spec) or {}).get("templates") or [])
+        self._trace(
+            "disable_tool",
+            session_id,
+            kind="spec_revised",
+            reason=reason,
+            payload={"revision": rev.revision, "hash": rev.content_hash, "tool": name},
+        )
+        return rev.revision

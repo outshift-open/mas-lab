@@ -96,6 +96,7 @@ class Session:
     pause_reason: str = ""
     spec_revision: int = 0
     snapshot_tree: Any | None = None
+    spec_log: Any | None = None
 
     def pause(self, *, reason: str = "") -> None:
         """Mark the session paused. User turns must refuse until ``resume``."""
@@ -288,6 +289,12 @@ class Session:
             self.spec_revision = int(snapshot.spec_revision)
         if snapshot.spec is not None:
             self.manifest_ref = ManifestRef.from_content(snapshot.spec)
+            if self.spec_log is not None:
+                self.spec_log.restore_manifest(
+                    self.session_id,
+                    snapshot.spec,
+                    int(snapshot.spec_revision or 0),
+                )
         if self.snapshot_tree is not None:
             self.snapshot_tree.set_live(self.session_id, snapshot.ref.snapshot_id)
 

@@ -115,7 +115,7 @@ def test_system_tool_entry_enables_the_tool_without_loading_a_module(calculator_
 
 
 def test_system_tool_registry_supports_new_registered_tool_names(calculator_tool_tree: Path):
-    from mas.runtime.registry import get_registry, register_plugin
+    from mas.runtime.registry import register_plugin, unregister_plugin
 
     urn = "mas.system_tool.dynamic_system_tool"
     try:
@@ -134,7 +134,7 @@ def test_system_tool_registry_supports_new_registered_tool_names(calculator_tool
         ]
         assert provider.call_tool("dynamic_system_tool", {}) == "registered"
     finally:
-        get_registry()._entries.pop(urn, None)
+        unregister_plugin(urn)
 
 
 def test_system_tool_enabled_false_disables_an_explicit_tool(calculator_tool_tree: Path):
@@ -215,7 +215,7 @@ def test_manifest_tool_attachment_hides_spawn_without_capability(tmp_path: Path)
 def test_system_tool_registry_default_enabled_is_effective_and_overridable(
     calculator_tool_tree: Path,
 ):
-    from mas.runtime.registry import get_registry, register_plugin
+    from mas.runtime.registry import register_plugin, unregister_plugin
 
     urn = "mas.system_tool.default_enabled_system_tool"
     try:
@@ -235,7 +235,7 @@ def test_system_tool_registry_default_enabled_is_effective_and_overridable(
         )
         assert disabled_provider.list_openai_tools() == []
     finally:
-        get_registry()._entries.pop(urn, None)
+        unregister_plugin(urn)
 
 
 def test_ref_entry_params_override_yaml_impl_params(tmp_path: Path):

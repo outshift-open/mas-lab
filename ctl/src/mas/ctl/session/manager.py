@@ -16,6 +16,7 @@ from mas.runtime.boundary.context.working_memory_registry import WorkingMemoryRe
 from mas.runtime.boundary.control.contract import ControlCapability, ControlEvent
 from mas.runtime.session import ManifestRef, Session, SessionLineage, SessionStatus
 from mas.runtime.session.snapshot import SnapshotTree
+from mas.runtime.session.spec_revision import SpecRevisionLog
 from mas.runtime.spec.checkpoint import parse_checkpoint_policy
 from mas.runtime.spec.gov import parse_gov_spec
 
@@ -31,6 +32,7 @@ class SessionManager:
     sessions: dict[str, Session] = field(default_factory=dict)
     turn_queue: TurnInputQueue = field(default_factory=TurnInputQueue)
     snapshot_tree: SnapshotTree = field(default_factory=SnapshotTree)
+    spec_log: SpecRevisionLog = field(default_factory=SpecRevisionLog)
     control_events: list[ControlEvent] = field(default_factory=list)
 
     def create(
@@ -57,8 +59,11 @@ class SessionManager:
                 parse_gov_spec((manifest_content.get("spec") or {}).get("governance")).backtrack or {}
             ),
         )
-        self._attach_controller(session)
         session.snapshot_tree = self.snapshot_tree
+        session.spec_log = self.spec_log
+        rev = self.spec_log.materialize(resolved_id, manifest_content)
+        session.spec_revision = rev.revision
+        self._attach_controller(session)
         self.sessions[resolved_id] = session
         return session
 
@@ -76,6 +81,7 @@ class SessionManager:
         self.sessions.pop(session_id, None)
         self.turn_queue.clear_session(session_id)
         self.snapshot_tree.clear_session(session_id)
+        self.spec_log.clear_session(session_id)
 
     def get(self, session_id: str) -> Session:
         """Return a managed session or raise a descriptive lookup error."""
@@ -203,6 +209,13 @@ class SessionManager:
         controller.restore_turn(int(payload.get("turn", 0)))
         self._attach_controller(session)
         session.snapshot_tree = self.snapshot_tree
+        session.spec_log = self.spec_log
+        rev = self.spec_log.materialize(session_id, manifest_content)
+        if "spec_revision" in payload:
+            session.spec_revision = int(payload["spec_revision"] or 0)
+            session.spec_log.restore_manifest(session_id, manifest_content, session.spec_revision)
+        else:
+            session.spec_revision = rev.revision
         self.sessions[session_id] = session
         return session
 
@@ -211,6 +224,12 @@ class SessionManager:
         session.controller.working_memory_registry = session.working_memory
         session.controller.managed_session = session
         session.controller.turn_queue = self.turn_queue
+        ctx = getattr(getattr(session.instance, "driver", None), "ctx", None)
+        if ctx is not None:
+            ctx.session_id = session.session_id
+            ctx.spec_log = self.spec_log
+            ctx.managed_session = session
+            ctx.current_spec = self.spec_log.current_spec(session.session_id)
         if self.checkpoint_store is not None:
             session.controller.checkpoint_store = self.checkpoint_store
 

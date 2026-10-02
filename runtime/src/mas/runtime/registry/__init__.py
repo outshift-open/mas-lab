@@ -196,6 +196,23 @@ class PluginRegistry:
         for sc in list(entry.shortcuts):
             self.register_alias(sc, entry.urn)
 
+    def unregister(self, urn: str) -> None:
+        """Drop a plugin and its type-index / alias rows. Tests and live spec use this."""
+        entry = self._entries.pop(urn, None)
+        if entry is None:
+            return
+        plugin_type = self._entry_type(entry)
+        bucket = self._by_type.get(plugin_type) if plugin_type else None
+        if bucket:
+            remaining = [item for item in bucket if item.urn != urn]
+            if remaining:
+                self._by_type[plugin_type] = remaining
+            else:
+                self._by_type.pop(plugin_type, None)
+        for alias, target in list(self._aliases.items()):
+            if target == urn:
+                del self._aliases[alias]
+
     def register_type(self, plugin_type: str) -> None:
         self._known_types.add(_canonical_type_name(plugin_type))
 
@@ -496,6 +513,10 @@ def register_plugin(
     )
 
 
+def unregister_plugin(urn: str) -> None:
+    get_registry().unregister(urn)
+
+
 def register_manifest_data(manifest_data: dict[str, Any]) -> None:
     _bootstrap.register_manifest_data(get_registry(), manifest_data)
 
@@ -514,6 +535,7 @@ __all__ = [
     "register_manifest_data",
     "register_manifest_file",
     "register_plugin",
+    "unregister_plugin",
 ]
 
 

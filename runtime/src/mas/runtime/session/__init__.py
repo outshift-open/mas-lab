@@ -3,13 +3,14 @@
 """Runtime session state and checkpoint metadata."""
 
 from mas.runtime.session.state import (
-	BacktrackCapReached,
-	ManifestRef,
-	Session,
-	SessionLineage,
-	SessionStatus,
+    BacktrackCapReached,
+    ManifestRef,
+    Session,
+    SessionLineage,
+    SessionStatus,
 )
 from mas.runtime.session.snapshot import Snapshot, SnapshotRef, SnapshotTree
+from mas.runtime.session.spec_revision import SpecDelta, SpecRevision, SpecRevisionLog
 from mas.runtime.boundary.control.contract import SessionPaused
 
 __all__ = [
@@ -22,4 +23,7 @@ __all__ = [
     "Snapshot",
     "SnapshotRef",
     "SnapshotTree",
+    "SpecDelta",
+    "SpecRevision",
+    "SpecRevisionLog",
 ]

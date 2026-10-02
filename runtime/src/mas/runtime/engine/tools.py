@@ -173,6 +173,35 @@ def openai_tools(
 SPAWN_SUBAGENT_TOOL = "spawn_subagent"
 
 
+def current_spec_for_advertise(ctx: Any | None, fallback: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Advertise/execute from the live spec revision when a session has one."""
+    if ctx is not None:
+        spec_log = getattr(ctx, "spec_log", None)
+        session_id = getattr(ctx, "session_id", None)
+        session = getattr(ctx, "managed_session", None)
+        if spec_log is None and session is not None:
+            spec_log = getattr(session, "spec_log", None)
+            session_id = session_id or getattr(session, "session_id", None)
+        if spec_log is not None and session_id:
+            current = spec_log.current_spec(str(session_id))
+            if current:
+                return current
+        cached = getattr(ctx, "current_spec", None)
+        if isinstance(cached, dict) and cached:
+            return dict(cached)
+    return dict(fallback or {})
+
+
+def disabled_tool_names(spec: dict[str, Any] | None) -> frozenset[str]:
+    names: set[str] = set()
+    for tool in (spec or {}).get("tools") or []:
+        if isinstance(tool, dict) and tool.get("enabled") is False:
+            name = str(tool.get("name") or "").strip()
+            if name:
+                names.add(name)
+    return frozenset(names)
+
+
 def is_spawn_subagent_enabled(spec: dict[str, Any] | None) -> bool:
     """True when the bound spec advertises an enabled ``spawn_subagent`` tool."""
     return spawn_subagent_params(spec) is not None
