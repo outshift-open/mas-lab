@@ -66,3 +66,37 @@ async def test_live_engine_ainvoke_rejects_provider_without_achat_completion():
     ret = await engine.ainvoke(InvokeEngineIo(correlation_id=1, op="LLM_CALL"))
     assert ret.response_kind == "ERROR"
     assert "achat_completion" in (ret.text or "")
+
+
+@pytest.mark.asyncio
+async def test_achat_completion_stream_emits_llm_delta_and_assembles():
+    seen: list[str] = []
+
+    class _StreamProvider:
+        kind = "openai"
+
+        def chat_completion(self, **kwargs):
+            return {"role": "assistant", "content": "ab", "finish_reason": "stop"}
+
+        async def achat_completion(self, **kwargs):
+            return {"role": "assistant", "content": "ab", "finish_reason": "stop"}
+
+        async def achat_completion_stream(self, **kwargs):
+            yield {"delta": "a"}
+            yield {"delta": "b"}
+
+    class _Obs:
+        def record_session(self, kind: str, **fields):
+            if kind == "llm_delta":
+                seen.append(str(fields.get("text") or ""))
+
+    engine = LiveLlmEngine(
+        llm_provider=_StreamProvider(),
+        use_cache=False,
+        model="stub",
+        stream=True,
+        ctx=type("C", (), {"observability": _Obs()})(),
+    )
+    ret = await engine.ainvoke(InvokeEngineIo(correlation_id=1, op="LLM_CALL"))
+    assert ret.text == "ab"
+    assert seen == ["a", "b"]

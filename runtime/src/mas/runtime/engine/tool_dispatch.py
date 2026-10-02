@@ -85,6 +85,18 @@ def format_tool_result(result: Any) -> str:
     return str(result)
 
 
+def _sandbox_for(ctx: Any, sandbox: Any) -> Any:
+    if sandbox is not None:
+        return sandbox
+    if ctx is not None:
+        found = getattr(ctx, "execute_sandbox", None)
+        if found is not None:
+            return found
+    from mas.runtime.boundary.sandbox import PassthroughSandbox
+
+    return PassthroughSandbox()
+
+
 def execute_engine_tool(
     tool: str,
     *,
@@ -96,31 +108,37 @@ def execute_engine_tool(
     tool_provider: ManifestToolProvider | None = None,
     correlation_id: int = 0,
     caller_call_id: str = "",
+    sandbox: Any = None,
 ) -> str:
-    contracts = list(engine_contracts)
-    if delegation is not None:
-        contracts.insert(0, _DelegationEngineTool(delegation))
-    for contract in contracts:
-        if contract.claims(tool):
-            return contract.call(
+    box = _sandbox_for(ctx, sandbox)
+
+    def _body() -> str:
+        contracts = list(engine_contracts)
+        if delegation is not None:
+            contracts.insert(0, _DelegationEngineTool(delegation))
+        for contract in contracts:
+            if contract.claims(tool):
+                return contract.call(
+                    tool,
+                    arguments or {},
+                    ctx=ctx,
+                    correlation_id=correlation_id,
+                    caller_call_id=caller_call_id,
+                )
+        if tool_provider is None:
+            raise ToolExecutionError(f"No manifest tool provider configured; cannot execute {tool!r}")
+        try:
+            result = tool_provider.call_tool(
                 tool,
                 arguments or {},
                 ctx=ctx,
-                correlation_id=correlation_id,
-                caller_call_id=caller_call_id,
+                user=user,
             )
-    if tool_provider is None:
-        raise ToolExecutionError(f"No manifest tool provider configured; cannot execute {tool!r}")
-    try:
-        result = tool_provider.call_tool(
-            tool,
-            arguments or {},
-            ctx=ctx,
-            user=user,
-        )
-    except (ManifestToolLoadError, UnclaimedToolError, ExplicitToolUnavailableError) as exc:
-        raise ToolExecutionError(str(exc)) from exc
-    return format_tool_result(result)
+        except (ManifestToolLoadError, UnclaimedToolError, ExplicitToolUnavailableError) as exc:
+            raise ToolExecutionError(str(exc)) from exc
+        return format_tool_result(result)
+
+    return box.run(_body, tool_name=tool)
 
 
 async def aexecute_engine_tool(
@@ -134,43 +152,50 @@ async def aexecute_engine_tool(
     tool_provider: ManifestToolProvider | None = None,
     correlation_id: int = 0,
     caller_call_id: str = "",
+    sandbox: Any = None,
 ) -> str:
     """Async twin of :func:`execute_engine_tool`.
 
     Routes to ``acall`` / ``adelegate`` / ``aspawn`` when present so nested
     agent turns can overlap. Local manifest tools stay on the sync
-    ``call_tool`` path — they are not network I/O.
+    ``call_tool`` path — they are not network I/O. ExecuteSandbox wraps the
+    body after ALLOW; it is not a new envelope symbol.
     """
-    contracts = list(engine_contracts)
-    if delegation is not None:
-        contracts.insert(0, _DelegationEngineTool(delegation))
-    for contract in contracts:
-        if contract.claims(tool):
-            acall = getattr(contract, "acall", None)
-            if callable(acall):
-                return await acall(
+    box = _sandbox_for(ctx, sandbox)
+
+    async def _body() -> str:
+        contracts = list(engine_contracts)
+        if delegation is not None:
+            contracts.insert(0, _DelegationEngineTool(delegation))
+        for contract in contracts:
+            if contract.claims(tool):
+                acall = getattr(contract, "acall", None)
+                if callable(acall):
+                    return await acall(
+                        tool,
+                        arguments or {},
+                        ctx=ctx,
+                        correlation_id=correlation_id,
+                        caller_call_id=caller_call_id,
+                    )
+                return contract.call(
                     tool,
                     arguments or {},
                     ctx=ctx,
                     correlation_id=correlation_id,
                     caller_call_id=caller_call_id,
                 )
-            return contract.call(
+        if tool_provider is None:
+            raise ToolExecutionError(f"No manifest tool provider configured; cannot execute {tool!r}")
+        try:
+            result = tool_provider.call_tool(
                 tool,
                 arguments or {},
                 ctx=ctx,
-                correlation_id=correlation_id,
-                caller_call_id=caller_call_id,
+                user=user,
             )
-    if tool_provider is None:
-        raise ToolExecutionError(f"No manifest tool provider configured; cannot execute {tool!r}")
-    try:
-        result = tool_provider.call_tool(
-            tool,
-            arguments or {},
-            ctx=ctx,
-            user=user,
-        )
-    except (ManifestToolLoadError, UnclaimedToolError, ExplicitToolUnavailableError) as exc:
-        raise ToolExecutionError(str(exc)) from exc
-    return format_tool_result(result)
+        except (ManifestToolLoadError, UnclaimedToolError, ExplicitToolUnavailableError) as exc:
+            raise ToolExecutionError(str(exc)) from exc
+        return format_tool_result(result)
+
+    return await box.arun(_body, tool_name=tool)

@@ -67,6 +67,8 @@ LIBRARY_TYPES = frozenset(
         "agent_expose",
         "webserver",
         "harness",
+        "related_state",
+        "execute_sandbox",
     }
 )
 

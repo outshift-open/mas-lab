@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -370,6 +371,15 @@ class LiveLlmEngine:
                 tools=tools,
                 temperature=0.0 if answering_from_tools else self.temperature,
             )
+        except asyncio.CancelledError:
+            return EngineIoReturn(
+                correlation_id=io.correlation_id,
+                response_kind="ERROR",
+                next_step="STOP",
+                text="cancelled",
+                finish_reason="cancelled",
+                offered_tools=list(self._offered_tool_names),
+            )
         except Exception as exc:
             logger.debug("LLM provider call failed", exc_info=True)
             return EngineIoReturn(
@@ -559,4 +569,34 @@ class LiveLlmEngine:
                 f"LLM provider {type(provider).__name__} has no achat_completion "
                 "(async twin of chat_completion is required; worker-thread fallback is not supported)"
             )
+        stream_iter = getattr(provider, "achat_completion_stream", None)
+        if callable(stream_iter) and kwargs.get("stream"):
+            return await self._achat_completion_streamed(stream_iter, kwargs)
         return await provider.achat_completion(**kwargs)
+
+    async def _achat_completion_streamed(self, stream_iter: Any, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Yielded chunks are obs ``llm_delta``, not Mealy ticks. Cancel between awaits."""
+        assembled: dict[str, Any] | None = None
+        parts: list[str] = []
+        async for chunk in stream_iter(**kwargs):
+            text = ""
+            if isinstance(chunk, dict) and ("role" in chunk or "tool_calls" in chunk) and "delta" not in chunk:
+                assembled = chunk
+                text = str(chunk.get("content") or "")
+            elif isinstance(chunk, dict):
+                text = str(chunk.get("delta") or chunk.get("content") or "")
+                parts.append(text)
+            else:
+                text = str(chunk)
+                parts.append(text)
+            if text:
+                self._emit_llm_delta(text)
+        if assembled is not None:
+            return assembled
+        return {"role": "assistant", "content": "".join(parts), "finish_reason": "stop"}
+
+    def _emit_llm_delta(self, text: str) -> None:
+        op = getattr(self.ctx, "observability", None) if self.ctx is not None else None
+        record = getattr(op, "record_session", None) if op is not None else None
+        if callable(record):
+            record("llm_delta", text=text)

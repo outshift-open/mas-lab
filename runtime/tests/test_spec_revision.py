@@ -107,8 +107,15 @@ def test_three_surfaces_same_event_kinds() -> None:
             names = [t["name"] for t in tools.on_collect_tools(ctx=ctx)]
             assert "pause_session" in names
             assert "list_checkpoints" in names
-            assert "navigate" not in names
+            assert "navigate_checkpoint" in names
+            assert "inspect_session" in names
+            assert "cancel_inflight" in names
             tools.on_execute_tool("list_checkpoints", {})
+            tools.on_execute_tool("inspect_session", {})
+            tools.on_execute_tool(
+                "navigate_checkpoint",
+                {"to": origin.ref.snapshot_id, "reason": "llm-walk"},
+            )
     inspects = [e for e in manager.control_events if e.kind == "checkpoint_inspected"]
     navigates = [e for e in manager.control_events if e.kind == "checkpoint_navigated"]
     pauses = [e for e in manager.control_events if e.kind == "session_paused"]

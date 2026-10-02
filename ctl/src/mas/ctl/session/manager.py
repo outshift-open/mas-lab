@@ -217,6 +217,9 @@ class SessionManager:
         else:
             session.spec_revision = rev.revision
         self.sessions[session_id] = session
+        from mas.runtime.boundary.related_state import restore_all
+
+        restore_all(session.related_state, session_id, payload.get("related") or [])
         return session
 
     def _attach_controller(self, session: Session) -> None:
@@ -230,6 +233,7 @@ class SessionManager:
             ctx.spec_log = self.spec_log
             ctx.managed_session = session
             ctx.current_spec = self.spec_log.current_spec(session.session_id)
+            ctx.execute_sandbox = session.execute_sandbox
         if self.checkpoint_store is not None:
             session.controller.checkpoint_store = self.checkpoint_store
         kernel = getattr(session.instance, "kernel", None)

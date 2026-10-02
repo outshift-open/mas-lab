@@ -98,6 +98,9 @@ class Session:
     snapshot_tree: Any | None = None
     spec_log: Any | None = None
     snapshot_policy: str = "governance"
+    related_state: list[Any] = field(default_factory=list)
+    execute_sandbox: Any | None = None
+    lineage_events: list[dict[str, Any]] = field(default_factory=list)
     _capturing_snapshot: bool = field(default=False, repr=False, compare=False)
 
     def pause(self, *, reason: str = "") -> None:
@@ -204,6 +207,7 @@ class Session:
                 working_memory=list(payload.get("working_memory") or []),
                 spec=self.manifest_ref.content if self.manifest_ref else None,
                 spec_revision=self.spec_revision,
+                related=list(payload.get("related") or []),
             ),
             live=True,
         )
@@ -287,6 +291,9 @@ class Session:
         tree = self.snapshot_tree or SnapshotTree()
         parent = tree.live(self.session_id)
         seq = tree.next_seq(self.session_id) if hasattr(tree, "next_seq") else 0
+        from mas.runtime.boundary.related_state import capture_all
+
+        related = capture_all(self.related_state, self.session_id)
         ref = SnapshotRef.from_state(
             session_id=self.session_id,
             parent_snapshot_id=parent.snapshot_id if parent else None,
@@ -303,6 +310,7 @@ class Session:
             kernel_version=kernel_version,
             wm_version=wm_version,
             seq=seq,
+            related_fingerprints=[r.fingerprint for r in related],
         )
         snap = Snapshot(
             ref=ref,
@@ -310,6 +318,29 @@ class Session:
             working_memory=list(working_memory),
             spec=self.manifest_ref.content if self.manifest_ref else None,
             spec_revision=self.spec_revision,
+            related=related,
+        )
+        self.lineage_events.append(
+            {
+                "kind": "snapshot_recorded",
+                "session_id": self.session_id,
+                "payload": {
+                    "snapshot_id": ref.snapshot_id,
+                    "parent_snapshot_id": ref.parent_snapshot_id,
+                    "turn": ref.turn,
+                    "label": ref.label,
+                    "kind": ref.kind,
+                    "hook": ref.hook,
+                    "decision": ref.decision,
+                    "op": ref.op,
+                    "correlation_id": ref.correlation_id,
+                    "spec_revision": ref.spec_revision,
+                    "state_digest": ref.state_digest,
+                    "seq": ref.seq,
+                    "live": live,
+                    "related": [r.as_payload() for r in related],
+                },
+            }
         )
         if self.snapshot_tree is not None:
             self.snapshot_tree.record(ref, body=snap, live=live)
@@ -366,6 +397,9 @@ class Session:
                 )
         if self.snapshot_tree is not None:
             self.snapshot_tree.set_live(self.session_id, snapshot.ref.snapshot_id)
+        from mas.runtime.boundary.related_state import restore_all
+
+        restore_all(self.related_state, self.session_id, getattr(snapshot, "related", None))
 
     def persist_snapshot(self, snapshot: Any, store: CheckpointStore) -> Path:
         from mas.runtime.session.snapshot import persist

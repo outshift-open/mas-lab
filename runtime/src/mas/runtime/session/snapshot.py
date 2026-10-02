@@ -65,6 +65,7 @@ class SnapshotRef:
         kernel_version: int = 0,
         wm_version: int = 0,
         seq: int = 0,
+        related_fingerprints: list[str] | tuple[str, ...] | None = None,
     ) -> SnapshotRef:
         taken_at = datetime.now(UTC).isoformat()
         from mas.runtime.session.cow import CowKernel
@@ -77,6 +78,7 @@ class SnapshotRef:
                 "wm_version": wm_version,
                 "spec_revision": spec_revision,
                 "turn": turn,
+                "related": list(related_fingerprints or ()),
             }
         )
         snapshot_id = _canonical_hash(
@@ -120,6 +122,7 @@ class Snapshot:
     working_memory: list[Any]
     spec: dict[str, Any] | None = None
     spec_revision: int | None = None
+    related: list[Any] = field(default_factory=list)
 
     def kernel_dict(self) -> dict[str, Any]:
         from mas.runtime.session.cow import CowKernel
@@ -225,6 +228,66 @@ class SnapshotTree:
         for snapshot_id in bodies:
             self._bodies.pop(snapshot_id, None)
 
+    @classmethod
+    def from_events(cls, events: list[Any], *, session_id: str | None = None) -> SnapshotTree:
+        """Rebuild refs from τ / control events. Bodies are not recovered."""
+        tree = cls()
+        for event in events:
+            payload = _event_payload(event)
+            kind = _event_kind(event)
+            if kind not in {"snapshot_recorded", "checkpoint_navigated", "branch_opened"}:
+                continue
+            sid = str(payload.get("session_id") or getattr(event, "session_id", "") or session_id or "")
+            if not sid:
+                continue
+            if kind == "checkpoint_navigated" and payload.get("denied"):
+                continue
+            snapshot_id = str(payload.get("snapshot_id") or payload.get("to") or payload.get("child") or "")
+            if not snapshot_id:
+                continue
+            ref = SnapshotRef(
+                snapshot_id=snapshot_id,
+                session_id=sid,
+                parent_snapshot_id=payload.get("parent_snapshot_id") or payload.get("from"),
+                turn=int(payload.get("turn") or 0),
+                taken_at=str(payload.get("taken_at") or getattr(event, "taken_at", "") or ""),
+                spec_revision=payload.get("spec_revision"),
+                label=str(payload.get("label") or ""),
+                kind=str(payload.get("kind") or "explicit"),
+                hook=str(payload.get("hook") or ""),
+                decision=str(payload.get("decision") or ""),
+                op=str(payload.get("op") or ""),
+                correlation_id=int(payload.get("correlation_id") or 0),
+                state_digest=str(payload.get("state_digest") or ""),
+                seq=int(payload.get("seq") or 0),
+            )
+            live = bool(payload.get("live", True)) and kind != "checkpoint_navigated"
+            tree.record(ref, live=live)
+            if kind == "checkpoint_navigated" and not payload.get("denied"):
+                try:
+                    tree.set_cursor(sid, snapshot_id)
+                except KeyError:
+                    pass
+        return tree
+
+
+def _event_kind(event: Any) -> str:
+    if isinstance(event, dict):
+        return str(event.get("kind") or "")
+    return str(getattr(event, "kind", "") or "")
+
+
+def _event_payload(event: Any) -> dict[str, Any]:
+    if isinstance(event, dict):
+        payload = dict(event.get("payload") or {})
+        if "session_id" not in payload and event.get("session_id"):
+            payload["session_id"] = event["session_id"]
+        return payload
+    payload = dict(getattr(event, "payload", None) or {})
+    if "session_id" not in payload:
+        payload["session_id"] = getattr(event, "session_id", "")
+    return payload
+
 
 def persist(snapshot: Snapshot, store: Any, *, manifest: dict[str, Any], lineage: dict[str, Any], backtrack_count: int = 0) -> Any:
     """Write a Snapshot through PLAN-02's CheckpointStore. Disk is optional."""
@@ -240,6 +303,9 @@ def persist(snapshot: Snapshot, store: Any, *, manifest: dict[str, Any], lineage
         "lineage": lineage,
         "kernel": snapshot.kernel_dict(),
         "working_memory": snapshot.working_memory,
+        "related": [
+            r.as_payload() if hasattr(r, "as_payload") else r for r in (snapshot.related or [])
+        ],
         "manifest": {"content": ref.content, "content_hash": ref.content_hash},
     }
     label = snapshot.ref.label or f"turn-{snapshot.ref.turn:04d}"

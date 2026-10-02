@@ -747,11 +747,35 @@ class KernelDriver:
             )
 
     async def _ainvoke_engine(self, io: InvokeEngineIo) -> EngineIoReturn:
-        """Async twin of :meth:`_invoke_engine` — awaits ``engine.ainvoke``."""
+        """Async twin of :meth:`_invoke_engine` — awaits ``engine.ainvoke``.
+
+        PLAN-08 v2 hard interrupt cancels the inner LLM task only. Tools are
+        not rolled back. An outer cancellation of this driver still propagates.
+        """
         if self.engine is None:
             raise RuntimeError("no engine configured")
+        from mas.runtime.engine.inflight_llm import clear as clear_inflight
+        from mas.runtime.engine.inflight_llm import register as register_inflight_llm
+
+        inner = asyncio.create_task(self.engine.ainvoke(io))
+        register_inflight_llm(self.session_id, inner)
         try:
-            return await self.engine.ainvoke(io)
+            return await inner
+        except asyncio.CancelledError:
+            if inner.cancelled():
+                return EngineIoReturn(
+                    correlation_id=io.correlation_id,
+                    response_kind="ERROR",
+                    next_step="STOP",
+                    text="cancelled",
+                    finish_reason="cancelled",
+                )
+            inner.cancel()
+            try:
+                await inner
+            except (asyncio.CancelledError, Exception):
+                pass
+            raise
         except Exception as exc:
             return EngineIoReturn(
                 correlation_id=io.correlation_id,
@@ -759,6 +783,8 @@ class KernelDriver:
                 next_step="STOP",
                 text=str(exc),
             )
+        finally:
+            clear_inflight(self.session_id)
 
     def _dispatch_engine_batch(self, ios: list[InvokeEngineIo], trace: DriverTrace) -> list[IngressSymbol]:
         q = self.kernel.q

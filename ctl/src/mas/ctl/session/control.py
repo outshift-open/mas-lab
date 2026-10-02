@@ -184,6 +184,20 @@ class SessionControl:
         self._manager.turn_queue.cancel(session_id, input_id)
         self._trace("cancel_queued", session_id, kind="input_cancelled", payload={"input_id": input_id})
 
+    def cancel_inflight(self, session_id: str) -> bool:
+        """Cancel the in-flight LLM ``ainvoke``. Tools stay soft-interrupt only."""
+        self._require("cancel_inflight", session_id)
+        from mas.runtime.engine.inflight_llm import cancel as cancel_llm
+
+        cancelled = cancel_llm(session_id)
+        self._trace(
+            "cancel_inflight",
+            session_id,
+            kind="inflight_cancelled",
+            payload={"cancelled": cancelled},
+        )
+        return cancelled
+
     def fork_investigation(self, session_id: str) -> str:
         session = self._require("fork_investigation", session_id)
         origin = session.take_snapshot(label="investigate-origin")
