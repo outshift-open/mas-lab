@@ -256,6 +256,8 @@ def test_openai_provider_streams_content_chunks(monkeypatch) -> None:
 class _FakePostResponse:
     def __init__(self, message: dict) -> None:
         self._message = message
+        self.status_code = 200
+        self.request = None
 
     def raise_for_status(self) -> None:
         return None
@@ -273,6 +275,14 @@ class _FakePostClient:
     def post(self, url: str, json: object, headers: object, params: object = None):
         _FakePostClient.last_json = json if isinstance(json, dict) else None
         return _FakePostResponse(self._message)
+
+    def request(self, method: str, url: str, **kwargs):
+        return self.post(
+            url,
+            json=kwargs.get("json"),
+            headers=kwargs.get("headers"),
+            params=kwargs.get("params"),
+        )
 
     def __enter__(self) -> "_FakePostClient":
         return self
@@ -434,6 +444,14 @@ async def test_openai_achat_completion_uses_shared_request_builder(monkeypatch) 
         async def post(self, url: str, json: object, headers: object, params: object = None):
             _AsyncPostClient.last_json = json if isinstance(json, dict) else None
             return _FakePostResponse(message)
+
+        async def request(self, method: str, url: str, **kwargs):
+            return await self.post(
+                url,
+                json=kwargs.get("json"),
+                headers=kwargs.get("headers"),
+                params=kwargs.get("params"),
+            )
 
     monkeypatch.setattr("httpx.AsyncClient", lambda **kwargs: _AsyncPostClient(**kwargs))
     provider = OpenAILLMProvider(reasoning={"effort": "low", "budget_tokens": 32, "exclude": True})

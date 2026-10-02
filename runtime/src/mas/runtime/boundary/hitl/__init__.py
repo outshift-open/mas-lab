@@ -1,23 +1,7 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Mock HITL operators for tests and simulated runtime."""
+"""HITL operator protocol."""
 
-from mas.runtime.boundary.hitl.responders import (
-    AutoApproveResponder,
-    AutoDenyResponder,
-    AutoTerminateResponder,
-    HitlResponder,
-    MultiOperatorHitlResponder,
-    OperatorPersona,
-    ScriptedHitlResponder,
-)
+from mas.runtime.boundary.hitl.responders import HitlResponder
 
-__all__ = [
-    "AutoApproveResponder",
-    "AutoDenyResponder",
-    "AutoTerminateResponder",
-    "HitlResponder",
-    "MultiOperatorHitlResponder",
-    "OperatorPersona",
-    "ScriptedHitlResponder",
-]
+__all__ = ["HitlResponder"]

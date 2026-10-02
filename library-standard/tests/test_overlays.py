@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 OVERLAYS = (
@@ -47,7 +48,16 @@ def test_every_overlay_is_mas_v1_agent_overlay() -> None:
 def test_with_hardened_appends_gov_no_undeclared_tool() -> None:
     doc = yaml.safe_load((OVERLAYS / "with-hardened.yaml").read_text(encoding="utf-8"))
     add = doc["spec"]["patch"]["governance"]["$op"]["add"]
-    assert "gov_no_undeclared_tool" in add
+    names = [g if isinstance(g, str) else next(iter(g)) for g in add]
+    assert "gov_no_undeclared_tool" in names
+    assert "retry_on_error" in names
+    retry = next(item for item in add if isinstance(item, dict) and "retry_on_error" in item)
+    assert retry["retry_on_error"]["error_recovery_plugin"] == "retry_on_error"
+    assert retry["retry_on_error"]["error_policy"]["transient"] == "retry"
+    control = doc["spec"]["patch"]["control"]["$op"]["merge"]
+    assert control["retry"]["llm"]["max_attempts"] == 4
+    assert control["retry"]["tools"]["require_idempotent"] is True
+    assert control["circuit_breaker"]["on"] == ["unavailable"]
 
 
 def test_observability_native_sets_events_jsonl() -> None:
@@ -55,6 +65,14 @@ def test_observability_native_sets_events_jsonl() -> None:
     obs = doc["spec"]["patch"]["observability"]
     native = next(item for item in obs if isinstance(item, dict) and "native" in item)
     assert native["native"]["path"] == "traces/events.jsonl"
+
+
+def test_hardened_overlay_validates() -> None:
+    pytest.importorskip("jsonschema")
+    from mas.ctl.validate import validate_file
+
+    result = validate_file(OVERLAYS / "with-hardened.yaml", kind="overlay")
+    assert result.ok, result.issues
 
 
 def test_pkg_refs_resolve_to_overlay_files() -> None:
@@ -78,7 +96,8 @@ def test_hardened_stacks_on_existing_governance() -> None:
     }
     merged = merge_overlay(base, overlay)
     names = [g if isinstance(g, str) else next(iter(g)) for g in merged["spec"]["governance"]]
-    assert names == ["sample_governance", "gov_no_undeclared_tool"]
+    assert names == ["sample_governance", "gov_no_undeclared_tool", "retry_on_error"]
+    assert merged["spec"]["control"]["circuit_breaker"]["failure_threshold"] == 5
 
 
 def test_hardened_then_native_keeps_both_patches() -> None:

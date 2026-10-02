@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from mas.runtime.boundary.gov.ingress_plugin import (
     IngressGovDecision,
     IngressIntentView,
-    KernelIngressGovernancePlugin,
+    ingress_from_profile,
 )
 from mas.runtime.boundary.gov.plugin import EgressDecision
 from mas.runtime.boundary.gov.policy import EgressIntentView, resolve_egress_governance
@@ -73,4 +73,4 @@ class SampleGovernancePlugin:
                     "requires human review of every tool result"
                 ),
             )
-        return KernelIngressGovernancePlugin().evaluate_ingress(intent, config=config)
+        return ingress_from_profile(intent)

@@ -16,9 +16,12 @@ The A2A server is a separate ingress adapter. It maps incoming A2A messages to
 
 The public protocol configuration lives in `infra/v1` `Application.spec.endpoints`,
 keyed by the exact agency agent id. The runtime registry category remains
-`agent_comm`; the endpoint's `protocol` selects its implementation. The route
-builder resolves every `delegates_to` target against materialized local agency
-entries and infra endpoints. Missing targets fail during wiring.
+`agent_comm`; the endpoint's `protocol` selects its implementation. The MAS-wide
+in-process comm variant is resolved from `spec.agent_comm` (`protocol` or
+`type`) via `registry.create`, not chosen by the delegation plugin or hardcoded
+in `ctl`. The route builder resolves every `delegates_to` target against
+materialized local agency entries and infra endpoints. Missing targets fail
+during wiring.
 
 ## AgentCard
 

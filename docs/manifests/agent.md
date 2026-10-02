@@ -498,16 +498,24 @@ Structural/semantic flags that affect which system tools and capabilities are ex
 
 _Used by:_ `spec.governance`
 
-An ordered list of governance plugin stanzas (typically applied via overlay). Each entry is either a bare plugin id string or a single-key object mapping the plugin id to its config object.
+Ordered plugin **chain** (BLOCK stops; ALLOW continues). Full page:
+[governance.md](governance.md). Retry / circuit / `error_policy` defaults:
+[reliability.md](../references/reliability.md).
+
+Each entry is a bare plugin id or a single-key config object.
+`error_recovery_plugin` is YAML sugar that installs that plugin on the
+**ingress chain** (one classifier). `error_policy` is that plugin's
+config — the kernel only applies the returned `GovernanceAction`.
 
 ```yaml
 governance:
-  - policy-enforcer                        # bare id
-  - rate-guard:                            # id-keyed config object
-      requests_per_minute: 60
+  - gov_no_undeclared_tool
+  - retry_on_error:
+      error_recovery_plugin: retry_on_error
+      error_policy:
+        transient: retry
+        fatal: block
 ```
-
-Plugin ids are resolved at runtime from the plugin registry. Any registered plugin (built-in or third-party) is valid without editing the schema.
 
 ---
 
@@ -535,12 +543,17 @@ llm:
 
 _Used by:_ `spec.control`
 
-Control-plane plugin configs keyed by plugin id. Set a key to `null` to disable the plugin.
+Control-plane knobs. `retry` is applied by the runtime reliability
+layer (LLM HTTP + tool dispatch). `circuit_breaker` loads a library
+plugin (default `threshold`). `budget` and `rate_limiter` remain plugin
+configs. Set a key to `null` to disable. Full tables:
+[reliability.md](../references/reliability.md).
 
 | Key | Fields | Description |
 | ----- | -------- | ------------- |
 | `budget` | `max_tokens: integer`, `max_cost_usd: number` | Token or cost budget enforcement. |
-| `circuit_breaker` | `failure_threshold: integer`, `reset_timeout_s: number` | Open circuit after `failure_threshold` consecutive failures; reset after `reset_timeout_s`. |
+| `retry` | `llm` / `tools`: `max_attempts`, `backoff_s`, `backoff_multiplier`, `jitter`, `retry_on`, `require_idempotent`, `max_backoff_s` | Infra re-issue budget. LLM default 4 attempts on `transient`+`unavailable` (429/5xx, timeout, connect-refused); tools 2 attempts on `transient`+`unavailable` when idempotent. |
+| `circuit_breaker` | `plugin`, `enabled`, `failure_threshold`, `reset_timeout_s`, `on` | Off unless this key is present. Loads the `threshold` circuit-breaker plugin. |
 | `rate_limiter` | `requests_per_minute: integer` | Limit LLM call rate. |
 
 **Example:**
@@ -549,9 +562,20 @@ Control-plane plugin configs keyed by plugin id. Set a key to `null` to disable 
 control:
   budget:
     max_tokens: 50000
+  retry:
+    llm:
+      max_attempts: 4
+      retry_on: [transient, unavailable]
+  circuit_breaker:
+    failure_threshold: 5
+    reset_timeout_s: 30
+    "on": [unavailable]
   rate_limiter:
     requests_per_minute: 30
 ```
+
+`error_policy` and `error_recovery_plugin` live on a **governance** stanza,
+not under `control` — see [reliability.md](../references/reliability.md#specgovernanceerror_policy--error_recovery_plugin).
 
 ---
 
@@ -592,6 +616,8 @@ curl http://localhost:8090/api/schemas/agent
 
 ## See also
 
+- [Governance](governance.md) — chain and plugins (`spec.governance`)
+- [Reliability](../references/reliability.md) — retries, circuit breaker, defaults, logging
 - [MAS manifest](mas.md) — topology, transport, and delegation
 - [Overlay manifest](overlay.md) — overrides
 - [Tutorial: building an agent](../tutorials/01-building-an-agent/README.md)

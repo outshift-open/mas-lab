@@ -1,8 +1,8 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-# Refuse tool names the model was not given in this LLM call's `tools` list,
-# even when the agent spec lists them. Appended onto the governance chain
-# ($op.add); BLOCK exits the chain, ALLOW passes to the next plugin.
+# Hardened agent posture: refuse undeclared tool names, classify typed
+# failures at ingress, retry transient/unavailable after infra retries,
+# and open a circuit on persistent unavailability.
 apiVersion: mas/v1
 kind: Overlay
 metadata:
@@ -15,3 +15,25 @@ spec:
       $op:
         add:
           - gov_no_undeclared_tool
+          - retry_on_error:
+              error_recovery_plugin: retry_on_error
+              error_policy:
+                transient: retry
+                unavailable: retry
+                application: allow
+                fatal: block
+    control:
+      $op:
+        merge:
+          retry:
+            llm:
+              max_attempts: 4
+              retry_on: [transient, unavailable]
+            tools:
+              max_attempts: 2
+              retry_on: [transient, unavailable]
+              require_idempotent: true
+          circuit_breaker:
+            failure_threshold: 5
+            reset_timeout_s: 30
+            "on": [unavailable]

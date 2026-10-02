@@ -9,7 +9,9 @@ Governance plugins raise `PolicyViolation` to deny; the kernel maps decisions
 to egress chokepoints.
 
 See also: [governance-policy-engine.md](../../governance-policy-engine.md) ·
-[semantic-protocols.md](../../semantic-protocols.md) · [mealy-envelope.md](../../mealy-envelope.md)
+[semantic-protocols.md](../../semantic-protocols.md) · [mealy-envelope.md](../../mealy-envelope.md) ·
+user reference [governance.md](../../../docs/manifests/governance.md) ·
+[reliability.md](../../../docs/references/reliability.md) (retries, `error_policy`, logging).
 
 ---
 

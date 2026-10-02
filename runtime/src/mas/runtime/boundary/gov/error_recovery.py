@@ -28,6 +28,8 @@ class IngressErrorContext:
     retry_count: int
     max_retries: int
     profile: GovIngressProfile
+    failure_class: str = ""
+    failure_code: str = ""
 
 
 @dataclass(frozen=True)

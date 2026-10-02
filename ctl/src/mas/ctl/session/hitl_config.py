@@ -15,17 +15,22 @@ from __future__ import annotations
 from typing import Any
 
 from mas.ctl.manifest.spec_bindings import parse_governance
-from mas.runtime.boundary.hitl.responders import (
-    AutoApproveResponder,
-    AutoDenyResponder,
-    HitlResponder,
-)
+from mas.runtime.boundary.hitl.responders import HitlResponder
+from mas.runtime.registry import get_registry
 
-_HITL_MODE_PLUGINS: dict[str, HitlResponder | None] = {
-    "auto-approve": AutoApproveResponder(),
-    "auto-deny": AutoDenyResponder(),
-    "interactive": None,
-}
+
+def _load_hitl_responder(mode: str) -> HitlResponder | None:
+    key = (mode or "").strip().lower()
+    if not key or key == "interactive":
+        return None
+    variant = get_registry().resolve_by_type("hitl_responder", key)
+    if variant is None:
+        names = get_registry().list_names("hitl_responder")
+        raise ValueError(
+            f"unsupported spec.governance.hitl_mode: {mode!r}; "
+            f"expected one of {sorted([*names, 'interactive'])}"
+        )
+    return variant.load_class()()
 
 
 def resolve_hitl_from_manifest(
@@ -44,11 +49,5 @@ def resolve_hitl_from_manifest(
 
     mode = (getattr(gov, "hitl_mode", None) or "interactive").strip().lower()
     if mode == "interactive" and not session_interactive:
-        return AutoApproveResponder(), None
-    responder = _HITL_MODE_PLUGINS.get(mode)
-    if responder is None and mode != "interactive":
-        raise ValueError(
-            f"unsupported spec.governance.hitl_mode: {mode!r}; "
-            f"expected one of {sorted(_HITL_MODE_PLUGINS)}"
-        )
-    return responder, None
+        return _load_hitl_responder("auto-approve"), None
+    return _load_hitl_responder(mode), None

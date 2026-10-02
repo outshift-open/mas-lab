@@ -42,6 +42,16 @@ application service URLs, A2A agent endpoints, and OTel/collector endpoints.
 
 ---
 
+## LLMProxy retry
+
+`spec.proxy.retry` uses the same RetryPolicy object as agent
+`spec.control.retry.llm` (`max_attempts`, `backoff_s`, `backoff_multiplier`,
+`jitter`, `retry_on`, `require_idempotent`, `max_backoff_s`). Agent spec
+wins when both are set. `MAS_LLM_HTTP_RETRIES` is extra retries
+(`attempts = retries + 1`). See [reliability.md](../references/reliability.md).
+
+---
+
 ## Bundles
 
 ```yaml

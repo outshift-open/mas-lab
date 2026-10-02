@@ -31,6 +31,83 @@ from mas.lab.runners.invoke import invoke_runner
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_LAB_RUN_ATTEMPTS = 3
+DEFAULT_LAB_RETRY_BACKOFF_S = 2.0
+_FATAL_RUN_MARKERS = (
+    "tls certificate verification failed",
+    "http 401",
+    "http 403",
+    "authentication/authorization",
+)
+
+
+def lab_run_retry_settings(execution: Any | None) -> tuple[int, float]:
+    """``execution.max_attempts`` / ``retry_backoff_s``, with lab defaults."""
+    raw_attempts = getattr(execution, "max_attempts", None) if execution is not None else None
+    raw_backoff = getattr(execution, "retry_backoff_s", None) if execution is not None else None
+    attempts = DEFAULT_LAB_RUN_ATTEMPTS if raw_attempts is None else int(raw_attempts)
+    backoff = DEFAULT_LAB_RETRY_BACKOFF_S if raw_backoff is None else float(raw_backoff)
+    return max(1, attempts), max(0.0, backoff)
+
+
+def lab_run_error_is_retryable(error: str, *, status: str) -> bool:
+    """True for transient execution failures; false for auth/TLS/config errors."""
+    if status != "error":
+        return False
+    text = (error or "").lower()
+    return not any(marker in text for marker in _FATAL_RUN_MARKERS)
+
+
+def _status_from_runner(result_dict: dict) -> tuple[str, str, str]:
+    output = result_dict.get("content", str(result_dict))
+    if result_dict.get("status") == "error":
+        return "error", output or "execution error", output
+    if output and str(output).startswith("LLM request failed:"):
+        return "error", str(output), output
+    return "ok", "", output
+
+
+async def invoke_lab_run_with_retry(
+    do_run,
+    *,
+    max_attempts: int,
+    backoff_s: float,
+    on_retry=None,
+) -> tuple[dict, str, str, str, int]:
+    """Run ``do_run`` up to ``max_attempts``. Returns result, status, error, output, attempts used."""
+    result_dict: dict = {}
+    status, error, output = "error", "not started", ""
+    attempts = max(1, max_attempts)
+    for attempt in range(attempts):
+        try:
+            result_dict = await asyncio.to_thread(do_run)
+            status, error, output = _status_from_runner(result_dict)
+        except Exception as exc:
+            result_dict = {}
+            status, error, output = "error", str(exc), ""
+        if status != "error":
+            return result_dict, status, error, output, attempt + 1
+        if attempt >= attempts - 1 or not lab_run_error_is_retryable(error, status=status):
+            return result_dict, status, error, output, attempt + 1
+        if on_retry is not None:
+            on_retry(attempt + 1, attempts, error)
+        delay = backoff_s * (2 ** attempt)
+        if delay > 0:
+            await asyncio.sleep(delay)
+    return result_dict, status, error, output, attempts
+
+
+def _clear_failed_attempt_traces(global_run_dir: Path) -> None:
+    """Drop a failed attempt's events so the next try starts a clean stream."""
+    traces = global_run_dir / "traces"
+    for name in ("events.jsonl", "otel_sdk_spans.jsonl", "observe_sdk_spans.jsonl"):
+        path = traces / name
+        if path.is_file() or path.is_symlink():
+            path.unlink()
+    result_path = global_run_dir / "result.json"
+    if result_path.is_file():
+        result_path.unlink()
+
 
 @dataclass
 class ExecutionResult:
@@ -92,6 +169,7 @@ async def execute_batch(
 
     _parallel = max(1, (getattr(exp.execution, "parallel_scenarios", 1) if exp.execution else 1) or 1)
     _pause    = max(0.0, (getattr(exp.execution, "pause_between_runs", 0.0) if exp.execution else 0.0) or 0.0)
+    _max_attempts, _retry_backoff = lab_run_retry_settings(exp.execution)
     _sem      = asyncio.Semaphore(_parallel)
     _io_lock  = asyncio.Lock()
 
@@ -108,7 +186,7 @@ async def execute_batch(
         print(f"  strategy   : {_effective_strategy}")
         n_sc, n_items = len(prepared.loaded_ids), len(prepared.dataset_items)
         print(f"  {n_sc} scenarios × {n_items} items × {loaded.n_runs} run(s) = {len(_execution_plan)} executions")
-        print(f"  parallel   : {_parallel}   pause: {_pause}s")
+        print(f"  parallel   : {_parallel}   pause: {_pause}s   max_attempts: {_max_attempts}")
         if _emulation:
             _inf = _emulation.infra
             _state_parts = [f"llm={_inf.llm}", f"tools={_inf.tools}", f"memory={_inf.memory}"]
@@ -258,6 +336,7 @@ async def execute_batch(
                     "prompt": prompt,
                     "status": status, "output": "", "output_length": 0,
                     "trace_path": "", "elapsed_ms": 0.0, "error": error,
+                    "attempts": 0,
                 })
             if progress:
                 print(f"  ❌ [{scenario_id}] item={item_id} run={run_idx+1} (cache=forced, miss)")
@@ -299,6 +378,7 @@ async def execute_batch(
                     "trace_path": str(resolved_events),
                     "elapsed_ms": 0.0,
                     "error": "",
+                    "attempts": 0,
                 })
                 total_ok += 1
             return
@@ -342,6 +422,8 @@ async def execute_batch(
                 await asyncio.sleep(_pause)
 
             _global_run_dir.mkdir(parents=True, exist_ok=True)
+            result_dict: dict = {}
+            _attempts_used = 0
             try:
                 def _do_mas_run() -> dict:
                     from mas.lab.runners.infer import infer_runner_id
@@ -403,18 +485,27 @@ async def execute_batch(
                     finally:
                         reset_event_stream(_token)
 
-                result_dict = await asyncio.to_thread(_do_mas_run)
-                output = result_dict.get("content", str(result_dict))
-                if result_dict.get("status") == "error":
-                    error = output or "execution error"
-                    status = "error"
-                elif output and output.startswith("LLM request failed:"):
-                    # classify_llm_http_error returns a string that becomes the
-                    # agent response content — the runner doesn't raise, so
-                    # status stays "ok". Treat it as an execution error so that
-                    # the run is counted as failed rather than silently passing.
-                    error = output
-                    status = "error"
+                def _on_retry(failed_attempt: int, attempts: int, err: str) -> None:
+                    _clear_failed_attempt_traces(_global_run_dir)
+                    logger.warning(
+                        "lab run %s failed (%s); retrying %s/%s",
+                        run_id,
+                        (err or "")[:160],
+                        failed_attempt + 1,
+                        attempts,
+                    )
+                    if progress:
+                        print(
+                            f"  ⚠️  [{scenario_id}] item={item_id} run={run_idx+1} "
+                            f"retry {failed_attempt + 1}/{attempts}"
+                        )
+
+                result_dict, status, error, output, _attempts_used = await invoke_lab_run_with_retry(
+                    _do_mas_run,
+                    max_attempts=_max_attempts,
+                    backoff_s=_retry_backoff,
+                    on_retry=_on_retry,
+                )
                 write_cache_inputs(
                     _global_run_dir, _run_hash, _run_input_dict, item_id,
                     run_idx, _flavour_info,
@@ -422,6 +513,8 @@ async def execute_batch(
             except Exception as exc:
                 error = str(exc)
                 status = "error"
+                output = ""
+                result_dict = {}
                 async with _io_lock:
                     total_fail += 1
             else:
@@ -477,11 +570,12 @@ async def execute_batch(
                 "target_agents": ",".join(item.get("target_agents", [])),
                 "prompt": prompt,
                 "status": status,
-                "output": output[:500],
-                "output_length": len(output),
+                "output": str(output or "")[:500],
+                "output_length": len(str(output or "")),
                 "trace_path": trace_path,
                 "elapsed_ms": round(elapsed_ms, 1),
                 "error": error or "",
+                "attempts": _attempts_used,
             })
 
         if progress:

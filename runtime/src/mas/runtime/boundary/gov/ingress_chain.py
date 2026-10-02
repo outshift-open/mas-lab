@@ -11,8 +11,7 @@ from mas.runtime.boundary.gov.filter import GovTransitionFilter
 from mas.runtime.boundary.gov.ingress_plugin import (
     IngressGovDecision,
     IngressIntentView,
-    IngressGovernancePlugin,
-    KernelIngressGovernancePlugin,
+    ingress_from_profile,
 )
 from mas.runtime.kernel.config import KernelConfig
 
@@ -46,5 +45,21 @@ def evaluate_ingress_chain(
         decision = entry.plugin.evaluate_ingress(intent, config=config)
         if decision.chain == "continue" or entry.chain == "continue":
             continue
+        _log_ingress(intent, decision)
         return decision
-    return KernelIngressGovernancePlugin().evaluate_ingress(intent, config=config)
+    decision = ingress_from_profile(intent)
+    _log_ingress(intent, decision)
+    return decision
+
+
+def _log_ingress(intent: IngressIntentView, decision: IngressGovDecision) -> None:
+    from mas.runtime.reliability.log import log_ingress
+
+    log_ingress(
+        action=decision.action.value if hasattr(decision.action, "value") else str(decision.action),
+        failure_class=intent.failure_class,
+        failure_code=intent.failure_code,
+        retry_count=intent.retry_count,
+        max_retries=intent.max_retries,
+        message=decision.message,
+    )

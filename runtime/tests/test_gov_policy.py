@@ -19,7 +19,7 @@ from mas.runtime.boundary.gov.policy import (
     ingress_governance_outcome,
     resolve_egress_governance,
 )
-from mas.runtime.boundary.gov.plugin import KernelGovernancePlugin, evaluate_egress_at_chokepoint
+from mas.runtime.boundary.gov.plugin import egress_from_config, evaluate_egress_at_chokepoint
 from mas.runtime.boundary.gov.policy_engine import GovernancePolicyEngine
 from mas.runtime.kernel.config import KernelConfig
 from mas.runtime.schema.governance import GovernanceAction, GovIngressProfile, GovPolicyProfile
@@ -161,7 +161,7 @@ def test_blacklisted_tool_is_skipped() -> None:
     assert "blacklisted" in reason
 
 
-# --- KernelGovernancePlugin: hitl_on_tool short-circuit ----------------------
+# --- egress_from_config: hitl_on_tool short-circuit ----------------------
 
 def test_hitl_on_tool_flag_produces_its_own_reason_regression() -> None:
     """Regression: describe_egress_reason had no hitl_on_tool parameter at
@@ -169,8 +169,7 @@ def test_hitl_on_tool_flag_produces_its_own_reason_regression() -> None:
     described an unrelated profile scenario instead. Now the decision and its
     reason are returned together by the same branch, so they cannot diverge."""
     config = KernelConfig(hitl_on_tool=True, gov_policy_profile=GovPolicyProfile.BLOCK_DESTRUCTIVE)
-    plugin = KernelGovernancePlugin()
-    decision, policy_name, reason = plugin.evaluate_egress(_intent(destructive=False), config=config)
+    decision, policy_name, reason = egress_from_config(_intent(destructive=False), config=config)
     assert decision.value == "HITL"
     assert "hitl_on_tool" in reason
 

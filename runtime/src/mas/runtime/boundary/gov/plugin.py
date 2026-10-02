@@ -102,23 +102,21 @@ class GovernancePluginChain:
 CompositeGovernancePlugin = GovernancePluginChain
 
 
-class KernelGovernancePlugin:
-    """Default plugin — wraps parametric policy profiles + declarative policy engine."""
-
-    def evaluate_egress(self, intent: EgressIntentView, *, config: KernelConfig) -> EgressDecision:
-        if config.hitl_on_tool and intent.op == "TOOL_CALL":
-            return (
-                GovDecision.HITL,
-                "hitl-on-tool",
-                "the hitl_on_tool flag requires human review for every tool call",
-            )
-        action, policy_name, reason = resolve_egress_governance(
-            intent,
-            profile=config.gov_policy_profile,
-            block_destructive=config.gov_block_destructive,
-            policy_engine=config.policy_engine,
+def egress_from_config(intent: EgressIntentView, *, config: KernelConfig) -> EgressDecision:
+    """Parametric default: ``gov_policy_profile`` / ``hitl_on_tool``. No plugin class."""
+    if config.hitl_on_tool and intent.op == "TOOL_CALL":
+        return (
+            GovDecision.HITL,
+            "hitl-on-tool",
+            "the hitl_on_tool flag requires human review for every tool call",
         )
-        return GovDecision(action.value), policy_name, reason
+    action, policy_name, reason = resolve_egress_governance(
+        intent,
+        profile=config.gov_policy_profile,
+        block_destructive=config.gov_block_destructive,
+        policy_engine=config.policy_engine,
+    )
+    return GovDecision(action.value), policy_name, reason
 
 
 def evaluate_egress_at_chokepoint(
@@ -130,9 +128,12 @@ def evaluate_egress_at_chokepoint(
 ) -> EgressDecision:
     """Return the ``(decision, policy_name, reason)`` egress verdict for one
     call. A prior human approval (``hitl_gov_override``) short-circuits to
-    ALLOW before ``plugin`` (or ``config.egress_governance_plugin``, or the
-    default ``KernelGovernancePlugin``) is ever consulted."""
+    ALLOW before ``plugin`` (or ``config.egress_governance_plugin``) is
+    consulted; otherwise the parametric profile applies.
+    """
     if hitl_gov_override:
         return GovDecision.ALLOW, "hitl-override", "a prior human approval covers this call"
-    impl = plugin or getattr(config, "egress_governance_plugin", None) or KernelGovernancePlugin()
+    impl = plugin or getattr(config, "egress_governance_plugin", None)
+    if impl is None:
+        return egress_from_config(intent, config=config)
     return impl.evaluate_egress(intent, config=config)

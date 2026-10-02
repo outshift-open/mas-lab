@@ -224,6 +224,17 @@ class MASExecutionSpec:
     timeout: int = 300
     """Per-run timeout in seconds."""
 
+    max_attempts: int = 3
+    """Re-issue a failed scenario×item×run this many times (including the first).
+
+    Independent of ``run.n_runs`` (statistical repeats). Default 3 so an
+    LLM HTTP failure can recover after in-call retries are spent. Set 1 to
+    disable lab-level reattempts.
+    """
+
+    retry_backoff_s: float = 2.0
+    """Base delay in seconds before the first lab-level reattempt (then ×2)."""
+
     pause_between_runs: float = 1.0
     """Pause in seconds between runs to let resources settle."""
 
@@ -256,6 +267,11 @@ class MASExecutionSpec:
             n_runs=data.get("n_runs", 3),
             parallel_scenarios=data.get("parallel_scenarios", 4),
             timeout=data.get("timeout", 300),
+            max_attempts=max(1, int(data["max_attempts"] if data.get("max_attempts") is not None else 3)),
+            retry_backoff_s=max(
+                0.0,
+                float(data["retry_backoff_s"] if data.get("retry_backoff_s") is not None else 2.0),
+            ),
             pause_between_runs=data.get("pause_between_runs", 1.0),
             strategy=data.get("strategy", "coverage"),
             runner=data.get("runner", DEFAULT_LAB_RUNNER_ID),

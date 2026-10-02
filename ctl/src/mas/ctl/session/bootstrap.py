@@ -99,11 +99,11 @@ class InstantiationOptions:
 
 def hitl_contract_for_mode(mode: str) -> object | None:
     """``auto``: unattended run, answer HITL at once; ``block``: default registry wait."""
-    if mode == "auto":
-        from mas.runtime.contracts.user_communication_contract import AutoResolveHitlContract
+    if mode != "auto":
+        return None
+    from mas.runtime.registry import get_registry
 
-        return AutoResolveHitlContract()
-    return None
+    return get_registry().instantiate_by_type("hitl_contract", "auto_resolve")
 
 def instantiate_runtime(
     options: InstantiationOptions,

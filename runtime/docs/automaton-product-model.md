@@ -806,9 +806,12 @@ that map to governance machines:
 |--------|---------|
 | `BudgetPlugin` | `governance_budget` |
 | `GuardrailPlugin` | `governance_guardrail` |
-| `CircuitBreakerPlugin` | `governance_circuit_breaker` |
 | `HITLPlugin` | `governance_hitl` (may gate tool machine `WAITING_HITL`) |
 | `GuardBundle` | meta-registration of several gov machines |
+
+The circuit breaker is **not** a governance machine. It is a library
+plugin (`type: circuit_breaker`, default `threshold`) wrapping engine I/O
+inside execute — same layer as infra retry, not authorize/validate.
 
 All governance instances are **⊗** — every call runs authorize + validate on **all**
 registered gov machines.

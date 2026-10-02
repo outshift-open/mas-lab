@@ -71,5 +71,6 @@ docker/data/*
 compliance/vendor/
 
 # Session / scratch (do not commit — not gitignored; keep local only)
+# .agents/          local harness playbooks (AGENTS.md points here)
 COVERAGE_REPORT.md
 MANIFEST_SCHEMA_MAPPING.md

@@ -271,11 +271,12 @@ def _evaluate_ingress(ctx: EnvelopeContext) -> IngressGovDecision:
             profile=ctx.config.gov_ingress_profile,
             retry_count=ctx.q.gov_retry_count,
             max_retries=ctx.config.max_gov_retries,
+            failure_class=getattr(ev, "failure_class", "") or "",
+            failure_code=getattr(ev, "failure_code", "") or "",
         ),
         config=ctx.config,
     )
-    # Every built-in ingress plugin (KernelIngressGovernancePlugin,
-    # SampleGovernancePlugin) always populates message; this generic fallback
+    # Every ingress plugin always populates message; this generic fallback
     # only matters for a custom third-party plugin that doesn't.
     ctx.gov_reason = decision.message or f"{decision.action.value} (no reason supplied by ingress plugin)"
     _notify_decision_snapshot(ctx, hook="ingress", decision=decision.action.value)

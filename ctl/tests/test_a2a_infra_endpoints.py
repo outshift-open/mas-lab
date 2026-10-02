@@ -263,11 +263,16 @@ def test_a2a_exposed_runtime_delegates_outbound_through_agent_comm_in_same_proce
         use_tool_loop=True,
     )
     agent_comm = A2AAgentComm(url=peer_url, timeout=10)
+
+    class _UnusedLocal:
+        def send(self, *args: object, **kwargs: object) -> str:
+            return "unused local route"
+
     wire_entry_engine_delegation(
         engine,
         manifest,
         tmp_path,
-        run_turn=lambda *_: "unused local route",
+        comm=_UnusedLocal(),
         entry_agent_id="exposed-agent",
         routes={
             "remote-peer": AgentCommRoute(

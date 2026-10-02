@@ -12,7 +12,8 @@ import pytest
 
 from mas.runtime.boundary.hitl.registry import get_hitl_resolver_registry
 from mas.runtime.engine.manifest_tool_provider import build_manifest_tool_provider
-from mas.runtime.system_tools import InformUserTool, RequestHumanInputTool
+from mas.library.standard.plugins.system_tools.inform_user import InformUserTool
+from mas.library.standard.plugins.system_tools.request_human_input import RequestHumanInputTool
 from mas.runtime.system_tools.signal import InformUserSignal, RequestHitlSignal
 
 
@@ -141,7 +142,7 @@ def test_inform_user_wrapper_routes_through_user_io_contract(empty_tool_tree: Pa
 def test_request_human_input_still_auto_resolves_in_batch_mode(empty_tool_tree: Path):
     """Regression check: refactoring the wrapper into a shared base class must not
     change the auto-resolve behavior for request_human_input."""
-    from mas.runtime.contracts.user_communication_contract import AutoResolveHitlContract
+    from mas.library.standard.plugins.hitl.contracts import AutoResolveHitlContract
 
     provider = build_manifest_tool_provider(
         [], empty_tool_tree, system_tools=USER_IO, hitl_contract=AutoResolveHitlContract()
@@ -170,7 +171,7 @@ def test_request_human_input_tool_still_raises_hitl_signal():
 
 
 def test_default_max_message_length_matches_schema_constant():
-    from mas.runtime.system_tools.inform_user import DEFAULT_MAX_MESSAGE_LENGTH
+    from mas.library.standard.plugins.system_tools.inform_user import DEFAULT_MAX_MESSAGE_LENGTH
 
     tool = InformUserTool()
     assert tool.max_message_length == DEFAULT_MAX_MESSAGE_LENGTH

@@ -1,0 +1,40 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#retry-policy"
+title: RetryPolicy
+description: >
+  Infra-layer re-issue budget for one LLM HTTP POST or one tool invocation.
+  max_attempts includes the first try. Applied before ingress governance.
+type: object
+additionalProperties: false
+properties:
+  max_attempts:
+    type: integer
+    minimum: 1
+    description: Total tries including the first call.
+  backoff_s:
+    type: number
+    minimum: 0
+    description: Base delay in seconds before the first retry.
+  backoff_multiplier:
+    type: number
+    minimum: 1
+    description: Multiply backoff_s on each subsequent retry.
+  jitter:
+    type: boolean
+    description: Add up to 25 percent random delay on top of backoff.
+  retry_on:
+    type: array
+    items:
+      $ref: "./failure-class.schema.yaml"
+    description: Failure classes that consume the retry budget.
+  require_idempotent:
+    type: boolean
+    description: >
+      When true, transient retries run only if the call is idempotent
+      (LLM HTTP always is; tools need spec.idempotent or Tool YAML idempotent).
+  max_backoff_s:
+    type: number
+    minimum: 0
+    description: Cap on backoff_s * multiplier^attempt (jitter is applied after).

@@ -94,6 +94,9 @@ class EngineIoReturn(BaseModel):
     offered_tools: list[str] | None = None
     # Resolved LiteLLM id actually dispatched. Empty for non-LLM returns.
     model: str = ""
+    failure_class: str = ""
+    failure_code: str = ""
+    retry_attempts: int = 0
 
 
 class CtxAssemblyComplete(BaseModel):

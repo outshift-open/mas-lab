@@ -2,7 +2,7 @@
 #  SPDX-License-Identifier: Apache-2.0
 """Semantic memory store integration."""
 
-from mas.runtime.boundary.memory.semantic import SemanticMemoryStore
+from mas.library.standard.plugins.memory.semantic_store import SemanticMemoryStore
 
 
 def test_semantic_memory_index_and_search(tmp_path):

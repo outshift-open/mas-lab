@@ -1,13 +1,7 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Built-in system tools exposed by the runtime."""
+"""Kernel signals raised by system tools during envelope execute."""
 
-from __future__ import annotations
+from mas.runtime.system_tools.signal import InformUserSignal, RequestHitlSignal
 
-from mas.runtime.system_tools.inform_user import InformUserTool
-from mas.runtime.system_tools.request_human_input import RequestHumanInputTool
-
-__all__ = [
-    "InformUserTool",
-    "RequestHumanInputTool",
-]
+__all__ = ["InformUserSignal", "RequestHitlSignal"]

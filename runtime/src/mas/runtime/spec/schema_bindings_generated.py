@@ -65,6 +65,7 @@ CONTROL_BINDING_KEYS = frozenset(
     'budget',
     'circuit_breaker',
     'rate_limiter',
+    'retry',
     }
 )
 

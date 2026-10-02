@@ -231,8 +231,12 @@ def test_error_recovery_plugin_resolves_from_manifest_governance_binding() -> No
 
         config = build_kernel_config(binding)
 
-        assert isinstance(config.error_recovery_plugin, BacktrackOnErrorPlugin)
-        assert config.error_recovery_plugin.repeat_threshold == 2
+        plugin = next(
+            entry.plugin
+            for entry in config.ingress_governance_plugins
+            if isinstance(entry.plugin, BacktrackOnErrorPlugin)
+        )
+        assert plugin.repeat_threshold == 2
     finally:
         registry = get_registry()
         registry._entries.pop(urn, None)
@@ -271,8 +275,12 @@ def test_error_recovery_plugin_ignores_session_level_backtrack_fields() -> None:
 
         config = build_kernel_config(binding)
 
-        assert isinstance(config.error_recovery_plugin, BacktrackOnErrorPlugin)
-        assert config.error_recovery_plugin.repeat_threshold == 2
+        plugin = next(
+            entry.plugin
+            for entry in config.ingress_governance_plugins
+            if isinstance(entry.plugin, BacktrackOnErrorPlugin)
+        )
+        assert plugin.repeat_threshold == 2
     finally:
         registry = get_registry()
         registry._entries.pop(urn, None)

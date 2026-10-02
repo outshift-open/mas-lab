@@ -130,7 +130,9 @@ def _plugins_from_library_yaml(path: Path, library_name: str) -> list[Plugin]:
             module = entry.get("module", "")
             # Entries may spell out the fully-qualified module or a path
             # relative to module_base.
-            if module_base and not module.startswith(f"{module_base}."):
+            if module.startswith("mas."):
+                full_module = module
+            elif module_base:
                 full_module = f"{module_base}.{module}"
             else:
                 full_module = module

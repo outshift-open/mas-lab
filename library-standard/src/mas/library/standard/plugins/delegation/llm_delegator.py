@@ -1,30 +1,25 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-"""Default delegation plugin — ``delegate_to_*`` over materialized CommBus."""
+"""Default delegation plugin — ``delegate_to_*`` over an injected AgentCommContract."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
-from mas.runtime.boundary.agentcomm.local import LocalAgentComm
-from mas.runtime.boundary.agentcomm.protocol import AgentCommError, set_current_transport
+from mas.runtime.boundary.agentcomm.protocol import AgentCommContract, AgentCommError, set_current_transport
 from mas.runtime.boundary.agentcomm.routing import AgentCommRoute
-
-RunTurnFn = Callable[[str, str, int, str, str], str]
 
 
 class LlmDelegator:
-    """``DelegationContract`` implementation via ctl bus-aware ``run_turn``."""
+    """``DelegationContract`` over a supplied comm plugin; routes override per peer."""
 
     def __init__(
         self,
         *,
-        run_turn: RunTurnFn,
+        comm: AgentCommContract,
         routes: dict[str, AgentCommRoute] | None = None,
     ) -> None:
-        self._run_turn = run_turn
-        self._local_comm = LocalAgentComm(run_turn)
+        self._comm = comm
         self._routes = dict(routes or {})
 
     def set_routes(self, routes: dict[str, AgentCommRoute]) -> None:
@@ -41,6 +36,12 @@ class LlmDelegator:
             DELEGATE_TOOL_PREFIX
         )
 
+    def _channel(self, target_agent_id: str) -> tuple[AgentCommContract, str]:
+        route = self._routes.get(target_agent_id)
+        if route is not None:
+            return route.handler, route.kind
+        return self._comm, "local-bus"
+
     def delegate(
         self,
         target_agent_id: str,
@@ -53,9 +54,8 @@ class LlmDelegator:
         if not target_agent_id:
             return "[delegation] missing target agent id"
         task_key = task.strip()
-        route = self._routes.get(target_agent_id)
-        communication = route.handler if route is not None else self._local_comm
-        set_current_transport(route.kind if route is not None else "local-bus")
+        communication, protocol = self._channel(target_agent_id)
+        set_current_transport(protocol)
         try:
             result = communication.send(
                 target_agent_id,
@@ -65,7 +65,6 @@ class LlmDelegator:
                 context_id=context_id,
             )
         except AgentCommError as exc:
-            protocol = route.kind if route is not None else "local"
             return f"[delegation] agent {target_agent_id!r} via {protocol} failed: {exc}"
         except KeyError:
             return f"[delegation] agent {target_agent_id!r} not available on bus"
@@ -111,9 +110,8 @@ class LlmDelegator:
         if not target_agent_id:
             return "[delegation] missing target agent id"
         task_key = task.strip()
-        route = self._routes.get(target_agent_id)
-        communication = route.handler if route is not None else self._local_comm
-        set_current_transport(route.kind if route is not None else "local-bus")
+        communication, protocol = self._channel(target_agent_id)
+        set_current_transport(protocol)
         try:
             asend = getattr(communication, "asend", None)
             if callable(asend):
@@ -133,7 +131,6 @@ class LlmDelegator:
                     context_id=context_id,
                 )
         except AgentCommError as exc:
-            protocol = route.kind if route is not None else "local"
             return f"[delegation] agent {target_agent_id!r} via {protocol} failed: {exc}"
         except KeyError:
             return f"[delegation] agent {target_agent_id!r} not available on bus"

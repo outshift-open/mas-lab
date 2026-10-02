@@ -85,3 +85,4 @@ The example agent already lists `gov_no_undeclared_tool` on its chain and
 | (none) | No config. Allowed names are the last LLM `tools` list, else `spec.tools`. `None` (not recorded) fail-opens. An empty offer `()` BLOCKs every tool name. |
 
 Overlay index: [../../overlays/README.md](../../overlays/README.md).
+User reference: [governance.md](../../../../../../../docs/manifests/governance.md).

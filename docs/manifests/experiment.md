@@ -293,7 +293,7 @@ runs. It is **not** the removed `spec.execution` field from `kind: Agent` manife
 | --- | --- |
 | LLM endpoints, cache middleware | Workspace `infra_refs`, `--infra-ref`, optional `mas-lab benchmark --infra <name>` (local `infra/<name>.yaml`) |
 | Per-turn engine tuning (queue depth, LLM response cache read/write, stream, parallel tools) | `kind: RuntimeEngine` via `runtime_refs` / `--runtime-ref` — see [runtime-engine.md](runtime-engine.md) |
-| How many MAS runs run in parallel, timeouts, ordering | `experiment.execution.parallel_scenarios`, `timeout`, `strategy`, … |
+| How many MAS runs run in parallel, timeouts, ordering, failed-run reattempts | `experiment.execution.parallel_scenarios`, `timeout`, `strategy`, `max_attempts` (default 3) |
 | Whole-run trace skip/replay (content-addressed lab cache) | `experiment.execution.emulation.runtime.cache` (`content-addressed` \| `disabled` \| `forced`) |
 | Live vs replay for LLM, tools, memory during a benchmark | `experiment.execution.emulation.infra.*` |
 

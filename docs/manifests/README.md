@@ -7,6 +7,12 @@
 MAS Lab is configured through YAML **manifests**: declarative files for agents,
 multi-agent systems, experiments, datasets, overlays, and pipelines.
 
+This folder documents **YAML kinds** (`kind: Agent`, `MAS`, `Overlay`, …) and
+field companions that are not kinds of their own (`spec.governance` lives
+next to Agent). Runtime behaviour that spans several fields (retries, circuit
+breaker, logging) lives under [references/](../references/) —
+start at [reliability.md](../references/reliability.md).
+
 **New to the vocabulary?** Read [glossary.md](../glossary.md) first (scenario,
 overlay, pipeline, run, flavour).
 
@@ -34,7 +40,7 @@ config.yaml       ← project defaults (flavour, infra_refs, .env path)
 
 | Layer | Manifest kinds | Reference |
 |-------|----------------|-----------|
-| **Agent** | `Agent` | [agent.md](agent.md) · [checkpoint.md](checkpoint.md) · [subagents.md](subagents.md) |
+| **Agent** | `Agent` | [agent.md](agent.md) · [governance.md](governance.md) · [checkpoint.md](checkpoint.md) · [subagents.md](subagents.md) |
 | **MAS** | `MAS`, `Workflow` | [mas.md](mas.md) |
 | **Override** | `Overlay` | [overlay.md](overlay.md) |
 | **Environment** | `Flavour`, `InfraBundle`, `LLMProxy` | [flavour.md](flavour.md), [infra.md](infra.md) |
@@ -44,7 +50,8 @@ config.yaml       ← project defaults (flavour, infra_refs, .env path)
 | **Interactive demo** | `lab:` | [lab.md](lab.md) |
 
 Runtime execution manifests (`Agent`, `MAS`, overlays, infra) are documented under
-[runtime.md](runtime.md).
+[runtime.md](runtime.md). Failure handling:
+[reliability.md](../references/reliability.md).
 
 ---
 

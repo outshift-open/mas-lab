@@ -9,7 +9,7 @@ from typing import Any
 from pydantic import BaseModel, Field, create_model, field_validator
 
 from mas.runtime.contracts.tool_contract import ToolContract
-from mas.runtime.system_tools._arg_coercion import coerce_json_string_to_dict
+from mas.library.standard.plugins.system_tools._arg_coercion import coerce_json_string_to_dict
 
 #: Default cap on ``question`` length — see ``max_question_length`` on __init__.
 DEFAULT_MAX_QUESTION_LENGTH = 20000

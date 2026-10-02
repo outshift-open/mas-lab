@@ -9,7 +9,7 @@ from typing import Any
 from pydantic import BaseModel, Field, create_model, field_validator
 
 from mas.runtime.contracts.tool_contract import ToolContract
-from mas.runtime.system_tools._arg_coercion import coerce_json_string_to_dict
+from mas.library.standard.plugins.system_tools._arg_coercion import coerce_json_string_to_dict
 
 #: Default cap on ``message`` length — see ``max_message_length`` on __init__.
 DEFAULT_MAX_MESSAGE_LENGTH = 20000

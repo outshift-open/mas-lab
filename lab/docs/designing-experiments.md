@@ -47,6 +47,11 @@ Details: [multi-scenario-format.md](multi-scenario-format.md).
 
 Use `n_runs > 1` when **pipeline steps** report confidence intervals.
 
+A failed scenario×item×run is **reattempted** by default
+(`execution.max_attempts: 3`, independent of `n_runs`). That covers LLM HTTP
+failures after in-call retries are spent. Auth and TLS failures are
+not retried. Set `max_attempts: 1` to fail the slot on the first error.
+
 ## Level hooks for figures
 
 Declare figures on experiment-level `post:` (CLI `--depth exp`), not a

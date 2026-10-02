@@ -3,7 +3,8 @@
 import os
 from pathlib import Path
 
-from mas.runtime.boundary.sandbox import WorkdirSandbox, sandbox_from_name
+from mas.library.standard.plugins.sandbox.workdir import WorkdirSandbox
+from mas.runtime.boundary.sandbox import sandbox_from_name
 from mas.runtime.engine.tool_dispatch import execute_engine_tool
 
 

@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -16,21 +15,16 @@ from mas.runtime.boundary.context.working_memory_registry import WorkingMemoryRe
 from mas.ctl.executor.spawn_ledger import SpawnLedger
 from mas.ctl.manifest.spec_bindings import SpecBindingError, parse_subagent_templates
 from mas.library.standard.plugins.tools.containment import containment_roots, resolve_under_roots
-from mas.runtime.boundary.engine_tools import EngineToolBudgetExceeded, SubagentContract
 from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.engine.tools import SPAWN_SUBAGENT_TOOL, spawn_subagent_params
+from mas.runtime.registry import get_registry
 
-logger = logging.getLogger(__name__)
 
-
-def _resolve_engine_tool_class(name: str, fallback: type) -> type:
-    """Resolve an ``engine_tool_provider`` variant, falling back when unregistered."""
-    from mas.runtime.registry import get_registry
-
+def _resolve_engine_tool_class(name: str) -> type:
+    """Resolve an ``engine_tool_provider`` variant. No plugin class is named here."""
     variant = get_registry().resolve_by_type("engine_tool_provider", name)
     if variant is None:
-        logger.debug("engine_tool_provider %r not registered; using %s", name, fallback.__name__)
-        return fallback
+        raise KeyError(f"engine_tool_provider {name!r} is not registered")
     return variant.load_class()
 
 
@@ -84,32 +78,24 @@ def load_subagent_templates(
     return templates
 
 
-class SubagentSpawner(SubagentContract):
-    """Materialize, run, and tear down one pre-authorized template per call."""
-
-    def __init__(
-        self,
-        *,
-        materialized: Any = None,
-        parent_agent_id: str,
-        session_id: str,
-        templates: dict[str, SubagentTemplate],
-        ledger: SpawnLedger,
-        working_memory_registry: WorkingMemoryRegistry,
-        display: Any = None,
-        verbose: int = 0,
-        instance_factory: Callable[[SubagentTemplate, str], RuntimeInstance] | None = None,
-        controller_factory: Callable[..., Any] | None = None,
-        context: Any = None,
-    ) -> None:
-        self.parent_agent_id = parent_agent_id
-        self.session_id = session_id
-        self.templates = dict(templates)
-        self.ledger = ledger
-        self.working_memory_registry = working_memory_registry
-        self.display = display
-        self.verbose = verbose
-        self.context = context or MaterializedEngineToolContext(
+def make_subagent_spawner(
+    *,
+    materialized: Any = None,
+    parent_agent_id: str,
+    session_id: str,
+    templates: dict[str, SubagentTemplate],
+    ledger: SpawnLedger,
+    working_memory_registry: WorkingMemoryRegistry,
+    display: Any = None,
+    verbose: int = 0,
+    instance_factory: Callable[[SubagentTemplate, str], RuntimeInstance] | None = None,
+    controller_factory: Callable[..., Any] | None = None,
+    context: Any = None,
+) -> Any:
+    """Build EngineToolContext, then instantiate the registered spawn plugin."""
+    templates = dict(templates)
+    if context is None:
+        context = MaterializedEngineToolContext(
             materialized=materialized,
             session_id=session_id,
             parent_agent_id=parent_agent_id,
@@ -117,140 +103,29 @@ class SubagentSpawner(SubagentContract):
             working_memory_registry=working_memory_registry,
             display=display,
             verbose=verbose,
-            instance_factory=self._adapt_instance_factory(instance_factory),
+            instance_factory=_adapt_instance_factory(templates, instance_factory),
             controller_factory=controller_factory,
         )
+    return _resolve_engine_tool_class(SPAWN_SUBAGENT_TOOL)(
+        parent_agent_id=parent_agent_id,
+        session_id=session_id,
+        templates=templates,
+        context=context,
+    )
 
-    def _adapt_instance_factory(
-        self, legacy: Callable[[SubagentTemplate, str], RuntimeInstance] | None
-    ) -> Callable[..., RuntimeInstance] | None:
-        """Keep the template-shaped factory seam the spawner's own tests use."""
-        if legacy is None:
-            return None
 
-        def factory(_manifest: Any, _manifest_dir: Any, child_id: str, template_id: str) -> RuntimeInstance:
-            return legacy(self.templates[template_id], child_id)
+def _adapt_instance_factory(
+    templates: dict[str, SubagentTemplate],
+    legacy: Callable[[SubagentTemplate, str], RuntimeInstance] | None,
+) -> Callable[..., RuntimeInstance] | None:
+    """Keep the template-shaped factory seam the spawner's own tests use."""
+    if legacy is None:
+        return None
 
-        return factory
+    def factory(_manifest: Any, _manifest_dir: Any, child_id: str, template_id: str) -> RuntimeInstance:
+        return legacy(templates[template_id], child_id)
 
-    def is_subagent_tool(self, tool_name: str) -> bool:
-        return tool_name == SPAWN_SUBAGENT_TOOL
-
-    def claims(self, tool_name: str) -> bool:
-        return self.is_subagent_tool(tool_name)
-
-    def call(
-        self,
-        tool_name: str,
-        arguments: dict[str, Any],
-        *,
-        ctx: Any = None,
-        correlation_id: int = 0,
-        caller_call_id: str = "",
-    ) -> str:
-        if not self.is_subagent_tool(tool_name):
-            return f"[spawn_subagent] unsupported tool {tool_name!r}"
-        return self.spawn(
-            str(arguments.get("template") or ""),
-            str(arguments.get("task") or ""),
-            correlation_id=correlation_id,
-            caller_call_id=caller_call_id,
-        )
-
-    async def acall(
-        self,
-        tool_name: str,
-        arguments: dict[str, Any],
-        *,
-        ctx: Any = None,
-        correlation_id: int = 0,
-        caller_call_id: str = "",
-    ) -> str:
-        if not self.is_subagent_tool(tool_name):
-            return f"[spawn_subagent] unsupported tool {tool_name!r}"
-        return await self.aspawn(
-            str(arguments.get("template") or ""),
-            str(arguments.get("task") or ""),
-            correlation_id=correlation_id,
-            caller_call_id=caller_call_id,
-        )
-
-    async def aspawn(
-        self,
-        template_id: str,
-        task: str,
-        *,
-        correlation_id: int = 0,
-        caller_call_id: str = "",
-    ) -> str:
-        template = self.templates.get(template_id)
-        if template is None:
-            return f"[spawn_subagent] unknown template {template_id!r}"
-        task = task.strip()
-        if not task:
-            return "[spawn_subagent] task must not be empty"
-        try:
-            child_id = self.context.spawn_instance(
-                template.manifest,
-                template_id=template_id,
-                manifest_dir=template.path.parent,
-            )
-        except EngineToolBudgetExceeded:
-            return "[spawn_subagent] blocked: depth or spawn-count budget exceeded"
-        except Exception:
-            logger.exception("spawn_subagent template %r could not be materialized", template_id)
-            return f"[spawn_subagent] {template_id!r} failed"
-        try:
-            return await self.context.arun_turn(
-                child_id,
-                task,
-                correlation_id=correlation_id,
-                caller_call_id=caller_call_id,
-            )
-        except Exception:
-            logger.exception("spawn_subagent template %r failed", template_id)
-            return f"[spawn_subagent] {template_id!r} failed"
-        finally:
-            self.context.teardown_instance(child_id)
-
-    def spawn(
-        self,
-        template_id: str,
-        task: str,
-        *,
-        correlation_id: int = 0,
-        caller_call_id: str = "",
-    ) -> str:
-        template = self.templates.get(template_id)
-        if template is None:
-            return f"[spawn_subagent] unknown template {template_id!r}"
-        task = task.strip()
-        if not task:
-            return "[spawn_subagent] task must not be empty"
-        try:
-            child_id = self.context.spawn_instance(
-                template.manifest,
-                template_id=template_id,
-                manifest_dir=template.path.parent,
-            )
-        except EngineToolBudgetExceeded:
-            return "[spawn_subagent] blocked: depth or spawn-count budget exceeded"
-        except Exception:
-            logger.exception("spawn_subagent template %r could not be materialized", template_id)
-            return f"[spawn_subagent] {template_id!r} failed"
-        try:
-            return self.context.run_turn(
-                child_id,
-                task,
-                correlation_id=correlation_id,
-                caller_call_id=caller_call_id,
-            )
-        except Exception:
-            # Exception text can carry absolute paths; keep it out of the parent's context.
-            logger.exception("spawn_subagent template %r failed", template_id)
-            return f"[spawn_subagent] {template_id!r} failed"
-        finally:
-            self.context.teardown_instance(child_id)
+    return factory
 
 
 def wire_subagent_spawning(
@@ -267,7 +142,7 @@ def wire_subagent_spawning(
     verbose: int = 0,
     instance_factory: Callable[[SubagentTemplate, str], RuntimeInstance] | None = None,
     controller_factory: Callable[..., Any] | None = None,
-) -> SubagentSpawner | None:
+) -> Any | None:
     """Attach the spawner contract only when the tools entry declares it."""
     spec = manifest.get("spec") or {}
     params = spawn_subagent_params(spec)
@@ -295,9 +170,14 @@ def wire_subagent_spawning(
 
     leaf = leaf_engine(engine)
     for existing in getattr(leaf, "engine_tool_contracts", ()) or ():
-        if isinstance(existing, SubagentSpawner) and existing.parent_agent_id == parent_agent_id:
+        is_spawn = getattr(existing, "is_subagent_tool", None)
+        if (
+            callable(is_spawn)
+            and is_spawn(SPAWN_SUBAGENT_TOOL)
+            and getattr(existing, "parent_agent_id", None) == parent_agent_id
+        ):
             return existing
-    spawner = _resolve_engine_tool_class(SPAWN_SUBAGENT_TOOL, SubagentSpawner)(
+    spawner = make_subagent_spawner(
         materialized=materialized,
         parent_agent_id=parent_agent_id,
         session_id=session_id,

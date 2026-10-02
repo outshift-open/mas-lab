@@ -4,8 +4,11 @@ $schema: "https://json-schema.org/draft-07/schema#"
 $id: "mas/v1#control-binding"
 title: ControlBinding
 description: >
-  Control-plane plugin configs keyed by plugin id. Set a key to null to disable.
-  Each value is passed to the registered control plugin only.
+  Control-plane knobs keyed by id. Set a key to null to disable.
+  ``retry`` is applied by the runtime reliability layer (LLM HTTP + tool
+  dispatch). ``circuit_breaker`` loads a library plugin
+  (default ``threshold``). ``budget`` and ``rate_limiter`` remain plugin
+  configs.
 type: object
 additionalProperties: false
 properties:
@@ -21,18 +24,40 @@ properties:
           max_cost_usd:
             type: number
             minimum: 0
+  retry:
+    type: object
+    additionalProperties: false
+    description: Infra retry budgets for LLM HTTP and tool dispatch.
+    properties:
+      llm:
+        $ref: "./retry-policy.schema.yaml"
+      tools:
+        $ref: "./retry-policy.schema.yaml"
   circuit_breaker:
     oneOf:
       - type: "null"
       - type: object
         additionalProperties: false
         properties:
+          enabled:
+            type: boolean
+            description: When omitted and this object is present, the breaker is on.
           failure_threshold:
             type: integer
             minimum: 1
           reset_timeout_s:
             type: number
             minimum: 0
+          "on":
+            type: array
+            items:
+              $ref: "./failure-class.schema.yaml"
+            description: Failure classes that count toward opening the breaker.
+          plugin:
+            type: string
+            description: >
+              Library plugin name (default ``threshold``). Implementations
+              register as ``type: circuit_breaker``; not a kernel slot.
   rate_limiter:
     oneOf:
       - type: "null"

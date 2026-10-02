@@ -428,14 +428,22 @@ def write_run_result(
     timing, error message.  Unlike ``run.json`` (immutable inputs), this is
     written after execution completes.
 
-    Written once: if a cache entry already has ``result.json`` it is left
-    untouched, preserving the original execution result.
+    Written once for a successful run. An ``status=error`` file is replaced
+    so a lab-level reattempt or a later live execution can become the cache
+    hit.
     """
     import json
 
     result_path = global_run_dir / "result.json"
     if result_path.exists():
-        return  # preserve original execution result
+        try:
+            prior = json.loads(result_path.read_text(encoding="utf-8"))
+        except Exception:
+            prior = {}
+        # Keep a successful cache entry. Replace an error so a later live
+        # reattempt (lab retry or a subsequent `benchmark run`) can land.
+        if prior.get("status") != "error":
+            return
     result = {
         "status": status,
         "elapsed_ms": round(elapsed_ms, 1),
