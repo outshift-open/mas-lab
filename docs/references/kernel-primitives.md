@@ -2,52 +2,46 @@
   Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
   SPDX-License-Identifier: Apache-2.0
 -->
-# Kernel operations — what they are, and how existing harnesses use them
+# Kernel operations
 
-The runtime stays small. It does not grow a debugger product, a subagent
-engine, or an evolution engine. Those are the same operations, used in
-different orders.
+The runtime exposes a small set of operations. Subagents, recovery, and
+debug are combinations of those operations, not separate engines.
 
 ## Operations
 
 | Operation | Meaning |
 | --- | --- |
-| Start / stop an agent | Turn a spec into a running agent, and tear it down |
-| Take a step | Current state + input → next state, through governance, written to the trace |
-| Start a child | Another running agent with a parent id (a subagent) |
-| Snapshot | Cheap in-memory picture of where the run is |
-| Persist | Write that picture to disk so it survives a restart |
-| Walk the tree | Move a debug cursor; does not change the live run until promote |
-| Pause / resume / steer / undo | Control. Pause actually blocks the next user turn |
-| Change the spec | Disable a tool, switch a pattern, apply a factor — recorded revision |
+| Start / stop | Materialize a spec into a running agent; tear it down |
+| Step | Current state + input → next state, through governance, written to the trace |
+| Spawn | Start a child agent with a parent id |
+| Snapshot | Cheap in-memory picture of the run (kernel, working memory, spec revision) |
+| Persist | Write that picture to disk |
+| Navigate | Move a debug cursor on the snapshot tree; does not change the live run until promote |
+| Pause / resume / steer / undo | Control. Pause blocks the next user turn |
+| Spec revision | Recorded change to the live spec (disable a tool, switch a pattern) |
 
-A plugin author, the LLM (as a tool), and an operator (CLI/admin) all
-call these same functions. The LLM tool is only an advertisement.
+Plugin code, an LLM tool advertisement, and an admin caller (`ControlContract`,
+including the unix-socket adapter) call the same functions.
 
-## Existing harnesses as combinations
+## Layers
 
-| What people call it | Combination |
-| --- | --- |
-| ReAct | one agent + tools + governance |
-| Plan-and-execute / tree-of-thought | same + branch / undo |
-| Static multi-agent | several started agents + run a turn on each |
-| Subagents | start a child + parent id + stop the child |
-| OpenClaw-style recovery | snapshot on events + undo + steer |
-| Debugger / detective | pause + walk the tree + branch to investigate |
-| What-if | N branches from one snapshot, score, throw away |
-| Evolutionary / population | N branches + spec revisions + keep or throw away |
+1. **Kernel operations** — the table above.
+2. **Boundary slots** — closed envelope/spec types (`governance`,
+   `llm_provider`, `tool_provider`, …). A new slot is a kernel change.
+3. **Harness compositions** — named combinations whose leaves are
+   operations or slots (`react`, `subagents`, `recovery`, `detective`,
+   `whatif`, `plan_mode`, `evolution`). See `mas.runtime.harness`.
+4. **Library / product** — skills, related filesystem adapters, execute
+   sandboxes, lab steps. These are not envelope slots and are not stored
+   in kernel product state `Q`.
 
-If a new harness cannot be written as a row in this table, either an
-operation is missing (justify it first) or it does not belong in the kernel.
+Tool execution after ALLOW may run inside an `ExecuteSandbox` (workdir
+or a host jail). Coding-agent workspaces are snapshotted as related
+state (fingerprint + locator; git or directory-copy adapters). See
+[snapshots](snapshots.md).
 
-## Layers (closed boundary, open harness DAG)
+## Copy-on-write
 
-Layer 0 is the table above — frozen. Layer 1 (`BOUNDARY_SLOTS`) is a
-closed set of envelope/spec slots; `register_type("pre_tool_use",
-layer="boundary")` is rejected (that is a 15th hook). Layer 2 is
-`mas.runtime.harness`: named compositions whose leaves are kernel ops
-(`detective` requires `whatif`; `evolution` requires `detective`).
-Layer 3 is lab/product (steps, CRDs, channels) and never steps δ.
-
-A plugin that calls `httpx` outside the envelope execute slot is a
-fourth path: no authorize, no τ, no snapshot, nothing to reverse.
+Python updates kernel state in place. A snapshot copies kernel product
+state into a frozen `CowKernel` and freeze-shares working memory. Later
+writes do not leak into the frozen node. Restore installs a writable copy.

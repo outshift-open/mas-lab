@@ -78,10 +78,13 @@ class SessionManager:
         return SessionControl(self, capability=capability, deny_navigate=deny_navigate)
 
     def clear_session(self, session_id: str) -> None:
+        from mas.runtime.engine.inflight_llm import clear as clear_inflight
+
         self.sessions.pop(session_id, None)
         self.turn_queue.clear_session(session_id)
         self.snapshot_tree.clear_session(session_id)
         self.spec_log.clear_session(session_id)
+        clear_inflight(session_id)
 
     def get(self, session_id: str) -> Session:
         """Return a managed session or raise a descriptive lookup error."""
@@ -234,6 +237,28 @@ class SessionManager:
             ctx.managed_session = session
             ctx.current_spec = self.spec_log.current_spec(session.session_id)
             ctx.execute_sandbox = session.execute_sandbox
+            from mas.runtime.engine.tools import is_control_tools_enabled
+
+            ctx.allow_control_tools = is_control_tools_enabled(ctx.current_spec)
+            from mas.ctl.session.control import SessionControl
+
+            ctx.control = SessionControl(
+                self,
+                capability=ControlCapability(
+                    actor="llm",
+                    surface="llm",
+                    session_ids=frozenset({session.session_id}),
+                    methods=frozenset(
+                        {
+                            "pause",
+                            "inspect",
+                            "list_checkpoints",
+                            "navigate",
+                            "cancel_inflight",
+                        }
+                    ),
+                ),
+            )
         if self.checkpoint_store is not None:
             session.controller.checkpoint_store = self.checkpoint_store
         kernel = getattr(session.instance, "kernel", None)

@@ -64,6 +64,12 @@ copies history up to that point; later turns do not share mutable memory.
 Version 1 checkpoints remain loadable as kernel-only snapshots when used with
 an explicit manifest.
 
+In a live process, an in-memory **snapshot tree** is cheaper than a checkpoint.
+`take_snapshot` does not write disk. Walking the tree moves a debug cursor;
+it does not change the live run until a branch is promoted. See
+[Snapshots vs checkpoints](../references/snapshots.md). Pause
+(`ControlContract.pause`) blocks the next user turn until resume.
+
 ## Backtracking
 
 Manual backtracking is available in a managed chat with checkpoints enabled:

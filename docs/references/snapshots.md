@@ -4,36 +4,37 @@
 -->
 # Snapshots vs checkpoints
 
-A **snapshot** is a cheap in-memory picture of "where this run is":
-kernel state, working memory, and the spec revision at that moment.
-Taking one does not write disk.
+A **snapshot** is an in-memory node: kernel state, working memory, the
+spec revision, and optional related-state fingerprints (execute
+workspace). Taking one does not write disk.
 
-A **checkpoint** is that picture saved so it can survive a process
-restart. `persist(snapshot, store)` is the only bridge.
+A **checkpoint** is that node written so it survives a process restart.
+`persist(snapshot, store)` is the only bridge.
 
-The pictures form a **tree**. Walking the tree (debug) moves a cursor.
-That is not the same as the live run. Promoting a branch replaces the
-live run. Discarding a `session.branch()` restores the origin.
+The nodes form a **tree**. Walking the tree moves a debug cursor. That
+is not the live run. Promoting a branch replaces the live run.
+Discarding `session.branch()` restores the origin.
 
-Restore also restores the spec revision that was current at that node.
-Otherwise replay would lie about which tools were enabled.
+Restore also restores the spec revision current at that node, so the
+same tools are enabled as when the node was taken.
 
-## Copy-on-write
+## Related workspace state
 
-- **Working memory:** freeze the live snapshot object (O(1)). The next
-  `put` allocates a new unfrozen object. Export copies list/dict shells
-  and shares string payloads. Do not `deepcopy` the conversation.
-- **Kernel `QProduct`:** copy into a frozen `CowKernel` at snapshot time.
-  Governance snapshots run *during* `transition`, so the live `q` must
-  stay mutable. Kernel state is small; this is the right grain.
-- **When:** at `GOVERNANCE_AUTHORIZE` / `GOVERNANCE_VALIDATE`, and on
-  explicit `take_snapshot` / `branch`. Not every internal Mealy tick —
-  those are not independently counterfactual.
+File bytes are not part of kernel product state. A `RelatedStatePlugin`
+stores a fingerprint and locator on the snapshot. Adapters:
 
-`persist(snapshot)` is still the only disk path.
+- **git** — `commit-tree` onto `refs/mas-lab/...` with a private index
+  (does not move `HEAD` or the user index)
+- **copy_dir** — content-hash directory copy (tests and hosts without git)
 
-## Trajectory algebra
+Restore replays those adapters. `SnapshotTree.from_events` rebuilds the
+tree identity from trace events; bodies stay on the snapshot or adapter.
 
-See `mas.runtime.session.trajectory`: counterfactuals = siblings;
-root-cause = tropical weight on non-ALLOW edges; LLM trajectory = path
-filtered to `LLM_CALL`. Not new kernel ops.
+## When snapshots are taken
+
+- Explicit `take_snapshot` / `branch`
+- Governance ALLOW/DENY at authorize and validate (policy `governance`)
+
+Working memory uses freeze-in-place. Kernel `QProduct` is copied into a
+frozen `CowKernel` because governance snapshots run during a transition
+that still mutates the live object.

@@ -141,6 +141,7 @@ practical examples.
 
 | Class                   | Full module path                                                    | Package                |
 | ----------------------- | ------------------------------------------------------------------- | ---------------------- |
+| `ControlTools`          | `mas.library.standard.plugins.system_tools.control`                 | `mas-library-standard` |
 | `InformUserTool`        | `mas.library.standard.mas.runtime.system_tools.inform_user`         | `mas-library-standard` |
 | `RequestHumanInputTool` | `mas.library.standard.mas.runtime.system_tools.request_human_input` | `mas-library-standard` |
 | `SpawnSubagentTool`     | `mas.library.standard.plugins.system_tools.spawn_subagent`          | `mas-library-standard` |
@@ -167,6 +168,7 @@ practical examples.
 | `BacktrackOnErrorPlugin`         | governance           | `mas-library-standard` |
 | `CacheLLMProvider`               | llm_provider         | `mas-library-standard` |
 | `ContextAssemblerPlugin`         | assembler            | `mas-library-standard` |
+| `ControlTools`                   | system_tool          | `mas-library-standard` |
 | `CotPlugin`                      | design_pattern       | `mas-library-standard` |
 | `DeterministicLinearPlugin`      | design_pattern       | `mas-library-standard` |
 | `DeterministicParallelPlugin`    | design_pattern       | `mas-library-standard` |

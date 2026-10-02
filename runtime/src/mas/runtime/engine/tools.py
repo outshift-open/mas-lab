@@ -171,6 +171,9 @@ def openai_tools(
 
 
 SPAWN_SUBAGENT_TOOL = "spawn_subagent"
+CONTROL_TOOLS = frozenset(
+    {"pause_session", "list_checkpoints", "inspect_session", "navigate_checkpoint", "cancel_inflight"}
+)
 
 
 def current_spec_for_advertise(ctx: Any | None, fallback: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -225,3 +228,16 @@ def spawn_subagent_params(spec: dict[str, Any] | None) -> dict[str, Any] | None:
             params = tool.get("params")
             return params if isinstance(params, dict) else {}
     return None
+
+
+def is_control_tools_enabled(spec: dict[str, Any] | None) -> bool:
+    """True when the bound spec advertises an enabled ``pause_session`` system tool."""
+    for tool in (spec or {}).get("tools") or []:
+        if (
+            isinstance(tool, dict)
+            and tool.get("kind") == "system"
+            and tool.get("name") in CONTROL_TOOLS
+            and tool.get("enabled") is not False
+        ):
+            return True
+    return False

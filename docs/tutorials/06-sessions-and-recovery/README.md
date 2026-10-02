@@ -78,3 +78,7 @@ mas-ctl chat docs/tutorials/01-building-an-agent/agent.yaml \
 The captured artifact can become one comparison cell in an experiment's
 starting-state axis; see the
 [checkpoint-axis example](../../schemas/examples/checkpoint-axis.yaml).
+
+`/steer` injects operator text. A paused session refuses the next user turn
+until resume. In-memory snapshots are listed and walked through the same
+control contract as pause; persist is a separate step.

@@ -11,12 +11,20 @@ from typing import Any
 class ControlTools:
     """Bounded LLM surface: pause, inspect, list, navigate, cancel — same SessionControl."""
 
-    def __init__(self, control: Any, session_id: str) -> None:
+    def __init__(self, control: Any = None, session_id: str = "") -> None:
         self.control = control
         self.session_id = session_id
 
+    def _bound(self, ctx: Any | None) -> tuple[Any, str]:
+        control = self.control or getattr(ctx, "control", None)
+        session_id = self.session_id or str(getattr(ctx, "session_id", "") or "")
+        return control, session_id
+
     def on_collect_tools(self, *, ctx: Any = None) -> list[dict[str, Any]]:
         if not getattr(ctx, "allow_control_tools", False):
+            return []
+        control, session_id = self._bound(ctx)
+        if control is None or not session_id:
             return []
         return [
             {
@@ -59,15 +67,18 @@ class ControlTools:
             },
         ]
 
-    def on_execute_tool(self, tool_name: str, arguments: dict[str, Any], **_: Any) -> str:
+    def on_execute_tool(self, tool_name: str, arguments: dict[str, Any], ctx: Any = None, **_: Any) -> str:
+        control, session_id = self._bound(ctx)
+        if control is None or not session_id:
+            return "[control] unavailable: control contract is not wired"
         if tool_name == "pause_session":
-            self.control.pause(self.session_id, reason=str(arguments.get("reason") or ""))
+            control.pause(session_id, reason=str(arguments.get("reason") or ""))
             return "paused"
         if tool_name == "list_checkpoints":
-            nodes = self.control.list_checkpoints(self.session_id)
+            nodes = control.list_checkpoints(session_id)
             return ",".join(n.snapshot_id for n in nodes)
         if tool_name == "inspect_session":
-            view = self.control.inspect(self.session_id)
+            view = control.inspect(session_id)
             return json.dumps(
                 {
                     "session_id": view.session_id,
@@ -79,13 +90,13 @@ class ControlTools:
                 }
             )
         if tool_name == "navigate_checkpoint":
-            ref = self.control.navigate(
-                self.session_id,
+            ref = control.navigate(
+                session_id,
                 to=str(arguments.get("to") or ""),
                 reason=str(arguments.get("reason") or ""),
             )
             return getattr(ref, "snapshot_id", str(ref))
         if tool_name == "cancel_inflight":
-            cancelled = self.control.cancel_inflight(self.session_id)
+            cancelled = control.cancel_inflight(session_id)
             return "cancelled" if cancelled else "idle"
         return f"[control] unsupported tool {tool_name!r}"

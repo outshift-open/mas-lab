@@ -26,7 +26,7 @@ from mas.runtime.agent_defaults import default_pattern_plugin_id
 from mas.runtime.boundary.context.manifest_context import context_chunks_from_spec
 from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.driver.mocks import AutoCtxAssembler
-from mas.runtime.engine.tools import is_spawn_subagent_enabled, spawn_subagent_params
+from mas.runtime.engine.tools import is_control_tools_enabled, is_spawn_subagent_enabled, spawn_subagent_params
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +161,7 @@ def instantiate_runtime(
     spec = dict((options.agent_manifest or {}).get("spec") or {})
     spawn_params = spawn_subagent_params(spec)
     ctx.allow_subagent_spawning = is_spawn_subagent_enabled(spec)
+    ctx.allow_control_tools = is_control_tools_enabled(spec)
     ctx.subagent_templates = list((spawn_params or {}).get("templates") or [])
     # Keep agent spec isolated from MAS workflow policy. We only surface agency
     # participants (read-only) when available for context/routing helpers.

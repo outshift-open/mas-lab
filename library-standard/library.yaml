@@ -62,6 +62,12 @@ plugins:
     module: mas.library.standard.plugins.system_tools.spawn_subagent
     class: SpawnSubagentTool
     attributes: {default_enabled: false, capability: orchestration}
+  - type: system_tool
+    name: pause_session
+    urn: mas.system_tool.pause_session
+    module: mas.library.standard.plugins.system_tools.control
+    class: ControlTools
+    attributes: {default_enabled: false, capability: control}
 
   # Wire protocols (routed by spec.models[].kind / infra spec.protocol)
   - type: llm_provider
