@@ -16,6 +16,7 @@ Checkout path: `library-standard/src/mas/library/standard/overlays/<file>`.
 | `observability-native.yaml` | `observability-native` | Agent | Writes native `events.jsonl` (`spec.observability` → `native`). |
 | `with-hardened.yaml` | `with-hardened` | Agent | Appends `gov_no_undeclared_tool` to the `spec.governance` chain (`$op.add`). |
 | `cheap-summarizer.yaml` | `cheap-summarizer` | Agent | Sets `summarizer.params.model` to `gpt-4o-mini` (same `summarising` type; params merge). |
+| `openclaw.yaml` | `openclaw` | Agent | Enables LLM-call checkpoints, self-contained persistence, auto-resume, and repeated-error backtracking. |
 
 `spec.observability` is a sequence (every plugin sees every event).
 `spec.governance` is a chain: BLOCK stops and returns the error; ALLOW
@@ -30,6 +31,10 @@ mas-ctl chat agent.yaml \
 
 CLI shortcut `--events` is equivalent to `observability-native` for one run.
 See [docs/cli/observability.md](../../../../../../../docs/cli/observability.md).
+
+The `openclaw` control preset enables full LLM-call checkpointing, self-contained
+resume, and repeated-error backtracking. See
+[Session checkpoints](../../../../../../../docs/manifests/checkpoint.md).
 
 `gov_no_undeclared_tool` example (not a sample app):
 [examples/governance/undeclared-tool/](../../../../../examples/governance/undeclared-tool/).

@@ -28,8 +28,47 @@ types:
   - tool_provider
   - llm_provider
   - agent_comm
+  - system_tool
+  - hitl_contract
+  - user_io_contract
+  - engine_tool_provider
 
 plugins:
+  - type: engine_tool_provider
+    name: delegation
+    urn: mas.engine_tool_provider.delegation
+    module: mas.runtime.boundary.delegation.llm_delegator
+    class: LlmDelegator
+  - type: engine_tool_provider
+    name: spawn_subagent
+    urn: mas.engine_tool_provider.spawn_subagent
+    module: mas.ctl.executor.subagent_spawner
+    class: SubagentSpawner
+  - type: system_tool
+    name: request_human_input
+    urn: mas.system_tool.request_human_input
+    module: mas.runtime.system_tools.request_human_input
+    class: RequestHumanInputTool
+    attributes: {default_enabled: false, communication: hitl}
+  - type: system_tool
+    name: inform_user
+    urn: mas.system_tool.inform_user
+    module: mas.runtime.system_tools.inform_user
+    class: InformUserTool
+    attributes: {default_enabled: false, communication: user_io}
+  - type: system_tool
+    name: spawn_subagent
+    urn: mas.system_tool.spawn_subagent
+    module: mas.library.standard.plugins.system_tools.spawn_subagent
+    class: SpawnSubagentTool
+    attributes: {default_enabled: false, capability: orchestration}
+  - type: system_tool
+    name: pause_session
+    urn: mas.system_tool.pause_session
+    module: mas.library.standard.plugins.system_tools.control
+    class: ControlTools
+    attributes: {default_enabled: false, capability: control}
+
   # Wire protocols (routed by spec.models[].kind / infra spec.protocol)
   - type: llm_provider
     name: openai
@@ -193,8 +232,25 @@ plugins:
     shortcuts:
       - gov_no_undeclared_tool
       - no_undeclared_tool
+  - type: governance
+    name: backtrack_on_error
+    urn: mas.gov.backtrack_on_error
+    module: mas.library.standard.plugins.governance.backtrack_on_error
+    class: BacktrackOnErrorPlugin
+  - type: hitl_contract
+    name: registry
+    urn: mas.hitl_contract.registry
+    module: mas.runtime.contracts.user_communication_contract
+    class: RegistryHitlContract
+  - type: user_io_contract
+    name: registry
+    urn: mas.user_io_contract.registry
+    module: mas.runtime.contracts.user_communication_contract
+    class: RegistryUserIOContract
 
 defaults:
   tool_provider: local
   summarizer: llm
   llm_provider: openai
+  hitl_contract: registry
+  user_io_contract: registry

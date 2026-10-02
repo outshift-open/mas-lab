@@ -34,3 +34,14 @@ def test_plan_execute_pattern_uses_dp_tool_scheduling():
     manifest = {"spec": {"tools": ["lookup"]}}
     kernel = kernel_config_from_manifest(manifest, pattern_plugin_id="plan_execute@v1")
     assert engine_use_tool_loop(manifest, kernel) is False
+
+
+def test_deprecated_kernel_config_path_does_not_take_dead_ingress_specs():
+    import inspect
+
+    from mas.ctl.session.ingress_governance_loader import build_ingress_governance_plugins
+
+    params = inspect.signature(build_ingress_governance_plugins).parameters
+    assert "ingress_plugin_specs" not in params
+    kernel = kernel_config_from_manifest({"spec": {}})
+    assert kernel is not None

@@ -201,6 +201,36 @@ class TestContractFramework:
         print(f"\n📄 Reports generated: {json_report}, {md_report}")
 
 
+class TestBoundedSubagentRecursion:
+    """Connect the existing bounded-recursion YAML contract to SpawnLedger."""
+
+    def test_spawn_ledger_satisfies_bounded_recursion_contract(self):
+        from mas.ctl.executor.spawn_ledger import SpawnLedger
+
+        contract_path = (
+            Path(__file__).parent.parent.parent.parent
+            / "components"
+            / "core"
+            / "contracts"
+            / "bounded-recursion.yaml"
+        )
+        contract = ContractLoader().load(contract_path)
+        ledger = SpawnLedger(max_depth=contract.policy["parameters"]["max_depth"], max_spawns=None)
+
+        class LedgerHook:
+            def evaluate_action(self, action: dict) -> str:
+                if action.get("type") != "spawn_agent":
+                    return "block"
+                parent_depth = action.get("args", {}).get("parent_depth")
+                return "allow" if ledger.allows_child_depth(parent_depth) else "block"
+
+        report = ContractExecutor().execute_governance_contract(contract, LedgerHook())
+
+        assert report.compliant
+        assert report.passed == 6
+        assert report.ambiguous == 3
+
+
 if __name__ == "__main__":
     # Run tests manually
     test = TestContractFramework()

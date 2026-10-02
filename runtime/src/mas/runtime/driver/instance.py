@@ -196,6 +196,47 @@ class RuntimeInstance:
 
         return trace
 
+    async def afeed(self, event: IngressSymbol) -> DriverTrace:
+        return await self.driver.afeed(event)
+
+    async def arun_user_text(
+        self,
+        text: str,
+        *,
+        turn_id: str = "u1",
+        parent_call_id: str = "",
+        session_id: str = "",
+        upstream_correlation_id: int | None = None,
+    ) -> DriverTrace:
+        """Async twin of :meth:`run_user_text` — awaits ``driver.afeed``."""
+        op = self.driver.observability
+        exec_id: str | None = None
+        if op is not None and self.obs_plugin_set is not None:
+            agent_id = op._agent_id or "agent"
+            exec_id = f"{agent_id}-{turn_id}-exec"
+            op.push_call_frame(exec_id)
+            record_kwargs = {"text": text, "call_id": exec_id, "turn_id": turn_id}
+            if parent_call_id:
+                record_kwargs["parent_call_id"] = parent_call_id
+            op.record_session("user_input", **record_kwargs)
+
+        ingress_kwargs: dict[str, Any] = {
+            "user_turn_id": turn_id,
+            "text": text,
+            "upstream_correlation_id": upstream_correlation_id,
+        }
+        if session_id:
+            ingress_kwargs["session_id"] = session_id
+        trace = await self.afeed(UserInputReceived(**ingress_kwargs))
+
+        if op is not None and exec_id is not None:
+            response_text = "\n".join(r.content for r in trace.client_responses if getattr(r, "content", "")).strip()
+            if response_text:
+                op.record_session("agent_response", text=response_text, finish_reason="stop")
+            op.pop_call_frame(exec_id)
+
+        return trace
+
     def capture_session_baseline(self) -> None:
         """Record idle kernel state at session start (for /reset)."""
         self._session_baseline = self.snapshot()

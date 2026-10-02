@@ -5,8 +5,10 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from mas.ctl.adapters.memory_seed import MemorySeed, MemorySeedLoader, apply_memory_seeds
@@ -23,10 +25,12 @@ from mas.ctl.executor.mas_session import (
     resolve_entry_pattern_plugin_id,
     wire_peer_delegation,
 )
+from mas.ctl.executor.subagent_spawner import wire_subagent_spawning
 from mas.ctl.infra.resolve import resolve_infra_refs
 from mas.ctl.session.bootstrap import InstantiationOptions, hitl_contract_for_mode, instantiate_runtime
 from mas.ctl.session.controller import ConversationConfig, SessionController, close_observability
 from mas.ctl.workspace.config import UserConfig, WorkspaceConfig, merge_infra_refs
+from mas.runtime.boundary.context.working_memory_registry import WorkingMemoryRegistry
 from mas.lab.manifest.load import (
     agent_manifest_from_path,
     entry_agent_from_compose,
@@ -52,6 +56,7 @@ class _ControllerTarget:
     obs_pipeline: Any = None
     scoped_recorders: Any = ()
     session_id: str = ""
+    working_memory_registry: Any = None
 
 
 def _resolve_ref(ref: str | Path, anchor: Path) -> Path:
@@ -271,7 +276,7 @@ class MasBenchRunner:
 
         memory_seeds = _memory_seeds_from_run_input(ri.memory_seeds if ri else None)
         checkpoint_load = ri.checkpoint_load if ri else None
-        checkpoint_save = bool(ri.checkpoint_save) if ri else False
+        checkpoint_save = ri.checkpoint_save if ri else False
         tool_fixtures = ri.tool_fixtures if ri else None
         run_params = config.get("params") if isinstance(config.get("params"), dict) else None
 
@@ -323,9 +328,11 @@ class MasBenchRunner:
             queries=queries,
             memory_seeds=memory_seeds,
             checkpoint_save=checkpoint_save,
+            checkpoint_path=checkpoint_path,
             run_seed=run_seed,
             topology=resolved.topology,
             session_id=resolved.session_id,
+            working_memory_registry=resolved.working_memory_registry,
             obs_recorder=resolved.obs_recorder,
             obs_pipeline=resolved.obs_pipeline,
             scoped_recorders=resolved.scoped_recorders,
@@ -362,7 +369,7 @@ class MasBenchRunner:
         memory_seeds: list[MemorySeed],
         checkpoint_path: Path | None,
         checkpoint_dir: Path | None,
-        checkpoint_save: bool,
+        checkpoint_save: bool | str,
         queries: list[str],
         output_dir: Path,
         run_seed: int,
@@ -495,6 +502,7 @@ class MasBenchRunner:
                     verbose=0,
                     already_wired={entry},
                     session_id=prepared.session_id,
+                    working_memory_registry=getattr(prepared, "working_memory_registry", None),
                 )
             except KeyError:
                 raise
@@ -533,6 +541,7 @@ class MasBenchRunner:
             obs_pipeline=shared_pipeline,
             scoped_recorders=scoped_recorders,
             session_id=prepared.session_id,
+            working_memory_registry=getattr(prepared, "working_memory_registry", None),
         )
 
     def _standalone_controller_target(
@@ -580,7 +589,26 @@ class MasBenchRunner:
             ),
         )
         _attach_tool_fixtures([instance], tool_fixtures, run_params)
-        return _ControllerTarget(instance, store, entry_manifest, entry_manifest_path)
+        session_id = str(uuid.uuid4())
+        working_memory_registry = WorkingMemoryRegistry()
+        # Without this the tool is advertised but has no contract behind it.
+        wire_subagent_spawning(
+            getattr(getattr(instance, "driver", None), "engine", None),
+            materialized=SimpleNamespace(instances={entry_id: instance}, bus=None),
+            manifest=entry_manifest,
+            manifest_dir=entry_manifest_path.parent,
+            parent_agent_id=entry_id,
+            session_id=session_id,
+            working_memory_registry=working_memory_registry,
+        )
+        return _ControllerTarget(
+            instance,
+            store,
+            entry_manifest,
+            entry_manifest_path,
+            session_id=session_id,
+            working_memory_registry=working_memory_registry,
+        )
 
     @staticmethod
     def _checkpoint_store(
@@ -605,10 +633,12 @@ class MasBenchRunner:
         output_dir: Path,
         queries: list[str],
         memory_seeds: list[MemorySeed],
-        checkpoint_save: bool,
+        checkpoint_save: bool | str,
+        checkpoint_path: Path | None,
         run_seed: int,
         topology: str | None = None,
         session_id: str = "",
+        working_memory_registry: Any = None,
         obs_recorder: Any = None,
         obs_pipeline: Any = None,
         scoped_recorders: Any = (),
@@ -636,10 +666,28 @@ class MasBenchRunner:
             agent_id=agent_manifest_label(config, spec_path),
             config=ConversationConfig(
                 single_turn=len(queries) == 1,
-                save_checkpoint_each_turn=checkpoint_save,
+                save_checkpoint_each_turn=bool(checkpoint_save),
             ),
             session_id=session_id,
+            working_memory_registry=working_memory_registry,
         )
+        from mas.ctl.session.manager import SessionManager
+
+        session_manager = SessionManager(checkpoint_store=store)
+        managed_session = session_manager.create(
+            instance,
+            controller,
+            config,
+            session_id=session_id or None,
+            working_memory_registry=working_memory_registry,
+        )
+        if checkpoint_path is not None and store is not None:
+            session_manager.restore_checkpoint(
+                managed_session,
+                checkpoint_path,
+                manifest_content=config,
+            )
+        controller.managed_session = managed_session
         try:
             results = [controller.run_turn(q) for q in queries]
         finally:
@@ -651,7 +699,8 @@ class MasBenchRunner:
             ensure_live_otel_span_files(events_path, obs_cfg)
 
         if checkpoint_save and store is not None:
-            final_path = store.save(instance.record_checkpoint("final"), label="final")
+            label = checkpoint_save if isinstance(checkpoint_save, str) else "final"
+            final_path = session_manager.checkpoint(managed_session.session_id, label=label)
             logger.info("Saved final checkpoint: %s", final_path)
 
         text = results[-1].text if results else ""
@@ -664,7 +713,7 @@ class MasBenchRunner:
             content=text,
             status="ok",
             artifacts=_events_artifacts(events_path, config, spec_path),
-            metadata=meta,
+            metadata={**meta, "session_id": managed_session.session_id},
         )
 
 

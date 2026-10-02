@@ -53,6 +53,8 @@ class AutoCtxAssembler:
     session_id: str = ""
     agent_id: str = ""
     correlation_id: int = 0
+    allow_subagent_spawning: bool = False
+    subagent_templates: list[dict[str, Any]] = field(default_factory=list)
 
     def capture_baseline(self) -> None:
         """Snapshot manifest-derived system context for /reset."""

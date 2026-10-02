@@ -100,3 +100,7 @@ class SimulatedEngine:
             response_kind="ERROR",
             next_step="STOP",
         )
+
+    async def ainvoke(self, io: InvokeEngineIo) -> EngineIoReturn:
+        """Async twin of :meth:`invoke` — simulated I/O is already in-memory."""
+        return self.invoke(io)

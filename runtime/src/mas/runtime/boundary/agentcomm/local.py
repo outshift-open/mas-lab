@@ -32,3 +32,29 @@ class LocalAgentComm(AgentCommContract):
             caller_call_id,
             context_id,
         )
+
+    async def asend(
+        self,
+        target_agent_id: str,
+        task: str,
+        *,
+        correlation_id: int = 0,
+        caller_call_id: str = "",
+        context_id: str = "",
+    ) -> str:
+        asend_fn = getattr(self._run_turn, "asend", None)
+        if callable(asend_fn):
+            return await asend_fn(
+                target_agent_id,
+                task,
+                correlation_id,
+                caller_call_id,
+                context_id,
+            )
+        return self.send(
+            target_agent_id,
+            task,
+            correlation_id=correlation_id,
+            caller_call_id=caller_call_id,
+            context_id=context_id,
+        )

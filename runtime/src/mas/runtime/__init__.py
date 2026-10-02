@@ -8,6 +8,7 @@ from mas.runtime.kernel.orchestrator import RuntimeKernel, StepResult
 from mas.runtime.schema.ingress import IngressSymbol
 from mas.runtime.schema.egress import EgressSymbol
 from mas.runtime.kernel.state import QProduct, LifecycleState, DpState
+from mas.runtime.session import ManifestRef, Session, SessionLineage, SessionStatus
 
 __all__ = [
     "RuntimeKernel",
@@ -17,4 +18,8 @@ __all__ = [
     "QProduct",
     "LifecycleState",
     "DpState",
+    "ManifestRef",
+    "Session",
+    "SessionLineage",
+    "SessionStatus",
 ]

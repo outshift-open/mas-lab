@@ -21,7 +21,7 @@ properties:
     default: []
   dispatch:
     type: string
-    description: "Parallel topology dispatch mode (e.g. all)."
+    description: "Fan-out mode. `parallel` (or `all`) runs this node's delegates_to peers concurrently via the async engine path."
   config:
     type: object
     description: Plugin-specific parameters (pattern-dependent keys allowed).

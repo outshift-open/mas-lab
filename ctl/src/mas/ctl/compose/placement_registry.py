@@ -41,27 +41,32 @@ class LocalInprocBackend:
         return run
 
 
-_BACKENDS: dict[str, PlacementBackend] = {
-    "local-inproc": LocalInprocBackend(),
-}
+_BACKENDS: dict[str, PlacementBackend] = {}
+_CATALOG_REGISTERED = False
 
 
-def _register_default_backends() -> None:
-    from mas.ctl.placement.docker import DockerBackend
-    from mas.ctl.placement.k8s import K8sBackend
+def _register_from_catalog() -> None:
+    global _CATALOG_REGISTERED
+    if _CATALOG_REGISTERED:
+        return
+    from mas.ctl.registry.catalog import get_placement, import_class, list_placement_ids
 
-    _BACKENDS["docker"] = DockerBackend()
-    _BACKENDS["kubernetes"] = K8sBackend()
-
-
-_register_default_backends()
+    for placement_id in list_placement_ids():
+        if placement_id in _BACKENDS:
+            continue
+        entry = get_placement(placement_id)
+        if entry.module:
+            _BACKENDS[placement_id] = import_class(entry.module)()
+    _CATALOG_REGISTERED = True
 
 
 def list_registered_backends() -> list[str]:
+    _register_from_catalog()
     return sorted(_BACKENDS.keys())
 
 
 def get_placement_backend(strategy: str) -> PlacementBackend:
+    _register_from_catalog()
     from mas.ctl.compose.placement_validate import validate_placement_strategy
 
     validate_placement_strategy(strategy)

@@ -39,7 +39,7 @@ def _load_registry_text() -> str | None:
     try:
         from importlib.resources import as_file, files
 
-        resource = files("mas.ctl").joinpath("schemas", "component-registry.yaml")
+        resource = files("mas.ctl").joinpath("_schemas", "component-registry.yaml")
         with as_file(resource) as path:
             if path.is_file():
                 return path.read_text(encoding="utf-8")
@@ -76,18 +76,38 @@ def _load_catalog() -> dict[str, list[ComponentEntry]]:
     return out
 
 
+_UNAVAILABLE_STATUSES = frozenset({"planned", "future_release"})
+_SECTION_LABEL = {
+    "runtimes": "runtime",
+    "placement": "placement",
+    "framework": "framework",
+}
+
+
 def _by_id(section: str) -> dict[str, ComponentEntry]:
     return {e.id: e for e in _load_catalog().get(section, [])}
 
 
-def get_runtime(runtime_id: str) -> ComponentEntry:
-    entry = _by_id("runtimes").get(runtime_id)
+def get_component(section: str, component_id: str) -> ComponentEntry:
+    """Return one catalog entry, including planned IDs."""
+    label = _SECTION_LABEL.get(section, section)
+    entry = _by_id(section).get(component_id)
     if entry is None:
-        raise UnknownComponentError(f"unknown runtime id: {runtime_id!r}")
+        raise UnknownComponentError(f"unknown {label} id: {component_id!r}")
     return entry
 
 
-_UNAVAILABLE_STATUSES = frozenset({"planned", "future_release"})
+def validate_component_id(section: str, component_id: str, label: str | None = None) -> str:
+    """Return an available component ID or reject planned/unknown entries."""
+    resolved = label or _SECTION_LABEL.get(section, section)
+    entry = get_component(section, component_id)
+    if entry.status in _UNAVAILABLE_STATUSES:
+        raise UnknownComponentError(f"{resolved} {component_id!r} is not available yet")
+    return entry.id
+
+
+def get_runtime(runtime_id: str) -> ComponentEntry:
+    return get_component("runtimes", runtime_id)
 
 
 def list_runtime_ids(*, include_planned: bool = False) -> list[str]:
@@ -105,8 +125,28 @@ def list_placement_ids() -> list[str]:
     return [e.id for e in _load_catalog().get("placement", []) if e.status not in _UNAVAILABLE_STATUSES]
 
 
+def get_placement(placement_id: str) -> ComponentEntry:
+    """Return the catalog entry for one placement strategy, including planned IDs."""
+    return get_component("placement", placement_id)
+
+
+def validate_placement_id(placement_id: str) -> str:
+    """Return an available placement ID or reject planned/unknown entries."""
+    return validate_component_id("placement", placement_id)
+
+
 def list_framework_ids() -> list[str]:
     return [e.id for e in _load_catalog().get("framework", []) if e.status not in _UNAVAILABLE_STATUSES]
+
+
+def get_framework(framework_id: str) -> ComponentEntry:
+    """Return the catalog entry for one framework adapter, including planned IDs."""
+    return get_component("framework", framework_id)
+
+
+def validate_framework_id(framework_id: str) -> str:
+    """Return an available framework ID or reject planned/unknown entries."""
+    return validate_component_id("framework", framework_id)
 
 
 def import_class(dotted: str) -> type:
@@ -121,10 +161,7 @@ def import_class(dotted: str) -> type:
 
 
 def validate_runtime_id(runtime_id: str) -> str:
-    entry = get_runtime(runtime_id)
-    if entry.status in _UNAVAILABLE_STATUSES:
-        raise UnknownComponentError(f"runtime {runtime_id!r} is not available yet")
-    return entry.id
+    return validate_component_id("runtimes", runtime_id)
 
 
 def registry_path() -> Path:
@@ -134,7 +171,7 @@ def registry_path() -> Path:
     try:
         from importlib.resources import as_file, files
 
-        resource = files("mas.ctl").joinpath("schemas", "component-registry.yaml")
+        resource = files("mas.ctl").joinpath("_schemas", "component-registry.yaml")
         with as_file(resource) as path:
             return Path(path)
     except Exception:

@@ -107,7 +107,8 @@ the same shorthand). Ground truth stays on the **same item** under
 | `inputs.hitl` | Optional operator reply strings | as HITL |
 | `inputs.memory_seeds` | Pre-loaded memory (prefer a sibling file) | via memory |
 | `inputs.tool_fixtures` | Mapping + payloads for mock tools | via tools |
-| `inputs.checkpoint` | Later: session state | via restored session |
+| `inputs.checkpoint.load` | Optional checkpoint path/ref used to resume this item's run; an experiment-level `checkpoints` axis overrides it when declared. | via restored session |
+| `inputs.checkpoint.save` | Save checkpoint artifacts for this item when enabled (`false` by default). | no |
 | `expectations` | Ground truth (`ground_truth`, `metrics`, free-form `details`) | no |
 
 ```yaml

@@ -522,6 +522,42 @@ def test_send_passes_context_id_as_the_working_memory_key_when_given():
     assert captured == ["trip-paris", "trip-tokyo", session_id]
 
 
+def test_workflow_send_closures_own_distinct_working_memory_registries():
+    registries = []
+    materialized = SimpleNamespace(
+        instances={"schedule_agent": _fake_instance_with_ctx()},
+        bus=None,
+    )
+
+    def capture_registry(self, _prompt, *, turn_id=None, parent_call_id="", auto_hitl=True):
+        registries.append(self.working_memory_registry)
+        return SimpleNamespace(text="ok", awaiting_hitl=False)
+
+    with patch(
+        "mas.ctl.executor.mas_session.SessionController.run_turn",
+        capture_registry,
+    ), patch("mas.ctl.executor.mas_session.turn_failed", return_value=False):
+        first = make_workflow_send(
+            materialized,
+            display=None,
+            verbose=0,
+            from_agent="moderator",
+            session_id="same-id",
+        )
+        second = make_workflow_send(
+            materialized,
+            display=None,
+            verbose=0,
+            from_agent="moderator",
+            session_id="same-id",
+        )
+        first("schedule_agent", "first", caller_call_id="first-call")
+        second("schedule_agent", "second", caller_call_id="second-call")
+
+    assert len(registries) == 2
+    assert registries[0] is not registries[1]
+
+
 def test_prepare_delegation_entry_session_mints_session_id_when_none_given(tmp_path: Path):
     driver = SimpleNamespace(agent_id=None, engine=MagicMock())
     instance = SimpleNamespace(driver=driver)

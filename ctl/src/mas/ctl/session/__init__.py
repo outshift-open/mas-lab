@@ -9,6 +9,7 @@ from mas.ctl.session.controller import (
     close_observability,
     run_session_loop,
 )
+from mas.ctl.session.manager import SessionManager
 
 __all__ = [
     "ConversationConfig",
@@ -16,4 +17,5 @@ __all__ = [
     "TurnResult",
     "close_observability",
     "run_session_loop",
+    "SessionManager",
 ]

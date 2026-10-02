@@ -69,11 +69,14 @@ Extension properties (`x-*`) are allowed and ignored by the runtime.
 | `memory_seed` | `MemorySeedEntry[]` | no | — | Documents to pre-index into memory at startup. See [`MemorySeedEntry`](#memoryseedentry). |
 | `memory` | string \| string[] \| object | no | — | Memory backend configuration. See [`MemoryConfig`](#memoryconfig). |
 | `working_memory` | object | no | — | Cross-turn history persistence for delegated agents. See [`WorkingMemory`](#workingmemory). |
+| `checkpoint` | object | no | `{mode: none}` | Session checkpoint cadence, retention, portability and automatic resume. See [checkpoint.md](checkpoint.md). |
 | `skills` | `string[]` | no | `[]` | Skills to activate. Name-only or `@library/name`. Resolution: app-local → libraries → packages. |
 | `tools_ref` | `string` \| null | no | `null` | Logical tool-set name resolved by the infra `ToolRegistry` (e.g. `web-tools`). No paths or extensions. |
 | `tools` | `Tool[]` | no | `[]` | Per-agent tool declarations — three forms. Additive with `tools_ref`. See [`Tool`](#tool). |
 | `behavior` | object | no | — | Runtime capability flags. See [`Behavior`](#behavior). |
 | `governance` | `GovernanceBinding` | no | `{}` | Governance plugin list. See [`GovernanceBinding`](#governancebinding). |
+| `hitl_contract` | `string` | no | `registry` | Human-approval Protocol plugin. An explicit `InstantiationOptions.hitl_contract` instance overrides this binding, preserving interactive CLI adapters. |
+| `user_io_contract` | `string` | no | `registry` | User progress-update Protocol plugin. Overridden the same way as `hitl_contract`. |
 | `llm` | `LlmBinding` | no | `{}` | Engine overrides (model, temperature, …). See [`LlmBinding`](#llmbinding). |
 | `control` | `ControlBinding` | no | `{}` | Control-plane plugin configs. See [`ControlBinding`](#controlbinding). |
 | `observability` | `ObservabilityBinding` | no | `null` | Observability sink plugin list. See [`ObservabilityBinding`](#observabilitybinding). |

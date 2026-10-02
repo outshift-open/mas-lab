@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from mas.ctl.adapters.checkpoint import JsonCheckpointStore
+from mas.ctl.adapters.checkpoint import InMemoryCheckpointStore, JsonCheckpointStore
 from mas.ctl.adapters.memory_seed import (
     MemorySeed,
     MemorySeedLoader,
@@ -26,6 +26,7 @@ from mas.runtime.agent_defaults import default_pattern_plugin_id
 from mas.runtime.boundary.context.manifest_context import context_chunks_from_spec
 from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.driver.mocks import AutoCtxAssembler
+from mas.runtime.engine.tools import is_control_tools_enabled, is_spawn_subagent_enabled, spawn_subagent_params
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,11 @@ _SKILL_SHELL_REFS = {
     "skills:tools/run-skill-script.tool.yaml",
     "pkg://skills/tools/run-skill-script.tool.yaml",
 }
-_SUPPORTED_SKILL_IMPLS = {"native", "adk", "langchain"}
+def _supported_skill_impls() -> set[str]:
+    """Discover accepted skill implementation names from PluginRegistry."""
+    from mas.runtime.registry import get_registry
+
+    return set(get_registry().list_names("skill_impl"))
 
 
 def _overlay_providers_from_manifest(
@@ -104,7 +109,7 @@ def instantiate_runtime(
     options: InstantiationOptions,
     *,
     hitl=None,
-) -> tuple[RuntimeInstance, JsonCheckpointStore | None]:
+) -> tuple[RuntimeInstance, JsonCheckpointStore | InMemoryCheckpointStore | None]:
     """Ctl-owned bootstrap: validate seeds/checkpoints, build instance, restore state."""
     seeds: list[MemorySeed] = []
     if options.memory_seed_path:
@@ -154,6 +159,10 @@ def instantiate_runtime(
         )
     ctx.capture_baseline()
     spec = dict((options.agent_manifest or {}).get("spec") or {})
+    spawn_params = spawn_subagent_params(spec)
+    ctx.allow_subagent_spawning = is_spawn_subagent_enabled(spec)
+    ctx.allow_control_tools = is_control_tools_enabled(spec)
+    ctx.subagent_templates = list((spawn_params or {}).get("templates") or [])
     # Keep agent spec isolated from MAS workflow policy. We only surface agency
     # participants (read-only) when available for context/routing helpers.
     if "agency" not in spec:
@@ -249,13 +258,20 @@ def instantiate_runtime(
         index_seeds_in_semantic_memory(seeds, agent_id=agent_id)
 
     if options.checkpoint_path:
-        cp_store = store or JsonCheckpointStore(options.checkpoint_path.parent)
-        kernel_snap = cp_store.load(options.checkpoint_path)
-        instance.load_checkpoint(kernel_snap)
-        if cp_store.memory_seeds:
+        reader = store or JsonCheckpointStore(options.checkpoint_path.parent)
+        payload = reader.load_payload(options.checkpoint_path)
+        instance.load_checkpoint(payload["kernel"])
+        spec = (options.agent_manifest or {}).get("spec") or {}
+        from mas.runtime.spec.checkpoint import parse_checkpoint_policy
+
+        if parse_checkpoint_policy(spec.get("checkpoint")).mode == "in_memory":
+            store = InMemoryCheckpointStore()
+        else:
+            store = reader
+        if reader.memory_seeds:
             apply_memory_seeds(
                 instance,
-                [MemorySeed(key=r["key"], content=r["content"]) for r in cp_store.memory_seeds],
+                [MemorySeed(key=r["key"], content=r["content"]) for r in reader.memory_seeds],
             )
 
     instance.capture_session_baseline()
@@ -263,14 +279,24 @@ def instantiate_runtime(
     if options.agent_manifest:
         from mas.runtime.engine.manifest_tool_provider import attach_manifest_tools_to_instance
 
+        hitl_contract = _resolve_interface_contract(
+            options.hitl_contract,
+            options.agent_manifest,
+            "hitl_contract",
+        )
+        user_io_contract = _resolve_interface_contract(
+            options.user_io_contract,
+            options.agent_manifest,
+            "user_io_contract",
+        )
         attach_manifest_tools_to_instance(
             instance,
             options.agent_manifest,
             options.manifest_dir or Path.cwd(),
             app_root=options.app_root or options.manifest_dir,
             workspace_root=ws.root if ws.found else None,
-            hitl_contract=options.hitl_contract,
-            user_io_contract=options.user_io_contract,
+            hitl_contract=hitl_contract,
+            user_io_contract=user_io_contract,
             auto_inject_scripts=skill_cfg.auto_inject_scripts,
             tools_dir=tools_dir,
             skills_dir=skill_cfg.base_dir or skills_dir,
@@ -280,6 +306,18 @@ def instantiate_runtime(
             ),
         )
     return instance, store
+
+
+def _resolve_interface_contract(explicit: object | None, manifest: dict | None, spec_key: str) -> object:
+    """Resolve a manifest contract binding unless the caller supplied an instance."""
+    if explicit is not None:
+        return explicit
+    from mas.runtime.registry import get_registry
+
+    try:
+        return get_registry().create(spec_key, manifest=manifest)
+    except KeyError as exc:
+        raise ValueError(f"unable to resolve spec.{spec_key}: {exc}") from exc
 
 
 def _apply_manifest_context(
@@ -313,7 +351,8 @@ def _resolve_skill_plugin_config(
     > legacy manifest tool/context declarations > env var > default.
     """
     env_impl = str(os.getenv("MAS_SKILL_IMPL") or "").strip().lower() or "native"
-    impl = env_impl if env_impl in _SUPPORTED_SKILL_IMPLS else "native"
+    supported_impls = _supported_skill_impls()
+    impl = env_impl if env_impl in supported_impls else "native"
     rel_base: str | None = None
     auto_inject_scripts = False
 
@@ -324,13 +363,13 @@ def _resolve_skill_plugin_config(
 
         plugins, configs = parse_context_sources(context_sources_raw)
         for candidate_impl in plugins:
-            if candidate_impl in _SUPPORTED_SKILL_IMPLS:
+            if candidate_impl in supported_impls:
                 impl = candidate_impl
             else:
                 logger.warning(
                     "Unknown context_sources plugin %r; expected one of %s",
                     candidate_impl,
-                    sorted(_SUPPORTED_SKILL_IMPLS),
+                    sorted(supported_impls),
                 )
         for cfg in configs.values():
             candidate_base = cfg.get("base_dir")
@@ -343,13 +382,13 @@ def _resolve_skill_plugin_config(
         candidate_impl = _entry_skill_impl(entry)
         if candidate_impl:
             normalized = candidate_impl.strip().lower()
-            if normalized in _SUPPORTED_SKILL_IMPLS:
+            if normalized in supported_impls:
                 impl = normalized
             else:
                 logger.warning(
                     "Unknown skill impl %r; expected one of %s",
                     candidate_impl,
-                    sorted(_SUPPORTED_SKILL_IMPLS),
+                    sorted(supported_impls),
                 )
         candidate_base = _entry_skill_base_dir(entry)
         if candidate_base:

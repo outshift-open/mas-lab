@@ -167,6 +167,7 @@ class PluginRegistry:
         self._known_types: set[str] = set()
         self._spec_defaults: dict[str, str] = {}
         self._runtime_spec_keys: set[str] = set()
+        self._by_type: dict[str, list[PluginEntry]] = {}
 
     # ── Registration ─────────────────────────────────────────────────────
 
@@ -176,7 +177,18 @@ class PluginRegistry:
             if inferred_type:
                 entry.attributes["plugin_type"] = inferred_type
                 self.register_type(inferred_type)
+        previous = self._entries.get(entry.urn)
+        if previous is not None:
+            old_type = self._entry_type(previous)
+            bucket = self._by_type.get(old_type) if old_type else None
+            if bucket:
+                self._by_type[old_type] = [item for item in bucket if item.urn != entry.urn]
         self._entries[entry.urn] = entry
+        plugin_type = self._entry_type(entry)
+        if plugin_type:
+            typed = self._by_type.setdefault(plugin_type, [])
+            if all(item.urn != entry.urn for item in typed):
+                typed.append(entry)
         # register_alias() can append to entry.shortcuts (for the entry
         # that owns the alias' target URN). Iterate a snapshot rather than
         # the live list so registering an alias mid-loop can't change what
@@ -184,8 +196,34 @@ class PluginRegistry:
         for sc in list(entry.shortcuts):
             self.register_alias(sc, entry.urn)
 
-    def register_type(self, plugin_type: str) -> None:
-        self._known_types.add(_canonical_type_name(plugin_type))
+    def unregister(self, urn: str) -> None:
+        """Drop a plugin and its type-index / alias rows. Tests and live spec use this."""
+        entry = self._entries.pop(urn, None)
+        if entry is None:
+            return
+        plugin_type = self._entry_type(entry)
+        bucket = self._by_type.get(plugin_type) if plugin_type else None
+        if bucket:
+            remaining = [item for item in bucket if item.urn != urn]
+            if remaining:
+                self._by_type[plugin_type] = remaining
+            else:
+                self._by_type.pop(plugin_type, None)
+        for alias, target in list(self._aliases.items()):
+            if target == urn:
+                del self._aliases[alias]
+
+    def register_type(self, plugin_type: str, *, layer: str | None = None) -> None:
+        from mas.runtime.harness.catalog import UnknownBoundarySlotError, classify_plugin_type
+
+        canonical = _canonical_type_name(plugin_type)
+        inferred = classify_plugin_type(canonical)
+        if layer == "boundary" and inferred != "boundary":
+            raise UnknownBoundarySlotError(
+                f"{plugin_type!r} is not a boundary slot. The envelope alphabet "
+                "is closed; a new slot is a 15th hook. Use a harness composition."
+            )
+        self._known_types.add(canonical)
 
     def register_types(self, plugin_types: set[str]) -> None:
         for plugin_type in plugin_types:
@@ -250,7 +288,7 @@ class PluginRegistry:
 
     def _entries_for_type(self, plugin_type: str) -> list[PluginEntry]:
         canonical = _canonical_type_name(plugin_type)
-        return [entry for entry in self._entries.values() if self._entry_type(entry) == canonical]
+        return list(self._by_type.get(canonical, ()))
 
     @staticmethod
     def _matches_name(entry: PluginEntry, name: str) -> bool:
@@ -377,6 +415,19 @@ class PluginRegistry:
             return self._entries[aliased]
         return None
 
+    def list_names(self, plugin_type: str) -> list[str]:
+        """List manifest-facing names for a plugin category without loading variants."""
+        names: set[str] = set()
+        for entry in self._entries_for_type(plugin_type):
+            names.add(entry.urn.rsplit(".", 1)[-1])
+            names.update(str(shortcut).strip().lower() for shortcut in entry.shortcuts if str(shortcut).strip())
+            names.update(
+                alias
+                for alias, target in self._aliases.items()
+                if target == entry.urn
+            )
+        return sorted(names)
+
     # ── Query (UI / CLI / lab delegation) ────────────────────────────────
 
     def all_entries(self) -> list[PluginEntry]:
@@ -471,6 +522,10 @@ def register_plugin(
     )
 
 
+def unregister_plugin(urn: str) -> None:
+    get_registry().unregister(urn)
+
+
 def register_manifest_data(manifest_data: dict[str, Any]) -> None:
     _bootstrap.register_manifest_data(get_registry(), manifest_data)
 
@@ -489,6 +544,7 @@ __all__ = [
     "register_manifest_data",
     "register_manifest_file",
     "register_plugin",
+    "unregister_plugin",
 ]
 
 

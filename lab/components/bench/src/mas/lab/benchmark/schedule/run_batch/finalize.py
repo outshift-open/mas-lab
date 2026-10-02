@@ -6,6 +6,7 @@ from __future__ import annotations
 """Finalize benchmark results — CSV, metadata, post-pipeline."""
 
 import csv
+import json
 import logging
 from pathlib import Path
 from typing import Any, Optional
@@ -25,7 +26,12 @@ def write_results_csv(csv_path: Path, results_rows: list) -> None:
         "run_id",
         "scenario",
         "item_id",
+        "source_item_id",
         "run",
+        "experiment_id",
+        "session_id",
+        "checkpoint_id",
+        "forked_from_checkpoint",
         "group",
         "target_agents",
         "prompt",
@@ -41,6 +47,23 @@ def write_results_csv(csv_path: Path, results_rows: list) -> None:
         writer.writeheader()
         writer.writerows(results_rows)
     logger.info(f"Saved results: {csv_path}")
+
+
+def write_session_mappings(output_dir: Path, results_rows: list[dict[str, Any]]) -> None:
+    """Write session and checkpoint lineage for every generated run."""
+    target = output_dir / "session_mappings.jsonl"
+    with target.open("w", encoding="utf-8") as stream:
+        for row in results_rows:
+            mapping = {
+                "experiment_id": row.get("experiment_id", ""),
+                "scenario_id": row.get("scenario", ""),
+                "item_id": row.get("source_item_id", row.get("item_id", "")),
+                "run_idx": row.get("run", ""),
+                "session_id": row.get("session_id", ""),
+                "checkpoint_id": row.get("checkpoint_id", ""),
+                "forked_from_checkpoint": row.get("forked_from_checkpoint", ""),
+            }
+            stream.write(json.dumps(mapping, ensure_ascii=False) + "\n")
 
 
 def update_metadata(
@@ -100,6 +123,7 @@ async def finalize_batch(
     from mas.lab.benchmark.schedule.pipeline import PipelineExecutionError, run_pipeline_phase
 
     write_results_csv(prepared.csv_path, execution.results_rows)
+    write_session_mappings(prepared.output_dir, execution.results_rows)
     print_summary(loaded, prepared, execution)
 
     execution.exit_stack.close()

@@ -206,6 +206,16 @@ def apply_engine_io_return(
         q.tool = tool_on_abort(q.tool) if q.tool.value == "ERROR" else q.tool
         return emit_scheduled_egress(q, run, config)
 
+    if action == GovernanceAction.BACKTRACK:
+        apply_ingress_deny(q)
+        return [
+            RaiseBoundaryError(
+                code="INGRESS_BACKTRACK",
+                recoverable=True,
+                message=ingress_decision.message or event.text,
+            )
+        ]
+
     if action == GovernanceAction.BLOCK:
         q.dp = DpState.IDLE
         q.ctx = ctx_on_cycle_reset(q.ctx)

@@ -716,11 +716,11 @@ properties:
                   const: system
                 name:
                   type: string
-                  enum:
-                    - request_human_input
-                    - inform_user
-                    - activate_skill
-                    - run_skill_script
+                  minLength: 1
+                enabled:
+                  type: boolean
+                  default: true
+                  description: Explicit per-tool opt-in/out. `false` overrides host requests.
                 params:
                   type: object
                   additionalProperties: true
@@ -798,8 +798,48 @@ properties:
               IDs are fixed at compose time — the LLM cannot call agents outside
               the topology.
 
-              generic (delegate_task with free-form agent_id) is a design target
-              — not implemented in OSS; see ROADMAP.
+              generic (delegate_task with free-form agent_id) is a design target —
+              not implemented in OSS; see ROADMAP.
+
+      checkpoint:
+        type: object
+        description: Session checkpoint cadence, portability, and retention policy.
+        x-merge:
+          strategy: mapping_merge_or_ops
+        additionalProperties: false
+        properties:
+          mode:
+            type: string
+            enum: [none, in_memory, on_event, every_turn]
+            default: none
+          triggers:
+            type: array
+            items:
+              type: string
+              enum: [after_llm_call, after_tool_call, before_destructive_tool, every_n_turns]
+            default: []
+          every_n_turns:
+            type: integer
+            minimum: 1
+          retention:
+            type: object
+            additionalProperties: false
+            properties:
+              mode:
+                type: string
+                enum: [all, single, last_n]
+                default: all
+              n:
+                type: integer
+                minimum: 1
+                default: 5
+          portability:
+            type: string
+            enum: [self_contained, reference]
+            default: self_contained
+          auto_resume_latest:
+            type: boolean
+            default: false
 
       governance:
         $ref: "./fragments/governance-binding.schema.yaml"
@@ -810,6 +850,34 @@ properties:
           strategy: plugin_list_ops
           identity: plugin_id
         default: {}
+
+      hitl_contract:
+        description: Human approval contract; caller-injected options override this manifest binding.
+        x-merge:
+          strategy: plugin_binding_merge
+        oneOf:
+          - type: string
+            minLength: 1
+          - type: object
+            additionalProperties: false
+            properties:
+              type: { type: string }
+              ref: { type: string }
+              params: { type: object, additionalProperties: true }
+
+      user_io_contract:
+        description: User progress-update contract; caller-injected options override this manifest binding.
+        x-merge:
+          strategy: plugin_binding_merge
+        oneOf:
+          - type: string
+            minLength: 1
+          - type: object
+            additionalProperties: false
+            properties:
+              type: { type: string }
+              ref: { type: string }
+              params: { type: object, additionalProperties: true }
 
       llm:
         $ref: "./fragments/llm-binding.schema.yaml"

@@ -4,8 +4,6 @@
 
 from __future__ import annotations
 
-import dataclasses
-
 from mas.ctl.adapters.obs.config import ObservabilityConfig
 from mas.ctl.manifest.spec_bindings import (
     normalize_obs_plugin,
@@ -24,29 +22,15 @@ def kernel_config_from_manifest(
     *,
     pattern_plugin_id: str | None = None,
 ) -> KernelConfig:
-    from mas.ctl.session.ingress_governance_loader import build_ingress_governance_plugins
     from mas.runtime.spec.gov import build_kernel_config
 
     spec = (manifest or {}).get("spec") or {}
     gov = parse_governance(spec.get("governance"))
 
-    # Plugin resolution (named or flags-only fallback) lives entirely in
-    # build_kernel_config — no plugin class is named here, so any governance
-    # plugin declared in the manifest's plugin registry works, not just the
-    # built-in sample_governance.
-    kernel = build_kernel_config(gov, pattern_plugin_id=pattern_plugin_id or "", agent_spec=spec)
-
-    extra_ingress = build_ingress_governance_plugins(
-        ingress_plugin_specs=list(gov.ingress_plugins),
-        error_recovery_plugin=None,
-    )
-    if extra_ingress:
-        chain = tuple(kernel.ingress_governance_plugins) + tuple(extra_ingress)
-        kernel = dataclasses.replace(
-            kernel, ingress_governance_plugins=chain, error_recovery_plugin=None
-        )
-
-    return kernel
+    # Ingress plugins are wired inside build_kernel_config from
+    # binding.ingress_plugins. Do not pass a second spec list here — that
+    # parameter was dead and looked like a double-wiring path.
+    return build_kernel_config(gov, pattern_plugin_id=pattern_plugin_id or "", agent_spec=spec)
 
 
 def mas_id_from_manifest(manifest: dict | None) -> str:

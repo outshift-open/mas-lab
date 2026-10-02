@@ -11,6 +11,14 @@ from mas.lab.manifests import load_experiment_data
 from .execution import MASExecutionSpec
 from .experiment_base import MASRunBase, _is_mas_binding, canonicalize_experiment_dict
 
+
+@dataclass(frozen=True)
+class CheckpointAxisEntry:
+    """One starting checkpoint crossed with scenarios and dataset items."""
+
+    id: str
+    path: Path | None = None
+
 @dataclass
 class MASExperimentConfig(MASRunBase):
     """Batch experiment configuration for running a MAS across scenarios."""
@@ -23,6 +31,11 @@ class MASExperimentConfig(MASRunBase):
 
     default_infra: Optional[str] = None
     """Default infra bundle name for service/codec pipeline steps."""
+
+    checkpoints: list[CheckpointAxisEntry] = field(
+        default_factory=lambda: [CheckpointAxisEntry(id="none")]
+    )
+    checkpoints_explicit: bool = False
 
     @classmethod
     def from_yaml(cls, path: Path) -> "MASExperimentConfig":
@@ -62,12 +75,51 @@ class MASExperimentConfig(MASRunBase):
 
         default_flavour = exp_data.get("default_flavour") or "local"
         default_infra = exp_data.get("default_infra") or None
+        checkpoints_explicit = "checkpoints" in exp_data
+        checkpoints = _parse_checkpoint_axis(exp_data.get("checkpoints"), base_dir)
 
         config = cls(
             **base,
             execution=execution,
             default_flavour=default_flavour,
             default_infra=default_infra,
+            checkpoints=checkpoints,
+            checkpoints_explicit=checkpoints_explicit,
         )
         config._path = path
         return config
+
+
+def _parse_checkpoint_axis(raw: object, base_dir: Path) -> list[CheckpointAxisEntry]:
+    if raw is None:
+        return [CheckpointAxisEntry(id="none")]
+    if not isinstance(raw, list) or not raw:
+        raise ValueError("experiment.checkpoints must be a non-empty list")
+    entries: list[CheckpointAxisEntry] = []
+    seen: set[str] = set()
+    for index, value in enumerate(raw):
+        if not isinstance(value, dict) or set(value) - {"id", "path"}:
+            raise ValueError(f"experiment.checkpoints[{index}] must contain only id and path")
+        checkpoint_id = value.get("id")
+        if (
+            not isinstance(checkpoint_id, str)
+            or not checkpoint_id
+            or any(char not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for char in checkpoint_id)
+        ):
+            raise ValueError(f"experiment.checkpoints[{index}].id must use letters, digits, '-' or '_'")
+        if checkpoint_id in seen:
+            raise ValueError(f"experiment.checkpoints contains duplicate id {checkpoint_id!r}")
+        seen.add(checkpoint_id)
+        raw_path = value.get("path")
+        if checkpoint_id == "none":
+            if raw_path is not None:
+                raise ValueError("checkpoint id 'none' cannot declare a path")
+            entries.append(CheckpointAxisEntry(id=checkpoint_id))
+            continue
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            raise ValueError(f"experiment.checkpoints[{index}].path is required")
+        path = Path(raw_path).expanduser()
+        if not path.is_absolute():
+            path = (base_dir / path).resolve()
+        entries.append(CheckpointAxisEntry(id=checkpoint_id, path=path))
+    return entries

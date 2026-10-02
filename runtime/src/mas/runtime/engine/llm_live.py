@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -64,6 +65,7 @@ class LiveLlmEngine:
     http_timeout: float | None = None
     manifest_dir: Path | None = None
     delegation: Any | None = None
+    engine_tool_contracts: tuple[Any, ...] = ()
     delegation_peer_descriptions: dict[str, str] | None = None
     tool_provider: Any | None = None
     llm_provider: Any | None = None
@@ -218,6 +220,7 @@ class LiveLlmEngine:
                     user=user,
                     arguments=args,
                     tool_provider=self.tool_provider,
+                    engine_contracts=self.engine_tool_contracts,
                     correlation_id=io.correlation_id,
                     # This TOOL_CALL's own resolved call_id (attached by the
                     # driver — see InvokeEngineIo.call_id) — forwarded as the
@@ -230,6 +233,63 @@ class LiveLlmEngine:
                 # The model named a tool this agent cannot run. Return that as
                 # the tool observation so the same agent can pick a tool it
                 # was actually given, instead of aborting the turn.
+                text = self._unavailable_tool_observation(tool, exc)
+            return EngineIoReturn(
+                correlation_id=io.correlation_id,
+                response_kind="TOOL_RESULT",
+                next_step="LLM_CALL" if self.use_tool_loop else "STOP",
+                text=text,
+            )
+        if io.op == "MEMORY_OP":
+            return EngineIoReturn(
+                correlation_id=io.correlation_id,
+                response_kind="MODEL_TEXT",
+                next_step="STOP",
+                text="Memory updated.",
+            )
+        return EngineIoReturn(
+            correlation_id=io.correlation_id,
+            response_kind="ERROR",
+            next_step="STOP",
+            text=f"Unsupported operation: {io.op}",
+        )
+
+    async def ainvoke(self, io: InvokeEngineIo) -> EngineIoReturn:
+        if io.op == "LLM_CALL":
+            return await self._allm_call(io)
+        if io.op == "TOOL_CALL":
+            if not self._budget.allow_tool():
+                return EngineIoReturn(
+                    correlation_id=io.correlation_id,
+                    response_kind="ERROR",
+                    next_step="STOP",
+                    text="Budget exceeded: max tool calls reached.",
+                )
+            self._budget.note_tool()
+            user = (self.ctx.last_user_text if self.ctx else "") or ""
+            by_cid = self._pending_tools_by_cid.pop(io.correlation_id, None)
+            if by_cid is not None:
+                tool, args = by_cid
+            else:
+                tool = self._pending_tool or "tool"
+                args = dict(self._pending_tool_args)
+                self._pending_tool = ""
+                self._pending_tool_args = {}
+            try:
+                from mas.runtime.engine.tool_dispatch import aexecute_engine_tool
+
+                text = await aexecute_engine_tool(
+                    tool,
+                    delegation=self.delegation,
+                    ctx=self.ctx,
+                    user=user,
+                    arguments=args,
+                    tool_provider=self.tool_provider,
+                    engine_contracts=self.engine_tool_contracts,
+                    correlation_id=io.correlation_id,
+                    caller_call_id=io.call_id,
+                )
+            except ToolExecutionError as exc:
                 text = self._unavailable_tool_observation(tool, exc)
             return EngineIoReturn(
                 correlation_id=io.correlation_id,
@@ -272,6 +332,53 @@ class LiveLlmEngine:
                 api_key=os.environ.get(self.api_key_env, ""),
                 tools=tools,
                 temperature=0.0 if answering_from_tools else self.temperature,
+            )
+        except Exception as exc:
+            logger.debug("LLM provider call failed", exc_info=True)
+            return EngineIoReturn(
+                correlation_id=io.correlation_id,
+                response_kind="ERROR",
+                next_step="STOP",
+                text=classify_llm_http_error(exc),
+                offered_tools=list(self._offered_tool_names),
+            )
+
+        usage = message.pop("usage", None) or {}
+        finish_reason = message.pop("finish_reason", None) or ""
+        return self._message_to_engine_return(
+            io, message, messages, tool_defs, answering_from_tools, usage, finish_reason
+        )
+
+    async def _allm_call(self, io: InvokeEngineIo) -> EngineIoReturn:
+        if not self._budget.allow_llm():
+            return EngineIoReturn(
+                correlation_id=io.correlation_id,
+                response_kind="ERROR",
+                next_step="STOP",
+                text="Budget exceeded: max LLM calls reached.",
+            )
+        self._budget.note_llm()
+        if self.ctx is not None:
+            self.ctx._assembly_correlation_id = io.correlation_id
+        tool_defs = self._tool_defs()
+        messages = self._build_messages(tools=tool_defs)
+        tools = llm_request_tools(messages, tools=tool_defs or None)
+        answering_from_tools = has_tool_results(messages)
+        try:
+            message = await self._achat_completion(
+                messages,
+                api_key=os.environ.get(self.api_key_env, ""),
+                tools=tools,
+                temperature=0.0 if answering_from_tools else self.temperature,
+            )
+        except asyncio.CancelledError:
+            return EngineIoReturn(
+                correlation_id=io.correlation_id,
+                response_kind="ERROR",
+                next_step="STOP",
+                text="cancelled",
+                finish_reason="cancelled",
+                offered_tools=list(self._offered_tool_names),
             )
         except Exception as exc:
             logger.debug("LLM provider call failed", exc_info=True)
@@ -426,3 +533,70 @@ class LiveLlmEngine:
         if not hasattr(provider, "chat_completion"):
             raise RuntimeError(f"LLM provider {type(provider).__name__} has no chat_completion")
         return provider.chat_completion(**kwargs)
+
+    async def _achat_completion(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        api_key: str,
+        tools: list[dict[str, Any]] | None,
+        temperature: float | None = None,
+        model: str | None = None,
+    ) -> dict[str, Any]:
+        """Dispatch to ``llm_provider.achat_completion``. Tests may patch this method."""
+        provider = self.llm_provider
+        if provider is None:
+            raise RuntimeError("no LLM provider configured")
+        on_chunk = getattr(self.ctx, "on_stream_chunk", None) if self.ctx is not None else None
+        use_model = (model or self.model or "").strip() or self.model
+        kwargs: dict[str, Any] = {
+            "model": use_model,
+            "messages": messages,
+            "tools": tools,
+            "temperature": self.temperature if temperature is None else temperature,
+            "max_tokens": self.max_tokens,
+            "stream": self.stream,
+            "on_stream_chunk": on_chunk,
+            "api_key": api_key,
+            "reasoning_effort": self.reasoning.effort,
+            "reasoning": self.reasoning,
+            "sampling": self.sampling.to_spec_dict() or None,
+            "extra_body": self.extra_body or None,
+        }
+        kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        if not hasattr(provider, "achat_completion"):
+            raise RuntimeError(
+                f"LLM provider {type(provider).__name__} has no achat_completion "
+                "(async twin of chat_completion is required; worker-thread fallback is not supported)"
+            )
+        stream_iter = getattr(provider, "achat_completion_stream", None)
+        if callable(stream_iter) and kwargs.get("stream"):
+            return await self._achat_completion_streamed(stream_iter, kwargs)
+        return await provider.achat_completion(**kwargs)
+
+    async def _achat_completion_streamed(self, stream_iter: Any, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Yielded chunks are obs ``llm_delta``, not Mealy ticks. Cancel between awaits."""
+        assembled: dict[str, Any] | None = None
+        parts: list[str] = []
+        async for chunk in stream_iter(**kwargs):
+            text = ""
+            if isinstance(chunk, dict) and ("role" in chunk or "tool_calls" in chunk) and "delta" not in chunk:
+                assembled = chunk
+                text = str(chunk.get("content") or "")
+            elif isinstance(chunk, dict):
+                text = str(chunk.get("delta") or chunk.get("content") or "")
+                parts.append(text)
+            else:
+                text = str(chunk)
+                parts.append(text)
+            if text:
+                self._emit_llm_delta(text)
+        if assembled is not None:
+            return assembled
+        return {"role": "assistant", "content": "".join(parts), "finish_reason": "stop"}
+
+    def _emit_llm_delta(self, text: str) -> None:
+        op = getattr(self.ctx, "observability", None) if self.ctx is not None else None
+        record = getattr(op, "record_session", None) if op is not None else None
+        if callable(record):
+            record("llm_delta", text=text)

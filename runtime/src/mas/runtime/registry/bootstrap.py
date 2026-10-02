@@ -206,6 +206,10 @@ def load_registry(config: RuntimeWorkspaceConfig | None = None) -> PluginRegistr
     # NO hardcoded plugins in bootstrap: all plugins come from libraries!
     _register_library_plugins(reg)
 
+    from mas.runtime.registry.llm_provider_registry import enforce_llm_provider_async_contract
+
+    enforce_llm_provider_async_contract(reg)
+
     # Register aliases AFTER plugins are discovered (so URNs exist)
     for alias, urn in load_aliases(config).items():
         reg.register_alias(alias, urn)

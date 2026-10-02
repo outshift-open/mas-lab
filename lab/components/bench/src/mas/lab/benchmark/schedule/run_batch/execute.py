@@ -143,6 +143,7 @@ async def execute_batch(
         nonlocal total_ok, total_fail
         config, spec_path = prepared.scenario_configs[scenario_id]
         item_id = item.get("id", 0)
+        source_item_id = item.get("source_item_id", item_id)
 
         from mas.lab.inputs import load_run_input, run_input_to_dict
 
@@ -160,6 +161,12 @@ async def execute_batch(
         )
         prompt = _run_input.primary_prompt
         _run_input_dict = run_input_to_dict(_run_input)
+        checkpoint_id = str(item.get("checkpoint_id") or "")
+        forked_from_checkpoint = str(item.get("forked_from_checkpoint") or "")
+        if not forked_from_checkpoint and _run_input.checkpoint_load:
+            forked_from_checkpoint = str(_run_input.checkpoint_load)
+            if not checkpoint_id:
+                checkpoint_id = Path(forked_from_checkpoint).stem
         if not prompt:
             raise ValueError(f"dataset item {item_id!r} has an empty inputs.user prompt")
         t0 = _time.monotonic()
@@ -241,6 +248,11 @@ async def execute_batch(
                 results_rows.append({
                     "run_id": run_id, "scenario": scenario_id,
                     "item_id": item_id, "run": run_idx + 1,
+                    "source_item_id": source_item_id,
+                    "experiment_id": exp.name,
+                    "session_id": "",
+                    "checkpoint_id": checkpoint_id,
+                    "forked_from_checkpoint": forked_from_checkpoint,
                     "group": item.get("group", ""),
                     "target_agents": ",".join(item.get("target_agents", [])),
                     "prompt": prompt,
@@ -273,6 +285,11 @@ async def execute_batch(
                     "scenario": scenario_id,
                     "item_id": item_id,
                     "run": run_idx + 1,
+                    "source_item_id": source_item_id,
+                    "experiment_id": exp.name,
+                    "session_id": "",
+                    "checkpoint_id": checkpoint_id,
+                    "forked_from_checkpoint": forked_from_checkpoint,
                     "group": item.get("group", ""),
                     "target_agents": ",".join(item.get("target_agents", [])),
                     "prompt": prompt,
@@ -381,6 +398,7 @@ async def execute_batch(
                             "status": result.status,
                             "usage": result.metadata.get("usage", {}),
                             "agent_id": result.metadata.get("agent_id", ""),
+                            "session_id": result.metadata.get("session_id", ""),
                         }
                     finally:
                         reset_event_stream(_token)
@@ -450,6 +468,11 @@ async def execute_batch(
                 "scenario": scenario_id,
                 "item_id": item_id,
                 "run": run_idx + 1,
+                "source_item_id": source_item_id,
+                "experiment_id": exp.name,
+                "session_id": result_dict.get("session_id", ""),
+                "checkpoint_id": checkpoint_id,
+                "forked_from_checkpoint": forked_from_checkpoint,
                 "group": item.get("group", ""),
                 "target_agents": ",".join(item.get("target_agents", [])),
                 "prompt": prompt,

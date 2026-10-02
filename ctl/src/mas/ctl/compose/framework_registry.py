@@ -40,19 +40,44 @@ class LangGraphFrameworkAdapter:
 
 
 _ADAPTERS: dict[str, FrameworkAdapter] = {
-    "native": NativeFrameworkAdapter(),
-    "langgraph": LangGraphFrameworkAdapter(),
 }
+
+_CATALOG_REGISTERED = False
+
+
+def _register_from_catalog() -> None:
+    global _CATALOG_REGISTERED
+    if _CATALOG_REGISTERED:
+        return
+    from mas.ctl.registry.catalog import get_framework, import_class, list_framework_ids
+
+    for framework_id in list_framework_ids():
+        if framework_id in _ADAPTERS:
+            continue
+        entry = get_framework(framework_id)
+        if entry.module:
+            _ADAPTERS[framework_id] = import_class(entry.module)()
+    _CATALOG_REGISTERED = True
 
 
 def list_registered_adapters() -> list[str]:
+    _register_from_catalog()
     return sorted(_ADAPTERS.keys())
 
 
 def get_framework_adapter(adapter_id: FrameworkAdapterId) -> FrameworkAdapter:
-    if adapter_id not in _ADAPTERS:
-        raise KeyError(f"unknown framework adapter: {adapter_id}")
-    return _ADAPTERS[adapter_id]
+    _register_from_catalog()
+    if adapter_id in _ADAPTERS:
+        return _ADAPTERS[adapter_id]
+    from mas.ctl.registry.catalog import UnknownComponentError, get_framework
+
+    try:
+        entry = get_framework(adapter_id)
+    except UnknownComponentError:
+        raise KeyError(f"unknown framework adapter: {adapter_id}") from None
+    if entry.status in {"planned", "future_release"}:
+        raise UnknownComponentError(f"framework {adapter_id!r} is not available yet")
+    raise KeyError(f"unknown framework adapter: {adapter_id}")
 
 
 def register_framework_adapter(adapter_id: FrameworkAdapterId, adapter: FrameworkAdapter) -> None:

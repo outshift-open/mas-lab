@@ -36,6 +36,19 @@ class _CompositeBlockPlugin:
         return GovDecision.BLOCK, "block", "nope"
 
 
+class _IngressOnlyPlugin:
+    plugin_id = "test_ingress_only"
+
+    def __init__(self, **config):
+        self.config = config
+
+    def evaluate_ingress(self, intent, *, config):
+        from mas.runtime.boundary.gov.ingress_plugin import IngressGovDecision
+        from mas.runtime.schema.governance import GovernanceAction
+
+        return IngressGovDecision(action=GovernanceAction.BLOCK, message="ingress test")
+
+
 def test_same_plugin_key_merges_policies_instead_of_overwriting_regression() -> None:
     """Regression: two overlay entries both using "sample_governance" used to
     silently overwrite (configs[name] = dict(cfg)), dropping the first
@@ -147,7 +160,6 @@ def test_flags_only_fallback_also_resolves_sample_governance_via_registry() -> N
     assert config.egress_governance_plugin is not None
     assert config.egress_governance_plugin.config.hitl_on_tool is True
 
-
 def test_agent_spec_threads_through_to_kernel_config() -> None:
     spec = {"tools": ["lookup_schedule"], "models": [{"model": "gpt-4o"}]}
     binding = parse_gov_spec(None)
@@ -191,3 +203,132 @@ def test_distinct_plugins_are_chained_not_last_wins() -> None:
         ):
             reg._entries.pop(urn, None)
             reg._aliases.pop(shortcut, None)
+
+
+def test_error_recovery_plugin_resolves_from_manifest_governance_binding() -> None:
+    from mas.library.standard.plugins.governance.backtrack_on_error import BacktrackOnErrorPlugin
+    from mas.runtime.registry import get_registry, register_plugin
+
+    urn = "mas.gov.test_backtrack_on_error"
+    shortcut = "test_backtrack_on_error"
+    try:
+        register_plugin(
+            urn,
+            BacktrackOnErrorPlugin,
+            shortcuts=[shortcut],
+            attributes={"plugin_type": "governance"},
+        )
+        binding = parse_gov_spec(
+            [
+                {
+                    "sample_governance": {
+                        "error_recovery_plugin": shortcut,
+                        "backtrack": {"repeat_threshold": 2},
+                    }
+                }
+            ]
+        )
+
+        config = build_kernel_config(binding)
+
+        assert isinstance(config.error_recovery_plugin, BacktrackOnErrorPlugin)
+        assert config.error_recovery_plugin.repeat_threshold == 2
+    finally:
+        registry = get_registry()
+        registry._entries.pop(urn, None)
+        registry._aliases.pop(shortcut, None)
+
+
+def test_error_recovery_plugin_ignores_session_level_backtrack_fields() -> None:
+    """The shipped openclaw overlay mixes plugin tuning with session policy."""
+    from mas.library.standard.plugins.governance.backtrack_on_error import BacktrackOnErrorPlugin
+    from mas.runtime.registry import get_registry, register_plugin
+
+    urn = "mas.gov.test_backtrack_full_config"
+    shortcut = "test_backtrack_full_config"
+    try:
+        register_plugin(
+            urn,
+            BacktrackOnErrorPlugin,
+            shortcuts=[shortcut],
+            attributes={"plugin_type": "governance"},
+        )
+        binding = parse_gov_spec(
+            [
+                {
+                    "sample_governance": {
+                        "error_recovery_plugin": shortcut,
+                        "backtrack": {
+                            "repeat_threshold": 2,
+                            "max_backtracks_per_session": 3,
+                            "steps": 1,
+                            "on_cap_reached": "hitl",
+                        },
+                    }
+                }
+            ]
+        )
+
+        config = build_kernel_config(binding)
+
+        assert isinstance(config.error_recovery_plugin, BacktrackOnErrorPlugin)
+        assert config.error_recovery_plugin.repeat_threshold == 2
+    finally:
+        registry = get_registry()
+        registry._entries.pop(urn, None)
+        registry._aliases.pop(shortcut, None)
+
+
+def test_backtrack_plugin_retries_first_error_and_requests_rollback_on_repeat() -> None:
+    from mas.library.standard.plugins.governance.backtrack_on_error import BacktrackOnErrorPlugin
+    from mas.runtime.boundary.gov.error_recovery import ErrorRecoveryAction, IngressErrorContext
+    from mas.runtime.schema.governance import GovIngressProfile
+
+    plugin = BacktrackOnErrorPlugin(repeat_threshold=2)
+    context = IngressErrorContext(
+        response_kind="ERROR",
+        error_text="connection refused",
+        retry_count=0,
+        max_retries=2,
+        profile=GovIngressProfile.PERMISSIVE,
+    )
+
+    first = plugin.decide(context)
+    second = plugin.decide(
+        IngressErrorContext(**{**context.__dict__, "retry_count": 1})
+    )
+
+    assert first.action is ErrorRecoveryAction.RETRY
+    assert second.action is ErrorRecoveryAction.BACKTRACK
+
+
+def test_ingress_plugins_from_manifest_are_wired_to_kernel_config() -> None:
+    from mas.runtime.registry import get_registry, register_plugin
+
+    urn = "mas.gov.test_ingress_only"
+    shortcut = "test_ingress_only"
+    try:
+        register_plugin(
+            urn,
+            _IngressOnlyPlugin,
+            shortcuts=[shortcut],
+            attributes={"plugin_type": "governance"},
+        )
+        binding = parse_gov_spec(
+            [{"sample_governance": {"ingress_plugins": [{"type": shortcut, "chain": "continue"}]}}]
+        )
+
+        config = build_kernel_config(binding)
+
+        assert len(config.ingress_governance_plugins) == 1
+        entry = config.ingress_governance_plugins[0]
+        assert isinstance(entry.plugin, _IngressOnlyPlugin)
+        assert entry.chain == "continue"
+        assert entry.filter.response_kind == ("TOOL_RESULT",)
+    finally:
+        registry = get_registry()
+        registry._entries.pop(urn, None)
+        registry._aliases.pop(shortcut, None)
+        typed = registry._by_type.get("governance")
+        if typed:
+            registry._by_type["governance"] = [item for item in typed if item.urn != urn]

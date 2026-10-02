@@ -20,7 +20,7 @@ from mas.runtime.contracts.context_contract import (
 )
 
 from ..lib.resolver import resolve_skill_path
-from .skill_plugin_registry import SkillImplementation, SkillPluginRegistry
+from .skill_plugin_registry import SkillPluginRegistry, coerce_skill_impl
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +41,10 @@ class SkillCatalogPlugin(ContextContract):
         manifest: dict | None = None,
         base_dir: Path | None = None,
         *,
-        impl: SkillImplementation | str = SkillImplementation.NATIVE,
+        impl: str = "native",
     ) -> None:
         super().__init__()
-        self.impl = _coerce_impl(impl)
+        self.impl = coerce_skill_impl(impl)
         self._registry = SkillRegistry()
         self._backend_plugin: Any | None = None
         self._catalog_text: str = ""
@@ -74,7 +74,7 @@ class SkillCatalogPlugin(ContextContract):
             return
         _raise_for_missing_skill_refs(refs, base_dir)
 
-        if self.impl is not SkillImplementation.NATIVE:
+        if self.impl != "native":
             self._build_from_selected_impl(refs=refs, base_dir=base_dir)
             return
 
@@ -134,7 +134,7 @@ class SkillCatalogPlugin(ContextContract):
         self._catalog_text = _format_catalog(records)
         logger.debug(
             "SkillCatalogPlugin(%s): built catalog with %d skill(s): %s",
-            self.impl.value,
+            self.impl,
             len(records),
             [r.name for r in records],
         )
@@ -170,7 +170,7 @@ def attach_skill_catalog_plugin(
     manifest: dict | None,
     base_dir: Path | None,
     *,
-    impl: SkillImplementation | str = SkillImplementation.NATIVE,
+    impl: str = "native",
 ) -> SkillCatalogPlugin | None:
     """Build and attach SkillCatalogPlugin to ctx."""
     if not manifest or not base_dir:
@@ -214,16 +214,6 @@ def _format_catalog(records: list[SkillRecord]) -> str:
     for rec in records:
         lines.append(f"- **{rec.name}**: {rec.description}")
     return "\n".join(lines)
-
-
-def _coerce_impl(impl: SkillImplementation | str) -> SkillImplementation:
-    if isinstance(impl, SkillImplementation):
-        return impl
-    try:
-        return SkillImplementation(str(impl).strip().lower())
-    except ValueError:
-        logger.warning("Unknown skill implementation %r; defaulting to native", impl)
-        return SkillImplementation.NATIVE
 
 
 def _declared_skill_names(refs: list[str]) -> set[str]:

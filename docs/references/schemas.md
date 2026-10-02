@@ -24,6 +24,10 @@ Human-readable field docs are in [Specifications](index.md#specifications).
 | [`memory-seed.schema.yaml`](../schemas/memory-seed.schema.yaml) | Dataset memory seed files |
 | [`checkpoint.schema.yaml`](../schemas/checkpoint.schema.yaml) | Execution checkpoint payloads |
 
+Checkpoint payload version 1 contains the kernel snapshot. Version 2 also
+contains session lineage, working memory, and a hash-verified embedded agent
+manifest; see [Session checkpoints](../manifests/checkpoint.md).
+
 ---
 
 ## Runtime manifests
@@ -85,6 +89,9 @@ Sample overlays and bindings under [`schemas/examples/`](../schemas/examples/):
 - [`infra/mcp-localhost.yaml`](../schemas/examples/infra/mcp-localhost.yaml)
 - `library-samples/infra/mcp-localhost-deploy.yaml` — MCP server deployment posture
 - [`tools/annotated.tool.yaml`](../schemas/examples/tools/annotated.tool.yaml)
+- [`checkpoint-axis.yaml`](../schemas/examples/checkpoint-axis.yaml)
+- [`checkpoint-v2.json`](../schemas/examples/checkpoint-v2.json)
+- [`subagent-agent.yaml`](../schemas/examples/subagent-agent.yaml)
 
 Plus `*.example.yaml` siblings next to deployment, placement, memory-seed, and
 runtime-profile schemas.

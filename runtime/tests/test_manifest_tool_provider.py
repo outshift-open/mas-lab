@@ -14,6 +14,22 @@ from mas.runtime.engine.tool_dispatch import ToolExecutionError, execute_engine_
 from mas.runtime.engine.tools import openai_tools
 
 
+class _DynamicSystemTool:
+    def on_collect_tools(self, **_):
+        return [{"name": "dynamic_system_tool", "description": "dynamic", "parameters": {"type": "object", "properties": {}}}]
+
+    def on_execute_tool(self, name, args, **_):
+        return "registered" if name == "dynamic_system_tool" else None
+
+
+class _DefaultEnabledSystemTool:
+    def on_collect_tools(self, **_):
+        return [{"name": "default_enabled_system_tool", "description": "default", "parameters": {"type": "object", "properties": {}}}]
+
+    def on_execute_tool(self, name, args, **_):
+        return "default-enabled" if name == "default_enabled_system_tool" else None
+
+
 @pytest.fixture()
 def calculator_tool_tree(tmp_path: Path) -> Path:
     tool_dir = tmp_path / "tools"
@@ -96,6 +112,130 @@ def test_system_tool_entry_enables_the_tool_without_loading_a_module(calculator_
     )
     names = {t["function"]["name"] for t in provider.list_openai_tools()}
     assert names == {"calculator", "request_human_input"}
+
+
+def test_system_tool_registry_supports_new_registered_tool_names(calculator_tool_tree: Path):
+    from mas.runtime.registry import register_plugin, unregister_plugin
+
+    urn = "mas.system_tool.dynamic_system_tool"
+    try:
+        register_plugin(
+            urn,
+            _DynamicSystemTool,
+            attributes={"plugin_type": "system_tool", "default_enabled": False},
+        )
+        provider = build_manifest_tool_provider(
+            [{"kind": "system", "name": "dynamic_system_tool", "enabled": True}],
+            calculator_tool_tree,
+        )
+
+        assert [tool["function"]["name"] for tool in provider.list_openai_tools()] == [
+            "dynamic_system_tool"
+        ]
+        assert provider.call_tool("dynamic_system_tool", {}) == "registered"
+    finally:
+        unregister_plugin(urn)
+
+
+def test_system_tool_enabled_false_disables_an_explicit_tool(calculator_tool_tree: Path):
+    provider = build_manifest_tool_provider(
+        [{"kind": "system", "name": "request_human_input", "enabled": False}],
+        calculator_tool_tree,
+    )
+
+    assert provider.list_openai_tools() == []
+
+
+def test_spawn_subagent_tool_advertises_only_granted_templates():
+    from types import SimpleNamespace
+
+    from mas.library.standard.plugins.system_tools.spawn_subagent import SpawnSubagentTool
+
+    tool = SpawnSubagentTool()
+    assert tool.on_collect_tools(ctx=SimpleNamespace()) == []
+    assert tool.on_collect_tools(
+        ctx=SimpleNamespace(allow_subagent_spawning=True, subagent_templates=[])
+    ) == []
+    [spec] = tool.on_collect_tools(
+        ctx=SimpleNamespace(
+            allow_subagent_spawning=True,
+            subagent_templates=[{"id": "worker", "description": "Review code"}],
+        )
+    )
+    assert spec["name"] == "spawn_subagent"
+    assert spec["parameters"]["properties"]["template"]["enum"] == ["worker"]
+
+
+def test_manifest_tool_attachment_gates_spawn_subagent_on_manifest_capability(tmp_path: Path):
+    from types import SimpleNamespace
+
+    from mas.runtime.engine.manifest_tool_provider import attach_manifest_tools
+
+    manifest = {
+        "spec": {
+            "tools": [
+                {
+                    "kind": "system",
+                    "name": "spawn_subagent",
+                    "params": {
+                        "templates": [
+                            {"id": "worker", "ref": "worker.yaml", "description": "Review"}
+                        ]
+                    },
+                }
+            ],
+        }
+    }
+    ctx = SimpleNamespace()
+    engine = SimpleNamespace()
+
+    attach_manifest_tools(engine, manifest, tmp_path, ctx=ctx)
+
+    advertised = engine.tool_provider.list_openai_tools(ctx=ctx)
+    assert [tool["function"]["name"] for tool in advertised] == ["spawn_subagent"]
+    assert advertised[0]["function"]["parameters"]["properties"]["template"]["enum"] == [
+        "worker"
+    ]
+
+
+def test_manifest_tool_attachment_hides_spawn_without_capability(tmp_path: Path):
+    from types import SimpleNamespace
+
+    from mas.runtime.engine.manifest_tool_provider import attach_manifest_tools
+
+    manifest = {"spec": {"tools": [{"kind": "system", "name": "spawn_subagent"}]}}
+    ctx = SimpleNamespace()
+    engine = SimpleNamespace()
+
+    attach_manifest_tools(engine, manifest, tmp_path, ctx=ctx)
+
+    assert engine.tool_provider.list_openai_tools(ctx=ctx) == []
+
+
+def test_system_tool_registry_default_enabled_is_effective_and_overridable(
+    calculator_tool_tree: Path,
+):
+    from mas.runtime.registry import register_plugin, unregister_plugin
+
+    urn = "mas.system_tool.default_enabled_system_tool"
+    try:
+        register_plugin(
+            urn,
+            _DefaultEnabledSystemTool,
+            attributes={"plugin_type": "system_tool", "default_enabled": True},
+        )
+        default_provider = build_manifest_tool_provider([], calculator_tool_tree)
+        assert [tool["function"]["name"] for tool in default_provider.list_openai_tools()] == [
+            "default_enabled_system_tool"
+        ]
+
+        disabled_provider = build_manifest_tool_provider(
+            [{"kind": "system", "name": "default_enabled_system_tool", "enabled": False}],
+            calculator_tool_tree,
+        )
+        assert disabled_provider.list_openai_tools() == []
+    finally:
+        unregister_plugin(urn)
 
 
 def test_ref_entry_params_override_yaml_impl_params(tmp_path: Path):

@@ -22,6 +22,7 @@ types:
   - skill_catalog
   - skill_tools
   - skill_shell
+  - skill_impl
 
 plugins:
   - type: skill_catalog
@@ -51,3 +52,25 @@ plugins:
       scripts bundled in a skill's scripts/ directory.
     module: mas.library.skills.plugins.sk_shell
     class: RunSkillScriptPlugin
+
+  - type: skill_impl
+    name: native
+    urn: mas.skill_impl.native
+    module: mas.library.skills.plugins.plugin_skills_native
+    class: NativeSkillPlugin
+
+  - type: skill_impl
+    name: adk
+    urn: mas.skill_impl.adk
+    module: mas.library.skills.plugins.plugin_skills_adk
+    class: ADKSkillPlugin
+    requires: [google.adk.skills]
+    extra: "mas-library-skills[adk]"
+
+  - type: skill_impl
+    name: langchain
+    urn: mas.skill_impl.langchain
+    module: mas.library.skills.plugins.plugin_skills_langchain
+    class: LangChainSkillPlugin
+    requires: [deepagents.middleware.skills]
+    extra: "mas-library-skills[langchain]"

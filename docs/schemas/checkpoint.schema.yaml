@@ -1,32 +1,105 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-# Session checkpoint — ctl persistence artifact (kernel snapshot + external state)
+# Session checkpoint — kernel-only v1 or self-contained session v2.
 $schema: http://json-schema.org/draft-07/schema#
 title: SessionCheckpoint
-type: object
-required: [version, kernel]
-additionalProperties: false
-properties:
-  version:
-    type: integer
-    const: 1
-  label: { type: string }
-  turn: { type: integer, minimum: 0 }
+oneOf:
+  - type: object
+    required: [version, kernel]
+    additionalProperties: false
+    properties:
+      version: { type: integer, const: 1 }
+      label: { type: string }
+      turn: { type: integer, minimum: 0 }
+      kernel:
+        $ref: "#/definitions/kernel"
+      memory_seeds:
+        type: array
+        items:
+          type: object
+          required: [key, content]
+          additionalProperties: false
+          properties:
+            key: { type: string }
+            content: { type: string }
+      runtime_profile:
+        type: object
+        additionalProperties: true
+        description: Optional design_pattern defaults and gov profile to restore with kernel
+  - type: object
+    required: [version, label, turn, lineage, kernel, working_memory, manifest]
+    additionalProperties: false
+    properties:
+      version: { type: integer, const: 2 }
+      label: { type: string }
+      turn: { type: integer, minimum: 0 }
+      backtrack_count: { type: integer, minimum: 0 }
+      spec_revision: { type: integer, minimum: 0 }
+      related:
+        type: array
+        description: Fingerprints for related-state adapters; bytes stay in the adapter.
+        items:
+          type: object
+          additionalProperties: false
+          properties:
+            plugin: { type: string }
+            fingerprint: { type: string }
+            locator: { type: string }
+            adapter: { type: string }
+      lineage:
+        type: object
+        required: [session_id, parent_session_id, forked_from_checkpoint, root_session_id, created_at]
+        additionalProperties: false
+        properties:
+          session_id: { type: string, minLength: 1 }
+          parent_session_id: { type: [string, "null"] }
+          forked_from_checkpoint: { type: [string, "null"] }
+          root_session_id: { type: [string, "null"] }
+          created_at: { type: string, format: date-time }
+      kernel:
+        $ref: "#/definitions/kernel"
+      working_memory:
+        type: array
+        items:
+          type: object
+          required: [agent_id, turn_history, committed_messages, conversation_chunks]
+          additionalProperties: false
+          properties:
+            agent_id: { type: string, minLength: 1 }
+            turn_history:
+              type: array
+              items:
+                type: array
+                minItems: 2
+                maxItems: 2
+                items: { type: string }
+            committed_messages:
+              type: array
+              items: { type: object, additionalProperties: true }
+            conversation_chunks: { type: [object, "null"], additionalProperties: true }
+            working_messages:
+              type: array
+              items: { type: object, additionalProperties: true }
+            open_tool_call_id: { type: string }
+            synced_tool_result_cids:
+              type: array
+              items: { type: integer }
+      manifest:
+        type: object
+        required: [content, content_hash]
+        additionalProperties: false
+        properties:
+          content: { type: object, additionalProperties: true }
+          content_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+      memory_seeds:
+        type: array
+        items: { type: object, additionalProperties: true }
+      runtime_profile:
+        type: object
+        additionalProperties: true
+definitions:
   kernel:
     type: object
-    description: RuntimeKernel.snapshot() — Q_product and tau
-    required: [q, tau]
+    description: RuntimeKernel.snapshot() — Q_product and run ledger
+    required: [q, run]
     additionalProperties: true
-  memory_seeds:
-    type: array
-    items:
-      type: object
-      required: [key, content]
-      additionalProperties: false
-      properties:
-        key: { type: string }
-        content: { type: string }
-  runtime_profile:
-    type: object
-    additionalProperties: true
-    description: Optional design_pattern defaults and gov profile to restore with kernel

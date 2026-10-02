@@ -116,4 +116,4 @@ def test_schedule_parallel_tools_egress_siblings_share_one_parent() -> None:
     for cid in tool_name_by_cid:
         assert ends_by_cid[cid].call_id == starts_by_cid[cid].call_id, cid
     # The call-frame stack must be fully unwound: no sibling left stuck.
-    assert op._frames.stack == ["exec-001"], op._frames.stack
+    assert op._frames.stack == ("exec-001",), op._frames.stack

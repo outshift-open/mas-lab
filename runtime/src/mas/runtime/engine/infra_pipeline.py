@@ -60,6 +60,8 @@ class InfraMiddleware(Protocol):
 
     def invoke(self, io: InvokeEngineIo) -> EngineIoReturn: ...
 
+    async def ainvoke(self, io: InvokeEngineIo) -> EngineIoReturn: ...
+
     def exchange_preview(self, op: str, *, correlation_id: int = 0) -> str: ...
 
 
@@ -171,6 +173,32 @@ class LlmCacheMiddleware:
             self._persist()
         return ret
 
+    async def ainvoke(self, io: InvokeEngineIo) -> EngineIoReturn:
+        if not (self.allow_read or self.allow_write) or io.op != "LLM_CALL":
+            return await self.inner.ainvoke(io)
+        preview = self._preview(io)
+        key = hashlib.sha256(preview.encode("utf-8")).hexdigest()
+        if self.allow_read and key in self._cache:
+            await self._asimulate_replay_delay()
+            return middleware_cache_deserialize(self._cache[key], io.correlation_id)
+        if self.allow_read and self.raise_on_miss:
+            self._log_miss(key, preview)
+            shown = preview if len(preview) <= 4000 else preview[:4000] + "\n…"
+            raise RuntimeError(f"llm_cache miss (raise_on_miss=true) for key {key}\n{shown}")
+        ret = await self.inner.ainvoke(io)
+        if (
+            self.allow_write
+            and ret.response_kind == "MODEL_TEXT"
+            and ret.next_step in {"STOP", "TOOL_CALL", "PARALLEL_TOOL_CALLS"}
+        ):
+            self._cache[key] = middleware_cache_serialize(
+                ret,
+                include_preview=self.include_preview,
+                preview=preview,
+            )
+            self._persist()
+        return ret
+
     def reset_turn_state(self) -> None:
         reset_fn = getattr(self.inner, "reset_turn_state", None)
         if callable(reset_fn):
@@ -185,6 +213,15 @@ class LlmCacheMiddleware:
         if hi <= 0:
             return
         time.sleep(random.uniform(lo, hi))
+
+    async def _asimulate_replay_delay(self) -> None:
+        lo = max(0.0, self.replay_delay_min_s)
+        hi = max(lo, self.replay_delay_max_s)
+        if hi <= 0:
+            return
+        import asyncio
+
+        await asyncio.sleep(random.uniform(lo, hi))
 
     def _log_miss(self, key: str, preview: str) -> None:
         if not self.miss_log_path:
@@ -245,6 +282,17 @@ class FaultInjectMiddleware:
                 text=f"{code}: {self.message}",
             )
         return self.inner.invoke(io)
+
+    async def ainvoke(self, io: InvokeEngineIo) -> EngineIoReturn:
+        if io.op == "LLM_CALL" and self.rate > 0 and random.random() < self.rate:
+            code = self.status_codes[0] if self.status_codes else 503
+            return EngineIoReturn(
+                correlation_id=io.correlation_id,
+                response_kind="ERROR",
+                next_step="STOP",
+                text=f"{code}: {self.message}",
+            )
+        return await self.inner.ainvoke(io)
 
     def reset_turn_state(self) -> None:
         reset_fn = getattr(self.inner, "reset_turn_state", None)
@@ -322,6 +370,24 @@ class BidirectionalPipelineEngine:
 
     def invoke(self, io: InvokeEngineIo) -> EngineIoReturn:
         ret = self.inner.invoke(io)
+        if io.op != "LLM_CALL" or ret.response_kind != "MODEL_TEXT" or not ret.text:
+            return ret
+        from mas.runtime.engine.infra_chain import BidirectionalInfraPipeline, InfraChainContext
+
+        chain = BidirectionalInfraPipeline.from_pipeline_steps(self.pipeline_steps)
+        ctx = InfraChainContext(
+            query={"content": ret.text, "correlation_id": io.correlation_id},
+            correlation_id=io.correlation_id,
+            target="LLM_CALL",
+        )
+        out = chain.backward_reply(ctx, {"content": ret.text})
+        new_text = str(out.get("content") or ret.text)
+        if new_text == ret.text:
+            return ret
+        return ret.model_copy(update={"text": new_text})
+
+    async def ainvoke(self, io: InvokeEngineIo) -> EngineIoReturn:
+        ret = await self.inner.ainvoke(io)
         if io.op != "LLM_CALL" or ret.response_kind != "MODEL_TEXT" or not ret.text:
             return ret
         from mas.runtime.engine.infra_chain import BidirectionalInfraPipeline, InfraChainContext

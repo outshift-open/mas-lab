@@ -22,6 +22,7 @@ from mas.ctl.session.controller import ConversationConfig, SessionController
 from mas.ctl.ui.turn_result import turn_failed
 from mas.runtime.agent_defaults import default_pattern_plugin_id
 from mas.runtime.boundary.agentcomm.routing import AgentCommRoute, build_agent_comm_routes
+from mas.runtime.boundary.context.working_memory_registry import WorkingMemoryRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,7 @@ class PreparedEntrySession:
     # reuse this same value for the entry agent's own SessionController and
     # for wire_peer_delegation, so every agent in the run shares it.
     session_id: str = ""
+    working_memory_registry: WorkingMemoryRegistry | None = None
 
 
 def entry_agent_id(mas_config: dict[str, Any]) -> str:
@@ -171,6 +173,8 @@ def prepare_delegation_entry_session(
         instance.driver.agent_id = entry_id
 
     resolved_session_id = session_id or str(uuid.uuid4())
+    working_memory_registry = WorkingMemoryRegistry()
+    materialized.materialized._session_working_memory_registry = working_memory_registry
 
     manifest_path = entry_manifest_path or agent_manifest_path(compose.bind, entry_id)
     agent_manifest = entry_manifest or load_agent_manifest_from_bind(compose.bind, entry_id) or {}
@@ -182,6 +186,14 @@ def prepare_delegation_entry_session(
         manifest_dir=entry_manifest_dir,
         mas_base_dir=materialized.mas_base_dir,
     )
+    from mas.ctl.executor.spawn_ledger import SpawnLedger
+    from mas.runtime.engine.tools import spawn_subagent_params
+
+    spawn_params = spawn_subagent_params(enriched.get("spec")) or {}
+    materialized.materialized._subagent_spawn_ledger = SpawnLedger(
+        max_depth=spawn_params.get("max_depth", 3),
+        max_spawns=spawn_params.get("max_spawns", 8),
+    )
     wire_entry_engine_delegation(
         getattr(getattr(instance, "driver", None), "engine", None),
         enriched,
@@ -192,6 +204,7 @@ def prepare_delegation_entry_session(
             verbose=verbose,
             from_agent=entry_id,
             session_id=resolved_session_id,
+            working_memory_registry=working_memory_registry,
             trace=trace,
             trace_timestamps=trace_timestamps,
             trace_engine=trace_engine,
@@ -202,12 +215,26 @@ def prepare_delegation_entry_session(
         mas_config=compose.mas_config,
         mas_base_dir=materialized.mas_base_dir,
     )
+    from mas.ctl.executor.subagent_spawner import wire_subagent_spawning
+
+    wire_subagent_spawning(
+        getattr(instance.driver, "engine", None),
+        materialized=materialized.materialized,
+        manifest=enriched,
+        manifest_dir=entry_manifest_dir,
+        parent_agent_id=entry_id,
+        session_id=resolved_session_id,
+        working_memory_registry=working_memory_registry,
+        display=display,
+        verbose=verbose,
+    )
     return PreparedEntrySession(
         instance=instance,
         enriched_manifest=enriched,
         manifest_path=manifest_path or entry_manifest_dir / f"{entry_id}.yaml",
         entry_agent_id=entry_id,
         session_id=resolved_session_id,
+        working_memory_registry=working_memory_registry,
     )
 
 
@@ -219,6 +246,7 @@ def wire_peer_delegation(
     verbose: int = 0,
     already_wired: "set[str] | None" = None,
     session_id: str = "",
+    working_memory_registry: WorkingMemoryRegistry | None = None,
     trace: bool = False,
     trace_timestamps: bool = False,
     trace_engine: bool = False,
@@ -259,6 +287,7 @@ def wire_peer_delegation(
         verbose=verbose,
         from_agent=entry_id,
         session_id=session_id,
+        working_memory_registry=working_memory_registry,
         trace=trace,
         trace_timestamps=trace_timestamps,
         trace_engine=trace_engine,
@@ -330,9 +359,27 @@ def wire_peer_delegation(
                 engine = getattr(getattr(instance, "driver", None), "engine", None)
                 from mas.runtime.engine.leaf import leaf_engine
 
-                delegation = getattr(leaf_engine(engine), "delegation", None)
+                leaf = leaf_engine(engine)
+                delegation = getattr(leaf, "delegation", None)
                 if hasattr(delegation, "set_routes"):
                     delegation.set_routes(routes)
+                manifest = getattr(leaf, "manifest", None) or load_agent_manifest_from_bind(
+                    compose.bind, agent_id
+                ) or {}
+                manifest_path = agent_manifest_path(compose.bind, agent_id)
+                from mas.ctl.executor.subagent_spawner import wire_subagent_spawning
+
+                wire_subagent_spawning(
+                    engine,
+                    materialized=materialized.materialized,
+                    manifest=manifest,
+                    manifest_dir=manifest_path.parent if manifest_path else materialized.mas_base_dir,
+                    parent_agent_id=agent_id,
+                    session_id=session_id,
+                    working_memory_registry=working_memory_registry,
+                    display=display,
+                    verbose=verbose,
+                )
             continue
         if instance is None:
             continue
@@ -344,6 +391,19 @@ def wire_peer_delegation(
             compose.mas_config,
             manifest_dir=manifest_dir,
             mas_base_dir=materialized.mas_base_dir,
+        )
+        from mas.ctl.executor.subagent_spawner import wire_subagent_spawning
+
+        wire_subagent_spawning(
+            getattr(getattr(instance, "driver", None), "engine", None),
+            materialized=materialized.materialized,
+            manifest=enriched,
+            manifest_dir=manifest_dir,
+            parent_agent_id=agent_id,
+            session_id=session_id,
+            working_memory_registry=working_memory_registry,
+            display=display,
+            verbose=verbose,
         )
         if not delegation_targets(enriched, agent_id=agent_id):
             continue
@@ -369,6 +429,7 @@ def make_workflow_send(
     verbose: int,
     from_agent: str = "",
     session_id: str = "",
+    working_memory_registry: WorkingMemoryRegistry | None = None,
     trace: bool = False,
     trace_timestamps: bool = False,
     trace_engine: bool = False,
@@ -393,6 +454,7 @@ def make_workflow_send(
         "call_seq": 0,
         "session_id": session_id or str(uuid.uuid4()),
         "controllers": {},
+        "working_memory_registry": working_memory_registry or WorkingMemoryRegistry(),
     }
 
     def send(
@@ -477,6 +539,7 @@ def make_workflow_send(
                 config=ConversationConfig(single_turn=True),
                 session_id=state["session_id"],
                 working_memory_key=memory_key,
+                working_memory_registry=state["working_memory_registry"],
                 caller_agent_id=caller_agent_id,
                 trace=trace,
                 trace_timestamps=trace_timestamps,
@@ -519,4 +582,121 @@ def make_workflow_send(
 
         return result.text
 
+    async def asend(
+        agent_id: str,
+        prompt: str,
+        delegate_correlation_id: int = 0,
+        caller_call_id: str = "",
+        context_id: str = "",
+    ) -> str:
+        bus = getattr(materialized, "bus", None)
+        prev_agent = state["prev_agent"]
+        parent_call_id = caller_call_id
+        state["call_seq"] += 1
+        turn_id = caller_call_id or f"{agent_id}-seq{state['call_seq']}"
+        if bus is not None and prev_agent and prev_agent != agent_id:
+            from mas.runtime.schema.egress import InvokeEngineIo
+
+            state["correlation_id"] += 1
+            bus.send(
+                from_agent=prev_agent,
+                to_agent=agent_id,
+                intent=InvokeEngineIo(correlation_id=state["correlation_id"], op="TRANSPORT_MSG"),
+            )
+        instance = materialized.instances.get(agent_id)
+        if instance is None:
+            raise KeyError(f"agent {agent_id!r} not materialized (have: {list(materialized.instances)})")
+        if hasattr(instance.driver, "agent_id"):
+            instance.driver.agent_id = agent_id
+        memory_key = context_id or state["session_id"]
+        sub_display = display
+        if from_agent and agent_id != from_agent:
+            import sys
+
+            from mas.ctl.ui.stdout import StdoutConversationDisplay
+
+            base = display if isinstance(display, StdoutConversationDisplay) else None
+            sub_display = StdoutConversationDisplay(
+                out=getattr(base, "_out", sys.stdout),
+                err=getattr(base, "_err", sys.stderr),
+                agent_label=agent_id,
+                verbose=verbose,
+                show_labels=True,
+                user_prompt_echoed=True,
+                trace=getattr(base, "_trace", False),
+            )
+        caller_agent_id = from_agent if parent_call_id and from_agent and from_agent != agent_id else ""
+        controllers: dict[str, Any] = state["controllers"]
+        controller = controllers.get(agent_id)
+        if controller is None:
+            controller = SessionController(
+                instance=instance,
+                display=sub_display,
+                verbose=verbose,
+                agent_id=agent_id,
+                config=ConversationConfig(single_turn=True),
+                session_id=state["session_id"],
+                working_memory_key=memory_key,
+                working_memory_registry=state["working_memory_registry"],
+                caller_agent_id=caller_agent_id,
+                trace=trace,
+                trace_timestamps=trace_timestamps,
+                trace_engine=trace_engine,
+                trace_summary=trace_summary,
+                trace_color=trace_color,
+            )
+            controllers[agent_id] = controller
+        else:
+            controller.caller_agent_id = caller_agent_id
+            controller.working_memory_key = memory_key
+            controller.display = sub_display
+        result = await controller.arun_turn(prompt, turn_id=turn_id, parent_call_id=parent_call_id)
+        if controller.obs_recorder is not None:
+            from mas.ctl.session.controller import close_observability
+
+            close_observability(controller)
+        state["prev_agent"] = agent_id
+        if turn_failed(result):
+            raise RuntimeError(f"agent {agent_id!r} turn failed")
+
+        if result.awaiting_hitl:
+            from mas.runtime.boundary.hitl.registry import get_hitl_resolver_registry
+
+            registry = get_hitl_resolver_registry()
+            if registry.has_pending(state["session_id"], agent_id):
+                state.setdefault("pending_hitl_agents", set()).add(agent_id)
+
+        return result.text
+
+    send.asend = asend  # type: ignore[attr-defined]
     return send
+
+
+async def fanout_workflow_delegates(
+    send: RunTurnFn,
+    manifest: dict[str, Any],
+    *,
+    agent_id: str,
+    task: str,
+    caller_call_id: str = "",
+) -> list[str]:
+    """Run every ``delegates_to`` peer concurrently when ``dispatch: parallel``.
+
+    Fail-fast: the first sibling exception cancels the rest
+    (``asyncio.gather(..., return_exceptions=False)``).
+    """
+    import asyncio
+
+    from mas.runtime.boundary.delegation.policy import delegation_targets, uses_parallel_dispatch
+
+    if not uses_parallel_dispatch(manifest, agent_id=agent_id):
+        raise ValueError(f"agent {agent_id!r} does not declare dispatch: parallel")
+    targets = delegation_targets(manifest, agent_id=agent_id)
+    asend = getattr(send, "asend", None)
+    if not callable(asend):
+        raise TypeError("workflow send closure is missing asend")
+    return list(
+        await asyncio.gather(
+            *(asend(peer, task, 0, caller_call_id, "") for peer in targets)
+        )
+    )

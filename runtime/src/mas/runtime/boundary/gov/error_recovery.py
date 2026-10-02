@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Protocol
+from typing import Literal, Protocol
 
 from mas.runtime.schema.governance import GovernanceAction, GovIngressProfile
 
@@ -18,6 +18,7 @@ class ErrorRecoveryAction(str, Enum):
     RETRY = "RETRY"
     EXIT = "EXIT"  # non-recoverable — boundary error, stop workflow
     SKIP = "SKIP"  # synthetic success path (ingress SKIP)
+    BACKTRACK = "BACKTRACK"
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,7 @@ class ErrorRecoveryDecision:
     boundary_code: str = "INGRESS_ERROR_EXIT"
     recoverable: bool = False
     message: str = ""
+    chain: Literal["stop", "continue"] = "stop"
 
 
 class ErrorRecoveryPlugin(Protocol):
@@ -52,6 +54,8 @@ def map_recovery_to_governance(decision: ErrorRecoveryDecision) -> GovernanceAct
         return GovernanceAction.BLOCK
     if decision.action == ErrorRecoveryAction.SKIP:
         return GovernanceAction.SKIP
+    if decision.action == ErrorRecoveryAction.BACKTRACK:
+        return GovernanceAction.BACKTRACK
     return GovernanceAction.ALLOW
 
 

@@ -38,12 +38,12 @@ class _ErrorRecoveryIngressAdapter:
             boundary_code=decision.boundary_code,
             message=decision.message,
             recoverable=decision.recoverable,
+            chain=decision.chain,
         )
 
 
 def build_ingress_governance_plugins(
     *,
-    ingress_plugin_specs: list[dict],
     error_recovery_plugin: ErrorRecoveryPlugin | None,
 ) -> tuple[RegisteredIngressPlugin, ...]:
     entries: list[RegisteredIngressPlugin] = []

@@ -63,12 +63,26 @@ practical examples.
 | `SinglePassPlugin`               | `mas.library.standard.plugins.design_patterns.single_pass`      | `mas-library-standard` |
 | `TreeOfThoughtsPlugin`           | `mas.library.standard.plugins.design_patterns.tree_of_thoughts` | `mas-library-standard` |
 
+### Engine_Tool_Provider
+
+| Class             | Full module path                                                     | Package                |
+| ----------------- | -------------------------------------------------------------------- | ---------------------- |
+| `LlmDelegator`    | `mas.library.standard.mas.runtime.boundary.delegation.llm_delegator` | `mas-library-standard` |
+| `SubagentSpawner` | `mas.library.standard.mas.ctl.executor.subagent_spawner`             | `mas-library-standard` |
+
 ### Governance
 
 | Class                    | Full module path                                             | Package                |
 | ------------------------ | ------------------------------------------------------------ | ---------------------- |
+| `BacktrackOnErrorPlugin` | `mas.library.standard.plugins.governance.backtrack_on_error` | `mas-library-standard` |
 | `NoUndeclaredToolPlugin` | `mas.library.standard.plugins.governance.no_undeclared_tool` | `mas-library-standard` |
 | `SampleGovernancePlugin` | `mas.library.standard.plugins.governance.sample`             | `mas-library-standard` |
+
+### Hitl_Contract
+
+| Class                  | Full module path                                                         | Package                |
+| ---------------------- | ------------------------------------------------------------------------ | ---------------------- |
+| `RegistryHitlContract` | `mas.library.standard.mas.runtime.contracts.user_communication_contract` | `mas-library-standard` |
 
 ### Llm_Provider
 
@@ -96,6 +110,14 @@ practical examples.
 | -------------------- | --------------------------------------- | -------------------- |
 | `SkillCatalogPlugin` | `mas.library.skills.plugins.sk_catalog` | `mas-library-skills` |
 
+### Skill_Impl
+
+| Class                  | Full module path                                     | Package              |
+| ---------------------- | ---------------------------------------------------- | -------------------- |
+| `ADKSkillPlugin`       | `mas.library.skills.plugins.plugin_skills_adk`       | `mas-library-skills` |
+| `LangChainSkillPlugin` | `mas.library.skills.plugins.plugin_skills_langchain` | `mas-library-skills` |
+| `NativeSkillPlugin`    | `mas.library.skills.plugins.plugin_skills_native`    | `mas-library-skills` |
+
 ### Skill_Shell
 
 | Class                  | Full module path                      | Package              |
@@ -115,45 +137,72 @@ practical examples.
 | `DropSummarizer` | `mas.library.standard.plugins.context.summarizer` | `mas-library-standard` |
 | `LlmSummarizer`  | `mas.library.standard.plugins.context.summarizer` | `mas-library-standard` |
 
+### System_Tool
+
+| Class                   | Full module path                                                    | Package                |
+| ----------------------- | ------------------------------------------------------------------- | ---------------------- |
+| `ControlTools`          | `mas.library.standard.plugins.system_tools.control`                 | `mas-library-standard` |
+| `InformUserTool`        | `mas.library.standard.mas.runtime.system_tools.inform_user`         | `mas-library-standard` |
+| `RequestHumanInputTool` | `mas.library.standard.mas.runtime.system_tools.request_human_input` | `mas-library-standard` |
+| `SpawnSubagentTool`     | `mas.library.standard.plugins.system_tools.spawn_subagent`          | `mas-library-standard` |
+
 ### Tool_Provider
 
 | Class               | Full module path                           | Package                |
 | ------------------- | ------------------------------------------ | ---------------------- |
 | `LocalToolProvider` | `mas.library.standard.plugins.tools.local` | `mas-library-standard` |
 
+### User_Io_Contract
+
+| Class                    | Full module path                                                         | Package                |
+| ------------------------ | ------------------------------------------------------------------------ | ---------------------- |
+| `RegistryUserIOContract` | `mas.library.standard.mas.runtime.contracts.user_communication_contract` | `mas-library-standard` |
+
 ---
 
 ## All Plugins — Alphabetical Index
 
-| Class                            | Category        | Package                |
-| -------------------------------- | --------------- | ---------------------- |
-| `CacheLLMProvider`               | llm_provider    | `mas-library-standard` |
-| `ContextAssemblerPlugin`         | assembler       | `mas-library-standard` |
-| `CotPlugin`                      | design_pattern  | `mas-library-standard` |
-| `DeterministicLinearPlugin`      | design_pattern  | `mas-library-standard` |
-| `DeterministicParallelPlugin`    | design_pattern  | `mas-library-standard` |
-| `DeterministicSingleAgentPlugin` | design_pattern  | `mas-library-standard` |
-| `DropSummarizer`                 | summarizer      | `mas-library-standard` |
-| `IntrospectionPlugin`            | design_pattern  | `mas-library-standard` |
-| `LlmSummarizer`                  | summarizer      | `mas-library-standard` |
-| `LocalAgentComm`                 | agent_comm      | `mas-library-standard` |
-| `LocalToolProvider`              | tool_provider   | `mas-library-standard` |
-| `NativeObservabilityPlugin`      | observability   | `mas-library-standard` |
-| `NoUndeclaredToolPlugin`         | governance      | `mas-library-standard` |
-| `OpenAILLMProvider`              | llm_provider    | `mas-library-standard` |
-| `OtelObservabilityPlugin`        | observability   | `mas-library-standard` |
-| `PlanExecutePlugin`              | design_pattern  | `mas-library-standard` |
-| `ReactPlugin`                    | design_pattern  | `mas-library-standard` |
-| `RunSkillScriptPlugin`           | skill_shell     | `mas-library-skills`   |
-| `SampleGovernancePlugin`         | governance      | `mas-library-standard` |
-| `SemanticMemoryPlugin`           | memory          | `mas-library-standard` |
-| `SinglePassPlugin`               | design_pattern  | `mas-library-standard` |
-| `SkillCatalogPlugin`             | skill_catalog   | `mas-library-skills`   |
-| `SkillToolsPlugin`               | skill_tools     | `mas-library-skills`   |
-| `SlidingWindowConversation`      | context_manager | `mas-library-standard` |
-| `StackConversation`              | context_manager | `mas-library-standard` |
-| `SummarizingConversation`        | context_manager | `mas-library-standard` |
-| `TreeOfThoughtsPlugin`           | design_pattern  | `mas-library-standard` |
+| Class                            | Category             | Package                |
+| -------------------------------- | -------------------- | ---------------------- |
+| `ADKSkillPlugin`                 | skill_impl           | `mas-library-skills`   |
+| `BacktrackOnErrorPlugin`         | governance           | `mas-library-standard` |
+| `CacheLLMProvider`               | llm_provider         | `mas-library-standard` |
+| `ContextAssemblerPlugin`         | assembler            | `mas-library-standard` |
+| `ControlTools`                   | system_tool          | `mas-library-standard` |
+| `CotPlugin`                      | design_pattern       | `mas-library-standard` |
+| `DeterministicLinearPlugin`      | design_pattern       | `mas-library-standard` |
+| `DeterministicParallelPlugin`    | design_pattern       | `mas-library-standard` |
+| `DeterministicSingleAgentPlugin` | design_pattern       | `mas-library-standard` |
+| `DropSummarizer`                 | summarizer           | `mas-library-standard` |
+| `InformUserTool`                 | system_tool          | `mas-library-standard` |
+| `IntrospectionPlugin`            | design_pattern       | `mas-library-standard` |
+| `LangChainSkillPlugin`           | skill_impl           | `mas-library-skills`   |
+| `LlmDelegator`                   | engine_tool_provider | `mas-library-standard` |
+| `LlmSummarizer`                  | summarizer           | `mas-library-standard` |
+| `LocalAgentComm`                 | agent_comm           | `mas-library-standard` |
+| `LocalToolProvider`              | tool_provider        | `mas-library-standard` |
+| `NativeObservabilityPlugin`      | observability        | `mas-library-standard` |
+| `NativeSkillPlugin`              | skill_impl           | `mas-library-skills`   |
+| `NoUndeclaredToolPlugin`         | governance           | `mas-library-standard` |
+| `OpenAILLMProvider`              | llm_provider         | `mas-library-standard` |
+| `OtelObservabilityPlugin`        | observability        | `mas-library-standard` |
+| `PlanExecutePlugin`              | design_pattern       | `mas-library-standard` |
+| `ReactPlugin`                    | design_pattern       | `mas-library-standard` |
+| `RegistryHitlContract`           | hitl_contract        | `mas-library-standard` |
+| `RegistryUserIOContract`         | user_io_contract     | `mas-library-standard` |
+| `RequestHumanInputTool`          | system_tool          | `mas-library-standard` |
+| `RunSkillScriptPlugin`           | skill_shell          | `mas-library-skills`   |
+| `SampleGovernancePlugin`         | governance           | `mas-library-standard` |
+| `SemanticMemoryPlugin`           | memory               | `mas-library-standard` |
+| `SinglePassPlugin`               | design_pattern       | `mas-library-standard` |
+| `SkillCatalogPlugin`             | skill_catalog        | `mas-library-skills`   |
+| `SkillToolsPlugin`               | skill_tools          | `mas-library-skills`   |
+| `SlidingWindowConversation`      | context_manager      | `mas-library-standard` |
+| `SpawnSubagentTool`              | system_tool          | `mas-library-standard` |
+| `StackConversation`              | context_manager      | `mas-library-standard` |
+| `SubagentSpawner`                | engine_tool_provider | `mas-library-standard` |
+| `SummarizingConversation`        | context_manager      | `mas-library-standard` |
+| `TreeOfThoughtsPlugin`           | design_pattern       | `mas-library-standard` |
 
 ---
 

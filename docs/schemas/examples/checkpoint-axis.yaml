@@ -1,0 +1,22 @@
+# Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+# SPDX-License-Identifier: Apache-2.0
+experiment:
+  name: checkpoint-what-if
+  application:
+    manifest: ../../tutorials/01-building-an-agent/agent.yaml
+    configs_dir: ../../tutorials/01-building-an-agent/overlays
+  scenarios:
+    - id: baseline
+      overlays:
+        logic: []
+        control: []
+        infra: []
+  dataset:
+    path: ../../tutorials/03-experiments-and-analysis/dataset.yaml
+    limit: 1
+  checkpoints:
+    - id: none
+    - id: captured-state
+      path: ./checkpoint-v2.json
+  run:
+    n_runs: 1

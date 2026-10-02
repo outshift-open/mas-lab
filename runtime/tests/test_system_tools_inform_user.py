@@ -57,6 +57,16 @@ def test_unknown_system_tool_is_rejected(empty_tool_tree: Path):
         build_manifest_tool_provider([{"kind": "system", "name": "infrom_user"}], empty_tool_tree)
 
 
+def test_unknown_system_tool_is_rejected_even_when_disabled(empty_tool_tree: Path):
+    from mas.runtime.registry.provider_protocol import ManifestToolLoadError
+
+    with pytest.raises(ManifestToolLoadError, match="unknown system tool"):
+        build_manifest_tool_provider(
+            [{"kind": "system", "name": "rqeuest_human_input", "enabled": False}],
+            empty_tool_tree,
+        )
+
+
 def test_inform_user_tool_raises_signal_with_expected_fields():
     tool = InformUserTool()
     with pytest.raises(InformUserSignal) as exc_info:

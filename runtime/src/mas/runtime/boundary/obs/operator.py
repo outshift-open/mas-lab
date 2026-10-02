@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import contextvars
 import queue
 import threading
 import uuid
@@ -38,25 +39,77 @@ def _machine_for_op(op: str) -> str:
     return "M_model"
 
 
-class _CallFrames(threading.local):
-    """Per-thread call stack + sibling-batch state.
+class _CallFrames:
+    """Per-asyncio-task (and per-thread) call stack + sibling-batch state.
 
     A plain shared stack can't distinguish true nesting from sibling
     concurrency: N calls scheduled together (parallel tool calls, or a
     moderator delegating to N agents in one turn) are opened sequentially on
-    one thread before any of them execute (see ``begin_sibling_batch``), so a
-    shared, non-thread-local stack would still be correct for that case on
-    its own. Subclassing ``threading.local`` is kept as a defensive property
-    for whatever thread model ends up running these opens/closes, not because
-    a specific concurrent caller relies on it today — delegated agent turns
-    currently run through their own separate ``RuntimeInstance``/operator, not
-    on a shared thread pool against this same stack.
+    one thread before any of them execute (see ``begin_sibling_batch``).
+
+    State lives in ``contextvars.ContextVar``, not ``threading.local``, so
+    each ``asyncio.Task`` gets its own view automatically — ``create_task``
+    and ``gather`` copy the current context at task-creation time, with no
+    manual propagation. The vars are created per instance so two operators
+    on one task still keep separate stacks, as they did per thread before.
+
+    The stack is stored as a ``tuple`` and replaced on every mutation. A
+    list would be shared by reference across the context copies that
+    ``create_task`` makes, which would silently reintroduce exactly the
+    cross-task bleed this class exists to prevent.
     """
 
     def __init__(self) -> None:
-        self.stack: list[str] = []
-        self.batch_parent: str | None = None
-        self.batch_remaining: int = 0
+        self._stack_var: contextvars.ContextVar[tuple[str, ...]] = contextvars.ContextVar(
+            "mas_obs_call_stack", default=()
+        )
+        self._batch_parent_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+            "mas_obs_batch_parent", default=None
+        )
+        self._batch_remaining_var: contextvars.ContextVar[int] = contextvars.ContextVar(
+            "mas_obs_batch_remaining", default=0
+        )
+
+    @property
+    def stack(self) -> tuple[str, ...]:
+        return self._stack_var.get()
+
+    @property
+    def top(self) -> str | None:
+        stack = self._stack_var.get()
+        return stack[-1] if stack else None
+
+    def push(self, call_id: str) -> None:
+        self._stack_var.set((*self._stack_var.get(), call_id))
+
+    def pop(self) -> None:
+        stack = self._stack_var.get()
+        if stack:
+            self._stack_var.set(stack[:-1])
+
+    def remove(self, call_id: str) -> None:
+        """Drop one frame wherever it sits — siblings close out of order."""
+        stack = self._stack_var.get()
+        if call_id not in stack:
+            return
+        index = len(stack) - 1 - stack[::-1].index(call_id)
+        self._stack_var.set(stack[:index] + stack[index + 1 :])
+
+    @property
+    def batch_parent(self) -> str | None:
+        return self._batch_parent_var.get()
+
+    @batch_parent.setter
+    def batch_parent(self, value: str | None) -> None:
+        self._batch_parent_var.set(value)
+
+    @property
+    def batch_remaining(self) -> int:
+        return self._batch_remaining_var.get()
+
+    @batch_remaining.setter
+    def batch_remaining(self, value: int) -> None:
+        self._batch_remaining_var.set(value)
 
 
 @dataclass
@@ -117,23 +170,19 @@ class ObservabilityOperator:
         self._upstream_correlation_id = upstream_correlation_id
 
     def push_call_frame(self, call_id: str) -> None:
-        """Push an open execution frame (e.g. agent turn) onto the CURRENT thread's stack."""
+        """Push an open execution frame (e.g. agent turn) onto the CURRENT task's stack."""
         if call_id:
-            self._frames.stack.append(call_id)
+            self._frames.push(call_id)
 
     def pop_call_frame(self, call_id: str | None = None) -> None:
-        """Pop the innermost frame on the current thread, or the named frame if provided."""
+        """Pop the innermost frame on the current task, or the named frame if provided."""
         stack = self._frames.stack
         if not stack:
             return
-        if call_id is None:
-            stack.pop()
+        if call_id is None or stack[-1] == call_id:
+            self._frames.pop()
             return
-        if stack[-1] == call_id:
-            stack.pop()
-            return
-        if call_id in stack:
-            stack.remove(call_id)
+        self._frames.remove(call_id)
 
     def begin_sibling_batch(self, count: int) -> None:
         """Mark the next ``count`` calls opened on this thread as true siblings.
@@ -151,12 +200,11 @@ class ObservabilityOperator:
         if count <= 1:
             return
         frames = self._frames
-        frames.batch_parent = frames.stack[-1] if frames.stack else None
+        frames.batch_parent = frames.top
         frames.batch_remaining = count
 
     def _current_frame(self) -> str | None:
-        stack = self._frames.stack
-        return stack[-1] if stack else None
+        return self._frames.top
 
     def call_id_for(self, correlation_id: int, op: str) -> str:
         """Public accessor for the stable call_id assigned to a (correlation_id, op) pair.
@@ -203,9 +251,9 @@ class ObservabilityOperator:
             parent = frames.batch_parent
             frames.batch_remaining -= 1
         else:
-            parent = frames.stack[-1] if frames.stack else None
+            parent = frames.top
         self._call_parents[call_id] = parent
-        frames.stack.append(call_id)
+        frames.push(call_id)
         return parent
 
     def _close_call(self, call_id: str) -> None:
@@ -220,9 +268,9 @@ class ObservabilityOperator:
         if not stack:
             return
         if stack[-1] == call_id:
-            stack.pop()
-        elif call_id in stack:
-            stack.remove(call_id)
+            self._frames.pop()
+        else:
+            self._frames.remove(call_id)
 
     def record_kernel_snapshot(self, q: QProduct, *, label: str = "snapshot") -> None:
         self._emit(
@@ -885,7 +933,7 @@ class ObservabilityOperator:
                 call_id = self._interval_call_id(cid, op)
                 if call_id in self._call_parents:
                     parent = self._call_parents[call_id]
-                    self._frames.stack.append(call_id)
+                    self._frames.push(call_id)
                 else:
                     parent = self._open_call(call_id)
                 return call_id, parent

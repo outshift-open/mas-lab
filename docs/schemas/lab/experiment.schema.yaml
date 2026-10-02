@@ -237,6 +237,39 @@ properties:
               type: string
               description: "Per-scenario flavour override (name or path)."
 
+      checkpoints:
+        type: array
+        minItems: 1
+        description: >-
+          Optional starting-state axis crossed with scenarios, dataset items,
+          and run.n_runs. Omitted means one implicit fresh start.
+        items:
+          type: object
+          required: [id]
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+              minLength: 1
+              pattern: "^[A-Za-z0-9_-]+$"
+            path:
+              type: string
+              minLength: 1
+          allOf:
+            - if:
+                properties:
+                  id: { const: none }
+                required: [id]
+              then:
+                not:
+                  required: [path]
+            - if:
+                properties:
+                  id: { not: { const: none } }
+                required: [id]
+              then:
+                required: [path]
+
       # ── Dataset ───────────────────────────────────────────────────────────
       dataset:
         type: object

@@ -182,6 +182,33 @@ Relative `manifest:` paths still work; prefer `app: library:id@version`.
 
 ---
 
+## Checkpoint axis
+
+`experiment.checkpoints` is an optional starting-state axis crossed with
+`scenarios`, dataset items, and `run.n_runs`. Omit it to preserve the existing
+matrix. The `none` entry is a fresh start and can sit beside saved states for a
+direct what-if comparison:
+
+```yaml
+experiment:
+  checkpoints:
+    - id: none
+    - id: after-triage
+      path: ./checkpoints/after-triage.checkpoint.json
+```
+
+Each entry needs a unique alphanumeric, dash, or underscore `id`. Every entry
+except `none` needs a checkpoint `path`, resolved relative to the experiment
+YAML. A non-trivial axis overrides an item's own `inputs.checkpoint.load` and
+emits a warning when both are set. With no axis, item-level loading is used
+directly. Checkpoint IDs and source paths are written to `results.csv` and
+`session_mappings.jsonl` alongside each run's session ID.
+
+See the [checkpoint-axis example](../schemas/examples/checkpoint-axis.yaml)
+and [Tutorial 6](../tutorials/06-sessions-and-recovery/README.md).
+
+---
+
 ## Artifacts
 
 `artifacts:` declares typed outputs (`trace`, `metrics`, `dataframe`, `plot`, …) at each

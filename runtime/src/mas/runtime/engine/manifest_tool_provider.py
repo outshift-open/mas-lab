@@ -71,7 +71,14 @@ class ManifestToolProvider:
         self._registry.invalidate()
 
     def list_tools(self, *, ctx: Any = None) -> list[dict[str, Any]]:
-        return self._registry.list_tools(ctx=ctx)
+        from mas.runtime.engine.tools import current_spec_for_advertise, disabled_tool_names
+
+        tools = self._registry.list_tools(ctx=ctx)
+        spec = current_spec_for_advertise(ctx)
+        disabled = disabled_tool_names(spec)
+        if not disabled:
+            return tools
+        return [tool for tool in tools if str(tool.get("name") or "") not in disabled]
 
     def list_openai_tools(self, *, ctx: Any = None) -> list[dict[str, Any]]:
         """OpenAI wire tools. Extra advertise keys (semantics, meta, …) stay off the payload."""
@@ -101,6 +108,10 @@ class ManifestToolProvider:
         user: str = "",
         **kwargs: Any,
     ) -> Any:
+        from mas.runtime.engine.tools import current_spec_for_advertise, disabled_tool_names
+
+        if tool_name in disabled_tool_names(current_spec_for_advertise(ctx)):
+            raise ManifestToolLoadError(f"tool {tool_name!r} is disabled in the current spec revision")
         try:
             return self._registry.call_tool(tool_name, arguments, ctx=ctx, user=user, **kwargs)
         except UnclaimedToolError:
@@ -154,6 +165,20 @@ def attach_manifest_tools(
     from mas.runtime.engine.tools import tools_with_resolved_names
 
     spec = (manifest or {}).get("spec") or {}
+    overlay_providers = provider_kw.pop("overlay_providers", None)
+    ctx = provider_kw.pop("ctx", None)
+    if ctx is not None:
+        from mas.runtime.engine.tools import (
+            current_spec_for_advertise,
+            is_spawn_subagent_enabled,
+            spawn_subagent_params,
+        )
+
+        spec = current_spec_for_advertise(ctx, spec)
+        ctx.current_spec = spec
+        spawn_params = spawn_subagent_params(spec)
+        ctx.allow_subagent_spawning = is_spawn_subagent_enabled(spec)
+        ctx.subagent_templates = list((spawn_params or {}).get("templates") or [])
     if manifest_dir is None and spec.get("tools"):
         raise ManifestToolLoadError("manifest_dir is required when spec.tools is non-empty")
     tools = (
@@ -161,8 +186,6 @@ def attach_manifest_tools(
         if manifest_dir
         else list(spec.get("tools") or [])
     )
-    overlay_providers = provider_kw.pop("overlay_providers", None)
-    ctx = provider_kw.pop("ctx", None)
     active_providers = list(overlay_providers or [])
     has_external = any(provider_origin(p) == "external" for p in active_providers)
     has_local = overlay_providers is None or any(provider_origin(p) == "local" for p in active_providers)

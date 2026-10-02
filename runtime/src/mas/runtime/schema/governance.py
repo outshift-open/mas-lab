@@ -17,6 +17,7 @@ class GovernanceAction(str, Enum):
     SKIP = "SKIP"
     RETRY = "RETRY"
     BLACKLIST = "BLACKLIST"
+    BACKTRACK = "BACKTRACK"
 
 
 class GovPolicyProfile(str, Enum):

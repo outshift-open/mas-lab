@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -70,6 +71,7 @@ class ExchangeRecord:
     tool_name: str | None = None
     tool_arguments: dict[str, Any] | None = None
     semantics: dict[str, Any] | None = None
+    destructive: bool = False
     model: str | None = None
     messages: list[dict[str, Any]] | None = None
     tools: list[dict[str, Any]] | None = None
@@ -201,6 +203,7 @@ def _engine_invoke_record(
                 tool_name=tool_name or None,
                 tool_arguments=tool_arguments,
                 semantics=bound_tool_semantics(engine, tool_name or None, tool_arguments, ctx=ctx),
+                destructive=sym.destructive,
                 model=engine_model_id(engine) or None,
                 engine_raw=engine_raw,
             ),
@@ -319,6 +322,10 @@ class KernelDriver:
         with runtime_binding(self.coordination, self.observability):
             return self._feed_bounded(event)
 
+    async def afeed(self, event: IngressSymbol) -> DriverTrace:
+        with runtime_binding(self.coordination, self.observability):
+            return await self._afeed_bounded(event)
+
     def _feed_bounded(self, event: IngressSymbol) -> DriverTrace:
         trace = DriverTrace()
         queue: deque[IngressSymbol] = deque([event])
@@ -426,6 +433,114 @@ class KernelDriver:
         if queue:
             # auto_steps hit max_auto_steps while items were still queued —
             # anything left in the queue will be abandoned: exit with error
+            trace.boundary_errors.append(
+                RaiseBoundaryError(
+                    code="STEP_BUDGET_EXHAUSTED",
+                    recoverable=False,
+                    message=(
+                        f"max_auto_steps ({self.max_auto_steps}) exhausted with "
+                        f"{len(queue)} item(s) still queued and undispatched "
+                    ),
+                )
+            )
+        trace.awaiting_hitl = gov_is_hitl_pending(self.kernel.q)
+        if self.observability is not None:
+            trace.observability_events = list(self.observability.events)
+        return trace
+
+    async def _afeed_bounded(self, event: IngressSymbol) -> DriverTrace:
+        """Async twin of :meth:`_feed_bounded` — only the engine batch awaits."""
+        trace = DriverTrace()
+        queue: deque[IngressSymbol] = deque([event])
+        auto_steps = 0
+
+        while queue and auto_steps < self.max_auto_steps:
+            ingress = queue.popleft()
+            if not validate_ingress(
+                ingress,
+                last_correlation_id=(self.kernel.run.records[-1].correlation_id if self.kernel.run.records else 0),
+                pending_correlation_id=self.kernel.q.pending_engine_correlation_id,
+                inflight_correlation_ids=pending_for_validate(self.kernel.q),
+            ):
+                trace.rejected_ingress.append(ingress)
+                continue
+
+            if isinstance(ingress, UserInputReceived):
+                self._current_task_id = ingress.task_id
+                self._upstream_correlation_id = ingress.upstream_correlation_id
+                self.session_id = ingress.session_id
+                if self.ctx is not None:
+                    self.ctx.session_id = self.session_id
+                    self.ctx.agent_id = self.agent_id
+                if self.observability is not None:
+                    self.observability.set_context(
+                        session_id=self.session_id,
+                        task_id=self._current_task_id,
+                        upstream_correlation_id=self._upstream_correlation_id,
+                    )
+                if self.ctx is not None:
+                    ts_mono, ts_wall = _exchange_timestamp()
+                    caller = str(self.caller_agent_id or "").strip()
+                    is_delegated = bool(caller) and caller != str(self.agent_id or "").strip()
+                    self._emit_exchange(
+                        trace,
+                        ExchangeRecord(
+                            kind="user_in",
+                            text=ingress.text,
+                            ts_mono=ts_mono,
+                            ts_wall=ts_wall,
+                            agent_id=self.agent_id,
+                            caller_agent_id=caller if is_delegated else None,
+                        ),
+                    )
+                    note = getattr(self.ctx, "note_user_input", None)
+                    if callable(note):
+                        note(ingress.text)
+
+            err = self._notify_governance("ingress", ingress)
+            if err is not None:
+                self._dispatch_egress(err, trace)
+                break
+
+            result = self.kernel.transition(ingress)
+            trace.steps.append(DriverStep(ingress=ingress, egress=list(result.egress)))
+            self._sync_tool_result_memory(ingress)
+            if self.coordination is not None:
+                self.coordination.on_internal_mutation(self.kernel.q, label=ingress.kind.value)
+
+            halt_err: RaiseBoundaryError | None = None
+            for sym in result.egress:
+                err = self._notify_governance("egress", sym)
+                if err is not None:
+                    halt_err = err
+                    break
+            if halt_err is not None:
+                self._dispatch_egress(halt_err, trace)
+                break
+
+            if self.observability is not None:
+                self.observability.record_ingress(ingress, self.kernel.q)
+                for sym in result.egress:
+                    if self.coordination is not None:
+                        if sym.kind == EgressKind.INVOKE_ENGINE_IO and isinstance(sym, InvokeEngineIo):
+                            self.coordination.after_egress_allowed(self.kernel.q)
+                        elif sym.kind == EgressKind.EMIT_HITL_REQUEST:
+                            self.coordination.on_egress_hitl(self.kernel.q)
+                    if sym.kind != EgressKind.INVOKE_ENGINE_IO:
+                        self.observability.record_egress(sym, self.kernel.q)
+            self._emit_gov_block_exchanges(trace)
+            auto_steps += 1
+
+            engine_ios: list[InvokeEngineIo] = []
+            for sym in result.egress:
+                if sym.kind == EgressKind.INVOKE_ENGINE_IO and isinstance(sym, InvokeEngineIo):
+                    engine_ios.append(sym)
+                else:
+                    queue.extend(self._dispatch_egress(sym, trace))
+            if engine_ios:
+                queue.extend(await self._adispatch_engine_batch(engine_ios, trace))
+
+        if queue:
             trace.boundary_errors.append(
                 RaiseBoundaryError(
                     code="STEP_BUDGET_EXHAUSTED",
@@ -631,6 +746,46 @@ class KernelDriver:
                 text=str(exc),
             )
 
+    async def _ainvoke_engine(self, io: InvokeEngineIo) -> EngineIoReturn:
+        """Async twin of :meth:`_invoke_engine` — awaits ``engine.ainvoke``.
+
+        Hard interrupt cancels the inner LLM task only. Tools are not
+        rolled back. An outer cancellation of this driver still propagates.
+        """
+        if self.engine is None:
+            raise RuntimeError("no engine configured")
+        from mas.runtime.engine.inflight_llm import clear as clear_inflight
+        from mas.runtime.engine.inflight_llm import register as register_inflight_llm
+
+        inner = asyncio.create_task(self.engine.ainvoke(io))
+        register_inflight_llm(self.session_id, inner)
+        try:
+            return await inner
+        except asyncio.CancelledError:
+            if inner.cancelled():
+                return EngineIoReturn(
+                    correlation_id=io.correlation_id,
+                    response_kind="ERROR",
+                    next_step="STOP",
+                    text="cancelled",
+                    finish_reason="cancelled",
+                )
+            inner.cancel()
+            try:
+                await inner
+            except (asyncio.CancelledError, Exception):
+                pass
+            raise
+        except Exception as exc:
+            return EngineIoReturn(
+                correlation_id=io.correlation_id,
+                response_kind="ERROR",
+                next_step="STOP",
+                text=str(exc),
+            )
+        finally:
+            clear_inflight(self.session_id)
+
     def _dispatch_engine_batch(self, ios: list[InvokeEngineIo], trace: DriverTrace) -> list[IngressSymbol]:
         q = self.kernel.q
         engine = self.engine
@@ -743,6 +898,95 @@ class KernelDriver:
         results = pool.drain()
         out: list[IngressSymbol] = []
         for sym, ret in zip(ios, results, strict=True):
+            self._record_engine_return(trace, sym, ret)
+            self._record_wait_state_obs(sym, q, boundary="end")
+            out.append(ret)
+        if parallel_group_id is not None:
+            self._record_parallel_group_obs(ios, q, boundary="end", group_id=parallel_group_id)
+        return out
+
+    async def _adispatch_engine_batch(self, ios: list[InvokeEngineIo], trace: DriverTrace) -> list[IngressSymbol]:
+        """Async twin: bookkeeping is identical, engine calls run via ``asyncio.gather``."""
+        q = self.kernel.q
+        engine = self.engine
+        if engine is None and self.engine_pool is None:
+            return []
+        parallel_group_id: str | None = None
+        if len(ios) > 1 and all(sym.op == "TOOL_CALL" for sym in ios):
+            self._record_parallel_tool_calls(ios, q)
+            parallel_group_id = str(uuid.uuid4())
+            self._record_parallel_group_obs(ios, q, boundary="start", group_id=parallel_group_id)
+        prepared: list[InvokeEngineIo] = []
+        for orig in ios:
+            sym = orig
+            ts_mono, ts_wall = _exchange_timestamp()
+            engine_raw = _engine_payload_json(sym) if self.capture_engine_io else ""
+            record, tracked_tool = _engine_invoke_record(
+                sym,
+                engine=engine,
+                q=q,
+                agent_id=self.agent_id,
+                ts_mono=ts_mono,
+                ts_wall=ts_wall,
+                engine_raw=engine_raw,
+                ctx=self.ctx,
+            )
+            self._emit_exchange(trace, record)
+            if tracked_tool:
+                self._tool_by_correlation_id[sym.correlation_id] = tracked_tool
+                if record.semantics:
+                    self._semantics_by_correlation_id[sym.correlation_id] = record.semantics
+            if orig.op == "TOOL_CALL" and engine is not None:
+                by_cid = q.pending_tools_by_cid.get(orig.correlation_id)
+                if by_cid is not None:
+                    setter = getattr(engine, "set_tool_for_correlation", None)
+                    if callable(setter):
+                        setter(orig.correlation_id, by_cid[0], by_cid[1])
+                    else:
+                        setter = getattr(engine, "set_scheduled_tool", None)
+                        if callable(setter):
+                            setter(by_cid[0], by_cid[1])
+                elif q.pending_tool_name:
+                    setter = getattr(engine, "set_scheduled_tool", None)
+                    if callable(setter):
+                        setter(q.pending_tool_name, q.pending_tool_args)
+            egress_kind = "MODEL" if orig.op == "LLM_CALL" else "TOOL"
+            register_inflight(q, orig.correlation_id, kind=egress_kind, op=orig.op)
+            from mas.runtime.boundary.gov.telemetry import get_bound_observability
+            from mas.runtime.kernel.envelope import (
+                EnvelopeContext,
+                contract_kind_for_op,
+                run_contract_execute_obs,
+            )
+
+            by_cid_obs = q.pending_tools_by_cid.get(orig.correlation_id)
+            obs_tool_name, obs_tool_args = (
+                by_cid_obs if by_cid_obs is not None else (q.pending_tool_name, q.pending_tool_args)
+            )
+            env_ctx = EnvelopeContext(
+                q=q,
+                correlation_id=orig.correlation_id,
+                contract=contract_kind_for_op(orig.op),
+                scheduled_op=orig.op,
+                observability=get_bound_observability() or self.observability,
+                tool_name=obs_tool_name,
+                tool_arguments=dict(obs_tool_args or {}),
+                destructive=orig.destructive,
+            )
+            run_contract_execute_obs(env_ctx)
+            self._record_wait_state_obs(orig, q, boundary="start")
+            if env_ctx.observability is not None:
+                own_call_id = env_ctx.observability.call_id_for(orig.correlation_id, orig.op)
+                if own_call_id:
+                    updates: dict = {"call_id": own_call_id}
+                    parent_call_id = env_ctx.observability.parent_call_id_for(own_call_id)
+                    if parent_call_id:
+                        updates["parent_call_id"] = parent_call_id
+                    orig = orig.model_copy(update=updates)
+            prepared.append(orig)
+        results = await asyncio.gather(*(self._ainvoke_engine(sym) for sym in prepared))
+        out: list[IngressSymbol] = []
+        for sym, ret in zip(prepared, results, strict=True):
             self._record_engine_return(trace, sym, ret)
             self._record_wait_state_obs(sym, q, boundary="end")
             out.append(ret)

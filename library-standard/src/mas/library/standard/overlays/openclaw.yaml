@@ -1,0 +1,30 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Opt-in durable session behavior: capture each model response and recover
+# repeated engine errors through the session checkpoint boundary.
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: openclaw
+  description: Durable checkpoints, automatic resume, and error backtracking
+spec:
+  target:
+    kind: Agent
+  patch:
+    checkpoint:
+      mode: on_event
+      triggers: [after_llm_call]
+      retention:
+        mode: all
+      portability: self_contained
+      auto_resume_latest: true
+    governance:
+      $op:
+        add:
+          - sample:
+              error_recovery_plugin: backtrack_on_error
+              backtrack:
+                repeat_threshold: 2
+                max_backtracks_per_session: 3
+                steps: 1
+                on_cap_reached: hitl

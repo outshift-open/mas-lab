@@ -32,6 +32,27 @@ class _StubInner:
         self.last_kwargs = kwargs
         return dict(self.message)
 
+    async def achat_completion(self, **kwargs):
+        return self.chat_completion(**kwargs)
+
+
+def test_require_achat_completion_rejects_sync_only_provider():
+    from mas.runtime.registry.llm_provider_protocol import (
+        MissingLLMProviderAsyncContract,
+        require_achat_completion,
+    )
+
+    class SyncOnly:
+        def chat_completion(self, **kwargs):
+            return {}
+
+    with pytest.raises(MissingLLMProviderAsyncContract, match="achat_completion"):
+        require_achat_completion(SyncOnly, name="sync-only")
+
+    registry = LLMProviderRegistry()
+    with pytest.raises(MissingLLMProviderAsyncContract):
+        registry.register_provider(SyncOnly())
+
 
 def test_llm_provider_kind_defaults_to_openai():
     assert llm_provider_kind({}) == "openai"
@@ -394,3 +415,48 @@ def test_openai_provider_stream_ignores_reasoning_deltas(monkeypatch) -> None:
     )
     assert received == ["Hi"]
     assert message["content"] == "Hi"
+
+
+@pytest.mark.asyncio
+async def test_openai_achat_completion_uses_shared_request_builder(monkeypatch) -> None:
+    message = {
+        "role": "assistant",
+        "content": "<think>plan</think>Answer",
+        "reasoning_content": "secret",
+    }
+
+    class _AsyncPostClient:
+        last_json: dict | None = None
+
+        def __init__(self, **_: object) -> None:
+            return None
+
+        async def post(self, url: str, json: object, headers: object, params: object = None):
+            _AsyncPostClient.last_json = json if isinstance(json, dict) else None
+            return _FakePostResponse(message)
+
+    monkeypatch.setattr("httpx.AsyncClient", lambda **kwargs: _AsyncPostClient(**kwargs))
+    provider = OpenAILLMProvider(reasoning={"effort": "low", "budget_tokens": 32, "exclude": True})
+    out = await provider.achat_completion(
+        model="gpt-5",
+        messages=[{"role": "user", "content": "hi"}],
+        api_key="k",
+        max_tokens=900,
+    )
+    payload = _AsyncPostClient.last_json
+    assert payload is not None
+    assert payload["reasoning_effort"] == "low"
+    assert payload["max_completion_tokens"] == 900
+    assert out["content"] == "Answer"
+
+
+@pytest.mark.asyncio
+async def test_cache_provider_achat_completion_parity(tmp_path) -> None:
+    inner = _StubInner({"role": "assistant", "content": "cached-async"})
+    writer = CacheLLMProvider(inner, cache_path=tmp_path / "c.json", allow_read=False, allow_write=True)
+    await writer.achat_completion(model="m", messages=[{"role": "user", "content": "hi"}])
+    reader_inner = _StubInner({"role": "assistant", "content": "live"})
+    reader = CacheLLMProvider(reader_inner, cache_path=tmp_path / "c.json", allow_read=True, allow_write=False)
+    out = await reader.achat_completion(model="m", messages=[{"role": "user", "content": "hi"}])
+    assert out["content"] == "cached-async"
+    assert reader_inner.calls == 0
