@@ -162,3 +162,33 @@ def test_spawn_copies_parent_spec_revision() -> None:
     assert child.spec_revision == 1
     assert child.driver.ctx.spec_revision == 1
     assert child.driver.ctx.current_spec["design_pattern"] == "react"
+
+
+def test_plan_mode_is_a_spec_revision_and_restore_rolls_it_back() -> None:
+    from mas.runtime.engine.tools import current_spec_for_advertise, disabled_tool_names
+    from mas.runtime.harness.recipes import apply_default_mode, apply_plan_mode
+
+    manifest = {
+        "name": "agent",
+        "spec": {
+            "tools": [
+                {"kind": "function", "name": "lookup", "enabled": True},
+                {"kind": "function", "name": "write", "enabled": True},
+            ]
+        },
+    }
+    manager, sid = _manager_with_session(manifest)
+    session = manager.get(sid)
+    origin = session.take_snapshot(label="before-plan")
+    control = manager.control()
+    apply_plan_mode(control, sid, write_tools=("write",))
+    assert session.spec_revision >= 1
+    ctx = session.instance.driver.ctx
+    assert "write" in disabled_tool_names(current_spec_for_advertise(ctx))
+    events = [e for e in manager.control_events if e.kind in {"spec_revised", "session_paused"}]
+    assert {e.kind for e in events} >= {"spec_revised", "session_paused"}
+    session.restore_snapshot(origin)
+    apply_default_mode(control, sid)
+    assert session.spec_revision == 0
+    assert "write" not in disabled_tool_names(current_spec_for_advertise(ctx))
+

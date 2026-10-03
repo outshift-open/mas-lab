@@ -76,23 +76,24 @@ MASExperimentConfig YAML structure::
       run:
         n_runs: 3
 
-      execution:
+      schedule:
         parallel_scenarios: 4
         timeout: 300
+        ordering: coverage
 
-        emulation:                        # layered resource emulation
-          infra:                           # L1: backing resources
-            llm: live                      # live | mock | replay
-            tools: live                    # live | mock | stub
-            memory: live                   # live | mock | snapshot | seeded | ephemeral
-            embeddings: live               # live | mock | replay
-            state: live                    # live | snapshot | seeded | ephemeral | mock
-          runtime:                         # L3: execution engine
-            transport: local               # local | grpc | emulated
-            cache: content-addressed       # content-addressed | disabled | forced
-          intercept:                       # L3–L6: hook-level interception
-            mitm: false
-            hooks: []
+      bench_emulation:                    # layered resource emulation
+        infra:                             # L1: backing resources
+          llm: live                        # live | mock | replay
+          tools: live                      # live | mock | stub
+          memory: live                     # live | mock | snapshot | seeded | ephemeral
+          embeddings: live                 # live | mock | replay
+          state: live                      # live | snapshot | seeded | ephemeral | mock
+        runtime:                           # L3: execution engine
+          transport: local                 # local | grpc | emulated
+          cache: content-addressed         # content-addressed | disabled | forced
+        intercept:                         # L3–L6: hook-level interception
+          mitm: false
+          hooks: []
 
       application:
         post:
@@ -102,11 +103,14 @@ MASExperimentConfig YAML structure::
 from .artifact_types import list_artifact_types, register_artifact_type
 from .execution import (
     EmulationSpec,
+    ExperimentDesignSpec,
+    ExperimentScheduleSpec,
     InfraEmulationSpec,
     InterceptSpec,
     MASExecutionSpec,
     ReplaySpec,
     RuntimeEmulationSpec,
+    split_legacy_execution,
 )
 from .experiment_base import MASRunBase
 from .lab_config import LabConfig
@@ -128,6 +132,8 @@ from .ui import UISpec
 __all__ = [
     "ArtifactSpec",
     "EmulationSpec",
+    "ExperimentDesignSpec",
+    "ExperimentScheduleSpec",
     "InfraEmulationSpec",
     "InterceptSpec",
     "LabConfig",
@@ -143,6 +149,7 @@ __all__ = [
     "ReplaySpec",
     "RuntimeEmulationSpec",
     "UISpec",
+    "split_legacy_execution",
     "discover_lab_context",
     "discover_scenario_stems",
     "inject_lab_context",

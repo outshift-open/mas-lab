@@ -14,7 +14,7 @@ Example::
 
     from mas.lab.emulation_resolver import resolve_emulation_plugins
 
-    plugins = resolve_emulation_plugins(exp.execution.emulation)
+    plugins = resolve_emulation_plugins(exp.bench_emulation)
     for agent in runtime.agents.values():
         for plugin, name, priority in plugins:
             agent.register_plugin(plugin, name=name, priority=priority)

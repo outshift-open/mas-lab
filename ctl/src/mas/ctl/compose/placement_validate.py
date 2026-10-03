@@ -10,16 +10,8 @@ from mas.ctl.registry.catalog import (
     validate_placement_id,
 )
 
-OSS_SUPPORTED_STRATEGIES = frozenset(list_placement_ids())
-
-
-def _library_next_installed() -> bool:
-    try:
-        import mas.library.next  # noqa: F401
-
-        return True
-    except ImportError:
-        return False
+def oss_supported_strategies() -> frozenset[str]:
+    return frozenset(list_placement_ids())
 
 
 def validate_placement_strategy(strategy: str) -> None:
@@ -28,12 +20,13 @@ def validate_placement_strategy(strategy: str) -> None:
         validate_placement_id(strategy)
     except UnknownComponentError as exc:
         message = str(exc.args[0]) if exc.args else str(exc)
+        supported = oss_supported_strategies()
         if message.startswith("unknown placement id"):
             raise RuntimeError(
                 f"unknown placement strategy {strategy!r}; "
-                f"expected one of {sorted(OSS_SUPPORTED_STRATEGIES)}"
+                f"expected one of {sorted(supported)}"
             ) from exc
         raise RuntimeError(
             f"placement strategy {strategy!r} is not available in mas-lab OSS "
-            f"(only {sorted(OSS_SUPPORTED_STRATEGIES)} is supported)."
+            f"(only {sorted(supported)} is supported)."
         ) from exc

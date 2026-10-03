@@ -70,3 +70,11 @@ def test_new_boundary_slot_is_rejected() -> None:
     with pytest.raises(UnknownBoundarySlotError):
         registry.register_type("pre_tool_use", layer="boundary")
     registry.register_type("step")
+
+
+def test_compact_is_a_context_slot_not_a_kernel_op() -> None:
+    from mas.runtime.harness.catalog import BOUNDARY_SLOTS, KERNEL_OPS
+
+    assert "compact" not in KERNEL_OPS
+    assert "context_manager" in BOUNDARY_SLOTS
+    assert "summarizer" in BOUNDARY_SLOTS

@@ -195,28 +195,181 @@ class EmulationSpec:
     intercept: InterceptSpec = field(default_factory=InterceptSpec)
     """L3–L6 hook-level interception."""
 
+    faults: Optional[Dict[str, Any]] = None
+    """Optional fault-injection configuration (bench posture, not design)."""
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "EmulationSpec":
         return cls(
             infra=InfraEmulationSpec.from_dict(data.get("infra", {})),
             runtime=RuntimeEmulationSpec.from_dict(data.get("runtime", {})),
             intercept=InterceptSpec.from_dict(data.get("intercept", {})),
+            faults=data.get("faults"),
         )
 
 
 # ---------------------------------------------------------------------------
-# ExecutionSpec — batch execution parameters (used by MASExperimentConfig)
+# Split specs — design vs schedule vs bench emulation
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ExperimentScheduleSpec:
+    """How mas-lab walks the design matrix.
+
+    Changing these fields never changes the meaning of a result cell — only
+    wall time, resource usage, and failure modes during collection.
+    """
+
+    parallel_scenarios: int = 4
+    """Maximum number of concurrent MAS runs."""
+
+    timeout: int = 300
+    """Per-run timeout in seconds."""
+
+    max_attempts: int = 3
+    """Re-issue a failed scenario×item×run this many times (including the first)."""
+
+    retry_backoff_s: float = 2.0
+    """Base delay in seconds before the first lab-level reattempt (then ×2)."""
+
+    pause_between_runs: float = 1.0
+    """Pause in seconds between runs to let resources settle."""
+
+    ordering: str = "coverage"
+    """Walk order: ``coverage`` (breadth-first) or ``depth`` (depth-first)."""
+
+    runner: str = DEFAULT_LAB_RUNNER_ID
+    """Application runner registry id."""
+
+    reset_state: bool = False
+    """Reset emulation/runtime state between runs when true."""
+
+    @property
+    def strategy(self) -> str:
+        """Deprecated alias for :attr:`ordering`."""
+        return self.ordering
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ExperimentScheduleSpec":
+        ordering = data.get("ordering", data.get("strategy", "coverage"))
+        return cls(
+            parallel_scenarios=data.get("parallel_scenarios", 4),
+            timeout=data.get("timeout", 300),
+            max_attempts=max(1, int(data["max_attempts"] if data.get("max_attempts") is not None else 3)),
+            retry_backoff_s=max(
+                0.0,
+                float(data["retry_backoff_s"] if data.get("retry_backoff_s") is not None else 2.0),
+            ),
+            pause_between_runs=data.get("pause_between_runs", 1.0),
+            ordering=ordering or "coverage",
+            runner=data.get("runner", DEFAULT_LAB_RUNNER_ID),
+            reset_state=bool(data.get("reset_state", False)),
+        )
+
+
+@dataclass
+class ExperimentDesignSpec:
+    """What conditions are being compared.
+
+    Lives next to ``scenarios[]``, dataset, evaluation, and ``run.n_runs``.
+    Changing these fields *does* change the label or meaning of a result cell.
+    """
+
+    mode: str = "cartesian"
+    """``cartesian``, ``coupled``, or ``one_factor``."""
+
+    max_executions: Optional[int] = None
+    """Fail when the planned grid exceeds this limit."""
+
+    couplings: List[Dict[str, Any]] = field(default_factory=list)
+    pin: Dict[str, Any] = field(default_factory=dict)
+    vary: Optional[Dict[str, Any]] = None
+    pin_scenarios: Optional[List[str]] = None
+    pin_items: Optional[List[Any]] = None
+
+    def as_plan_dict(self) -> Dict[str, Any]:
+        """Shape consumed by :func:`mas.lab.benchmark.execution.plan.build_execution_plan`."""
+        data: Dict[str, Any] = {"mode": self.mode}
+        if self.max_executions is not None:
+            data["max_executions"] = self.max_executions
+        if self.couplings:
+            data["couplings"] = self.couplings
+        if self.pin:
+            data["pin"] = self.pin
+        if self.vary:
+            data["vary"] = self.vary
+        if self.pin_scenarios is not None:
+            data["pin_scenarios"] = self.pin_scenarios
+        if self.pin_items is not None:
+            data["pin_items"] = self.pin_items
+        return data
+
+    @classmethod
+    def from_dict(cls, data: Optional[Dict[str, Any]]) -> "ExperimentDesignSpec":
+        data = data or {}
+        return cls(
+            mode=data.get("mode", "cartesian"),
+            max_executions=data.get("max_executions"),
+            couplings=list(data.get("couplings") or []),
+            pin=dict(data.get("pin") or {}),
+            vary=data.get("vary"),
+            pin_scenarios=data.get("pin_scenarios"),
+            pin_items=data.get("pin_items"),
+        )
+
+
+def split_legacy_execution(execution: Dict[str, Any]) -> Dict[str, Any]:
+    """Map a legacy ``execution:`` mapping onto the split keys.
+
+    ``n_runs`` is dropped — replication belongs under ``run.n_runs``.
+    """
+    out: Dict[str, Any] = {}
+    schedule: Dict[str, Any] = {}
+    for key in (
+        "parallel_scenarios",
+        "timeout",
+        "pause_between_runs",
+        "runner",
+        "reset_state",
+        "max_attempts",
+        "retry_backoff_s",
+    ):
+        if key in execution:
+            schedule[key] = execution[key]
+    if "ordering" in execution:
+        schedule["ordering"] = execution["ordering"]
+    elif "strategy" in execution:
+        schedule["ordering"] = execution["strategy"]
+    if schedule:
+        out["schedule"] = schedule
+    if execution.get("design"):
+        out["design"] = execution["design"]
+    emulation = dict(execution.get("emulation") or {})
+    if execution.get("faults") is not None:
+        emulation["faults"] = execution["faults"]
+    if emulation:
+        out["bench_emulation"] = emulation
+    if execution.get("replay"):
+        out["replay"] = execution["replay"]
+    return out
+
+
+# ---------------------------------------------------------------------------
+# ExecutionSpec — compatibility view of the split blocks
 # ---------------------------------------------------------------------------
 
 @dataclass
 class MASExecutionSpec:
-    """Batch execution parameters for MASExperimentConfig.
+    """Compatibility view of split schedule / design / bench emulation.
 
-    Parallel to the ``execution:`` block in single-agent ``ExperimentConfig``.
+    Prefer ``MASExperimentConfig.schedule``, ``.design``, and
+    ``.bench_emulation``.  This object is synthesized during dual-read so
+    leftover consumers of ``exp.execution`` keep working for one release.
     """
 
     n_runs: int = 3
-    """Number of times each scenario × flavour combination is executed."""
+    """Replication count.  Canonical home is ``run.n_runs`` (design)."""
 
     parallel_scenarios: int = 4
     """Maximum number of concurrent MAS runs."""
@@ -239,10 +392,13 @@ class MASExecutionSpec:
     """Pause in seconds between runs to let resources settle."""
 
     strategy: str = "coverage"
-    """Execution ordering: coverage (breadth-first) or depth."""
+    """Deprecated alias of ``schedule.ordering``."""
 
     runner: str = DEFAULT_LAB_RUNNER_ID
     """Application runner registry id."""
+
+    reset_state: bool = False
+    """Reset emulation/runtime state between runs when true."""
 
     design: Optional[Dict[str, Any]] = None
     """Experiment design mode (cartesian, coupled, one_factor) and guards."""
@@ -259,10 +415,14 @@ class MASExecutionSpec:
     controlled experiments: vary one parameter, keep the rest stable.
     """
 
+    faults: Optional[Dict[str, Any]] = None
+    """Optional fault-injection configuration (legacy ``execution.faults``)."""
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "MASExecutionSpec":
         replay_data = data.get("replay")
         emulation_data = data.get("emulation", {})
+        strategy = data.get("strategy", data.get("ordering", "coverage"))
         return cls(
             n_runs=data.get("n_runs", 3),
             parallel_scenarios=data.get("parallel_scenarios", 4),
@@ -273,11 +433,39 @@ class MASExecutionSpec:
                 float(data["retry_backoff_s"] if data.get("retry_backoff_s") is not None else 2.0),
             ),
             pause_between_runs=data.get("pause_between_runs", 1.0),
-            strategy=data.get("strategy", "coverage"),
+            strategy=strategy or "coverage",
             runner=data.get("runner", DEFAULT_LAB_RUNNER_ID),
+            reset_state=bool(data.get("reset_state", False)),
             design=data.get("design"),
             replay=ReplaySpec.from_dict(replay_data) if replay_data else None,
             emulation=EmulationSpec.from_dict(emulation_data),
+            faults=data.get("faults"),
+        )
+
+    @classmethod
+    def from_split(
+        cls,
+        *,
+        schedule: ExperimentScheduleSpec,
+        design: ExperimentDesignSpec,
+        bench_emulation: EmulationSpec,
+        replay: Optional["ReplaySpec"],
+        n_runs: int,
+    ) -> "MASExecutionSpec":
+        return cls(
+            n_runs=n_runs,
+            parallel_scenarios=schedule.parallel_scenarios,
+            timeout=schedule.timeout,
+            max_attempts=schedule.max_attempts,
+            retry_backoff_s=schedule.retry_backoff_s,
+            pause_between_runs=schedule.pause_between_runs,
+            strategy=schedule.ordering,
+            runner=schedule.runner,
+            reset_state=schedule.reset_state,
+            design=design.as_plan_dict(),
+            replay=replay,
+            emulation=bench_emulation,
+            faults=getattr(bench_emulation, "faults", None),
         )
 
 

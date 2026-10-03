@@ -375,21 +375,63 @@ properties:
           Falls back to env var MAS_TRACE_CACHE, then $XDG_CACHE_HOME/mas/traces
           (see docs/user-config.md).
 
-      # ── Execution ─────────────────────────────────────────────────────────
+      # ── Design (what is compared) ─────────────────────────────────────────
+      design:
+        $ref: "#/$defs/experiment_design"
+        description: >
+          Experimental design mode and cartesian guard. Changing these fields
+          changes the meaning of a result cell. Replication count lives under
+          run.n_runs, not here.
+
+      # ── Schedule (how the bench walks the matrix) ─────────────────────────
+      schedule:
+        $ref: "#/$defs/experiment_schedule"
+        description: >
+          Bench progression only — parallelism, timeouts, ordering, runner.
+          Never changes what a result cell means, only wall time / resource
+          usage / failure modes.
+
+      # ── Bench emulation (held constant unless a declared factor) ──────────
+      bench_emulation:
+        $ref: "#/$defs/bench_emulation"
+        description: >
+          Mock/replay/trace-cache posture for this study. Distinct from
+          workspace infra_refs / RuntimeEngine LLM cache. When infra is an
+          intentional factor, use scenario overlays.infra instead.
+
+      replay:
+        type: object
+        additionalProperties: false
+        description: "Multi-turn dataset replay (design + dataset, not schedule)."
+        properties:
+          mode:
+            type: string
+            enum: [scripted, cache-and-diverge]
+            default: scripted
+          hitl_source:
+            type: string
+            enum: [dataset, recording]
+            default: dataset
+          recording_path:
+            type: string
+          diverge_from_cache:
+            type: boolean
+            default: true
+
+      # ── Execution (deprecated dual-read shim) ─────────────────────────────
       execution:
         type: object
         additionalProperties: false
+        deprecated: true
         description: >
-          mas-lab batch orchestration only (parallel scenarios, timeouts, emulation).
-          Not agent spec.execution (removed) — per-turn engine tuning uses RuntimeEngine
-          via workspace runtime_refs; LLM endpoints use workspace infra_refs.
-          All fields optional — defaults apply when absent.
+          DEPRECATED. Split into experiment.design, experiment.schedule, and
+          experiment.bench_emulation. Still accepted for one release (dual-read
+          loader emits a deprecation warning). Not agent spec.execution (removed).
         properties:
           parallel_scenarios:
             type: integer
             minimum: 1
             default: 4
-            description: "Max concurrent MAS runs."
           timeout:
             type: integer
             minimum: 1
@@ -414,15 +456,15 @@ properties:
             type: number
             minimum: 0
             default: 1.0
-            description: "Sleep in seconds between runs (let resources settle)."
           strategy:
             type: string
             enum: [coverage, depth]
             default: "coverage"
-            description: >
-              Execution ordering strategy.
-              'coverage' (default): breadth-first — one round across all conditions before the next.
-              'depth': depth-first — finish all n_runs for one condition before moving on.
+            deprecated: true
+            description: "Deprecated alias of schedule.ordering."
+          ordering:
+            type: string
+            enum: [coverage, depth]
           runner:
             type: string
             minLength: 1
@@ -433,32 +475,22 @@ properties:
               spec.framework.default_adapter or agent spec.framework_adapter.
           reset_state:
             type: boolean
-            description: "Reset emulation/runtime state between runs when true."
+          n_runs:
+            type: integer
+            minimum: 1
+            deprecated: true
+            description: "Deprecated; use run.n_runs (design replication)."
           emulation:
             type: object
             additionalProperties: true
-            description: "Emulation profile (infra llm/tools mode, runtime cache policy)."
           design:
+            $ref: "#/$defs/experiment_design"
+          replay:
             type: object
-            additionalProperties: false
-            description: "Experiment design mode and cartesian guard."
-            properties:
-              mode:
-                type: string
-                enum: [cartesian, coupled, one_factor]
-                default: cartesian
-              max_executions:
-                type: integer
-                minimum: 1
-                description: "Fail when scenarios × items × n_runs exceeds this limit."
-              couplings:
-                type: array
-                items:
-                  type: object
-                  additionalProperties: true
-              pin:
-                type: object
-                additionalProperties: true
+            additionalProperties: true
+          faults:
+            type: object
+            additionalProperties: true
 
       # ── Artifacts ─────────────────────────────────────────────────────────
       artifacts:
@@ -552,6 +584,114 @@ $defs:
     anyOf:
       - required: [manifest]
       - required: [app]
+
+  experiment_design:
+    type: object
+    additionalProperties: false
+    description: "Experiment design mode and cartesian guard."
+    properties:
+      mode:
+        type: string
+        enum: [cartesian, coupled, one_factor]
+        default: cartesian
+      max_executions:
+        type: integer
+        minimum: 1
+        description: "Fail when scenarios × items × n_runs exceeds this limit."
+      couplings:
+        type: array
+        items:
+          type: object
+          additionalProperties: true
+      pin:
+        type: object
+        additionalProperties: true
+      vary:
+        type: object
+        additionalProperties: true
+      pin_scenarios:
+        type: array
+        items:
+          type: string
+      pin_items:
+        type: array
+
+  experiment_schedule:
+    type: object
+    additionalProperties: false
+    description: "Bench progression — parallelism, timeouts, ordering, runner."
+    properties:
+      parallel_scenarios:
+        type: integer
+        minimum: 1
+        default: 4
+        description: "Max concurrent MAS runs."
+      timeout:
+        type: integer
+        minimum: 1
+        default: 300
+        description: "Per-run timeout in seconds."
+      max_attempts:
+        type: integer
+        minimum: 1
+        default: 3
+        description: >
+          Re-issue a failed scenario×item×run this many times (including
+          the first try). Independent of run.n_runs. Default 3. Set 1 to disable.
+      retry_backoff_s:
+        type: number
+        minimum: 0
+        default: 2.0
+        description: >
+          Base delay in seconds before the first lab-level reattempt;
+          doubles on each subsequent reattempt.
+      pause_between_runs:
+        type: number
+        minimum: 0
+        default: 1.0
+        description: "Sleep in seconds between runs (let resources settle)."
+      ordering:
+        type: string
+        enum: [coverage, depth]
+        default: "coverage"
+        description: >
+          Walk order.
+          'coverage' (default): breadth-first — one round across all conditions before the next.
+          'depth': depth-first — finish all n_runs for one condition before moving on.
+      strategy:
+        type: string
+        enum: [coverage, depth]
+        deprecated: true
+        description: "Deprecated alias of ordering (dual-read)."
+      runner:
+        type: string
+        minLength: 1
+        default: native
+        description: >
+          Lab adapter id (mas.lab.runners entry point). Optional override —
+          when omitted, inferred from application.app / mas.manifest
+          spec.framework.default_adapter or agent spec.framework_adapter.
+      reset_state:
+        type: boolean
+        description: "Reset emulation/runtime state between runs when true."
+
+  bench_emulation:
+    type: object
+    additionalProperties: false
+    description: "Emulation profile (infra llm/tools mode, runtime cache policy)."
+    properties:
+      infra:
+        type: object
+        additionalProperties: true
+      runtime:
+        type: object
+        additionalProperties: true
+      intercept:
+        type: object
+        additionalProperties: true
+      faults:
+        type: object
+        additionalProperties: true
 
   # ── Artifact declarations ─────────────────────────────────────────────────
   artifact_declarations:

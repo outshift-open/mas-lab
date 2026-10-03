@@ -50,18 +50,16 @@ experiment:
   evaluation:
     method: "trace_only"
 
-  execution:
-    parallel_scenarios: 1 # MUST be 1: baseline must complete before with-guardrail
+  schedule:
+    parallel_scenarios: 1
     timeout: 120
-    strategy: coverage
-
-    emulation:
-      infra:
-        llm: live
-        tools: live
-      runtime:
-        cache: content-addressed
-
+    ordering: coverage
+  bench_emulation:
+    infra:
+      llm: live
+      tools: live
+    runtime:
+      cache: content-addressed
   run:
     n_runs: 1
   artifacts:

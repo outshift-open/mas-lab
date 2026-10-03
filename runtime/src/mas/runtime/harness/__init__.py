@@ -14,6 +14,7 @@ from mas.runtime.harness.catalog import (
     classify_plugin_type,
     default_catalog,
 )
+from mas.runtime.harness.recipes import apply_default_mode, apply_plan_mode
 
 __all__ = [
     "BOUNDARY_SLOTS",
@@ -24,6 +25,8 @@ __all__ = [
     "HarnessComposition",
     "IllegalHarnessLeafError",
     "UnknownBoundarySlotError",
+    "apply_default_mode",
+    "apply_plan_mode",
     "classify_plugin_type",
     "default_catalog",
 ]

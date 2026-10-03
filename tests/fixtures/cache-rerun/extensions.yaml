@@ -16,10 +16,9 @@ experiment:
   dataset:
     path: dataset.yaml
     limit: 1
-  execution:
-    emulation:
-      runtime:
-        cache: content-addressed
+  bench_emulation:
+    runtime:
+      cache: content-addressed
   run:
     n_runs: 1
   post:

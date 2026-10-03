@@ -41,10 +41,10 @@ _FATAL_RUN_MARKERS = (
 )
 
 
-def lab_run_retry_settings(execution: Any | None) -> tuple[int, float]:
-    """``execution.max_attempts`` / ``retry_backoff_s``, with lab defaults."""
-    raw_attempts = getattr(execution, "max_attempts", None) if execution is not None else None
-    raw_backoff = getattr(execution, "retry_backoff_s", None) if execution is not None else None
+def lab_run_retry_settings(schedule: Any | None) -> tuple[int, float]:
+    """``schedule.max_attempts`` / ``retry_backoff_s``, with lab defaults."""
+    raw_attempts = getattr(schedule, "max_attempts", None) if schedule is not None else None
+    raw_backoff = getattr(schedule, "retry_backoff_s", None) if schedule is not None else None
     attempts = DEFAULT_LAB_RUN_ATTEMPTS if raw_attempts is None else int(raw_attempts)
     backoff = DEFAULT_LAB_RETRY_BACKOFF_S if raw_backoff is None else float(raw_backoff)
     return max(1, attempts), max(0.0, backoff)
@@ -154,10 +154,18 @@ async def execute_batch(
     total_ok = 0
     total_fail = 0
 
+    _schedule = getattr(exp, "schedule", None) or getattr(exp, "execution", None)
     _effective_strategy = (
         strategy
-        or (getattr(exp.execution, "strategy", None) if exp.execution else None)
+        or (getattr(_schedule, "ordering", None) if _schedule else None)
+        or (getattr(_schedule, "strategy", None) if _schedule else None)
         or "coverage"
+    )
+    _design_obj = getattr(exp, "design", None)
+    _design_dict = (
+        _design_obj.as_plan_dict()
+        if _design_obj is not None and hasattr(_design_obj, "as_plan_dict")
+        else None
     )
     _execution_plan = build_execution_plan(
         prepared.loaded_ids,
@@ -165,15 +173,18 @@ async def execute_batch(
         loaded.n_runs,
         strategy=_effective_strategy,
         execution=execution_as_dict(exp),
+        design=_design_dict,
     )
 
-    _parallel = max(1, (getattr(exp.execution, "parallel_scenarios", 1) if exp.execution else 1) or 1)
-    _pause    = max(0.0, (getattr(exp.execution, "pause_between_runs", 0.0) if exp.execution else 0.0) or 0.0)
-    _max_attempts, _retry_backoff = lab_run_retry_settings(exp.execution)
+    _parallel = max(1, (getattr(_schedule, "parallel_scenarios", 1) if _schedule else 1) or 1)
+    _pause    = max(0.0, (getattr(_schedule, "pause_between_runs", 0.0) if _schedule else 0.0) or 0.0)
+    _max_attempts, _retry_backoff = lab_run_retry_settings(_schedule)
     _sem      = asyncio.Semaphore(_parallel)
     _io_lock  = asyncio.Lock()
 
-    _emulation = getattr(exp.execution, "emulation", None)
+    _emulation = getattr(exp, "bench_emulation", None) or getattr(
+        getattr(exp, "execution", None), "emulation", None
+    )
     _cache_policy = (
         getattr(getattr(_emulation, "runtime", None), "cache", "content-addressed")
         if _emulation
@@ -198,7 +209,9 @@ async def execute_batch(
             print(f"  emulation  : {'  '.join(_state_parts)}")
         print()
 
-    _faults_config = getattr(exp.execution, "faults", None) if exp.execution else None
+    _faults_config = getattr(_emulation, "faults", None) if _emulation else None
+    if _faults_config is None:
+        _faults_config = getattr(exp.execution, "faults", None) if exp.execution else None
     _faults_dict = _faults_config if isinstance(_faults_config, dict) else None
     _emulation_plugins = resolve_emulation_plugins(
         _emulation,
@@ -438,9 +451,13 @@ async def execute_batch(
 
                     _runner_id = infer_runner_id(
                         execution_runner=(
-                            exp.execution.runner
-                            if exp.execution and getattr(exp.execution, "runner", None)
-                            else None
+                            getattr(_schedule, "runner", None)
+                            if _schedule
+                            else (
+                                exp.execution.runner
+                                if exp.execution and getattr(exp.execution, "runner", None)
+                                else None
+                            )
                         ),
                         mas_manifest=(
                             Path(_mas_manifest_path)
