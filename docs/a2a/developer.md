@@ -9,8 +9,19 @@ already been decided. Its implementations are selected by the runtime registry:
 - `LocalAgentComm`: in-process bus.
 - `A2AAgentComm`: official `a2a-sdk` client.
 
-The A2A server is a separate ingress adapter. It maps incoming A2A messages to
-`RuntimeInstance.run_user_text()` and is not an `AgentCommContract` implementation.
+The A2A server is a separate ingress adapter. It maps incoming A2A
+`message/send` calls to `ControlContract.send_message` (queue a turn at
+the tail via the session mailbox) and is not an `AgentCommContract`
+implementation. `AgentCommContract.send` is outbound peer send after
+delegation.
+
+A2A has no steer RPC. Additional messages on a non-terminal working task
+are queued; they do not preempt an in-flight decode. Control-protocol
+`steer` can preempt (keep the prefix, replace the rest), replace
+(discard the prefix, new turn), or wait (`after`: queue to front until
+the current generation finishes). `tasks/cancel` maps to
+`cancel_inflight` (drop the remainder; success is not guaranteed).
+`input-required` is HITL, not a mid-token splice.
 
 ## Registry and routing
 

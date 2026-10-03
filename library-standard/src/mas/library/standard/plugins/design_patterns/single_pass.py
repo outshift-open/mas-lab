@@ -13,6 +13,7 @@ from mas.runtime.schema.ingress import (
     CtxAssemblyComplete,
     EngineIoReturn,
     IngressSymbol,
+    OperatorSteerReceived,
     UserInputReceived,
 )
 from mas.runtime.kernel.response_text import response_text_from_run
@@ -46,6 +47,11 @@ class SinglePassPlugin(DesignPatternPlugin):
             q.dp = DpState.CTX_BUILD
             q.ctx = CtxState.COLLECTING
             return [RequestCtxAssembly(collect_id=event.user_turn_id)]
+
+        if isinstance(event, OperatorSteerReceived) and q.ctrl == LifecycleState.RUNNING:
+            q.dp = DpState.CTX_BUILD
+            q.ctx = CtxState.COLLECTING
+            return [RequestCtxAssembly(collect_id=event.steer_id, operator_context=event.context_text)]
 
         if isinstance(event, CtxAssemblyComplete) and q.dp == DpState.CTX_BUILD:
             q.dp = DpState.EGRESS_PENDING

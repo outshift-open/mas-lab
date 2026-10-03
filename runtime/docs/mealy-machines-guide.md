@@ -453,6 +453,8 @@ stateDiagram-v2
 | `dp_think` | Begin model-dimension think cycle |
 | `dp_act` | Begin act phase (may skip assemble) |
 | `dp_finalize` | End turn |
+| `operator_steer_received` (preempt) | Interrupt the in-flight think cycle; rebuild context (`DpState.CTX_BUILD`), same turn continues |
+| `operator_steer_received` (replace) | Discard the in-flight cycle; reset to `DpState.IDLE`, next `UserInputReceived` starts a new turn |
 
 **Why its own machine?** Design pattern is **policy of ordering**, not **protocol of I/O**. Swapping `M_dp` swaps behaviour; Σ and `M_md` stay stable.
 
@@ -549,9 +551,12 @@ stateDiagram-v2
   VALIDATING --> CALLING: governance_authorize ALLOW
   CALLING --> DONE: llm_call_end
   DONE --> IDLE
+  CALLING --> IDLE: operator_steer_received (model_on_preempt)
 ```
 
 Envelope: `llm_call_start` → … → `llm_call_execute` (engine) → … → `llm_call_end`.
+
+**`operator_steer_received` is not `llm_call_end`.** The decode is cancelled mid-stream, not finished: `finish_reason` is `preempted`/`replaced` rather than `stop`, no client response is emitted, and `model_on_preempt` (not `model_on_ingress`) drives `CALLING → IDLE`. `M_dp` decides what runs next — see Part XIII.
 
 Batch semantics: one `llm_call_execute` may return many tool intents; kernel queues multiple `tool_call_*` envelopes — DP serializes or parallelizes per policy.
 
@@ -734,10 +739,24 @@ at a time** follows from the Mealy product state.
 | `/pause`, **STOP** | `LifecyclePause` | `M_ctrl=RUNNING` |
 | `/resume`, **RESUME** | `LifecycleResume` | `M_ctrl=PAUSED` |
 | `/abort`, **ABORT** | `LifecycleAbort` | not terminal |
-| `/steer <text>` | `OperatorSteerReceived` | **deliberate mid-run exception** |
+| `/steer <text>` | `OperatorSteerReceived` (preempt) | `M_model CALLING → IDLE` (not `DONE`); `M_dp → CTX_BUILD`; same turn continues |
 
 **Steering** is the only operator ingress intentionally allowed while a turn is in
-flight. Everything else waits until the product accepts it.
+flight. The console's `/steer <text>` is always **preempt**: it stops the
+in-flight `LLM_CALL` mid-decode, keeps the already-streamed prefix
+(`model_on_preempt`), and continues the same turn — not a finished client
+response. `ControlContract.steer()` (mas-ctl `control steer --replace` /
+`--after`) adds two modes the console does not expose:
+
+- **replace** — discard the prefix instead of keeping it, stop this decode,
+  start a new exclusive turn (`M_dp → IDLE`, `ctx_on_abort`).
+- **after** (`--enqueue`) — do not touch the live decode at all; queue the
+  text and run it once the current `LLM_CALL` finishes normally
+  (`enqueue_input(..., action="turn")`).
+
+`cancel_inflight` (A2A `tasks/cancel`) drops the remainder outright with no
+follow-up cycle — success is not guaranteed, per the A2A spec. Everything else
+waits until the product accepts it.
 
 ### Implementation mapping (ctl)
 

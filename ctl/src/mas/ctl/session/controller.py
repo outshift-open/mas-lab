@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -27,7 +28,7 @@ from mas.runtime.driver.driver import DriverTrace, ExchangeRecord
 from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.schema.egress import EmitClientResponse
 from mas.runtime.session import BacktrackCapReached, Session, SessionStatus
-from mas.runtime.boundary.control.contract import SessionPaused
+from mas.runtime.boundary.control.contract import SessionBusy, SessionPaused
 
 _logger = logging.getLogger("mas.runtime")
 _RED = "\033[1;31m"
@@ -141,6 +142,8 @@ class SessionController:
     working_memory_key: str = ""
     working_memory_registry: WorkingMemoryRegistry | None = field(default=None, repr=False)
     _turn: int = 0
+    inflight: bool = field(default=False, repr=False)
+    _turn_lock: threading.RLock = field(default_factory=threading.RLock, repr=False, compare=False)
     _trace_turn_start: float = 0.0
     _trace_plugin: CliTraceExchangePlugin | None = field(default=None, repr=False)
     _bridge_plugin: _ToolErrorAndListenerBridge | None = field(default=None, repr=False)
@@ -395,21 +398,32 @@ class SessionController:
         if text.strip().lower() == "/backtrack" or text.strip().lower().startswith("/backtrack "):
             return self._handle_backtrack(text)
 
-        if text.strip().lower().startswith("/steer "):
-            return self._handle_steer(text, turn_id=turn_id, auto_hitl=auto_hitl)
+        inject_now = text.strip().lower().startswith("/steer ")
+        with self._turn_lock:
+            if self.inflight:
+                raise SessionBusy(self.session_id or "session", method="run_turn")
+            self.inflight = True
+        try:
+            if inject_now:
+                return self._handle_steer(text, turn_id=turn_id, auto_hitl=auto_hitl)
 
-        stripped = text.strip()
-        if stripped.lower() == "/skills":
-            return self._handle_list_skills()
-        if stripped.lower() == "/skill" or stripped.lower().startswith("/skill "):
-            skill_name = stripped[len("/skill"):].strip()
-            return self._handle_activate_skill(skill_name)
+            stripped = text.strip()
+            if stripped.lower() == "/skills":
+                return self._handle_list_skills()
+            if stripped.lower() == "/skill" or stripped.lower().startswith("/skill "):
+                skill_name = stripped[len("/skill"):].strip()
+                return self._handle_activate_skill(skill_name)
 
-        self._reject_if_paused()
-        text = self._take_queued_or_direct(text)
-        return self._run_user_turn(
-            text, turn_id=turn_id, auto_hitl=auto_hitl, parent_call_id=parent_call_id
-        )
+            self._reject_if_paused()
+            text = self._take_queued_or_direct(text)
+            if text.strip().lower().startswith("/steer "):
+                return self._handle_steer(text, turn_id=turn_id, auto_hitl=auto_hitl)
+            return self._run_user_turn(
+                text, turn_id=turn_id, auto_hitl=auto_hitl, parent_call_id=parent_call_id
+            )
+        finally:
+            with self._turn_lock:
+                self.inflight = False
 
     def _reject_if_paused(self) -> None:
         session = self.managed_session
@@ -444,6 +458,8 @@ class SessionController:
             agent_id=self.agent_id,
             registry=self.working_memory_registry,
         )
+        # New exclusive cycle when idle. While generating, ControlContract.steer
+        # preempts streamed tokens into this same session instead of calling here.
         trace = self.instance.feed(
             OperatorSteerReceived(steer_id=tid, context_text=steer_text)
         )

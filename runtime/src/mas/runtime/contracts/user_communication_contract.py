@@ -28,7 +28,12 @@ class HITLContract(Protocol):
 
 
 class UserIOContract(Protocol):
-    """Send a non-blocking progress update to whoever is watching the session."""
+    """Send a non-blocking progress update to whoever is watching the session.
+
+    This is egress, not inbound turns. User messages belong on
+    ``ControlContract.send_message`` (A2A ``message/send``). HITL
+    ``input-required`` is :class:`HITLContract`, not a mid-token splice.
+    """
 
     def send_progress_update(
         self,

@@ -129,7 +129,7 @@ def test_serve_runtime_handler_forwards_generic_turn_and_session_ids() -> None:
         session_id="session-1",
         parent_call_id="parent-1",
         upstream_correlation_id=42,
-    ) == {"text": "answer"}
+    ) == {"text": "answer", "context_id": "session-1"}
     assert calls == [("question", "turn-1", "session-1", "parent-1", 42)]
 
 
@@ -151,16 +151,16 @@ def test_serve_runtime_handler_preserves_structured_artifacts() -> None:
                 ]
             )
 
-    assert _make_runtime_handler(RuntimeInstance())("question") == {
-        "text": "Generated output",
-        "artifacts": [
-            {
-                "kind": "data",
-                "name": "result",
-                "data": {"value": 42},
-            }
-        ],
-    }
+    result = _make_runtime_handler(RuntimeInstance())("question")
+    assert result["text"] == "Generated output"
+    assert result["artifacts"] == [
+        {
+            "kind": "data",
+            "name": "result",
+            "data": {"value": 42},
+        }
+    ]
+    assert result["context_id"]
 
 
 def test_serve_runtime_handler_marks_pending_hitl_as_input_required() -> None:
@@ -168,10 +168,10 @@ def test_serve_runtime_handler_marks_pending_hitl_as_input_required() -> None:
         def run_user_text(self, *_: Any, **__: Any) -> SimpleNamespace:
             return SimpleNamespace(client_responses=[], awaiting_hitl=True)
 
-    assert _make_runtime_handler(RuntimeInstance())("approve this tool call") == {
-        "text": "",
-        "task_state": "input_required",
-    }
+    result = _make_runtime_handler(RuntimeInstance())("approve this tool call")
+    assert result["text"] == ""
+    assert result["task_state"] == "input_required"
+    assert result["context_id"]
 
 
 def test_a2a_exposed_runtime_delegates_outbound_through_agent_comm_in_same_process(

@@ -5,6 +5,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Callable
 from urllib.parse import urlsplit
+from uuid import uuid4
 
 import httpx
 from a2a.server.tasks import (
@@ -200,16 +201,27 @@ class A2AExposure:
                 runtime_kwargs["parent_call_id"] = caller_call_id
             if upstream_correlation_id is not None:
                 runtime_kwargs["upstream_correlation_id"] = upstream_correlation_id
-            return handler(
+            session_id = str(getattr(context, "context_id", "") or "")
+            if not session_id:
+                session_id = str(uuid4())
+                try:
+                    context.context_id = session_id
+                except Exception:
+                    pass
+            result = handler(
                 prompt,
                 turn_id=(
                     getattr(message, "message_id", "")
                     or getattr(context, "task_id", "")
                     or "u1"
                 ),
-                session_id=str(getattr(context, "context_id", "") or ""),
+                session_id=session_id,
                 **runtime_kwargs,
             )
+            if isinstance(result, dict) and not result.get("context_id"):
+                result = dict(result)
+                result["context_id"] = session_id
+            return result
 
         return invoke
 

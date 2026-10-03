@@ -181,13 +181,17 @@ class MasLabAgentExecutor(AgentExecutor):
         text = result.get("text") if isinstance(result, dict) else result
         artifacts = result.get("artifacts") if isinstance(result, dict) else None
         task_state = result.get("task_state") if isinstance(result, dict) else None
+        context_id = ""
+        if isinstance(result, dict):
+            context_id = str(result.get("context_id") or "")
+        context_id = context_id or context.context_id or ""
         if artifacts:
             for index, artifact in enumerate(artifacts):
                 if not isinstance(artifact, dict):
                     continue
                 event_args = {
                     "task_id": context.task_id or "",
-                    "context_id": context.context_id or "",
+                    "context_id": context_id,
                     "name": str(artifact.get("name") or f"artifact-{index + 1}"),
                 }
                 kind = str(artifact.get("kind") or "text")
@@ -215,7 +219,7 @@ class MasLabAgentExecutor(AgentExecutor):
             await event_queue.enqueue_event(
                 new_text_status_update_event(
                     task_id=context.task_id or "",
-                    context_id=context.context_id or "",
+                    context_id=context_id,
                     state=self._task_state(task_state) or TaskState.TASK_STATE_COMPLETED,
                     text=str(text or ""),
                 )
@@ -234,7 +238,7 @@ class MasLabAgentExecutor(AgentExecutor):
                 await event_queue.enqueue_event(
                     Task(
                         id=context.task_id or "",
-                        context_id=context.context_id or "",
+                        context_id=context_id,
                         status=TaskStatus(state=state),
                     )
                 )
@@ -261,7 +265,7 @@ class MasLabAgentExecutor(AgentExecutor):
         await event_queue.enqueue_event(
             new_text_message(
                 text=str(text),
-                context_id=context.context_id,
+                context_id=context_id,
                 task_id=context.task_id,
             )
         )

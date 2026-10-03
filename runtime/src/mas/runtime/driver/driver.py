@@ -37,7 +37,7 @@ from mas.runtime.schema.egress import (
     RaiseBoundaryError,
     RequestCtxAssembly,
 )
-from mas.runtime.schema.ingress import EngineIoReturn, IngressSymbol, UserInputReceived
+from mas.runtime.schema.ingress import EngineIoReturn, IngressSymbol, OperatorSteerReceived, UserInputReceived
 from mas.runtime.schema.observability import ObsEventKind
 from mas.runtime.spec.defaults import DEFAULT_MAX_AUTO_STEPS
 
@@ -763,6 +763,25 @@ class KernelDriver:
             return await inner
         except asyncio.CancelledError:
             if inner.cancelled():
+                from mas.runtime.engine.inflight_llm import peek_preempt, peek_replace, take_partial
+
+                if peek_preempt(self.session_id) is not None:
+                    return EngineIoReturn(
+                        correlation_id=io.correlation_id,
+                        response_kind="MODEL_TEXT",
+                        next_step="STOP",
+                        text=take_partial(self.session_id),
+                        finish_reason="preempted",
+                    )
+                if peek_replace(self.session_id) is not None:
+                    take_partial(self.session_id)
+                    return EngineIoReturn(
+                        correlation_id=io.correlation_id,
+                        response_kind="MODEL_TEXT",
+                        next_step="STOP",
+                        text="",
+                        finish_reason="replaced",
+                    )
                 return EngineIoReturn(
                     correlation_id=io.correlation_id,
                     response_kind="ERROR",
@@ -894,7 +913,7 @@ class KernelDriver:
         if pool is None:
             if parallel_group_id is not None:
                 self._record_parallel_group_obs(ios, q, boundary="end", group_id=parallel_group_id)
-            return direct
+            return self._with_pending_steer(direct)
         results = pool.drain()
         out: list[IngressSymbol] = []
         for sym, ret in zip(ios, results, strict=True):
@@ -903,7 +922,7 @@ class KernelDriver:
             out.append(ret)
         if parallel_group_id is not None:
             self._record_parallel_group_obs(ios, q, boundary="end", group_id=parallel_group_id)
-        return out
+        return self._with_pending_steer(out)
 
     async def _adispatch_engine_batch(self, ios: list[InvokeEngineIo], trace: DriverTrace) -> list[IngressSymbol]:
         """Async twin: bookkeeping is identical, engine calls run via ``asyncio.gather``."""
@@ -992,7 +1011,51 @@ class KernelDriver:
             out.append(ret)
         if parallel_group_id is not None:
             self._record_parallel_group_obs(ios, q, boundary="end", group_id=parallel_group_id)
-        return out
+        return self._with_pending_steer(out)
+
+    def _with_pending_steer(self, returns: list[IngressSymbol]) -> list[IngressSymbol]:
+        from mas.runtime.engine.inflight_llm import pop_preempt, pop_replace
+
+        text = pop_preempt(self.session_id)
+        if text:
+            steered = next(
+                (
+                    item
+                    for item in returns
+                    if isinstance(item, EngineIoReturn) and item.finish_reason == "preempted"
+                ),
+                None,
+            )
+            if steered is None:
+                return returns
+            return [
+                *returns,
+                OperatorSteerReceived(
+                    steer_id=f"steer{steered.correlation_id}",
+                    context_text=text,
+                ),
+            ]
+        replacement = pop_replace(self.session_id)
+        if not replacement:
+            return returns
+        replaced = next(
+            (
+                item
+                for item in returns
+                if isinstance(item, EngineIoReturn) and item.finish_reason == "replaced"
+            ),
+            None,
+        )
+        if replaced is None:
+            return returns
+        return [
+            *returns,
+            UserInputReceived(
+                user_turn_id=f"replace{replaced.correlation_id}",
+                text=replacement,
+                session_id=self.session_id,
+            ),
+        ]
 
     def _record_engine_return(
         self,
@@ -1107,7 +1170,12 @@ class KernelDriver:
                     committed_count=len(getattr(ctx, "committed_messages", []) or []),
                     op="LLM_CALL",
                 )
-        elif io.op == "LLM_CALL" and ret.next_step == "STOP" and ret.text:
+        elif (
+            io.op == "LLM_CALL"
+            and ret.next_step == "STOP"
+            and ret.text
+            and ret.finish_reason != "replaced"
+        ):
             store.record_assistant_message(ret.text)
         elif io.op == "TOOL_CALL" and ret.response_kind == "TOOL_RESULT":
             pass  # defer until ingress governance commits (see _sync_tool_result_memory)

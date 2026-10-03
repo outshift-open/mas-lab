@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
 
 Surface = Literal["plugin", "llm", "admin"]
+QueueAt = int | Literal["head", "tail"]
 
 
 class SessionPaused(RuntimeError):
@@ -33,6 +34,41 @@ class ControlDenied(RuntimeError):
         self.session_id = session_id
         self.reason = reason
         super().__init__(f"{method} denied for session {session_id!r}: {reason}")
+
+
+class SessionBusy(RuntimeError):
+    """A second exclusive ``run_turn`` while a turn is already in flight.
+
+    A2A Send Message (``message/send``) is :meth:`ControlContract.send_message`:
+    additional input on a non-terminal task, queued at the tail. This error
+    is only for starting another exclusive user turn on the same session.
+    """
+
+    def __init__(self, session_id: str, *, method: str = "run_turn") -> None:
+        self.session_id = session_id
+        self.method = method
+        super().__init__(
+            f"{method} refused for session {session_id!r}: a turn is in flight"
+        )
+
+
+class QueueConflict(RuntimeError):
+    """A queue mutation used a stale ``revision`` from an earlier peek."""
+
+    def __init__(self, *, expected: int, actual: int) -> None:
+        self.expected = expected
+        self.actual = actual
+        super().__init__(
+            f"queue revision {expected} is stale (now {actual}); peek and retry"
+        )
+
+
+class QueueItemGone(KeyError):
+    """The queued id was already popped, cancelled, or never existed."""
+
+    def __init__(self, input_id: str) -> None:
+        self.input_id = input_id
+        super().__init__(f"unknown queued input {input_id!r}")
 
 
 @dataclass(frozen=True)
@@ -73,6 +109,18 @@ class QueuedInputView:
     text: str
     source: str
     priority: int = 0
+    action: Literal["turn", "steer"] = "turn"
+    actor: str = ""
+    revision: int = 0
+
+
+@dataclass(frozen=True)
+class QueueView:
+    """Atomic snapshot of one session queue. ``revision`` is the CAS token."""
+
+    session_id: str
+    revision: int
+    items: tuple[QueuedInputView, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -86,19 +134,73 @@ class SessionSnapshotView:
 
 
 class ControlContract(Protocol):
-    """Capability-scoped control plane. Callers pass ``session_id``, not objects."""
+    """Capability-scoped control plane. Callers pass ``session_id``, not objects.
+
+    Inbound user turns are a subset of this contract: A2A ``message/send``
+    is :meth:`send_message`. :meth:`steer` is control-protocol only — A2A
+    has no steer RPC. Default ``steer`` preempts a working decode (keep
+    the prefix, replace the rest). ``mode="replace"`` discards the
+    prefix and starts a new turn. ``mode="after"`` waits for the current
+    generation to finish, then runs next (queue to front).
+    """
 
     def pause(self, session_id: str, *, reason: str) -> None: ...
     def resume(self, session_id: str) -> None: ...
-    def steer(self, session_id: str, *, text: str, mode: Literal["inject_now", "enqueue"] = "inject_now") -> None: ...
+    def send_message(
+        self,
+        session_id: str,
+        *,
+        text: str,
+        source: str = "user",
+    ) -> str: ...
+    def steer(
+        self,
+        session_id: str,
+        *,
+        text: str,
+        mode: Literal[
+            "preempt", "replace", "after", "amend", "enqueue", "inject_now"
+        ] = "preempt",
+        at: QueueAt = "head",
+    ) -> None: ...
     def discard_last(self, session_id: str) -> str: ...
     def inspect(self, session_id: str) -> SessionSnapshotView: ...
     def list_checkpoints(self, session_id: str) -> list[Any]: ...
     def navigate(self, session_id: str, *, to: str, reason: str) -> Any: ...
-    def enqueue_input(self, session_id: str, *, text: str, source: str, priority: int = 0) -> str: ...
+    def enqueue_input(
+        self,
+        session_id: str,
+        *,
+        text: str,
+        source: str,
+        priority: int = 0,
+        action: Literal["turn", "steer"] = "turn",
+        at: QueueAt = "tail",
+    ) -> str: ...
     def peek_queue(self, session_id: str) -> list[QueuedInputView]: ...
-    def reorder_queue(self, session_id: str, order: list[str]) -> None: ...
-    def cancel_queued(self, session_id: str, input_id: str) -> None: ...
+    def inspect_queue(self, session_id: str) -> QueueView: ...
+    def reorder_queue(
+        self,
+        session_id: str,
+        order: list[str],
+        *,
+        revision: int | None = None,
+    ) -> None: ...
+    def cancel_queued(
+        self,
+        session_id: str,
+        input_id: str,
+        *,
+        revision: int | None = None,
+    ) -> None: ...
+    def set_queued_action(
+        self,
+        session_id: str,
+        input_id: str,
+        *,
+        action: Literal["turn", "steer"],
+        revision: int | None = None,
+    ) -> None: ...
     def cancel_inflight(self, session_id: str) -> bool: ...
     def fork_investigation(self, session_id: str) -> str: ...
     def disable_tool(self, session_id: str, *, name: str, reason: str) -> int: ...

@@ -72,6 +72,7 @@ LIBRARY_TYPES = frozenset(
         "circuit_breaker",
         "infra_middleware",
         "hitl_responder",
+        "control_protocol",
     }
 )
 
