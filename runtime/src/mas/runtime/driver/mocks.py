@@ -49,6 +49,8 @@ class AutoCtxAssembler:
     skill_session_state: Any | None = None
     # ActivatedSkillsContextPlugin for compaction protection (agentskills.io Step 5).
     activated_skills_plugin: Any | None = None
+    skill_pin_activated: bool = True
+    skill_allow_unload: bool = True
     # Runtime context for system tools (session_id, agent_id, correlation_id)
     session_id: str = ""
     agent_id: str = ""

@@ -68,6 +68,9 @@ class _SkillPluginConfig:
     impl: str = "native"
     base_dir: Path | None = None
     auto_inject_scripts: bool = False
+    pin_activated: bool = True
+    allow_unload: bool = True
+    auto_load: bool = False
 
 
 @dataclass
@@ -159,7 +162,11 @@ def instantiate_runtime(
             options.agent_manifest,
             skill_cfg.base_dir or skill_base,
             impl=skill_cfg.impl,
+            auto_load=skill_cfg.auto_load,
+            pin_activated=skill_cfg.pin_activated,
         )
+        ctx.skill_pin_activated = skill_cfg.pin_activated
+        ctx.skill_allow_unload = skill_cfg.allow_unload
     ctx.capture_baseline()
     spec = dict((options.agent_manifest or {}).get("spec") or {})
     spawn_params = spawn_subagent_params(spec)
@@ -358,6 +365,9 @@ def _resolve_skill_plugin_config(
     impl = env_impl if env_impl in supported_impls else "native"
     rel_base: str | None = None
     auto_inject_scripts = False
+    pin_activated = True
+    allow_unload = True
+    auto_load = False
 
     spec = manifest.get("spec") if isinstance(manifest, dict) and isinstance(manifest.get("spec"), dict) else {}
     context_sources_raw = spec.get("context_sources") if isinstance(spec, dict) else None
@@ -380,6 +390,12 @@ def _resolve_skill_plugin_config(
                 rel_base = candidate_base
             if "auto_inject" in cfg:
                 auto_inject_scripts = bool(cfg.get("auto_inject"))
+            if "pin_activated" in cfg:
+                pin_activated = bool(cfg.get("pin_activated"))
+            if "allow_unload" in cfg:
+                allow_unload = bool(cfg.get("allow_unload"))
+            if "auto_load" in cfg:
+                auto_load = bool(cfg.get("auto_load"))
 
     for entry in _iter_skill_plugin_entries(manifest):
         candidate_impl = _entry_skill_impl(entry)
@@ -402,7 +418,14 @@ def _resolve_skill_plugin_config(
         p = Path(rel_base)
         resolved_base = p.resolve() if p.is_absolute() else ((relative_base_dir or default_base_dir) / p).resolve()
 
-    return _SkillPluginConfig(impl=impl, base_dir=resolved_base, auto_inject_scripts=auto_inject_scripts)
+    return _SkillPluginConfig(
+        impl=impl,
+        base_dir=resolved_base,
+        auto_inject_scripts=auto_inject_scripts,
+        pin_activated=pin_activated,
+        allow_unload=allow_unload,
+        auto_load=auto_load,
+    )
 
 
 def _iter_skill_plugin_entries(manifest: dict[str, Any] | None) -> list[dict[str, Any]]:

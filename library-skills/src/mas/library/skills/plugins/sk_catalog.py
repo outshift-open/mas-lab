@@ -28,6 +28,9 @@ _CATALOG_INTRO = (
     "Listed skills show name and when-to-use from each skill's frontmatter. "
     "When a listed skill matches the task, call `activate_skill(name)` and "
     "follow the loaded body before the user-visible answer. "
+    "To unload a skill so it is no longer in force, call "
+    "`activate_skill(name, active=false)`. The catalog listing remains; prior "
+    "tool results in the transcript are not rewritten. "
     "Resolve relative paths in skill instructions against the skill's directory "
     "using `read_skill_file(skill, path)`."
 )
@@ -160,6 +163,11 @@ class ActivatedSkillsContextPlugin(ContextContract):
             )
         )
 
+    def remove_activated(self, name: str) -> None:
+        """Drop the pinned body so the skill is no longer in SYSTEM_SKILLS."""
+        section = f"skills/activated/{name}"
+        self._parts = [p for p in self._parts if p.section_id != section]
+
     def collect_context(self) -> list[ContextPart]:
         """Return all activated skill bodies as pinned ContextParts."""
         return list(self._parts)
@@ -171,6 +179,8 @@ def attach_skill_catalog_plugin(
     base_dir: Path | None,
     *,
     impl: str = "native",
+    auto_load: bool = False,
+    pin_activated: bool = True,
 ) -> SkillCatalogPlugin | None:
     """Build and attach SkillCatalogPlugin to ctx."""
     if not manifest or not base_dir:
@@ -199,6 +209,19 @@ def attach_skill_catalog_plugin(
 
     if not getattr(ctx, "skill_session_state", None):
         ctx.skill_session_state = SkillSessionState()
+
+    if auto_load:
+        from agentskills import parse_skill_frontmatter
+
+        for rec in plugin.registry.all():
+            try:
+                raw = rec.path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            _meta, body = parse_skill_frontmatter(raw)
+            ctx.skill_session_state.mark_activated(rec.name)
+            if pin_activated:
+                activated_plugin.add_activated(rec.name, body)
 
     return plugin
 

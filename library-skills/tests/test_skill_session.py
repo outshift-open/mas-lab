@@ -50,6 +50,19 @@ def test_mark_activated_idempotent():
     assert r2.turn == 1  # turn not updated on repeat
 
 
+def test_mark_deactivated_removes_skill():
+    state = SkillSessionState()
+    state.mark_activated("code-review")
+    assert state.mark_deactivated("code-review") is True
+    assert not state.is_activated("code-review")
+    assert state.activated_names() == []
+
+
+def test_mark_deactivated_unknown_is_false():
+    state = SkillSessionState()
+    assert state.mark_deactivated("ghost") is False
+
+
 def test_note_reactivation_attempt():
     state = SkillSessionState()
     state.mark_activated("code-review")
@@ -179,3 +192,51 @@ def test_different_skills_both_activate(tmp_path):
     # Both marked in session
     assert ctx.skill_session_state.is_activated("code-review")
     assert ctx.skill_session_state.is_activated("triage")
+
+
+def test_deactivate_unpins_and_allows_reload(tmp_path):
+    _, ctx = _make_registry_and_ctx(tmp_path)
+    plugin = SkillToolsPlugin()
+    plugin.on_execute_tool("activate_skill", {"name": "code-review"}, ctx=ctx)
+    class _Pin:
+        def __init__(self):
+            self.removed = []
+        def add_activated(self, name, body):
+            pass
+        def remove_activated(self, name):
+            self.removed.append(name)
+    pin = _Pin()
+    ctx.activated_skills_plugin = pin
+    result = plugin.on_execute_tool(
+        "activate_skill", {"name": "code-review", "active": False}, ctx=ctx
+    )
+    assert result["deactivated"] is True
+    assert "no longer in force" in result["notice"]
+    assert not ctx.skill_session_state.is_activated("code-review")
+    assert pin.removed == ["code-review"]
+    reload = plugin.on_execute_tool("activate_skill", {"name": "code-review"}, ctx=ctx)
+    assert "content" in reload
+    assert ctx.skill_session_state.is_activated("code-review")
+
+
+def test_deactivate_string_false(tmp_path):
+    _, ctx = _make_registry_and_ctx(tmp_path)
+    plugin = SkillToolsPlugin()
+    plugin.on_execute_tool("activate_skill", {"name": "code-review"}, ctx=ctx)
+    result = plugin.on_execute_tool(
+        "activate_skill", {"name": "code-review", "active": "false"}, ctx=ctx
+    )
+    assert result["deactivated"] is True
+
+
+def test_deactivate_when_disabled(tmp_path):
+    _, ctx = _make_registry_and_ctx(tmp_path)
+    ctx.skill_allow_unload = False
+    plugin = SkillToolsPlugin()
+    plugin.on_execute_tool("activate_skill", {"name": "code-review"}, ctx=ctx)
+    result = plugin.on_execute_tool(
+        "activate_skill", {"name": "code-review", "active": False}, ctx=ctx
+    )
+    assert result["deactivated"] is False
+    assert "disabled" in result["error"]
+    assert ctx.skill_session_state.is_activated("code-review")

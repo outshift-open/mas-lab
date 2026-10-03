@@ -165,15 +165,24 @@ Skill directory: /path/to/skills/answer-formatting
 
 ## Available tools
 
-### `activate_skill(name)`
+### `activate_skill(name, active=true|false)`
 
-Load the full `SKILL.md` body for a skill.  Returns the Markdown body (front
-matter stripped) wrapped in `<skill_content>` tags, plus a listing of bundled
-resource files.
+Load the full `SKILL.md` body for a skill (`active` defaults to true). Returns
+the Markdown body (front matter stripped) wrapped in `<skill_content>` tags,
+plus a listing of bundled resource files.
 
 ```json
 {"name": "answer-formatting"}
 → {"content": "<skill_content name=\"answer-formatting\">...", "skill": "...", "base_dir": "..."}
+```
+
+Unload with `active=false`. The catalog listing stays; the pinned
+`SYSTEM_SKILLS` body is dropped. Prior tool results in the transcript are
+not rewritten.
+
+```json
+{"name": "answer-formatting", "active": false}
+→ {"notice": "Skill 'answer-formatting' is no longer in force. ...", "deactivated": true}
 ```
 
 ### `list_skill_files(skill)`

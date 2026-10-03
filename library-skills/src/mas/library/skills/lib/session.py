@@ -69,6 +69,10 @@ class SkillSessionState:
         if name in self._activated:
             self._activated[name].notices += 1
 
+    def mark_deactivated(self, name: str) -> bool:
+        """Unpin *name* so it is no longer in force. Returns True if it was active."""
+        return self._activated.pop(name, None) is not None
+
     # ------------------------------------------------------------------
     # Query
     # ------------------------------------------------------------------
