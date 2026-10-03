@@ -69,6 +69,9 @@ use separate ports when exposing several agents.
 - A2A `contextId` maps to MAS `session_id` and working-memory continuity.
 - A2A `taskId` maps to one MAS input operation.
 - A2A `messageId` maps to one submitted turn.
+- A2A `message/send` maps to `ControlContract.send_message` (queue a turn).
+- A2A `tasks/cancel` maps to `ControlContract.cancel_inflight`.
+- There is no A2A steer RPC; preempt / replace / after are control-protocol only.
 - MAS correlation and parent-call identifiers travel in A2A message metadata.
 
 See [developer.md](developer.md) and the [compliance report](../../library-ioa/docs/a2a/protocol-compliance.md).

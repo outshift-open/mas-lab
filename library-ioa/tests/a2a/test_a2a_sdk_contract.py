@@ -417,6 +417,62 @@ def test_a2a_exposure_maps_protocol_identity_to_runtime_ids() -> None:
     ]
 
 
+def test_a2a_omitted_context_id_mints_a_session_and_returns_it() -> None:
+    seen: list[str] = []
+
+    def runtime_handler(
+        prompt: str, *, turn_id: str | None = None, session_id: str | None = None, **kwargs: Any
+    ) -> dict[str, str]:
+        seen.append(str(session_id or ""))
+        return {"text": "ok"}
+
+    exposed_app = A2AExposure().build_app(
+        {
+            "metadata": {"name": "exposed-agent"},
+            "spec": {"description": "A2A session mint"},
+        },
+        runtime_handler,
+    )
+    with TestClient(exposed_app) as client:
+        first = client.post(
+            "/",
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "SendMessage",
+                "params": {
+                    "message": {
+                        "role": "ROLE_USER",
+                        "parts": [{"text": "hello"}],
+                        "messageId": "message-1",
+                    }
+                },
+            },
+            headers={"A2A-Version": "1.0"},
+        )
+        second = client.post(
+            "/",
+            json={
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "SendMessage",
+                "params": {
+                    "message": {
+                        "role": "ROLE_USER",
+                        "parts": [{"text": "again"}],
+                        "messageId": "message-2",
+                    }
+                },
+            },
+            headers={"A2A-Version": "1.0"},
+        )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert seen[0] and seen[1]
+    assert seen[0] != seen[1]
+
+
 def test_active_task_cleanup_closes_event_queues() -> None:
     class ActiveTaskStub:
         task_id = "failed-start"

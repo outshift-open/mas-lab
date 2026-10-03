@@ -33,3 +33,14 @@ def model_on_evaluate(state: ModelState) -> ModelState:
 
 def model_on_abort(state: ModelState) -> ModelState:
     return ModelState.IDLE
+
+
+def model_on_preempt(state: ModelState) -> ModelState:
+    """Steer: decode stopped mid-stream, not a finished answer.
+
+    Lands on IDLE like ``model_on_abort``, but is a distinct σ: the streamed
+    prefix is kept by the driver (``take_partial``), and M_dp re-enters
+    CTX_BUILD/IDLE for the same or a new turn rather than discarding state
+    after an error.
+    """
+    return ModelState.IDLE

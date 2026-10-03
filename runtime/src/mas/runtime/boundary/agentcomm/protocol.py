@@ -25,7 +25,12 @@ class AgentCommError(RuntimeError):
 
 @runtime_checkable
 class AgentCommContract(Protocol):
-    """Send a task to a peer agent through a selected communication protocol."""
+    """Outbound send to a peer after delegation has already been decided.
+
+    Inbound user turns are not this contract. They are
+    ``ControlContract.send_message`` (A2A ``message/send``). There is no
+    steer RPC here; mid-token amend exists only on the control protocol.
+    """
 
     def send(
         self,

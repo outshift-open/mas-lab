@@ -156,3 +156,132 @@ def test_checkpoint_does_not_unpause_a_paused_session() -> None:
 
     session.checkpoint(_Store(), label="held")
     assert session.status is SessionStatus.PAUSED
+
+
+def test_queue_revision_cas_and_action_change() -> None:
+    from mas.runtime.boundary.control.contract import QueueConflict, QueueItemGone
+
+    queue = TurnInputQueue()
+    first = queue.enqueue("s1", "one", source="a")
+    second = queue.enqueue("s1", "two", source="a")
+    view = queue.inspect("s1")
+    assert view.revision == 2
+    queue.set_action("s1", first, action="steer", revision=view.revision)
+    with pytest.raises(QueueConflict):
+        queue.reorder("s1", [second, first], revision=view.revision)
+    view = queue.inspect("s1")
+    assert view.items[0].action == "steer"
+    queue.cancel("s1", first, revision=view.revision)
+    with pytest.raises(QueueItemGone):
+        queue.cancel("s1", first)
+
+
+def test_steer_preempts_an_inflight_llm() -> None:
+    from mas.runtime.engine import inflight_llm
+
+    manager = SessionManager()
+    session = _session(manager)
+    control = manager.control(capability=ControlCapability(actor="admin", surface="admin"))
+    session.controller.inflight = True
+    inflight_llm._tasks["s1"] = type("T", (), {"done": lambda self: False, "cancel": lambda self: None})()
+    try:
+        control.steer("s1", text="use Lyon")
+        assert inflight_llm.peek_preempt("s1") == "use Lyon"
+        control.steer("s1", text="later", mode="after")
+        queued = control.inspect_queue("s1")
+        assert queued.items[0].action == "turn"
+        assert queued.items[0].text == "later"
+    finally:
+        inflight_llm._tasks.pop("s1", None)
+        inflight_llm._preempts.pop("s1", None)
+
+
+def test_steer_replace_discards_partials() -> None:
+    from mas.runtime.engine import inflight_llm
+
+    manager = SessionManager()
+    session = _session(manager)
+    control = manager.control(capability=ControlCapability(actor="admin", surface="admin"))
+    session.controller.inflight = True
+    inflight_llm._tasks["s1"] = type("T", (), {"done": lambda self: False, "cancel": lambda self: None})()
+    inflight_llm.append_partial("s1", "Hello ")
+    try:
+        control.steer("s1", text="start over", mode="replace")
+        assert inflight_llm.peek_replace("s1") == "start over"
+        assert inflight_llm.peek_preempt("s1") is None
+        assert inflight_llm.take_partial("s1") == ""
+    finally:
+        inflight_llm._tasks.pop("s1", None)
+        inflight_llm._replaces.pop("s1", None)
+        inflight_llm._partials.pop("s1", None)
+
+
+def test_steer_while_turn_inflight_without_llm_queues_to_front() -> None:
+    manager = SessionManager()
+    session = _session(manager)
+    control = manager.control(capability=ControlCapability(actor="admin", surface="admin"))
+    session.controller.inflight = True
+    control.enqueue_input("s1", text="later", source="peer")
+    control.steer("s1", text="now")
+    texts = [item.text for item in control.inspect_queue("s1").items]
+    assert texts[0].startswith("/steer now")
+    assert texts[1] == "later"
+
+
+def test_enqueue_at_head_and_index() -> None:
+    queue = TurnInputQueue()
+    queue.enqueue("s1", "one", source="a")
+    queue.enqueue("s1", "two", source="a")
+    queue.enqueue("s1", "head", source="a", at="head")
+    queue.enqueue("s1", "mid", source="a", at=1)
+    queue.enqueue("s1", "tail", source="a", at="tail")
+    assert [item.text for item in queue.peek("s1")] == ["head", "mid", "one", "two", "tail"]
+    with pytest.raises(ValueError, match="out of range"):
+        queue.enqueue("s1", "bad", source="a", at=9)
+    with pytest.raises(ValueError, match="out of range"):
+        queue.enqueue("s1", "bad", source="a", at=-1)
+
+
+def test_steer_after_queues_to_front() -> None:
+    manager = SessionManager()
+    _session(manager)
+    control = manager.control(capability=ControlCapability(actor="admin", surface="admin"))
+    control.enqueue_input("s1", text="later", source="peer")
+    control.steer("s1", text="now", mode="after")
+    texts = [item.text for item in control.inspect_queue("s1").items]
+    assert texts[0] == "now"
+    assert texts[1] == "later"
+    with pytest.raises(ValueError, match="mode='after'"):
+        control.steer("s1", text="no", mode="preempt", at=1)
+
+
+def test_send_message_queues_and_never_amends() -> None:
+    from mas.runtime.engine import inflight_llm
+
+    manager = SessionManager()
+    session = _session(manager)
+    control = manager.control(capability=ControlCapability(actor="admin", surface="admin"))
+    session.controller.inflight = True
+    inflight_llm._tasks["s1"] = type("T", (), {"done": lambda self: False, "cancel": lambda self: None})()
+    try:
+        input_id = control.send_message("s1", text="also consider Lyon")
+        assert input_id
+        queued = control.inspect_queue("s1")
+        assert queued.items[0].text == "also consider Lyon"
+        assert queued.items[0].action == "turn"
+        assert inflight_llm.peek_amend("s1") is None
+        events = [e for e in manager.control_events if e.method == "send_message"]
+        assert events and events[0].kind == "input_enqueued"
+    finally:
+        inflight_llm._tasks.pop("s1", None)
+        inflight_llm._preempts.pop("s1", None)
+
+
+def test_llm_tools_cannot_send_message_or_steer() -> None:
+    manager = SessionManager()
+    session = _session(manager)
+    llm = session.instance.driver.ctx.control
+    with pytest.raises(ControlDenied, match="steer"):
+        llm.steer("s1", text="no")
+    with pytest.raises(ControlDenied, match="send_message"):
+        llm.send_message("s1", text="no")

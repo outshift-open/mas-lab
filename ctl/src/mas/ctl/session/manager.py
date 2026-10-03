@@ -242,6 +242,8 @@ class SessionManager:
             ctx.allow_control_tools = is_control_tools_enabled(ctx.current_spec)
             from mas.ctl.session.control import SessionControl
 
+            # LLM tools are a control subset, not user ingress and not steer.
+            # A2A message/send and chat turns use send_message; preempt is admin.
             ctx.control = SessionControl(
                 self,
                 capability=ControlCapability(

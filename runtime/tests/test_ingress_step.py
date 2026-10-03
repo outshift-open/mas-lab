@@ -198,3 +198,42 @@ def test_ingress_retry_reschedules_llm_call() -> None:
         )
     assert q.gov_retry_count == 1
     assert any(isinstance(sym, InvokeEngineIo) and sym.op == "LLM_CALL" for sym in out)
+
+
+def test_preempted_decode_does_not_emit_a_finished_response() -> None:
+    from mas.runtime.kernel.ingress_step import commit_engine_io_return
+
+    q = QProduct()
+    run = RunLedger()
+    event = EngineIoReturn(
+        correlation_id=1,
+        response_kind="MODEL_TEXT",
+        next_step="STOP",
+        text="Hello ",
+        finish_reason="preempted",
+    )
+    evaluate = MagicMock(return_value=["should-not-run"])
+    out = commit_engine_io_return(q, run, event, config=KernelConfig(), evaluate=evaluate)
+    evaluate.assert_not_called()
+    assert isinstance(out[0], NoOp)
+    assert run.events[-1].text == "Hello "
+
+
+def test_preempted_decode_aborts_model_not_done() -> None:
+    from mas.runtime.kernel.ingress_step import commit_engine_io_return
+    from mas.runtime.kernel.state import DpState, ModelState
+
+    q = QProduct()
+    q.model = ModelState.CALLING
+    run = RunLedger()
+    event = EngineIoReturn(
+        correlation_id=1,
+        response_kind="MODEL_TEXT",
+        next_step="STOP",
+        text="Hello ",
+        finish_reason="preempted",
+    )
+    out = commit_engine_io_return(q, run, event, config=KernelConfig(), evaluate=MagicMock())
+    assert isinstance(out[0], NoOp)
+    assert q.model is ModelState.IDLE
+    assert q.dp is DpState.CTX_BUILD

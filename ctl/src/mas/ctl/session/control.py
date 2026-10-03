@@ -15,8 +15,9 @@ from mas.runtime.boundary.control.contract import (
     ControlCapability,
     ControlDenied,
     ControlEvent,
+    QueueAt,
+    QueueView,
     QueuedInputView,
-    SessionPaused,
     SessionSnapshotView,
 )
 from mas.runtime.session import SessionStatus
@@ -77,17 +78,111 @@ class SessionControl:
         session.resume()
         self._trace("resume", session_id, kind="session_resumed")
 
+    def send_message(
+        self,
+        session_id: str,
+        *,
+        text: str,
+        source: str = "user",
+    ) -> str:
+        """A2A Send Message (``message/send``).
+
+        Additional input on a non-terminal task is queued at the tail as a
+        turn. Never preempts or replaces an in-flight decode — that is
+        :meth:`steer`, which A2A does not expose.
+        """
+        self._require("send_message", session_id)
+        input_id = self._manager.turn_queue.enqueue(
+            session_id,
+            text,
+            source=source,
+            action="turn",
+            actor=self.capability.actor,
+            at="tail",
+        )
+        self._trace(
+            "send_message",
+            session_id,
+            kind="input_enqueued",
+            payload={"input_id": input_id, "source": source, "action": "turn", "at": "tail"},
+        )
+        return input_id
+
     def steer(
         self,
         session_id: str,
         *,
         text: str,
-        mode: Literal["inject_now", "enqueue"] = "inject_now",
+        mode: Literal[
+            "preempt", "replace", "after", "amend", "enqueue", "inject_now"
+        ] = "preempt",
+        at: QueueAt = "head",
     ) -> None:
+        """Control-protocol injection into a working generation. A2A has no steer RPC.
+
+        ``preempt`` (default): keep streamed tokens, stop the rest of this
+        decode, continue with ``text``. The decode is preempted; it is not a
+        finished client response. ``amend`` / ``inject_now`` are aliases.
+
+        ``replace``: discard streamed tokens, stop this decode, start a new
+        exclusive turn with ``text``.
+
+        ``after``: do not interrupt; queue ``text`` to the front and wait for
+        the current generation to finish. ``enqueue`` is an alias.
+        """
         session = self._require("steer", session_id)
-        if mode == "enqueue":
-            self.enqueue_input(session_id, text=f"/steer {text}", source="steer")
-            self._trace("steer", session_id, kind="steer_enqueued", payload={"text": text})
+        when = {
+            "preempt": "preempt",
+            "amend": "preempt",
+            "inject_now": "preempt",
+            "replace": "replace",
+            "after": "after",
+            "enqueue": "after",
+        }.get(mode)
+        if when is None:
+            raise ValueError("steer mode must be 'preempt', 'replace', or 'after'")
+        if when != "after" and at not in {"head", "tail"}:
+            raise ValueError("steer at= is only valid with mode='after'")
+        if when == "after":
+            self.enqueue_input(session_id, text=text, source="steer", action="turn", at=at)
+            self._trace(
+                "steer",
+                session_id,
+                kind="steer_after",
+                payload={"text": text, "at": at},
+            )
+            return
+        from mas.runtime.engine.inflight_llm import has_inflight, request_preempt, request_replace
+
+        if when == "replace":
+            if has_inflight(session_id):
+                request_replace(session_id, text)
+                self._trace("steer", session_id, kind="steer_replaced", payload={"text": text})
+                return
+            if bool(getattr(session.controller, "inflight", False)):
+                self.enqueue_input(session_id, text=text, source="steer", action="turn", at="head")
+                self._trace(
+                    "steer",
+                    session_id,
+                    kind="steer_after",
+                    payload={"text": text, "at": "head", "why": "no_llm"},
+                )
+                return
+            session.controller.run_turn(text, auto_hitl=False)
+            self._trace("steer", session_id, kind="steer_replaced", payload={"text": text})
+            return
+        if has_inflight(session_id):
+            request_preempt(session_id, text)
+            self._trace("steer", session_id, kind="steer_preempted", payload={"text": text})
+            return
+        if bool(getattr(session.controller, "inflight", False)):
+            self.enqueue_input(session_id, text=text, source="steer", action="steer", at="head")
+            self._trace(
+                "steer",
+                session_id,
+                kind="steer_after",
+                payload={"text": text, "at": "head", "why": "no_llm"},
+            )
             return
         session.controller.run_turn(f"/steer {text}", auto_hitl=False)
         self._trace("steer", session_id, kind="steer_injected", payload={"text": text})
@@ -157,16 +252,32 @@ class SessionControl:
         )
         return ref
 
-    def enqueue_input(self, session_id: str, *, text: str, source: str, priority: int = 0) -> str:
+    def enqueue_input(
+        self,
+        session_id: str,
+        *,
+        text: str,
+        source: str,
+        priority: int = 0,
+        action: Literal["turn", "steer"] = "turn",
+        actor: str = "",
+        at: QueueAt = "tail",
+    ) -> str:
         self._require("enqueue_input", session_id)
         input_id = self._manager.turn_queue.enqueue(
-            session_id, text, source=source, priority=priority
+            session_id,
+            text,
+            source=source,
+            priority=priority,
+            action=action,
+            actor=actor or self.capability.actor,
+            at=at,
         )
         self._trace(
             "enqueue_input",
             session_id,
             kind="input_enqueued",
-            payload={"input_id": input_id, "source": source},
+            payload={"input_id": input_id, "source": source, "action": action, "at": at},
         )
         return input_id
 
@@ -174,15 +285,60 @@ class SessionControl:
         self._require("peek_queue", session_id)
         return self._manager.turn_queue.peek(session_id)
 
-    def reorder_queue(self, session_id: str, order: list[str]) -> None:
-        self._require("reorder_queue", session_id)
-        self._manager.turn_queue.reorder(session_id, order)
-        self._trace("reorder_queue", session_id, kind="queue_reordered", payload={"order": list(order)})
+    def inspect_queue(self, session_id: str) -> QueueView:
+        self._require("inspect_queue", session_id)
+        return self._manager.turn_queue.inspect(session_id)
 
-    def cancel_queued(self, session_id: str, input_id: str) -> None:
+    def reorder_queue(
+        self,
+        session_id: str,
+        order: list[str],
+        *,
+        revision: int | None = None,
+    ) -> None:
+        self._require("reorder_queue", session_id)
+        new_revision = self._manager.turn_queue.reorder(session_id, order, revision=revision)
+        self._trace(
+            "reorder_queue",
+            session_id,
+            kind="queue_reordered",
+            payload={"order": list(order), "revision": new_revision},
+        )
+
+    def cancel_queued(
+        self,
+        session_id: str,
+        input_id: str,
+        *,
+        revision: int | None = None,
+    ) -> None:
         self._require("cancel_queued", session_id)
-        self._manager.turn_queue.cancel(session_id, input_id)
-        self._trace("cancel_queued", session_id, kind="input_cancelled", payload={"input_id": input_id})
+        new_revision = self._manager.turn_queue.cancel(session_id, input_id, revision=revision)
+        self._trace(
+            "cancel_queued",
+            session_id,
+            kind="input_cancelled",
+            payload={"input_id": input_id, "revision": new_revision},
+        )
+
+    def set_queued_action(
+        self,
+        session_id: str,
+        input_id: str,
+        *,
+        action: Literal["turn", "steer"],
+        revision: int | None = None,
+    ) -> None:
+        self._require("set_queued_action", session_id)
+        new_revision = self._manager.turn_queue.set_action(
+            session_id, input_id, action=action, revision=revision
+        )
+        self._trace(
+            "set_queued_action",
+            session_id,
+            kind="queue_action_changed",
+            payload={"input_id": input_id, "action": action, "revision": new_revision},
+        )
 
     def cancel_inflight(self, session_id: str) -> bool:
         """Cancel the in-flight LLM ``ainvoke``. Tools stay soft-interrupt only."""

@@ -32,3 +32,8 @@ from the catalog. Unknown ids fail through `validate_component_id` /
 
 Pause, navigate, spec revision, and snapshot storage are
 `ControlContract` / `SnapshotTree` APIs, not extra plugin-type enums.
+The JSON-lines control wire is a library `control_protocol` plugin.
+A2A session attach is `agent_expose`: `contextId` is the session id.
+User turns on that session are `ControlContract.send_message` (A2A
+`message/send`). `AgentCommContract` is outbound peer send after
+delegation, not inbound user input.

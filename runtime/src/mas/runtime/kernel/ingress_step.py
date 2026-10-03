@@ -25,9 +25,9 @@ from mas.runtime.kernel.envelope import (
 from mas.runtime.kernel.hitl_gate import emit_ingress_hitl_pause
 from mas.runtime.kernel.inflight import dismiss_inflight, pending_for_validate
 from mas.runtime.kernel.state import DpState, QProduct, RunEvent, RunLedger, ToolState
-from mas.runtime.machines.context import ctx_on_cycle_reset
+from mas.runtime.machines.context import ctx_on_abort, ctx_on_cycle_reset
 from mas.runtime.machines.memory import memory_on_ingress
-from mas.runtime.machines.model import model_on_abort, model_on_ingress
+from mas.runtime.machines.model import model_on_abort, model_on_ingress, model_on_preempt
 from mas.runtime.machines.session import session_on_done
 from mas.runtime.machines.tool import tool_on_abort, tool_on_ingress
 from mas.runtime.machines.transport import transport_on_ingress
@@ -84,7 +84,9 @@ def commit_engine_io_return(
     q.session = session_on_done(q.session)
     q.memory = memory_on_ingress(q.memory)
     q.transport = transport_on_ingress(q.transport, response_kind=event.response_kind)
-    if q.model.value == "CALLING":
+    if event.finish_reason in {"preempted", "replaced"}:
+        q.model = model_on_preempt(q.model)
+    elif q.model.value == "CALLING":
         q.model = model_on_ingress(q.model, response_kind=event.response_kind)
     if q.tool.value == "EXECUTING":
         q.tool = tool_on_ingress(q.tool, response_kind=event.response_kind)
@@ -97,6 +99,21 @@ def commit_engine_io_return(
     q.inflight_kind = "NONE"
     q.pending_engine_correlation_id = 0
     q.pending_tools_by_cid.clear()
+    if event.finish_reason == "preempted":
+        # Decode stopped; the turn is not finished. M_model is IDLE so the
+        # follow-up LLM_CALL after OperatorSteerReceived is a new CALLING.
+        q.dp = DpState.CTX_BUILD
+        apply_control_valid(q)
+        coord_after_ingress(q)
+        return [NoOp()]
+    if event.finish_reason == "replaced":
+        # Prefix discarded; a follow-up UserInputReceived starts a new turn.
+        q.dp = DpState.IDLE
+        q.ctx = ctx_on_abort(q.ctx)
+        q.scheduled_egress = "NONE"
+        apply_control_valid(q)
+        coord_after_ingress(q)
+        return [NoOp()]
     q.dp = DpState.EVALUATING
     apply_control_valid(q)
     coord_after_ingress(q)

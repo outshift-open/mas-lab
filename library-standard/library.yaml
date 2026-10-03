@@ -37,6 +37,7 @@ types:
   - circuit_breaker
   - infra_middleware
   - hitl_responder
+  - control_protocol
 
 plugins:
   - type: engine_tool_provider
@@ -109,6 +110,14 @@ plugins:
     shortcuts:
       - local
       - agent-local
+  - type: control_protocol
+    name: rpc
+    urn: mas.control_protocol.rpc
+    module: mas.library.standard.plugins.control.rpc
+    class: ControlRpcProtocol
+    shortcuts:
+      - rpc
+      - control_rpc
 
   # Observability plugins
   - type: observability

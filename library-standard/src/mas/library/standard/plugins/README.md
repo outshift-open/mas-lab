@@ -59,6 +59,16 @@ Same procedure as tools: a plugin speaks **one protocol**; the registry routes
 
 Infra `spec.protocol` / agent `spec.models[].kind` select the wire protocol (default `openai`). Ollama and LiteLLM proxies use the OpenAI plugin. A future Bedrock plugin would register as `type: llm_provider` with its own class. Offline CI replays a recorded live protocol through `llm_cache` (`raise_on_miss`).
 
+## Control protocol (`mas.library.standard.plugins.control`)
+
+JSON-lines unix/TCP attach for `ControlContract`. This is **not** A2A.
+Two people talk to an agent over A2A (`contextId` = session id). This
+plugin is how an operator process attaches to the control plane.
+
+| ID | Role | Implementation |
+|----|------|----------------|
+| `rpc` | Wire protocol | `ControlRpcProtocol` — advertise, heartbeat, unix/TCP, fail closed |
+
 Thinking depth, thinking-token budget, and hiding chain-of-thought live on
 `spec.models[].reasoning` (`effort`, `budget_tokens`, `exclude`) — see
 [`docs/manifests/llm-reasoning.md`](../../../../../../docs/manifests/llm-reasoning.md).

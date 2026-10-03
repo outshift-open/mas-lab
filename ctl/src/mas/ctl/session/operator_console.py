@@ -8,7 +8,9 @@ or control). Concurrency is excluded by construction — the runtime product
 the console never offers ``You:`` while ``gov_is_hitl_pending`` or while a turn
 is in flight.
 
-Steering (``OperatorSteerReceived``) is the deliberate mid-run exception.
+Steering (``OperatorSteerReceived``) preempts a working decode: streamed
+tokens are kept and the operator text continues the same generation.
+It is not a finished client response and not interrupt-and-replace.
 """
 
 from __future__ import annotations

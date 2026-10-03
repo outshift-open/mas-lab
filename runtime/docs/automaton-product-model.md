@@ -766,7 +766,7 @@ placement guide.
 | `execution` | `ExecutionSessionContract` | \(M_{\text{session}}\) checkpoint sub-state | Mealy-layer `ExecutionSession` persistence |
 | `recorder` | `RecorderContract` | One summand of \(M_{\text{obs}}^{\otimes m}\) | Low-level event sink inside observability family |
 | `sensor` | `SensorContract` | Transport/session ingress | `SensorEvent` → `USER_MESSAGE` / `sensor_event` symbols |
-| `control` | `ControlContract` | DP + session guards | `steer()` → `INTERRUPT_SIGNAL`; queued for next iteration |
+| `control` | `ControlContract` | \(M_{\text{model}}\) + \(M_{\text{dp}}\) | `steer(preempt)`: keep prefix, `M_model CALLING→IDLE`, `M_dp→CTX_BUILD`, same turn; `steer(replace)`: drop prefix, `M_dp→IDLE`, new turn; `steer(after)`/`enqueue_input`: queued, runs once the live decode finishes; `cancel_inflight`: drop remainder, no follow-up |
 | `message` | `MessageContract` | \(\mathcal{E}_{\text{transport}}\) | Simple send; subset of transport |
 | `transport` | `TransportContract` | \(M_{\text{transport}}\) | Bus unicast/broadcast, delivery ack |
 | `delegation` | `DelegationContract` | Tool + coordination | `DelegateTaskTool` — tool envelope + coord dispatch |
@@ -960,7 +960,8 @@ CLI (`mas-runtime run-agent`), WebSocket, benchmark HITL — same kernel.
 
 ```
 SensorContract.pull()  →  USER_MESSAGE or sensor_event
-ControlContract.steer()  →  INTERRUPT_SIGNAL  →  DP phase INTERRUPT → DECIDE
+ControlContract.steer(mode="preempt")  →  M_model CALLING→IDLE (prefix kept) → M_dp→CTX_BUILD → same turn continues
+ControlContract.steer(mode="replace")  →  M_model CALLING→IDLE (prefix dropped) → M_dp→IDLE → new turn
 ```
 
 ---
@@ -1290,7 +1291,7 @@ deny-by-default outside listed paths.
 | **ModelContract** | assembled messages | LLM response | Tokens / budget | `post_llm_call` / model span |
 | **SessionContract** | — | `append_turn`; `save_session` | Cross-turn L1 log | `session_id` keyed store |
 | **Runtime kernel** | all | Schedule loop; invoke envelopes | Step budget | `ExecutionSession`, `AgentState` |
-| **ControlContract** | signals | `INTERRUPT_SIGNAL` → DP | Loop continuation | control events |
+| **ControlContract** | signals | `OperatorSteerReceived` → `model_on_preempt` + `M_dp` (`CTX_BUILD`/`IDLE`) | Loop continuation (preempt) or new turn (replace) | control events |
 | **SharedContext** | blackboard | KV via async API | Multi-agent coord | `source_type=shared` inject |
 
 ### 29.1 Invariants on context mutation

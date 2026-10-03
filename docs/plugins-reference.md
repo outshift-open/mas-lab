@@ -55,6 +55,12 @@ practical examples.
 | `StackConversation`         | `mas.library.standard.plugins.context.conversation` | `mas-library-standard` |
 | `SummarizingConversation`   | `mas.library.standard.plugins.context.conversation` | `mas-library-standard` |
 
+### Control_Protocol
+
+| Class                | Full module path                           | Package                |
+| -------------------- | ------------------------------------------ | ---------------------- |
+| `ControlRpcProtocol` | `mas.library.standard.plugins.control.rpc` | `mas-library-standard` |
+
 ### Design_Pattern
 
 | Class                            | Full module path                                                | Package                |
@@ -206,6 +212,7 @@ practical examples.
 | `BacktrackOnErrorPlugin`         | governance           | `mas-library-standard` |
 | `CacheLLMProvider`               | llm_provider         | `mas-library-standard` |
 | `ContextAssemblerPlugin`         | assembler            | `mas-library-standard` |
+| `ControlRpcProtocol`             | control_protocol     | `mas-library-standard` |
 | `ControlTools`                   | system_tool          | `mas-library-standard` |
 | `CopyDirRelatedState`            | related_state        | `mas-library-standard` |
 | `CotPlugin`                      | design_pattern       | `mas-library-standard` |

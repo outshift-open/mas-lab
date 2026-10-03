@@ -100,3 +100,28 @@ async def test_achat_completion_stream_emits_llm_delta_and_assembles():
     ret = await engine.ainvoke(InvokeEngineIo(correlation_id=1, op="LLM_CALL"))
     assert ret.text == "ab"
     assert seen == ["a", "b"]
+
+
+@pytest.mark.asyncio
+async def test_ainvoke_uses_stream_iterator_even_when_spec_stream_is_false() -> None:
+    class _StreamProvider:
+        kind = "openai"
+
+        def chat_completion(self, **kwargs):
+            return {"role": "assistant", "content": "no", "finish_reason": "stop"}
+
+        async def achat_completion(self, **kwargs):
+            raise AssertionError("one-shot async must not run when a stream iterator exists")
+
+        async def achat_completion_stream(self, **kwargs):
+            yield {"delta": "x"}
+
+    engine = LiveLlmEngine(
+        llm_provider=_StreamProvider(),
+        use_cache=False,
+        model="stub",
+        stream=False,
+        ctx=type("C", (), {"session_id": "s1", "observability": None})(),
+    )
+    ret = await engine.ainvoke(InvokeEngineIo(correlation_id=1, op="LLM_CALL"))
+    assert ret.text == "x"

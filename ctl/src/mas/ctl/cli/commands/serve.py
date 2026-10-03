@@ -13,10 +13,14 @@ from mas.ctl.session.flavour import FlavourError, resolve_flavour
 from mas.ctl.session.infra_resolve import resolve_session_infra
 from mas.ctl.session.observability import setup_observability
 from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
+from mas.ctl.session.mailbox import SessionTurnMailbox
 from mas.runtime.registry import get_registry
 
 
 def _make_runtime_handler(instance: Any) -> Any:
+    """A2A ingress: ``message/send`` → mailbox queue (never ``steer``)."""
+    mailbox = SessionTurnMailbox()
+
     def handle(
         prompt: str,
         *,
@@ -26,13 +30,18 @@ def _make_runtime_handler(instance: Any) -> Any:
         upstream_correlation_id: int | None = None,
         **_: Any,
     ) -> dict[str, Any]:
-        trace = instance.run_user_text(
-            prompt,
-            turn_id=turn_id or "u1",
-            session_id=session_id or "",
-            parent_call_id=parent_call_id or "",
-            upstream_correlation_id=upstream_correlation_id,
-        )
+        resolved_session = mailbox.resolve_session_id(session_id)
+
+        def run(text: str) -> Any:
+            return instance.run_user_text(
+                text,
+                turn_id=turn_id or "u1",
+                session_id=resolved_session,
+                parent_call_id=parent_call_id or "",
+                upstream_correlation_id=upstream_correlation_id,
+            )
+
+        trace = mailbox.submit(resolved_session, prompt, source="a2a", run=run)
         text = "\n".join(
             response.content
             for response in trace.client_responses
@@ -45,7 +54,7 @@ def _make_runtime_handler(instance: Any) -> Any:
         )
         if stream_chunks:
             return stream_chunks
-        result: dict[str, Any] = {"text": text}
+        result: dict[str, Any] = {"text": text, "context_id": resolved_session}
         artifacts = [
             artifact
             for response in trace.client_responses

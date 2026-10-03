@@ -48,11 +48,13 @@ def test_related_state_sandbox_are_library_not_boundary() -> None:
     assert "circuit_breaker" in LIBRARY_TYPES
     assert "infra_middleware" in LIBRARY_TYPES
     assert "hitl_responder" in LIBRARY_TYPES
+    assert "control_protocol" in LIBRARY_TYPES
     assert classify_plugin_type("related_state") == "library"
     assert classify_plugin_type("execute_sandbox") == "library"
     assert classify_plugin_type("circuit_breaker") == "library"
     assert classify_plugin_type("infra_middleware") == "library"
     assert classify_plugin_type("hitl_responder") == "library"
+    assert classify_plugin_type("control_protocol") == "library"
     with pytest.raises(UnknownBoundarySlotError):
         assert_boundary_slot("related_state")
     registry = PluginRegistry()
