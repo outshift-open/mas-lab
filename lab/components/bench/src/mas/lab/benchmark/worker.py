@@ -108,7 +108,8 @@ def run_benchmark_sync(
         Force-break an existing run lock.
     strategy:
         Execution ordering: ``"coverage"`` (breadth-first) or ``"depth"``
-        (depth-first).  Overrides YAML ``execution.strategy``.
+        (depth-first).  Overrides YAML ``schedule.ordering`` (legacy
+        ``execution.strategy`` still accepted during dual-read).
     log_sink:
         Optional callable that receives log lines (str) emitted during the
         run — useful for routing output to the UI job log buffer.

@@ -207,7 +207,9 @@ def load_experiment(
         explicit=exp.checkpoints_explicit,
     )
 
-    n_runs = max_runs if max_runs is not None else exp.execution.n_runs if exp.execution else 1
+    n_runs = max_runs if max_runs is not None else getattr(exp, "n_runs", None)
+    if n_runs is None:
+        n_runs = exp.execution.n_runs if exp.execution else 1
     if single_run:
         limit_scenarios = 1
         n_runs = 1

@@ -120,7 +120,8 @@ traces/ → <trace_cache>/<hash>/traces/
 
 This deduplication means: if you re-run the same experiment with the same
 inputs, the cache is hit and no new trace is produced. To force a fresh run,
-delete the `.run_ref` file (breaks the link) and re-execute.
+delete the `.run_ref` file (breaks the link) and re-execute, or set
+`bench_emulation.runtime.cache: disabled` in the experiment manifest.
 
 > **Not to be confused with the LLM response cache.** This trace cache
 > deduplicates whole *experiment runs*. Each individual LLM call within a run
@@ -307,9 +308,9 @@ dataset:
 
 ```yaml
 run:
-  n_runs: 3                     # 3 repetitions per (scenario × item)
-execution:
-  strategy: coverage            # breadth-first: one round across all conditions
+  n_runs: 3                     # 3 repetitions per (scenario × item) — design
+schedule:
+  ordering: coverage            # breadth-first: one round across all conditions
 ```
 
 ### Named resources and pipelines
@@ -552,6 +553,8 @@ experiment:
 
   run:
     n_runs: 1
+  schedule:
+    ordering: coverage
 ```
 
 ### C.4 — Running the experiment

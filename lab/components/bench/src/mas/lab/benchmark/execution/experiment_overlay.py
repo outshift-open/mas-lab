@@ -18,10 +18,11 @@ Overlay format
       name: my-overlay           # optional
     spec:
       # Any key valid inside experiment: {}
-      execution:
-        emulation:
-          runtime:
-            cache: content-addressed
+      schedule:
+        parallel_scenarios: 8
+      bench_emulation:
+        runtime:
+          cache: content-addressed
       run:
         post:
           - ref: pipelines/my-eval.yaml   # appended to base run.post list
@@ -45,7 +46,7 @@ CLI usage
 ::
 
     mas-lab benchmark run experiment.yaml \\
-        -x execution/local-dev.yaml \\
+        -x schedule/local-dev.yaml \\
         -x pipelines/standard-eval-overlay.yaml
 
 Multiple ``-x`` flags are applied in order (left to right).

@@ -81,7 +81,7 @@ def infer_runner_id(
     """Resolve lab runner id for one execution.
 
     Priority:
-    1. ``experiment.execution.runner`` (explicit override)
+    1. ``experiment.schedule.runner`` (explicit override; legacy ``execution.runner``)
     2. Composed agent manifest ``spec.framework_adapter``
     3. MAS ``mas.yaml`` (from ``applications[].app`` or ``mas.manifest``)
     4. Flavour / inline deployment ``framework.default_adapter``

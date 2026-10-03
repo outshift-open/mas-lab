@@ -56,7 +56,9 @@ def follow_cmd(experiment_yaml: Path | None, interval: float, once: bool,
         if not dataset_items:
             dataset_items = [{}]
 
-        n_runs: int = (exp.execution.n_runs if exp.execution else 1) or 1
+        n_runs: int = getattr(exp, "n_runs", None) or (
+            (exp.execution.n_runs if exp.execution else 1) or 1
+        )
         n_scenarios: int = len(exp.scenario_ids())
         total = n_scenarios * len(dataset_items) * n_runs
 

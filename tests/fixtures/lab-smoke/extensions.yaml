@@ -19,10 +19,9 @@ experiment:
     name: trip-planner-benchmark
     locator: samples
     limit: 1
-  execution:
-    emulation:
-      runtime:
-        cache: disabled
+  bench_emulation:
+    runtime:
+      cache: disabled
   run:
     n_runs: 1
     post:

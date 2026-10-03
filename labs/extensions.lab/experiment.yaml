@@ -119,21 +119,20 @@ experiment:
 
 
   # ------------------------------------------------------------------
-  # Execution
+  # Schedule / bench emulation
   # ------------------------------------------------------------------
-  execution:
+  schedule:
     parallel_scenarios: 3
     timeout: 300
     pause_between_runs: 1.0
-    strategy: coverage
     reset_state: true
-
-    emulation:
-      infra:
-        llm: live
-        tools: live
-      runtime:
-        cache: content-addressed
+    ordering: coverage
+  bench_emulation:
+    infra:
+      llm: live
+      tools: live
+    runtime:
+      cache: content-addressed
 
   # ------------------------------------------------------------------
   # Pipeline

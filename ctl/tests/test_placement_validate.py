@@ -17,12 +17,12 @@ def test_validate_local_inproc_ok():
     validate_placement_strategy("local-inproc")
 
 
-def test_validate_docker_without_library_next_raises():
+def test_validate_docker_is_not_available():
     with pytest.raises(RuntimeError, match="not available in mas-lab OSS"):
         validate_placement_strategy("docker")
 
 
-def test_validate_local_multiprocess_without_library_next_raises():
+def test_validate_local_multiprocess_is_not_available():
     with pytest.raises(RuntimeError, match="local-inproc"):
         validate_placement_strategy("local-multiprocess")
 
