@@ -268,6 +268,17 @@ def test_list_tools_returns_three_tools():
     for tool in tools:
         assert "description" in tool
         assert "parameters" in tool
+    assert "unload" not in by_name["activate_skill"]["parameters"]["properties"]
+
+
+def test_list_tools_advertises_unload_param_when_enabled():
+    plugin = SkillToolsPlugin()
+    tools = plugin.list_tools(allow_unload=True)
+    names = {t["name"] for t in tools}
+    assert names == {"activate_skill", "list_skill_files", "read_skill_file"}
+    activate = next(t for t in tools if t["name"] == "activate_skill")
+    assert "unload" in activate["parameters"]["properties"]
+    assert activate["parameters"]["properties"]["unload"]["default"] is False
 
 
 def test_list_tools_has_no_enum_without_a_registry():
@@ -347,15 +358,34 @@ def test_list_tools_enum_unaffected_when_nothing_activated(tmp_path: Path):
     assert name_schema["enum"] == ["skill-a", "skill-b"]
 
 
-def test_on_collect_tools_keeps_activated_names_for_unload(tmp_path: Path):
-    """Unload uses the same tool, so activated names stay in the enum."""
+def test_on_collect_tools_excludes_activated_skills_from_ctx_session_state(tmp_path: Path):
+    """Default (unload off): drop activated names so forced tool_choice moves on."""
     reg = _registry_with_skills(tmp_path, ["skill-a", "skill-b"])
     plugin = SkillToolsPlugin()
     ctx = _FakeCtx(reg, skill_session_state=_FakeSessionState(["skill-a"]))
     tools = plugin.on_collect_tools(ctx=ctx)
     name_schema = next(t for t in tools if t["name"] == "activate_skill")["parameters"]["properties"]["name"]
-    assert name_schema["enum"] == ["skill-a", "skill-b"]
-    assert "active" in next(t for t in tools if t["name"] == "activate_skill")["parameters"]["properties"]
+    assert name_schema["enum"] == ["skill-b"]
+    assert "unload" not in next(
+        t for t in tools if t["name"] == "activate_skill"
+    )["parameters"]["properties"]
+
+
+def test_on_collect_tools_advertises_unload_param_when_enabled(tmp_path: Path):
+    """Same tool; unload=true needs activated names in the enum."""
+    reg = _registry_with_skills(tmp_path, ["skill-a", "skill-b"])
+    plugin = SkillToolsPlugin()
+    ctx = _FakeCtx(reg, skill_session_state=_FakeSessionState(["skill-a"]))
+    ctx.skill_allow_unload = True
+    tools = plugin.on_collect_tools(ctx=ctx)
+    activate = next(t for t in tools if t["name"] == "activate_skill")
+    assert {t["name"] for t in tools} == {
+        "activate_skill",
+        "list_skill_files",
+        "read_skill_file",
+    }
+    assert "unload" in activate["parameters"]["properties"]
+    assert activate["parameters"]["properties"]["name"]["enum"] == ["skill-a", "skill-b"]
 
 
 def test_on_collect_tools_without_session_state_keeps_full_enum(tmp_path: Path):

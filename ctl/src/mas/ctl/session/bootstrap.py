@@ -69,7 +69,7 @@ class _SkillPluginConfig:
     base_dir: Path | None = None
     auto_inject_scripts: bool = False
     pin_activated: bool = True
-    allow_unload: bool = True
+    allow_unload: bool = False
     auto_load: bool = False
 
 
@@ -164,6 +164,7 @@ def instantiate_runtime(
             impl=skill_cfg.impl,
             auto_load=skill_cfg.auto_load,
             pin_activated=skill_cfg.pin_activated,
+            allow_unload=skill_cfg.allow_unload,
         )
         ctx.skill_pin_activated = skill_cfg.pin_activated
         ctx.skill_allow_unload = skill_cfg.allow_unload
@@ -366,7 +367,7 @@ def _resolve_skill_plugin_config(
     rel_base: str | None = None
     auto_inject_scripts = False
     pin_activated = True
-    allow_unload = True
+    allow_unload = False
     auto_load = False
 
     spec = manifest.get("spec") if isinstance(manifest, dict) and isinstance(manifest.get("spec"), dict) else {}

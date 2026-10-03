@@ -7,9 +7,12 @@ FSM placement
 These tools fire on the ``tool_execute`` FSM symbol (the stochastic path,
 §6.2 of the product model) when the model decides to call one of:
 
-  activate_skill(name, active=true|false) — load or unload SKILL.md (tier 2)
+  activate_skill(name)           — load SKILL.md (tier 2)
   list_skill_files(skill)        — enumerate bundled resources
   read_skill_file(skill, path)   — read a specific resource file
+
+When allow_unload is on, activate_skill also advertises an ``unload``
+parameter (activate_skill(name, unload=true) unpins the skill).
 
 The plugin gets ``ctx`` (AutoCtxAssembler) passed at call time and reads
 ``ctx.skill_registry`` (a SkillRegistry populated by SkillCatalogPlugin) to
@@ -48,27 +51,29 @@ logger = logging.getLogger(__name__)
 _RESOURCE_DIRS = ("scripts", "references", "assets")
 
 
-def _active_flag(arguments: dict[str, Any]) -> bool:
-    """True unless the caller passed active=false (bool, or common string forms)."""
-    if "active" not in arguments:
-        return True
-    value = arguments["active"]
+def _unload_flag(arguments: dict[str, Any]) -> bool:
+    """True when the caller passed unload=true (bool, or common string forms)."""
+    if "unload" not in arguments:
+        return False
+    value = arguments["unload"]
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
         lowered = value.strip().lower()
-        if lowered in {"false", "0", "no", "off"}:
-            return False
         if lowered in {"true", "1", "yes", "on"}:
             return True
-        raise TypeError(f"'active' must be a boolean, got {value!r}")
+        if lowered in {"false", "0", "no", "off"}:
+            return False
+        raise TypeError(f"'unload' must be a boolean, got {value!r}")
     if isinstance(value, (int, float)) and value in (0, 1):
         return bool(value)
-    raise TypeError(f"'active' must be a boolean, got {type(value).__name__}")
+    raise TypeError(f"'unload' must be a boolean, got {type(value).__name__}")
 
 
 class SkillToolsPlugin(ToolContract):
     """ToolContract providing activate_skill, list_skill_files, read_skill_file.
+
+    When ``allow_unload`` is on, ``activate_skill`` also advertises ``unload``.
 
     Loaded once per agent session by ManifestToolProvider (via the YAML ref in
     ``spec.tools``).  The registry is read from ``ctx.skill_registry`` at each
@@ -99,6 +104,8 @@ class SkillToolsPlugin(ToolContract):
         self,
         registry: SkillRegistry | None = None,
         activated: set[str] | None = None,
+        *,
+        allow_unload: bool = False,
     ) -> list[dict[str, Any]]:
         # Build a dynamic description and optional enum including valid skill names.
         # `registry` (from ctx.skill_registry, the live per-session registry --
@@ -107,59 +114,57 @@ class SkillToolsPlugin(ToolContract):
         # (skill-access.tool.yaml constructs this class with no arguments and
         # reads ctx.skill_registry per-call instead -- see on_execute_tool).
         reg = registry if registry is not None else self._static_registry
-        if reg:
-            valid = reg.names()
-            # Exclude already-activated skills from the enum whenever at least
-            # one skill still isn't activated. This is what actually stops a
-            # forced tool_choice (llm_tool_choice) from making the model pick
-            # the same already-activated name on every forced round -- a
-            # schema-level guarantee instead of hoping the model reads the
-            # "already_activated" notice in a prior tool result and moves on.
-            # Falls back to the full list once everything is activated (an
-            # empty enum is invalid, and forcing has already stopped by then).
-            if activated:
-                remaining = [n for n in valid if n not in activated]
-                valid = remaining or valid
-            name_hint = f" Valid names: {valid}." if valid else ""
-        else:
-            valid = []
-            name_hint = ""
+        valid = list(reg.names()) if reg else []
+        # Exclude already-activated skills from the enum whenever at least one
+        # skill still isn't activated — unless unload is on, because then the
+        # same tool must still be able to name a pinned skill (unload=true).
+        if activated and not allow_unload:
+            remaining = [n for n in valid if n not in activated]
+            valid = remaining or valid
+        name_hint = f" Valid names: {valid}." if valid else ""
 
         name_schema: dict[str, Any] = {
             "type": "string",
             "description": "Skill name as listed in the catalog.",
         }
         if valid:
-            name_schema["enum"] = valid  # constrain to known skill names
-        # Activated names stay in the enum so activate_skill(name, active=false)
-        # remains schema-valid. Dedup still returns a notice when active=true.
+            name_schema["enum"] = valid
+
+        properties: dict[str, Any] = {"name": name_schema}
+        if allow_unload:
+            description = (
+                "Load a named skill listed in the catalog, or unpin one. "
+                "Call with name only to load the body before composing the "
+                "user-visible answer when a catalog skill matches. "
+                "Call with unload=true to unpin a previously loaded skill; "
+                "the catalog listing remains and prior tool results in the "
+                "transcript are not rewritten."
+                f"{name_hint}"
+            )
+            properties["unload"] = {
+                "type": "boolean",
+                "description": (
+                    "When true, unpin the named skill instead of loading it."
+                ),
+                "default": False,
+            }
+        else:
+            description = (
+                "Load the full instructions for a named skill listed in the "
+                "catalog. Call this before composing the user-visible answer "
+                "when a catalog skill matches; the catalog description is "
+                "when-to-use only, not the procedure. Returns the skill body "
+                "and lists bundled resource files."
+                f"{name_hint}"
+            )
 
         return [
             {
                 "name": "activate_skill",
-                "description": (
-                    "Load or unload a named skill listed in the catalog. "
-                    "Call with active=true (default) before composing the "
-                    "user-visible answer when a catalog skill matches; the "
-                    "catalog description is when-to-use only, not the procedure. "
-                    "Call with active=false to unpin the skill so it is no "
-                    "longer in force. Catalog listing remains. Prior tool "
-                    "results in the transcript are not rewritten."
-                    f"{name_hint}"
-                ),
+                "description": description,
                 "parameters": {
                     "type": "object",
-                    "properties": {
-                        "name": name_schema,
-                        "active": {
-                            "type": "boolean",
-                            "description": (
-                                "true (default) loads the skill body; false "
-                                "unpins it so it is no longer in force."
-                            ),
-                            "default": True,
-                        },
-                    },
+                    "properties": properties,
                     "required": ["name"],
                 },
                 "semantics": {"concept": "skill", "op": "activate", "subject_arg": "name"},
@@ -213,7 +218,7 @@ class SkillToolsPlugin(ToolContract):
         try:
             if tool_name == "activate_skill":
                 name = require_str_arg(arguments, "name")
-                if not _active_flag(arguments):
+                if _unload_flag(arguments):
                     return self._deactivate_skill(name, registry, ctx=ctx)
                 return self._activate_skill(name, registry, ctx=ctx)
             if tool_name == "list_skill_files":
@@ -242,7 +247,10 @@ class SkillToolsPlugin(ToolContract):
         # nothing from the skills system is exposed to the LLM).
         if not reg:
             return []
-        return self.list_tools(reg)
+        allow_unload = bool(getattr(ctx, "skill_allow_unload", False)) if ctx is not None else False
+        session = getattr(ctx, "skill_session_state", None) if ctx is not None else None
+        activated = set(session.activated_names()) if session is not None else None
+        return self.list_tools(reg, activated=activated, allow_unload=allow_unload)
 
     # ------------------------------------------------------------------
     # Tool implementations
@@ -371,9 +379,7 @@ class SkillToolsPlugin(ToolContract):
     ) -> dict[str, Any]:
         """Unpin a previously activated skill. Catalog listing is unchanged.
 
-        Prior tool results that still sit in the transcript are not rewritten
-        (mas-lab does not scrub history). Skills.NET-style history scrub is a
-        harness-profile concern, not this tool.
+        Prior tool results that still sit in the transcript are not rewritten.
         """
         if not name:
             return {"error": "name is required"}
@@ -388,10 +394,13 @@ class SkillToolsPlugin(ToolContract):
                 )
             }
 
-        if ctx is not None and getattr(ctx, "skill_allow_unload", True) is False:
+        allow_unload = bool(getattr(ctx, "skill_allow_unload", False)) if ctx is not None else False
+        if not allow_unload:
             return {
                 "error": (
-                    f"Skill unload is disabled for this harness profile. "
+                    "Skill unload is disabled. activate_skill(name, unload=true) "
+                    "is not part of the Agent Skills spec and is not advertised "
+                    "unless spec.context_sources native.allow_unload is true. "
                     f"Skill {name!r} stays in force."
                 ),
                 "skill": name,
@@ -410,7 +419,7 @@ class SkillToolsPlugin(ToolContract):
             except Exception:  # pragma: no cover
                 pass
 
-        logger.debug("activate_skill(%r, active=false): deactivated=%s", name, was_active)
+        logger.debug("activate_skill(%r, unload=true): deactivated=%s", name, was_active)
         return {
             "notice": (
                 f"Skill '{name}' is no longer in force. "
