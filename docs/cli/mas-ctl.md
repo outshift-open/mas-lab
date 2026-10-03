@@ -81,7 +81,8 @@ mas-ctl chat agent.yaml -i -o overlays/tools.yaml --trace
 | `--flavour NAME` | `local` | Flavour from library-standard |
 | `--infra-ref REF` | workspace / user | Infra bundle; repeatable; wins over `config.yaml` |
 | `--runtime-ref REF` | workspace / user | `RuntimeEngine` ref; repeatable |
-| `--model ID` | spec.models | Force the engine model for this run |
+| `--model ID` | spec.models / `MAS_CTL_MODEL` / `MAS_LLM_MODEL` | Force the engine model for this run |
+| `--max-tokens N` | none sent | Alias of `--override 'agent:spec.models[*].max_tokens=N'`; bounded by infra `generation.max_output_tokens` — [Output-token limits](../manifests/agent.md#output-token-limits) |
 | `--no-validate` | off | Skip schema checks for seeds/checkpoints |
 
 `--override` uses the same canonical Overlay merge engine as `-o`. Paths are
@@ -201,7 +202,8 @@ No `--trace` (the TUI renders exchanges itself).
 | `--infra-ref` / `--infra REF` | — | Infra bundle; repeatable |
 | `--runtime-ref REF` | — | RuntimeEngine ref; repeatable |
 | `--no-validate` | off | Skip schema checks |
-| `--model ID` | spec.models | Force the engine model |
+| `--model ID` | spec.models / `MAS_CTL_MODEL` / `MAS_LLM_MODEL` | Force the engine model |
+| `--max-tokens N` | none sent | Alias of `--override 'agent:spec.models[*].max_tokens=N'` |
 
 Plus **`--events*`**. Guide: [ctl/tui.md](../ctl/tui.md).
 

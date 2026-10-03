@@ -631,6 +631,10 @@ class MasOtelConverter:
         }
         if ev.get("model"):
             extra["mas.llm.model"] = ev["model"]
+        if ev.get("max_tokens") is not None:
+            extra["mas.llm.max_tokens"] = int(ev["max_tokens"])
+        if ev.get("truncation_retries"):
+            extra["mas.llm.truncation_retries"] = int(ev["truncation_retries"])
         if thinking:
             extra["mas.llm.thinking"] = str(thinking)[:2000]
         if isinstance(tokens, dict):

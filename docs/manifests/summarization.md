@@ -116,7 +116,7 @@ Runnable pin: [library-standard/examples/context/summarizer-override/](../../lib
 | Input | Default | Role |
 |-------|---------|------|
 | `spec.models[].context_window` | `128000` if omitted (`mas-ctl compile` writes it) | Model **input** window |
-| `spec.models[].max_tokens` | `2000` | Completion **reserve** — left free so the next answer still fits |
+| `spec.models[].max_tokens` | `2000` reserve when unset | Completion **reserve** — left free so the next answer still fits. Unset still sends no output limit on the request ([Output-token limits](agent.md#output-token-limits)) |
 | `summary_threshold` | that difference (`126000` for the defaults) | Trigger for `manage_history` when no assembly budget is passed |
 | `trimmer.max_tokens` / `trimmer.reserve_tokens` | `context_window` / `max_tokens` | Assembly-time payload cap (tool-group-aware) |
 | `keep_turns` | `10` | Recent user turns never summarized |

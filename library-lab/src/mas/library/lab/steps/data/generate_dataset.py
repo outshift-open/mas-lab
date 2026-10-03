@@ -49,6 +49,7 @@ import yaml
 
 from mas.lab.benchmark.pipeline import PipelineStep, StepOutput
 from mas.lab.benchmark.pipeline.executor import ExecutionContext
+from mas.runtime.engine.llm_output_limits import output_token_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +138,7 @@ def _call_llm(
             {"role": "system", "content": _GENERATION_SYSTEM},
             {"role": "user", "content": prompt_text},
         ],
+        **output_token_kwargs(model),
     )
     return response.choices[0].message.content or ""
 

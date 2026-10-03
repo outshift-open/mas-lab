@@ -28,6 +28,7 @@ class ModelsSpec:
     default_llm: str | None = None
     default_embed: str | None = None
     mappings: dict[str, str] = field(default_factory=dict)
+    generation: dict[str, Any] = field(default_factory=dict)
 
     @property
     def defaults(self) -> ModelDefaults:
@@ -75,6 +76,8 @@ class InfraManifest:
         }
         if self.proxy.timeout is not None:
             out["timeout"] = self.proxy.timeout
+        if self.models.generation:
+            out["generation"] = dict(self.models.generation)
         if self.protocol:
             out["protocol"] = self.protocol
         return out

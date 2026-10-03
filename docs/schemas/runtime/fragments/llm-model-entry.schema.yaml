@@ -49,10 +49,14 @@ properties:
     default: 128000
     description: >
       Model input context size in tokens. History is sized as
-      context_window minus completion reserve (max_tokens) and any
-      spec.context_manager.params.trimmer.reserve_tokens override.
+      context_window minus completion reserve (max_tokens, 2000 when unset)
+      and any spec.context_manager.params.trimmer.reserve_tokens override.
+      A set max_tokens is also lowered per call so prompt + completion
+      fits in this window.
   max_completion_tokens:
     $ref: "./llm-sampling.schema.yaml#/properties/max_completion_tokens"
+  on_truncation:
+    $ref: "./llm-truncation.schema.yaml"
   min_tokens:
     $ref: "./llm-sampling.schema.yaml#/properties/min_tokens"
   min_p:

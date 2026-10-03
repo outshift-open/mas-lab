@@ -169,7 +169,7 @@ def apply_reasoning_payload(
     payload: dict[str, Any],
     settings: ReasoningSettings,
     *,
-    max_tokens: int,
+    max_tokens: int | None,
     model: str | None = None,
 ) -> dict[str, Any]:
     """Mutate a Chat Completions body with portable reasoning fields.
@@ -222,7 +222,8 @@ def apply_reasoning_payload(
     if _use_max_completion_tokens(info, settings, sent_thinking):
         # o-series / GPT-5 Chat Completions reject max_tokens; they bill
         # hidden reasoning against max_completion_tokens instead.
-        out["max_completion_tokens"] = int(max_tokens)
+        if max_tokens is not None:
+            out["max_completion_tokens"] = int(max_tokens)
         out.pop("max_tokens", None)
     return out
 
@@ -308,9 +309,7 @@ def _norm_effort(value: Any) -> str | None:
     if not text:
         return None
     if text not in _EFFORT_SET:
-        raise ValueError(
-            f"unsupported reasoning.effort {value!r}; expected one of {', '.join(REASONING_EFFORTS)}"
-        )
+        raise ValueError(f"unsupported reasoning.effort {value!r}; expected one of {', '.join(REASONING_EFFORTS)}")
     return text
 
 

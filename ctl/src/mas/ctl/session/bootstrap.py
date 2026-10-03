@@ -38,6 +38,8 @@ _SKILL_SHELL_REFS = {
     "skills:tools/run-skill-script.tool.yaml",
     "pkg://skills/tools/run-skill-script.tool.yaml",
 }
+
+
 def _supported_skill_impls() -> set[str]:
     """Discover accepted skill implementation names from PluginRegistry."""
     from mas.runtime.registry import get_registry
@@ -104,6 +106,7 @@ def hitl_contract_for_mode(mode: str) -> object | None:
     from mas.runtime.registry import get_registry
 
     return get_registry().instantiate_by_type("hitl_contract", "auto_resolve")
+
 
 def instantiate_runtime(
     options: InstantiationOptions,

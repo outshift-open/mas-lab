@@ -15,13 +15,14 @@ from mas.ctl.infra.resolve import api_key_for_infra, resolution_anchor, resolve_
 from mas.ctl.session.manifest_config import engine_use_tool_loop, kernel_config_from_manifest
 from mas.ctl.workspace.config import UserConfig, WorkspaceConfig, merge_infra_refs
 from mas.runtime.agent_defaults import default_pattern_plugin_id
-from mas.runtime.spec.model_ref import concrete_model, first_concrete, primary_model_binding
 from mas.runtime.driver.mocks import AutoCtxAssembler
 from mas.runtime.engine.llm_cache import resolve_cache_path
+from mas.runtime.engine.llm_live import LiveLlmEngine
+from mas.runtime.engine.llm_output_limits import resolve_output_limits
 from mas.runtime.engine.llm_reasoning import reasoning_settings_from_manifest
 from mas.runtime.engine.llm_request import model_entry_from_manifest
-from mas.runtime.engine.llm_live import LiveLlmEngine
 from mas.runtime.kernel.config import KernelConfig
+from mas.runtime.spec.model_ref import concrete_model, first_concrete, primary_model_binding
 
 logger = logging.getLogger(__name__)
 
@@ -67,22 +68,16 @@ class UnresolvedModelError(RuntimeError):
 _NO_LLM_PATTERNS = frozenset({"scripted_response"})
 
 
-def _design_pattern_base(
-    manifest: dict | None, pattern_plugin_id: str | None = None
-) -> str:
+def _design_pattern_base(manifest: dict | None, pattern_plugin_id: str | None = None) -> str:
     spec = (manifest or {}).get("spec") or {}
     from mas.runtime.spec.plugin_binding import plugin_binding_id
 
-    from_manifest = plugin_binding_id(
-        spec.get("design_pattern"), field="spec.design_pattern"
-    )
+    from_manifest = plugin_binding_id(spec.get("design_pattern"), field="spec.design_pattern")
     raw = from_manifest or pattern_plugin_id or ""
     return str(raw).split("@", 1)[0].strip().lower()
 
 
-def _requires_concrete_model(
-    manifest: dict | None, pattern_plugin_id: str | None = None
-) -> bool:
+def _requires_concrete_model(manifest: dict | None, pattern_plugin_id: str | None = None) -> bool:
     """False for patterns that never call an LLM (e.g. scripted_response)."""
     return _design_pattern_base(manifest, pattern_plugin_id) not in _NO_LLM_PATTERNS
 
@@ -147,9 +142,7 @@ def resolve_model_name(
     return str(mappings.get(raw, raw))
 
 
-def _resolve_sampling_param(
-    manifest: dict | None, key: str, default: float, *, model: str | None = None
-) -> float:
+def _resolve_sampling_param(manifest: dict | None, key: str, default: float, *, model: str | None = None) -> float:
     """Read a sampling param from the matching ``spec.models[]`` row, then ``spec.llm``."""
     spec = (manifest or {}).get("spec") or {}
     entry = _primary_model_entry(spec, model=model)
@@ -322,7 +315,11 @@ def build_engine(
             api_key_env=api_key_env,
             model=model,
             temperature=_resolve_sampling_param(manifest, "temperature", 0.7, model=model),
-            max_tokens=int(_resolve_sampling_param(manifest, "max_tokens", 2000, model=model)),
+            output_limits=resolve_output_limits(
+                manifest,
+                model=model,
+                generation=llm_proxy.get("generation"),
+            ),
             reasoning_effort=reasoning.effort,
             reasoning=reasoning.to_spec_dict(),
             cache_path=cache_path,

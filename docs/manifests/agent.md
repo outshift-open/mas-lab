@@ -134,8 +134,9 @@ _Used by:_ `spec.models[]`
 | `model` | `string` | **yes** | — | LiteLLM-style model string, e.g. `vertex_ai/gemini-3-pro-preview`. |
 | `id` | `string` | no | `"main"` | Logical model ID within this agent. Use `main` for the primary model. |
 | `temperature` | `number` [0.0–2.0] | no | `0.7` | Sampling temperature. |
-| `max_tokens` | `integer` ≥ 1 | no | `2000` | Maximum output tokens. |
-| `context_window` | `integer` ≥ 1 | no | — | Input context-window size used for model-aware assembly. |
+| `max_tokens` | `integer` ≥ 1 | no | unset | Output-token budget; omitted means no limit is sent. |
+| `max_completion_tokens` | `integer` ≥ 1 | no | unset | Explicit answer + reasoning cap; the request never carries both token-limit fields. |
+| `on_truncation` | string or object | no | `warn` | Action when the provider returns `finish_reason: length`; see [Output-token limits](#output-token-limits). |
 | `context_window` | `integer` ≥ 1 | no | — | Input context-window size used for model-aware assembly. |
 
 Do **not** put `api_base` or `api_key_env` here — those belong in the flavour/infra manifest.
@@ -148,6 +149,31 @@ models:
     temperature: 0.3
     max_tokens: 4096
 ```
+
+#### Output-token limits
+
+By default, requests send neither `max_tokens` nor `max_completion_tokens`; the
+provider's server default applies. A configured budget is lowered per call so
+the estimated prompt plus completion fits `context_window`. The effective cap
+is also bounded by the lower of infra `spec.models.generation.max_output_tokens`
+and the model catalog's `max_output_tokens`.
+
+| Setting | Meaning |
+|---------|---------|
+| `max_tokens` | Output budget; reasoning models may map it to `max_completion_tokens`. |
+| `max_completion_tokens` | Explicit answer + reasoning budget; takes precedence over `max_tokens`. |
+| `on_truncation` | `ignore`, `warn` (default), `error`, or `escalate`. Object form accepts `factor` (default 2), `max_tokens`, and `retries` (default 1). Retries count against `spec.budget.max_llm_calls`. |
+
+The CLI alias expands to `agent:spec.models[*].max_tokens=N`; for example,
+`mas-ctl chat agent.yaml --max-tokens 4096` is equivalent to
+`--override 'agent:spec.models[*].max_tokens=4096'`. Explicit `--override`
+arguments are applied afterward. Environment variables
+`MAS_LLM_MAX_TOKENS`, `MAS_LLM_MAX_COMPLETION_TOKENS`, and
+`MAS_LLM_ON_TRUNCATION` fill in settings not declared on the model row.
+
+LLM traces include `finish_reason`, the final `max_tokens` budget, completion
+token usage, and `truncation_retries`. See also [infra.md — LLM output-token
+policy](infra.md#llm-output-token-policy) and [CLI overrides](../cli/overrides.md).
 
 ---
 

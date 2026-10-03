@@ -1,0 +1,48 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "mas/v1#llm-truncation"
+title: LlmTruncationPolicy
+description: >
+  What the engine does when a completion stops with finish_reason "length"
+  (the output-token budget was reached). String shorthand is the action
+  (`on_truncation: escalate` ≡ `{action: escalate}`). See
+  docs/manifests/agent.md#output-token-limits.
+oneOf:
+  - type: string
+    enum: [ignore, warn, error, escalate]
+  - type: object
+    additionalProperties: false
+    properties:
+      action:
+        type: string
+        enum: [ignore, warn, error, escalate]
+        default: warn
+        description: >
+          ignore — return the truncated text silently. warn — return it and
+          log a warning. error — fail the LLM call (engine ERROR). escalate —
+          retry the same request with a larger budget, then warn if still
+          truncated.
+      factor:
+        type: number
+        exclusiveMinimum: 1
+        default: 2
+        description: >
+          escalate: next budget = current budget × factor. When no limit was
+          sent, the current budget is the completion_tokens the server
+          reported.
+      max_tokens:
+        type: integer
+        minimum: 1
+        description: >
+          escalate: upper bound for retried budgets. Defaults to the output
+          ceiling (infra generation.max_output_tokens, catalog
+          max_output_tokens); with neither, only factor bounds growth.
+      retries:
+        type: integer
+        minimum: 0
+        maximum: 5
+        default: 1
+        description: >
+          escalate: maximum retries per LLM call. Each retry counts against
+          spec.budget.max_llm_calls and its tokens are added to the call usage.

@@ -143,6 +143,11 @@ when an overlay adds or removes list entries. A selector that matches no entry
 fails with an error listing the requested identity. Wildcards expand in
 manifest order and apply the same operation to every match.
 
+Intermediate path segments must already exist. The final key may be absent
+only when the target schema declares it, so
+`agent:spec.models[*].max_tokens=4096` adds `max_tokens` to every model row
+while a typo such as `max_tokenz` is rejected.
+
 Quoted mapping-key selectors keep dots and brackets inside a map key instead of
 treating them as path separators:
 
@@ -245,6 +250,7 @@ Existing flags remain supported:
 | `--skill NAME` | Add `NAME` to `agent:spec.skills` |
 | `--memory ID` | Replace `agent:spec.memory` |
 | `--set KEY=VALUE` | Set an Agent context value |
+| `--max-tokens N` | Alias of `--override 'agent:spec.models[*].max_tokens=N'`, placed before explicit `--override` values (`chat`, `tui`) |
 | `--overlay PATH` | Load a file Overlay before CLI values |
 | `--scenario-id ID` | Benchmark selection shortcut |
 | `--dataset-item ID` | Benchmark dataset selection shortcut |

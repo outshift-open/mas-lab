@@ -18,15 +18,15 @@ from mas.ctl.session.controller import (
     close_observability,
     run_session_loop,
 )
-from mas.ctl.session.manager import SessionManager
-from mas.runtime.spec.checkpoint import parse_checkpoint_policy
-from mas.runtime.session import ManifestRef
 from mas.ctl.session.display_user_io_contract import ConversationDisplayUserIOContract
 from mas.ctl.session.hitl_config import resolve_hitl_from_manifest
 from mas.ctl.session.interactive_hitl_contract import InteractiveHitlContract
+from mas.ctl.session.manager import SessionManager
 from mas.ctl.session.observability import setup_observability
 from mas.ctl.session.protocol_hints import emit_session_protocol_hints
 from mas.ctl.ui.stdout import StdoutConversationDisplay
+from mas.runtime.session import ManifestRef
+from mas.runtime.spec.checkpoint import parse_checkpoint_policy
 
 
 @click.command("chat", epilog=CHAT_EPILOG)
@@ -79,14 +79,12 @@ from mas.ctl.ui.stdout import StdoutConversationDisplay
 @click.option(
     "--cache-read/--no-cache-read",
     default=None,
-    help="Look up a cached response before calling the LLM "
-    "(default: RuntimeEngine cache.read, else true)",
+    help="Look up a cached response before calling the LLM (default: RuntimeEngine cache.read, else true)",
 )
 @click.option(
     "--cache-write/--no-cache-write",
     default=None,
-    help="Persist a response to the cache after calling the LLM "
-    "(default: RuntimeEngine cache.write, else true)",
+    help="Persist a response to the cache after calling the LLM (default: RuntimeEngine cache.write, else true)",
 )
 @click.option(
     "--stream/--no-stream",
@@ -110,6 +108,12 @@ from mas.ctl.ui.stdout import StdoutConversationDisplay
     "--model",
     default=None,
     help="Override spec.models for this run",
+)
+@click.option(
+    "--max-tokens",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Alias of --override 'agent:spec.models[*].max_tokens=N' (applied before explicit --override)",
 )
 @click.pass_context
 def chat_cmd(
@@ -151,16 +155,19 @@ def chat_cmd(
     trace_full: bool,
     trace_color: bool | None,
     model: str | None,
+    max_tokens: int | None,
 ) -> None:
     """Run agent conversation on stdout (You:/Agent: labels).
 
     Use --help for session commands (/quit, /steer), HITL, and examples.
     """
     from mas.ctl.env import load_dotenv
+    from mas.ctl.overrides import max_tokens_overrides
     from mas.ctl.runtime_cli import load_merged_agent_manifest
     from mas.ctl.session.infra_resolve import resolve_session_infra
     from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
 
+    overrides = (*max_tokens_overrides(max_tokens), *overrides)
     verbose = int(ctx.obj.get("verbose", 0) if ctx.obj else 0)
 
     hitl_responder, hitl_terminal = None, None
@@ -277,8 +284,7 @@ def chat_cmd(
         checkpoint_policy = parse_checkpoint_policy(spec_data.get("checkpoint"))
         resolved_checkpoint_dir = _opt_dir(checkpoint_dir)
         if resolved_checkpoint_dir is None and (
-            checkpoint_policy.mode in {"every_turn", "on_event"}
-            or checkpoint_policy.auto_resume_latest
+            checkpoint_policy.mode in {"every_turn", "on_event"} or checkpoint_policy.auto_resume_latest
         ):
             checkpoint_anchor = session.manifest_dir or session.original_cwd
             resolved_checkpoint_dir = checkpoint_anchor / ".mas" / "checkpoints"
@@ -295,10 +301,7 @@ def chat_cmd(
                 except (OSError, ValueError):
                     continue
                 manifest_payload = payload.get("manifest") or {}
-                if (
-                    payload.get("version") == 2
-                    and manifest_payload.get("content_hash") == expected_hash
-                ):
+                if payload.get("version") == 2 and manifest_payload.get("content_hash") == expected_hash:
                     candidates.append(candidate)
             if candidates:
                 load_checkpoint_path = max(candidates, key=lambda item: item.stat().st_mtime_ns)
@@ -309,9 +312,7 @@ def chat_cmd(
                     pattern_plugin_id=plugin,
                     memory_seed_path=_opt_file(memory_seed_path),
                     checkpoint_path=load_checkpoint_path,
-                    checkpoint_dir=(
-                        None if checkpoint_policy.mode == "in_memory" else resolved_checkpoint_dir
-                    ),
+                    checkpoint_dir=(None if checkpoint_policy.mode == "in_memory" else resolved_checkpoint_dir),
                     validate_manifests=not no_validate,
                     cache_read_override=cache_read,
                     cache_write_override=cache_write,

@@ -85,6 +85,7 @@ def merge_runtime_refs(
             ordered.append(ref)
     return ordered
 
+
 def collect_infra_interceptors(config: dict[str, Any]) -> list[str]:
     """Read deployment middleware from workspace/CLI configuration only."""
     return []
@@ -128,12 +129,14 @@ class WorkspaceConfig:
 
     def with_cli_overrides(self, overrides: tuple[str, ...] | list[str]) -> WorkspaceConfig:
         """Return an in-memory workspace view with CLI patches applied."""
+        from mas.ctl.overrides import apply_cli_overrides, overrides_for_root
+
+        overrides = overrides_for_root(overrides, "workspace")
         if not overrides:
             return self
-        from mas.ctl.overrides import apply_cli_overrides
 
         return WorkspaceConfig(
-            apply_cli_overrides(self._data, tuple(overrides), root="workspace"),
+            apply_cli_overrides(self._data, overrides, root="workspace"),
             self._path,
             self._config_file,
         )

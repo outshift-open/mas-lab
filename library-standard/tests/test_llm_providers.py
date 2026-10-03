@@ -362,7 +362,8 @@ def test_openai_provider_flattens_vllm_think_into_json_body(monkeypatch) -> None
     assert "think" not in payload
     assert "extra_body" not in payload
     assert payload["chat_template_kwargs"]["enable_thinking"] is True
-    assert payload["max_tokens"] == 2000
+    assert "max_tokens" not in payload
+    assert "max_completion_tokens" not in payload
     assert "max_completion_tokens" not in payload
 
 

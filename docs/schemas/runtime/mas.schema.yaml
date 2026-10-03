@@ -113,6 +113,11 @@ properties:
             max_tokens:
               type: integer
               minimum: 1
+            max_completion_tokens:
+              type: integer
+              minimum: 1
+            on_truncation:
+              $ref: "./fragments/llm-truncation.schema.yaml"
             context_window:
               type: integer
               minimum: 1

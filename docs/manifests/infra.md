@@ -162,6 +162,56 @@ For reusable Infra changes, use an Overlay with `target.kind: Infra` and place
 root-qualified assignments under `spec.overrides`; see the [Overlay manifest
 reference](overlay.md).
 
+---
+
+## LLM output-token policy
+
+`LLMProxy` and `LLMLocal` may declare `spec.models.generation`, the operator
+policy for output tokens on every model served by that endpoint. Omit it and
+no limit is sent unless an agent sets one (the server default applies).
+
+| Key | Effect |
+|-----|--------|
+| `max_tokens` | Default budget when `spec.models[]` sets none |
+| `max_completion_tokens` | Default answer + reasoning cap; wins over `max_tokens` |
+| `max_output_tokens` | Ceiling. Every value, including `--max-tokens` and `MAS_LLM_MAX_TOKENS`, is lowered to it with a warning |
+| `on_truncation` | Default truncation policy (`warn`, `escalate`, …) |
+
+Example for a shared vLLM server started with
+`--override-generation-config '{"max_new_tokens": 8000}'`. The ceiling
+matches the server, so no request asks for tokens it would not get:
+
+```yaml
+apiVersion: infra/v1
+kind: LLMProxy
+metadata:
+  name: shared-vllm
+spec:
+  proxy:
+    api_base: env:LLM_PROXY_API_BASE|http://vllm.internal:8000/v1
+    api_key_env: VLLM_API_KEY
+  models:
+    generation:
+      max_tokens: 4096
+      max_output_tokens: 8000
+      on_truncation:
+        action: escalate
+        retries: 1
+```
+
+When several refs merge, later refs override earlier ones key by key. For a
+single run, patch the effective infra instead of editing the file:
+
+```bash
+mas-ctl chat agent.yaml \
+  --override 'infra:spec.models.generation.max_output_tokens=4000'
+```
+
+Agent fields, precedence, and how to spot a budget that is too small or too
+large: [agent.md — Output-token limits](agent.md#output-token-limits).
+
+---
+
 ## Local tool source
 
 `standard:local-tools` is implicitly merged into infra for every run. It

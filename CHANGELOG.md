@@ -10,6 +10,22 @@ reconciling the release notes with the code and docs currently on that branch.
 
 ## Unreleased
 
+### Added
+
+- Output-token limits are configurable through model and infra manifests.
+  `on_truncation` supports `ignore`, `warn`, `error`, and bounded `escalate`;
+  `--max-tokens N` aliases the agent models `--override` path. Requests omit
+  both output-token fields by default, never send both together, and fit a
+  configured budget to `context_window`. See
+  [Output-token limits](docs/manifests/agent.md#output-token-limits).
+
+### Breaking
+
+- LLM calls no longer send `max_tokens: 2000` implicitly. Without a model,
+  infra, or environment value, the server default applies. Set
+  `spec.models[].max_tokens` to keep the previous cap. Provider-level cache
+  entries recorded with the implicit 2000 no longer match.
+
 ### Fixed
 
 - Overlay patches that target one agent of a MAS (`patch.agents.<id>`,

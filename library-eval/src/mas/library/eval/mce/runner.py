@@ -27,15 +27,17 @@ Note: ``task_delegation`` is NOT a session-level metric.
 stub (unfinished TODO prompt) and is not wired into this runner.
 ``answer_relevancy`` is now a session-level metric implemented in this runner.
 """
+
 from __future__ import annotations
 
 import importlib
-import json
 import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from mas.runtime.engine.llm_output_limits import output_token_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -44,17 +46,17 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 METRIC_MAP: Dict[str, str] = {
-    "answer_relevancy":            "mce_metrics_plugin.session.answer_relevancy:AnswerRelevancy",
-    "goal_success_rate":           "mce_metrics_plugin.session.goal_success_rate:GoalSuccessRate",
-    "groundedness":                "mce_metrics_plugin.session.groundedness:Groundedness",
-    "response_completeness":       "mce_metrics_plugin.session.response_completeness:ResponseCompleteness",
-    "workflow_cohesion_index":     "mce_metrics_plugin.session.workflow_cohesion_index:WorkflowCohesionIndex",
-    "workflow_efficiency":         "mce_metrics_plugin.session.workflow_efficiency:WorkflowEfficiency",
-    "consistency":                 "mce_metrics_plugin.session.consistency:Consistency",
-    "context_preservation":        "mce_metrics_plugin.session.context_preservation:ContextPreservation",
-    "information_retention":       "mce_metrics_plugin.session.information_retention:InformationRetention",
+    "answer_relevancy": "mce_metrics_plugin.session.answer_relevancy:AnswerRelevancy",
+    "goal_success_rate": "mce_metrics_plugin.session.goal_success_rate:GoalSuccessRate",
+    "groundedness": "mce_metrics_plugin.session.groundedness:Groundedness",
+    "response_completeness": "mce_metrics_plugin.session.response_completeness:ResponseCompleteness",
+    "workflow_cohesion_index": "mce_metrics_plugin.session.workflow_cohesion_index:WorkflowCohesionIndex",
+    "workflow_efficiency": "mce_metrics_plugin.session.workflow_efficiency:WorkflowEfficiency",
+    "consistency": "mce_metrics_plugin.session.consistency:Consistency",
+    "context_preservation": "mce_metrics_plugin.session.context_preservation:ContextPreservation",
+    "information_retention": "mce_metrics_plugin.session.information_retention:InformationRetention",
     "intent_recognition_accuracy": "mce_metrics_plugin.session.intent_recognition_accuracy:IntentRecognitionAccuracy",
-    "component_conflict_rate":     "mce_metrics_plugin.session.component_conflict_rate:ComponentConflictRate",
+    "component_conflict_rate": "mce_metrics_plugin.session.component_conflict_rate:ComponentConflictRate",
 }
 
 ALL_SESSION_METRICS: List[str] = list(METRIC_MAP.keys())
@@ -68,16 +70,18 @@ ALL_SESSION_METRICS: List[str] = list(METRIC_MAP.keys())
 # relevant statements; GEval = weighted rubric 0-1 float).
 _DEEPEVAL_METRIC_NAMES = {"answer_relevancy", "goal_success_rate"}
 
-_deepeval_model: Any = None   # deepeval OpenAIModel instance; set by install_openai_llm_service
+_deepeval_model: Any = None  # deepeval OpenAIModel instance; set by install_openai_llm_service
 
 
 def _deepeval_llm_cls() -> Any:
     """DeepEval OpenAI-compatible LLM class (``GPTModel`` is a deprecated alias)."""
     try:
         from deepeval.models import OpenAIModel
+
         return OpenAIModel
     except ImportError:  # pragma: no cover - deepeval < 4.2
         from deepeval.models import GPTModel
+
         return GPTModel
 
 
@@ -124,10 +128,12 @@ def _compute_deepeval_score(
         return {"value": None, "reasoning": "", "error": "deepeval model not initialised"}
     try:
         from deepeval.test_case import LLMTestCase
+
         test_case = LLMTestCase(input=input_query, actual_output=final_response)
 
         if metric_name == "answer_relevancy":
             from deepeval.metrics import AnswerRelevancyMetric
+
             metric = AnswerRelevancyMetric(
                 model=_deepeval_model,
                 async_mode=False,
@@ -136,6 +142,7 @@ def _compute_deepeval_score(
         elif metric_name == "goal_success_rate":
             from deepeval.metrics import GEval
             from deepeval.test_case import LLMTestCaseParams
+
             metric = GEval(
                 name="GoalSuccessRate",
                 criteria=(
@@ -153,9 +160,9 @@ def _compute_deepeval_score(
 
         metric.measure(test_case, _show_indicator=False)
         return {
-            "value":     float(metric.score),
+            "value": float(metric.score),
             "reasoning": str(getattr(metric, "reason", "") or ""),
-            "error":     None,
+            "error": None,
         }
     except Exception as exc:
         logger.error("deepeval metric %r failed: %s", metric_name, exc)
@@ -166,7 +173,7 @@ def _compute_deepeval_score(
 # LLM service setup (openai SDK via public metrics_computation_engine)
 # ---------------------------------------------------------------------------
 
-_jury: Any = None          # metrics_computation_engine.llm_judge.jury.Jury
+_jury: Any = None  # metrics_computation_engine.llm_judge.jury.Jury
 _jury_patched = False
 _effective_model: str = ""
 
@@ -206,17 +213,15 @@ def install_openai_llm_service(
         return _effective_model
 
     effective_api_base = infra_api_base or None
-    effective_api_key  = (
-        os.environ.get(api_key_env or infra_api_key_env)
-        or os.environ.get("OPENAI_API_KEY")
-        or "none"
-    )
+    effective_api_key = os.environ.get(api_key_env or infra_api_key_env) or os.environ.get("OPENAI_API_KEY") or "none"
 
     from openai import OpenAI
-    _client = OpenAI(api_key=effective_api_key, base_url=effective_api_base)
 
-    from metrics_computation_engine.llm_judge.llm import LLMClient
+    _client = OpenAI(api_key=effective_api_key, base_url=effective_api_base)
+    _output_kwargs = output_token_kwargs(effective_model, generation=_resolve_infra_generation())
+
     from metrics_computation_engine.llm_judge.jury import Jury
+    from metrics_computation_engine.llm_judge.llm import LLMClient
 
     def _query_patch(self: Any, messages: list, **kwargs: Any) -> Any:
         # Strip response_format — some proxies don't support JSON mode;
@@ -225,23 +230,19 @@ def install_openai_llm_service(
         model = self.model or effective_model
 
         def _once() -> Any:
-            return _client.chat.completions.create(
-                model=model, messages=messages, **kwargs
-            )
+            return _client.chat.completions.create(model=model, messages=messages, **{**_output_kwargs, **kwargs})
 
         try:
             return _call_with_mce_retry(_once, model=model)
         except Exception as exc:
-            raise RuntimeError(
-                f"MCE LLM call failed (model={model!r}): {exc}"
-            ) from exc
+            raise RuntimeError(f"MCE LLM call failed (model={model!r}): {exc}") from exc
 
     LLMClient.query = _query_patch  # type: ignore[method-assign]
 
     llm_config = {
-        "LLM_MODEL_NAME":    effective_model,
+        "LLM_MODEL_NAME": effective_model,
         "LLM_BASE_MODEL_URL": effective_api_base or "",
-        "LLM_API_KEY":       effective_api_key,
+        "LLM_API_KEY": effective_api_key,
     }
     _jury = Jury(llm_config)
 
@@ -257,7 +258,10 @@ def install_openai_llm_service(
     source = model_source or ("override" if model_override else "defaults.model")
     logger.info(
         "MCE Jury configured (model=%s, source=%s, base_url=%s, deepeval=%s)",
-        effective_model, source, effective_api_base, "ok" if _deepeval_model else "unavailable",
+        effective_model,
+        source,
+        effective_api_base,
+        "ok" if _deepeval_model else "unavailable",
     )
     return effective_model
 
@@ -268,28 +272,11 @@ def _resolve_infra() -> tuple[str, str, str]:
     Returns ``(api_base, api_key_env, model)``.
     """
     _FALLBACK = ("", "OPENAI_API_KEY", "gpt-4o")
-    try:
-        from mas.lab.workspace import WorkspaceConfig, workspace_get
-        from mas.ctl.infra.resolve import resolve_infra_refs
-        from mas.runtime.agent_defaults import resolve_default_model
-    except ImportError:
+    proxy, ws = _resolve_infra_proxy()
+    if proxy is None:
         return _FALLBACK
+    from mas.runtime.agent_defaults import resolve_default_model
 
-    ws = WorkspaceConfig.load()
-    if not ws.found:
-        return _FALLBACK
-
-    refs = ws.effective_infra_refs
-    if not refs:
-        return _FALLBACK
-
-    try:
-        resolved = resolve_infra_refs(refs, workspace=ws)
-    except Exception as exc:
-        logger.warning("Could not resolve infra refs %s: %s", refs, exc)
-        return _FALLBACK
-
-    proxy = resolved.llm_proxy
     return (
         proxy.get("api_base", ""),
         proxy.get("api_key_env") or "OPENAI_API_KEY",
@@ -297,12 +284,41 @@ def _resolve_infra() -> tuple[str, str, str]:
     )
 
 
+def _resolve_infra_generation() -> dict[str, Any]:
+    """Infra ``spec.models.generation`` (output-token policy), empty when unresolved."""
+    proxy, _ws = _resolve_infra_proxy()
+    return dict((proxy or {}).get("generation") or {})
+
+
+def _resolve_infra_proxy() -> tuple[dict[str, Any] | None, Any]:
+    try:
+        from mas.ctl.infra.resolve import resolve_infra_refs
+        from mas.lab.workspace import WorkspaceConfig
+    except ImportError:
+        return None, None
+
+    ws = WorkspaceConfig.load()
+    if not ws.found:
+        return None, ws
+
+    refs = ws.effective_infra_refs
+    if not refs:
+        return None, ws
+
+    try:
+        resolved = resolve_infra_refs(refs, workspace=ws)
+    except Exception as exc:
+        logger.warning("Could not resolve infra refs %s: %s", refs, exc)
+        return None, ws
+    return resolved.llm_proxy, ws
+
+
 # ---------------------------------------------------------------------------
 # Rate-limit-aware LLM call helper
 # ---------------------------------------------------------------------------
 
 _MCE_MAX_RETRIES = 4
-_MCE_BASE_DELAY  = 5.0   # seconds — doubles each retry, capped at 120 s
+_MCE_BASE_DELAY = 5.0  # seconds — doubles each retry, capped at 120 s
 
 
 def _is_ratelimit_error(exc: Exception) -> bool:
@@ -364,20 +380,19 @@ def _llm_call_with_retry(client: Any, model: str, messages: list) -> str:
     """
 
     def _once() -> str:
-        resp = client.chat.completions.create(model=model, messages=messages)
+        resp = client.chat.completions.create(model=model, messages=messages, **output_token_kwargs(model))
         return resp.choices[0].message.content or ""
 
     try:
         return _call_with_mce_retry(_once, model=model)
     except Exception as exc:
-        raise RuntimeError(
-            f"MCE LLM call failed (model={model!r}): {exc}"
-        ) from exc
+        raise RuntimeError(f"MCE LLM call failed (model={model!r}): {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
 # Metric computation
 # ---------------------------------------------------------------------------
+
 
 def compute_session_metrics(
     trace_path: Path,
@@ -402,8 +417,9 @@ def compute_session_metrics(
     * ``True`` — all metrics use MCE BinaryGrading (0 or 1 integer).
     """
     from mas.library.eval.mce.trace_provider import MASTraceProvider
+
     provider = MASTraceProvider(response_agent_id=response_agent_id)
-    context  = provider.fetch(str(trace_path), requirements=None)
+    context = provider.fetch(str(trace_path), requirements=None)
     resource_id = _run_id_from_path(trace_path)
     # Inject session_id so MCE polymorphic metrics (Duration, Cost…) can
     # detect the resource type via _detect_resource_type().
@@ -414,8 +430,7 @@ def compute_session_metrics(
     if _input_query_missing:
         logger.debug("%s — input_query empty", trace_path)
     if _final_response_missing:
-        logger.debug("%s — final_response empty (response_agent=%r)",
-                     trace_path, response_agent_id or "<auto>")
+        logger.debug("%s — final_response empty (response_agent=%r)", trace_path, response_agent_id or "<auto>")
 
     # Build a minimal SessionEntity from the context dict.
     # LLM-as-judge metrics need input_query, final_response, session_id, and
@@ -423,6 +438,7 @@ def compute_session_metrics(
     # or conversation_data.get("elements") (e.g. WorkflowCohesionIndex,
     # ResponseCompleteness, Groundedness).
     from metrics_computation_engine.entities.models.session import SessionEntity
+
     conversation_text = context.get("conversation_text") or ""
     session = SessionEntity(
         session_id=resource_id,
@@ -432,10 +448,13 @@ def compute_session_metrics(
         conversation_data={
             "conversation": conversation_text,
             "elements": conversation_text,
-        } if conversation_text else None,
+        }
+        if conversation_text
+        else None,
     )
 
     import asyncio
+
     # compute() is async in the public package; run synchronously in a dedicated loop
     # (safe because this function is called from a ThreadPoolExecutor thread).
     loop = asyncio.new_event_loop()
@@ -476,9 +495,9 @@ def compute_session_metrics(
                 metric.init_with_model(_jury)
                 outcome = loop.run_until_complete(metric.compute(session))
                 results[name] = {
-                    "value":     float(outcome.value) if outcome.value is not None else None,
+                    "value": float(outcome.value) if outcome.value is not None else None,
                     "reasoning": str(outcome.reasoning or ""),
-                    "error":     str(outcome.error_message) if outcome.error_message else None,
+                    "error": str(outcome.error_message) if outcome.error_message else None,
                 }
             except Exception as exc:
                 logger.error("MCE metric %r failed on %s: %s", name, trace_path, exc)
@@ -495,8 +514,8 @@ def compute_session_metrics(
     metric_errors = [name for name, v in results.items() if v.get("error")]
     results["__run_quality__"] = {
         "warnings": warnings,
-        "errors":   metric_errors,
-        "status":   "error" if metric_errors else ("warn" if warnings else "ok"),
+        "errors": metric_errors,
+        "status": "error" if metric_errors else ("warn" if warnings else "ok"),
     }
 
     return results
@@ -519,17 +538,18 @@ def build_metrics_document(
     session = {k: v for k, v in session_scores.items() if not k.startswith("__")}
     return {
         "schema_version": METRICS_SCHEMA_VERSION,
-        "item_id":        item_id,
-        "scenario":       scenario,
-        "session":        session,
-        "run_quality":    run_quality,
-        "computed_at":    datetime.now(timezone.utc).isoformat(),
+        "item_id": item_id,
+        "scenario": scenario,
+        "session": session,
+        "run_quality": run_quality,
+        "computed_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
 
 def _import_metric(name: str):
     """Import and return the MCE metric class for *name*, or ``None`` on failure."""

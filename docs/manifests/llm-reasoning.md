@@ -99,6 +99,9 @@ GPT-5 Chat Completions field) and omits `max_tokens`, which those models reject.
 vLLM and Ollama keep `max_tokens`. The value is still `spec.models[].max_tokens`
 — that is the **answer** budget. Hidden reasoning is billed inside it on OpenAI;
 `budget_tokens` is the extra cap for backends that expose a separate thinking budget.
+An explicit `max_completion_tokens` wins over this mapping; the request never
+carries both fields, and carries neither when no limit is configured. Defaults,
+ceilings, and `on_truncation`: [agent.md — Output-token limits](agent.md#output-token-limits).
 
 `reasoning_effort` is sent as a top-level Chat Completions field. Nested
 `reasoning` is only used for `budget_tokens` / `exclude` / `mode` — effort is

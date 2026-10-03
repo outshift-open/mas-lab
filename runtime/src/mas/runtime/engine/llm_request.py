@@ -141,11 +141,32 @@ def apply_sampling_payload(
     out = dict(payload)
     info = default_model_catalog().get(model or payload.get("model"))
     for key, value in settings.values.items():
-        if key == "max_tokens":
+        if key in ("max_tokens", "max_completion_tokens"):
             continue
         if info is not None:
             value = info.clamp(key, value)
         out[key] = value
+    return out
+
+
+def apply_output_token_limit(
+    payload: dict[str, Any],
+    *,
+    max_tokens: int | None,
+    max_completion_tokens: int | None,
+) -> dict[str, Any]:
+    """Set at most one of ``max_tokens`` / ``max_completion_tokens``; omit both when unset.
+
+    An explicit ``max_completion_tokens`` wins, as does one already mapped
+    by :func:`apply_reasoning_payload` or supplied through ``extra``.
+    """
+    out = dict(payload)
+    if max_completion_tokens is not None:
+        out["max_completion_tokens"] = int(max_completion_tokens)
+    elif max_tokens is not None and "max_completion_tokens" not in out:
+        out.setdefault("max_tokens", int(max_tokens))
+    if "max_completion_tokens" in out:
+        out.pop("max_tokens", None)
     return out
 
 

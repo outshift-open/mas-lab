@@ -5,14 +5,19 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import yaml
 from click.testing import CliRunner
 from jsonschema import Draft7Validator
-from mas.ctl.overrides import apply_cli_overrides, parse_override
-from mas.ctl.runtime_cli import load_merged_agent_manifest
 from mas.ctl.overlay import merge_overlay
 from mas.ctl.overlay.normalize import normalize_overlay
+from mas.ctl.overrides import (
+    apply_cli_overrides,
+    max_tokens_overrides,
+    overrides_for_root,
+    parse_override,
+)
+from mas.ctl.runtime_cli import load_merged_agent_manifest
 from mas.ctl.validate.schemas import load_schema
-import yaml
 
 OVERLAY_CONTRACT_FIXTURES = Path(__file__).parents[2] / "tests/fixtures/overlay-contracts"
 
@@ -26,7 +31,7 @@ def test_parse_root_path_and_yaml_value() -> None:
 
 
 def test_parse_selector_and_equals_in_value() -> None:
-    parsed = parse_override('mas:spec.agency.agents[id=qa].spec.context.note=a=b')
+    parsed = parse_override("mas:spec.agency.agents[id=qa].spec.context.note=a=b")
 
     assert parsed.path.segments[2].selector == ("id", "qa")
     assert parsed.value == "a=b"
@@ -184,6 +189,60 @@ def test_apply_rejects_unknown_path_before_merge() -> None:
         )
 
 
+def test_apply_creates_schema_declared_leaf_on_selected_rows() -> None:
+    document = {
+        "apiVersion": "mas/v1",
+        "kind": "Agent",
+        "spec": {"models": [{"id": "main", "model": "gpt-4o"}, {"id": "summarizer", "model": "gpt-4o-mini"}]},
+    }
+
+    result = apply_cli_overrides(document, ("agent:spec.models[*].max_tokens=4096",), root="agent")
+
+    assert [row["max_tokens"] for row in result["spec"]["models"]] == [4096, 4096]
+    assert result["spec"]["models"][0]["model"] == "gpt-4o"
+    with pytest.raises(ValueError, match="max_tokenz"):
+        apply_cli_overrides(document, ("agent:spec.models[*].max_tokenz=1",), root="agent")
+
+
+def test_overrides_for_root_keeps_argument_order() -> None:
+    sources = ("agent:spec.memory=a", "infra:spec.protocol=openai", "agent:spec.memory=b")
+
+    assert overrides_for_root(sources, "agent") == ("agent:spec.memory=a", "agent:spec.memory=b")
+    assert overrides_for_root(sources, "workspace") == ()
+
+
+def test_max_tokens_flag_is_an_agent_models_override() -> None:
+    assert max_tokens_overrides(None) == ()
+    assert max_tokens_overrides(4096) == ("agent:spec.models[*].max_tokens=4096",)
+
+
+def test_agent_loader_applies_max_tokens_alias_without_declared_models() -> None:
+    from mas.ctl.runtime_cli import load_merged_agent_manifest
+
+    manifest = {"apiVersion": "mas/v1", "kind": "Agent", "metadata": {"name": "a"}, "spec": {"description": "d"}}
+    overrides = (*max_tokens_overrides(2048), "infra:spec.protocol=openai", "workspace:defaults.model=m")
+
+    data, _plugin = load_merged_agent_manifest(manifest, overrides=overrides, validate=False)
+
+    assert data["spec"]["models"] == [{"id": "main", "model": "any", "max_tokens": 2048}]
+
+
+def test_explicit_override_wins_over_max_tokens_alias() -> None:
+    from mas.ctl.runtime_cli import load_merged_agent_manifest
+
+    manifest = {
+        "apiVersion": "mas/v1",
+        "kind": "Agent",
+        "metadata": {"name": "a"},
+        "spec": {"description": "d", "models": [{"id": "main", "model": "gpt-4o", "max_tokens": 100}]},
+    }
+    overrides = (*max_tokens_overrides(2048), "agent:spec.models[id=main].max_tokens=512")
+
+    data, _plugin = load_merged_agent_manifest(manifest, overrides=overrides, validate=False)
+
+    assert data["spec"]["models"][0]["max_tokens"] == 512
+
+
 def test_apply_honors_schema_cli_deny(monkeypatch: pytest.MonkeyPatch) -> None:
     import importlib
 
@@ -192,15 +251,7 @@ def test_apply_honors_schema_cli_deny(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         apply_module,
         "load_schema",
-        lambda _kind: {
-            "properties": {
-                "spec": {
-                    "properties": {
-                        "protected": {"x-cli": {"allowed": False}}
-                    }
-                }
-            }
-        },
+        lambda _kind: {"properties": {"spec": {"properties": {"protected": {"x-cli": {"allowed": False}}}}}},
     )
     with pytest.raises(ValueError, match="not allowed"):
         apply_module._assert_schema_cli_allowed(
@@ -316,8 +367,7 @@ def test_overlay_manifest_applies_selector_overrides_after_patch() -> None:
             lambda result: (
                 result["spec"]["workflow"]["entry"] == "reviewer"
                 and all(
-                    agent["spec"]["context"]["environment"] == "staging"
-                    for agent in result["spec"]["agency"]["agents"]
+                    agent["spec"]["context"]["environment"] == "staging" for agent in result["spec"]["agency"]["agents"]
                 )
             ),
         ),
@@ -347,9 +397,7 @@ def test_overlay_manifest_applies_selector_overrides_after_patch() -> None:
         ),
     ],
 )
-def test_overlay_contract_fixtures_validate_and_apply(
-    fixture_name: str, base: dict, assertion
-) -> None:
+def test_overlay_contract_fixtures_validate_and_apply(fixture_name: str, base: dict, assertion) -> None:
     overlay = yaml.safe_load((OVERLAY_CONTRACT_FIXTURES / fixture_name).read_text(encoding="utf-8"))
     errors = list(Draft7Validator(load_schema("overlay")).iter_errors(overlay))
     assert not errors, [error.message for error in errors]

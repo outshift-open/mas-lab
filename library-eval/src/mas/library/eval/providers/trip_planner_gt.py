@@ -44,6 +44,7 @@ from typing import Dict, List, Optional
 import yaml
 
 from mas.library.eval.evaluator import EvalProvider, MetricScore
+from mas.runtime.engine.llm_output_limits import output_token_kwargs
 from mas.runtime.spec.source import load_dataset_items_file as _load_dataset_file
 
 logger = logging.getLogger(__name__)
@@ -328,6 +329,7 @@ Score = (number of correct key facts) / (total number of key facts in ground tru
                 ],
                 temperature=temperature,
                 response_format={"type": "json_object"},
+                **output_token_kwargs(self._llm_model),
             )
             content = response.choices[0].message.content
             result = json.loads(content)

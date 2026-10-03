@@ -25,11 +25,41 @@ def _schema_object(node: dict[str, Any]) -> dict[str, Any]:
         alternatives = node.get(key)
         if isinstance(alternatives, list):
             for alternative in alternatives:
-                if isinstance(alternative, dict) and (
-                    "properties" in alternative or "items" in alternative
-                ):
+                if isinstance(alternative, dict) and ("properties" in alternative or "items" in alternative):
                     return alternative
+    parts = node.get("allOf")
+    if isinstance(parts, list):
+        properties: dict[str, Any] = {}
+        for part in parts:
+            if isinstance(part, dict):
+                properties.update(_schema_object(part).get("properties") or {})
+        if properties:
+            return {**node, "properties": properties}
     return node
+
+
+def _schema_declares(path: OverridePath, target_kind: str) -> bool:
+    """True when every named segment of *path* is a declared schema property."""
+    if target_kind == "Workspace":
+        return True
+    try:
+        node: dict[str, Any] = load_schema(target_kind.lower())
+    except Exception:
+        return False
+    for segment in path.segments:
+        node = _schema_object(node)
+        properties = node.get("properties")
+        if isinstance(properties, dict) and segment.name in properties:
+            node = properties[segment.name]
+        elif isinstance(node.get("additionalProperties"), dict):
+            node = node["additionalProperties"]
+        else:
+            return False
+        if segment.selector is not None or segment.wildcard:
+            node = _schema_object(node)
+            if isinstance(node.get("items"), dict):
+                node = node["items"]
+    return True
 
 
 def _assert_schema_cli_allowed(path: OverridePath, target_kind: str) -> None:
@@ -118,9 +148,7 @@ def _selected_indexes(items: list[Any], segment: PathSegment) -> list[int]:
         return list(range(len(items)))
     if isinstance(segment.selector, int):
         if segment.selector >= len(items):
-            raise ValueError(
-                f"index {segment.selector} is out of range for {segment.name!r}"
-            )
+            raise ValueError(f"index {segment.selector} is out of range for {segment.name!r}")
         return [segment.selector]
     if segment.selector is None:
         return list(range(len(items)))
@@ -203,33 +231,25 @@ def _list_at_path(document: dict[str, Any], names: list[str]) -> list[Any]:
     return current
 
 
-def _overlay_for_override(
-    document: dict[str, Any], override: ParsedOverride, target_kind: str
-) -> dict[str, Any]:
+def _overlay_for_override(document: dict[str, Any], override: ParsedOverride, target_kind: str) -> dict[str, Any]:
     path = override.path
     patch_segments = list(path.segments)
     if patch_segments and patch_segments[0].name == "spec":
         patch_segments = patch_segments[1:]
     if not patch_segments:
         raise ValueError("override path must address a field below spec")
-    allow_missing_leaf = _allows_missing_leaf(path, target_kind)
+    allow_missing_leaf = _allows_missing_leaf(path, target_kind) or _schema_declares(path, target_kind)
     if not any(segment.selector is not None or segment.wildcard for segment in path.segments):
-        _mutate_path(
-            deepcopy(document), path, override.value, allow_missing_leaf=allow_missing_leaf
-        )
+        _mutate_path(deepcopy(document), path, override.value, allow_missing_leaf=allow_missing_leaf)
     if any(segment.selector is not None or segment.wildcard for segment in path.segments):
         updated = deepcopy(document)
-        first_selector = _mutate_path(
-            updated, path, override.value, allow_missing_leaf=allow_missing_leaf
-        )
+        first_selector = _mutate_path(updated, path, override.value, allow_missing_leaf=allow_missing_leaf)
         if first_selector is None:
             raise ValueError("internal error: selector path did not select a list")
         document_list_names = [segment.name for segment in path.segments[: first_selector + 1]]
         spec_offset = len(path.segments) - len(patch_segments)
         patch_selector = first_selector - spec_offset
-        patch_list_names = [
-            segment.name for segment in patch_segments[: patch_selector + 1]
-        ]
+        patch_list_names = [segment.name for segment in patch_segments[: patch_selector + 1]]
         replacement = _list_at_path(updated, document_list_names)
         patch = _nested_patch(patch_list_names, replacement)
     else:
@@ -240,6 +260,11 @@ def _overlay_for_override(
         "metadata": {"name": "cli-override"},
         "spec": {"target": {"kind": target_kind}, "patch": patch},
     }
+
+
+def overrides_for_root(overrides: tuple[str, ...] | list[str], root: str) -> tuple[str, ...]:
+    """The subset of *overrides* addressed to *root*, in argument order."""
+    return tuple(source for source in overrides if parse_override(source).path.root == root)
 
 
 def apply_cli_overrides(
@@ -253,9 +278,7 @@ def apply_cli_overrides(
     for source in overrides:
         parsed = parse_override(source)
         if parsed.path.root != root:
-            raise ValueError(
-                f"override root {parsed.path.root!r} does not match command root {root!r}: {source!r}"
-            )
+            raise ValueError(f"override root {parsed.path.root!r} does not match command root {root!r}: {source!r}")
         _assert_schema_cli_allowed(parsed.path, target_kind)
         overlay = _overlay_for_override(result, parsed, target_kind)
         result = merge_overlay(result, overlay)
