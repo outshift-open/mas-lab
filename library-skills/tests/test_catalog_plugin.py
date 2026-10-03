@@ -49,6 +49,18 @@ def test_catalog_emits_system_skills_part(tmp_path: Path):
     assert f"- **code-review**: {when_to_use}" in part.content
     assert "MUST call" not in part.content
     assert "Do not skip this tool call" not in part.content
+    assert "unload=true" not in part.content
+
+
+def test_catalog_mentions_unload_param_when_enabled(tmp_path: Path):
+    _skill_dir(tmp_path, "code-review", "Use when reviewing.")
+    plugin = SkillCatalogPlugin(
+        manifest=_manifest(["code-review"]),
+        base_dir=tmp_path,
+        allow_unload=True,
+    )
+    content = plugin.collect_context()[0].content
+    assert "activate_skill(name, unload=true)" in content
 
 
 def test_catalog_skips_skill_without_leading_frontmatter(tmp_path: Path, caplog):

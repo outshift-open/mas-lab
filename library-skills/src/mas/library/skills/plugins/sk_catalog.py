@@ -28,9 +28,13 @@ _CATALOG_INTRO = (
     "Listed skills show name and when-to-use from each skill's frontmatter. "
     "When a listed skill matches the task, call `activate_skill(name)` and "
     "follow the loaded body before the user-visible answer. "
-    "To unload a skill so it is no longer in force, call "
-    "`activate_skill(name, active=false)`. The catalog listing remains; prior "
+)
+_CATALOG_UNLOAD = (
+    "To unpin a skill so it is no longer in force, call "
+    "`activate_skill(name, unload=true)`. The catalog listing remains; prior "
     "tool results in the transcript are not rewritten. "
+)
+_CATALOG_PATHS = (
     "Resolve relative paths in skill instructions against the skill's directory "
     "using `read_skill_file(skill, path)`."
 )
@@ -45,9 +49,11 @@ class SkillCatalogPlugin(ContextContract):
         base_dir: Path | None = None,
         *,
         impl: str = "native",
+        allow_unload: bool = False,
     ) -> None:
         super().__init__()
         self.impl = coerce_skill_impl(impl)
+        self.allow_unload = allow_unload
         self._registry = SkillRegistry()
         self._backend_plugin: Any | None = None
         self._catalog_text: str = ""
@@ -96,7 +102,7 @@ class SkillCatalogPlugin(ContextContract):
         if not registered_records:
             return
 
-        self._catalog_text = _format_catalog(registered_records)
+        self._catalog_text = _format_catalog(registered_records, allow_unload=self.allow_unload)
         logger.debug(
             "SkillCatalogPlugin: built catalog with %d skill(s): %s",
             len(registered_records),
@@ -134,7 +140,7 @@ class SkillCatalogPlugin(ContextContract):
         if not records:
             return
 
-        self._catalog_text = _format_catalog(records)
+        self._catalog_text = _format_catalog(records, allow_unload=self.allow_unload)
         logger.debug(
             "SkillCatalogPlugin(%s): built catalog with %d skill(s): %s",
             self.impl,
@@ -181,6 +187,7 @@ def attach_skill_catalog_plugin(
     impl: str = "native",
     auto_load: bool = False,
     pin_activated: bool = True,
+    allow_unload: bool = False,
 ) -> SkillCatalogPlugin | None:
     """Build and attach SkillCatalogPlugin to ctx."""
     if not manifest or not base_dir:
@@ -188,7 +195,9 @@ def attach_skill_catalog_plugin(
     if not skill_refs_from_manifest(manifest):
         return None
 
-    plugin = SkillCatalogPlugin(manifest=manifest, base_dir=base_dir, impl=impl)
+    plugin = SkillCatalogPlugin(
+        manifest=manifest, base_dir=base_dir, impl=impl, allow_unload=allow_unload
+    )
     if not plugin.registry:
         return None
 
@@ -226,12 +235,13 @@ def attach_skill_catalog_plugin(
     return plugin
 
 
-def _format_catalog(records: list[SkillRecord]) -> str:
+def _format_catalog(records: list[SkillRecord], *, allow_unload: bool = False) -> str:
     """Render catalog: short header plus each skill's frontmatter description."""
+    intro = _CATALOG_INTRO + (_CATALOG_UNLOAD if allow_unload else "") + _CATALOG_PATHS
     lines: list[str] = [
         "## Available Skills",
         "",
-        _CATALOG_INTRO,
+        intro,
         "",
     ]
     for rec in records:

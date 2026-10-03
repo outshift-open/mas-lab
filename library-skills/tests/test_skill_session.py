@@ -196,6 +196,7 @@ def test_different_skills_both_activate(tmp_path):
 
 def test_deactivate_unpins_and_allows_reload(tmp_path):
     _, ctx = _make_registry_and_ctx(tmp_path)
+    ctx.skill_allow_unload = True
     plugin = SkillToolsPlugin()
     plugin.on_execute_tool("activate_skill", {"name": "code-review"}, ctx=ctx)
     class _Pin:
@@ -208,7 +209,7 @@ def test_deactivate_unpins_and_allows_reload(tmp_path):
     pin = _Pin()
     ctx.activated_skills_plugin = pin
     result = plugin.on_execute_tool(
-        "activate_skill", {"name": "code-review", "active": False}, ctx=ctx
+        "activate_skill", {"name": "code-review", "unload": True}, ctx=ctx
     )
     assert result["deactivated"] is True
     assert "no longer in force" in result["notice"]
@@ -219,24 +220,37 @@ def test_deactivate_unpins_and_allows_reload(tmp_path):
     assert ctx.skill_session_state.is_activated("code-review")
 
 
-def test_deactivate_string_false(tmp_path):
+def test_unload_string_true(tmp_path):
     _, ctx = _make_registry_and_ctx(tmp_path)
+    ctx.skill_allow_unload = True
     plugin = SkillToolsPlugin()
     plugin.on_execute_tool("activate_skill", {"name": "code-review"}, ctx=ctx)
     result = plugin.on_execute_tool(
-        "activate_skill", {"name": "code-review", "active": "false"}, ctx=ctx
+        "activate_skill", {"name": "code-review", "unload": "true"}, ctx=ctx
     )
     assert result["deactivated"] is True
 
 
-def test_deactivate_when_disabled(tmp_path):
+def test_unload_param_not_advertised_by_default(tmp_path):
+    _, ctx = _make_registry_and_ctx(tmp_path)
+    plugin = SkillToolsPlugin()
+    activate = next(
+        t for t in plugin.on_collect_tools(ctx=ctx) if t["name"] == "activate_skill"
+    )
+    assert "unload" not in activate["parameters"]["properties"]
+    names = {t["name"] for t in plugin.on_collect_tools(ctx=ctx)}
+    assert names == {"activate_skill", "list_skill_files", "read_skill_file"}
+
+
+def test_unload_rejected_when_disabled(tmp_path):
     _, ctx = _make_registry_and_ctx(tmp_path)
     ctx.skill_allow_unload = False
     plugin = SkillToolsPlugin()
     plugin.on_execute_tool("activate_skill", {"name": "code-review"}, ctx=ctx)
     result = plugin.on_execute_tool(
-        "activate_skill", {"name": "code-review", "active": False}, ctx=ctx
+        "activate_skill", {"name": "code-review", "unload": True}, ctx=ctx
     )
     assert result["deactivated"] is False
     assert "disabled" in result["error"]
+    assert "Agent Skills spec" in result["error"]
     assert ctx.skill_session_state.is_activated("code-review")

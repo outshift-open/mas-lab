@@ -188,6 +188,7 @@ def test_resolve_skill_plugin_config_auto_inject_defaults_false(tmp_path: Path):
 
     cfg = _resolve_skill_plugin_config({"spec": {}}, default_base_dir=tmp_path)
     assert cfg.auto_inject_scripts is False
+    assert cfg.allow_unload is False
 
 
 def test_resolve_skill_plugin_config_reads_pin_and_unload(tmp_path: Path):
@@ -196,13 +197,13 @@ def test_resolve_skill_plugin_config_reads_pin_and_unload(tmp_path: Path):
     manifest = {
         "spec": {
             "context_sources": [
-                {"native": {"pin_activated": False, "allow_unload": False}}
+                {"native": {"pin_activated": False, "allow_unload": True}}
             ]
         }
     }
     cfg = _resolve_skill_plugin_config(manifest, default_base_dir=tmp_path)
     assert cfg.pin_activated is False
-    assert cfg.allow_unload is False
+    assert cfg.allow_unload is True
 
 
 def test_interface_contracts_resolve_from_full_agent_manifest_and_keep_overrides():

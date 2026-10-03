@@ -34,6 +34,23 @@ items:
                 Off by default: listing skills only adds ``activate_skill``.
                 A skill that already ships scripts implies the tool. Explicit
                 alternative: ``{kind: system, name: run_skill_script}``.
+            pin_activated:
+              type: boolean
+              default: true
+              description: Pin activated skill bodies into SYSTEM_SKILLS.
+            allow_unload:
+              type: boolean
+              default: false
+              description: >
+                When true, advertise ``unload`` on ``activate_skill`` so the
+                model can call ``activate_skill(name, unload=true)``. Off by
+                default: that parameter is not in the Agent Skills spec.
+            auto_load:
+              type: boolean
+              default: false
+              description: >
+                When true, activate every listed skill at session start
+                instead of waiting for ``activate_skill``.
         adk:
           type: object
           additionalProperties: false
@@ -49,6 +66,23 @@ items:
                 Off by default: listing skills only adds ``activate_skill``.
                 A skill that already ships scripts implies the tool. Explicit
                 alternative: ``{kind: system, name: run_skill_script}``.
+            pin_activated:
+              type: boolean
+              default: true
+              description: Pin activated skill bodies into SYSTEM_SKILLS.
+            allow_unload:
+              type: boolean
+              default: false
+              description: >
+                When true, advertise ``unload`` on ``activate_skill`` so the
+                model can call ``activate_skill(name, unload=true)``. Off by
+                default: that parameter is not in the Agent Skills spec.
+            auto_load:
+              type: boolean
+              default: false
+              description: >
+                When true, activate every listed skill at session start
+                instead of waiting for ``activate_skill``.
         langchain:
           type: object
           additionalProperties: false
@@ -64,3 +98,20 @@ items:
                 Off by default: listing skills only adds ``activate_skill``.
                 A skill that already ships scripts implies the tool. Explicit
                 alternative: ``{kind: system, name: run_skill_script}``.
+            pin_activated:
+              type: boolean
+              default: true
+              description: Pin activated skill bodies into SYSTEM_SKILLS.
+            allow_unload:
+              type: boolean
+              default: false
+              description: >
+                When true, advertise ``unload`` on ``activate_skill`` so the
+                model can call ``activate_skill(name, unload=true)``. Off by
+                default: that parameter is not in the Agent Skills spec.
+            auto_load:
+              type: boolean
+              default: false
+              description: >
+                When true, activate every listed skill at session start
+                instead of waiting for ``activate_skill``.

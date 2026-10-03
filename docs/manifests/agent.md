@@ -99,8 +99,10 @@ The schema accepts a plugin-name string, `null`, or an object with `type` or
 _Used by:_ `spec.context_sources`
 
 An ordered list of context-source plugin ids (`native`, `adk`, or `langchain`).
-An entry may be a bare id or a single-key object with `base_dir` and
-`auto_inject` options. `auto_inject` defaults to `false`.
+An entry may be a bare id or a single-key object with `base_dir`,
+`auto_inject`, `pin_activated`, `allow_unload`, and `auto_load` options.
+`auto_inject` and `allow_unload` default to `false`. `allow_unload` is off
+because `activate_skill(name, unload=true)` is not in the Agent Skills spec.
 
 ### ContextChunk
 
