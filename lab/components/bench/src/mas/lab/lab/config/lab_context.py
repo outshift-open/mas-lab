@@ -52,6 +52,7 @@ class LabContext:
     lab_name: Optional[str] = None
     libraries: List[str] = field(default_factory=list)
     plugins: List[PluginSpec] = field(default_factory=list)
+    enable_plugins: List[str] = field(default_factory=list)
 
 
 def discover_lab_context(yaml_path: Path) -> LabContext:
@@ -77,14 +78,18 @@ def discover_lab_context(yaml_path: Path) -> LabContext:
 
             data = load_yaml_file(lab_yaml)
             section = data.get("lab", data) if isinstance(data, dict) else {}
-            if isinstance(section, dict):
-                ctx.lab_name = section.get("name") or _discover_lab_name(yaml_path)
-                raw_libs = section.get("libraries") or []
-                ctx.libraries = [str(x) for x in raw_libs if x]
-                raw_plugins = section.get("plugins") or []
-                ctx.plugins = [p for p in raw_plugins if p]
         except Exception:
             ctx.lab_name = _discover_lab_name(yaml_path)
+            return ctx
+        if isinstance(section, dict):
+            ctx.lab_name = section.get("name") or _discover_lab_name(yaml_path)
+            raw_libs = section.get("libraries") or []
+            ctx.libraries = [str(x) for x in raw_libs if x]
+            raw_plugins = section.get("plugins") or []
+            ctx.plugins = [p for p in raw_plugins if p]
+            from mas.runtime.workspace_plugins import parse_plugin_refs
+
+            ctx.enable_plugins = parse_plugin_refs(section.get("enable_plugins"))
     else:
         ctx.lab_name = _discover_lab_name(yaml_path)
     return ctx

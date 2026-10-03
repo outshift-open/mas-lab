@@ -75,6 +75,23 @@ from mas.runtime.spec.checkpoint import parse_checkpoint_policy
 @click.option("--checkpoint-dir", default=None, type=click.Path())
 @click.option("--load-checkpoint", default=None, type=click.Path())
 @click.option("--save-checkpoint/--no-save-checkpoint", default=False)
+@click.option(
+    "--control-dir",
+    default=None,
+    type=click.Path(file_okay=False),
+    help="Advertise ControlContract so mas-ctl control can attach by session id "
+    "(default: $XDG_RUNTIME_DIR/mas-ctl, else /var/run/mas-ctl, else temp)",
+)
+@click.option(
+    "--no-control",
+    is_flag=True,
+    help="Do not advertise a control endpoint",
+)
+@click.option(
+    "--debug-script",
+    default=None,
+    help="gdb-like script: @file or inline (same language as spec.debug).",
+)
 @click.option("--no-validate", is_flag=True, help="Skip schema validation for seeds/checkpoints")
 @click.option(
     "--cache-read/--no-cache-read",
@@ -137,6 +154,9 @@ def chat_cmd(
     checkpoint_dir: str | None,
     load_checkpoint: str | None,
     save_checkpoint: bool,
+    control_dir: str | None,
+    no_control: bool,
+    debug_script: str | None,
     no_validate: bool,
     cache_read: bool | None,
     cache_write: bool | None,
@@ -191,6 +211,12 @@ def chat_cmd(
             pattern=pattern,
             validate=not no_validate,
         )
+        if debug_script:
+            _apply_debug_script_option(
+                agent_data,
+                debug_script,
+                manifest_dir=session.manifest_dir or session.original_cwd,
+            )
         if not manifest and load_checkpoint:
             checkpoint_path = resolve_overlay_path(
                 load_checkpoint,
@@ -283,8 +309,10 @@ def chat_cmd(
         spec_data = (agent_data or {}).get("spec") or {}
         checkpoint_policy = parse_checkpoint_policy(spec_data.get("checkpoint"))
         resolved_checkpoint_dir = _opt_dir(checkpoint_dir)
+        if resolved_checkpoint_dir is None and checkpoint_policy.storage_path:
+            resolved_checkpoint_dir = _opt_dir(checkpoint_policy.storage_path)
         if resolved_checkpoint_dir is None and (
-            checkpoint_policy.mode in {"every_turn", "on_event"} or checkpoint_policy.auto_resume_latest
+            checkpoint_policy.uses_disk() or checkpoint_policy.auto_resume_latest
         ):
             checkpoint_anchor = session.manifest_dir or session.original_cwd
             resolved_checkpoint_dir = checkpoint_anchor / ".mas" / "checkpoints"
@@ -312,7 +340,9 @@ def chat_cmd(
                     pattern_plugin_id=plugin,
                     memory_seed_path=_opt_file(memory_seed_path),
                     checkpoint_path=load_checkpoint_path,
-                    checkpoint_dir=(None if checkpoint_policy.mode == "in_memory" else resolved_checkpoint_dir),
+                    checkpoint_dir=(
+                        resolved_checkpoint_dir if checkpoint_policy.uses_disk() else None
+                    ),
                     validate_manifests=not no_validate,
                     cache_read_override=cache_read,
                     cache_write_override=cache_write,
@@ -343,7 +373,7 @@ def chat_cmd(
             click.echo(f"error: {exc}", err=True)
             raise SystemExit(1) from None
 
-        if checkpoint_policy.mode == "in_memory":
+        if checkpoint_policy.resolved_storage() == "memory":
             from mas.ctl.adapters.checkpoint import InMemoryCheckpointStore
 
             if load_checkpoint_path is None:
@@ -411,6 +441,26 @@ def chat_cmd(
                 manifest_content=agent_data or {},
             )
         controller.managed_session = managed_session
+        display.on_system(f"session_id: {managed_session.session_id}")
+
+        control_host = None
+        if not no_control:
+            from mas.ctl.session.control_dir import default_control_dir
+            from mas.ctl.session.control_host import ControlDirectoryHost
+            from mas.runtime.boundary.control.contract import ControlCapability
+
+            advertised = Path(control_dir) if control_dir else default_control_dir()
+            control_host = ControlDirectoryHost(
+                session_manager.control(
+                    capability=ControlCapability(actor="admin", surface="admin")
+                ),
+                advertised,
+            )
+            control_host.start(managed_session.session_id)
+            display.on_system(
+                "control attach: mas-ctl control attach "
+                f"{managed_session.session_id}  ({advertised})"
+            )
 
         if interactive:
             emit_session_protocol_hints(
@@ -422,13 +472,38 @@ def chat_cmd(
                 trace_timestamps=trace.timestamps,
                 trace_engine=trace.engine,
             )
-        rc = run_session_loop(controller, interactive=interactive, scripted=scripted)
+        try:
+            rc = run_session_loop(controller, interactive=interactive, scripted=scripted)
 
-        if save_checkpoint and controller_store is not None:
-            path = session_manager.checkpoint(managed_session.session_id, label="final")
-            display.on_system(f"checkpoint saved: {path}")
-        close_observability(controller)
+            if save_checkpoint and controller_store is not None:
+                path = session_manager.checkpoint(managed_session.session_id, label="final")
+                display.on_system(f"checkpoint saved: {path}")
+        finally:
+            if control_host is not None:
+                control_host.close()
+            close_observability(controller)
         raise SystemExit(rc)
+
+
+def _apply_debug_script_option(agent_data: dict, value: str, *, manifest_dir) -> None:
+    """Install a gdb-like script from ``--debug-script`` (@file or inline)."""
+    from mas.library.standard.plugins.control.script import resolve_curl_data
+
+    spec = agent_data.setdefault("spec", {})
+    debug: dict[str, str] = {}
+    if str(value).startswith("@"):
+        debug["script_file"] = str(value)[1:]
+    else:
+        debug["script"] = resolve_curl_data(value, base_dir=manifest_dir)
+    spec["debug"] = debug
+    gov = spec.get("governance")
+    if isinstance(gov, list):
+        spec["governance"] = [
+            item
+            for item in gov
+            if not (isinstance(item, dict) and "debug_script" in item)
+            and item not in {"debug_script", "gov_debug_script", "gdb"}
+        ]
 
 
 def _embedded_checkpoint_manifest(path: Path) -> dict | None:

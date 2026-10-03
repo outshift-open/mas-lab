@@ -84,6 +84,23 @@ def _boundary_engine_io(
         if isinstance(args, dict) and args:
             tool_rec["arguments"] = args
         out.append(_with_parent(tool_rec, record, ctx))
+    if op == "SPAWN" and key not in ctx._seen_engine_ops:
+        ctx._seen_engine_ops.add(key)
+        spawn_rec: dict = {
+            "kind": "spawn_start",
+            "category": payload.get("category") or "spawn.subagent",
+            **base,
+            "call_id": _resolve_call_id(record, ctx, cid, "SPAWN"),
+            "timestamp": ts,
+            "tool_name": resolve_tool_name(payload) or payload.get("tool_name") or "create_subagent",
+        }
+        for key_name in ("template", "task", "child_id", "parent_call_id"):
+            if payload.get(key_name):
+                spawn_rec[key_name] = payload[key_name]
+        args = payload.get("tool_arguments")
+        if isinstance(args, dict) and args:
+            spawn_rec["arguments"] = args
+        out.append(_with_parent(spawn_rec, record, ctx))
     return out
 
 
@@ -147,6 +164,21 @@ def _boundary_engine_io_return(
             "timestamp": ts,
             "output": payload.get("text", ""),
         }
+        out.append(_with_parent(rec, record, ctx))
+    if op == "SPAWN" and key not in ctx._seen_engine_returns:
+        ctx._seen_engine_returns.add(key)
+        rec = {
+            "kind": "spawn_end",
+            "category": payload.get("category") or "spawn.subagent",
+            **base,
+            "call_id": _resolve_call_id(record, ctx, cid, "SPAWN"),
+            "timestamp": ts,
+            "output": payload.get("text", ""),
+            "tool_name": resolve_tool_name(payload) or payload.get("tool_name") or "create_subagent",
+        }
+        for key_name in ("template", "child_id", "parent_call_id"):
+            if payload.get(key_name):
+                rec[key_name] = payload[key_name]
         out.append(_with_parent(rec, record, ctx))
     return out
 
@@ -686,6 +718,50 @@ def _boundary_ingress_misc(
     ]
 
 
+def _boundary_control(
+    record: dict,
+    *,
+    ctx: TransformContext,
+    cid: int,
+    base: dict,
+    payload: dict,
+    ts: float,
+) -> list[dict]:
+    method = str(payload.get("method") or "")
+    category = str(payload.get("category") or (f"control.{method}" if method else "control"))
+    rec = {
+        "kind": "control",
+        "category": category,
+        "method": method,
+        "control_kind": payload.get("control_kind") or payload.get("kind") or method,
+        "actor": payload.get("actor") or "",
+        "surface": payload.get("surface") or "",
+        "denied": bool(payload.get("denied")),
+        "reason": payload.get("reason") or "",
+        "session_id": payload.get("session_id") or "",
+        "timestamp": ts,
+        **base,
+    }
+    extra = {
+        key: value
+        for key, value in payload.items()
+        if key
+        not in {
+            "method",
+            "category",
+            "control_kind",
+            "actor",
+            "surface",
+            "denied",
+            "reason",
+            "session_id",
+        }
+    }
+    if extra:
+        rec["payload"] = extra
+    return [rec]
+
+
 _BoundaryHandler = Callable[..., list[dict]]
 
 _BOUNDARY_KIND_HANDLERS: dict[str, _BoundaryHandler] = {
@@ -700,6 +776,7 @@ _BOUNDARY_KIND_HANDLERS: dict[str, _BoundaryHandler] = {
     ObsEventKind.GOVERNANCE_DECISION.value: _boundary_governance_decision,
     ObsEventKind.BOUNDARY_ERROR.value: _boundary_error,
     ObsEventKind.CONTEXT_STEER.value: _boundary_context_steer,
+    ObsEventKind.CONTROL.value: _boundary_control,
     ObsEventKind.BOUNDARY_EGRESS.value: _boundary_egress_misc,
     ObsEventKind.BOUNDARY_INGRESS.value: _boundary_ingress_misc,
 }

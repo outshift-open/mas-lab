@@ -10,7 +10,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from mas.ctl.adapters.checkpoint import InMemoryCheckpointStore, JsonCheckpointStore
+from mas.ctl.adapters.checkpoint import (
+    HybridCheckpointStore,
+    InMemoryCheckpointStore,
+    JsonCheckpointStore,
+    build_checkpoint_store,
+)
 from mas.ctl.adapters.memory_seed import (
     MemorySeed,
     MemorySeedLoader,
@@ -27,6 +32,7 @@ from mas.runtime.boundary.context.manifest_context import context_chunks_from_sp
 from mas.runtime.driver.instance import RuntimeInstance
 from mas.runtime.driver.mocks import AutoCtxAssembler
 from mas.runtime.engine.tools import is_control_tools_enabled, is_spawn_subagent_enabled, spawn_subagent_params
+from mas.runtime.spec.checkpoint import parse_checkpoint_policy
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +106,18 @@ class InstantiationOptions:
     experiment_default_model: str | None = None
     experiment_model_slots: dict[str, str] | None = None
     parent_spec: dict | None = None
+    extra_plugins: tuple[str, ...] = ()
+
+
+def _lab_enable_plugins(start: Path | None) -> list[str]:
+    """``lab.enable_plugins`` from the enclosing lab-config, if mas-lab is installed."""
+    if start is None:
+        return []
+    try:
+        from mas.lab.lab.config.lab_context import discover_lab_context
+    except ImportError:
+        return []
+    return list(discover_lab_context(start).enable_plugins)
 
 
 def hitl_contract_for_mode(mode: str) -> object | None:
@@ -115,7 +133,10 @@ def instantiate_runtime(
     options: InstantiationOptions,
     *,
     hitl=None,
-) -> tuple[RuntimeInstance, JsonCheckpointStore | InMemoryCheckpointStore | None]:
+) -> tuple[
+    RuntimeInstance,
+    JsonCheckpointStore | InMemoryCheckpointStore | HybridCheckpointStore | None,
+]:
     """Ctl-owned bootstrap: validate seeds/checkpoints, build instance, restore state."""
     seeds: list[MemorySeed] = []
     if options.memory_seed_path:
@@ -129,7 +150,24 @@ def instantiate_runtime(
                 seeds.append(seed)
                 seen.add(seed.key)
 
-    store = JsonCheckpointStore(options.checkpoint_dir) if options.checkpoint_dir else None
+    ws = options.workspace or WorkspaceConfig.load(options.manifest_dir)
+    if options.agent_manifest is not None:
+        from mas.runtime.workspace_plugins import apply_workspace_plugins
+
+        apply_workspace_plugins(
+            options.agent_manifest,
+            [
+                *ws.plugins,
+                *options.extra_plugins,
+                *_lab_enable_plugins(options.manifest_dir),
+            ],
+        )
+    policy = parse_checkpoint_policy(
+        ((options.agent_manifest or {}).get("spec") or {}).get("checkpoint")
+    )
+    store = build_checkpoint_store(policy, options.checkpoint_dir)
+    if store is None and policy.resolved_storage() == "memory":
+        store = InMemoryCheckpointStore()
     if store and seeds:
         store.memory_seeds = [{"key": s.key, "content": s.content} for s in seeds]
 
@@ -190,7 +228,6 @@ def instantiate_runtime(
             agency = mas_spec.get("agency") if isinstance(mas_spec, dict) else None
             if isinstance(agency, dict) and agency.get("agents"):
                 spec["agency"] = {"agents": list(agency.get("agents") or [])}
-    ws = options.workspace or WorkspaceConfig.load(options.manifest_dir)
     # Pre-parse spec to derive kernel config once; pass to build_engine to avoid double-parsing.
     from mas.runtime.spec.parser import parse_agent_spec
 
@@ -199,7 +236,11 @@ def instantiate_runtime(
         if options.resolved_infra and options.resolved_infra.runtime_engine
         else None
     )
-    _kernel_cfg, _obs_binding = parse_agent_spec(spec, runtime_engine=_runtime_engine)
+    _kernel_cfg, _obs_binding = parse_agent_spec(
+        spec,
+        runtime_engine=_runtime_engine,
+        manifest_dir=options.manifest_dir,
+    )
     if options.engine is not None:
         selection = EngineSelection(
             engine=options.engine,
@@ -269,17 +310,20 @@ def instantiate_runtime(
         index_seeds_in_semantic_memory(seeds, agent_id=agent_id)
 
     if options.checkpoint_path:
-        reader = store or JsonCheckpointStore(options.checkpoint_path.parent)
-        payload = reader.load_payload(options.checkpoint_path)
+        path = Path(options.checkpoint_path)
+        if isinstance(store, (JsonCheckpointStore, HybridCheckpointStore)):
+            reader = store
+        elif isinstance(store, InMemoryCheckpointStore) and path in store.snapshots:
+            reader = store
+        else:
+            reader = JsonCheckpointStore(path.parent)
+        payload = reader.load_payload(path)
         instance.load_checkpoint(payload["kernel"])
-        spec = (options.agent_manifest or {}).get("spec") or {}
-        from mas.runtime.spec.checkpoint import parse_checkpoint_policy
-
-        if parse_checkpoint_policy(spec.get("checkpoint")).mode == "in_memory":
+        if policy.resolved_storage() == "memory":
             store = InMemoryCheckpointStore()
         else:
             store = reader
-        if reader.memory_seeds:
+        if getattr(reader, "memory_seeds", None):
             apply_memory_seeds(
                 instance,
                 [MemorySeed(key=r["key"], content=r["content"]) for r in reader.memory_seeds],

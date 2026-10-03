@@ -73,6 +73,38 @@ LIBRARY_TYPES = frozenset(
         "infra_middleware",
         "hitl_responder",
         "control_protocol",
+        "checkpoint_store",
+        "runtime",
+    }
+)
+
+# Workspace / lab ``plugins:`` — gdb, checkpoint stores, control wire.
+# Off unless listed. Observability and governance stay in agent YAML.
+WORKSPACE_PLUGIN_TYPES = frozenset(
+    {
+        "runtime",
+        "checkpoint_store",
+        "control_protocol",
+    }
+)
+
+# Spec slots — reject if someone puts them in config.yaml plugins.
+SPEC_IDENTITY_TYPES = frozenset(
+    {
+        "design_pattern",
+        "context_manager",
+        "summarizer",
+        "assembler",
+        "memory",
+        "tool_provider",
+        "llm_provider",
+        "agent_comm",
+        "engine_tool_provider",
+        "hitl_contract",
+        "user_io_contract",
+        "governance",
+        "observability",
+        "system_tool",
     }
 )
 

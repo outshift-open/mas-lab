@@ -812,6 +812,33 @@ properties:
             type: string
             enum: [none, in_memory, on_event, every_turn]
             default: none
+            description: >
+              When to capture a checkpoint. ``none`` is manual only
+              (``--save-checkpoint``, control persist). ``on_event`` uses
+              ``triggers``. ``every_turn`` writes after each completed user
+              turn. ``in_memory`` is a storage alias (process-local) kept for
+              existing manifests; prefer ``storage.kind``.
+          storage:
+            description: >
+              Where checkpoint payloads live. Independent of cadence (mode).
+              Omit to infer from mode: ``in_memory`` → memory; ``on_event`` /
+              ``every_turn`` → disk. Hybrid keeps an in-process copy for
+              backtrack and writes files so a later process can resume.
+            oneOf:
+              - type: string
+                enum: [memory, disk, hybrid]
+              - type: object
+                additionalProperties: false
+                properties:
+                  kind:
+                    type: string
+                    enum: [memory, disk, hybrid]
+                  path:
+                    type: string
+                    description: >
+                      Directory for disk/hybrid files, relative to the agent
+                      directory unless absolute. CLI ``--checkpoint-dir``
+                      overrides this path.
           triggers:
             type: array
             items:
@@ -840,6 +867,19 @@ properties:
           auto_resume_latest:
             type: boolean
             default: false
+
+      debug:
+        type: object
+        additionalProperties: false
+        description: >
+          gdb-like debug_script plugin (script / script_file).
+          Enable the plugin from config.yaml plugins / lab.enable_plugins.
+          This object is the script config (script_file or inline script).
+        properties:
+          script_file:
+            type: string
+          script:
+            type: string
 
       governance:
         $ref: "./fragments/governance-binding.schema.yaml"

@@ -118,9 +118,13 @@ class RuntimeInstance:
 
         from mas.runtime.spec.parser import parse_agent_spec
 
-        kernel_config, spec_obs_binding = parse_agent_spec(spec, runtime_engine=runtime_engine)
-        obs_binding = obs_binding_override if obs_binding_override is not None else spec_obs_binding
         resolved_base_dir = (_Path(base_dir) if isinstance(base_dir, str) else base_dir) or _Path(".")
+        kernel_config, spec_obs_binding = parse_agent_spec(
+            spec,
+            runtime_engine=runtime_engine,
+            manifest_dir=resolved_base_dir,
+        )
+        obs_binding = obs_binding_override if obs_binding_override is not None else spec_obs_binding
 
         if not enable_governance:
             kernel_config = _replace(kernel_config, enable_governance=False)

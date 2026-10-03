@@ -707,7 +707,37 @@ class KernelDriver:
 
         gov = getattr(getattr(self.kernel, "config", None), "egress_governance_plugin", None)
         on_transition = getattr(gov, "on_transition", None)
-        if not callable(on_transition):
+        if callable(on_transition):
+            try:
+                transition = build_gov_transition(
+                    hook,
+                    symbol,
+                    q=self.kernel.q,
+                    agent_id=self.agent_id,
+                    session_id=self.session_id,
+                    task_id=self._current_task_id,
+                    agent_spec=getattr(self.kernel.config, "agent_spec", None),
+                )
+                get_filters = getattr(gov, "transition_filters", None)
+                if callable(get_filters):
+                    filters = get_filters()
+                    if not (filters and not any(f.matches(transition) for f in filters)):
+                        on_transition(transition)
+                else:
+                    on_transition(transition)
+            except Exception as exc:
+                apply_gov_error(self.kernel.q)
+                return gov_plugin_boundary_error(exc)
+        return self._notify_runtime_plugins(hook, symbol)
+
+    def _notify_runtime_plugins(
+        self, hook: Literal["ingress", "egress"], symbol: IngressSymbol | EgressSymbol
+    ) -> RaiseBoundaryError | None:
+        """gdb and other runtime plugins observe; they never BLOCK."""
+        from mas.runtime.boundary.gov.transition import build_gov_transition
+
+        plugins = tuple(getattr(getattr(self.kernel, "config", None), "runtime_plugins", ()) or ())
+        if not plugins:
             return None
         try:
             transition = build_gov_transition(
@@ -719,15 +749,22 @@ class KernelDriver:
                 task_id=self._current_task_id,
                 agent_spec=getattr(self.kernel.config, "agent_spec", None),
             )
-            get_filters = getattr(gov, "transition_filters", None)
+        except Exception:
+            _logger.debug("runtime plugin transition build failed", exc_info=True)
+            return None
+        for plugin in plugins:
+            on_transition = getattr(plugin, "on_transition", None)
+            if not callable(on_transition):
+                continue
+            get_filters = getattr(plugin, "transition_filters", None)
             if callable(get_filters):
                 filters = get_filters()
                 if filters and not any(f.matches(transition) for f in filters):
-                    return None
-            on_transition(transition)
-        except Exception as exc:
-            apply_gov_error(self.kernel.q)
-            return gov_plugin_boundary_error(exc)
+                    continue
+            try:
+                on_transition(transition)
+            except Exception:
+                _logger.debug("runtime plugin failed", exc_info=True)
         return None
 
     def _invoke_engine(self, io: InvokeEngineIo) -> EngineIoReturn:

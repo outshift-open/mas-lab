@@ -9,3 +9,4 @@ Runnable Agent/MAS scenarios for `spec.governance` chain plugins.
 | Example | Kind | Plugin |
 |---------|------|--------|
 | [undeclared-tool](undeclared-tool/) | Agent | `gov_no_undeclared_tool` |
+| [debug-script](debug-script/) | Agent | `debug_script` gdb-like breakpoints + control attach |

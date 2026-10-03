@@ -24,7 +24,7 @@ REF_KEYS = frozenset(
 )
 
 # Parent keys whose "path" child is a runtime output sink, not an input file ref.
-_OUTPUT_PATH_PARENTS = frozenset({"telemetry", "artifacts"})
+_OUTPUT_PATH_PARENTS = frozenset({"telemetry", "artifacts", "storage"})
 
 
 def resolve_refs_enabled() -> bool:

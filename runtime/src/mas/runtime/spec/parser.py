@@ -54,6 +54,7 @@ def parse_agent_spec(
     spec: dict[str, Any],
     *,
     runtime_engine: dict[str, Any] | None = None,
+    manifest_dir: Any | None = None,
 ) -> tuple[KernelConfig, ObservabilityBinding | None]:
     """Parse a raw agent spec dict into (KernelConfig, ObservabilityBinding | None).
 
@@ -65,6 +66,9 @@ def parse_agent_spec(
     - ``KernelConfig`` built from governance spec + design pattern
     - ``ObservabilityBinding | None`` (None when observability is absent/empty)
     """
+    from mas.runtime.spec.runtime_plugins import attach_runtime_plugins, peel_legacy_debug_script
+
+    peel_legacy_debug_script(spec)
     gov_raw = spec.get("governance")
     obs_raw = spec.get("observability")
     parse_checkpoint_policy(spec.get("checkpoint"))
@@ -72,7 +76,16 @@ def parse_agent_spec(
     pattern_plugin_id = _resolve_pattern_plugin_id(spec)
 
     kernel_config = build_kernel_config(
-        gov_binding, pattern_plugin_id=pattern_plugin_id, agent_spec=spec
+        gov_binding,
+        pattern_plugin_id=pattern_plugin_id,
+        agent_spec=spec,
+        manifest_dir=manifest_dir,
+    )
+    kernel_config = attach_runtime_plugins(
+        kernel_config,
+        spec,
+        enabled_refs=[],
+        manifest_dir=manifest_dir,
     )
     kernel_config = _apply_design_pattern_params(spec, kernel_config)
 

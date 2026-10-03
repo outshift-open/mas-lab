@@ -60,6 +60,21 @@ def test_control_protocol_is_a_library_plugin() -> None:
     assert ControlRpcProtocol().plugin_id == "rpc"
 
 
+def test_checkpoint_store_is_a_library_plugin() -> None:
+    from mas.library.standard.plugins.checkpoint import (
+        HybridCheckpointStore,
+        InMemoryCheckpointStore,
+        JsonCheckpointStore,
+    )
+    from mas.runtime.harness.catalog import LIBRARY_TYPES, classify_plugin_type
+
+    assert "checkpoint_store" in LIBRARY_TYPES
+    assert classify_plugin_type("checkpoint_store") == "library"
+    assert InMemoryCheckpointStore.plugin_id == "memory"
+    assert JsonCheckpointStore.plugin_id == "disk"
+    assert HybridCheckpointStore.plugin_id == "hybrid"
+
+
 @pytest.mark.asyncio
 async def test_attach_over_tcp_enqueues(tmp_path: Path) -> None:
     manager = _manager()
@@ -127,3 +142,52 @@ def test_host_gone_without_persist_fails_closed(tmp_path: Path) -> None:
         resolve_attach(directory, "s1")
     with pytest.raises(HostGone):
         recover_after_host_gone(caught.value, SessionManager())
+
+
+@pytest.mark.asyncio
+async def test_attach_by_session_id_can_snapshot_pause_and_steer(tmp_path: Path) -> None:
+    manager = _manager()
+    control = manager.control(capability=ControlCapability(actor="rpc", surface="admin"))
+    directory = FileSessionDirectory(tmp_path)
+    server, hosted = await serve_and_advertise(control, directory, "s1", host="127.0.0.1")
+    client = await attach(directory, "s1")
+    try:
+        await client.apause("s1", reason="freeze")
+        ref = await client.asnapshot("s1", label="before-steer", auto_stop=True)
+        await client.aresume("s1")
+        await client.asteer("s1", text="Answer Lyon.", mode="enqueue")
+        nodes = await client.alist_checkpoints("s1")
+        view = await client.ainspect("s1")
+        assert ref["label"] == "before-steer"
+        assert view["session_id"] == "s1"
+        assert any(node["snapshot_id"] == ref["snapshot_id"] for node in nodes)
+        queue = await client.ainspect_queue("s1")
+        assert queue["items"][0]["action"] == "turn"
+    finally:
+        await client.close()
+        hosted.unadvertise()
+        await server.close()
+
+
+@pytest.mark.asyncio
+async def test_persist_writes_checkpoint_file_for_resume(tmp_path: Path) -> None:
+    from mas.ctl.adapters.checkpoint import JsonCheckpointStore
+
+    manager = _manager()
+    store = JsonCheckpointStore(tmp_path / "ckpts")
+    manager.checkpoint_store = store
+    control = manager.control(capability=ControlCapability(actor="rpc", surface="admin"))
+    directory = FileSessionDirectory(tmp_path / "dir")
+    server, hosted = await serve_and_advertise(control, directory, "s1", host="127.0.0.1")
+    client = await attach(directory, "s1")
+    try:
+        saved = await client.apersist("s1", label="before-steer", auto_stop=True)
+        await client.asteer("s1", text="Answer Lyon.", mode="enqueue")
+        payload = store.load_payload(Path(saved["path"]))
+        assert saved["label"] == "before-steer"
+        assert payload["version"] == 2
+        assert "Lyon" not in str(payload.get("working_memory"))
+    finally:
+        await client.close()
+        hosted.unadvertise()
+        await server.close()

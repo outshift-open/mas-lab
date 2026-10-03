@@ -153,6 +153,7 @@ def test_serve_runtime_handler_preserves_structured_artifacts() -> None:
 
     result = _make_runtime_handler(RuntimeInstance())("question")
     assert result["text"] == "Generated output"
+    assert result["context_id"]
     assert result["artifacts"] == [
         {
             "kind": "data",
@@ -160,7 +161,6 @@ def test_serve_runtime_handler_preserves_structured_artifacts() -> None:
             "data": {"value": 42},
         }
     ]
-    assert result["context_id"]
 
 
 def test_serve_runtime_handler_marks_pending_hitl_as_input_required() -> None:

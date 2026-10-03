@@ -160,6 +160,7 @@ def build_kernel_config(
     *,
     pattern_plugin_id: str = "",
     agent_spec: dict[str, Any] | None = None,
+    manifest_dir: Any | None = None,
 ) -> Any:
     """Instantiate governance plugins and build a KernelConfig from a GovernanceBinding.
 
@@ -220,6 +221,8 @@ def build_kernel_config(
         plugin_cfg.pop("error_recovery_plugin", None)
         plugin_cfg.pop("backtrack", None)
         plugin_cfg.pop("error_policy", None)
+        if manifest_dir is not None:
+            plugin_cfg.setdefault("manifest_dir", str(manifest_dir))
         plugin = _instantiate(name, plugin_cfg)
         if plugin is not None:
             egress_plugins.append(plugin)

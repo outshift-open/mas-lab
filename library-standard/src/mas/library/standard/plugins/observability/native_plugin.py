@@ -15,6 +15,21 @@ from mas.runtime.boundary.obs.binding import ObservabilityBinding
 from mas.runtime.boundary.obs.transition import TransitionEvent
 
 
+def _parse_categories(raw: object) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    if raw is None:
+        return (), ()
+    if isinstance(raw, (list, tuple)):
+        return tuple(str(item) for item in raw if str(item).strip()), ()
+    if isinstance(raw, dict):
+        include = raw.get("include") or raw.get("enable") or []
+        exclude = raw.get("exclude") or raw.get("disable") or []
+        return (
+            tuple(str(item) for item in include if str(item).strip()),
+            tuple(str(item) for item in exclude if str(item).strip()),
+        )
+    return (), ()
+
+
 @dataclass
 class NativeObservabilityPlugin(ObservabilityPlugin):
     """Project kernel transitions to native ``events.jsonl`` (library-standard, read mode)."""
@@ -31,6 +46,8 @@ class NativeObservabilityPlugin(ObservabilityPlugin):
     # caller that explicitly wants every record stamped with one fixed value
     # regardless of what transitions report.
     session_id: str = ""
+    categories_include: tuple[str, ...] = ()
+    categories_exclude: tuple[str, ...] = ()
     _fanout: FanOutEmitter | None = field(default=None, init=False)
     _ctx_by_agent: dict[str, TransformContext] = field(default_factory=dict, init=False)
     # This plugin instance is shared across every agent in a multi-agent run
@@ -98,13 +115,28 @@ class NativeObservabilityPlugin(ObservabilityPlugin):
             session_id=event.session_id or self.session_id,
             task_id=event.task_id,
         ):
-            self._fanout.emit(rec)
+            if self._category_allowed(rec):
+                self._fanout.emit(rec)
         # Propagate run-global MAS call id back to the shared base so contexts
         # created for other agents afterwards inherit it (mas_call_start is
         # emitted on the "mas" pseudo-agent, before sub-agent contexts exist).
         with self._lock:
             if ctx.mas_call_id and not self.context.mas_call_id:
                 self.context.mas_call_id = ctx.mas_call_id
+
+    def _category_allowed(self, rec: dict) -> bool:
+        category = str(rec.get("category") or rec.get("kind") or "")
+        if self.categories_exclude and any(
+            category == item or category.startswith(f"{item}.") or rec.get("kind") == item
+            for item in self.categories_exclude
+        ):
+            return False
+        if not self.categories_include:
+            return True
+        return any(
+            category == item or category.startswith(f"{item}.") or rec.get("kind") == item
+            for item in self.categories_include
+        )
 
     def flush(self) -> None:
         if self._fanout:
@@ -140,10 +172,13 @@ class NativeObservabilityPlugin(ObservabilityPlugin):
             emitters.append(StdoutJsonlEmitter())
         emitters.insert(0, JsonlFileEmitter(events_path))
 
+        include, exclude = _parse_categories(native_cfg.get("categories"))
         return cls(
             transforms=[NativeObservabilityTransform()],
             emitters=emitters,
             context=TransformContext(agent_id=agent_id, run_id=""),
+            categories_include=include,
+            categories_exclude=exclude,
         )
 
 

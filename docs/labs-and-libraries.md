@@ -70,6 +70,11 @@ invent a third top-level “plugins folder” beside lab vs library.
 A pipeline step is still a plugin of type `step`. The lab is the experiment
 surface; the library is what registers the step.
 
+**Enable without editing agent YAML.** Workspace `config.yaml` `plugins:` and
+`lab.enable_plugins` turn on **runtime** plugins (gdb, checkpoint stores).
+Every catalog entry is commented in the init template — uncomment to enable.
+`spec.observability` and `spec.governance` stay on the agent.
+
 ---
 
 ## When to use which

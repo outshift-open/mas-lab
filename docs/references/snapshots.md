@@ -9,7 +9,11 @@ spec revision, and optional related-state fingerprints (execute
 workspace). Taking one does not write disk.
 
 A **checkpoint** is that node written so it survives a process restart.
-`persist(snapshot, store)` is the only bridge.
+`persist(snapshot, store)` is the only bridge. `mas-ctl control persist`
+writes that file after the session is paused (or with `--auto-stop`);
+another process resumes it with `mas-ctl checkpoint fork` then
+`mas-ctl chat --load-checkpoint`. `mas-ctl control resume` only unpauses
+the live session.
 
 The nodes form a **tree**. Walking the tree moves a debug cursor. That
 is not the live run. Promoting a branch replaces the live run.

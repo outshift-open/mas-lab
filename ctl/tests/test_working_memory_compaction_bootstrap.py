@@ -115,3 +115,14 @@ def test_in_memory_resume_does_not_keep_a_disk_store(tmp_path: Path, monkeypatch
     )
     _, store = _instantiate(manifest, tmp_path, monkeypatch, checkpoint_path=path)
     assert isinstance(store, InMemoryCheckpointStore)
+
+
+def test_hybrid_storage_builds_a_hybrid_store(tmp_path: Path, monkeypatch):
+    from mas.ctl.adapters.checkpoint import HybridCheckpointStore
+
+    manifest = {
+        "metadata": {"name": "agent"},
+        "spec": {"checkpoint": {"mode": "every_turn", "storage": "hybrid"}},
+    }
+    _, store = _instantiate(manifest, tmp_path, monkeypatch, checkpoint_dir=tmp_path)
+    assert isinstance(store, HybridCheckpointStore)

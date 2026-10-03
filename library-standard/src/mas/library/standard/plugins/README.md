@@ -67,7 +67,7 @@ plugin is how an operator process attaches to the control plane.
 
 | ID | Role | Implementation |
 |----|------|----------------|
-| `rpc` | Wire protocol | `ControlRpcProtocol` — advertise, heartbeat, unix/TCP, fail closed |
+| `rpc` | Wire protocol | `ControlRpcProtocol` — advertise, heartbeat, unix/TCP, fail closed. Attach key is the session id (A2A `contextId`). |
 
 Thinking depth, thinking-token budget, and hiding chain-of-thought live on
 `spec.models[].reasoning` (`effort`, `budget_tokens`, `exclude`) — see
@@ -87,11 +87,13 @@ from the manifest, not from `mas.runtime`.
 | `gov_no_undeclared_tool@v1` | `gov_no_undeclared_tool`, `no_undeclared_tool` | `NoUndeclaredToolPlugin` — BLOCK names not in this LLM call's `tools` list; chain rule (pass or stop) |
 | `retry_on_error@v1` | `retry_on_error` | `RetryOnErrorPlugin` — ingress `error_policy` classifier; egress PASSes |
 
+gdb `debug_script` is a **runtime** plugin (`mas.runtime.debug_script`), not
+governance. Card: [governance/debug-script.md](governance/debug-script.md).
+Example: [examples/governance/debug-script/](../../../../../examples/governance/debug-script/).
+
 - Card: [governance/no-undeclared-tool.md](governance/no-undeclared-tool.md)
 - Card: [governance/retry-on-error.md](governance/retry-on-error.md)
 - Example (not an app): [examples/governance/undeclared-tool/](../../../../../examples/governance/undeclared-tool/)
-  ([index](../../../../../examples/README.md))
-- Overlay: `pkg://mas.library.standard/overlays/with-hardened.yaml` — [overlays/README.md](../overlays/README.md)
 
 `spec.governance` is a chain (BLOCK exits, ALLOW continues). `spec.observability` is a sequence.
 

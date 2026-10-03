@@ -2,6 +2,7 @@
 #  SPDX-License-Identifier: Apache-2.0
 """library-standard governance plugins."""
 
+from mas.library.standard.plugins.governance.debug_script import DebugScriptPlugin
 from mas.library.standard.plugins.governance.no_undeclared_tool import (
     NoUndeclaredToolPlugin,
     undeclared_tool_observation,
@@ -9,6 +10,7 @@ from mas.library.standard.plugins.governance.no_undeclared_tool import (
 from mas.library.standard.plugins.governance.sample import SampleGovernancePlugin
 
 __all__ = [
+    "DebugScriptPlugin",
     "NoUndeclaredToolPlugin",
     "SampleGovernancePlugin",
     "undeclared_tool_observation",

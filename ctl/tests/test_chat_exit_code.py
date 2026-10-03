@@ -43,7 +43,7 @@ spec:
                     runner = CliRunner()
                     result = runner.invoke(
                         chat_cmd,
-                        [str(agent), "--prompt", "hello", "--no-validate", "-I"],
+                        [str(agent), "--prompt", "hello", "--no-validate", "-I", "--no-control"],
                     )
 
     assert result.exit_code == 1, result.output

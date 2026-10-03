@@ -57,6 +57,23 @@ def test_enabled_spawn_tool_is_the_capability_gate():
     assert is_spawn_subagent_enabled(spec) is True
 
 
+def test_create_subagent_is_the_same_capability_as_spawn() -> None:
+    from mas.runtime.engine.tools import is_spawn_subagent_enabled, spawn_subagent_params
+
+    spec = {
+        "tools": [
+            {
+                "kind": "system",
+                "name": "create_subagent",
+                "params": {"templates": [{"id": "w", "ref": "w.yaml"}]},
+            }
+        ]
+    }
+    validate_agent_spec_bindings(spec)
+    assert is_spawn_subagent_enabled(spec) is True
+    assert spawn_subagent_params(spec)["templates"][0]["id"] == "w"
+
+
 @pytest.mark.parametrize(
     "params",
     [

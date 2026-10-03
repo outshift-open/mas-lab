@@ -53,6 +53,11 @@ resolve from workspace refs, `$XDG_CONFIG_HOME/mas/infra/`, or explicit
 resolution. See [runtime/docs/plugin-aliases.md](../runtime/docs/plugin-aliases.md)
 for the discovery order and canonical name mapping.
 
+`plugins:` is a separate overlay list of **runtime** plugins (gdb, checkpoint
+stores). Off unless uncommented. Observability and governance stay in the
+agent spec. See the
+[config.yaml reference](references/config.yaml.md#plugins-workspace-overlays).
+
 **Config file names**
 
 | Location | File | Role |
@@ -68,6 +73,7 @@ Default data paths follow the [XDG Base Directory Specification](https://specifi
 | `XDG_DATA_HOME` | `~/.local/share` | `$XDG_DATA_HOME/mas/labs`, `…/runs`, `…/data` |
 | `XDG_CACHE_HOME` | `~/.cache` | `$XDG_CACHE_HOME/mas/traces`, `…/artifacts`, `…/llm_cache.json` |
 | `XDG_STATE_HOME` | `~/.local/state` | `$XDG_STATE_HOME/mas/last-run.json` |
+| `XDG_RUNTIME_DIR` | `/run/user/<uid>` (Linux); else `/var/run`; else temp | `$XDG_RUNTIME_DIR/mas-ctl` control advertisements (`MAS_CONTROL_DIR` overrides) |
 
 ## Quick Start
 

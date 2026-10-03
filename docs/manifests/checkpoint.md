@@ -12,13 +12,17 @@ checkpoint must not contain inline secrets.
 
 ## Policy
 
-`spec.checkpoint` defaults to no automatic checkpointing. Configure it on an
-Agent manifest or apply the standard `openclaw` overlay:
+`spec.checkpoint` defaults to no automatic checkpointing. Configure cadence
+(`mode`) and location (`storage`) on an Agent manifest, or apply the standard
+`openclaw` overlay:
 
 ```yaml
 spec:
   checkpoint:
-    mode: on_event
+    mode: every_turn
+    storage:
+      kind: hybrid
+      path: .mas/checkpoints
     triggers: [after_llm_call]
     retention:
       mode: last_n
@@ -30,6 +34,7 @@ spec:
 | Setting | Values | Default |
 | --- | --- | --- |
 | `mode` | `none`, `in_memory`, `on_event`, `every_turn` | `none` |
+| `storage` | `memory`, `disk`, `hybrid`, or `{kind, path}` | inferred from `mode` |
 | `triggers` | `after_llm_call`, `after_tool_call`, `before_destructive_tool`, `every_n_turns` | `[]` |
 | `every_n_turns` | Positive integer; used with the `every_n_turns` trigger | unset |
 | `retention.mode` | `all`, `single`, `last_n` | `all` |
@@ -37,11 +42,26 @@ spec:
 | `portability` | `self_contained`, `reference` | `self_contained` |
 | `auto_resume_latest` | Boolean | `false` |
 
-`in_memory` supports rollback during the current process only. `on_event` writes
-at selected LLM/tool boundaries; `every_turn` writes after each completed user
-turn. When disk persistence is enabled without `--checkpoint-dir`, the CLI uses
-`.mas/checkpoints` beside the active manifest (or current working directory).
-Retention prunes only files belonging to the same session.
+`mode` is **when** to capture. `storage` is **where** payloads live, resolved
+as a library **`checkpoint_store` plugin** (`memory`, `disk`, `hybrid`) that
+implements kernel `persist`. It is not a new envelope slot:
+
+- `memory` — process-local. `/backtrack` works; a new process cannot load.
+- `disk` — JSON files. `checkpoint list` / `fork` / `--load-checkpoint`.
+- `hybrid` — memory plus files. Fast in-process copy; disk is the resume witness.
+
+When `storage` is omitted, `mode: in_memory` means memory; `on_event` and
+`every_turn` mean disk. `auto_resume_latest` requires disk or hybrid.
+A workspace or lab may enable a store via `config.yaml` `plugins:` /
+`lab.enable_plugins` (`mas.checkpoint_store.hybrid`, …) when the spec omits
+`storage`. Spec `storage` still wins. CLI `--checkpoint-dir` overrides
+`storage.path`. When disk persistence is
+enabled without either, the CLI uses `.mas/checkpoints` beside the active
+manifest (or current working directory). Retention prunes only files belonging
+to the same session.
+
+A walkthrough (crash, resume, fork, backtrack):
+[Tutorial 6](../tutorials/06-sessions-and-recovery/).
 
 ## Resume and fork
 

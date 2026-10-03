@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import os
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -63,13 +63,19 @@ class ControlHost:
     persist_path: str = ""
     token: str = ""
     pid: int = 0
+    extra_sessions: list[str] = field(default_factory=list)
 
     def advertise(self) -> SessionAdvertisement:
+        return self.advertise_session(self.session_id)
+
+    def advertise_session(self, session_id: str) -> SessionAdvertisement:
         token = self.token or secrets.token_urlsafe(32)
         self.token = token
+        if session_id != self.session_id and session_id not in self.extra_sessions:
+            self.extra_sessions.append(session_id)
         return self.directory.advertise(
             SessionAdvertisement(
-                session_id=self.session_id,
+                session_id=session_id,
                 rpc=self.rpc,
                 persist_path=self.persist_path,
                 pid=self.pid or os.getpid(),
@@ -78,10 +84,17 @@ class ControlHost:
         )
 
     def heartbeat(self) -> SessionAdvertisement:
+        for session_id in list(self.extra_sessions):
+            try:
+                self.directory.heartbeat(session_id)
+            except KeyError:
+                continue
         return self.directory.heartbeat(self.session_id)
 
     def unadvertise(self) -> None:
         self.directory.unadvertise(self.session_id)
+        for session_id in list(self.extra_sessions):
+            self.directory.unadvertise(session_id)
 
 
 async def serve_and_advertise(

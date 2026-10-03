@@ -277,11 +277,9 @@ def test_send_message_queues_and_never_amends() -> None:
         inflight_llm._preempts.pop("s1", None)
 
 
-def test_llm_tools_cannot_send_message_or_steer() -> None:
+def test_llm_tools_cannot_send_message() -> None:
     manager = SessionManager()
     session = _session(manager)
     llm = session.instance.driver.ctx.control
-    with pytest.raises(ControlDenied, match="steer"):
-        llm.steer("s1", text="no")
     with pytest.raises(ControlDenied, match="send_message"):
         llm.send_message("s1", text="no")

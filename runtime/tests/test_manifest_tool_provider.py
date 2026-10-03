@@ -156,14 +156,15 @@ def test_spawn_subagent_tool_advertises_only_granted_templates():
     assert tool.on_collect_tools(
         ctx=SimpleNamespace(allow_subagent_spawning=True, subagent_templates=[])
     ) == []
-    [spec] = tool.on_collect_tools(
+    advertised = tool.on_collect_tools(
         ctx=SimpleNamespace(
             allow_subagent_spawning=True,
             subagent_templates=[{"id": "worker", "description": "Review code"}],
         )
     )
-    assert spec["name"] == "spawn_subagent"
-    assert spec["parameters"]["properties"]["template"]["enum"] == ["worker"]
+    assert [spec["name"] for spec in advertised] == ["create_subagent", "spawn_subagent"]
+    assert advertised[0]["parameters"]["properties"]["template"]["enum"] == ["worker"]
+    assert advertised[1]["parameters"]["properties"]["template"]["enum"] == ["worker"]
 
 
 def test_manifest_tool_attachment_gates_spawn_subagent_on_manifest_capability(tmp_path: Path):
@@ -192,9 +193,44 @@ def test_manifest_tool_attachment_gates_spawn_subagent_on_manifest_capability(tm
     attach_manifest_tools(engine, manifest, tmp_path, ctx=ctx)
 
     advertised = engine.tool_provider.list_openai_tools(ctx=ctx)
-    assert [tool["function"]["name"] for tool in advertised] == ["spawn_subagent"]
+    assert [tool["function"]["name"] for tool in advertised] == [
+        "create_subagent",
+        "spawn_subagent",
+    ]
     assert advertised[0]["function"]["parameters"]["properties"]["template"]["enum"] == [
         "worker"
+    ]
+
+
+def test_manifest_tool_attachment_accepts_create_subagent_alias(tmp_path: Path):
+    from types import SimpleNamespace
+
+    from mas.runtime.engine.manifest_tool_provider import attach_manifest_tools
+
+    manifest = {
+        "spec": {
+            "tools": [
+                {
+                    "kind": "system",
+                    "name": "create_subagent",
+                    "params": {
+                        "templates": [
+                            {"id": "worker", "ref": "worker.yaml", "description": "Review"}
+                        ]
+                    },
+                }
+            ],
+        }
+    }
+    ctx = SimpleNamespace()
+    engine = SimpleNamespace()
+
+    attach_manifest_tools(engine, manifest, tmp_path, ctx=ctx)
+
+    advertised = engine.tool_provider.list_openai_tools(ctx=ctx)
+    assert [tool["function"]["name"] for tool in advertised] == [
+        "create_subagent",
+        "spawn_subagent",
     ]
 
 
