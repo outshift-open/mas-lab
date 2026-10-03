@@ -98,6 +98,22 @@ properties:
           Directories (relative to workspace root) scanned for ``*.lab`` folders
           and experiment YAML. Separate from ``paths.labs_dir`` (benchmark output).
 
+  plugins:
+    description: >-
+      Workspace plugins (gdb, checkpoint stores). Off unless listed. The init
+      template comments every catalog URN; uncomment ``plugins:`` and a line
+      to enable it. Labs may
+      enable the same URNs as ``lab.enable_plugins``. Specs that already name
+      a plugin keep their own config.
+    oneOf:
+      - type: array
+        items:
+          type: string
+          minLength: 1
+      - type: object
+        additionalProperties:
+          type: boolean
+
   infra_refs:
     oneOf:
       - type: string

@@ -69,6 +69,34 @@ Preempt needs a cancellable decode. `ainvoke` uses `achat_completion_stream` whe
 
 `finish_reason=preempted` / `replaced` on `EngineIoReturn` means that **decode** ended, not that the agent finished answering. Evaluate does not emit `EmitClientResponse` for those.
 
+`mas-ctl chat` and `mas-ctl serve` advertise each session id (A2A
+`contextId`) in `$XDG_RUNTIME_DIR/mas-ctl`, else `/var/run/mas-ctl`, else
+the process temp dir (`MAS_CONTROL_DIR` overrides). `mas-ctl control attach
+SESSION_ID` uses that default. Pass `--no-control` to skip advertising.
+
+Gdb-like debug scripts are a **runtime** plugin (`debug_script`).
+They observe tool-call / tool-result so the process can act as a debugger
+(`evaluate_egress` always ALLOW). Enable from workspace `config.yaml`
+`plugins:` / `lab.enable_plugins`. `spec.debug` holds `script_file` or
+inline `script`. Load also with `mas-ctl chat --debug-script @file`.
+`break tool_call` / `break tool_result … if first`, then `checkpoint`,
+`info checkpoints`, `info working_memory`, `continue`.
+Breakpoint hits emit native telemetry
+(`category: debug.breakpoint`); `checkpoint` / `pause` / `resume` go
+through `ControlContract`.
+
+Checkpoint **storage** is a library `checkpoint_store` plugin
+(`memory`, `disk`, `hybrid`) behind `persist`. See
+[Session checkpoints](../manifests/checkpoint.md).
+
+Workspace `config.yaml` `plugins:` and `lab.enable_plugins` turn on gdb and
+checkpoint stores. Off unless listed. `spec.observability` and
+`spec.governance` stay on the agent.
+
+`mas-ctl control` scripts (`pause`, `persist --auto-stop`, `steer`) use the
+same language whether chained on the CLI, passed as `-e`, or `--data @file`.
+Snapshot/persist require a paused session unless `--auto-stop`.
+
 ## Layers
 
 1. **Kernel operations** — the table above.

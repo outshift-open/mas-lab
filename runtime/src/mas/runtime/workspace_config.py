@@ -173,3 +173,10 @@ class RuntimeWorkspaceConfig:
     def default_model(self) -> str | None:
         model = self.defaults.get("model")
         return model or None
+
+    @property
+    def plugins(self) -> list[str]:
+        """Overlay plugin URNs from ``plugins:``. Empty when omitted or all commented."""
+        from mas.runtime.workspace_plugins import parse_plugin_refs
+
+        return parse_plugin_refs(self._data.get("plugins"))

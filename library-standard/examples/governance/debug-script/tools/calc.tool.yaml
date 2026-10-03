@@ -1,0 +1,24 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Tool
+metadata:
+  name: calc
+  description: Evaluate a basic arithmetic expression.
+  version: "1.0.0"
+spec:
+  description: >
+    Evaluate +, -, *, / with parentheses. Numbers only.
+  parameters:
+    - name: expression
+      type: string
+      description: Arithmetic expression.
+      required: true
+      examples: ["2 + 2"]
+  impl:
+    kind: python
+    module_path: ./tools.py
+    class_name: DemoTools
+    params:
+      name: calc
+      description: Evaluate a basic arithmetic expression.

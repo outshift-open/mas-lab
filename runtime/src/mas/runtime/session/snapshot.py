@@ -294,6 +294,17 @@ def persist(snapshot: Snapshot, store: Any, *, manifest: dict[str, Any], lineage
     from mas.runtime.session.state import ManifestRef
 
     ref = ManifestRef.from_content(manifest)
+    working_memory = []
+    for entry in snapshot.working_memory or []:
+        item = dict(entry)
+        history = []
+        for turn in item.get("turn_history") or []:
+            if isinstance(turn, (list, tuple)) and len(turn) >= 2:
+                history.append([str(turn[0]), str(turn[1])])
+            else:
+                history.append(turn)
+        item["turn_history"] = history
+        working_memory.append(item)
     payload = {
         "version": 2,
         "label": snapshot.ref.label,
@@ -302,7 +313,7 @@ def persist(snapshot: Snapshot, store: Any, *, manifest: dict[str, Any], lineage
         "spec_revision": snapshot.spec_revision,
         "lineage": lineage,
         "kernel": snapshot.kernel_dict(),
-        "working_memory": snapshot.working_memory,
+        "working_memory": working_memory,
         "related": [
             r.as_payload() if hasattr(r, "as_payload") else r for r in (snapshot.related or [])
         ],

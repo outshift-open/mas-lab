@@ -18,6 +18,7 @@ _CONTRACT_BY_MACHINE: dict[str, str] = {
     "M_gov": "governance",
     "M_obs": "observability",
     "M_dp": "orchestrator",
+    "M_control": "control",
     "execution_engine": "orchestrator",
 }
 
@@ -78,6 +79,8 @@ def _contract_id(event: ObservabilityEvent) -> str:
         return "governance"
     if event.kind in (ObsEventKind.CONTEXT_ASSEMBLED, ObsEventKind.CONTEXT_MUTATION, ObsEventKind.CONTEXT_STEER):
         return "context"
+    if event.kind == ObsEventKind.CONTROL:
+        return "control"
     if event.kind in (ObsEventKind.ENGINE_IO, ObsEventKind.ENGINE_IO_RETURN):
         op = (event.payload or {}).get("op", "LLM_CALL")
         if op == "TOOL_CALL":

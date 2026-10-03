@@ -38,6 +38,8 @@ types:
   - infra_middleware
   - hitl_responder
   - control_protocol
+  - checkpoint_store
+  - runtime
 
 plugins:
   - type: engine_tool_provider
@@ -65,6 +67,12 @@ plugins:
   - type: system_tool
     name: spawn_subagent
     urn: mas.system_tool.spawn_subagent
+    module: mas.library.standard.plugins.system_tools.spawn_subagent
+    class: SpawnSubagentTool
+    attributes: {default_enabled: false, capability: orchestration}
+  - type: system_tool
+    name: create_subagent
+    urn: mas.system_tool.create_subagent
     module: mas.library.standard.plugins.system_tools.spawn_subagent
     class: SpawnSubagentTool
     attributes: {default_enabled: false, capability: orchestration}
@@ -118,6 +126,29 @@ plugins:
     shortcuts:
       - rpc
       - control_rpc
+  - type: checkpoint_store
+    name: memory
+    urn: mas.checkpoint_store.memory
+    module: mas.library.standard.plugins.checkpoint
+    class: InMemoryCheckpointStore
+    shortcuts:
+      - memory
+      - in_memory
+  - type: checkpoint_store
+    name: disk
+    urn: mas.checkpoint_store.disk
+    module: mas.library.standard.plugins.checkpoint
+    class: JsonCheckpointStore
+    shortcuts:
+      - disk
+      - json
+  - type: checkpoint_store
+    name: hybrid
+    urn: mas.checkpoint_store.hybrid
+    module: mas.library.standard.plugins.checkpoint
+    class: HybridCheckpointStore
+    shortcuts:
+      - hybrid
 
   # Observability plugins
   - type: observability
@@ -249,6 +280,21 @@ plugins:
     shortcuts:
       - gov_no_undeclared_tool
       - no_undeclared_tool
+  - type: runtime
+    name: debug_script
+    urn: mas.runtime.debug_script
+    module: mas.library.standard.plugins.governance.debug_script
+    class: DebugScriptPlugin
+    description: >
+      gdb-like debugger over snapshot/pause/resume. Observes tool-call and
+      tool-result. Enable from config.yaml plugins. spec.debug holds
+      script / script_file.
+    shortcuts:
+      - debug_script
+      - gdb
+      - gov_debug_script
+    attributes:
+      expose_as_system_tool: false
   - type: governance
     name: backtrack_on_error
     urn: mas.gov.backtrack_on_error

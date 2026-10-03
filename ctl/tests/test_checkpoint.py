@@ -160,3 +160,33 @@ def test_in_memory_checkpoint_store_round_trips_payload() -> None:
     path = store.save(payload, label="s-mem")
 
     assert store.load_payload(path) == payload
+
+
+def test_hybrid_checkpoint_store_writes_memory_and_disk(tmp_path: Path) -> None:
+    from mas.ctl.adapters.checkpoint import HybridCheckpointStore, build_checkpoint_store
+    from mas.runtime.spec.checkpoint import parse_checkpoint_policy
+
+    payload = {
+        "version": 2,
+        "label": "mix",
+        "turn": 1,
+        "lineage": {
+            "session_id": "s",
+            "parent_session_id": None,
+            "forked_from_checkpoint": None,
+            "root_session_id": "s",
+            "created_at": "2026-09-30T12:00:00+00:00",
+        },
+        "kernel": {"q": {}, "run": {}},
+        "working_memory": [],
+        "manifest": {"content": {}, "content_hash": "a" * 64},
+    }
+    store = HybridCheckpointStore(tmp_path)
+    path = store.save(payload, label="s-mix")
+    assert path.parent == tmp_path
+    assert path.is_file()
+    assert store.load_payload(path)["label"] == "mix"
+    assert store.list_checkpoints() == [path]
+    policy = parse_checkpoint_policy({"mode": "every_turn", "storage": "hybrid"})
+    built = build_checkpoint_store(policy, tmp_path)
+    assert isinstance(built, HybridCheckpointStore)

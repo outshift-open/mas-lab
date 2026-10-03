@@ -11,6 +11,7 @@ from mas.runtime.boundary.control.contract import (
     QueueView,
     QueuedInputView,
     SessionBusy,
+    SessionNotStopped,
     SessionPaused,
     SessionSnapshotView,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "QueueView",
     "QueuedInputView",
     "SessionBusy",
+    "SessionNotStopped",
     "SessionPaused",
     "SessionSnapshotView",
 ]

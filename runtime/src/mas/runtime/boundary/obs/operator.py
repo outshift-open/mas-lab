@@ -34,6 +34,8 @@ def _machine_for_op(op: str) -> str:
     payload["op"] directly and doesn't depend on this."""
     if op == "TOOL_CALL":
         return "M_tool"
+    if op == "SPAWN":
+        return "M_tool"
     if op == "MEMORY_OP":
         return "M_memory"
     return "M_model"
@@ -535,6 +537,8 @@ class ObservabilityOperator:
         destructive: bool = False,
         tool_name: str = "",
         tool_arguments: dict | None = None,
+        category: str = "",
+        **extra: object,
     ) -> ObservabilityEvent:
         machine = _machine_for_op(op)
         resolved_tool = str(tool_name or "").strip()
@@ -546,8 +550,11 @@ class ObservabilityOperator:
             "tool_name": resolved_tool,
             "envelope": True,
         }
+        if category:
+            payload["category"] = category
         if tool_arguments:
             payload["tool_arguments"] = dict(tool_arguments)
+        payload.update({k: v for k, v in extra.items() if v is not None})
         return self._emit(
             ObsEventKind.ENGINE_IO,
             ObsPhase.EXECUTE,
@@ -569,6 +576,8 @@ class ObservabilityOperator:
         finish_reason: str = "",
         tools: list | None = None,
         model: str = "",
+        category: str = "",
+        **extra: object,
     ) -> ObservabilityEvent:
         machine = _machine_for_op(op)
         resolved_tool = str(tool_name or "").strip()
@@ -582,6 +591,8 @@ class ObservabilityOperator:
             "tool_name": resolved_tool,
             "envelope": True,
         }
+        if category:
+            payload["category"] = category
         if usage:
             payload["usage"] = dict(usage)
         if finish_reason:
@@ -590,6 +601,7 @@ class ObservabilityOperator:
             payload["model"] = model
         if tools is not None:
             payload["tools"] = [str(name) for name in tools if str(name)]
+        payload.update({k: v for k, v in extra.items() if v is not None})
         return self._emit(
             ObsEventKind.ENGINE_IO_RETURN,
             ObsPhase.RESULT,
@@ -671,16 +683,51 @@ class ObservabilityOperator:
         """Session-level transition (mas_call, execution, …) → export plugins."""
         from mas.runtime.boundary.obs.transition import TransitionEvent
 
+        session_id = str(fields.pop("session_id", "") or self._session_id)
         self._dispatch_transition(
             TransitionEvent(
-                contract_id="orchestrator",
+                contract_id="orchestrator" if session_kind != "control" else "control",
                 mealy_symbol=session_kind,
                 phase="event",
                 agent_id=self._agent_id,
                 run_id=self._run_id,
+                session_id=session_id,
                 attributes={k: v for k, v in fields.items()},
                 boundary_kind="session",
             )
+        )
+
+    def record_control(
+        self,
+        *,
+        method: str,
+        category: str = "",
+        control_kind: str = "",
+        actor: str = "",
+        surface: str = "",
+        denied: bool = False,
+        reason: str = "",
+        session_id: str = "",
+        **payload: object,
+    ) -> ObservabilityEvent:
+        """Every ControlContract verb reaches M_obs; export sinks may filter by category."""
+        body = {
+            "method": method,
+            "category": category or f"control.{method}",
+            "control_kind": control_kind or method,
+            "actor": actor,
+            "surface": surface,
+            "denied": denied,
+            "reason": reason,
+            "session_id": session_id or self._session_id,
+            **payload,
+        }
+        return self._emit(
+            ObsEventKind.CONTROL,
+            ObsPhase.REQUEST,
+            "M_control",
+            actor_id=str(actor or "operator"),
+            payload=body,
         )
 
     def record_parallel_group(

@@ -86,10 +86,11 @@ You can also declare the skill tools explicitly, for example to offer
 An unknown name, such as a typo, fails at load time and lists the available
 names. The runtime does not silently skip it.
 
-`spawn_subagent` is opt-in like the others, and carries its configuration in
-the same entry: `params.templates` must declare at least one pre-authored
-Agent manifest, with optional `params.max_spawns` and `params.max_depth`
-bounds. See [Spawned subagents](subagents.md).
+`create_subagent` (alias `spawn_subagent`) is opt-in like the others, and
+carries its configuration in the same entry: `params.templates` must declare
+at least one pre-authored Agent manifest, with optional `params.max_spawns`
+and `params.max_depth` bounds. The model sees both names. See
+[Spawned subagents](subagents.md) and [Tutorial 7](../tutorials/07-subagents/).
 
 Third-party system tools can register with a library manifest:
 

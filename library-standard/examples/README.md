@@ -24,4 +24,5 @@ in `library-samples/apps/` and are registered in that library's
 | Category | Example | Kind | What it shows |
 |----------|---------|------|----------------|
 | [governance](governance/) | [undeclared-tool](governance/undeclared-tool/) | Agent | `gov_no_undeclared_tool` BLOCKs a name not in this LLM call's `tools` list |
+| [governance](governance/) | [debug-script](governance/debug-script/) | Agent | gdb-like `debug_script` breakpoints, in-memory checkpoints, control attach by session id |
 | [context](context/) | [summarizer-override](context/summarizer-override/) | Agent | `summarizer: llm` `params.model` + `params.instructions` |

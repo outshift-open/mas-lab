@@ -15,11 +15,58 @@ from mas.ctl.session.observability import setup_observability
 from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
 from mas.ctl.session.mailbox import SessionTurnMailbox
 from mas.runtime.registry import get_registry
+from mas.runtime.session import SessionStatus
 
 
-def _make_runtime_handler(instance: Any) -> Any:
+class _SilentDisplay:
+    def on_user(self, text: str, *, turn_id: str = "") -> None:
+        return None
+
+    def on_agent(self, text: str) -> None:
+        return None
+
+    def on_turn_error(self, message: str, *, detail: str = "") -> None:
+        return None
+
+    def on_hitl_request(self, request: Any) -> None:
+        return None
+
+    def on_system(self, message: str) -> None:
+        return None
+
+    def on_error(self, message: str) -> None:
+        return None
+
+
+def _make_runtime_handler(
+    instance: Any,
+    *,
+    manifest: dict[str, Any] | None = None,
+    control_dir: Path | None = None,
+) -> Any:
     """A2A ingress: ``message/send`` → mailbox queue (never ``steer``)."""
-    mailbox = SessionTurnMailbox()
+    from mas.ctl.adapters.checkpoint import InMemoryCheckpointStore
+    from mas.ctl.session.control_host import ControlDirectoryHost
+    from mas.ctl.session.controller import SessionController
+    from mas.ctl.session.manager import SessionManager
+    from mas.runtime.boundary.control.contract import ControlCapability, SessionPaused
+
+    manager = SessionManager(checkpoint_store=InMemoryCheckpointStore())
+    mailbox = SessionTurnMailbox(queue=manager.turn_queue)
+    host: ControlDirectoryHost | None = None
+    if control_dir is not None:
+        host = ControlDirectoryHost(
+            manager.control(capability=ControlCapability(actor="admin", surface="admin")),
+            control_dir,
+        )
+
+    def ensure_session(session_id: str) -> Any:
+        if session_id not in manager.sessions:
+            controller = SessionController(instance=instance, display=_SilentDisplay())
+            manager.create(instance, controller, manifest or {}, session_id=session_id)
+            if host is not None:
+                host.advertise(session_id)
+        return manager.get(session_id)
 
     def handle(
         prompt: str,
@@ -31,8 +78,11 @@ def _make_runtime_handler(instance: Any) -> Any:
         **_: Any,
     ) -> dict[str, Any]:
         resolved_session = mailbox.resolve_session_id(session_id)
+        session = ensure_session(resolved_session)
 
         def run(text: str) -> Any:
+            if session.status == SessionStatus.PAUSED:
+                raise SessionPaused(resolved_session, reason=session.pause_reason)
             return instance.run_user_text(
                 text,
                 turn_id=turn_id or "u1",
@@ -73,6 +123,8 @@ def _make_runtime_handler(instance: Any) -> Any:
             result["task_state"] = "input_required"
         return result
 
+    handle.host = host
+    handle.manager = manager
     return handle
 
 
@@ -86,11 +138,21 @@ def _make_runtime_handler(instance: Any) -> Any:
     help="Infrastructure manifest/bundle containing the agent's exposed Application endpoint",
 )
 @click.option("--flavour", default="local", show_default=True)
+@click.option(
+    "--control-dir",
+    default=None,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Advertise ControlContract so mas-ctl control can attach by A2A contextId "
+    "(default: $XDG_RUNTIME_DIR/mas-ctl, else /var/run/mas-ctl, else temp)",
+)
+@click.option("--no-control", is_flag=True, help="Do not advertise a control endpoint")
 def serve_agent_cmd(
     agent: Path,
     overlays: tuple[str, ...],
     infra_refs_cli: tuple[str, ...],
     flavour: str,
+    control_dir: Path | None,
+    no_control: bool,
 ) -> None:
     """Serve an agent through the agent_expose plugin selected by its infra endpoint."""
     from mas.ctl.paths import manifest_cwd
@@ -158,8 +220,18 @@ def serve_agent_cmd(
             binding={"type": endpoint["protocol"]},
             endpoint=endpoint,
         )
+        from mas.ctl.session.control_dir import default_control_dir
+
+        handler = _make_runtime_handler(
+            instance,
+            manifest=manifest,
+            control_dir=None if no_control else (control_dir or default_control_dir()),
+        )
         try:
-            exposure.serve_blocking(manifest, _make_runtime_handler(instance))
+            exposure.serve_blocking(manifest, handler)
         finally:
+            host = getattr(handler, "host", None)
+            if host is not None:
+                host.close()
             if recorder is not None:
                 recorder.close()

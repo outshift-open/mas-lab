@@ -61,6 +61,7 @@ _KIND_ENVELOPE: dict[str, tuple[str, str, str]] = {
     "policy_denial": ("governance", "governance", "POLICY_DENY"),
     "budget_event": ("governance", "governance", "BUDGET"),
     "control_intervention": ("governance", "governance", "CONTROL"),
+    "control": ("control", "control", "CONTROL"),
     "audit": ("governance", "governance", "AUDIT"),
     "infrastructure_info": ("structural", "orchestrator", "WORKER"),
     "system_specification": ("structural", "orchestrator", "SPEC_EMIT"),
@@ -72,6 +73,7 @@ _BLOCK_TO_EXPORT_LAYER: dict[str, str] = {
     "context": "semantic",
     "trajectory": "provenance",
     "governance": "governance",
+    "control": "control",
 }
 
 # Map Mealy contract_id → ontology summand (Appendix R).
@@ -82,6 +84,7 @@ CONTRACT_SUMMAND: dict[str, str] = {
     "governance": "governance",
     "orchestrator": "orchestrator",
     "observability": "orchestrator",
+    "control": "control",
 }
 
 

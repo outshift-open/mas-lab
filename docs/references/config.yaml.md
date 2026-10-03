@@ -54,6 +54,7 @@ For `mas_ctl.trace*` (and the rest of the `mas_ctl` map used by chat / run-mas):
 | `aliases` | map | Runtime plugin alias → canonical URN |
 | `defaults` | object | Overrides for runtime `defaults.yaml` (`model`, `design_pattern`, `context_manager`, `assembler`) |
 | `paths` | object | `labs_dir`, `cache_dir`, `runs_dir` (else XDG / `MAS_*`) |
+| `plugins` | list of URNs or URN→bool map | Workspace overlay plugins. **Off unless listed.** Not agent spec slots. Uncomment a catalog line in the init template to enable. Labs use `lab.enable_plugins`. |
 
 ---
 
@@ -128,6 +129,30 @@ Env overrides: [user-config.md](../user-config.md). Relative paths resolve from
 
 ---
 
+## `plugins` (workspace overlays)
+
+Agent YAML still chooses design_pattern, tools, models,
+`spec.observability`, `spec.governance`, and checkpoint cadence. This list
+turns on gdb, checkpoint stores, and the control wire from the workspace.
+
+Omitted, `[]`, or a commented catalog means **nothing extra is on**. Uncomment
+`plugins:` and any line in
+[`lab/src/mas/lab/templates/init/config.yaml`](../../lab/src/mas/lab/templates/init/config.yaml)
+to enable it. Specs that already name the same plugin keep their own config.
+
+Labs enable the same URNs under `lab.enable_plugins` in `lab-config.yaml`.
+
+```yaml
+# plugins:
+#   - mas.runtime.debug_script             # gdb breakpoints
+#   - mas.checkpoint_store.hybrid          # persist memory + disk
+#   - mas.control_protocol.rpc             # JSON-lines control wire
+```
+
+Put OTEL, governance, design patterns, and system tools in agent YAML, not here.
+
+---
+
 ## User-file extras (`mas-lab init` / Tutorial 0)
 
 `$XDG_CONFIG_HOME/mas/config.yaml` is a hybrid: it may include workspace keys
@@ -159,6 +184,9 @@ mas_lab:
 
 # infra_refs:
 #   - standard:openai
+
+# plugins:
+#   - mas.runtime.debug_script
 ```
 
 Offline CI pairs `standard:openai` with `tests/fixtures/llm-cache/ci-replay.yaml`

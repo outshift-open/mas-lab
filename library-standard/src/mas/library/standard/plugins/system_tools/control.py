@@ -65,6 +65,22 @@ class ControlTools:
                 "description": "Cancel the in-flight LLM call. Tools are not rolled back.",
                 "parameters": {"type": "object", "additionalProperties": False, "properties": {}},
             },
+            {
+                "name": "run_control_script",
+                "description": (
+                    "Run a gdb-like control script (pause, persist, inspect, steer). "
+                    "Pass inline text or @path, same as mas-ctl control --data."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "script": {"type": "string"},
+                        "auto_stop": {"type": "boolean"},
+                    },
+                    "required": ["script"],
+                },
+            },
         ]
 
     def on_execute_tool(self, tool_name: str, arguments: dict[str, Any], ctx: Any = None, **_: Any) -> str:
@@ -99,4 +115,11 @@ class ControlTools:
         if tool_name == "cancel_inflight":
             cancelled = control.cancel_inflight(session_id)
             return "cancelled" if cancelled else "idle"
+        if tool_name == "run_control_script":
+            result = control.run_script(
+                session_id,
+                text=str(arguments.get("script") or ""),
+                auto_stop=bool(arguments.get("auto_stop")),
+            )
+            return json.dumps(result, default=str)
         return f"[control] unsupported tool {tool_name!r}"

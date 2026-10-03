@@ -41,6 +41,14 @@ practical examples.
 | ------------------------ | ------------------------------------------------ | ---------------------- |
 | `ContextAssemblerPlugin` | `mas.library.standard.plugins.context.assembler` | `mas-library-standard` |
 
+### Checkpoint_Store
+
+| Class                     | Full module path                          | Package                |
+| ------------------------- | ----------------------------------------- | ---------------------- |
+| `HybridCheckpointStore`   | `mas.library.standard.plugins.checkpoint` | `mas-library-standard` |
+| `InMemoryCheckpointStore` | `mas.library.standard.plugins.checkpoint` | `mas-library-standard` |
+| `JsonCheckpointStore`     | `mas.library.standard.plugins.checkpoint` | `mas-library-standard` |
+
 ### Circuit_Breaker
 
 | Class                     | Full module path                                           | Package                |
@@ -145,6 +153,12 @@ practical examples.
 | `CopyDirRelatedState`     | `mas.library.standard.plugins.related_state.copy_dir`     | `mas-library-standard` |
 | `GitWorktreeRelatedState` | `mas.library.standard.plugins.related_state.git_worktree` | `mas-library-standard` |
 
+### Runtime
+
+| Class               | Full module path                                       | Package                |
+| ------------------- | ------------------------------------------------------ | ---------------------- |
+| `DebugScriptPlugin` | `mas.library.standard.plugins.governance.debug_script` | `mas-library-standard` |
+
 ### Skill_Catalog
 
 | Class                | Full module path                        | Package              |
@@ -186,6 +200,7 @@ practical examples.
 | `InformUserTool`        | `mas.library.standard.plugins.system_tools.inform_user`         | `mas-library-standard` |
 | `RequestHumanInputTool` | `mas.library.standard.plugins.system_tools.request_human_input` | `mas-library-standard` |
 | `SpawnSubagentTool`     | `mas.library.standard.plugins.system_tools.spawn_subagent`      | `mas-library-standard` |
+| `SpawnSubagentTool`     | `mas.library.standard.plugins.system_tools.spawn_subagent`      | `mas-library-standard` |
 
 ### Tool_Provider
 
@@ -216,14 +231,18 @@ practical examples.
 | `ControlTools`                   | system_tool          | `mas-library-standard` |
 | `CopyDirRelatedState`            | related_state        | `mas-library-standard` |
 | `CotPlugin`                      | design_pattern       | `mas-library-standard` |
+| `DebugScriptPlugin`              | runtime              | `mas-library-standard` |
 | `DeterministicLinearPlugin`      | design_pattern       | `mas-library-standard` |
 | `DeterministicParallelPlugin`    | design_pattern       | `mas-library-standard` |
 | `DeterministicSingleAgentPlugin` | design_pattern       | `mas-library-standard` |
 | `DropSummarizer`                 | summarizer           | `mas-library-standard` |
 | `FaultInjectMiddleware`          | infra_middleware     | `mas-library-standard` |
 | `GitWorktreeRelatedState`        | related_state        | `mas-library-standard` |
+| `HybridCheckpointStore`          | checkpoint_store     | `mas-library-standard` |
 | `InformUserTool`                 | system_tool          | `mas-library-standard` |
+| `InMemoryCheckpointStore`        | checkpoint_store     | `mas-library-standard` |
 | `IntrospectionPlugin`            | design_pattern       | `mas-library-standard` |
+| `JsonCheckpointStore`            | checkpoint_store     | `mas-library-standard` |
 | `LangChainSkillPlugin`           | skill_impl           | `mas-library-skills`   |
 | `LlmCacheMiddleware`             | infra_middleware     | `mas-library-standard` |
 | `LlmDelegator`                   | engine_tool_provider | `mas-library-standard` |
@@ -248,6 +267,7 @@ practical examples.
 | `SkillCatalogPlugin`             | skill_catalog        | `mas-library-skills`   |
 | `SkillToolsPlugin`               | skill_tools          | `mas-library-skills`   |
 | `SlidingWindowConversation`      | context_manager      | `mas-library-standard` |
+| `SpawnSubagentTool`              | system_tool          | `mas-library-standard` |
 | `SpawnSubagentTool`              | system_tool          | `mas-library-standard` |
 | `StackConversation`              | context_manager      | `mas-library-standard` |
 | `SubagentSpawner`                | engine_tool_provider | `mas-library-standard` |

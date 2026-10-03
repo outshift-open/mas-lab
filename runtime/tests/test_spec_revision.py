@@ -135,6 +135,9 @@ def test_spawn_llm_tool_is_advertisement_not_a_second_implementation() -> None:
     assert tool.on_execute_tool("spawn_subagent", {"template": "worker", "task": "x"}) == (
         "[spawn_subagent] unavailable: orchestration contract is not wired"
     )
+    assert tool.on_execute_tool("create_subagent", {"template": "worker", "task": "x"}) == (
+        "[spawn_subagent] unavailable: orchestration contract is not wired"
+    )
 
 
 def test_spawn_copies_parent_spec_revision() -> None:

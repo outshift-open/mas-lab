@@ -17,7 +17,7 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
 
-from mas.runtime.boundary.control.contract import ControlDenied, SessionPaused
+from mas.runtime.boundary.control.contract import ControlDenied, SessionNotStopped, SessionPaused
 from mas.runtime.session.snapshot import SnapshotRef
 
 _KWARGS_METHODS = frozenset(
@@ -29,6 +29,9 @@ _KWARGS_METHODS = frozenset(
         "send_message",
         "disable_tool",
         "set_queued_action",
+        "snapshot",
+        "persist",
+        "run_script",
     }
 )
 _POSITIONAL_AFTER_SESSION = {
@@ -242,6 +245,8 @@ class ControlRpcClient:
                 raise ControlDenied(method, session_id, reason=message)
             if name == "SessionPaused":
                 raise SessionPaused(session_id, reason=message)
+            if name == "SessionNotStopped":
+                raise SessionNotStopped(session_id, method=method)
             raise RuntimeError(f"{name}: {message}")
         return reply.get("result")
 
@@ -296,6 +301,48 @@ class ControlRpcClient:
 
     async def apause(self, session_id: str, *, reason: str) -> None:
         await self.call("pause", session_id, reason=reason)
+
+    async def aresume(self, session_id: str) -> None:
+        await self.call("resume", session_id)
+
+    async def alist_checkpoints(self, session_id: str) -> list[Any]:
+        result = await self.call("list_checkpoints", session_id)
+        return list(result or [])
+
+    async def asnapshot(self, session_id: str, *, label: str = "", auto_stop: bool = False) -> dict[str, Any]:
+        return dict(
+            await self.call("snapshot", session_id, label=label, auto_stop=auto_stop) or {}
+        )
+
+    async def apersist(
+        self,
+        session_id: str,
+        *,
+        snapshot_id: str | None = None,
+        label: str = "",
+        auto_stop: bool = False,
+    ) -> dict[str, Any]:
+        args: dict[str, Any] = {"label": label, "auto_stop": auto_stop}
+        if snapshot_id:
+            args["snapshot_id"] = snapshot_id
+        return dict(await self.call("persist", session_id, **args) or {})
+
+    async def arun_script(
+        self,
+        session_id: str,
+        *,
+        text: str = "",
+        script_file: str = "",
+        auto_stop: bool = False,
+    ) -> list[Any]:
+        result = await self.call(
+            "run_script",
+            session_id,
+            text=text,
+            script_file=script_file,
+            auto_stop=auto_stop,
+        )
+        return list(result or [])
 
 
 class ControlRpcProtocol:

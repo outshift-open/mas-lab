@@ -8,3 +8,9 @@ lab:
   # listed basename; the package name must be unique across loaded libraries.
   libraries:
     - lifecycle_control_lab/
+
+  # gdb / checkpoint stores. Off unless listed.
+  # enable_plugins:
+  #   - mas.runtime.debug_script
+  #   - mas.checkpoint_store.hybrid
+  #   - mas.control_protocol.rpc

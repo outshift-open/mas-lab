@@ -242,8 +242,8 @@ class SessionManager:
             ctx.allow_control_tools = is_control_tools_enabled(ctx.current_spec)
             from mas.ctl.session.control import SessionControl
 
-            # LLM tools are a control subset, not user ingress and not steer.
-            # A2A message/send and chat turns use send_message; preempt is admin.
+            # A2A message/send is not an LLM tool. Steer (preempt / replace /
+            # after) stays on this control surface; A2A has no steer RPC.
             ctx.control = SessionControl(
                 self,
                 capability=ControlCapability(
@@ -253,10 +253,15 @@ class SessionManager:
                     methods=frozenset(
                         {
                             "pause",
+                            "resume",
                             "inspect",
                             "list_checkpoints",
                             "navigate",
                             "cancel_inflight",
+                            "run_script",
+                            "snapshot",
+                            "persist",
+                            "steer",
                         }
                     ),
                 ),
@@ -269,6 +274,35 @@ class SessionManager:
             from dataclasses import replace
 
             kernel.config = replace(config, on_decision_snapshot=session.on_governance_decision)
+        self._bind_debug_plugins(session)
+
+    def _bind_debug_plugins(self, session: Session) -> None:
+        kernel = getattr(session.instance, "kernel", None)
+        config = getattr(kernel, "config", None)
+        gov = getattr(config, "egress_governance_plugin", None)
+        plugins = getattr(gov, "plugins", None)
+        chain = list(plugins) if plugins else ([gov] if gov is not None else [])
+        chain.extend(getattr(config, "runtime_plugins", ()) or ())
+        control = self.control(
+            capability=ControlCapability(
+                actor="debug_script",
+                surface="plugin",
+                session_ids=frozenset({session.session_id}),
+                methods=frozenset(
+                    {
+                        "pause",
+                        "resume",
+                        "inspect",
+                        "snapshot",
+                        "list_checkpoints",
+                    }
+                ),
+            )
+        )
+        for plugin in chain:
+            bind = getattr(plugin, "bind_session", None)
+            if callable(bind):
+                bind(session, control=control, manager=self)
 
     @staticmethod
     def _manifest_content(

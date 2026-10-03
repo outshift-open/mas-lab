@@ -49,12 +49,14 @@ def test_related_state_sandbox_are_library_not_boundary() -> None:
     assert "infra_middleware" in LIBRARY_TYPES
     assert "hitl_responder" in LIBRARY_TYPES
     assert "control_protocol" in LIBRARY_TYPES
+    assert "checkpoint_store" in LIBRARY_TYPES
     assert classify_plugin_type("related_state") == "library"
     assert classify_plugin_type("execute_sandbox") == "library"
     assert classify_plugin_type("circuit_breaker") == "library"
     assert classify_plugin_type("infra_middleware") == "library"
     assert classify_plugin_type("hitl_responder") == "library"
     assert classify_plugin_type("control_protocol") == "library"
+    assert classify_plugin_type("checkpoint_store") == "library"
     with pytest.raises(UnknownBoundarySlotError):
         assert_boundary_slot("related_state")
     registry = PluginRegistry()
@@ -63,6 +65,17 @@ def test_related_state_sandbox_are_library_not_boundary() -> None:
         registry.register_type("execute_sandbox", layer="boundary")
     with pytest.raises(UnknownBoundarySlotError):
         registry.register_type("circuit_breaker", layer="boundary")
+
+
+def test_workspace_plugin_types_are_overlays_not_spec_identity() -> None:
+    from mas.runtime.harness.catalog import SPEC_IDENTITY_TYPES, WORKSPACE_PLUGIN_TYPES
+
+    assert "runtime" in WORKSPACE_PLUGIN_TYPES
+    assert "checkpoint_store" in WORKSPACE_PLUGIN_TYPES
+    assert "governance" in SPEC_IDENTITY_TYPES
+    assert "observability" in SPEC_IDENTITY_TYPES
+    assert "design_pattern" in SPEC_IDENTITY_TYPES
+    assert not (WORKSPACE_PLUGIN_TYPES & SPEC_IDENTITY_TYPES)
 
 
 def test_new_boundary_slot_is_rejected() -> None:

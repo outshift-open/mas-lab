@@ -120,6 +120,14 @@ assignments run after that file's regular `spec.patch` in list order. See
 | `--load-checkpoint PATH` | — | Restore a checkpoint |
 | `--save-checkpoint` / `--no-save-checkpoint` | off | Save after each turn |
 
+### Control attach
+
+| Flag | Default | Effect |
+|------|---------|--------|
+| `--control-dir PATH` | `$XDG_RUNTIME_DIR/mas-ctl`, else `/var/run/mas-ctl`, else temp | Advertise control so `mas-ctl control attach` can use the session id |
+| `--no-control` | off | Do not advertise a control endpoint |
+| `--debug-script` | — | gdb-like script: `@file` or inline (runtime plugin `spec.debug`) |
+
 ### Exchange log
 
 Shared with `run-mas`. **Not** on `tui` (curses has its own pane).
@@ -223,6 +231,7 @@ Plus **`--events*`**. Guide: [ctl/tui.md](../ctl/tui.md).
 | `mas-ctl registry …` | Plugin registry introspection | `mas-ctl registry --help` |
 | `mas-ctl checkpoint list DIR` | List checkpoint files | — |
 | `mas-ctl checkpoint show PATH` | Print one checkpoint JSON | — |
+| `mas-ctl control attach SESSION` | Attach by session id (A2A `contextId`) | `-d/--directory` (default runtime dir). Verbs: `pause`, `resume` (unpause live), `snapshot`/`persist` (require stopped session or `--auto-stop`), `steer`, `checkpoints`, `inspect`. Chain: `mas-ctl control SESSION pause persist --auto-stop`. Scripts: `--data @file`, `-e`, `-f` (equivalent). |
 
 ---
 

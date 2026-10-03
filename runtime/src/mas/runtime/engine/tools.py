@@ -171,8 +171,17 @@ def openai_tools(
 
 
 SPAWN_SUBAGENT_TOOL = "spawn_subagent"
+CREATE_SUBAGENT_TOOL = "create_subagent"
+SPAWN_SUBAGENT_NAMES = frozenset({SPAWN_SUBAGENT_TOOL, CREATE_SUBAGENT_TOOL})
 CONTROL_TOOLS = frozenset(
-    {"pause_session", "list_checkpoints", "inspect_session", "navigate_checkpoint", "cancel_inflight"}
+    {
+        "pause_session",
+        "list_checkpoints",
+        "inspect_session",
+        "navigate_checkpoint",
+        "cancel_inflight",
+        "run_control_script",
+    }
 )
 
 
@@ -206,23 +215,24 @@ def disabled_tool_names(spec: dict[str, Any] | None) -> frozenset[str]:
 
 
 def is_spawn_subagent_enabled(spec: dict[str, Any] | None) -> bool:
-    """True when the bound spec advertises an enabled ``spawn_subagent`` tool."""
+    """True when the bound spec advertises ``spawn_subagent`` or ``create_subagent``."""
     return spawn_subagent_params(spec) is not None
 
 
 def spawn_subagent_params(spec: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Params of the enabled ``spawn_subagent`` system-tool entry, or ``None``.
+    """Params of the enabled spawn/create-subagent system-tool entry, or ``None``.
 
     The ``tools`` entry is the capability gate, exactly as it is for
-    ``request_human_input``. No entry means the agent cannot spawn, and every
-    subagent setting (``templates``, ``max_spawns``, ``max_depth``) lives under
-    that one entry's ``params`` instead of separate top-level spec keys.
+    ``request_human_input``. Declare ``spawn_subagent`` or ``create_subagent``;
+    both names enable the same bounded template runner. No entry means the
+    agent cannot spawn. Every subagent setting (``templates``, ``max_spawns``,
+    ``max_depth``) lives under that one entry's ``params``.
     """
     for tool in (spec or {}).get("tools") or []:
         if (
             isinstance(tool, dict)
             and tool.get("kind") == "system"
-            and tool.get("name") == SPAWN_SUBAGENT_TOOL
+            and tool.get("name") in SPAWN_SUBAGENT_NAMES
             and tool.get("enabled") is not False
         ):
             params = tool.get("params")

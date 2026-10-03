@@ -15,6 +15,7 @@ enable each tool, see [System tools](../manifests/system-tools.md).
 | [`run_skill_script`](#run_skill_script) | `mas-library-skills` | implicit (skill `scripts/`, `auto_inject`) or declared | `run-skill-script` |
 | [`request_human_input`](#request_human_input) | `mas-runtime` | declared only | — |
 | [`inform_user`](#inform_user) | `mas-runtime` | declared only | — |
+| [`create_subagent`](#create_subagent) | `mas-library-standard` | declared only | `spawn_subagent` |
 
 The skill tools require `mas-library-skills`. Without it, declaring one fails
 with an unknown system tool error.
@@ -109,3 +110,29 @@ The update is delivered through a `UserIOContract` or, if none is provided,
 the HITL resolver registry.
 
 Implementation: `mas.runtime.system_tools.InformUserTool`.
+
+## Orchestration tools
+
+### `create_subagent`
+
+Creates a bounded subagent from a **declared template**, runs it for one
+turn, and returns the child's text. Alias advertised to the model:
+`spawn_subagent`. Declare either name on the parent manifest.
+
+| Argument | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `template` | string | yes | Enum of `params.templates[].id` |
+| `task` | string | yes | Task for the child; not a new manifest |
+
+| Manifest `params` | Default | Notes |
+| --- | --- | --- |
+| `templates` | (required) | `{id, ref, description}` rows; `ref` is a local Agent manifest |
+| `max_spawns` | 8 | Session-wide ledger |
+| `max_depth` | 3 | Nested create/spawn depth |
+
+The child cannot invent tools or templates. Ctl tears the instance down
+after the turn. See [Spawned subagents](../manifests/subagents.md) and
+[Tutorial 7](../tutorials/07-subagents/).
+
+Implementation: `mas.library.standard.plugins.system_tools.spawn_subagent.SpawnSubagentTool`
+(advertise) plus `mas.library.standard.plugins.engine_tools.subagent_spawner.SubagentSpawner` (run).

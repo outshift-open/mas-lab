@@ -23,6 +23,10 @@ Interactive session commands (at the You: prompt):
   /reset               Clear working memory and turn history; restore system prompt
   /steer <text>        Inject operator steering mid-run (updates context)
 
+Session id (A2A contextId) is printed at start. Chat advertises control in
+the platform runtime directory; attach with: mas-ctl control attach SESSION_ID
+Use --no-control to skip. Override the directory with --control-dir or MAS_CONTROL_DIR.
+
 Governance / HITL (when spec.governance.hitl_on_tool is set):
   Interactive mode (-i) prompts on stderr: SCHEDULE (allow), BLOCK, SKIP
   Batch (-q) auto-approves unless hitl_mode: auto-deny in overlay

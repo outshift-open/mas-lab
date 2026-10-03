@@ -38,6 +38,7 @@ class ObsEventKind(str, Enum):
     CONTEXT_ASSEMBLED = "context.assembled"
     ENGINE_IO_RETURN = "engine.io.return"
     ENVELOPE_ACTIVITY = "envelope.activity"
+    CONTROL = "control"
 
 
 class ObservabilityEvent(BaseModel):

@@ -18,6 +18,7 @@ from mas.runtime.boundary.control.contract import (
     QueueAt,
     QueueView,
     QueuedInputView,
+    SessionNotStopped,
     SessionSnapshotView,
 )
 from mas.runtime.session import SessionStatus
@@ -66,7 +67,52 @@ class SessionControl:
             denied=denied,
         )
         self.events.append(event)
+        self._publish(event, session_id)
         return event
+
+    def _publish(self, event: ControlEvent, session_id: str) -> None:
+        try:
+            session = self._manager.get(session_id)
+        except KeyError:
+            return
+        driver = getattr(getattr(session, "instance", None), "driver", None)
+        op = getattr(driver, "observability", None)
+        if op is None:
+            return
+        payload = {
+            "method": event.method,
+            "category": f"control.{event.method}",
+            "control_kind": event.kind,
+            "actor": event.actor,
+            "surface": event.surface,
+            "denied": event.denied,
+            "reason": event.reason,
+            "session_id": event.session_id,
+            **event.payload,
+        }
+        record_control = getattr(op, "record_control", None)
+        if callable(record_control):
+            record_control(**payload)
+            return
+        record_session = getattr(op, "record_session", None)
+        if callable(record_session):
+            record_session("control", **payload)
+
+    def _ensure_stopped(self, session: Any, session_id: str, *, auto_stop: bool, method: str) -> None:
+        if session.status is SessionStatus.PAUSED:
+            return
+        if auto_stop:
+            session.pause(reason=f"{method} auto-stop")
+            self._trace("pause", session_id, kind="session_paused", reason=f"{method} auto-stop")
+            return
+        self._trace(
+            method,
+            session_id,
+            kind="control_denied",
+            denied=True,
+            reason="not stopped",
+        )
+        raise SessionNotStopped(session_id, method=method)
 
     def pause(self, session_id: str, *, reason: str) -> None:
         session = self._require("pause", session_id)
@@ -217,6 +263,86 @@ class SessionControl:
         )
         return view
 
+    def snapshot(self, session_id: str, *, label: str = "", auto_stop: bool = False) -> SnapshotRef:
+        session = self._require("snapshot", session_id)
+        self._ensure_stopped(session, session_id, auto_stop=auto_stop, method="snapshot")
+        snap = session.take_snapshot(label=label or "control", kind="explicit")
+        ref = snap.ref
+        self._trace(
+            "snapshot",
+            session_id,
+            kind="checkpoint_taken",
+            payload={"snapshot_id": ref.snapshot_id, "label": ref.label},
+        )
+        return ref
+
+    def persist(
+        self,
+        session_id: str,
+        *,
+        snapshot_id: str | None = None,
+        label: str = "",
+        auto_stop: bool = False,
+    ) -> dict[str, str]:
+        session = self._require("persist", session_id)
+        self._ensure_stopped(session, session_id, auto_stop=auto_stop, method="persist")
+        store = self._manager.checkpoint_store
+        if store is None:
+            raise RuntimeError(
+                "persist requires a checkpoint store; start chat with --checkpoint-dir"
+            )
+        if snapshot_id:
+            body = self._manager.snapshot_tree.body(snapshot_id)
+            if body is None:
+                raise KeyError(f"unknown snapshot {snapshot_id!r}")
+            snap = body
+        else:
+            snap = session.take_snapshot(label=label or "persist", kind="explicit")
+        path = session.persist_snapshot(snap, store)
+        ref = snap.ref
+        payload = {
+            "path": str(path),
+            "snapshot_id": ref.snapshot_id,
+            "label": ref.label,
+        }
+        self._trace("persist", session_id, kind="checkpoint_persisted", payload=payload)
+        return payload
+
+    def run_script(
+        self,
+        session_id: str,
+        *,
+        text: str = "",
+        script_file: str = "",
+        auto_stop: bool = False,
+    ) -> list[Any]:
+        from mas.library.standard.plugins.control.script import (
+            parse_control_script,
+            resolve_curl_data,
+            run_control_script,
+        )
+
+        self._require("run_script", session_id)
+        body = str(text or "")
+        if script_file:
+            body = resolve_curl_data(
+                script_file if str(script_file).startswith("@") else f"@{script_file}"
+            )
+        statements = parse_control_script(body)
+        results = run_control_script(
+            self,
+            session_id,
+            statements,
+            default_auto_stop=auto_stop,
+        )
+        self._trace(
+            "run_script",
+            session_id,
+            kind="control_script",
+            payload={"commands": [item.raw for item in statements]},
+        )
+        return results
+
     def list_checkpoints(self, session_id: str) -> list[SnapshotRef]:
         self._require("list_checkpoints", session_id)
         nodes = self._manager.snapshot_tree.list_nodes(session_id)
@@ -283,11 +409,25 @@ class SessionControl:
 
     def peek_queue(self, session_id: str) -> list[QueuedInputView]:
         self._require("peek_queue", session_id)
-        return self._manager.turn_queue.peek(session_id)
+        items = self._manager.turn_queue.peek(session_id)
+        self._trace(
+            "peek_queue",
+            session_id,
+            kind="queue_inspected",
+            payload={"count": len(items)},
+        )
+        return items
 
     def inspect_queue(self, session_id: str) -> QueueView:
         self._require("inspect_queue", session_id)
-        return self._manager.turn_queue.inspect(session_id)
+        view = self._manager.turn_queue.inspect(session_id)
+        self._trace(
+            "inspect_queue",
+            session_id,
+            kind="queue_inspected",
+            payload={"revision": view.revision, "count": len(view.items)},
+        )
+        return view
 
     def reorder_queue(
         self,

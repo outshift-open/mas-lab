@@ -25,6 +25,29 @@ items:
               type: string
             events_file:
               type: string
+            categories:
+              description: >
+                Filter exported native records by category prefix (control, tool,
+                model, execution). The observability contract still receives every
+                event; this only changes what is written to events.jsonl.
+              oneOf:
+                - type: array
+                  items: { type: string }
+                - type: object
+                  additionalProperties: false
+                  properties:
+                    include:
+                      type: array
+                      items: { type: string }
+                    exclude:
+                      type: array
+                      items: { type: string }
+                    enable:
+                      type: array
+                      items: { type: string }
+                    disable:
+                      type: array
+                      items: { type: string }
         otel:
           type: object
           additionalProperties: false

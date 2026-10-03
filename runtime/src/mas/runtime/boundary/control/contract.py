@@ -52,6 +52,18 @@ class SessionBusy(RuntimeError):
         )
 
 
+class SessionNotStopped(RuntimeError):
+    """Snapshot/persist require a paused session, or ``auto_stop=True``."""
+
+    def __init__(self, session_id: str, *, method: str = "persist") -> None:
+        self.session_id = session_id
+        self.method = method
+        super().__init__(
+            f"{method} refused for session {session_id!r}: session is not stopped "
+            "(pause first, or pass --auto-stop)"
+        )
+
+
 class QueueConflict(RuntimeError):
     """A queue mutation used a stale ``revision`` from an earlier peek."""
 
@@ -165,6 +177,23 @@ class ControlContract(Protocol):
     ) -> None: ...
     def discard_last(self, session_id: str) -> str: ...
     def inspect(self, session_id: str) -> SessionSnapshotView: ...
+    def snapshot(self, session_id: str, *, label: str = "", auto_stop: bool = False) -> Any: ...
+    def persist(
+        self,
+        session_id: str,
+        *,
+        snapshot_id: str | None = None,
+        label: str = "",
+        auto_stop: bool = False,
+    ) -> Any: ...
+    def run_script(
+        self,
+        session_id: str,
+        *,
+        text: str = "",
+        script_file: str = "",
+        auto_stop: bool = False,
+    ) -> Any: ...
     def list_checkpoints(self, session_id: str) -> list[Any]: ...
     def navigate(self, session_id: str, *, to: str, reason: str) -> Any: ...
     def enqueue_input(

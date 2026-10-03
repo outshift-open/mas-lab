@@ -17,7 +17,8 @@ is off. Every in-process name must be claimed:
   or an explicit list)
 
 Unclaimed names raise :class:`UnclaimedToolError`. Runtime system tools
-(``request_human_input``, ``inform_user``, ``spawn_subagent``) stay implicit-local.
+(``request_human_input``, ``inform_user``, ``spawn_subagent``,
+``create_subagent``) stay implicit-local.
 
 Star claims are not checked at ``mas-ctl validate`` — presence is filled at
 init. Explicit lists skip that query and can be checked at validate (names
@@ -36,7 +37,7 @@ from dataclasses import dataclass
 from typing import Any
 
 SYSTEM_TOOL_NAMES: frozenset[str] = frozenset(
-    {"request_human_input", "inform_user", "spawn_subagent"}
+    {"request_human_input", "inform_user", "spawn_subagent", "create_subagent"}
 )
 
 

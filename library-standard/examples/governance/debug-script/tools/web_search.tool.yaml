@@ -1,0 +1,24 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Tool
+metadata:
+  name: web_search
+  description: Look up a public fact.
+  version: "1.0.0"
+spec:
+  description: >
+    Call this tool to look up a short factual answer (capitals, dates).
+  parameters:
+    - name: query
+      type: string
+      description: Search query.
+      required: true
+      examples: ["capital of France"]
+  impl:
+    kind: python
+    module_path: ./tools.py
+    class_name: DemoTools
+    params:
+      name: web_search
+      description: Look up a public fact.

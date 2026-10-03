@@ -33,3 +33,18 @@ def test_artifact_path_templates_are_not_collected() -> None:
 def test_telemetry_path_is_still_an_output_sink() -> None:
     refs = dict(iter_ref_paths({"spec": {"telemetry": {"path": "events.jsonl"}}}))
     assert "spec.telemetry.path" not in refs
+
+
+def test_checkpoint_storage_path_is_a_runtime_directory_not_an_input_ref() -> None:
+    refs = dict(
+        iter_ref_paths(
+            {
+                "spec": {
+                    "checkpoint": {
+                        "storage": {"kind": "hybrid", "path": ".mas/t06-checkpoints"}
+                    }
+                }
+            }
+        )
+    )
+    assert "spec.checkpoint.storage.path" not in refs

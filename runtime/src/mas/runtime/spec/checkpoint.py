@@ -14,7 +14,12 @@ class CheckpointSpecError(ValueError):
 
 @dataclass(frozen=True)
 class CheckpointPolicy:
-    """Checkpointing behavior selected by one agent manifest."""
+    """Checkpointing behavior selected by one agent manifest.
+
+    ``mode`` is cadence (when to capture). ``storage_kind`` is location
+    (memory, disk, or both). When storage is omitted, ``in_memory`` mode
+    means memory-only; ``on_event`` / ``every_turn`` mean disk.
+    """
 
     mode: str = "none"
     triggers: tuple[str, ...] = ()
@@ -23,11 +28,54 @@ class CheckpointPolicy:
     retention_n: int = 5
     portability: str = "self_contained"
     auto_resume_latest: bool = False
+    storage_kind: str = ""
+    storage_path: str = ""
+
+    def resolved_storage(self) -> str:
+        """``memory``, ``disk``, ``hybrid``, or ``none`` after applying aliases."""
+        if self.storage_kind:
+            return self.storage_kind
+        if self.mode == "in_memory":
+            return "memory"
+        if self.mode in {"every_turn", "on_event"}:
+            return "disk"
+        return "none"
+
+    def uses_disk(self) -> bool:
+        return self.resolved_storage() in {"disk", "hybrid"}
+
+    def uses_memory(self) -> bool:
+        return self.resolved_storage() in {"memory", "hybrid"}
 
 
 _MODES = {"none", "in_memory", "on_event", "every_turn"}
+_STORAGE_KINDS = {"memory", "disk", "hybrid"}
 _TRIGGERS = {"after_llm_call", "after_tool_call", "before_destructive_tool", "every_n_turns"}
 _RETENTION_MODES = {"all", "single", "last_n"}
+
+
+def _parse_storage(raw: Any) -> tuple[str, str]:
+    """Return ``(kind, path)`` from a string or ``{kind, path}`` object."""
+    if raw is None:
+        return "", ""
+    if isinstance(raw, str):
+        kind = raw.strip()
+        path = ""
+    elif isinstance(raw, dict):
+        unknown = set(raw) - {"kind", "path"}
+        if unknown:
+            raise CheckpointSpecError(
+                f"spec.checkpoint.storage: unknown field {sorted(unknown)[0]!r}"
+            )
+        kind = str(raw.get("kind") or "").strip()
+        path = str(raw.get("path") or "").strip()
+    else:
+        raise CheckpointSpecError("spec.checkpoint.storage must be a string or object")
+    if kind and kind not in _STORAGE_KINDS:
+        raise CheckpointSpecError(
+            f"spec.checkpoint.storage.kind must be one of {sorted(_STORAGE_KINDS)}"
+        )
+    return kind, path
 
 
 def parse_checkpoint_policy(raw: Any) -> CheckpointPolicy:
@@ -43,6 +91,7 @@ def parse_checkpoint_policy(raw: Any) -> CheckpointPolicy:
         "retention",
         "portability",
         "auto_resume_latest",
+        "storage",
     }
     if unknown:
         raise CheckpointSpecError(f"spec.checkpoint: unknown field {sorted(unknown)[0]!r}")
@@ -50,6 +99,7 @@ def parse_checkpoint_policy(raw: Any) -> CheckpointPolicy:
     mode = raw.get("mode", "none")
     if mode not in _MODES:
         raise CheckpointSpecError(f"spec.checkpoint.mode must be one of {sorted(_MODES)}")
+    storage_kind, storage_path = _parse_storage(raw.get("storage"))
     triggers_raw = raw.get("triggers", [])
     if not isinstance(triggers_raw, list) or any(
         not isinstance(trigger, str) or trigger not in _TRIGGERS for trigger in triggers_raw
@@ -81,10 +131,7 @@ def parse_checkpoint_policy(raw: Any) -> CheckpointPolicy:
     auto_resume_latest = raw.get("auto_resume_latest", False)
     if not isinstance(auto_resume_latest, bool):
         raise CheckpointSpecError("spec.checkpoint.auto_resume_latest must be a boolean")
-    if auto_resume_latest and mode == "in_memory":
-        raise CheckpointSpecError("spec.checkpoint.auto_resume_latest requires a persistent checkpoint mode")
-
-    return CheckpointPolicy(
+    policy = CheckpointPolicy(
         mode=mode,
         triggers=triggers,
         every_n_turns=every_n_turns,
@@ -92,4 +139,9 @@ def parse_checkpoint_policy(raw: Any) -> CheckpointPolicy:
         retention_n=retention_n,
         portability=portability,
         auto_resume_latest=auto_resume_latest,
+        storage_kind=storage_kind,
+        storage_path=storage_path,
     )
+    if auto_resume_latest and not policy.uses_disk():
+        raise CheckpointSpecError("spec.checkpoint.auto_resume_latest requires disk or hybrid storage")
+    return policy

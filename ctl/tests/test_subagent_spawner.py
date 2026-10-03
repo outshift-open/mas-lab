@@ -84,6 +84,70 @@ def test_spawner_materializes_runs_and_always_tears_down(tmp_path: Path):
     assert "blocked" in spawner.spawn("worker", "another task")
 
 
+def test_spawn_emits_kernel_spawn_observability(tmp_path: Path):
+    from mas.runtime.boundary.obs.operator import ObservabilityOperator
+    from mas.runtime.schema.observability import ObsEventKind
+
+    obs = ObservabilityOperator()
+    instances = {
+        "root": SimpleNamespace(
+            driver=SimpleNamespace(
+                agent_id="root",
+                ctx=SimpleNamespace(session_id="session", agent_id="root"),
+                observability=obs,
+            ),
+            obs_plugin_set=None,
+        )
+    }
+    bus = InProcessCommBus()
+    materialized = SimpleNamespace(instances=instances, bus=bus)
+    template = SubagentTemplate(
+        template_id="worker",
+        description="Review code",
+        path=tmp_path / "worker.yaml",
+        manifest={"apiVersion": "mas/v1", "kind": "Agent"},
+    )
+
+    def instance_factory(_template, child_id):
+        return SimpleNamespace(
+            driver=SimpleNamespace(
+                agent_id="",
+                ctx=SimpleNamespace(session_id="", agent_id=""),
+                observability=obs,
+            ),
+            obs_plugin_set=None,
+        )
+
+    class Controller:
+        def __init__(self, **kwargs):
+            return None
+
+        def run_turn(self, task, *, turn_id, parent_call_id):
+            return TurnResult(
+                trace=DriverTrace(),
+                responses=[EmitClientResponse(content="ok")],
+            )
+
+    spawner = make_subagent_spawner(
+        materialized=materialized,
+        parent_agent_id="root",
+        session_id="session",
+        templates={"worker": template},
+        ledger=SpawnLedger(max_depth=1, max_spawns=2),
+        working_memory_registry=WorkingMemoryRegistry(),
+        instance_factory=instance_factory,
+        controller_factory=Controller,
+    )
+
+    spawner.call("create_subagent", {"template": "worker", "task": "review"}, caller_call_id="parent-call")
+    spawn_events = [event for event in obs.events if event.payload.get("op") == "SPAWN"]
+    assert [event.kind for event in spawn_events] == [ObsEventKind.ENGINE_IO, ObsEventKind.ENGINE_IO_RETURN]
+    assert spawn_events[0].payload["category"] == "spawn.subagent"
+    assert spawn_events[0].payload["template"] == "worker"
+    assert spawn_events[0].payload["tool_name"] == "create_subagent"
+    assert spawn_events[1].payload["text"] == "ok"
+
+
 def test_wire_subagent_spawning_loads_validated_manifest_templates(tmp_path: Path):
     worker = tmp_path / "worker.yaml"
     worker.write_text(

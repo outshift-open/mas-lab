@@ -29,6 +29,31 @@ def test_checkpoint_policy_parses_cadence_and_retention() -> None:
     assert policy.auto_resume_latest is True
 
 
+def test_checkpoint_storage_is_independent_of_cadence() -> None:
+    memory = parse_checkpoint_policy({"mode": "every_turn", "storage": "memory"})
+    assert memory.resolved_storage() == "memory"
+    assert memory.uses_memory() is True
+    assert memory.uses_disk() is False
+
+    disk = parse_checkpoint_policy(
+        {"mode": "every_turn", "storage": {"kind": "disk", "path": ".mas/ckpts"}}
+    )
+    assert disk.resolved_storage() == "disk"
+    assert disk.storage_path == ".mas/ckpts"
+    assert disk.uses_disk() is True
+
+    hybrid = parse_checkpoint_policy({"mode": "every_turn", "storage": {"kind": "hybrid"}})
+    assert hybrid.resolved_storage() == "hybrid"
+    assert hybrid.uses_disk() is True
+    assert hybrid.uses_memory() is True
+
+
+def test_checkpoint_storage_aliases_legacy_mode() -> None:
+    assert parse_checkpoint_policy({"mode": "in_memory"}).resolved_storage() == "memory"
+    assert parse_checkpoint_policy({"mode": "every_turn"}).resolved_storage() == "disk"
+    assert parse_checkpoint_policy({"mode": "none"}).resolved_storage() == "none"
+
+
 @pytest.mark.parametrize(
     "raw",
     [
@@ -38,6 +63,8 @@ def test_checkpoint_policy_parses_cadence_and_retention() -> None:
         {"retention": {"mode": "last_n", "n": 0}},
         {"auto_resume_latest": "true"},
         {"mode": "in_memory", "auto_resume_latest": True},
+        {"storage": "tape"},
+        {"storage": {"kind": "disk", "backend": "s3"}},
         {"unexpected": True},
     ],
 )

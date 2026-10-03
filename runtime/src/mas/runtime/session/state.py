@@ -248,6 +248,17 @@ class Session:
             self.controller.run_turn(f"/steer {steering_text.strip()}", auto_hitl=False)
         if "spec_revision" in payload:
             self.spec_revision = int(payload["spec_revision"] or 0)
+        tree = self.snapshot_tree
+        if tree is not None:
+            restored_turn = int(payload.get("turn", 0))
+            match = None
+            for node in reversed(tree.list_nodes(self.session_id)):
+                if node.turn == restored_turn:
+                    match = node
+                    break
+            if match is not None:
+                tree.set_live(self.session_id, match.snapshot_id)
+            self.take_snapshot(label="after-backtrack", kind="backtrack")
         return path
 
     def take_snapshot(

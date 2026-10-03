@@ -171,11 +171,32 @@ def _sh_agent_response(record: dict, ctx: TransformContext) -> list[dict]:
     ]
 
 
+def _sh_control(record: dict, ctx: TransformContext) -> list[dict]:
+    method = str(record.get("method") or "")
+    category = str(record.get("category") or (f"control.{method}" if method else "control"))
+    return [
+        {
+            "kind": "control",
+            "category": category,
+            "method": method,
+            "control_kind": record.get("control_kind") or method,
+            "actor": record.get("actor") or "",
+            "surface": record.get("surface") or "",
+            "denied": bool(record.get("denied")),
+            "reason": record.get("reason") or "",
+            "session_id": record.get("session_id") or "",
+            "agent_id": ctx.agent_id,
+            "run_id": ctx.run_id,
+        }
+    ]
+
+
 _SESSION_KIND_HANDLERS: dict[str, _SessionHandler] = {
     "mas_call_start": _sh_mas_call_start,
     "mas_call_end": _sh_mas_call_end,
     "user_input": _sh_user_input,
     "agent_response": _sh_agent_response,
+    "control": _sh_control,
 }
 
 
