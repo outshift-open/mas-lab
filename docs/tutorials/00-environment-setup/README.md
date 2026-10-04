@@ -404,7 +404,41 @@ Check effective paths:
 mas-lab config
 ```
 
-### 6 — Taskfile overview
+### 6 — Self-contained projects (`mas-lab init --local`)
+
+For a project you want to zip up, commit fixtures for, or hand to someone
+else unchanged, keep every path inside the project folder instead of
+`$XDG_DATA_HOME` / `$XDG_CACHE_HOME`:
+
+```bash
+mkdir my-project && cd my-project
+mas-lab init --local --yes
+```
+
+`--local` writes `config.yaml` and `infra/<name>.yaml` under the current
+directory instead of `$XDG_CONFIG_HOME/mas/`. Add a `paths:` block so traces,
+the trace cache, and benchmark runs all resolve under a local `data/` folder —
+see [config.local-example.yaml](config.local-example.yaml):
+
+```yaml
+paths:
+  labs_dir: ./data/labs
+  cache_dir: ./data/cache
+  runs_dir: ./data/runs
+```
+
+Confirm every path now resolves inside the project:
+
+```bash
+mas-lab config
+```
+
+`.gitignore` the `data/` directory and the project is fully portable: anyone
+who checks it out gets the same layout, and nothing is written outside the
+repo. Full precedence ladder (CLI flag → `MAS_*` env → `paths:` → user
+config → XDG defaults): [user-config.md § Data paths](../../user-config.md#data-paths).
+
+### 7 — Taskfile overview
 
 Run `task --list` from the repo root. Common tasks:
 
@@ -420,7 +454,7 @@ Run `task --list` from the repo root. Common tasks:
 | `task docs-serve` | Local MkDocs site (`http://127.0.0.1:8000`) |
 | `task docs-build` | Build site to `site/` (same as GitHub Pages CI) |
 
-### 7 — Smoke test
+### 8 — Smoke test
 
 ```bash
 uv run mas-ctl validate docs/tutorials/01-building-an-agent/agent.yaml
@@ -434,7 +468,7 @@ Offline (no network — validate only; chat needs a live provider or [llm_cache]
 uv run mas-ctl validate docs/tutorials/01-building-an-agent/agent.yaml
 ```
 
-### 7 — Keeping up to date
+### 9 — Keeping up to date
 
 ```bash
 git pull

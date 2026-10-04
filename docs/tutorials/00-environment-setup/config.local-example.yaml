@@ -1,0 +1,23 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Self-contained project: copy to your project root as config.yaml after
+# `mas-lab init --local`. Every lab, run, and cache path stays under ./data/,
+# so the whole project folder can be moved, zipped, or checked out elsewhere
+# and still resolve the same way. Schema: docs/schemas/config.schema.yaml
+
+mas_ctl:
+  flavour: local
+  env: .env
+  trace: summary
+
+mas_lab:
+  flavour: local
+  benchmark_flavour: local
+
+paths:
+  labs_dir: ./data/labs
+  cache_dir: ./data/cache
+  runs_dir: ./data/runs
+
+infra_refs:
+  - standard:openai
