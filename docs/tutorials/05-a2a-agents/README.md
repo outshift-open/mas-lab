@@ -162,6 +162,14 @@ An explicit peer endpoint overrides a materialized local agent with the same
 id. This lets the same MAS manifest run as one process during development and
 as a distributed system in another environment.
 
+When the **entry** agent itself has `usage: deploy`, `run-mas` (and `chat` /
+`tui` for a single agent) still drive it in-process. The advertised URL is
+bound in the same process so you can interrogate the live instance
+(`a2a card get http://127.0.0.1:9001`) without a second `mas-ctl serve`.
+Specialists listed as `usage: use` or `use-and-deploy` still need their own
+`mas-ctl serve` (or they stay local when `usage` is only `deploy`). All four
+commands share `mas.ctl.session.exposure`.
+
 ![Agent discovery and dispatch](tutorial-05.2-discovery-dispatch.svg)
 
 **Figure 2:** Route discovery combines local materialized agents with infra
@@ -198,6 +206,41 @@ mas-ctl run-mas docs/tutorials/02-creating-a-mas/mas.yaml \
 All three specialists now use the local provider. No MAS graph, agent prompt,
 delegation tool, or specialist implementation changed.
 
+## Session continuity: `contextId` is the session id
+
+A2A has no separate "session" concept of its own — it reuses the protocol's
+`contextId`. Two requests with no `contextId` are two independent sessions;
+the first response's `contextId` is the session id, and sending that same
+value on a later request attaches to the same session instead of minting a
+new one:
+
+```python
+from library_ioa.plugins.a2a.client import A2AClient
+
+client = A2AClient(url="http://127.0.0.1:9006")
+
+first = client.send_message("Plan day one around the morning train.")
+print(first)  # look for "context_id" — top-level on a Task response,
+              # nested under "result" on a Message response
+context_id = first.get("context_id") or (first.get("result") or {}).get("context_id")
+
+second = client.send_message("Now add day two.", context_id=context_id)
+client.close()
+```
+
+`mas-a2a` (the CLI used above) does not expose a `--context-id` flag yet, so
+reusing a session from the command line means calling `A2AClient` directly,
+as above, rather than `mas-a2a --message`. The server-side mapping is exact:
+the runtime reads the inbound `contextId` and uses it as `session_id` for
+that turn; omitting it mints a new one (`library_ioa/plugins/a2a/exposure.py`).
+
+Two callers that *do* send the same `contextId` concurrently share one
+linearized turn queue — the second caller's turn is queued, not dropped or
+run in parallel. That queueing, plus attaching to a session's live control
+surface from a separate process, is the subject of
+[Tutorial 8 — Control attach and debug](../08-control-and-debug/), which
+builds directly on this same session-id mechanism.
+
 ## Direct protocol check
 
 You can still test the remote agent independently of MAS dispatch:
@@ -217,5 +260,14 @@ Only infra changed. A2A owns peer discovery, transport negotiation, task
 lifecycle, and wire messages; MAS-Lab keeps the workflow, target ids, agent
 behavior, and `AgentCommContract` stable.
 
-For deterministic profiles and official TCK evidence, see the
-[A2A compliance workflow](https://github.com/outshift-open/mas-lab/tree/main/library-ioa/compliance/a2a).
+## Reference material
+
+- [A2A developer reference](../../a2a/developer.md) and
+  [infra.md § A2A agent endpoints](../../manifests/infra.md#a2a-agent-endpoints)
+  — full endpoint manifest fields.
+- [Kernel operations](../../references/kernel-primitives.md) and
+  [Thin waist](../../references/thin-waist.md) — where `contextId`/session id
+  and the concurrent turn queue sit in the runtime's architecture.
+- [A2A compliance workflow](https://github.com/outshift-open/mas-lab/tree/main/library-ioa/compliance/a2a)
+  — deterministic profiles and official TCK evidence.
+- Next: [Tutorial 8 — Control attach and debug](../08-control-and-debug/).

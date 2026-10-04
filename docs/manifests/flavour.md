@@ -70,7 +70,10 @@ Enforced by `FlavourSeparationValidator` and `mas-lab check-config`.
 
 Flavours select how this application exposes agents or tools. MCP consumption is
 not a flavour concern: a `ToolServerRegistry` with `usage: use` is an infra
-dependency. A local/MCP mix is expressed by infra dependencies, not flavour.
+dependency. `--bind NAME=mcp://…` is a shortcut for that infra row, not a
+flavour switch. `--flavour mcp` selects tool *exposure* protocol. Internal
+agency stays in-process on flavour `local` until an Application endpoint
+(`--infra-ref` YAML or `--bind NAME=a2a://…`) sets `usage: use`.
 
 ```bash
 mas-ctl run-mas mas.yaml --infra-ref ./infra/prod-bundle.yaml

@@ -55,21 +55,31 @@ A2A compliance page rather than silently claimed as complete.
 ## Exposure topology
 
 The infra endpoint entry is both the outbound reachability declaration and the
-place to mark public availability with `expose: true`. They are intentionally
-independent of agency topology: a private local worker may be exposed, an
-external dependency may be consumed without being exposed, and an agent may
-have both a local `ref` and a named infra endpoint when an overlay deliberately
-routes it remotely.
+place to mark public availability with `expose: true` or `usage: deploy`. They
+are intentionally independent of agency topology: a private local worker may be
+exposed, an external dependency may be consumed without being exposed, and an
+agent may have both a local `ref` and a named infra endpoint when an overlay
+deliberately routes it remotely.
 
-The current server command serves one agent per process. A MAS-level launcher
-should choose one of these explicit policies before implementation:
+`mas-ctl serve`, `chat`, `tui`, and `run-mas` share one exposure helper
+(`mas.ctl.session.exposure`). Listen URLs come from Application endpoints:
 
-- entry only: expose the MAS entry agent and keep specialists private;
-- selected: expose infra endpoints with `expose: true`;
-- all: allocate one port per exposed agent or add a path/tenant router.
+- dedicated `serve`: blocking listener for that agent (`usage: deploy` or
+  `use-and-deploy` required).
+- `chat` / `tui`: the in-process agent is the conversation owner; a deployed
+  endpoint binds in the background for interrogation while stdin/curses stay
+  the conversation.
+- `run-mas`: the entry agent is always in-process. A deployed entry endpoint
+  binds for interrogation. Hosted specialists with `usage: deploy` (not
+  `use`) get their own ports. `usage: use` / `use-and-deploy` peers are
+  client routes; another `mas-ctl serve` owns those ports.
+
+`--bind NAME=a2a://…` is a shortcut for an Application `usage: use` row: it
+expands to `--override infra:spec.endpoints…` on the same merged infra
+document as `--infra-ref`. It is not a second exposure path.
 
 A single port cannot safely host multiple independent AgentCards without a
-routing convention and stable URL paths; that is deliberately not inferred.
+routing convention and stable URL paths; that is not inferred.
 
 ## Compliance workflow
 

@@ -309,13 +309,17 @@ See the MCP library docs in [../library-ioa/README.md](../library-ioa/README.md)
 A2A is the agent-to-agent and user-to-agent protocol surface. It is independent
 from MCP tools and from the LLM's delegation decision.
 
-Expose one manifest-backed agent:
+Expose one manifest-backed agent. The listen URL is the Application
+endpoint keyed by `metadata.name` (`usage: deploy`):
 
 ```bash
-mas-ctl serve agent.yaml --protocol a2a --host 127.0.0.1 --port 9005
+mas-ctl serve agent.yaml --infra-ref infra/a2a-qa.yaml
 a2a card get http://127.0.0.1:9005
 a2a send -a http://127.0.0.1:9005 "Hello"
 ```
+
+`mas-ctl chat` / `tui` / `run-mas` with the same `--infra-ref` bind that URL
+in-process for interrogation; `serve` is the dedicated blocking process.
 
 In a MAS, `delegates_to` names the allowed target. The deployment infra
 manifest selects local bus or A2A reachability by matching the endpoint name to

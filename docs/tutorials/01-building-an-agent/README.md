@@ -583,8 +583,13 @@ Expose the same agent manifest through the A2A protocol without changing the
 agent definition:
 
 ```bash
-mas-ctl serve agent.yaml --protocol a2a --host 127.0.0.1 --port 9005
+mas-ctl serve agent.yaml --infra-ref infra/a2a-qa.yaml
 ```
+
+`infra/a2a-qa.yaml` is an Application endpoint named `qa-agent` (the agent
+`metadata.name`) with `protocol: a2a`, `usage: deploy`, and
+`url: http://127.0.0.1:9005`. `mas-ctl chat` with the same `--infra-ref`
+binds that URL in the background while you talk on stdin.
 
 In another terminal, retrieve the card and send a test message with the official
 A2A CLI or another compatible client. Stop the server with `Ctrl-C` when done.
@@ -618,7 +623,7 @@ Live `mas-ctl chat` steps need `TUTORIAL_ONLINE=1` and a configured LLM (Tutoria
 6. **Memory is a resource, not a tool**: two access paths (proactive RAG injection + `memory_search` tool) share the same plugin
 7. **Flavours separate deployment from identity**: `--flavour` selects a deployment posture bundled in `mas-library-standard` (`local` today; remote tool-servers / OTel are future flavours) with zero manifest changes
 8. **CLI flags**: same manifest — `-q` for scripted queries, `-i` for interactive REPL
-9. **Protocol exposure**: `mas-ctl serve --protocol a2a` exposes an agent card without rewriting the manifest
+9. **Protocol exposure**: `mas-ctl serve --infra-ref` (or `chat`/`run-mas` with the same infra) exposes an agent card without rewriting the manifest
 
 ---
 
@@ -736,7 +741,7 @@ If you present this tutorial (~20 min), a useful slide arc:
 5. Progressive enrichment — tools → skills → memory
 6. Agentic memory — Apple ambiguity example across two runs
 7. Contracts and control — kernel ingress/egress (see Mealy guide)
-8. CLI vs protocol — same manifest, `mas-ctl serve --protocol a2a`
+8. CLI vs protocol — same manifest, `mas-ctl serve --infra-ref` (A2A Application endpoint)
 9. Teaser — multiple agents (Tutorial 2)
 
 ---

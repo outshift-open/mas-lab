@@ -72,12 +72,12 @@ The serve terminal must log `MCP tool call name=web-search` for both `mas-mcp to
 
 ## A2A exposure
 
-The generic runtime server command applies an A2A exposure overlay to the agent
-manifest and starts the registered exposure/webserver plugins:
+The generic runtime server command starts the registered `agent_expose`
+plugin from the agent's Application endpoint (`usage: deploy`):
 
 ```bash
 mas-ctl serve docs/tutorials/01-building-an-agent/agent.yaml \
-  --protocol a2a --host 127.0.0.1 --port 9005
+  --infra-ref path/to/a2a-qa.yaml
 ```
 
 Use the official A2A CLI for discovery and messaging:

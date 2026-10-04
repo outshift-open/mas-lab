@@ -51,7 +51,60 @@ mas-ctl chat agent.yaml \
 # Address a context key containing dots
 mas-ctl chat agent.yaml \
   --override 'agent:spec.context["key.with.dots"]=value'
+
+# Flavour posture (observability / tool exposure). Does not switch internal
+# agents to A2A — that is an infra Application `usage: use` row (`--bind` is
+# a shortcut for the same fields).
+mas-ctl chat agent.yaml \
+  --override 'flavour:spec.observability=[native]'
 ```
+
+## Bind
+
+`--bind NAME=URI` is a **shortcut for infra YAML**, not a second wiring path.
+It expands into `--override infra:…` and is merged into the same in-memory
+Application / ToolServerRegistry document as `--infra-ref`. There is no
+separate bind resolver: `chat`, `tui`, `run-mas`, `serve`, and `compose` all
+consume the patched infra. `--bind` is applied first, so an explicit
+`--override` of the same path still wins.
+
+Equivalent forms:
+
+```yaml
+# infra/a2a-agents.yaml — kind: Application
+spec:
+  endpoints:
+    banking_assistant:
+      protocol: a2a
+      usage: use
+      url: http://127.0.0.1:8080/agents/banking_assistant/
+```
+
+```bash
+mas-ctl run-mas mas.yaml --infra-ref infra/a2a-agents.yaml
+mas-ctl run-mas mas.yaml \
+  --bind banking_assistant=a2a://127.0.0.1:8080/agents/banking_assistant/
+```
+
+```bash
+mas-ctl run-mas mas.yaml \
+  --bind banking_assistant=a2a://127.0.0.1:8080/agents/banking_assistant/ \
+  --bind fraud_adjudicator=a2a://127.0.0.1:8080/agents/fraud_adjudicator/ \
+  --bind analyze_transaction_risk=mcp://127.0.0.1:8080/mcp#analyze_transaction_risk \
+  --bind calculate_fraud_score=mcp://127.0.0.1:8080/mcp#calculate_fraud_score
+```
+
+| Assignment | Expands to (same fields as the infra manifest) |
+| --- | --- |
+| `NAME=a2a://host:port/path/` | `infra:spec.endpoints['NAME']={protocol: a2a, usage: use, url: http://host:port/path/}` |
+| `NAME=mcp://host:port/mcp#tool` | `infra:spec.tool_servers[id=…]={protocol: mcp, usage: use, url: http://…, tools: [tool]}` |
+
+`a2a://` / `mcp://` are scheme tags; stored URLs are `http://` or `https://`
+(`a2as://` / `mcps://`). Two MCP tools on the same origin collapse to one
+server. The MAS still names the agency peer, and the agent still lists the
+tool; `--bind` only fills location on the infra document. Flavour stays
+`local` (`agent_comm.protocol: agent-local`) — Application `usage: use` is
+what routes that peer over A2A.
 
 ## Manifest tree
 
@@ -231,7 +284,7 @@ The effective order is:
 workspace/config defaults
   < base manifest
   < file overlays in argument order
-  < legacy shortcut flags
+  < legacy shortcut flags (`--bind` expands to `--override infra:…` here)
   < --override arguments in argument order
   < runtime defaults for fields still absent
 ```
@@ -250,6 +303,7 @@ Existing flags remain supported:
 | `--skill NAME` | Add `NAME` to `agent:spec.skills` |
 | `--memory ID` | Replace `agent:spec.memory` |
 | `--set KEY=VALUE` | Set an Agent context value |
+| `--bind NAME=URI` | Shortcut for Application / ToolServerRegistry `usage: use` on the merged infra document |
 | `--max-tokens N` | Alias of `--override 'agent:spec.models[*].max_tokens=N'`, placed before explicit `--override` values (`chat`, `tui`) |
 | `--overlay PATH` | Load a file Overlay before CLI values |
 | `--scenario-id ID` | Benchmark selection shortcut |

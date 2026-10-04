@@ -117,7 +117,9 @@ spec:
 ```
 
 The current resolver is static and manifest-based. Directory discovery and
-search/composition are intentionally separate future plugins.
+search/composition are intentionally separate future plugins. `usage: deploy`
+on an in-process `run-mas` agent binds that URL for interrogation; see
+[A2A developer reference — Exposure topology](../a2a/developer.md#exposure-topology).
 
 ---
 
@@ -160,7 +162,12 @@ not modified.
 
 For reusable Infra changes, use an Overlay with `target.kind: Infra` and place
 root-qualified assignments under `spec.overrides`; see the [Overlay manifest
-reference](overlay.md).
+reference](overlay.md). `--bind NAME=a2a://…` / `--bind NAME=mcp://…` is a
+**CLI shortcut** for those same Application `usage: use` and ToolServerRegistry
+`usage: use` fields: it expands to `--override infra:…` and is merged into the
+effective infra document. It is not a second resolver. Flavour remains `local`
+until an Application endpoint (from YAML or `--bind`) actually names a remote
+collaborator.
 
 ---
 

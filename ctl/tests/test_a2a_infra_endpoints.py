@@ -15,7 +15,7 @@ from library_ioa.plugins.a2a.agent_comm import A2AAgentComm
 from library_ioa.plugins.a2a.exposure import A2AExposure
 from library_ioa.plugins.a2a.server.app import build_app
 from library_ioa.plugins.a2a.server.executor import MasLabAgentExecutor
-from mas.ctl.cli.commands.serve import _make_runtime_handler
+from mas.ctl.session.exposure import make_runtime_handler
 from mas.ctl.infra.resolve import (
     application_endpoint_is_deployed,
     application_endpoint_is_used,
@@ -121,7 +121,7 @@ def test_serve_runtime_handler_forwards_generic_turn_and_session_ids() -> None:
             )
             return SimpleNamespace(client_responses=[SimpleNamespace(content="answer")])
 
-    handler = _make_runtime_handler(RuntimeInstance())
+    handler = make_runtime_handler(RuntimeInstance())
 
     assert handler(
         "question",
@@ -151,7 +151,7 @@ def test_serve_runtime_handler_preserves_structured_artifacts() -> None:
                 ]
             )
 
-    result = _make_runtime_handler(RuntimeInstance())("question")
+    result = make_runtime_handler(RuntimeInstance())("question")
     assert result["text"] == "Generated output"
     assert result["context_id"]
     assert result["artifacts"] == [
@@ -168,7 +168,7 @@ def test_serve_runtime_handler_marks_pending_hitl_as_input_required() -> None:
         def run_user_text(self, *_: Any, **__: Any) -> SimpleNamespace:
             return SimpleNamespace(client_responses=[], awaiting_hitl=True)
 
-    result = _make_runtime_handler(RuntimeInstance())("approve this tool call")
+    result = make_runtime_handler(RuntimeInstance())("approve this tool call")
     assert result["text"] == ""
     assert result["task_state"] == "input_required"
     assert result["context_id"]
