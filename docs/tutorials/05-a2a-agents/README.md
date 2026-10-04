@@ -162,6 +162,14 @@ An explicit peer endpoint overrides a materialized local agent with the same
 id. This lets the same MAS manifest run as one process during development and
 as a distributed system in another environment.
 
+When the **entry** agent itself has `usage: deploy`, `run-mas` (and `chat` /
+`tui` for a single agent) still drive it in-process. The advertised URL is
+bound in the same process so you can interrogate the live instance
+(`a2a card get http://127.0.0.1:9001`) without a second `mas-ctl serve`.
+Specialists listed as `usage: use` or `use-and-deploy` still need their own
+`mas-ctl serve` (or they stay local when `usage` is only `deploy`). All four
+commands share `mas.ctl.session.exposure`.
+
 ![Agent discovery and dispatch](tutorial-05.2-discovery-dispatch.svg)
 
 **Figure 2:** Route discovery combines local materialized agents with infra

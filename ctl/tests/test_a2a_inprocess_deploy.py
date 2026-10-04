@@ -1,0 +1,240 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+"""Shared agent_expose listeners for serve / chat / tui / run-mas."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from mas.ctl.compose.models import ResolvedInfra
+from mas.ctl.compose.runner import ComposeResult
+from mas.ctl.session.exposure import (
+    close_exposures,
+    expose_agent,
+    exposure_targets,
+    make_runtime_handler,
+    start_hosted_exposures,
+    start_materialized_exposures,
+)
+
+
+def test_exposure_targets_conversation_owner_and_local_deploy() -> None:
+    assert exposure_targets(
+        ["assistant", "greeter"],
+        {
+            "assistant": {
+                "protocol": "a2a",
+                "usage": "deploy",
+                "url": "http://127.0.0.1:9001",
+            },
+            "greeter": {
+                "protocol": "a2a",
+                "usage": "deploy",
+                "url": "http://127.0.0.1:9002",
+            },
+        },
+        conversation_ids=["assistant"],
+    ) == ["assistant", "greeter"]
+
+
+def test_exposure_targets_chat_use_and_deploy_binds() -> None:
+    assert exposure_targets(
+        ["assistant"],
+        {
+            "assistant": {
+                "protocol": "a2a",
+                "usage": "use-and-deploy",
+                "url": "http://127.0.0.1:9001",
+            }
+        },
+        conversation_ids=["assistant"],
+    ) == ["assistant"]
+
+
+def test_exposure_targets_skips_used_remote_peer() -> None:
+    assert exposure_targets(
+        ["moderator", "schedule_agent"],
+        {
+            "schedule_agent": {
+                "protocol": "a2a",
+                "usage": "use-and-deploy",
+                "url": "http://127.0.0.1:9006",
+            }
+        },
+        conversation_ids=["moderator"],
+    ) == []
+
+
+def test_exposure_targets_skips_use_only_and_missing_protocol() -> None:
+    assert exposure_targets(
+        ["assistant", "oracle", "weather"],
+        {
+            "assistant": {"protocol": "a2a", "usage": "use", "url": "http://127.0.0.1:9001"},
+            "oracle": {"url": "http://127.0.0.1:9005"},
+            "weather": {"protocol": "mcp", "usage": "deploy", "url": "http://127.0.0.1:9001/mcp"},
+        },
+        conversation_ids=["assistant"],
+    ) == []
+
+
+def _materialized(applications: dict, agent_ids: list[str]) -> SimpleNamespace:
+    instances = {aid: SimpleNamespace(driver=SimpleNamespace()) for aid in agent_ids}
+    compose = ComposeResult(
+        mas_id="demo",
+        mas_config={"spec": {"workflow": {"entry": agent_ids[0]}}},
+        effective_bind={},
+        placement_plan={},
+        deployment={},
+        infra_refs=[],
+        bind=MagicMock(agents=[]),
+        plan=MagicMock(),
+        resolved_infra=ResolvedInfra(applications=applications),
+    )
+    return SimpleNamespace(
+        compose=compose,
+        materialized=SimpleNamespace(instances=instances),
+        mas_base_dir=".",
+    )
+
+
+def test_start_materialized_exposures_serves_entry_and_local_deploy_peers() -> None:
+    materialized = _materialized(
+        {
+            "assistant": {
+                "protocol": "a2a",
+                "usage": "deploy",
+                "url": "http://127.0.0.1:9001",
+            },
+            "greeter": {
+                "protocol": "a2a",
+                "usage": "deploy",
+                "url": "http://127.0.0.1:9002",
+            },
+            "remote": {
+                "protocol": "a2a",
+                "usage": "use-and-deploy",
+                "url": "http://127.0.0.1:9006",
+            },
+        },
+        ["assistant", "greeter", "remote"],
+    )
+    created: list[str] = []
+    handles: list[MagicMock] = []
+
+    def _create(spec_key: str, binding=None, **kwargs):
+        assert spec_key == "agent_expose"
+        created.append(kwargs["endpoint"]["url"])
+        handle = MagicMock()
+        handle.host = "127.0.0.1"
+        handle.port = int(kwargs["endpoint"]["url"].rsplit(":", 1)[1])
+        handle.server = SimpleNamespace(thread=SimpleNamespace(is_alive=lambda: True))
+        exposure = MagicMock()
+        exposure.serve_background.return_value = handle
+        handles.append(handle)
+        return exposure
+
+    with patch("mas.runtime.registry.get_registry", return_value=SimpleNamespace(create=_create)):
+        with patch("mas.ctl.session.exposure._wait_listening"):
+            started = start_materialized_exposures(
+                materialized,
+                entry_id="assistant",
+                manifests={"assistant": {"metadata": {"name": "assistant"}}},
+            )
+
+    assert created == ["http://127.0.0.1:9001", "http://127.0.0.1:9002"]
+    assert started == handles
+    close_exposures(started)
+    for handle in handles:
+        handle.close.assert_called_once()
+
+
+def test_start_hosted_exposures_is_the_chat_path() -> None:
+    instance = SimpleNamespace(driver=SimpleNamespace())
+    handle = MagicMock()
+    handle.host = "127.0.0.1"
+    handle.port = 9001
+    handle.server = SimpleNamespace(thread=SimpleNamespace(is_alive=lambda: True))
+    exposure = MagicMock()
+    exposure.serve_background.return_value = handle
+    endpoint = {"protocol": "a2a", "usage": "deploy", "url": "http://127.0.0.1:9001"}
+
+    with patch("mas.runtime.registry.get_registry", return_value=SimpleNamespace(create=lambda *a, **k: exposure)):
+        with patch("mas.ctl.session.exposure._wait_listening"):
+            started = start_hosted_exposures(
+                {"solo": instance},
+                {"solo": endpoint},
+                conversation_ids=["solo"],
+                manifests={"solo": {"metadata": {"name": "solo"}}},
+            )
+
+    assert started == [handle]
+    exposure.serve_background.assert_called_once()
+    close_exposures(started)
+
+
+def test_expose_agent_blocking_is_the_serve_path() -> None:
+    instance = SimpleNamespace(driver=SimpleNamespace())
+    exposure = MagicMock()
+    endpoint = {"protocol": "a2a", "usage": "deploy", "url": "http://127.0.0.1:9005"}
+
+    with patch("mas.runtime.registry.get_registry", return_value=SimpleNamespace(create=lambda *a, **k: exposure)):
+        assert expose_agent(
+            instance,
+            {"metadata": {"name": "qa-agent"}},
+            endpoint,
+            blocking=True,
+        ) is None
+
+    exposure.serve_blocking.assert_called_once()
+    exposure.serve_background.assert_not_called()
+
+
+def test_start_hosted_exposures_closes_on_listen_failure() -> None:
+    handle = MagicMock()
+    handle.host = "127.0.0.1"
+    handle.port = 9001
+    handle.server = SimpleNamespace(thread=SimpleNamespace(is_alive=lambda: True))
+    exposure = MagicMock()
+    exposure.serve_background.return_value = handle
+    endpoint = {"protocol": "a2a", "usage": "deploy", "url": "http://127.0.0.1:9001"}
+
+    with patch("mas.runtime.registry.get_registry", return_value=SimpleNamespace(create=lambda *a, **k: exposure)):
+        with patch("mas.ctl.session.exposure._wait_listening", side_effect=RuntimeError("bind failed")):
+            with pytest.raises(RuntimeError, match="bind failed"):
+                start_hosted_exposures(
+                    {"assistant": SimpleNamespace()},
+                    {"assistant": endpoint},
+                    conversation_ids=["assistant"],
+                )
+
+    handle.close.assert_called_once()
+
+
+def test_runtime_handler_forwards_turn_and_session_ids() -> None:
+    calls: list[tuple[str, str, str, str, int | None]] = []
+
+    class Runtime:
+        def run_user_text(
+            self,
+            text: str,
+            *,
+            turn_id: str,
+            session_id: str,
+            parent_call_id: str,
+            upstream_correlation_id: int | None,
+        ) -> SimpleNamespace:
+            calls.append((text, turn_id, session_id, parent_call_id, upstream_correlation_id))
+            return SimpleNamespace(client_responses=[SimpleNamespace(content="answer")])
+
+    handler = make_runtime_handler(Runtime())
+    assert handler(
+        "question",
+        turn_id="turn-1",
+        session_id="session-1",
+        parent_call_id="parent-1",
+        upstream_correlation_id=42,
+    ) == {"text": "answer", "context_id": "session-1"}
+    assert calls == [("question", "turn-1", "session-1", "parent-1", 42)]

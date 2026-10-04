@@ -148,11 +148,15 @@ def compose_run(req: ComposeRequest) -> ComposeResult:
         mas = merge_overlay(mas, overlay)
         agent_patches = accumulate_agent_patches(agent_patches, loaded_agent_patches(overlay, mas))
     if req.overrides:
-        mas = apply_cli_overrides(mas, req.overrides, root="mas")
-        if req.validate and validation_enabled():
-            from mas.ctl.validate import validate_data
+        from mas.ctl.overrides import overrides_for_root
 
-            validate_data(mas, source="CLI overrides", kind="mas").raise_if_failed()
+        mas_overrides = overrides_for_root(req.overrides, "mas")
+        if mas_overrides:
+            mas = apply_cli_overrides(mas, mas_overrides, root="mas")
+            if req.validate and validation_enabled():
+                from mas.ctl.validate import validate_data
+
+                validate_data(mas, source="CLI overrides", kind="mas").raise_if_failed()
     mas_id = mas.get("metadata", {}).get("name") or req.manifest.stem
 
     workspace = WorkspaceConfig.load(req.workspace_root or req.manifest.parent)

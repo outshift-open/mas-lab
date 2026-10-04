@@ -153,10 +153,12 @@ def _selected_indexes(items: list[Any], segment: PathSegment) -> list[int]:
     if segment.selector is None:
         return list(range(len(items)))
     indexes = [index for index, item in enumerate(items) if _matches(item, segment.selector)]
-    if not indexes:
-        key, expected = segment.selector
+    if indexes:
+        return indexes
+    if not isinstance(segment.selector, tuple):
+        key, expected = segment.selector  # type: ignore[misc]
         raise ValueError(f"no list entry matches {key}={expected!r} for {segment.name!r}")
-    return indexes
+    return []
 
 
 def _mutate_path(
@@ -209,9 +211,28 @@ def _mutate_path(
         if first_selector is None:
             first_selector = position
         indexes = _selected_indexes(items, segment)
+        if not indexes:
+            if not isinstance(segment.selector, tuple):
+                raise ValueError(f"no list entry matches selector for {segment.name!r}")
+            key, expected = segment.selector
+            if position == len(path.segments) - 1:
+                created = deepcopy(value)
+                if not isinstance(created, dict):
+                    raise ValueError(
+                        f"creating {key}={expected!r} on {segment.name!r} requires a mapping value"
+                    )
+                created.setdefault(key, expected)
+                items.append(created)
+            else:
+                items.append({key: expected})
+            indexes = [len(items) - 1]
         if position == len(path.segments) - 1:
             for index in indexes:
-                items[index] = deepcopy(value)
+                replacement = deepcopy(value)
+                if isinstance(replacement, dict) and isinstance(segment.selector, tuple):
+                    key, expected = segment.selector
+                    replacement.setdefault(key, expected)
+                items[index] = replacement
             return
         for index in indexes:
             visit(items[index], position + 1)
@@ -283,3 +304,13 @@ def apply_cli_overrides(
         overlay = _overlay_for_override(result, parsed, target_kind)
         result = merge_overlay(result, overlay)
     return result
+
+def apply_root_overrides(
+    document: dict[str, Any], overrides: tuple[str, ...] | list[str], *, root: str
+) -> dict[str, Any]:
+    """Apply mixed CLI overrides that match *root*; leave other roots untouched."""
+    selected = overrides_for_root(overrides, root)
+    if not selected:
+        return document
+    return apply_cli_overrides(document, selected, root=root)
+

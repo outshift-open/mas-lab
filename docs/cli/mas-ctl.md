@@ -77,9 +77,10 @@ mas-ctl chat agent.yaml -i -o overlays/tools.yaml --trace
 | `--memory ID` | — | Inline overlay: memory backend id |
 | `--set KEY=VALUE` | — | Inline overlay: `spec.context` |
 | `--override ROOT:PATH=VALUE` | — | Schema-backed overlay patch; applied last |
+| `--bind NAME=URI` | — | Shortcut for infra Application / ToolServerRegistry `usage: use` (expands to `--override infra:…`) |
 | `--pattern ID` | manifest | Design-pattern plugin id |
 | `--flavour NAME` | `local` | Flavour from library-standard |
-| `--infra-ref REF` | workspace / user | Infra bundle; repeatable; wins over `config.yaml` |
+| `--infra-ref REF` | workspace / user | Infra bundle; repeatable; wins over `config.yaml`. Deployed A2A endpoints for this agent bind in-process for interrogation. |
 | `--runtime-ref REF` | workspace / user | `RuntimeEngine` ref; repeatable |
 | `--model ID` | spec.models / `MAS_CTL_MODEL` / `MAS_LLM_MODEL` | Force the engine model for this run |
 | `--max-tokens N` | none sent | Alias of `--override 'agent:spec.models[*].max_tokens=N'`; bounded by infra `generation.max_output_tokens` — [Output-token limits](../manifests/agent.md#output-token-limits) |
@@ -97,6 +98,9 @@ mas-ctl run-mas mas.yaml \
 Selectors support numeric indexes, identity selectors such as `[id=reviewer]`,
 and `[*]` wildcards. CLI patches have higher priority than file overlays.
 Existing `--tool`, `--skill`, `--memory`, and `--set` flags remain supported.
+`--bind NAME=URI` is a shortcut for the same Application / ToolServerRegistry
+fields as `--infra-ref` YAML: it expands into `--override infra:…` and uses
+that merge path (see [CLI override reference — Bind](overrides.md#bind)).
 An overlay file may group the same assignments under `spec.overrides`; those
 assignments run after that file's regular `spec.patch` in list order. See
 [CLI override reference](overrides.md) and [Overlay manifest](../manifests/overlay.md).
@@ -170,7 +174,9 @@ Shared with `run-mas` and `tui`. Full semantics: [observability.md](observabilit
 ## `mas-ctl run-mas [MANIFEST]`
 
 Compose → materialize → session on the MAS entry agent. Manifest defaults to
-`mas.yaml`.
+`mas.yaml`. Deployed A2A Application endpoints on in-process agents
+(`usage: deploy` on the entry agent, or on specialists that are not also
+`use`) bind for interrogation while the conversation stays on stdin.
 
 ```bash
 mas-ctl run-mas mas.yaml -q "Plan a trip from Celestia to Verdantia" --trace
@@ -181,7 +187,8 @@ mas-ctl run-mas mas.yaml -q "Plan a trip from Celestia to Verdantia" --trace
 | `-p` / `--prompt TEXT` | — | First user turn |
 | `-q` / `--query TEXT` | — | Extra turn(s); repeatable |
 | `-o` / `--overlay PATH` | — | Overlay YAML; repeatable |
-| `--override ROOT:PATH=VALUE` | — | Schema-backed MAS patch; applied last |
+| `--override ROOT:PATH=VALUE` | — | Schema-backed MAS / infra / flavour patch; applied last |
+| `--bind NAME=URI` | — | Shortcut for infra Application / ToolServerRegistry `usage: use` (expands to `--override infra:…`) |
 | `-d` / `--deployment PATH` | workspace `mas_ctl.deployment` | Deployment manifest |
 | `--flavour NAME` | `local` | Flavour |
 | `--infra-ref REF` | — | Infra bundle; repeatable |
@@ -195,14 +202,41 @@ Plus the shared **`--trace*`** and **`--events*`** tables above.
 
 ---
 
+## `mas-ctl serve AGENT`
+
+Dedicated blocking A2A (or other `agent_expose`) process. Requires an
+Application endpoint named after the agent `metadata.name` with
+`usage: deploy` or `use-and-deploy` in workspace `infra_refs` or `--infra-ref`.
+Same helper as `chat` / `tui` / `run-mas` (`mas.ctl.session.exposure`); this
+command does not return until the listener stops.
+
+```bash
+mas-ctl serve agent.yaml --infra-ref infra/a2a-qa.yaml
+```
+
+| Flag | Default | Effect |
+|------|---------|--------|
+| `-o` / `--overlay PATH` | — | Overlay YAML; repeatable |
+| `--override ROOT:PATH=VALUE` | — | Schema-backed overlay patch; applied last |
+| `--bind NAME=URI` | — | Shortcut for infra Application / ToolServerRegistry `usage: use` (expands to `--override infra:…`) |
+| `--infra-ref REF` | workspace / user | Must include the agent's deployed Application endpoint |
+| `--flavour NAME` | `local` | Flavour |
+| `--control-dir PATH` | `$XDG_RUNTIME_DIR/mas-ctl`, else `/var/run/mas-ctl`, else temp | Advertise control so `mas-ctl control attach` can use the A2A `contextId` |
+| `--no-control` | off | Do not advertise a control endpoint |
+
+---
+
 ## `mas-ctl tui [MANIFEST]`
 
 Curses UI with the same bootstrap as `chat` (overlays, infra, HITL, `--events*`).
-No `--trace` (the TUI renders exchanges itself).
+Deployed A2A endpoints for the in-process agent bind for interrogation, same
+helper as `chat`. No `--trace` (the TUI renders exchanges itself).
 
 | Flag | Default | Effect |
 | ------ | --------- | -------- |
 | `-o` / `--overlay PATH` | — | Overlay YAML; repeatable |
+| `--override ROOT:PATH=VALUE` | — | Schema-backed overlay patch; applied last |
+| `--bind NAME=URI` | — | Shortcut for infra Application / ToolServerRegistry `usage: use` (expands to `--override infra:…`) |
 | `--pattern ID` | manifest | Design-pattern plugin id |
 | `--flavour NAME` | `local` | Flavour |
 | `--single-turn` | off | Exit after first reply |
@@ -223,7 +257,7 @@ Plus **`--events*`**. Guide: [ctl/tui.md](../ctl/tui.md).
 | --------- | --------- | --------------- |
 | `mas-ctl validate PATH …` | Schema-check manifests | `-k/--kind`, `--strict/--no-strict`, `--no-validate`, `--resolve-refs/--no-resolve-refs`, `-o/--overlay` |
 | `mas-ctl schemas` | List bundled JSON/YAML schemas | — |
-| `mas-ctl compose MANIFEST` | Effective bind + placement plan | `-d/--deployment`, `-o/--overlay`, `--infra-ref`, `--runtime-ref`, `--kernel`, `-O/--output`, `--no-validate` |
+| `mas-ctl compose MANIFEST` | Effective bind + placement plan | `-d/--deployment`, `-o/--overlay`, `--override`, `--bind`, `--infra-ref`, `--runtime-ref`, `--kernel`, `-O/--output`, `--no-validate` |
 | `mas-ctl plan MANIFEST` | Placement plan only | `-d/--deployment`, `--kernel`, `--no-validate` |
 | `mas-ctl flavour list` | Flavours from installed libraries | — |
 | `mas-ctl infra list` | Infra bundles | `-v` |

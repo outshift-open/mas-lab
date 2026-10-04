@@ -199,6 +199,7 @@ def _infra_document(manifest: InfraManifest) -> dict[str, Any]:
             "model_access": dict(manifest.model_access),
             "protocol": manifest.protocol,
             "tool_servers": list(manifest.tool_servers),
+            "endpoints": {str(name): dict(endpoint) for name, endpoint in manifest.applications.items()},
         },
     }
 
@@ -509,13 +510,12 @@ def _from_dict(data: dict[str, Any]) -> InfraManifest:
     spec = data.get("spec") or {}
     kind = data.get("kind", "")
     applications: dict[str, dict[str, Any]] = {}
-    if kind == "Application":
-        raw_endpoints = spec.get("endpoints") or {}
-        if isinstance(raw_endpoints, dict):
-            applications = {
-                str(name): dict(endpoint) if isinstance(endpoint, dict) else {"url": str(endpoint)}
-                for name, endpoint in raw_endpoints.items()
-            }
+    raw_endpoints = spec.get("endpoints") or {}
+    if isinstance(raw_endpoints, dict):
+        applications = {
+            str(name): dict(endpoint) if isinstance(endpoint, dict) else {"url": str(endpoint)}
+            for name, endpoint in raw_endpoints.items()
+        }
     proxy_raw = spec.get("proxy") or spec.get("server") or {}
     models_raw = spec.get("models") or {}
     defaults = models_raw.get("defaults") or spec.get("defaults") or {}

@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import click
+from mas.ctl.cli.bind_flags import bind_option, with_binds
 from mas.ctl.cli.help_text import CHAT_EPILOG
 from mas.ctl.cli.obs_flags import observability_options, resolve_observability_config
 from mas.ctl.cli.trace_flags import mas_ctl_from_configs, resolve_trace_settings, trace_options
@@ -52,6 +53,7 @@ from mas.runtime.spec.checkpoint import parse_checkpoint_policy
     metavar="ROOT:PATH=VALUE",
     help="Schema-validated overlay override (repeatable; applied last).",
 )
+@bind_option
 @click.option("--pattern", default=None, help="Design pattern plugin id (default from manifest)")
 @click.option(
     "--flavour",
@@ -146,6 +148,7 @@ def chat_cmd(
     memory: str | None,
     set_values: tuple[str, ...],
     overrides: tuple[str, ...],
+    binds: tuple[str, ...],
     pattern: str | None,
     flavour: str,
     infra_refs_cli: tuple[str, ...],
@@ -187,7 +190,7 @@ def chat_cmd(
     from mas.ctl.session.infra_resolve import resolve_session_infra
     from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
 
-    overrides = (*max_tokens_overrides(max_tokens), *overrides)
+    overrides = with_binds(binds, (*max_tokens_overrides(max_tokens), *overrides))
     verbose = int(ctx.obj.get("verbose", 0) if ctx.obj else 0)
 
     hitl_responder, hitl_terminal = None, None
@@ -334,6 +337,16 @@ def chat_cmd(
             if candidates:
                 load_checkpoint_path = max(candidates, key=lambda item: item.stat().st_mtime_ns)
 
+        resolved_infra = resolve_session_infra(
+            agent_data,
+            workspace,
+            user,
+            infra_refs_cli=infra_refs_cli,
+            overrides=overrides,
+            runtime_refs_cli=runtime_refs_cli,
+            anchor=session.manifest_dir or session.original_cwd,
+            with_interceptors=True,
+        )
         try:
             instance, store = instantiate_runtime(
                 InstantiationOptions(
@@ -351,16 +364,7 @@ def chat_cmd(
                     user_io_contract=user_io_contract,
                     agent_manifest=agent_data,
                     manifest_dir=session.manifest_dir if manifest else None,
-                    resolved_infra=resolve_session_infra(
-                        agent_data,
-                        workspace,
-                        user,
-                        infra_refs_cli=infra_refs_cli,
-                        overrides=overrides,
-                        runtime_refs_cli=runtime_refs_cli,
-                        anchor=session.manifest_dir or session.original_cwd,
-                        with_interceptors=True,
-                    ),
+                    resolved_infra=resolved_infra,
                     runtime_refs_cli=runtime_refs_cli,
                     workspace=workspace,
                     enable_observability=not without_obs,
@@ -472,6 +476,15 @@ def chat_cmd(
                 trace_timestamps=trace.timestamps,
                 trace_engine=trace.engine,
             )
+        from mas.ctl.session.exposure import close_exposures, start_hosted_exposures
+
+        hosted = {} if agent_name in {"", "n/a"} or not agent_data else {str(agent_name): instance}
+        exposure_handles = start_hosted_exposures(
+            hosted,
+            resolved_infra.applications,
+            conversation_ids=set(hosted),
+            manifests={str(agent_name): agent_data} if hosted else None,
+        )
         try:
             rc = run_session_loop(controller, interactive=interactive, scripted=scripted)
 
@@ -479,6 +492,7 @@ def chat_cmd(
                 path = session_manager.checkpoint(managed_session.session_id, label="final")
                 display.on_system(f"checkpoint saved: {path}")
         finally:
+            close_exposures(exposure_handles)
             if control_host is not None:
                 control_host.close()
             close_observability(controller)

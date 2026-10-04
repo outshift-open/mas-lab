@@ -500,7 +500,7 @@ The remote agent is discovered from its A2A AgentCard at
 The generic command is:
 
 ```bash
-mas-ctl serve agent.yaml --protocol a2a --host 127.0.0.1 --port 9005
+mas-ctl serve agent.yaml --infra-ref library-samples/infra/mixed-agents.infra.yaml
 ```
 
 Use the official `a2a-cli` or another A2A SDK client to query the card and send

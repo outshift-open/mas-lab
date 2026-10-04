@@ -7,6 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import click
+from mas.ctl.cli.bind_flags import bind_option, with_binds
 from mas.ctl.cli.obs_flags import observability_options, resolve_observability_config
 from mas.ctl.session.bootstrap import InstantiationOptions, instantiate_runtime
 from mas.ctl.session.controller import ConversationConfig, close_observability
@@ -25,6 +26,7 @@ from mas.ctl.ui.curses_app import build_curses_controller, run_curses_session
     metavar="ROOT:PATH=VALUE",
     help="Schema-validated overlay override (repeatable; applied last).",
 )
+@bind_option
 @click.option("--pattern", default=None)
 @click.option(
     "--flavour",
@@ -66,6 +68,7 @@ def tui_cmd(
     manifest: str | None,
     overlays: tuple[str, ...],
     overrides: tuple[str, ...],
+    binds: tuple[str, ...],
     pattern: str | None,
     flavour: str,
     single_turn: bool,
@@ -88,7 +91,8 @@ def tui_cmd(
     from mas.ctl.session.infra_resolve import resolve_session_infra
     from mas.ctl.workspace.config import UserConfig, WorkspaceConfig
 
-    overrides = (*max_tokens_overrides(max_tokens), *overrides)
+    overrides = with_binds(binds, (*max_tokens_overrides(max_tokens), *overrides))
+
     with manifest_cwd(manifest, overlay_paths=overlays) as session:
         load_dotenv(cwd=session.original_cwd, manifest_dir=session.manifest_dir)
         workspace = WorkspaceConfig.load(session.manifest_dir or session.original_cwd)
@@ -121,6 +125,15 @@ def tui_cmd(
                 return None
             return resolve_overlay_path(path, orig_cwd=session.original_cwd, manifest_dir=session.manifest_dir)
 
+        resolved_infra = resolve_session_infra(
+            agent_data,
+            workspace,
+            user,
+            infra_refs_cli=infra_refs_cli,
+            overrides=overrides,
+            runtime_refs_cli=runtime_refs_cli,
+            anchor=session.manifest_dir or session.original_cwd,
+        )
         instance, store = instantiate_runtime(
             InstantiationOptions(
                 pattern_plugin_id=plugin,
@@ -128,15 +141,7 @@ def tui_cmd(
                 validate_manifests=not no_validate,
                 agent_manifest=agent_data,
                 manifest_dir=session.manifest_dir if manifest else None,
-                resolved_infra=resolve_session_infra(
-                    agent_data,
-                    workspace,
-                    user,
-                    infra_refs_cli=infra_refs_cli,
-                    runtime_refs_cli=runtime_refs_cli,
-                    anchor=session.manifest_dir or session.original_cwd,
-                    overrides=overrides,
-                ),
+                resolved_infra=resolved_infra,
                 workspace=workspace,
                 runtime_refs_cli=runtime_refs_cli,
                 model_override=model,
@@ -163,5 +168,18 @@ def tui_cmd(
         controller.obs_recorder = obs_rec
         controller.config = ConversationConfig(single_turn=single_turn)
         infra_lines = list(infra_refs_cli) or workspace.effective_infra_refs or ["local-inproc"]
-        run_curses_session(controller, infra_lines=infra_lines)
-        close_observability(controller)
+        from mas.ctl.session.exposure import close_exposures, start_hosted_exposures
+
+        agent_name = str((agent_data or {}).get("metadata", {}).get("name") or "")
+        hosted = {agent_name: instance} if agent_name and agent_data else {}
+        handles = start_hosted_exposures(
+            hosted,
+            resolved_infra.applications,
+            conversation_ids=set(hosted),
+            manifests={agent_name: agent_data} if hosted else None,
+        )
+        try:
+            run_curses_session(controller, infra_lines=infra_lines)
+        finally:
+            close_exposures(handles)
+            close_observability(controller)

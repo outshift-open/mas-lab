@@ -175,30 +175,40 @@ def execute_run_mas(
         entry_agent_id=str(entry or "agent"),
     )
 
-    controller = SessionController(
-        instance=instance,
-        display=display,
-        verbose=verbose,
-        trace=trace,
-        trace_timestamps=trace_timestamps,
-        trace_engine=trace_engine,
-        trace_summary=trace_summary,
-        trace_color=trace_color,
-        agent_id=str(entry or "agent"),
-        config=ConversationConfig(
-            single_turn=single_turn or (bool(scripted) and not interactive),
-        ),
-        session_id=prepared.session_id,
-        working_memory_registry=getattr(prepared, "working_memory_registry", None),
+    from mas.ctl.session.exposure import close_exposures, start_materialized_exposures
+
+    a2a_handles = start_materialized_exposures(
+        materialized,
+        entry_id=entry,
+        manifests={str(entry): enriched_manifest},
     )
-    exit_code = run_session_loop(
-        controller,
-        interactive=interactive or not auto_hitl,
-        scripted=scripted,
-    )
-    close_observability(controller)
-    for recorder in scoped_recorders:
-        recorder.close()
-    if plugin_set is not None:
-        _log_obs_output_paths(plugin_set)
-    return exit_code
+    try:
+        controller = SessionController(
+            instance=instance,
+            display=display,
+            verbose=verbose,
+            trace=trace,
+            trace_timestamps=trace_timestamps,
+            trace_engine=trace_engine,
+            trace_summary=trace_summary,
+            trace_color=trace_color,
+            agent_id=str(entry or "agent"),
+            config=ConversationConfig(
+                single_turn=single_turn or (bool(scripted) and not interactive),
+            ),
+            session_id=prepared.session_id,
+            working_memory_registry=getattr(prepared, "working_memory_registry", None),
+        )
+        exit_code = run_session_loop(
+            controller,
+            interactive=interactive or not auto_hitl,
+            scripted=scripted,
+        )
+        close_observability(controller)
+        for recorder in scoped_recorders:
+            recorder.close()
+        if plugin_set is not None:
+            _log_obs_output_paths(plugin_set)
+        return exit_code
+    finally:
+        close_exposures(a2a_handles)
