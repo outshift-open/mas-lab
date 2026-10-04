@@ -218,5 +218,12 @@ Only infra changed. MCP owns discovery, transport, endpoint policy, and wire
 messages; MAS-Lab keeps the agent behavior, tool names, schemas, and
 `ToolContract` stable.
 
-For the official runner and reproducible reports, see the
-[MCP compliance workflow](https://github.com/outshift-open/mas-lab/tree/main/library-ioa/compliance/mcp).
+## Reference material
+
+- [ToolServerRegistry reference](../../references/tool-server-registry.md)
+  and [infra.md § ToolServerRegistry](../../manifests/infra.md#toolserverregistry)
+  — full field reference.
+- [MCP compliance workflow](https://github.com/outshift-open/mas-lab/tree/main/library-ioa/compliance/mcp)
+  — official runner and reproducible reports.
+- Next: [Tutorial 5 — A2A agents](../05-a2a-agents/) applies the same
+  logic/infra split to agent-to-agent delegation.
