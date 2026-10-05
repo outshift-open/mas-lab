@@ -3,14 +3,14 @@
 """Shared A2A (agent_expose) listeners for every live-agent entry point.
 
 ``mas-ctl serve``, ``chat``, ``tui``, and ``run-mas`` host ``RuntimeInstance``
-objects. When infra marks those agents ``usage: deploy`` (or
-``use-and-deploy`` for an in-process conversation owner), this module binds
-the advertised URL through the ``agent_expose`` plugin.
+objects. When infra marks those hosted agents ``usage: deploy`` or
+``use-and-deploy``, this module binds the advertised URL through the
+``agent_expose`` plugin.
 
 Dedicated ``serve`` is blocking (the process *is* the server). Chat / TUI /
 run-mas keep stdin or curses as the conversation and bind in the background
-for interrogation. Remote peers (``usage: use`` / ``use-and-deploy`` on an
-agent this process does not own as the conversation entry) are not bound.
+for interrogation. ``usage: use`` peers stay client routes; another process
+owns those listen ports.
 """
 
 from __future__ import annotations
@@ -22,10 +22,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
-from mas.ctl.infra.resolve import (
-    application_endpoint_is_deployed,
-    application_endpoint_is_used,
-)
+from mas.ctl.infra.resolve import application_endpoint_is_deployed
 from mas.ctl.session.mailbox import SessionTurnMailbox
 from mas.runtime.session import SessionStatus
 
@@ -152,36 +149,24 @@ def exposure_targets(
 ) -> list[str]:
     """Hosted agents this process should bind.
 
-    Conversation owners (chat/TUI agent, run-mas entry) bind whenever the
-    endpoint is deployed. Other hosted specialists bind only when they are
-    ``usage: deploy`` (not also ``use``), so a remote ``mas-ctl serve`` keeps
-    the listen port.
+    Every hosted A2A endpoint with ``usage: deploy`` or ``use-and-deploy`` is
+    bound here. ``usage: use`` stays a client route so a remote
+    ``mas-ctl serve`` (or ``--bind``) keeps that listen port.
     """
-    owned = {str(item) for item in conversation_ids if str(item).strip()}
-    targets: list[str] = []
-    for agent_id in hosted_ids:
-        endpoint = applications.get(agent_id)
-        if _should_expose(agent_id, endpoint, conversation_ids=owned):
-            targets.append(agent_id)
-    return targets
+    owned = [str(item) for item in conversation_ids if str(item).strip()]
+    hosted = [str(agent_id) for agent_id in hosted_ids]
+    ordered = [agent_id for agent_id in owned if agent_id in hosted]
+    ordered.extend(agent_id for agent_id in hosted if agent_id not in ordered)
+    return [agent_id for agent_id in ordered if _should_expose(applications.get(agent_id))]
 
 
-def _should_expose(
-    agent_id: str,
-    endpoint: dict[str, Any] | None,
-    *,
-    conversation_ids: set[str],
-) -> bool:
+def _should_expose(endpoint: dict[str, Any] | None) -> bool:
     if not isinstance(endpoint, dict):
         return False
     protocol = str(endpoint.get("protocol") or "").strip()
     if protocol != "a2a":
         return False
-    if not application_endpoint_is_deployed(endpoint):
-        return False
-    if agent_id in conversation_ids:
-        return True
-    return not application_endpoint_is_used(endpoint)
+    return application_endpoint_is_deployed(endpoint)
 
 
 def start_hosted_exposures(

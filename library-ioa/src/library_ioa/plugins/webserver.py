@@ -35,6 +35,7 @@ class UvicornWebServer:
         import uvicorn
 
         server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
+        server.install_signal_handlers = False
         thread = Thread(target=server.run, daemon=True)
         thread.start()
         return UvicornHandle(server=server, thread=thread)
