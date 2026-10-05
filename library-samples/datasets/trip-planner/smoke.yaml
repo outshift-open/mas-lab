@@ -1,0 +1,17 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: lab/v1
+kind: Dataset
+metadata:
+  name: trip-planner-smoke
+  display_name: trip-planner smoke dataset
+  version: '1.0'
+  description: Single-prompt dataset for comparing run-mas and benchmark events.jsonl.
+spec:
+  items:
+  - id: item1
+    inputs:
+      user: what trains go from Celestia to Verdantia?
+    group: single_agent
+    target_agents:
+    - schedule_agent

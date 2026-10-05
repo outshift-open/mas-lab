@@ -1,0 +1,15 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: lab/v1
+kind: Dataset
+metadata:
+  name: qa-mas-smoke
+  display_name: qa-mas smoke dataset
+  version: '1.0'
+  description: Single-prompt dataset for comparing run-mas and benchmark events.jsonl.
+spec:
+  items:
+  - id: item1
+    inputs:
+      user: Hello
+    category: smoke
