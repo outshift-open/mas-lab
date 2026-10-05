@@ -14,7 +14,7 @@ Checkout path: `library-standard/src/mas/library/standard/overlays/<file>`.
 | File | `metadata.name` | Target | What it does |
 |------|-----------------|--------|----------------|
 | `observability-native.yaml` | `observability-native` | Agent | Writes native `events.jsonl` (`spec.observability` → `native`). |
-| `with-hardened.yaml` | `with-hardened` | Agent | Appends `gov_no_undeclared_tool` and `retry_on_error` to the governance chain; merges `control.retry` + `circuit_breaker` (transient/unavailable retry, application errors stay in working memory). |
+| `with-hardened.yaml` | `with-hardened` | Agent | Production posture: appends `gov_no_undeclared_tool` and `retry_on_error` to the governance chain; merges `control.retry` + `circuit_breaker` (transient/unavailable retry, application errors stay in working memory); caps `spec.budget.max_llm_calls` / `max_tool_calls`. |
 | `cheap-summarizer.yaml` | `cheap-summarizer` | Agent | Sets `summarizer.params.model` to `gpt-4o-mini` (same `summarising` type; params merge). |
 | `openclaw.yaml` | `openclaw` | Agent | Enables LLM-call checkpoints, self-contained persistence, auto-resume, and repeated-error backtracking. |
 

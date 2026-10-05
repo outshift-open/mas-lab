@@ -55,3 +55,78 @@ spec:
     catalog = load_model_catalog(path)
     assert catalog.get("toy").context_window == 8
     assert catalog.get("toy").supports("think") is False
+
+
+def test_resolve_model_recursive_simple_chain():
+    """Test resolving a simple mapping chain: default -> haiku -> bedrock/..."""
+    infra_spec = {
+        "models": {
+            "mappings": {
+                "default": "haiku",
+                "haiku": "bedrock/anthropic.claude-haiku-4-5-20251001-v1:0",
+            },
+            "allowed": [
+                "bedrock/anthropic.claude-haiku-4-5-20251001-v1:0",
+                "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0",
+            ],
+        }
+    }
+    
+    from mas.runtime.engine.llm_model_catalog import resolve_model_recursive
+    
+    # Test default resolves through chain
+    assert resolve_model_recursive("default", infra_spec) == "bedrock/anthropic.claude-haiku-4-5-20251001-v1:0"
+    
+    # Test intermediate also resolves
+    assert resolve_model_recursive("haiku", infra_spec) == "bedrock/anthropic.claude-haiku-4-5-20251001-v1:0"
+    
+    # Test already-final model stays as-is
+    assert resolve_model_recursive("bedrock/anthropic.claude-haiku-4-5-20251001-v1:0", infra_spec) == "bedrock/anthropic.claude-haiku-4-5-20251001-v1:0"
+
+
+def test_resolve_model_recursive_no_mapping():
+    """Test model with no mapping stays unchanged."""
+    infra_spec = {
+        "models": {
+            "mappings": {"default": "haiku"},
+            "allowed": ["haiku"],
+        }
+    }
+    
+    from mas.runtime.engine.llm_model_catalog import resolve_model_recursive
+    
+    assert resolve_model_recursive("unknown-model", infra_spec) == "unknown-model"
+
+
+def test_resolve_model_recursive_cycle_detection():
+    """Test that circular references are detected."""
+    infra_spec = {
+        "models": {
+            "mappings": {
+                "default": "haiku",
+                "haiku": "default",  # Circular!
+            },
+        }
+    }
+    
+    from mas.runtime.engine.llm_model_catalog import resolve_model_recursive
+    import pytest
+    
+    with pytest.raises(ValueError, match="Circular model mapping detected"):
+        resolve_model_recursive("default", infra_spec)
+
+
+def test_resolve_model_recursive_no_infra():
+    """Test that None infra_spec returns original model name."""
+    from mas.runtime.engine.llm_model_catalog import resolve_model_recursive
+    
+    assert resolve_model_recursive("default", None) == "default"
+    assert resolve_model_recursive("my-model", {}) == "my-model"
+
+
+def test_resolve_model_recursive_empty_model_name():
+    """Test that empty model names are handled gracefully."""
+    from mas.runtime.engine.llm_model_catalog import resolve_model_recursive
+    
+    assert resolve_model_recursive(None, {}) is None
+    assert resolve_model_recursive("", {}) == ""

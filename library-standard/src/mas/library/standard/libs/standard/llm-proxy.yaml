@@ -19,6 +19,8 @@ spec:
 
   models:
     mappings:
+      # Apps can reference model: default instead of a provider-specific name.
+      default: gpt-4o-mini
       gpt-4o: gpt-4o
       gpt-4o-mini: gpt-4o-mini
       gpt-4.1: gpt-4.1
@@ -31,4 +33,5 @@ spec:
       - text-embedding-3-small
       - text-embedding-3-large
     defaults:
+      llm: default
       embed: text-embedding-3-small

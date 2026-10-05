@@ -17,7 +17,9 @@ spec:
     api_key_env: OPENAI_API_KEY
 
   models:
-    # No mappings needed - use OpenAI model names directly
+    mappings:
+      # Apps can reference model: default instead of a provider-specific name.
+      default: gpt-4o-mini
     allowed:
       - gpt-4o
       - gpt-4o-mini

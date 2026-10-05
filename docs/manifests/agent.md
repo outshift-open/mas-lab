@@ -78,6 +78,7 @@ Extension properties (`x-*`) are allowed and ignored by the runtime.
 | `hitl_contract` | `string` | no | `registry` | Human-approval Protocol plugin. An explicit `InstantiationOptions.hitl_contract` instance overrides this binding, preserving interactive CLI adapters. |
 | `user_io_contract` | `string` | no | `registry` | User progress-update Protocol plugin. Overridden the same way as `hitl_contract`. |
 | `llm` | `LlmBinding` | no | `{}` | Engine overrides (model, temperature, …). See [`LlmBinding`](#llmbinding). |
+| `budget` | object | no | `{}` | Call-count ceilings (`max_llm_calls`, `max_tool_calls`) enforced by the engine. Omitted = no limit. See [`Budget`](#budget). |
 | `control` | `ControlBinding` | no | `{}` | Control-plane plugin configs. See [`ControlBinding`](#controlbinding). |
 | `observability` | `ObservabilityBinding` | no | `null` | Observability sink plugin list. See [`ObservabilityBinding`](#observabilitybinding). |
 | `context_sources` | `ContextSourcesBinding` | no | `null` | Context source plugins, including the skill-engine backend. |
@@ -565,6 +566,32 @@ _Used by:_ `spec.llm`
 ```yaml
 llm:
   provider: mock
+```
+
+### Budget
+
+_Used by:_ `spec.budget`
+
+Call-count ceilings enforced by the runtime engine (`LiveLlmEngine` /
+`BudgetTracker`) during a run. Omit a field, or the whole object, for
+no limit — this is the default. Typically left unset on the agent
+manifest and set via an overlay instead (see
+[`with-hardened`](../references/reliability.md#with-hardened)) rather
+than hardcoded per-agent. Distinct from `spec.control.budget` (token/cost
+accounting — see [`ControlBinding`](#controlbinding) — which is not yet
+read by the engine).
+
+| Field | Type | Required | Default | Description |
+| ------- | ------ | ---------- | --------- | ------------- |
+| `max_llm_calls` | `integer` ≥ 0 | no | unset | Maximum LLM calls allowed in a run. |
+| `max_tool_calls` | `integer` ≥ 0 | no | unset | Maximum tool calls allowed in a run. |
+
+**Example:**
+
+```yaml
+budget:
+  max_llm_calls: 50
+  max_tool_calls: 100
 ```
 
 ### ControlBinding
