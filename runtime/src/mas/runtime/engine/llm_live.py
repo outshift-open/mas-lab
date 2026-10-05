@@ -99,6 +99,12 @@ class LiveLlmEngine:
         self._pending_tools_by_cid[correlation_id] = (name, dict(arguments or {}))
 
     def __post_init__(self) -> None:
+        # Resolve model name recursively through infra manifest mappings
+        # (e.g., default -> haiku -> bedrock/anthropic.claude-haiku-...)
+        infra_spec = (self.llm_proxy or {}).get("spec") or {}
+        from mas.runtime.engine.llm_model_catalog import resolve_model_recursive
+        self.model = resolve_model_recursive(self.model, infra_spec) or self.model
+
         self.reasoning = coerce_reasoning_settings(
             self.reasoning
             if self.reasoning is not None

@@ -56,11 +56,13 @@ setup stops the turn.
 | `error_recovery_plugin` | unset |
 | `max_gov_retries` | `2` |
 | Lab run `max_attempts` | `3` (`experiment.execution.max_attempts`; set `1` to disable) |
+| `spec.budget.max_llm_calls` / `max_tool_calls` | unset (no call-count ceiling) |
 
 ### `with-hardened`
 
 `pkg://mas.library.standard/overlays/with-hardened.yaml` keeps the infra
-retry defaults and turns on governance + the breaker:
+retry defaults and turns on governance + the breaker + call-count caps
+— this is the recommended overlay for production posture:
 
 | Knob | Value |
 |------|--------|
@@ -68,6 +70,7 @@ retry defaults and turns on governance + the breaker:
 | Ingress | append `retry_on_error` with `error_recovery_plugin: retry_on_error` |
 | `error_policy` | transient/unavailable → `retry`; application → `allow`; fatal → `block` |
 | Circuit breaker | on; `failure_threshold: 5`; `reset_timeout_s: 30`; `"on": [unavailable]` |
+| `spec.budget` | `max_llm_calls: 50`; `max_tool_calls: 100` |
 
 ```bash
 mas-ctl chat agent.yaml \

@@ -13,6 +13,11 @@ spec:
     api_key_env: OPENAI_API_KEY
 
   models:
+    mappings:
+      # Apps can reference model: default instead of a provider-specific name.
+      default: gpt-4o-mini
     allowed:
       - gpt-4o
       - gpt-4o-mini
+    defaults:
+      llm: default

@@ -929,6 +929,30 @@ properties:
           strategy: mapping_merge_or_ops
         default: {}
 
+      budget:
+        type: object
+        x-merge:
+          strategy: mapping_merge_or_ops
+        description: >
+          Call-count ceilings enforced by the runtime engine during a run
+          (LiveLlmEngine / BudgetTracker). Omit a field, or the whole
+          object, for no limit -- this is the default. Typically left
+          unset on the agent manifest and set via an overlay instead
+          (e.g. pkg://mas.library.standard/overlays/with-hardened.yaml).
+          Distinct from spec.control.budget (token/cost accounting; not
+          yet wired to the engine).
+        additionalProperties: false
+        properties:
+          max_llm_calls:
+            type: integer
+            minimum: 0
+            description: Maximum LLM calls allowed in a run. Omitted means no limit.
+          max_tool_calls:
+            type: integer
+            minimum: 0
+            description: Maximum tool calls allowed in a run. Omitted means no limit.
+        default: {}
+
       control:
         $ref: "./fragments/control-binding.schema.yaml"
         x-merge:

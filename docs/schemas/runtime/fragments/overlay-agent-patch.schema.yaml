@@ -84,6 +84,8 @@ properties:
             $ref: "./design-pattern-config.schema.yaml"
           config:
             $ref: "./design-pattern-config.schema.yaml"
+  budget:
+    $ref: "../agent.schema.yaml#/properties/spec/properties/budget"
   control:
     oneOf:
       - type: "null"

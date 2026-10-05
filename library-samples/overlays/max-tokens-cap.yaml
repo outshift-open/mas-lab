@@ -1,0 +1,16 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Cap per-call output tokens on the primary model — patches the same
+# spec.models[].max_tokens field a manifest would set directly (named_list_merge
+# upserts by id, default "main"). Compose onto any agent that omits max_tokens.
+apiVersion: mas/v1
+kind: Overlay
+metadata:
+  name: max-tokens-cap
+spec:
+  target:
+    kind: Agent
+  patch:
+    models:
+      - id: main
+        max_tokens: 4096

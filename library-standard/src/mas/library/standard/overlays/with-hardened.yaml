@@ -1,8 +1,9 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
-# Hardened agent posture: refuse undeclared tool names, classify typed
-# failures at ingress, retry transient/unavailable after infra retries,
-# and open a circuit on persistent unavailability.
+# Hardened agent posture for production: refuse undeclared tool names,
+# classify typed failures at ingress, retry transient/unavailable after
+# infra retries, open a circuit on persistent unavailability, and cap
+# LLM/tool call counts so a runaway loop can't run unbounded.
 apiVersion: mas/v1
 kind: Overlay
 metadata:
@@ -11,6 +12,9 @@ spec:
   target:
     kind: Agent
   patch:
+    budget:
+      max_llm_calls: 50
+      max_tool_calls: 100
     governance:
       $op:
         add:

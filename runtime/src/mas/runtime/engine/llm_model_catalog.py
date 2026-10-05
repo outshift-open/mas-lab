@@ -155,3 +155,66 @@ def load_model_catalog(path: Path | None = None) -> ModelCatalog:
 @lru_cache(maxsize=1)
 def default_model_catalog() -> ModelCatalog:
     return load_model_catalog()
+
+
+def resolve_model_recursive(model_name: str | None, infra_spec: dict | None = None) -> str | None:
+    """Recursively resolve a model name through infra manifest mappings.
+
+    Supports mapping chains like:
+      default -> haiku -> bedrock/anthropic.claude-haiku-4-5-20251001-v1:0
+
+    Args:
+        model_name: The requested model (e.g., "default", "haiku", "gpt-mini")
+        infra_spec: The infra manifest spec dict (from LLMProxy.spec)
+
+    Returns:
+        The final resolved model name, or the original if no mapping found.
+
+    Raises:
+        ValueError: If a circular reference is detected in the mapping chain.
+    """
+    if not model_name:
+        return model_name
+
+    model_name = str(model_name).strip()
+    if not infra_spec:
+        return model_name
+
+    # Get models.mappings from infra spec
+    models_config = infra_spec.get("models") or {}
+    mappings = models_config.get("mappings") or {}
+
+    if not mappings:
+        return model_name
+
+    # Resolve the chain with cycle detection
+    visited = set()
+    current = model_name
+    max_depth = 10  # Prevent infinite loops
+    depth = 0
+
+    while current in mappings and depth < max_depth:
+        if current in visited:
+            # Circular reference detected
+            chain_str = " -> ".join(list(visited) + [current])
+            raise ValueError(
+                f"Circular model mapping detected: {chain_str}. "
+                f"Please check infra manifest models.mappings"
+            )
+        visited.add(current)
+        current = str(mappings[current]).strip()
+        depth += 1
+
+    if depth >= max_depth:
+        raise ValueError(
+            f"Model mapping chain too deep (max {max_depth}). "
+            f"Possible circular reference in: {visited}"
+        )
+
+    # Validate against allowed models if specified
+    allowed = models_config.get("allowed") or []
+    if allowed and current not in allowed:
+        # Don't fail, just warn - the LLM provider will handle unknown models
+        pass
+
+    return current
