@@ -142,13 +142,18 @@ workflow:
       delegates_to: [schedule_agent, itinerary_agent, concierge_agent]
 ```
 
-Run that unchanged MAS with the mixed infra profile:
+Run that unchanged MAS against the producer. `--bind` is `usage: use`, so
+this process does not steal port 9006 from `mas-ctl serve`:
 
 ```bash
 mas-ctl run-mas docs/tutorials/02-creating-a-mas/mas.yaml \
-  --infra-ref "$PWD/library-samples/infra/mixed-agents.infra.yaml" \
+  --bind schedule_agent=a2a://127.0.0.1:9006/ \
   -q "Plan a trip and compare the available transport schedules."
 ```
+
+The same `--infra-ref` file on `run-mas` is the all-in-one path: hosted
+`use-and-deploy` specialists bind in this process. Do not combine that with
+a separate `mas-ctl serve` on the same port.
 
 The resulting route table is:
 
@@ -162,13 +167,13 @@ An explicit peer endpoint overrides a materialized local agent with the same
 id. This lets the same MAS manifest run as one process during development and
 as a distributed system in another environment.
 
-When the **entry** agent itself has `usage: deploy`, `run-mas` (and `chat` /
-`tui` for a single agent) still drive it in-process. The advertised URL is
-bound in the same process so you can interrogate the live instance
+When a hosted agent has `usage: deploy` or `use-and-deploy`, `run-mas` (and
+`chat` / `tui`) still drive the conversation in-process. Advertised URLs bind
+in the same process so you can interrogate the live instance
 (`a2a card get http://127.0.0.1:9001`) without a second `mas-ctl serve`.
-Specialists listed as `usage: use` or `use-and-deploy` still need their own
-`mas-ctl serve` (or they stay local when `usage` is only `deploy`). All four
-commands share `mas.ctl.session.exposure`.
+Specialists listed as `usage: use` stay remote and need their own
+`mas-ctl serve` (or `--bind`). All four commands share
+`mas.ctl.session.exposure`.
 
 ![Agent discovery and dispatch](tutorial-05.2-discovery-dispatch.svg)
 

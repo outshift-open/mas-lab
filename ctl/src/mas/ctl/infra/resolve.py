@@ -180,27 +180,32 @@ def _infra_document(manifest: InfraManifest) -> dict[str, Any]:
     }
     if manifest.proxy.timeout is not None:
         proxy["timeout"] = manifest.proxy.timeout
+    defaults: dict[str, Any] = {}
+    if manifest.models.default_llm is not None:
+        defaults["llm"] = manifest.models.default_llm
+    if manifest.models.default_embed is not None:
+        defaults["embed"] = manifest.models.default_embed
     models: dict[str, Any] = {
         "allowed": list(manifest.models.allowed),
-        "defaults": {
-            "llm": manifest.models.default_llm,
-            "embed": manifest.models.default_embed,
-        },
         "mappings": dict(manifest.models.mappings),
         "generation": dict(manifest.models.generation),
     }
+    if defaults:
+        models["defaults"] = defaults
+    spec: dict[str, Any] = {
+        "proxy": proxy,
+        "models": models,
+        "model_access": dict(manifest.model_access),
+        "tool_servers": list(manifest.tool_servers),
+        "endpoints": {str(name): dict(endpoint) for name, endpoint in manifest.applications.items()},
+    }
+    if manifest.protocol:
+        spec["protocol"] = manifest.protocol
     return {
         "apiVersion": "infra/v1",
         "kind": manifest.kind or "InfraBundle",
         "metadata": {"name": manifest.name},
-        "spec": {
-            "proxy": proxy,
-            "models": models,
-            "model_access": dict(manifest.model_access),
-            "protocol": manifest.protocol,
-            "tool_servers": list(manifest.tool_servers),
-            "endpoints": {str(name): dict(endpoint) for name, endpoint in manifest.applications.items()},
-        },
+        "spec": spec,
     }
 
 

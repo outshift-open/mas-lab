@@ -98,11 +98,10 @@ spec:
 ```
 
 `mas-ctl serve` hosts one agent per process (blocking). `chat`, `tui`, and
-`run-mas` host the conversation in-process and bind every deployed endpoint
-this process owns: the conversation agent, plus specialists with `usage:
-deploy` only. Specialists with `usage: use` or `use-and-deploy` stay remote;
-run a separate `mas-ctl serve` for those ports. One AgentCard per listen URL;
-path-based multiplexing on a single port is not inferred.
+`run-mas` host the conversation in-process and bind every hosted A2A endpoint
+with `usage: deploy` or `use-and-deploy`. `usage: use` stays a client route;
+run a separate `mas-ctl serve` (or `--bind`) for those ports. One AgentCard
+per listen URL; path-based multiplexing on a single port is not inferred.
 
 ## Task and session identity
 

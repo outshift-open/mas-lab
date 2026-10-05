@@ -4,9 +4,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import yaml
+from mas.ctl.infra.resolve import resolve_infra_refs
 from mas.ctl.overrides import apply_cli_overrides, expand_binds
 from mas.ctl.overrides.bind import combine_overrides
 from mas.ctl.session.flavour import resolve_flavour
+from mas.ctl.workspace.config import WorkspaceConfig
 
 
 def test_expand_binds_a2a_is_infra_use_not_a_flavour_switch() -> None:
@@ -92,6 +97,49 @@ def test_bind_creates_missing_mcp_tool_server() -> None:
     assert servers["mcp-127.0.0.1-9001-mcp"]["url"] == "http://127.0.0.1:9001/mcp"
     assert servers["mcp-127.0.0.1-9001-mcp"]["tools"] == ["lookup"]
     assert servers["mcp-127.0.0.1-9001-mcp"]["usage"] == "use"
+
+
+def test_bind_override_validates_when_model_defaults_are_unset(tmp_path: Path) -> None:
+    infra_path = tmp_path / "a2a-agents.yaml"
+    infra_path.write_text(
+        yaml.safe_dump(
+            {
+                "apiVersion": "infra/v1",
+                "kind": "Application",
+                "metadata": {"name": "a2a-agents"},
+                "spec": {
+                    "endpoints": {
+                        "assistant": {
+                            "protocol": "a2a",
+                            "usage": "use-and-deploy",
+                            "url": "http://127.0.0.1:9001",
+                        },
+                        "greeter": {
+                            "protocol": "a2a",
+                            "usage": "use-and-deploy",
+                            "url": "http://127.0.0.1:9002",
+                        },
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    resolved = resolve_infra_refs(
+        [str(infra_path)],
+        anchor=tmp_path,
+        workspace=WorkspaceConfig({}),
+        overrides=list(expand_binds(("greeter=a2a://127.0.0.1:9002/",))),
+    )
+
+    assert resolved.applications["assistant"]["url"] == "http://127.0.0.1:9001"
+    assert resolved.applications["assistant"]["usage"] == "use-and-deploy"
+    assert resolved.applications["greeter"] == {
+        "protocol": "a2a",
+        "usage": "use",
+        "url": "http://127.0.0.1:9002/",
+    }
 
 
 def test_public_live_commands_expose_bind_option() -> None:

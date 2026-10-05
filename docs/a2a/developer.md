@@ -69,10 +69,10 @@ deliberately routes it remotely.
 - `chat` / `tui`: the in-process agent is the conversation owner; a deployed
   endpoint binds in the background for interrogation while stdin/curses stay
   the conversation.
-- `run-mas`: the entry agent is always in-process. A deployed entry endpoint
-  binds for interrogation. Hosted specialists with `usage: deploy` (not
-  `use`) get their own ports. `usage: use` / `use-and-deploy` peers are
-  client routes; another `mas-ctl serve` owns those ports.
+- `run-mas`: the entry agent is always in-process. Every hosted A2A endpoint
+  with `usage: deploy` or `use-and-deploy` binds in this process.
+  `usage: use` peers are client routes; another `mas-ctl serve` (or `--bind`)
+  owns those ports.
 
 `--bind NAME=a2a://…` is a shortcut for an Application `usage: use` row: it
 expands to `--override infra:spec.endpoints…` on the same merged infra
