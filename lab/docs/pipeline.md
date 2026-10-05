@@ -13,6 +13,8 @@ Terms: [glossary.md](../../docs/glossary.md).
 
 **Embedded pipeline** — level hooks inside `experiment.yaml`; runs automatically
 when you `mas-lab benchmark run`. There is no `pipelines:` attribute.
+A neighbouring `pipeline.yaml` is not loaded unless the manifest or CLI
+`--pipeline` names that file.
 
 ```yaml
 experiment:
