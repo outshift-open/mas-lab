@@ -1,10 +1,12 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
-"""Load experiment pipeline steps into memory — inline, ref, app, or sibling file.
+"""Load experiment pipeline steps into memory — inline, ref, app, or CLI attachment.
 
 After :func:`resolve_pipeline_specs`, execution is identical regardless of source.
 Uses :mod:`mas.runtime.spec.source` for path / app resolution (same as other manifests).
+A file named ``pipeline.yaml`` next to the experiment is not loaded unless the
+manifest or CLI ``--pipeline`` names it.
 """
 
 import logging
@@ -21,10 +23,13 @@ def resolve_pipeline_specs(exp: Any, experiment_yaml: Path) -> list:
 
     Resolution order (first non-empty wins):
 
-    1. Experiment manifest — ``all_pipeline_steps()`` (level hooks)
+    1. Experiment manifest — ``all_pipeline_steps()`` (level hooks, including
+       CLI ``--pipeline`` attachments merged into those hooks)
     2. External ref — ``pipeline_ref`` or ``pipeline: path/to.yaml`` (string)
     3. App bundle — ``pipeline_app`` (``{app: name, name: pipeline}``)
-    4. Sibling file — ``pipeline.yaml`` next to the experiment file
+
+    No filename is inferred. A neighbouring ``pipeline.yaml`` is ignored unless
+    one of the sources above names it.
     """
     specs = _specs_from_experiment(exp)
     if specs:
@@ -41,10 +46,6 @@ def resolve_pipeline_specs(exp: Any, experiment_yaml: Path) -> list:
         except FileNotFoundError as exc:
             logger.warning("%s", exc)
             return []
-
-    sibling = experiment_yaml.parent / "pipeline.yaml"
-    if sibling.is_file():
-        return _load_specs_from_yaml(sibling)
 
     return []
 

@@ -38,6 +38,29 @@ _MINIMAL_EXPERIMENT = {
 }
 
 
+def _empty_exp(**attrs):
+    class _Exp:
+        name = "demo"
+        pipeline = []
+        pipeline_ref = None
+        pipeline_app = None
+
+        def all_pipeline_steps(self):
+            return []
+
+    for key, value in attrs.items():
+        setattr(_Exp, key, value)
+    return _Exp()
+
+
+def _write_pipeline(path: Path, steps: list[dict]) -> Path:
+    path.write_text(
+        yaml.dump({"pipeline": {"name": path.stem, "steps": steps}}),
+        encoding="utf-8",
+    )
+    return path
+
+
 # ---------------------------------------------------------------------------
 # resolve_pipeline_specs — mock exp objects
 # ---------------------------------------------------------------------------
@@ -58,68 +81,48 @@ def test_resolve_inline_specs_from_experiment_dict():
     assert {s.phase for s in specs} == {"pre", "post"}
 
 
-def test_resolve_sibling_pipeline_yaml(tmp_path: Path):
-    sibling = tmp_path / "pipeline.yaml"
-    sibling.write_text(
-        yaml.dump(
-            {
-                "pipeline": {
-                    "name": "post",
-                    "steps": [
-                        {"name": "stats", "type": "extract_trace_stats", "phase": "post"},
-                    ],
-                }
-            }
-        ),
-        encoding="utf-8",
+def test_does_not_load_unnamed_sibling_pipeline_yaml(tmp_path: Path):
+    """A neighbouring pipeline.yaml is not an implicit experiment pipeline."""
+    _write_pipeline(
+        tmp_path / "pipeline.yaml",
+        [{"name": "stats", "type": "extract_trace_stats", "phase": "post"}],
     )
+    specs = resolve_pipeline_specs(_empty_exp(), tmp_path / "experiment.yaml")
+    assert specs == []
 
-    class _Exp:
-        name = "demo"
-        pipeline = []
 
-        def all_pipeline_steps(self):
-            return []
-
-    specs = resolve_pipeline_specs(_Exp(), tmp_path / "experiment.yaml")
+def test_resolve_explicit_pipeline_ref(tmp_path: Path):
+    named = _write_pipeline(
+        tmp_path / "analysis.yaml",
+        [{"name": "stats", "type": "extract_trace_stats", "phase": "post"}],
+    )
+    specs = resolve_pipeline_specs(
+        _empty_exp(pipeline_ref=str(named.name)),
+        tmp_path / "experiment.yaml",
+    )
     assert len(specs) == 1
     assert specs[0].type == "extract_trace_stats"
 
 
-def test_resolve_sibling_pipeline_yaml_preserves_scope_in_out(tmp_path: Path):
-    """A standalone pipeline.yaml's v2 fields (scope/in/out) must survive
-    resolution, not just its v1 fields (phase/per_scenario/per_run/config).
-    """
-    sibling = tmp_path / "pipeline.yaml"
-    sibling.write_text(
-        yaml.dump(
+def test_explicit_pipeline_ref_preserves_scope_in_out(tmp_path: Path):
+    """A named pipeline file's v2 fields (scope/in/out) must survive resolution."""
+    named = _write_pipeline(
+        tmp_path / "eval.yaml",
+        [
             {
-                "pipeline": {
-                    "name": "post",
-                    "steps": [
-                        {
-                            "name": "eval-quality",
-                            "type": "eval_mce",
-                            "phase": "post",
-                            "scope": "run",
-                            "in": "trace",
-                            "out": "metrics",
-                        },
-                    ],
-                }
-            }
-        ),
-        encoding="utf-8",
+                "name": "eval-quality",
+                "type": "eval_mce",
+                "phase": "post",
+                "scope": "run",
+                "in": "trace",
+                "out": "metrics",
+            },
+        ],
     )
-
-    class _Exp:
-        name = "demo"
-        pipeline = []
-
-        def all_pipeline_steps(self):
-            return []
-
-    specs = resolve_pipeline_specs(_Exp(), tmp_path / "experiment.yaml")
+    specs = resolve_pipeline_specs(
+        _empty_exp(pipeline_ref=str(named.name)),
+        tmp_path / "experiment.yaml",
+    )
     assert len(specs) == 1
     assert specs[0].scope == "run"
     assert specs[0].inputs == ["trace"]
@@ -193,6 +196,21 @@ def test_from_data_sees_inline_level_pipeline_steps():
     assert by_type["extract_trace_stats"].phase == "post"
     assert by_type["service_start"].scope == "scenario"
     assert by_type["service_start"].phase == "pre"
+
+
+def test_from_data_does_not_run_unnamed_sibling_pipeline_yaml(tmp_path: Path):
+    """Loaded experiments ignore a neighbouring pipeline.yaml unless named."""
+    import copy
+
+    _write_pipeline(
+        tmp_path / "pipeline.yaml",
+        [{"name": "stats", "type": "extract_trace_stats", "phase": "post"}],
+    )
+    exp = MASExperimentConfig.from_data(
+        copy.deepcopy(_MINIMAL_EXPERIMENT), tmp_path / "exp.yaml"
+    )
+    assert exp.all_pipeline_steps() == []
+    assert resolve_pipeline_specs(exp, tmp_path / "exp.yaml") == []
 
 
 # ---------------------------------------------------------------------------
