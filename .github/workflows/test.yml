@@ -13,6 +13,7 @@ on:
       - "library-eval/**"
       - "library-ioa/**"
       - "library-telemetry/**"
+      - "library-kg/**"
       - "tests/**"
       - "compliance/**"
       - "docs/**"

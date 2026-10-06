@@ -55,6 +55,12 @@ practical examples.
 | ------------------------- | ---------------------------------------------------------- | ---------------------- |
 | `ThresholdCircuitBreaker` | `mas.library.standard.plugins.reliability.circuit_breaker` | `mas-library-standard` |
 
+### Codec
+
+| Class          | Full module path        | Package          |
+| -------------- | ----------------------- | ---------------- |
+| `Neo4jKGCodec` | `mas.library.kg.codecs` | `mas-library-kg` |
+
 ### Context_Manager
 
 | Class                       | Full module path                                    | Package                |
@@ -187,14 +193,23 @@ practical examples.
 
 ### Step
 
-| Class                        | Full module path                                       | Package                 |
-| ---------------------------- | ------------------------------------------------------ | ----------------------- |
-| `ClickhouseDumpStep`         | `mas.library.telemetry.bench`                          | `mas-library-telemetry` |
-| `CompareOtelSpansStep`       | `mas.library.telemetry.bench`                          | `mas-library-telemetry` |
-| `EventsToOtelStep`           | `mas.library.telemetry.bench`                          | `mas-library-telemetry` |
-| `ExportOtelStep`             | `mas.library.telemetry.bench`                          | `mas-library-telemetry` |
-| `ListClickhouseSessionsStep` | `mas.library.telemetry.steps.list_clickhouse_sessions` | `mas-library-telemetry` |
-| `VerifyOtelStep`             | `mas.library.telemetry.bench`                          | `mas-library-telemetry` |
+| Class                            | Full module path                                       | Package                 |
+| -------------------------------- | ------------------------------------------------------ | ----------------------- |
+| `ClickhouseDumpStep`             | `mas.library.telemetry.bench`                          | `mas-library-telemetry` |
+| `CompareKgStep`                  | `mas.library.kg.bench`                                 | `mas-library-kg`        |
+| `CompareOtelSpansStep`           | `mas.library.telemetry.bench`                          | `mas-library-telemetry` |
+| `EmbedStatesStep`                | `mas.library.kg.steps.embed_states`                    | `mas-library-kg`        |
+| `EventsToOtelStep`               | `mas.library.telemetry.bench`                          | `mas-library-telemetry` |
+| `ExportOtelStep`                 | `mas.library.telemetry.bench`                          | `mas-library-telemetry` |
+| `ListClickhouseSessionsStep`     | `mas.library.telemetry.steps.list_clickhouse_sessions` | `mas-library-telemetry` |
+| `Neo4jDumpStep`                  | `mas.library.kg.bench`                                 | `mas-library-kg`        |
+| `Neo4jPushStep`                  | `mas.library.kg.bench`                                 | `mas-library-kg`        |
+| `NormalizeEventsStep`            | `mas.library.kg.bench`                                 | `mas-library-kg`        |
+| `NormalizeOtelStep`              | `mas.library.kg.bench`                                 | `mas-library-kg`        |
+| `PlotMultilevelTrajectoryKGStep` | `mas.library.kg.plots`                                 | `mas-library-kg`        |
+| `ValidateKgStep`                 | `mas.library.kg.bench`                                 | `mas-library-kg`        |
+| `VerifyEventsStep`               | `mas.library.kg.bench`                                 | `mas-library-kg`        |
+| `VerifyOtelStep`                 | `mas.library.telemetry.bench`                          | `mas-library-telemetry` |
 
 ### Summarizer
 
@@ -238,6 +253,7 @@ practical examples.
 | `BacktrackOnErrorPlugin`         | governance           | `mas-library-standard`  |
 | `CacheLLMProvider`               | llm_provider         | `mas-library-standard`  |
 | `ClickhouseDumpStep`             | step                 | `mas-library-telemetry` |
+| `CompareKgStep`                  | step                 | `mas-library-kg`        |
 | `CompareOtelSpansStep`           | step                 | `mas-library-telemetry` |
 | `ContextAssemblerPlugin`         | assembler            | `mas-library-standard`  |
 | `ControlRpcProtocol`             | control_protocol     | `mas-library-standard`  |
@@ -249,6 +265,7 @@ practical examples.
 | `DeterministicParallelPlugin`    | design_pattern       | `mas-library-standard`  |
 | `DeterministicSingleAgentPlugin` | design_pattern       | `mas-library-standard`  |
 | `DropSummarizer`                 | summarizer           | `mas-library-standard`  |
+| `EmbedStatesStep`                | step                 | `mas-library-kg`        |
 | `EventsToOtelStep`               | step                 | `mas-library-telemetry` |
 | `ExportOtelStep`                 | step                 | `mas-library-telemetry` |
 | `FaultInjectMiddleware`          | infra_middleware     | `mas-library-standard`  |
@@ -267,10 +284,16 @@ practical examples.
 | `LocalToolProvider`              | tool_provider        | `mas-library-standard`  |
 | `NativeObservabilityPlugin`      | observability        | `mas-library-standard`  |
 | `NativeSkillPlugin`              | skill_impl           | `mas-library-skills`    |
+| `Neo4jDumpStep`                  | step                 | `mas-library-kg`        |
+| `Neo4jKGCodec`                   | codec                | `mas-library-kg`        |
+| `Neo4jPushStep`                  | step                 | `mas-library-kg`        |
+| `NormalizeEventsStep`            | step                 | `mas-library-kg`        |
+| `NormalizeOtelStep`              | step                 | `mas-library-kg`        |
 | `NoUndeclaredToolPlugin`         | governance           | `mas-library-standard`  |
 | `OpenAILLMProvider`              | llm_provider         | `mas-library-standard`  |
 | `OtelObservabilityPlugin`        | observability        | `mas-library-telemetry` |
 | `PlanExecutePlugin`              | design_pattern       | `mas-library-standard`  |
+| `PlotMultilevelTrajectoryKGStep` | step                 | `mas-library-kg`        |
 | `ReactPlugin`                    | design_pattern       | `mas-library-standard`  |
 | `RegistryHitlContract`           | hitl_contract        | `mas-library-standard`  |
 | `RegistryUserIOContract`         | user_io_contract     | `mas-library-standard`  |
@@ -290,6 +313,8 @@ practical examples.
 | `SummarizingConversation`        | context_manager      | `mas-library-standard`  |
 | `ThresholdCircuitBreaker`        | circuit_breaker      | `mas-library-standard`  |
 | `TreeOfThoughtsPlugin`           | design_pattern       | `mas-library-standard`  |
+| `ValidateKgStep`                 | step                 | `mas-library-kg`        |
+| `VerifyEventsStep`               | step                 | `mas-library-kg`        |
 | `VerifyOtelStep`                 | step                 | `mas-library-telemetry` |
 | `WorkdirSandbox`                 | execute_sandbox      | `mas-library-standard`  |
 

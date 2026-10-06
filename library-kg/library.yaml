@@ -1,0 +1,53 @@
+name: mas-library-kg
+description: Trace-to-KG normalization, validation, and KG benchmark pipelines.
+version: "0.1.0"
+
+types:
+  - step
+  - codec
+
+plugins:
+  - type: step
+    name: normalize_events
+    module: mas.library.kg.bench
+    class: NormalizeEventsStep
+  - type: step
+    name: normalize_otel
+    module: mas.library.kg.bench
+    class: NormalizeOtelStep
+  - type: step
+    name: validate_kg
+    module: mas.library.kg.bench
+    class: ValidateKgStep
+  - type: step
+    name: verify_events
+    module: mas.library.kg.bench
+    class: VerifyEventsStep
+  - type: step
+    name: compare_kg
+    module: mas.library.kg.bench
+    class: CompareKgStep
+  - type: step
+    name: plot_multilevel_trajectory_kg
+    module: mas.library.kg.plots
+    class: PlotMultilevelTrajectoryKGStep
+  - type: step
+    name: embed_states
+    module: mas.library.kg.steps.embed_states
+    class: EmbedStatesStep
+  - type: step
+    name: neo4j_push
+    module: mas.library.kg.bench
+    class: Neo4jPushStep
+  - type: step
+    name: neo4j_dump
+    module: mas.library.kg.bench
+    class: Neo4jDumpStep
+  - type: codec
+    name: kg-neo4j
+    urn: mas.codec.kg_neo4j
+    module: mas.library.kg.codecs
+    class: Neo4jKGCodec
+    attributes:
+      artifact_kind: kg
+      store_type: neo4j

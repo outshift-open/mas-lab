@@ -1,0 +1,91 @@
+# Pipeline definition — trip-planner trace ingestion
+#
+# Demonstrates the same workflow as the tutorial CLI commands,
+# expressed as a declarative pipeline for use with mas-lab-graph's
+# PipelineStep machinery.
+#
+# Run with:
+#   mas-lab pipeline run trip-planner.yaml \
+#     --input events.jsonl \
+#     --output-dir ./output/
+#
+# Each step corresponds to one library-kg step function:
+#   normalize_events  → mas.library.kg.steps.run_normalize
+#   validate_kg       → mas.library.kg.steps.run_validate_kg
+#   neo4j_push        → mas.library.kg.steps.run_neo4j_push
+#   neo4j_dump        → mas.library.kg.steps.run_neo4j_dump
+#   compare_kg        → mas.library.kg.steps.run_compare_kg
+
+name: trip-planner-ingest
+description: >
+  End-to-end knowledge graph ingestion pipeline for the trip-planner MAS.
+  Normalizes native events, validates the KG, pushes to Neo4j, then dumps
+  and compares for round-trip verification.
+
+inputs:
+  events_path:
+    description: Path to events.jsonl
+    required: true
+  session_id:
+    description: Session ID (default derived from lab manifest hierarchy)
+    default: trip-planner/demo/baseline/item1/r1
+
+steps:
+  # ── Step 1: normalize native events → KG ─────────────────────────────────
+  - name: normalize
+    type: normalize_events
+    config:
+      log_path: "{{ inputs.events_path }}"
+      session_id: "{{ inputs.session_id }}"
+      run_id: "{{ inputs.session_id | split('/') | last }}"
+    # Output artifact: kg.json written to output_dir/data/normalize/
+
+  # ── Step 2: structural + SHACL validation ────────────────────────────────
+  - name: validate
+    type: validate_kg
+    depends_on: [normalize]
+    config:
+      fail_on_error: true
+      checks:
+        - containment_chain
+        - state_nesting
+        - processing_call_gate
+        - session_connectivity
+        - unknown_node_types
+        - unknown_edge_types
+    # Returns: {error_count, warning_count, results}
+
+  # ── Step 3: push to Neo4j ─────────────────────────────────────────────────
+  - name: push
+    type: neo4j_push
+    depends_on: [validate]
+    config:
+      # Connection resolved from DatastoreSpec; falls back to env vars:
+      #   NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DB_AGENT
+      database: neo4j
+      dry_run: false
+      batch_size: 200
+    # Output: {session_id, node_count, edge_count, merge_count}
+
+  # ── Step 4: dump back from Neo4j ─────────────────────────────────────────
+  - name: dump
+    type: neo4j_dump
+    depends_on: [push]
+    config:
+      session_id: "{{ inputs.session_id }}"
+      output_path: "{{ output_dir }}/dumped-kg.json"
+    # Output artifact: KGArtifact (also written to output_path)
+
+  # ── Step 5: round-trip comparison ────────────────────────────────────────
+  - name: compare
+    type: compare_kg
+    depends_on: [dump]
+    config:
+      # candidate = step dump output; reference = step normalize output
+      candidate_step: dump
+      reference_step: normalize
+      checks:
+        - node_count
+        - edge_count
+        - session_connectivity
+    # Returns: {match: bool, checks: [...]}

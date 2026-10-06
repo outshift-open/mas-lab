@@ -1,0 +1,152 @@
+# Taskfile for mas-library-kg — run tests from repo root or this package dir.
+#
+# From mas-lab-internal root:
+#   task kg:test-validate
+#
+# From library-kg/:
+#   task test
+#   task test:validate
+version: "3"
+
+vars:
+  VENV: "{{.TASKFILE_DIR}}/.venv"
+  PYTHON: "{{.VENV}}/bin/python"
+  PYTEST: "{{.VENV}}/bin/pytest"
+  RUFF: "{{.VENV}}/bin/ruff"
+  BASE_SHA: "origin/main"
+  HEAD_SHA: "HEAD"
+  ALLOW_INSTALL: "false"
+
+tasks:
+  default:
+    cmds:
+      - task --list
+
+  env:prepare:
+    desc: "Create/update local library-kg virtualenv with [all] extras (NO_OPTIONAL=true for [dev] only)"
+    dir: "{{.TASKFILE_DIR}}"
+    env:
+      NO_OPTIONAL: '{{.NO_OPTIONAL | default "false"}}'
+    cmds:
+      - "./scripts/prepare_env.sh"
+
+  env:check:
+    desc: "Check local environment is ready (no installation performed)"
+    dir: "{{.TASKFILE_DIR}}"
+    cmds:
+      - |
+        if [ ! -x "{{.PYTHON}}" ] || [ ! -x "{{.PYTEST}}" ] || [ ! -x "{{.RUFF}}" ]; then
+          echo "ERROR: library-kg environment is not ready." >&2
+          echo "Run: task -d library-kg env:prepare" >&2
+          exit 1
+        fi
+      - "{{.PYTHON}} -c 'import mas.library.kg; print(\"library-kg env OK\")'"
+
+  env:ready:
+    desc: "Ensure environment is ready; install only when ALLOW_INSTALL=true"
+    dir: "{{.TASKFILE_DIR}}"
+    cmds:
+      - |
+        if [ "{{.ALLOW_INSTALL}}" = "true" ]; then
+          task env:prepare
+        else
+          task env:check
+        fi
+
+  test:
+    desc: "All library-kg tests"
+    dir: "{{.TASKFILE_DIR}}"
+    deps:
+      - test:unit
+      - test:functional
+
+  test:unit:
+    desc: "Unit-style tests (excluding tests/kg functional contract suite)"
+    dir: "{{.TASKFILE_DIR}}"
+    deps:
+      - env:ready
+    cmds:
+      - "{{.PYTEST}} tests/ -q --tb=short --ignore=tests/kg"
+
+  test:functional:
+    desc: "Functional/contract tests under tests/kg"
+    dir: "{{.TASKFILE_DIR}}"
+    deps:
+      - env:ready
+    cmds:
+      - "{{.PYTEST}} tests/kg -q --tb=short"
+
+  test:validate:
+    desc: "validate_kg + CLI validate regression tests (CLR-495)"
+    dir: "{{.TASKFILE_DIR}}"
+    deps:
+      - env:ready
+    cmds:
+      - >-
+        {{.PYTEST}}
+        tests/test_validate_kg.py
+        tests/test_cli.py::TestCliValidateCommand
+        -v --tb=short
+
+  lint:changed:
+    desc: "Ruff check on changed Python files only (incremental)"
+    dir: "{{.TASKFILE_DIR}}"
+    deps:
+      - env:ready
+    cmds:
+      - >-
+        {{.PYTHON}} scripts/ruff_changed.py
+        check --base {{.BASE_SHA}} --head {{.HEAD_SHA}}
+
+  format:changed:
+    desc: "Ruff format --check on changed Python files only (incremental)"
+    dir: "{{.TASKFILE_DIR}}"
+    deps:
+      - env:ready
+    cmds:
+      - >-
+        {{.PYTHON}} scripts/ruff_changed.py
+        format-check --base {{.BASE_SHA}} --head {{.HEAD_SHA}}
+
+  lint:all:
+    desc: "Ruff check across library-kg sources"
+    dir: "{{.TASKFILE_DIR}}"
+    deps:
+      - env:ready
+    cmds:
+      - "{{.RUFF}} check src tests scripts"
+
+  format:all-check:
+    desc: "Ruff format --check across library-kg sources"
+    dir: "{{.TASKFILE_DIR}}"
+    deps:
+      - env:ready
+    cmds:
+      - "{{.RUFF}} format --check src tests scripts"
+
+  verify:ontology-alignment:
+    desc: "Verify normalizer kind map remains aligned with ontology classes"
+    dir: "{{.TASKFILE_DIR}}"
+    deps:
+      - env:ready
+    cmds:
+      - "{{.PYTHON}} scripts/ontology_alignment_report.py"
+
+  verify:changed:
+    desc: "Incremental verification for CI/PRs (lint changed files + tests + ontology alignment)"
+    dir: "{{.TASKFILE_DIR}}"
+    deps:
+      - lint:changed
+      - format:changed
+      - verify:ontology-alignment
+      - test:unit
+      - test:functional
+
+  verify:full:
+    desc: "Full verification pass for local hardening"
+    dir: "{{.TASKFILE_DIR}}"
+    deps:
+      - lint:all
+      - format:all-check
+      - verify:ontology-alignment
+      - test

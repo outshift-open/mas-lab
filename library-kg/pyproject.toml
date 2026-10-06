@@ -1,0 +1,148 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mas-library-kg"
+version = "0.1.1"
+description = "MAS Lab trace normalization and knowledge-graph validation algorithms."
+requires-python = ">=3.10"
+# Ontology TTL + generated KG models come from PyPI oxp-ontology.
+# OTel→KG dispatch lives in `norm` (optional extra; git stopgap until published).
+# 1.0.0 doesn't declare AgentCall/LLMCall/ToolCall/Session.success, which
+# norm's own handlers construct unconditionally (extra="forbid" makes that a
+# hard failure norm.normalize() can't recover from); fixed in 1.0.1.
+dependencies = [
+  "oxp-ontology[models]>=1.0.1",
+]
+
+[project.optional-dependencies]
+# Canonical ontology package (PyPI). Also a required dependency above; kept as
+# an extra so existing `mas-library-kg[ontology]` installs keep working.
+ontology = [
+  "oxp-ontology[models]>=1.0.1",
+]
+# Ontology-driven normalization + KG structural/SHACL validation (parses RDF/TTL).
+graph = [
+  "rdflib>=6.0.0",
+  "pyshacl>=0.25.0",
+]
+# Full KG validation stack.
+validation = [
+  "oxp-ontology[models]>=1.0.1",
+  "rdflib>=6.0.0",
+  "pyshacl>=0.25.0",
+]
+# events.jsonl validation — JSON Schema envelope + per-kind YAML spec.
+verify = [
+  "jsonschema>=4.0.0",
+  "pyyaml>=6.0.0",
+]
+# Neo4j serialization support
+neo4j = [
+  "neo4j>=5.0",
+]
+# Benchmark-pipeline adapters (PipelineStep wrappers in mas.library.kg.bench)
+# + the `mas-lab kg` CLI component (mas.library.kg.lab_cli).
+# Discovered via the entry-point groups below.
+bench = [
+  "mas-lab-bench",
+  "click>=8.0",
+]
+# KG-driven plotting (multilevel trajectory swim-lanes) — needs the bench
+# framework + the mas-lab plotting renderer (mas.lab.plots).
+plot = [
+  "mas-lab-bench",
+  "mas-lab",
+]
+# Temporary until oxp-norm / norm is published to PyPI.
+# The PyPI name `norm` is already taken (unrelated SQL package, currently 1.6.0),
+# so the published distribution will likely be `oxp-norm`. This extra pulls the
+# observe-and-explain-platform `backend/norm` package from git in the meantime.
+norm = [
+  "norm @ git+https://github.com/outshift-open/observe-and-explain-platform.git@main#subdirectory=backend/norm",
+]
+# observability/path_equivalence.py's native-vs-OTel-via-norm comparator
+# lazily imports mas.library.telemetry (the emitter side) to synthesize the
+# OTel leg of the comparison from the same native events -- not a runtime
+# dependency of library-kg itself, only of this one dev/CI tool. Resolves
+# as a plain workspace member once mas-library-telemetry has landed in this
+# same mas-lab workspace (see feat/library-telemetry); until both branches
+# are merged together, installing this extra from either branch alone will
+# fail to resolve.
+compare-native-otel = [
+  "mas-library-telemetry",
+]
+# Everything, for development / CI
+dev = [
+  "pytest>=7.0",
+  "pytest-cov>=4.0",
+  "pytest-asyncio>=0.21",
+  "click>=8.0",
+  "ruff>=0.12.10",
+  "oxp-ontology[models]>=1.0.1",
+  "rdflib>=6.0.0",
+  "pyshacl>=0.25.0",
+  "jsonschema>=4.0.0",
+  "pyyaml>=6.0.0",
+]
+# Complete CI run. Includes the [norm] git stopgap so OTel→KG tests can run
+# when network is available; local loops can use [dev] only.
+all = [
+  "mas-library-kg[dev,neo4j,norm]",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+# No standalone console script — the library exposes its functionality as
+# pipeline steps + the `mas-lab kg` CLI component (lab_cli.py). The Python API
+# (mas.library.kg.*) remains the programmatic entry point.
+
+[project.entry-points."mas.lab.cli.components"]
+kg = "mas.library.kg.lab_cli:KgCliComponent"
+
+# KG-driven plot processor (KnowledgeGraph → swim-lane PlotFile).
+[project.entry-points."mas.lab.processors"]
+multilevel_trajectory_kg_plotter = "mas.library.kg.plots:MultilevelTrajectoryKGPlotter"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "--tb=short -q"
+
+[tool.coverage.run]
+source = ["mas/library/kg"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mas"]
+
+[tool.hatch.metadata]
+# Required so the temporary git+subdirectory `norm` extra can be declared.
+# Remove when oxp-norm is published to PyPI.
+allow-direct-references = true
+
+[project.entry-points."mas.runtime.manifest_libraries"]
+# Short scheme name → refs read like a URN: `kg:pipelines/native-to-neo4j`
+# (`.yaml` suffix and `pipelines/` prefix optional — see resolve_path_ref).
+kg = "mas.library.kg"
+
+[tool.hatch.build.targets.wheel.force-include]
+"schemas/events.schema.json" = "mas/library/kg/schemas/events.schema.json"
+"schemas/events.spec.yaml" = "mas/library/kg/schemas/events.spec.yaml"
+"ontology/extensions/mas-kg-native-extensions.ttl" = "mas/library/kg/ontology_extensions/mas-kg-native-extensions.ttl"
+
+# Temporary until oxp-norm/norm is published. See [project.optional-dependencies] norm.
+[tool.uv.sources]
+norm = { git = "https://github.com/outshift-open/observe-and-explain-platform.git", subdirectory = "backend/norm" }

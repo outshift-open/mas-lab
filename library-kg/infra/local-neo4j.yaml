@@ -1,0 +1,15 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Infra manifest — where a KG serializes.
+# Shortcut: set $NEO4J_URI instead of passing this file.
+apiVersion: mas/v1
+kind: Infra
+metadata:
+  name: local-neo4j
+spec:
+  targets:
+    - kind: Neo4j
+      uri: bolt://localhost:7687
+      database: neo4j
+      username: neo4j
+      password_env: NEO4J_PASSWORD

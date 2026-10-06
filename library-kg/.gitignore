@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.coverage
+.coverage.*
+.pytest_cache/
+*.egg-info/
+
+# Internal-cluster infra sample, kept locally, never shipped to OSS.
+infra/oxp-k8s.yaml

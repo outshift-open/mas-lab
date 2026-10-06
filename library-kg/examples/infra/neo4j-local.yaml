@@ -1,0 +1,34 @@
+# Infra manifest — local Neo4j instance (development / tutorial)
+#
+# Start the database:
+#   export NEO4J_PASSWORD=a-strong-password
+#   mas-lab services start neo4j
+#   # or: docker compose -f mas-lab-services/.../neo4j/docker-compose.yml up -d
+#
+# Reference this store with --to / --from on push / dump commands:
+#   mas-lab graph push kg.json --to neo4j-local
+#   mas-lab graph dump SESSION_ID --from neo4j-local -o dumped.json
+#
+# password_env names the environment variable that holds the password;
+# the actual secret is never written to this file.
+
+apiVersion: infra/v1
+kind: Datastore
+
+metadata:
+  name: neo4j-local
+  description: >
+    Neo4j Community Edition — local development instance managed by
+    mas-lab-services (Docker).  Points to the default Bolt port.
+
+spec:
+  stores:
+    neo4j-local:
+      type: neo4j
+      uri: bolt://localhost:7687
+      user: neo4j
+      password_env: NEO4J_PASSWORD   # export NEO4J_PASSWORD=... before running
+      database: neo4j
+      description: >
+        Local Neo4j 5 instance for development and tutorial use.
+        Data is persisted in the mas_neo4j_data Docker volume.

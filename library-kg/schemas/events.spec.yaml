@@ -1,0 +1,120 @@
+# events.spec.yaml — native events.jsonl semantic contract
+#
+# Pairs with events.schema.json (syntactic envelope) like OTel uses
+# otel_sdk_spans.schema.json + mas.spanspec.yaml.
+#
+# L1 envelope → L2 interval ids → L3 per-kind payloads for KG fold.
+
+version: "1.0"
+description: "MAS native events.jsonl — per-kind field requirements"
+
+levels:
+  - id: L1
+    name: envelope
+    description: "Fields on every emitted line"
+  - id: L2
+    name: interval
+    description: "Structural *_start / *_end pairs"
+  - id: L3
+    name: semantic
+    description: "Per-kind payload for normalization"
+
+global_attributes:
+  - level: L1
+    required: [kind, timestamp, run_id, agent_id]
+    recommended: [mas_id, session_id, block, summand, mealy_symbol, layer]
+
+interval_kinds:
+  suffix_pattern: "_(start|end)$"
+  required: [call_id]
+  recommended: [parent_call_id]
+
+shapes:
+  - kinds: [execution_start]
+    levels:
+      - level: L3
+        required: [input]
+        recommended: [context]
+
+  - kinds: [execution_end]
+    levels:
+      - level: L3
+        required: [status]
+        recommended: [output, output_parts]
+
+  - kinds: [llm_call_start]
+    levels:
+      - level: L3
+        required: [model]
+        recommended: [messages, temperature, max_tokens]
+
+  - kinds: [llm_call_end]
+    levels:
+      - level: L3
+        recommended: [latency_ms, response, tool_calls, output_parts, finish_reason, tokens_used]
+
+  - kinds: [tool_call_start]
+    levels:
+      - level: L3
+        required: [tool_name]
+        recommended: [arguments]
+
+  - kinds: [tool_call_end]
+    levels:
+      - level: L3
+        required: [tool_name]
+        recommended: [latency_ms, result, output_parts, status]
+
+  - kinds: [mas_call_start, mas_call_end]
+    levels:
+      - level: L3
+        recommended: [mas_id, session_id]
+
+  - kinds: [context_assembled]
+    levels:
+      - level: L3
+        recommended: [segments, total_tokens]
+
+  - kinds: [context_part_contributed]
+    levels:
+      - level: L3
+        recommended: [part_id, source, content, access_mechanism, cause, retained, parents]
+
+  - kinds: [routing, routing_result]
+    levels:
+      - level: L3
+        recommended: [target_agent_id, source_agent_id, task, correlation_id]
+
+  - kinds: [user_response]
+    levels:
+      - level: L3
+        recommended: [content, message_type]
+
+  - kinds: [infrastructure_info]
+    levels:
+      - level: L3
+        recommended: [worker_id, endpoint]
+
+  - kinds: [system_specification]
+    levels:
+      - level: L3
+        recommended: [spec_id, spec_version, catalog]
+
+  - kind_prefixes: [memory_, rag_, processing_, skill_, network_, workflow_, agent_communication_, parallel_group_, branch_, checkpoint_, governance_, obs_wrap_gov_]
+    levels:
+      - level: L2
+        required: [call_id]
+
+legacy_kinds:
+  description: "Accepted on replay but skipped by normalizer (_KIND_TO_CLASS → None)"
+  kinds:
+    - prompt_build_start
+    - prompt_build_end
+    - user_response
+    - human_interaction
+    - delegated_agent_output
+    - skills_check
+    - object_upsert
+    - object_link
+    - object_model_event
+    - user_input_request

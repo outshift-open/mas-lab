@@ -1,0 +1,20 @@
+# Pairwise KG structural parity (reference vs candidate artifact keys).
+apiVersion: mas/v1
+kind: Pipeline
+
+metadata:
+  name: kg-compare-two
+  description: >
+    Compare two run-scoped KG JSON files via compare_kg. Requires both
+    artifacts to exist (e.g. kg + kg_otel from prior pipeline steps).
+
+spec:
+  steps:
+    - name: compare-kg-pair
+      type: compare_kg
+      per_run: true
+      config:
+        strict: false
+        reference_artifact: kg
+        candidate_artifact: kg_otel
+        report_filename: parity_report.json

@@ -1,0 +1,29 @@
+# Pairwise KG parity vs native reference (run manually or at application.post).
+apiVersion: mas/v1
+kind: Pipeline
+
+metadata:
+  name: observability-compare-three-kg
+  description: Compare native kg against otel-plugin and observe-plugin KGs.
+
+spec:
+  steps:
+    - name: compare-native-vs-otel-plugin
+      type: compare_kg
+      per_run: true
+      depends_on: [normalize-native, normalize-otel-plugin-kg]
+      config:
+        strict: false
+        reference_artifact: kg
+        candidate_artifact: kg_otel_plugin
+        report_filename: parity_native_vs_otel_plugin.json
+
+    - name: compare-native-vs-observe
+      type: compare_kg
+      per_run: true
+      depends_on: [normalize-native, normalize-observe-plugin-kg]
+      config:
+        strict: false
+        reference_artifact: kg
+        candidate_artifact: kg_observe
+        report_filename: parity_native_vs_observe.json

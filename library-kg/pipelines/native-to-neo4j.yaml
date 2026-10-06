@@ -1,0 +1,52 @@
+# Normalize events.jsonl → KG → push to Neo4j.
+# Full pipeline: verify events, normalize to KG, validate KG, push to Neo4j.
+apiVersion: mas/v1
+kind: Pipeline
+
+metadata:
+  name: observability-native-to-neo4j
+  description: >
+    Verify events.jsonl, normalize to kg.json, validate KG structure,
+    then push nodes and edges to Neo4j using MERGE semantics (idempotent).
+
+spec:
+  steps:
+    - name: verify-native-events
+      type: verify_events
+      per_run: true
+      config:
+        fail_on_error: true
+
+    # strict: true — this pipeline pushes into a shared Neo4j graph, so an
+    # observability gap should fail the run rather than silently push a
+    # partial/incomplete graph.
+    - name: normalize-native
+      type: normalize_events
+      per_run: true
+      depends_on: [verify-native-events]
+      config:
+        strict: true
+
+    - name: validate-native-kg
+      type: validate_kg
+      per_run: true
+      depends_on: [normalize-native]
+      config:
+        fail_on_error: false
+        strict: false
+
+    - name: push-to-neo4j
+      type: neo4j_push
+      per_run: true
+      depends_on: [normalize-native]
+      config:
+        # Connection — falls back to env vars NEO4J_URI / NEO4J_USER /
+        # NEO4J_PASSWORD / NEO4J_DB_AGENT when not set here.
+        # uri:      bolt://localhost:7687
+        # username: neo4j
+        # password_env: NEO4J_PASSWORD
+        # database: neo4j
+        batch_size: 200
+        ensure_indexes: true
+        clear_session: false
+        # dry_run: true   # uncomment to print Cypher without writing

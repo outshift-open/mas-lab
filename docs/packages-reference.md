@@ -19,6 +19,7 @@
 | `mas-library-samples`   | Libraries     | Community-contributed MAS sample apps, datasets, and tools.                                             | —                    |
 | `mas-library-ioa`       | Libraries     | MCP client/server bridge for MAS Lab                                                                    | `mas-mcp`            |
 | `mas-library-telemetry` | Libraries     | MAS Lab native-events → OTel conversion, span contracts/verification, and OTLP collector serialization. | —                    |
+| `mas-library-kg`        | Libraries     | MAS Lab trace normalization and knowledge-graph validation algorithms.                                  | —                    |
 ---
 
 ## Installation
@@ -348,6 +349,40 @@ uv pip install "mas-library-telemetry[all]"  # PyPI, all extras
 **Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
 
 **Entry-point group `mas.lab.cli.components`:** registers 1 item(s) in `lab.cli.components`.
+
+---
+
+### `mas-library-kg`
+**Install path:** `library-kg`  
+**Layer:** Libraries  
+MAS Lab trace normalization and knowledge-graph validation algorithms.
+
+```bash
+uv pip install -e library-kg  # source
+uv pip install "mas-library-kg[all]"  # PyPI, all extras
+```
+
+**Optional extras:**
+
+| Extra                 | Packages / features                                                                                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ontology`            | `oxp-ontology[models]>=1.0.1`                                                                                                                                                                    |
+| `graph`               | `rdflib>=6.0.0`, `pyshacl>=0.25.0`                                                                                                                                                               |
+| `validation`          | `oxp-ontology[models]>=1.0.1`, `rdflib>=6.0.0`, `pyshacl>=0.25.0`                                                                                                                                |
+| `verify`              | `jsonschema>=4.0.0`, `pyyaml>=6.0.0`                                                                                                                                                             |
+| `neo4j`               | `neo4j>=5.0`                                                                                                                                                                                     |
+| `bench`               | `mas-lab-bench`, `click>=8.0`                                                                                                                                                                    |
+| `plot`                | `mas-lab-bench`, `mas-lab`                                                                                                                                                                       |
+| `norm`                | `norm @ git+https://github.com/outshift-open/observe-and-explain-platform.git@main#subdirectory=backend/norm`                                                                                    |
+| `compare-native-otel` | `mas-library-telemetry`                                                                                                                                                                          |
+| `dev`                 | `pytest>=7.0`, `pytest-cov>=4.0`, `pytest-asyncio>=0.21`, `click>=8.0`, `ruff>=0.12.10`, `oxp-ontology[models]>=1.0.1`, `rdflib>=6.0.0`, `pyshacl>=0.25.0`, `jsonschema>=4.0.0`, `pyyaml>=6.0.0` |
+| `all`                 | `mas-library-kg[dev,neo4j,norm]`                                                                                                                                                                 |
+
+**Entry-point group `mas.lab.cli.components`:** registers 1 item(s) in `lab.cli.components`.
+
+**Entry-point group `mas.lab.processors`:** registers 1 item(s) in `lab.processors`.
+
+**Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
 
 ---
 

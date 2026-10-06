@@ -1,0 +1,380 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cisco-eti.github.io/mas-lab/library-kg/schemas/events.schema.json",
+  "title": "MAS native observability event",
+  "description": "One line of events.jsonl. Envelope (L1) + kind enum from KIND_TO_CLASS. Per-kind payloads: events.spec.yaml + EventValidator.",
+  "type": "object",
+  "required": [
+    "kind",
+    "timestamp",
+    "run_id",
+    "agent_id"
+  ],
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "agent_communication_end",
+        "agent_communication_start",
+        "audit",
+        "branch_end",
+        "branch_start",
+        "budget_event",
+        "checkpoint_end",
+        "checkpoint_start",
+        "client_response",
+        "context_assembled",
+        "context_part_contributed",
+        "control_intervention",
+        "delegated_agent_output",
+        "execution_end",
+        "execution_start",
+        "governance_authorize_end",
+        "governance_authorize_start",
+        "governance_checked",
+        "governance_denied",
+        "governance_validate_end",
+        "governance_validate_start",
+        "hitl_gate",
+        "human_interaction",
+        "infrastructure_info",
+        "llm_call_end",
+        "llm_call_start",
+        "mas_call_end",
+        "mas_call_start",
+        "memory_call_end",
+        "memory_call_start",
+        "memory_retrieve_end",
+        "memory_retrieve_start",
+        "memory_store_end",
+        "memory_store_start",
+        "network_call_end",
+        "network_call_start",
+        "object_link",
+        "object_model_event",
+        "object_upsert",
+        "obs_wrap_gov_authorize_end",
+        "obs_wrap_gov_authorize_start",
+        "obs_wrap_gov_validate_end",
+        "obs_wrap_gov_validate_start",
+        "observability_post_execute_end",
+        "observability_post_execute_start",
+        "observability_pre_execute_end",
+        "observability_pre_execute_start",
+        "parallel_group_end",
+        "parallel_group_start",
+        "policy_allow",
+        "policy_denial",
+        "processing_call_end",
+        "processing_call_start",
+        "prompt_build_end",
+        "prompt_build_start",
+        "rag_query_end",
+        "rag_query_start",
+        "routing",
+        "routing_result",
+        "skill_execution_end",
+        "skill_execution_start",
+        "skills_check",
+        "state_update_end",
+        "state_update_start",
+        "tool_call_end",
+        "tool_call_start",
+        "tool_result_injected",
+        "transformation_event",
+        "user_input",
+        "user_input_request",
+        "user_output",
+        "user_response",
+        "workflow_transition_end",
+        "workflow_transition_start"
+      ],
+      "description": "Event type; maps to mas_class via native normalizer."
+    },
+    "timestamp": {
+      "type": "number",
+      "description": "Unix epoch seconds"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "agent_id": {
+      "type": "string"
+    },
+    "mas_id": {
+      "type": "string"
+    },
+    "call_id": {
+      "type": "string",
+      "description": "Stable id for interval kinds; mirrors mas.call.id on OTel export"
+    },
+    "parent_call_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_id": {
+      "type": [
+        "string",
+        "number"
+      ]
+    },
+    "span_id": {
+      "type": "string",
+      "description": "OTel interop only; not a graph join key"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "block": {
+      "type": "string",
+      "enum": [
+        "structural",
+        "execution",
+        "context",
+        "trajectory",
+        "governance"
+      ]
+    },
+    "summand": {
+      "type": "string",
+      "enum": [
+        "model",
+        "tool",
+        "context",
+        "governance",
+        "orchestrator"
+      ]
+    },
+    "mealy_symbol": {
+      "type": "string"
+    },
+    "layer": {
+      "type": "string",
+      "enum": [
+        "structure",
+        "execution",
+        "semantic",
+        "provenance",
+        "governance"
+      ]
+    },
+    "input": {
+      "type": "string"
+    },
+    "output": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "context": {
+      "type": "object"
+    },
+    "model": {
+      "type": "string"
+    },
+    "messages": {
+      "type": "array"
+    },
+    "temperature": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "max_tokens": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "latency_ms": {
+      "type": "number"
+    },
+    "response": {
+      "type": "object"
+    },
+    "finish_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tokens_used": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "tool_name": {
+      "type": "string"
+    },
+    "arguments": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "result": {},
+    "segments": {
+      "type": "object"
+    },
+    "total_tokens": {
+      "type": "integer"
+    },
+    "part_id": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "access_mechanism": {
+      "type": "string"
+    },
+    "cause": {
+      "type": "string"
+    },
+    "retained": {
+      "type": "boolean"
+    },
+    "parents": {
+      "type": "array"
+    },
+    "target_agent_id": {
+      "type": "string"
+    },
+    "source_agent_id": {
+      "type": "string"
+    },
+    "task": {
+      "type": "string"
+    },
+    "message_type": {
+      "type": "string"
+    },
+    "worker_id": {
+      "type": "string"
+    },
+    "endpoint": {
+      "type": "string"
+    },
+    "spec_id": {
+      "type": "string"
+    },
+    "spec_version": {
+      "type": "string"
+    },
+    "catalog": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "pattern": "_(start|end)$"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "required": [
+          "call_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "agent_communication_end",
+              "agent_communication_start",
+              "audit",
+              "branch_end",
+              "branch_start",
+              "budget_event",
+              "checkpoint_end",
+              "checkpoint_start",
+              "client_response",
+              "context_assembled",
+              "context_part_contributed",
+              "control_intervention",
+              "execution_end",
+              "execution_start",
+              "governance_authorize_end",
+              "governance_authorize_start",
+              "governance_checked",
+              "governance_denied",
+              "governance_validate_end",
+              "governance_validate_start",
+              "hitl_gate",
+              "infrastructure_info",
+              "llm_call_end",
+              "llm_call_start",
+              "mas_call_end",
+              "mas_call_start",
+              "memory_call_end",
+              "memory_call_start",
+              "memory_retrieve_end",
+              "memory_retrieve_start",
+              "memory_store_end",
+              "memory_store_start",
+              "network_call_end",
+              "network_call_start",
+              "obs_wrap_gov_authorize_end",
+              "obs_wrap_gov_authorize_start",
+              "obs_wrap_gov_validate_end",
+              "obs_wrap_gov_validate_start",
+              "observability_post_execute_end",
+              "observability_post_execute_start",
+              "observability_pre_execute_end",
+              "observability_pre_execute_start",
+              "parallel_group_end",
+              "parallel_group_start",
+              "policy_allow",
+              "policy_denial",
+              "processing_call_end",
+              "processing_call_start",
+              "rag_query_end",
+              "rag_query_start",
+              "routing",
+              "routing_result",
+              "skill_execution_end",
+              "skill_execution_start",
+              "state_update_end",
+              "state_update_start",
+              "tool_call_end",
+              "tool_call_start",
+              "tool_result_injected",
+              "transformation_event",
+              "user_input",
+              "user_output",
+              "workflow_transition_end",
+              "workflow_transition_start"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "__invalid__"
+          ]
+        }
+      }
+    }
+  ],
+  "additionalProperties": true
+}
