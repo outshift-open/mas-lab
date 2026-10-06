@@ -28,7 +28,7 @@ from mas.ctl.validate import validate_file, validate_tree, validation_enabled
     default=True,
     help="Check referenced files exist on disk (default on)",
 )
-@click.option("-o", "--overlay", "overlays", multiple=True, type=click.Path(exists=True))
+@click.option("-o", "--overlay", "overlays", multiple=True, type=click.STRING)
 def validate_cmd(
     paths: tuple[str, ...],
     kind: str | None,
@@ -56,8 +56,12 @@ def validate_cmd(
         if path.is_file():
             if overlays and path.suffix in (".yaml", ".yml"):
                 data = yaml.safe_load(path.read_text(encoding="utf-8"))
+                from mas.ctl.paths import resolve_overlay_path
+
                 for ov in overlays:
-                    ov_path = Path(ov)
+                    ov_path = resolve_overlay_path(
+                        ov, orig_cwd=Path.cwd(), manifest_dir=path.parent
+                    )
                     ov_raw = yaml.safe_load(ov_path.read_text(encoding="utf-8"))
                     normalized = normalize_overlay(ov_raw, name=ov_path.stem)
                     ov_result = validate_data(

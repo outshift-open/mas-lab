@@ -74,14 +74,12 @@ def parse_obs_spec(raw: list | None) -> ObservabilityBinding:
 
     events_file: str | None = None
     otlp_endpoint_env: str | None = None
-    for name, cfg in configs.items():
+    for cfg in configs.values():
         path = _resolve_path_cfg(cfg)
-        if path and name == "native" and not events_file:
+        if path and not events_file:
             events_file = path
-        if cfg.get("otlp_endpoint_env"):
+        if cfg.get("otlp_endpoint_env") and not otlp_endpoint_env:
             otlp_endpoint_env = str(cfg["otlp_endpoint_env"])
-    if not otlp_endpoint_env:
-        otlp_endpoint_env = "OTEL_EXPORTER_OTLP_ENDPOINT"
 
     return ObservabilityBinding(
         plugins=plugins,

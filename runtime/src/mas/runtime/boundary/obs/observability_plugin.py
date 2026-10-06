@@ -13,7 +13,7 @@ from mas.runtime.contracts.base import CapabilityContract
 class ObservabilityPlugin(CapabilityContract):
     """Subscribe to contract transitions in **read mode** (never blocks execution).
 
-    All export plugins (native JSONL, OTel, audit) inherit from this class.
+    Export plugins inherit from this class.
     The kernel notifies subscribers on every boundary append via
     ``ObservabilityOperator``.
     """

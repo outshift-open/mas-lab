@@ -1,0 +1,22 @@
+# Dump (deserialize) a live session's OTel spans from ClickHouse.
+#
+# Standalone shortcut for the `mas-lab telemetry dump` CLI command --
+# use this form when the session id needs to come from a pipeline
+# (--var session_id=...) rather than a hardcoded CLI argument.
+apiVersion: mas/v1
+kind: Pipeline
+
+metadata:
+  name: telemetry-dump-session
+  description: Dump a session's otel_traces rows from ClickHouse to JSONL.
+
+spec:
+  steps:
+    - name: dump-session
+      type: clickhouse_dump
+      per_run: true
+      config:
+        # Supplied via `--var session_id=$MAS_SESSION_ID` (see README.md
+        # "Quickstart"); falls back to run_id when session_id is unset.
+        session_id: "{session_id}"
+        by: session

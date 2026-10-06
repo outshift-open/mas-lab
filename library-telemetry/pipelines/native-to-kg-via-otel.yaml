@@ -1,0 +1,58 @@
+# Offline OTel replay round-trip: events → OTel JSONL → events → kg_otel.
+apiVersion: mas/v1
+kind: Pipeline
+
+metadata:
+  name: telemetry-native-to-kg-via-otel
+  description: MasOtelConverter replay, SpanSpec verify, normalize to kg_otel, compare to native kg.
+
+spec:
+  steps:
+    - name: events-to-otel-replay
+      type: events_to_otel
+      per_run: true
+      config:
+        service_name: mas-runtime
+        export_layers:
+          governance: true
+          provenance: true
+
+    - name: verify-otel-replay
+      type: verify_otel
+      per_run: true
+      depends_on: [events-to-otel-replay]
+      config:
+        fail_on_error: true
+        spanspec_level: L3
+        spanspec_strictness: required
+
+    - name: normalize-otel-events
+      type: normalize_otel
+      per_run: true
+      depends_on: [verify-otel-replay]
+      config:
+        output: events_otel.jsonl
+
+    - name: normalize-otel-kg
+      type: normalize_events
+      per_run: true
+      depends_on: [normalize-otel-events]
+      config:
+        artifact: kg_otel
+
+    - name: validate-otel-kg
+      type: validate_kg
+      per_run: true
+      depends_on: [normalize-otel-kg]
+      config:
+        fail_on_error: true
+        strict: false
+
+    - name: compare-native-otel-kg
+      type: compare_kg
+      per_run: true
+      depends_on: [normalize-native, normalize-otel-kg]
+      config:
+        strict: false
+        reference_artifact: kg
+        candidate_artifact: kg_otel

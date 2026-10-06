@@ -167,7 +167,7 @@ class TestPluginAvailability:
             module="pathlib",
             class_name="Path",
             requires=["no_such_package_xyz"],
-            extra="mas-library-standard[otel]",
+            extra="mas-library-telemetry[convert]",
         )
         entry = PluginEntry(urn="mas.dp.test", variants={"builtin": variant})
         with pytest.raises(PluginUnavailable) as exc_info:
@@ -470,11 +470,11 @@ class TestRealPlugins:
         assert "SlidingWindow" in info.class_name
 
     def test_otel_observability_plugin_declares_requires_and_extra(self):
-        """library-standard/library.yaml's otel plugin is the real requires:/extra: example."""
+        """library-telemetry/library.yaml's otel plugin is the requires:/extra: example."""
         registry = get_registry()
         entry = registry.get_entry("mas.observability.otel")
         assert entry is not None
         variant = entry.default
         assert variant is not None
         assert variant.requires == ["opentelemetry.sdk.trace"]
-        assert variant.extra == "mas-library-standard[otel]"
+        assert variant.extra == "mas-library-telemetry[convert]"

@@ -671,9 +671,11 @@ think/act/observe phase, and reasoning text.
 
 ### 7b — Trajectory diagrams
 
-> **Knowledge-graph normalization** (`mas-lab graph normalize`, Neo4j push,
-> structural validation) is not part of this open-source repository. OSS
-> tutorials plot trajectories directly from `events.jsonl`.
+> **Next:** [Tutorial 7](../07-telemetry/) replaces or replays this native
+> stream as OTel. [Tutorial 8](../08-kg-oxp/) turns it into a knowledge graph.
+
+> **Knowledge-graph normalization** is Tutorial 8 (`mas-library-kg`). This
+> tutorial plots trajectories directly from `events.jsonl`.
 
 Render the event stream as an interactive **multilevel trajectory** — swim
 lanes for the session, the agent(s), and the individual LLM/tool/processing

@@ -101,33 +101,13 @@ def _parse_obs_list(items: list[Any]) -> tuple[list[str], dict[str, dict[str, An
 
 def parse_observability(raw: Any) -> ObservabilityBinding:
     """Parse ``spec.observability`` — must be a list or absent."""
-    if raw is None:
-        return ObservabilityBinding(plugins=[])
+    from mas.runtime.spec.obs import SpecBindingError as RuntimeObsError
+    from mas.runtime.spec.obs import parse_obs_spec
 
-    if not isinstance(raw, list):
-        raise SpecBindingError(
-            f"spec.observability must be a list, got {type(raw).__name__}"
-        )
-
-    plugins, configs = _parse_obs_list(raw)
-
-    events_file: str | None = None
-    otlp_endpoint_env: str | None = None
-    for name, cfg in configs.items():
-        path = _resolve_path_cfg(cfg)
-        if path and name == "native" and not events_file:
-            events_file = path
-        if cfg.get("otlp_endpoint_env"):
-            otlp_endpoint_env = str(cfg["otlp_endpoint_env"])
-    if not otlp_endpoint_env:
-        otlp_endpoint_env = "OTEL_EXPORTER_OTLP_ENDPOINT"
-
-    return ObservabilityBinding(
-        plugins=plugins,
-        plugin_configs=configs,
-        otlp_endpoint_env=otlp_endpoint_env,
-        events_file=events_file,
-    )
+    try:
+        return parse_obs_spec(raw)
+    except RuntimeObsError as exc:
+        raise SpecBindingError(str(exc)) from exc
 
 
 def parse_governance(raw: Any) -> GovernanceBinding:

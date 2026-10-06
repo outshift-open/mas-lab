@@ -1,0 +1,122 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mas-library-telemetry"
+version = "0.1.0"
+description = "MAS Lab native-events → OTel conversion, span contracts/verification, and OTLP collector serialization."
+requires-python = ">=3.10"
+# Zero required dependencies — the package imports with nothing installed.
+# Every external dependency is an optional extra so that only the *feature* it
+# powers is unavailable when it is absent (e.g. no opentelemetry-sdk → conversion
+# raises a clear error, but verification / compare / OTLP push still work).
+dependencies = []
+
+[project.optional-dependencies]
+# events.jsonl → OTel SDK spans conversion + offline replay
+convert = [
+  "opentelemetry-sdk>=1.20",
+  "opentelemetry-exporter-otlp-proto-http>=1.20",
+  "ioa-observe-sdk>=1.0.49",
+]
+# Same SDK pin as convert (kept as an alias extra).
+observe = [
+  "ioa-observe-sdk>=1.0.49",
+]
+verify = [
+  "pyyaml>=6.0.0",
+  "jsonschema>=4.0.0",
+]
+# Dump spans back out of a ClickHouse otel_traces table
+clickhouse = [
+  "clickhouse-connect>=0.7",
+]
+# Benchmark-pipeline adapters (PipelineStep wrappers in mas.library.telemetry.bench)
+# + the `mas-lab telemetry` CLI component (mas.library.telemetry.lab_cli).
+# Discovered via the entry-point groups below.
+bench = [
+  "mas-lab-bench",
+  "click>=8.0",
+]
+# Normal dev/test tooling, deliberately WITHOUT mas-lab-bench/
+# clickhouse-connect -- those stay optional (see [all] below), same
+# reasoning as library-kg's [neo4j]: tests that need them skip cleanly and
+# visibly (pytest.mark.skipif) instead of being forced into every install.
+# click is included directly (not via [bench]): it's light, and lab_cli.py
+# is meant to stay measured by the coverage gate (see [tool.coverage.run]).
+dev = [
+  "pytest>=7.0",
+  "pytest-cov>=4.0",
+  "opentelemetry-sdk>=1.20",
+  "ioa-observe-sdk>=1.0.49",
+  "pyyaml>=6.0.0",
+  "jsonschema>=4.0.0",
+  "click>=8.0",
+]
+# Literally everything -- what a complete CI run installs, so no test skips
+# silently for a missing optional extra. mas-lab-bench resolves via this
+# repo's own [tool.uv.sources] workspace mapping (works because this
+# package's Taskfile installs into the shared repo-root .venv, unlike
+# library-kg's standalone one). Local dev keeps using [dev] directly (or
+# NO_OPTIONAL=true on `task ci`/`task install-dev`) for a faster,
+# dependency-light loop.
+all = [
+  "mas-library-telemetry[dev,bench,clickhouse]",
+]
+
+# No standalone console script — the library exposes its functionality as
+# pipeline steps + the `mas-lab telemetry` CLI component (lab_cli.py). The
+# Python API (mas.library.telemetry.*) is the programmatic entry point.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# "." (not just "src") is required: several test modules do
+# `from tests.conftest import requires_otel`, a dotted import that assumes
+# the package root (containing tests/) is on sys.path. `python -m pytest`
+# adds the cwd automatically and masked this; invoking the pytest console
+# script directly -- exactly what Taskfile.yml's {{.VENV}}/pytest does --
+# does not, and failed with "No module named 'tests'" on 8 of 17 test files.
+pythonpath = ["src", "."]
+addopts = "--tb=short -q"
+
+[tool.coverage.run]
+source = ["mas/library/telemetry"]
+# bench.py / codecs.py / list_clickhouse_sessions.py are thin glue over the
+# bench framework — exercised by integration runs (need mas-lab-bench), not
+# unit tests. lab_cli.py IS unit-tested (click CliRunner), so it stays
+# measured. list_clickhouse_sessions.py's own tests exist (mocking urllib
+# directly, no real ClickHouse needed) but are skipped whenever mas-lab-bench
+# isn't installed -- PipelineStep is its base class -- so it's omitted here
+# for the same reason bench.py is, not because it's untested.
+omit = ["*/tests/*", "*/bench.py", "*/codecs.py", "*/list_clickhouse_sessions.py"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 90
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mas"]
+
+[project.entry-points."mas.runtime.manifest_libraries"]
+# Short scheme name → refs read like a URN: `telemetry:pipelines/native-to-otel-json`
+# (the `.yaml` suffix and the `pipelines/` prefix are both optional — see
+# mas.runtime.package_refs.resolve_path_ref).
+telemetry = "mas.library.telemetry"
+
+# Span serialize/deserialize codecs (OtlpSpansCodec, ClickHouseSpansCodec) are
+# NOT registered as plugins yet: unlike steps, codec discovery has no
+# entry-point path at all (see mas.lab.benchmark.codecs), and declaring them
+# in library.yaml would collide with library-lab's generic codecs under the
+# same (otel_traces, otlp)/(otel_traces, clickhouse) keys. See
+# mas.library.telemetry.codecs module docstring.
+
+# `mas-lab telemetry` (and legacy `mas-lab otel`) — thin CLI wrapper. Replaces
+# the one previously provided by the deleted mas-lab-telemetry package.
+[project.entry-points."mas.lab.cli.components"]
+telemetry = "mas.library.telemetry.lab_cli:TelemetryCliComponent"
+
+[tool.hatch.build.targets.wheel.force-include]
+"schemas/otel_sdk_spans.schema.json" = "mas/library/telemetry/schemas/otel_sdk_spans.schema.json"
+"schemas/mas.spanspec.yaml" = "mas/library/telemetry/schemas/mas.spanspec.yaml"
+"schemas/genai-observe-sdk.spanspec.yaml" = "mas/library/telemetry/schemas/genai-observe-sdk.spanspec.yaml"

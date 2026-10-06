@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cisco-eti.github.io/mas-lab-telemetry/schemas/otel_sdk_spans.schema.json",
+  "title": "MAS OTel SDK span (JSONL line)",
+  "description": "One line of otel_sdk_spans.jsonl. Envelope for MAS Framework OTel export; per-span shapes are validated by mas.spanspec.yaml (SpanValidator L1–L4). Aligned with mas-ontology-kg App. E / App. P.",
+  "type": "object",
+  "required": ["name", "context", "start_time", "end_time", "attributes"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "MAS span class (AgentCall, LLMCall, ToolCall, CallAnnotation, …)"
+    },
+    "context": {
+      "type": "object",
+      "required": ["span_id", "trace_id"],
+      "properties": {
+        "span_id": { "type": "string" },
+        "trace_id": { "type": "string" },
+        "trace_state": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "parent_id": {
+      "type": ["string", "null"],
+      "description": "OTel parent span id; omitted or null for roots"
+    },
+    "kind": { "type": "string" },
+    "start_time": { "type": "string", "description": "ISO-8601 UTC timestamp" },
+    "end_time": { "type": "string", "description": "ISO-8601 UTC timestamp" },
+    "status": {
+      "type": "object",
+      "properties": {
+        "status_code": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "attributes": {
+      "type": "object",
+      "description": "Span attributes; MAS semantic fields use mas.* prefix",
+      "properties": {
+        "mas.boundary": { "type": "string" },
+        "mas.agent.id": { "type": "string" },
+        "mas.call.id": { "type": "string" },
+        "mas.status": { "type": "string" },
+        "application_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Only stamped on the *.graph span (an OXP-ingest requirement) and, as application.id, on session.start. Other spans rely on the OTel resource's service.name instead -- norm's get_application_id() already falls back to it, matching the real ioa-observe-sdk, which never sets this on ordinary call spans either."
+        },
+        "session.id": { "type": "string" },
+        "session.name": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "events": { "type": "array" },
+    "links": { "type": "array" },
+    "resource": { "type": "object" }
+  },
+  "additionalProperties": true
+}

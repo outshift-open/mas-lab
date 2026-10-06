@@ -1,0 +1,16 @@
+# Push live OTel spans to a collector (requires infra bundle with OTLP endpoint).
+apiVersion: mas/v1
+kind: Pipeline
+
+metadata:
+  name: observability-export-otel-collector
+  description: Export otel_sdk_spans.jsonl to OTLP collector via export_otel step.
+
+spec:
+  steps:
+    - name: export-otel-collector
+      type: export_otel
+      per_run: true
+      config:
+        destination: otlp
+        spans_filename: otel_sdk_spans.jsonl

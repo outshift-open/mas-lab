@@ -210,6 +210,23 @@ _SCENARIOS = [
     ),
 ]
 
+if (REPO_ROOT / "library-telemetry/examples/qa-agent").is_dir():
+    _SCENARIOS.append(
+        (
+            REPO_ROOT / "docs/tutorials/07-telemetry/demo/scenario.yaml",
+            REPO_ROOT,
+            "tuto-07",
+        )
+    )
+if (REPO_ROOT / "library-kg/examples/qa-agent").is_dir():
+    _SCENARIOS.append(
+        (
+            REPO_ROOT / "docs/tutorials/08-kg-oxp/demo/scenario.yaml",
+            REPO_ROOT,
+            "tuto-08",
+        )
+    )
+
 
 # ---------------------------------------------------------------------------
 # Helpers

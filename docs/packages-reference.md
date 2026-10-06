@@ -4,20 +4,21 @@
 > **Auto-generated** from `pyproject.toml` files and `library.yaml` manifests.  Run `task docs-gen` to refresh after adding or modifying packages.
 
 ## Summary
-| Package                | Layer         | Description                                                                                | CLI                  |
-| ---------------------- | ------------- | ------------------------------------------------------------------------------------------ | -------------------- |
-| `mas-runtime`          | Runtime core  | MAS Runtime V2 — Mealy kernel (embeddable library)                                         | `mas-runtime`        |
-| `mas-ctl`              | Orchestration | MAS control plane V2 — compile, compose, session, placement                                | `mas-ctl`            |
-| `mas-lab`              | Lab framework | MAS Lab — Multi-Agent System experimentation, benchmarking, and analysis toolkit.          | `mas-lab`, `mas-ctl` |
-| `mas-lab-core`         | Lab framework | Core contracts, telemetry, schemas and utilities shared across MAS Lab components.         | —                    |
-| `mas-lab-bench`        | Lab framework | Benchmark engine, pipeline execution, plots and validation for MAS Lab.                    | —                    |
-| `mas-lab-controller`   | Lab framework | MAS Lab controller daemon — workers, IPC, HTTP API for CLI and UI.                         | —                    |
-| `mas-library-standard` | Libraries     | Standard library for MAS — infra bundles, tools, and pattern aliases.                      | —                    |
-| `mas-library-skills`   | Libraries     | Skills library for MAS — ContextContract catalog plugin + ToolContract skill-access tools. | —                    |
-| `mas-library-eval`     | Libraries     | Evaluation and quality metrics library for MAS Lab — MCE integration.                      | —                    |
-| `mas-library-lab`      | Libraries     | MAS Lab provider library with public eval plugins.                                         | —                    |
-| `mas-library-samples`  | Libraries     | Community-contributed MAS sample apps, datasets, and tools.                                | —                    |
-| `mas-library-ioa`      | Libraries     | MCP client/server bridge for MAS Lab                                                       | `mas-mcp`            |
+| Package                 | Layer         | Description                                                                                             | CLI                  |
+| ----------------------- | ------------- | ------------------------------------------------------------------------------------------------------- | -------------------- |
+| `mas-runtime`           | Runtime core  | MAS Runtime V2 — Mealy kernel (embeddable library)                                                      | `mas-runtime`        |
+| `mas-ctl`               | Orchestration | MAS control plane V2 — compile, compose, session, placement                                             | `mas-ctl`            |
+| `mas-lab`               | Lab framework | MAS Lab — Multi-Agent System experimentation, benchmarking, and analysis toolkit.                       | `mas-lab`, `mas-ctl` |
+| `mas-lab-core`          | Lab framework | Core contracts, telemetry, schemas and utilities shared across MAS Lab components.                      | —                    |
+| `mas-lab-bench`         | Lab framework | Benchmark engine, pipeline execution, plots and validation for MAS Lab.                                 | —                    |
+| `mas-lab-controller`    | Lab framework | MAS Lab controller daemon — workers, IPC, HTTP API for CLI and UI.                                      | —                    |
+| `mas-library-standard`  | Libraries     | Standard library for MAS — infra bundles, tools, and pattern aliases.                                   | —                    |
+| `mas-library-skills`    | Libraries     | Skills library for MAS — ContextContract catalog plugin + ToolContract skill-access tools.              | —                    |
+| `mas-library-eval`      | Libraries     | Evaluation and quality metrics library for MAS Lab — MCE integration.                                   | —                    |
+| `mas-library-lab`       | Libraries     | MAS Lab provider library with public eval plugins.                                                      | —                    |
+| `mas-library-samples`   | Libraries     | Community-contributed MAS sample apps, datasets, and tools.                                             | —                    |
+| `mas-library-ioa`       | Libraries     | MCP client/server bridge for MAS Lab                                                                    | `mas-mcp`            |
+| `mas-library-telemetry` | Libraries     | MAS Lab native-events → OTel conversion, span contracts/verification, and OTLP collector serialization. | —                    |
 ---
 
 ## Installation
@@ -206,16 +207,10 @@ Standard library for MAS — infra bundles, tools, and pattern aliases.
 
 ```bash
 uv pip install -e library-standard  # source
-uv pip install "mas-library-standard[otel]"  # PyPI, all extras
+uv pip install mas-library-standard  # PyPI
 ```
 
 **Depends on:** `mas-runtime`  
-
-**Optional extras:**
-
-| Extra  | Packages / features                                                           |
-| ------ | ----------------------------------------------------------------------------- |
-| `otel` | `opentelemetry-sdk>=1.27.0`, `opentelemetry-exporter-otlp-proto-http>=1.27.0` |
 
 **Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
 
@@ -325,6 +320,34 @@ uv pip install "mas-library-ioa[all]"  # PyPI, all extras
 | `mas-mcp` | `library_ioa.plugins.mcp.server:main` |
 
 **Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
+
+---
+
+### `mas-library-telemetry`
+**Install path:** `library-telemetry`  
+**Layer:** Libraries  
+MAS Lab native-events → OTel conversion, span contracts/verification, and OTLP collector serialization.
+
+```bash
+uv pip install -e library-telemetry  # source
+uv pip install "mas-library-telemetry[all]"  # PyPI, all extras
+```
+
+**Optional extras:**
+
+| Extra        | Packages / features                                                                                                                        |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `convert`    | `opentelemetry-sdk>=1.20`, `opentelemetry-exporter-otlp-proto-http>=1.20`, `ioa-observe-sdk>=1.0.49`                                       |
+| `observe`    | `ioa-observe-sdk>=1.0.49`                                                                                                                  |
+| `verify`     | `pyyaml>=6.0.0`, `jsonschema>=4.0.0`                                                                                                       |
+| `clickhouse` | `clickhouse-connect>=0.7`                                                                                                                  |
+| `bench`      | `mas-lab-bench`, `click>=8.0`                                                                                                              |
+| `dev`        | `pytest>=7.0`, `pytest-cov>=4.0`, `opentelemetry-sdk>=1.20`, `ioa-observe-sdk>=1.0.49`, `pyyaml>=6.0.0`, `jsonschema>=4.0.0`, `click>=8.0` |
+| `all`        | `mas-library-telemetry[dev,bench,clickhouse]`                                                                                              |
+
+**Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
+
+**Entry-point group `mas.lab.cli.components`:** registers 1 item(s) in `lab.cli.components`.
 
 ---
 

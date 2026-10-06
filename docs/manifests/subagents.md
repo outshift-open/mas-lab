@@ -50,6 +50,6 @@ when the async driver is enabled (`ainvoke`, `dispatch: parallel` on a
 workflow). A child is torn down after its turn unless the session keeps
 it. Bounds still apply.
 
-See [Tutorial 7](../tutorials/07-subagents/README.md) for an incident
+See [Tutorial 9](../tutorials/07-subagents/README.md) for an incident
 coordinator that creates researcher and reviewer specialists, and the
 runnable [manifest pair](../schemas/examples/subagent-agent.yaml).

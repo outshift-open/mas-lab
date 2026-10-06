@@ -141,10 +141,10 @@ practical examples.
 
 ### Observability
 
-| Class                       | Full module path                                           | Package                |
-| --------------------------- | ---------------------------------------------------------- | ---------------------- |
-| `NativeObservabilityPlugin` | `mas.library.standard.plugins.observability.native_plugin` | `mas-library-standard` |
-| `OtelObservabilityPlugin`   | `mas.library.standard.plugins.observability.otel_plugin`   | `mas-library-standard` |
+| Class                       | Full module path                                           | Package                 |
+| --------------------------- | ---------------------------------------------------------- | ----------------------- |
+| `NativeObservabilityPlugin` | `mas.library.standard.plugins.observability.native_plugin` | `mas-library-standard`  |
+| `OtelObservabilityPlugin`   | `mas.library.telemetry.plugins.otel_plugin`                | `mas-library-telemetry` |
 
 ### Related_State
 
@@ -185,6 +185,17 @@ practical examples.
 | ------------------ | ------------------------------------- | -------------------- |
 | `SkillToolsPlugin` | `mas.library.skills.plugins.sk_tools` | `mas-library-skills` |
 
+### Step
+
+| Class                        | Full module path                                       | Package                 |
+| ---------------------------- | ------------------------------------------------------ | ----------------------- |
+| `ClickhouseDumpStep`         | `mas.library.telemetry.bench`                          | `mas-library-telemetry` |
+| `CompareOtelSpansStep`       | `mas.library.telemetry.bench`                          | `mas-library-telemetry` |
+| `EventsToOtelStep`           | `mas.library.telemetry.bench`                          | `mas-library-telemetry` |
+| `ExportOtelStep`             | `mas.library.telemetry.bench`                          | `mas-library-telemetry` |
+| `ListClickhouseSessionsStep` | `mas.library.telemetry.steps.list_clickhouse_sessions` | `mas-library-telemetry` |
+| `VerifyOtelStep`             | `mas.library.telemetry.bench`                          | `mas-library-telemetry` |
+
 ### Summarizer
 
 | Class            | Full module path                                  | Package                |
@@ -218,63 +229,69 @@ practical examples.
 
 ## All Plugins — Alphabetical Index
 
-| Class                            | Category             | Package                |
-| -------------------------------- | -------------------- | ---------------------- |
-| `ADKSkillPlugin`                 | skill_impl           | `mas-library-skills`   |
-| `AutoApproveResponder`           | hitl_responder       | `mas-library-standard` |
-| `AutoDenyResponder`              | hitl_responder       | `mas-library-standard` |
-| `AutoResolveHitlContract`        | hitl_contract        | `mas-library-standard` |
-| `BacktrackOnErrorPlugin`         | governance           | `mas-library-standard` |
-| `CacheLLMProvider`               | llm_provider         | `mas-library-standard` |
-| `ContextAssemblerPlugin`         | assembler            | `mas-library-standard` |
-| `ControlRpcProtocol`             | control_protocol     | `mas-library-standard` |
-| `ControlTools`                   | system_tool          | `mas-library-standard` |
-| `CopyDirRelatedState`            | related_state        | `mas-library-standard` |
-| `CotPlugin`                      | design_pattern       | `mas-library-standard` |
-| `DebugScriptPlugin`              | runtime              | `mas-library-standard` |
-| `DeterministicLinearPlugin`      | design_pattern       | `mas-library-standard` |
-| `DeterministicParallelPlugin`    | design_pattern       | `mas-library-standard` |
-| `DeterministicSingleAgentPlugin` | design_pattern       | `mas-library-standard` |
-| `DropSummarizer`                 | summarizer           | `mas-library-standard` |
-| `FaultInjectMiddleware`          | infra_middleware     | `mas-library-standard` |
-| `GitWorktreeRelatedState`        | related_state        | `mas-library-standard` |
-| `HybridCheckpointStore`          | checkpoint_store     | `mas-library-standard` |
-| `InformUserTool`                 | system_tool          | `mas-library-standard` |
-| `InMemoryCheckpointStore`        | checkpoint_store     | `mas-library-standard` |
-| `IntrospectionPlugin`            | design_pattern       | `mas-library-standard` |
-| `JsonCheckpointStore`            | checkpoint_store     | `mas-library-standard` |
-| `LangChainSkillPlugin`           | skill_impl           | `mas-library-skills`   |
-| `LlmCacheMiddleware`             | infra_middleware     | `mas-library-standard` |
-| `LlmDelegator`                   | engine_tool_provider | `mas-library-standard` |
-| `LlmSummarizer`                  | summarizer           | `mas-library-standard` |
-| `LocalAgentComm`                 | agent_comm           | `mas-library-standard` |
-| `LocalToolProvider`              | tool_provider        | `mas-library-standard` |
-| `NativeObservabilityPlugin`      | observability        | `mas-library-standard` |
-| `NativeSkillPlugin`              | skill_impl           | `mas-library-skills`   |
-| `NoUndeclaredToolPlugin`         | governance           | `mas-library-standard` |
-| `OpenAILLMProvider`              | llm_provider         | `mas-library-standard` |
-| `OtelObservabilityPlugin`        | observability        | `mas-library-standard` |
-| `PlanExecutePlugin`              | design_pattern       | `mas-library-standard` |
-| `ReactPlugin`                    | design_pattern       | `mas-library-standard` |
-| `RegistryHitlContract`           | hitl_contract        | `mas-library-standard` |
-| `RegistryUserIOContract`         | user_io_contract     | `mas-library-standard` |
-| `RequestHumanInputTool`          | system_tool          | `mas-library-standard` |
-| `RetryOnErrorPlugin`             | governance           | `mas-library-standard` |
-| `RunSkillScriptPlugin`           | skill_shell          | `mas-library-skills`   |
-| `SampleGovernancePlugin`         | governance           | `mas-library-standard` |
-| `SemanticMemoryPlugin`           | memory               | `mas-library-standard` |
-| `SinglePassPlugin`               | design_pattern       | `mas-library-standard` |
-| `SkillCatalogPlugin`             | skill_catalog        | `mas-library-skills`   |
-| `SkillToolsPlugin`               | skill_tools          | `mas-library-skills`   |
-| `SlidingWindowConversation`      | context_manager      | `mas-library-standard` |
-| `SpawnSubagentTool`              | system_tool          | `mas-library-standard` |
-| `SpawnSubagentTool`              | system_tool          | `mas-library-standard` |
-| `StackConversation`              | context_manager      | `mas-library-standard` |
-| `SubagentSpawner`                | engine_tool_provider | `mas-library-standard` |
-| `SummarizingConversation`        | context_manager      | `mas-library-standard` |
-| `ThresholdCircuitBreaker`        | circuit_breaker      | `mas-library-standard` |
-| `TreeOfThoughtsPlugin`           | design_pattern       | `mas-library-standard` |
-| `WorkdirSandbox`                 | execute_sandbox      | `mas-library-standard` |
+| Class                            | Category             | Package                 |
+| -------------------------------- | -------------------- | ----------------------- |
+| `ADKSkillPlugin`                 | skill_impl           | `mas-library-skills`    |
+| `AutoApproveResponder`           | hitl_responder       | `mas-library-standard`  |
+| `AutoDenyResponder`              | hitl_responder       | `mas-library-standard`  |
+| `AutoResolveHitlContract`        | hitl_contract        | `mas-library-standard`  |
+| `BacktrackOnErrorPlugin`         | governance           | `mas-library-standard`  |
+| `CacheLLMProvider`               | llm_provider         | `mas-library-standard`  |
+| `ClickhouseDumpStep`             | step                 | `mas-library-telemetry` |
+| `CompareOtelSpansStep`           | step                 | `mas-library-telemetry` |
+| `ContextAssemblerPlugin`         | assembler            | `mas-library-standard`  |
+| `ControlRpcProtocol`             | control_protocol     | `mas-library-standard`  |
+| `ControlTools`                   | system_tool          | `mas-library-standard`  |
+| `CopyDirRelatedState`            | related_state        | `mas-library-standard`  |
+| `CotPlugin`                      | design_pattern       | `mas-library-standard`  |
+| `DebugScriptPlugin`              | runtime              | `mas-library-standard`  |
+| `DeterministicLinearPlugin`      | design_pattern       | `mas-library-standard`  |
+| `DeterministicParallelPlugin`    | design_pattern       | `mas-library-standard`  |
+| `DeterministicSingleAgentPlugin` | design_pattern       | `mas-library-standard`  |
+| `DropSummarizer`                 | summarizer           | `mas-library-standard`  |
+| `EventsToOtelStep`               | step                 | `mas-library-telemetry` |
+| `ExportOtelStep`                 | step                 | `mas-library-telemetry` |
+| `FaultInjectMiddleware`          | infra_middleware     | `mas-library-standard`  |
+| `GitWorktreeRelatedState`        | related_state        | `mas-library-standard`  |
+| `HybridCheckpointStore`          | checkpoint_store     | `mas-library-standard`  |
+| `InformUserTool`                 | system_tool          | `mas-library-standard`  |
+| `InMemoryCheckpointStore`        | checkpoint_store     | `mas-library-standard`  |
+| `IntrospectionPlugin`            | design_pattern       | `mas-library-standard`  |
+| `JsonCheckpointStore`            | checkpoint_store     | `mas-library-standard`  |
+| `LangChainSkillPlugin`           | skill_impl           | `mas-library-skills`    |
+| `ListClickhouseSessionsStep`     | step                 | `mas-library-telemetry` |
+| `LlmCacheMiddleware`             | infra_middleware     | `mas-library-standard`  |
+| `LlmDelegator`                   | engine_tool_provider | `mas-library-standard`  |
+| `LlmSummarizer`                  | summarizer           | `mas-library-standard`  |
+| `LocalAgentComm`                 | agent_comm           | `mas-library-standard`  |
+| `LocalToolProvider`              | tool_provider        | `mas-library-standard`  |
+| `NativeObservabilityPlugin`      | observability        | `mas-library-standard`  |
+| `NativeSkillPlugin`              | skill_impl           | `mas-library-skills`    |
+| `NoUndeclaredToolPlugin`         | governance           | `mas-library-standard`  |
+| `OpenAILLMProvider`              | llm_provider         | `mas-library-standard`  |
+| `OtelObservabilityPlugin`        | observability        | `mas-library-telemetry` |
+| `PlanExecutePlugin`              | design_pattern       | `mas-library-standard`  |
+| `ReactPlugin`                    | design_pattern       | `mas-library-standard`  |
+| `RegistryHitlContract`           | hitl_contract        | `mas-library-standard`  |
+| `RegistryUserIOContract`         | user_io_contract     | `mas-library-standard`  |
+| `RequestHumanInputTool`          | system_tool          | `mas-library-standard`  |
+| `RetryOnErrorPlugin`             | governance           | `mas-library-standard`  |
+| `RunSkillScriptPlugin`           | skill_shell          | `mas-library-skills`    |
+| `SampleGovernancePlugin`         | governance           | `mas-library-standard`  |
+| `SemanticMemoryPlugin`           | memory               | `mas-library-standard`  |
+| `SinglePassPlugin`               | design_pattern       | `mas-library-standard`  |
+| `SkillCatalogPlugin`             | skill_catalog        | `mas-library-skills`    |
+| `SkillToolsPlugin`               | skill_tools          | `mas-library-skills`    |
+| `SlidingWindowConversation`      | context_manager      | `mas-library-standard`  |
+| `SpawnSubagentTool`              | system_tool          | `mas-library-standard`  |
+| `SpawnSubagentTool`              | system_tool          | `mas-library-standard`  |
+| `StackConversation`              | context_manager      | `mas-library-standard`  |
+| `SubagentSpawner`                | engine_tool_provider | `mas-library-standard`  |
+| `SummarizingConversation`        | context_manager      | `mas-library-standard`  |
+| `ThresholdCircuitBreaker`        | circuit_breaker      | `mas-library-standard`  |
+| `TreeOfThoughtsPlugin`           | design_pattern       | `mas-library-standard`  |
+| `VerifyOtelStep`                 | step                 | `mas-library-telemetry` |
+| `WorkdirSandbox`                 | execute_sandbox      | `mas-library-standard`  |
 
 ---
 

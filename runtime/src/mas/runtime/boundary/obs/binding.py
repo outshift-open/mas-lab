@@ -15,13 +15,13 @@ class ObservabilityBinding:
     with just the fields they care about.
     """
 
-    # Ordered plugin names, e.g. ["native", "otel"]
+    # Ordered plugin names from the registry
     plugins: list[str] = field(default_factory=list)
     # Per-plugin keyword config dicts, keyed by plugin name
     plugin_configs: dict[str, dict] = field(default_factory=dict)
     # Events file path (relative or absolute string; runtime resolves against base_dir)
     events_file: str | None = None
-    # Name of the env-var that holds the OTLP endpoint URL
+    # Optional env-var name for a plugin-specific collector URL
     otlp_endpoint_env: str | None = None
     # Whether to include message content in traces
     trace_content: bool = True

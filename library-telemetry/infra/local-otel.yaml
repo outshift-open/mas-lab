@@ -1,0 +1,13 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Infra manifest — where a span set serializes over OTLP HTTP.
+# Shortcut: set $OTEL_EXPORTER_OTLP_ENDPOINT instead of passing this file.
+apiVersion: mas/v1
+kind: Infra
+metadata:
+  name: local-otel
+spec:
+  targets:
+    - kind: OtelCollector
+      endpoint: http://localhost:4318   # OTLP HTTP/JSON base URL
+      protocol: otlp-http

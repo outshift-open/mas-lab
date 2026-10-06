@@ -859,6 +859,11 @@ Larger experiments: `labs/design-space.lab/` (patterns + topologies).
 
 ## Next
 
+[Tutorial 7 — Telemetry](../07-telemetry/) converts these native traces to
+OTel (live plugin or replay). [Tutorial 8 — KG & OXP](../08-kg-oxp/)
+normalizes OTel or native events into a knowledge graph and checks the two
+KG paths match.
+
 Use the labs as your base to create additional experiments:
 
 - duplicate an existing `labs/*.lab/experiment.yaml`

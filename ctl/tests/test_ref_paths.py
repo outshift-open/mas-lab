@@ -48,3 +48,8 @@ def test_checkpoint_storage_path_is_a_runtime_directory_not_an_input_ref() -> No
         )
     )
     assert "spec.checkpoint.storage.path" not in refs
+
+
+def test_native_observability_path_is_an_output_sink() -> None:
+    refs = dict(iter_ref_paths({"spec": {"observability": [{"native": {"path": "traces/events.jsonl"}}]}}))
+    assert "spec.observability[0].native.path" not in refs

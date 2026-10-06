@@ -1,0 +1,14 @@
+{"kind": "mas_call_start", "call_id": "run", "timestamp": 1700000000.0, "run_id": "trip-042", "session_id": "trip-042", "agent_id": "orchestrator", "app_name": "travel-planner"}
+{"kind": "execution_start", "call_id": "mod", "parent_call_id": "run", "timestamp": 1700000000.10, "agent_id": "moderator", "input": "Plan a 3-day trip from Celestia to Verdantia"}
+{"kind": "llm_call_start", "call_id": "mod-llm", "parent_call_id": "mod", "timestamp": 1700000000.20, "agent_id": "moderator", "model": "gpt-4o", "messages": [{"role": "user", "content": "Which agents are needed?"}]}
+{"kind": "llm_call_end", "call_id": "mod-llm", "timestamp": 1700000000.60, "agent_id": "moderator", "response": {"content": "Route via itinerary and budget agents", "usage": {"prompt_tokens": 42, "completion_tokens": 12, "total_tokens": 54}}, "finish_reason": "stop"}
+{"kind": "routing", "timestamp": 1700000000.65, "parent_call_id": "mod", "agent_id": "moderator", "source_agent_id": "moderator", "target_agent_id": "itinerary_agent"}
+{"kind": "execution_start", "call_id": "itin", "parent_call_id": "mod", "timestamp": 1700000000.70, "agent_id": "itinerary_agent", "input": "Find the best route Celestia → Verdantia"}
+{"kind": "tool_call_start", "call_id": "itin-tool", "parent_call_id": "itin", "timestamp": 1700000000.80, "agent_id": "itinerary_agent", "tool_name": "route_search", "arguments": {"from": "Celestia", "to": "Verdantia"}, "tool_category": "data"}
+{"kind": "tool_call_end", "call_id": "itin-tool", "timestamp": 1700000001.00, "agent_id": "itinerary_agent", "result": "3 candidate routes found"}
+{"kind": "execution_end", "call_id": "itin", "timestamp": 1700000001.10, "agent_id": "itinerary_agent", "output": "Scenic 3-day route selected"}
+{"kind": "routing", "timestamp": 1700000001.15, "parent_call_id": "mod", "agent_id": "moderator", "source_agent_id": "moderator", "target_agent_id": "budget_agent"}
+{"kind": "execution_start", "call_id": "bud", "parent_call_id": "mod", "timestamp": 1700000001.20, "agent_id": "budget_agent", "input": "Estimate cost for the selected route"}
+{"kind": "execution_end", "call_id": "bud", "timestamp": 1700000001.50, "agent_id": "budget_agent", "output": "Estimated $1,240"}
+{"kind": "execution_end", "call_id": "mod", "timestamp": 1700000001.60, "agent_id": "moderator", "output": "Trip plan ready: scenic route, $1,240"}
+{"kind": "mas_call_end", "call_id": "run", "timestamp": 1700000001.70, "agent_id": "orchestrator", "result": "Trip plan delivered"}

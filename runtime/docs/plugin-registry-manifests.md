@@ -217,16 +217,16 @@ plugins:
   - type: observability
     name: otel
     urn: mas.observability.otel
-    module: mas.library.standard.plugins.observability.otel_plugin
+    module: mas.library.telemetry.plugins.otel_plugin
     class: OtelObservabilityPlugin
     requires: [opentelemetry.sdk.trace]
-    extra: "mas-library-standard[otel]"
+    extra: "mas-library-telemetry[convert]"
 ```
 
 This is the real, shipping declaration for `mas.observability.otel` in
-[`library-standard/library.yaml`](../../library-standard/library.yaml) —
-`opentelemetry-sdk` is not a base dependency of `mas-library-standard`,
-only of its `otel` extra.
+[`library-telemetry/library.yaml`](../../library-telemetry/library.yaml) —
+`opentelemetry-sdk` is not a base dependency of `mas-library-telemetry`,
+only of its `convert` extra.
 
 **Discovery is unaffected.** A plugin with unmet `requires:` is still
 registered and still shows up in `PluginRegistry.list()` — it is *marked*
@@ -273,7 +273,7 @@ $ mas plugin list --type observability
   mas.observability.otel                   disabled  (missing: opentelemetry.sdk.trace; mas plugin enable mas.observability.otel)
 
 $ mas plugin enable mas.observability.otel
-Installing: uv pip install mas-library-standard[otel]
+Installing: uv pip install mas-library-telemetry[convert]
 mas.observability.otel is now available.
 ```
 
