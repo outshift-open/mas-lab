@@ -116,6 +116,7 @@ nav:
       - "5 — A2A agents": tutorials/05-a2a-agents/README.md
       - "6 — Sessions and recovery": tutorials/06-sessions-and-recovery/README.md
       - "7 — Spawned subagents": tutorials/07-subagents/README.md
+      - "10 — Evaluation metrics": tutorials/10-evaluation-metrics/README.md
   - References:
       - Overview: references/index.md
       - "ADR 0001 — lab terminology": references/adr-0001-lab-terminology.md

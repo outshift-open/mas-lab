@@ -66,8 +66,12 @@ def test_library_plugins_is_a_list_and_types_cover_entries(path: Path) -> None:
             f"{path}: plugin type {plugin_type!r} is not listed in types:"
         )
         assert entry.get("name"), f"{path}: plugins[{index}] missing name:"
-        assert entry.get("module"), f"{path}: plugins[{index}] missing module:"
-        assert entry.get("class"), f"{path}: plugins[{index}] missing class:"
+        factory = entry.get("factory") or (entry.get("attributes") or {}).get("factory")
+        has_class = entry.get("module") and entry.get("class")
+        assert has_class or factory, (
+            f"{path}: plugins[{index}] needs module+class, or factory: "
+            "(module:function returning metrics)"
+        )
 
 
 @pytest.mark.parametrize(

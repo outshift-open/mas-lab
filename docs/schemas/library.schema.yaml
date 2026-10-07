@@ -154,6 +154,16 @@ properties:
           description: >
             pip/uv extra that installs requires:, e.g.
             "mas-library-telemetry[convert]". Used by `mas plugin enable <urn>`.
+        factory:
+          type: string
+          description: >
+            For type eval_metric: dotted module:function that returns an
+            iterable of EvalMetric instances. Alternative to module+class
+            when one declaration yields many metric ids.
+        provider:
+          type: string
+          description: >
+            For type eval_metric: target eval provider name (default mce).
     default: []
 
   aliases:

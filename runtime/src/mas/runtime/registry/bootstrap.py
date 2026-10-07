@@ -125,6 +125,14 @@ def _candidate_from_manifest_item(item: dict[str, Any]) -> _ManifestPluginCandid
     name = str(item.get("name") or "").strip()
     urn = str(item.get("urn") or "").strip() or _urn_for_type_name(plugin_type, name)
 
+    attributes = dict(item.get("attributes") or {})
+    factory = str(item.get("factory") or attributes.get("factory") or "").strip()
+    if factory:
+        attributes.setdefault("factory", factory)
+    provider = item.get("provider")
+    if provider:
+        attributes.setdefault("provider", provider)
+
     variants: dict[str, VariantInfo] = {}
     raw_variants = item.get("variants") or {}
     if isinstance(raw_variants, dict) and raw_variants:
@@ -136,6 +144,18 @@ def _candidate_from_manifest_item(item: dict[str, Any]) -> _ManifestPluginCandid
         class_name = item.get("class") or item.get("class_name")
         if module and class_name:
             variants["builtin"] = _variant_info_from_data(item)
+        elif factory:
+            if ":" in factory:
+                factory_module, factory_attr = factory.rsplit(":", 1)
+            else:
+                factory_module, factory_attr = factory, "build_metrics"
+            variants["builtin"] = VariantInfo(
+                module=factory_module,
+                class_name=factory_attr,
+                description=str(item.get("description") or ""),
+                requires=[str(r) for r in (item.get("requires") or [])],
+                extra=str(item.get("extra") or ""),
+            )
     if not variants:
         return None
 
@@ -146,7 +166,7 @@ def _candidate_from_manifest_item(item: dict[str, Any]) -> _ManifestPluginCandid
         variants=variants,
         shortcuts=[str(s) for s in (item.get("shortcuts") or ([name] if name else []))],
         description=str(item.get("description") or ""),
-        attributes=dict(item.get("attributes") or {}),
+        attributes=attributes,
         provides_types={_canonical_type_name(str(t)) for t in (item.get("provides_types") or [])},
     )
 

@@ -1,0 +1,34 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Pipeline
+
+metadata:
+  name: t10-eval
+  description: >
+    Mix stock MCE, a registered EvalMetric, and step-local prompt_metrics
+    into one metrics.json.
+
+spec:
+  steps:
+    - name: eval
+      type: eval_mce
+      per_run: true
+      in: trace
+      out: metrics
+      config:
+        metrics:
+          - groundedness
+          - toy_echo
+        prompt_metrics:
+          - id: used_a_tool
+            description: 1.0 if the run invoked at least one tool.
+            unit: mas
+            evidence: trajectory
+            prompt: >
+              Did the agent invoke at least one tool?
+              Return JSON {"value": 1.0 or 0.0, "reasoning": "cite a tool_call_start event"}.
+        # model: gpt-4o-mini   # optional; see judge resolution in the tutorial
+        metric_options:
+          groundedness:
+            judge_model: gpt-4o-mini

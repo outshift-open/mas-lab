@@ -159,7 +159,7 @@ uv pip install mas-lab-core  # PyPI
 
 **Depends on:** `mas-runtime`  
 
-**Entry-point group `mas.lab.controller.plugins`:** registers 1 item(s) in `lab.controller.plugins`.
+**Python entry point `mas.lab.controller.plugins`:** this package advertises 1 discoverable item(s) so the runtime can load `lab.controller.plugins` without a hard-coded path.
 
 ---
 
@@ -175,7 +175,7 @@ uv pip install mas-lab-bench  # PyPI
 
 **Depends on:** `mas-lab-core`, `mas-library-eval`, `mas-runtime`, `mas-ctl`  
 
-**Entry-point group `mas.lab.runners`:** registers 1 item(s) in `lab.runners`.
+**Python entry point `mas.lab.runners`:** this package advertises 1 discoverable item(s) so the runtime can load `lab.runners` without a hard-coded path.
 
 ---
 
@@ -197,7 +197,7 @@ uv pip install "mas-lab-controller[dev]"  # PyPI, all extras
 | ----- | ----------------------------------------------------------------- |
 | `dev` | `pytest>=9.0`, `pytest-asyncio`, `pytest-cov>=6.0`, `httpx>=0.27` |
 
-**Entry-point group `mas.lab.cli.components`:** registers 1 item(s) in `lab.cli.components`.
+**Python entry point `mas.lab.cli.components`:** this package advertises 1 discoverable item(s) so the runtime can load `lab.cli.components` without a hard-coded path.
 
 ---
 
@@ -213,7 +213,7 @@ uv pip install mas-library-standard  # PyPI
 
 **Depends on:** `mas-runtime`  
 
-**Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
+**Python entry point `mas.runtime.manifest_libraries`:** this package advertises 1 discoverable item(s) so the runtime can load `runtime.manifest_libraries` without a hard-coded path.
 
 ---
 
@@ -237,7 +237,7 @@ uv pip install "mas-library-skills[all]"  # PyPI, all extras
 | `langchain` | `deepagents>=0.7.0,<1.0.0`                             |
 | `all`       | `google-adk>=1.0.0,<3.0.0`, `deepagents>=0.7.0,<1.0.0` |
 
-**Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
+**Python entry point `mas.runtime.manifest_libraries`:** this package advertises 1 discoverable item(s) so the runtime can load `runtime.manifest_libraries` without a hard-coded path.
 
 ---
 
@@ -259,7 +259,9 @@ uv pip install "mas-library-eval[dev]"  # PyPI, all extras
 | ----- | ----------------------------------------- |
 | `dev` | `pytest>=7.0.0`, `pytest-asyncio>=0.21.0` |
 
-**Entry-point group `mas.lab.cli.components`:** registers 1 item(s) in `lab.cli.components`.
+**Python entry point `mas.lab.cli.components`:** this package advertises 1 discoverable item(s) so the runtime can load `lab.cli.components` without a hard-coded path.
+
+**Python entry point `mas.runtime.manifest_libraries`:** this package advertises 1 discoverable item(s) so the runtime can load `runtime.manifest_libraries` without a hard-coded path.
 
 ---
 
@@ -275,9 +277,9 @@ uv pip install mas-library-lab  # PyPI
 
 **Depends on:** `mas-lab`  
 
-**Entry-point group `mas.lab.eval.plugins`:** registers 1 item(s) in `lab.eval.plugins`.
+**Python entry point `mas.lab.eval.plugins`:** this package advertises 1 discoverable item(s) so the runtime can load `lab.eval.plugins` without a hard-coded path.
 
-**Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
+**Python entry point `mas.runtime.manifest_libraries`:** this package advertises 1 discoverable item(s) so the runtime can load `runtime.manifest_libraries` without a hard-coded path.
 
 ---
 
@@ -291,7 +293,7 @@ uv pip install -e library-samples  # source
 uv pip install mas-library-samples  # PyPI
 ```
 
-**Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
+**Python entry point `mas.runtime.manifest_libraries`:** this package advertises 1 discoverable item(s) so the runtime can load `runtime.manifest_libraries` without a hard-coded path.
 
 ---
 
@@ -320,7 +322,7 @@ uv pip install "mas-library-ioa[all]"  # PyPI, all extras
 | --------- | ------------------------------------- |
 | `mas-mcp` | `library_ioa.plugins.mcp.server:main` |
 
-**Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
+**Python entry point `mas.runtime.manifest_libraries`:** this package advertises 1 discoverable item(s) so the runtime can load `runtime.manifest_libraries` without a hard-coded path.
 
 ---
 
@@ -346,9 +348,9 @@ uv pip install "mas-library-telemetry[all]"  # PyPI, all extras
 | `dev`        | `pytest>=7.0`, `pytest-cov>=4.0`, `opentelemetry-sdk>=1.20`, `ioa-observe-sdk>=1.0.49`, `pyyaml>=6.0.0`, `jsonschema>=4.0.0`, `click>=8.0` |
 | `all`        | `mas-library-telemetry[dev,bench,clickhouse]`                                                                                              |
 
-**Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
+**Python entry point `mas.runtime.manifest_libraries`:** this package advertises 1 discoverable item(s) so the runtime can load `runtime.manifest_libraries` without a hard-coded path.
 
-**Entry-point group `mas.lab.cli.components`:** registers 1 item(s) in `lab.cli.components`.
+**Python entry point `mas.lab.cli.components`:** this package advertises 1 discoverable item(s) so the runtime can load `lab.cli.components` without a hard-coded path.
 
 ---
 
@@ -378,11 +380,11 @@ uv pip install "mas-library-kg[all]"  # PyPI, all extras
 | `dev`                 | `pytest>=7.0`, `pytest-cov>=4.0`, `pytest-asyncio>=0.21`, `click>=8.0`, `ruff>=0.12.10`, `oxp-ontology[models]>=1.0.1`, `rdflib>=6.0.0`, `pyshacl>=0.25.0`, `jsonschema>=4.0.0`, `pyyaml>=6.0.0` |
 | `all`                 | `mas-library-kg[dev,neo4j,norm]`                                                                                                                                                                 |
 
-**Entry-point group `mas.lab.cli.components`:** registers 1 item(s) in `lab.cli.components`.
+**Python entry point `mas.lab.cli.components`:** this package advertises 1 discoverable item(s) so the runtime can load `lab.cli.components` without a hard-coded path.
 
-**Entry-point group `mas.lab.processors`:** registers 1 item(s) in `lab.processors`.
+**Python entry point `mas.lab.processors`:** this package advertises 1 discoverable item(s) so the runtime can load `lab.processors` without a hard-coded path.
 
-**Entry-point group `mas.runtime.manifest_libraries`:** registers 1 item(s) in `runtime.manifest_libraries`.
+**Python entry point `mas.runtime.manifest_libraries`:** this package advertises 1 discoverable item(s) so the runtime can load `runtime.manifest_libraries` without a hard-coded path.
 
 ---
 

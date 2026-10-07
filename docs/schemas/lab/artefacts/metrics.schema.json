@@ -98,6 +98,11 @@
             { "type": "null" }
           ],
           "description": "Error message when computation failed, null otherwise."
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Optional structured fields for non-scalar results (gates, evidence, status). Additive in schema_version 1."
         }
       }
     }

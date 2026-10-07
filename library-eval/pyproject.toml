@@ -27,6 +27,9 @@ dependencies = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/mas"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"library.yaml" = "mas/library/eval/library.yaml"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
@@ -35,3 +38,6 @@ dev = [
 
 [project.entry-points."mas.lab.cli.components"]
 eval = "mas.library.eval.cli:EvalCliComponent"
+
+[project.entry-points."mas.runtime.manifest_libraries"]
+eval = "mas.library.eval"

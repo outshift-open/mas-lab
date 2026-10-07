@@ -20,9 +20,16 @@ def rows_from_run_metrics(
     scenario: str,
     test: str,
     run: str,
-    metrics_filename: str = "metrics.json",
+    metrics_filename: str | list[str] = "metrics.json",
 ) -> List[Dict[str, Any]]:
-    """One tidy row per session metric in this run folder."""
+    """One tidy row per session metric in this run folder.
+
+    *metrics_filename* may be a name, a glob, or a list of those so split
+    ``eval_mce`` outputs (``metrics.json`` + ``metrics_judge2.json``) are
+    merged. Optional ``details`` is serialized as JSON.
+    """
+    from mas.library.lab.steps.eval.metrics_files import details_json, load_merged_session
+
     identity = {
         "scenario": scenario,
         "item_id": test[4:] if test.startswith("item") else test,
@@ -37,17 +44,12 @@ def rows_from_run_metrics(
             logger.debug("suppressed", exc_info=True)
     latency_s = run_info.get("elapsed_ms", 0) / 1000.0
 
-    m_path = run_dir / metrics_filename
-    if not m_path.exists():
-        return []
-    try:
-        doc = json.loads(m_path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        logger.warning("Skipping %s: %s", m_path, exc)
+    session, _quality, paths = load_merged_session(run_dir, metrics_filename)
+    if not paths:
         return []
 
     rows: List[Dict[str, Any]] = []
-    for metric_id, entry in doc.get("session", {}).items():
+    for metric_id, entry in session.items():
         if not isinstance(entry, dict) or entry.get("value") is None:
             continue
         rows.append(
@@ -58,6 +60,7 @@ def rows_from_run_metrics(
                 "latency_s": latency_s,
                 "model": run_info.get("model", ""),
                 "status": run_info.get("status", ""),
+                "details": details_json(entry),
             }
         )
     return rows
@@ -85,7 +88,7 @@ class MetricsToDataFrameStep(PipelineStep):
             scenario=scenario,
             test=test,
             run=run,
-            metrics_filename=str(config.get("metrics_filename", "metrics.json")),
+            metrics_filename=config.get("metrics_filename", "metrics.json"),
         )
 
         output_path = Path(config.get("output", "data.csv"))

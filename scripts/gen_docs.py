@@ -347,7 +347,11 @@ def generate_packages_reference(packages: list[Package]) -> str:
         for group, eps in p.entry_points.items():
             if group.startswith("mas."):
                 short = group.replace("mas.", "")
-                lines.append(f"**Entry-point group `{group}`:** registers {len(eps)} item(s) in `{short}`.\n\n")
+                lines.append(
+                    f"**Python entry point `{group}`:** this package advertises "
+                    f"{len(eps)} discoverable item(s) so the runtime can load "
+                    f"`{short}` without a hard-coded path.\n\n"
+                )
 
         lines.append("---\n\n")
 
@@ -507,6 +511,7 @@ LIBRARY_MANIFESTS: list[tuple[str, str]] = [
     ("library-samples/library.yaml", "mas-library-samples"),
     ("library-telemetry/library.yaml", "mas-library-telemetry"),
     ("library-kg/library.yaml", "mas-library-kg"),
+    ("library-eval/library.yaml", "mas-library-eval"),
 ]
 
 # Tool/flavour search roots: (relative path, library package name)

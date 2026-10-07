@@ -25,7 +25,11 @@ output       str           Output CSV path (default: "results.csv").
 run_glob     str           Glob for run directories relative to output_dir.
                            Default: ``"*/*/r*"`` (scenario/item_id/run).
 scenarios    list[str]     Optional scenario filter.
-metrics_filename  str      Name of the metrics file (default: "metrics.json").
+metrics_filename  str | list   Metrics file name, glob, or list of those
+                           (default: ``metrics.json``). Split ``eval_mce``
+                           steps with distinct ``metrics_filename`` values
+                           are merged. Optional ``details`` on a score is
+                           copied as a JSON column.
 
 dataset      str | dict    Optional: path to a dataset YAML/JSON file (or
                            shorthand: just the path string).  When provided,
@@ -144,7 +148,7 @@ class CollectMetricsStep(PipelineStep):
         id_spec = config.get("identity", _DEFAULT_IDENTITY)
         scenarios_filter: set = set(config.get("scenarios", []))
         dataset_columns: list = _dataset_columns_from_config(config.get("dataset"))
-        metrics_filename: str = config.get("metrics_filename", "metrics.json")
+        metrics_filename = config.get("metrics_filename", "metrics.json")
 
         dataset_lookup = _load_dataset_lookup(
             config.get("dataset"),
@@ -162,6 +166,7 @@ class CollectMetricsStep(PipelineStep):
             "latency_s", "n_llm_calls", "n_tool_calls",
             "model", "status",
             "n_warnings", "n_errors", "run_status",
+            "details",
         ] + dataset_columns
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -221,23 +226,29 @@ class CollectMetricsStep(PipelineStep):
                 model = run_info.get("model", "")
                 status = run_info.get("status", "")
 
-                # --- metrics.json: session metrics ---
-                m_path = run_dir / metrics_filename
-                if not m_path.exists():
-                    continue
-                try:
-                    doc = json.loads(m_path.read_text(encoding="utf-8"))
-                except Exception as exc:
-                    logger.warning("Skipping %s: %s", m_path, exc)
-                    continue
+                # --- metrics.json (one file, a list, or a glob): session metrics ---
+                from mas.library.lab.steps.eval.metrics_files import (
+                    details_json,
+                    load_merged_session,
+                    resolve_metrics_paths,
+                )
 
-                session = doc.get("session", {})
-                rq = doc.get("run_quality", {})
+                metric_paths = resolve_metrics_paths(run_dir, metrics_filename)
+                if not metric_paths:
+                    continue
+                session, rq, _paths = load_merged_session(run_dir, metrics_filename)
                 n_warnings = len(rq.get("warnings", []))
                 n_errors = len(rq.get("errors", []))
                 run_status_val = rq.get("status", "ok")
-                doc_cache_key: str = doc.get("cache_key", "")
-                doc_run_hash: str = doc.get("run_hash", run_hash)
+                doc_cache_key = ""
+                doc_run_hash = run_hash
+                for m_path in metric_paths:
+                    try:
+                        doc = json.loads(m_path.read_text(encoding="utf-8"))
+                    except Exception:
+                        continue
+                    doc_cache_key = doc.get("cache_key", "") or doc_cache_key
+                    doc_run_hash = doc.get("run_hash", "") or doc_run_hash
 
                 item_meta = dataset_lookup.get(item_id, {})
 
@@ -261,6 +272,7 @@ class CollectMetricsStep(PipelineStep):
                         "n_warnings": n_warnings,
                         "n_errors": n_errors,
                         "run_status": run_status_val,
+                        "details": details_json(entry),
                         **{col: None for col in dataset_columns},
                         **item_meta,
                     }

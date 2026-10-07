@@ -1,10 +1,10 @@
 #  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
 #  SPDX-License-Identifier: Apache-2.0
 """EvalMceStep — score one run's events.jsonl into metrics.json."""
+
 from __future__ import annotations
 
 import asyncio
-import functools
 import json
 import logging
 from pathlib import Path
@@ -66,9 +66,7 @@ def _install_judge(config: dict[str, Any], ctx: ExecutionContext) -> tuple[str, 
         experiment_model=experiment_model,
         experiment_judge_model=experiment_judge_model,
     )
-    effective = install_openai_llm_service(
-        model_override=judged.model, model_source=judged.source
-    )
+    effective = install_openai_llm_service(model_override=judged.model, model_source=judged.source)
     logger.info(
         "EvalMceStep judge model=%s source=%s",
         effective or judged.model or "(infra default)",
@@ -78,49 +76,73 @@ def _install_judge(config: dict[str, Any], ctx: ExecutionContext) -> tuple[str, 
 
 
 class EvalMceStep(PipelineStep):
-    """Score ``traces/events.jsonl`` and write ``metrics.json`` in that run folder."""
+    """Score one run into ``metrics.json``.
+
+    The step lists metric ids and writes scores. Each metric implementation
+    knows what input it needs (stock MCE: MAS I/O; plugins and inline
+    ``prompt_metrics``: their own ``unit`` / ``evidence``).
+    """
 
     type = "eval_mce"
     persistent = True
 
     PARAMS = [
-        ConfigParam("runs_dir", str, default=None,
-                    description="Runs tree containing item*/r*/traces/events.jsonl."),
-        ConfigParam("response_agent", str, default=None,
-                    description="agent_id whose last execution_end is the session answer."),
-        ConfigParam("metrics", list, default=None,
-                    description="MCE session metric ids. Default: all session metrics."),
-        ConfigParam("overwrite", bool, default=False,
-                    description="Recompute existing metrics.json."),
-        ConfigParam("validate", bool, default=True,
-                    description="Validate metrics.json against schema."),
-        ConfigParam("max_workers", int, default=2,
-                    description="Parallel judge threads."),
-        ConfigParam("fail_threshold", float, default=1.0,
-                    description="Fraction of items that may fail before the step raises."),
-        ConfigParam("model", str, default=None,
-                    description="LLM-as-judge model. Default: experiment.evaluation.model, "
-                                "then experiment.models.judge, then experiment.model / "
-                                "models.main, then application spec.models[]."),
-        ConfigParam("metrics_filename", str, default="metrics.json",
-                    description="Artefact filename written next to run_info.json."),
+        ConfigParam("runs_dir", str, default=None, description="Runs tree containing item*/r*/traces/events.jsonl."),
+        ConfigParam(
+            "response_agent", str, default=None, description="agent_id whose last execution_end is the session answer."
+        ),
+        ConfigParam(
+            "metrics",
+            list,
+            default=None,
+            description="Metric ids to compute. Default: all stock MCE session ids.",
+        ),
+        ConfigParam("overwrite", bool, default=False, description="Recompute existing metrics.json."),
+        ConfigParam("validate", bool, default=True, description="Validate metrics.json against schema."),
+        ConfigParam("max_workers", int, default=2, description="Parallel judge threads."),
+        ConfigParam(
+            "fail_threshold", float, default=1.0, description="Fraction of items that may fail before the step raises."
+        ),
+        ConfigParam(
+            "model",
+            str,
+            default=None,
+            description="LLM-as-judge model. Default: experiment.evaluation.model, "
+            "then experiment.models.judge, then experiment.model / "
+            "models.main, then application spec.models[].",
+        ),
+        ConfigParam(
+            "metrics_filename",
+            str,
+            default="metrics.json",
+            description="Artefact filename written next to run_info.json.",
+        ),
+        ConfigParam(
+            "metric_options",
+            dict,
+            default=None,
+            description="Per-metric options keyed by metric id (e.g. judge_model override).",
+        ),
+        ConfigParam(
+            "prompt_metrics",
+            list,
+            default=None,
+            description=(
+                "Inline metric definitions: {id, prompt, unit, evidence}. "
+                "Optional description, system, agent. Same metrics.json as "
+                "stock ids. unit/evidence belong to the metric, not the step."
+            ),
+        ),
     ]
 
     async def execute(self, ctx: ExecutionContext) -> StepOutput:
-        from mas.library.eval.mce.runner import (
-            ALL_SESSION_METRICS,
-            build_metrics_document,
-            compute_session_metrics,
-        )
+        from mas.library.eval.mce.catalog import ALL_SESSION_METRICS
+        from mas.library.eval.mce.runner import build_metrics_document
 
         config = self.config
         run_dir = run_dir_from_ctx(ctx, config)
         events_raw = config.get("events_path") or config.get("trace_path")
-        events_path = (
-            Path(str(events_raw)).expanduser().resolve()
-            if events_raw
-            else resolve_run_events(ctx, config)
-        )
+        events_path = Path(str(events_raw)).expanduser().resolve() if events_raw else resolve_run_events(ctx, config)
         if events_path is None or not events_path.exists():
             raise RuntimeError(
                 f"EvalMceStep '{self.name}' requires the run-level events artifact "
@@ -139,22 +161,29 @@ class EvalMceStep(PipelineStep):
 
         test = str(config.get("test") or "")
         item_id = test[4:] if test.startswith("item") else test
-        metric_names = config.get("metrics") or ALL_SESSION_METRICS
+        if config.get("metrics") is None:
+            metric_names = list(ALL_SESSION_METRICS)
+        else:
+            metric_names = list(config.get("metrics") or [])
+        from mas.library.eval.metrics.prompt import parse_prompt_metrics
+
+        prompt_metrics = parse_prompt_metrics(config.get("prompt_metrics"))
         judge_model, judge_source = _install_judge(config, ctx)
 
-        loop = asyncio.get_event_loop()
         max_workers = int(config.get("max_workers", 2))
         try:
             async with _judge_semaphore(max_workers):
-                session_scores = await loop.run_in_executor(
-                    None,
-                    functools.partial(
-                        compute_session_metrics,
-                        events_path,
-                        metric_names,
-                        response_agent_id=config.get("response_agent") or None,
-                    ),
+                session_scores = await _compute_mixed_metrics(
+                    events_path=events_path,
+                    run_folder=run_folder,
+                    metric_names=metric_names,
+                    response_agent_id=config.get("response_agent") or None,
+                    judge_model=judge_model,
+                    judge_source=judge_source,
+                    metric_options=config.get("metric_options") or {},
+                    prompt_metrics=prompt_metrics,
                 )
+            _apply_fail_threshold(session_scores, config.get("fail_threshold", 1.0))
             doc = build_metrics_document(
                 item_id=item_id,
                 scenario=str(config.get("scenario") or ""),
@@ -166,14 +195,10 @@ class EvalMceStep(PipelineStep):
                     _validate_document(doc, schema, events_path)
         except Exception as exc:
             logger.error("EvalMceStep '%s': scoring failed for %s: %s", self.name, events_path, exc)
-            doc = build_metrics_document(
-                item_id=item_id, scenario=str(config.get("scenario") or ""), session_scores={}
-            )
+            doc = build_metrics_document(item_id=item_id, scenario=str(config.get("scenario") or ""), session_scores={})
             doc.setdefault("run_quality", {})["status"] = "error"
             doc["run_quality"].setdefault("errors", []).append(str(exc))
-            metrics_file.write_text(
-                json.dumps(doc, indent=2, ensure_ascii=False), encoding="utf-8"
-            )
+            metrics_file.write_text(json.dumps(doc, indent=2, ensure_ascii=False), encoding="utf-8")
             return StepOutput(
                 data={"total": 1, "computed": 0, "skipped": 0, "errors": 1},
                 files=[metrics_file],
@@ -192,9 +217,7 @@ class EvalMceStep(PipelineStep):
                 doc["cache_key"] = run_hash
             except Exception:
                 logger.debug("suppressed", exc_info=True)
-        metrics_file.write_text(
-            json.dumps(doc, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        metrics_file.write_text(json.dumps(doc, indent=2, ensure_ascii=False), encoding="utf-8")
         return StepOutput(
             data={"total": 1, "computed": 1, "skipped": 0, "errors": 0},
             files=[metrics_file],
@@ -207,6 +230,104 @@ class EvalMceStep(PipelineStep):
 
     def outputs_exist(self, output_dir: Path) -> bool:
         return False
+
+
+async def _compute_mixed_metrics(
+    *,
+    events_path: Path,
+    run_folder: Path,
+    metric_names: list[str],
+    response_agent_id: Optional[str],
+    judge_model: str,
+    judge_source: str,
+    metric_options: dict[str, Any],
+    prompt_metrics: list[Any] | None = None,
+) -> dict[str, Any]:
+    """Score every requested id through the MCE provider."""
+    from mas.library.eval.evaluator import DEFAULT_METRIC_PROVIDER, get_provider
+    from mas.library.eval.metrics import MetricContext
+
+    local = list(prompt_metrics or [])
+    provider = get_provider(DEFAULT_METRIC_PROVIDER)
+    inputs = _run_inputs(run_folder, events_path)
+    ctx = MetricContext(
+        judge_model=judge_model,
+        judge_source=judge_source,
+        metric_options=dict(metric_options or {}),
+        run_dir=run_folder,
+        response_agent_id=response_agent_id,
+    )
+    session = await provider.compute_metrics(metric_names, inputs, ctx, extra=local)
+    qualities = list(ctx.quality_parts)
+    qualities.append(_quality_from_scores(session))
+    session["__run_quality__"] = _merge_run_quality(*qualities)
+    return session
+
+
+def _run_inputs(run_folder: Path, events_path: Path):
+    from mas.library.eval.metrics import RunInputs
+
+    otel = None
+    kg = None
+    run_info = None
+    if run_folder:
+        for name in ("otel_sdk_spans.jsonl", "otel_sdk_spans_replay.jsonl"):
+            candidate = Path(run_folder) / name
+            if candidate.exists():
+                otel = candidate
+                break
+        kg_path = Path(run_folder) / "kg.json"
+        if kg_path.exists():
+            kg = kg_path
+        info_path = Path(run_folder) / "run_info.json"
+        if info_path.exists():
+            try:
+                run_info = json.loads(info_path.read_text(encoding="utf-8"))
+            except Exception:
+                logger.debug("suppressed", exc_info=True)
+    return RunInputs(
+        run_dir=Path(run_folder) if run_folder else None,
+        native_trace=events_path,
+        otel_spans=otel,
+        kg=kg,
+        run_info=run_info,
+    )
+
+
+def _quality_from_scores(session: dict[str, Any]) -> dict[str, Any]:
+    errors = [
+        f"{mid}: {score.get('error')}"
+        for mid, score in session.items()
+        if isinstance(score, dict) and score.get("error")
+    ]
+    return {
+        "warnings": [],
+        "errors": errors,
+        "status": "error" if errors else "ok",
+    }
+
+
+def _merge_run_quality(*parts: dict[str, Any]) -> dict[str, Any]:
+    warnings: list[str] = []
+    errors: list[str] = []
+    for part in parts:
+        warnings.extend(part.get("warnings") or [])
+        errors.extend(part.get("errors") or [])
+    status = "error" if errors else ("warn" if warnings else "ok")
+    return {"warnings": warnings, "errors": errors, "status": status}
+
+
+def _apply_fail_threshold(session_scores: dict[str, Any], threshold: Any) -> None:
+    try:
+        limit = float(threshold)
+    except (TypeError, ValueError):
+        return
+    scored = {k: v for k, v in session_scores.items() if not str(k).startswith("__")}
+    if not scored:
+        return
+    n_err = sum(1 for v in scored.values() if isinstance(v, dict) and v.get("error"))
+    if (n_err / len(scored)) > limit:
+        raise RuntimeError(f"eval_mce fail_threshold={limit} exceeded: {n_err}/{len(scored)} metrics returned an error")
 
 
 def _load_metrics_schema() -> Optional[Dict[str, Any]]:
@@ -222,9 +343,7 @@ def _load_metrics_schema() -> Optional[Dict[str, Any]]:
         return None
 
 
-def _validate_document(
-    doc: Dict[str, Any], schema: Dict[str, Any], trace_path: Path
-) -> None:
+def _validate_document(doc: Dict[str, Any], schema: Dict[str, Any], trace_path: Path) -> None:
     try:
         import jsonschema
 
