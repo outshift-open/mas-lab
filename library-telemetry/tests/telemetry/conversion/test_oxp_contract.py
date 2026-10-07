@@ -209,15 +209,10 @@ def test_observe_sdk_default_matches_noa_ingest_categories(tmp_path):
     assert not any(n.startswith("delegate_to_") for n in names)
     for span in spans:
         attrs = _attrs(span)
-        # application_id is only stamped where OXP's own ingest needs it
-        # explicitly (the *.graph span) -- everywhere else (TaskCall/
-        # AgentCall/LLMCall/ToolCall/session.*), norm's get_application_id()
-        # falls back to the OTel resource's service.name, matching what the
-        # real ioa-observe-sdk actually does (verified against the installed
-        # SDK: it never stamps application_id/application.id on ordinary
-        # call spans either).
-        if _name(span).endswith(".graph"):
-            assert attrs.get(semconv.APPLICATION_ID), span
+        # application_id is the primary MAS name; service.name is only the
+        # fallback when it is empty. Stamp it on every span so the fallback
+        # never has to leak ``mas-runtime``.
+        assert attrs.get(semconv.APPLICATION_ID), span
         assert attrs.get(semconv.SESSION_ID), span
     schedule = next(s for s in spans if _name(s) == "schedule_agent.agent")
     assert _attrs(schedule).get("ioa_observe.agent.previous") == "moderator"

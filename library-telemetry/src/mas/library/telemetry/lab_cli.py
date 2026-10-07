@@ -42,8 +42,16 @@ def telemetry_group() -> None:
 @telemetry_group.command("convert")
 @click.argument("events_path", type=click.Path(exists=True, dir_okay=False))
 @click.option("--output", "-o", required=True)
-@click.option("--service-name", default="mas-runtime")
-@click.option("--app-name", default="")
+@click.option(
+    "--service-name",
+    default="",
+    help="MAS name when --app-name is unset and events do not carry one.",
+)
+@click.option(
+    "--app-name",
+    default="",
+    help="MAS name (application_id and service.name). Required unless events already set it.",
+)
 @click.option(
     "--shift-to-now",
     is_flag=True,

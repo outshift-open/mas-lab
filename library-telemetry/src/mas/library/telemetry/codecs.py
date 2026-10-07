@@ -57,7 +57,7 @@ class OtlpSpansCodec(Codec):
         result = push_spans_to_collector(
             spans,
             endpoint,
-            service_name=str(opts.get("service_name", "mas-runtime")),
+            service_name=str(opts.get("service_name") or ""),
             app_name=str(opts.get("app_name", "")),
             dry_run=bool(opts.get("dry_run", False)),
         )

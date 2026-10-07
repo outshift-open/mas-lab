@@ -124,6 +124,7 @@ def test_routing_annotations_avoid_the_real_routing_dispatch_convention(tmp_path
     replay_events_file(
         events_path,
         out,
+        app_name="test-app",
         converter_profile="observe_sdk",
         export_layers={"annotation": True},
     )
@@ -186,7 +187,9 @@ def test_llm_call_naming_has_no_agent_specific_hardcoding(tmp_path):
         )
     )
     out = tmp_path / "spans.jsonl"
-    replay_events_file(events_path, out, converter_profile="observe_sdk")
+    replay_events_file(
+        events_path, out, app_name="test-app", converter_profile="observe_sdk"
+    )
     names = {
         json.loads(line)["name"]
         for line in out.read_text().splitlines()
@@ -495,6 +498,7 @@ def test_annotation_and_provenance_gate_independently(tmp_path):
         replay_events_file(
             events_path,
             out,
+            app_name="test-app",
             export_layers=export_layers,
             converter_profile="observe_sdk",
         )
@@ -559,6 +563,7 @@ def test_call_annotations_are_off_by_default(tmp_path):
     replay_events_file(
         events_path,
         out,
+        app_name="test-app",
         converter_profile="observe_sdk",
     )  # default export_layers
     names = {
@@ -629,6 +634,7 @@ def test_observe_sdk_profile_gives_call_annotations_distinguishable_names(tmp_pa
     replay_events_file(
         events_path,
         out,
+        app_name="test-app",
         converter_profile="observe_sdk",
         export_layers={"annotation": True},
     )

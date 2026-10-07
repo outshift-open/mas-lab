@@ -44,6 +44,20 @@ def test_obs_config_to_binding_defaults_native_and_events_path(tmp_path: Path) -
     assert binding.plugin_configs["native"]["path"] == str(tmp_path / "e.jsonl")
 
 
+def test_obs_config_to_binding_injects_mas_id_into_otel_config() -> None:
+    cfg = ObservabilityConfig(
+        enabled=True,
+        plugins=["otel", "native"],
+        mas_id="sample-app",
+    )
+    binding = obs_config_to_binding(cfg)
+    assert binding is not None
+    assert binding.plugin_configs["otel"]["app_name"] == "sample-app"
+    assert binding.plugin_configs["otel"]["mas_id"] == "sample-app"
+    assert binding.plugin_configs["native"]["app_name"] == "sample-app"
+    assert binding.plugin_configs["native"]["mas_id"] == "sample-app"
+
+
 def test_setup_instance_obs_builds_and_attaches(tmp_path: Path) -> None:
     inst = _FakeInstance()
     cfg = ObservabilityConfig(enabled=True, plugins=["native"], agent_id="planner")

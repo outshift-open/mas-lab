@@ -74,6 +74,40 @@ def test_push_dry_run_builds_batches():
     assert result["batches"] == 3
 
 
+def test_push_stamps_application_id_and_service_name():
+    from mas.library.telemetry.collector.otlp import OtlpSpan, _stamp_mas_name
+
+    span = OtlpSpan(
+        trace_id="b" * 32,
+        span_id="c" * 16,
+        name="AgentCall",
+        start_ns=1,
+        end_ns=2,
+        attributes={"mas.boundary": "AgentCall"},
+    )
+    resource = {"service.name": "travel-planner"}
+    _stamp_mas_name([span], resource, "travel-planner")
+    assert span.attributes["application_id"] == "travel-planner"
+    assert resource["service.name"] == "travel-planner"
+
+
+def test_push_app_name_overwrites_service_name():
+    sdk = [_sdk_span("invoke_agent mas-runtime", "0x1", "0xbeef")]
+    sdk[0]["resource"] = {"attributes": {"service.name": "mas-runtime"}}
+    sdk[0]["attributes"]["application.id"] = "mas-runtime"
+    sdk[0]["attributes"]["session.id"] = "mas-runtime_old-uuid"
+    result = push_spans_to_collector(
+        sdk,
+        "http://localhost:4318",
+        service_name="mas-runtime",
+        app_name="sample-app",
+        dry_run=True,
+    )
+    assert result["status"] == "dry-run"
+    assert result["service_name"] == "sample-app"
+    assert result["session_id"] == "sample-app_old-uuid"
+
+
 def test_push_new_session_id_rewrites_prefixed_uuid():
     sdk = [_sdk_span("session.end", "0x1", "0xbeef")]
     sdk[0]["attributes"]["session.id"] = "app_old-uuid"

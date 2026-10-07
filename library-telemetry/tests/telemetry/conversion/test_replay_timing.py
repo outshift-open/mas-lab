@@ -35,7 +35,9 @@ def test_replay_speed_sleeps_scaled_gaps(tmp_path: Path, monkeypatch: pytest.Mon
     ]
     src = tmp_path / "events.jsonl"
     src.write_text("".join(json.dumps(e) + "\n" for e in events), encoding="utf-8")
-    replay_events_file(src, tmp_path / "out.jsonl", replay_speed=2, converter_profile="raw")
+    replay_events_file(
+        src, tmp_path / "out.jsonl", app_name="test-app", replay_speed=2, converter_profile="raw"
+    )
     assert slept == [1.0]
 
 
@@ -50,7 +52,9 @@ def test_replay_speed_zero_is_instant(tmp_path: Path, monkeypatch: pytest.Monkey
     ]
     src = tmp_path / "events.jsonl"
     src.write_text("".join(json.dumps(e) + "\n" for e in events), encoding="utf-8")
-    replay_events_file(src, tmp_path / "out.jsonl", replay_speed=0, converter_profile="raw")
+    replay_events_file(
+        src, tmp_path / "out.jsonl", app_name="test-app", replay_speed=0, converter_profile="raw"
+    )
 
 
 def test_realtime_replay_skips_graph_and_emits_signals(tmp_path: Path) -> None:

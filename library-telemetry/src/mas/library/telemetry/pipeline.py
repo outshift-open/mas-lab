@@ -55,7 +55,7 @@ def convert_events_to_spans_file(
     events_path: str | Path,
     output_path: str | Path,
     *,
-    service_name: str = "mas-runtime",
+    service_name: str = "",
     app_name: str = "",
     export_layers: "Any | None" = None,
     converter_profile: str | None = "observe_sdk",
@@ -95,7 +95,7 @@ def convert_events_to_spans_file(
 def build_span_set_from_events(
     events_path: str | Path,
     *,
-    service_name: str = "mas-runtime",
+    service_name: str = "",
     app_name: str = "",
     export_layers: "Any | None" = None,
 ):
@@ -151,7 +151,7 @@ def push_spans_file(
     spans_path: str | Path,
     endpoint: str,
     *,
-    service_name: str = "mas-runtime",
+    service_name: str = "",
     app_name: str = "",
     dry_run: bool = False,
     shift_to_now: bool = False,

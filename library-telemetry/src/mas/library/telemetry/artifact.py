@@ -82,7 +82,7 @@ class OtelSpanSet:
         cls,
         events_path: str | Path,
         *,
-        service_name: str = "mas-runtime",
+        service_name: str = "",
         app_name: str = "",
         export_layers: "Any | None" = None,
         converter_profile: str | None = "observe_sdk",
@@ -157,7 +157,7 @@ class OtelSpanSet:
         self,
         *,
         endpoint: str,
-        service_name: str = "mas-runtime",
+        service_name: str = "",
         app_name: str = "",
         dry_run: bool = False,
         batch_size: int = 200,
@@ -172,8 +172,7 @@ class OtelSpanSet:
         return push_spans_to_collector(
             self.spans,
             endpoint,
-            service_name=service_name
-            or str(self.metadata.get("service_name") or "mas-runtime"),
+            service_name=service_name or str(self.metadata.get("service_name") or ""),
             app_name=app_name or str(self.metadata.get("app_name") or ""),
             dry_run=dry_run,
             batch_size=batch_size,

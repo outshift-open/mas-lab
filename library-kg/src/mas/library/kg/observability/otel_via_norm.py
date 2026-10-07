@@ -156,6 +156,10 @@ def sdk_span_to_clickhouse(span: dict[str, Any]) -> dict[str, Any]:
             service_name = str(res_attrs.get("service.name") or "")
     if not service_name:
         service_name = str(attrs.get("service.name") or span.get("ServiceName") or "")
+    # application_id is the MAS name; ServiceName is the fallback when empty.
+    app_id = str(attrs.get("application_id") or "").strip()
+    if app_id:
+        service_name = app_id
     parent = (
         span.get("parent_id") or context.get("parent_span_id") or span.get("ParentSpanId") or ""
     )

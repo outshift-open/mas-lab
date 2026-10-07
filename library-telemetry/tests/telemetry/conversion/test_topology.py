@@ -6,11 +6,14 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from mas.library.telemetry.conversion.topology import (
     build_topology,
     derive_app_name,
     determinism_score,
     graph_span_attributes,
+    require_mas_name,
     topology_dynamism,
 )
 from tests.conftest import requires_otel
@@ -124,12 +127,22 @@ def test_graph_span_attributes_shape():
 
 def test_derive_app_name():
     assert derive_app_name(_EVENTS, fallback="svc") == "travel-planner"
+    assert derive_app_name([{"kind": "x", "mas_id": "trip-planner"}], fallback="svc") == "trip-planner"
     assert derive_app_name([{"kind": "x"}], fallback="svc") == "svc"
     # system_specification name
     assert (
         derive_app_name([{"kind": "system_specification", "name": "spec-app"}], "svc")
         == "spec-app"
     )
+
+
+def test_require_mas_name_first_nonempty():
+    assert require_mas_name("", "travel-planner", "other") == "travel-planner"
+
+
+def test_require_mas_name_raises_when_missing():
+    with pytest.raises(ValueError, match="MAS app name is required"):
+        require_mas_name("", "  ", None)
 
 
 # ── graph span through replay (golden, needs OTel SDK) ───────────────────────
@@ -162,6 +175,11 @@ def test_replay_emits_graph_span(tmp_path):
     }
     # app-name bug fixed: every span carries the real app id, not "mas-runtime"
     assert all(s["attributes"].get("application_id") == "travel-planner" for s in spans)
+    assert all(
+        (s.get("resource") or {}).get("attributes", {}).get("service.name")
+        == "travel-planner"
+        for s in spans
+    )
     # graph span shares the run trace (child of the synthetic root).
     root = next(s for s in spans if s["name"] == "root")
     assert g["context"]["trace_id"] == root["context"]["trace_id"]
@@ -177,14 +195,52 @@ def test_explicit_app_name_overrides(tmp_path):
     op = tmp_path / "s.jsonl"
     replay_events_file(ep, op, service_name="svc", app_name="explicit-override")
     spans = [json.loads(line) for line in op.read_text().splitlines() if line.strip()]
-    # observe_sdk profile only stamps application_id on the *.graph span
-    # (an OXP-ingest requirement) and application.id on session.start (the
-    # real SDK's own key); ordinary call spans rely on the OTel resource's
-    # service.name instead, matching the real SDK.
-    graph = next(s for s in spans if s["name"].endswith(".graph"))
-    assert graph["attributes"].get("application_id") == "explicit-override"
+    # application_id is the primary MAS name (OXP/norm); service.name is
+    # only the fallback when that attribute is empty. Both must be the
+    # app name, not leftover ``service_name`` / ``mas-runtime``.
+    assert all(
+        s["attributes"].get("application_id") == "explicit-override" for s in spans
+    )
     session_start = next(s for s in spans if s["name"] == "session.start")
     assert session_start["attributes"].get("application.id") == "explicit-override"
+    assert all(
+        (s.get("resource") or {}).get("attributes", {}).get("service.name")
+        == "explicit-override"
+        for s in spans
+    )
+
+
+@requires_otel
+def test_push_native_app_name_overwrites_service_name(tmp_path):
+    from mas.library.telemetry.collector.otlp import push_file
+
+    ep = tmp_path / "e.jsonl"
+    ep.write_text("\n".join(json.dumps(e) for e in _EVENTS))
+    result = push_file(
+        ep,
+        "http://localhost:4318",
+        service_name="mas-runtime",
+        app_name="sample-app",
+        dry_run=True,
+    )
+    assert result["status"] == "dry-run"
+    assert result["service_name"] == "sample-app"
+
+
+@requires_otel
+def test_push_native_derives_app_name_when_unset(tmp_path):
+    from mas.library.telemetry.collector.otlp import push_file
+
+    ep = tmp_path / "e.jsonl"
+    ep.write_text("\n".join(json.dumps(e) for e in _EVENTS))
+    result = push_file(
+        ep,
+        "http://localhost:4318",
+        service_name="mas-runtime",
+        dry_run=True,
+    )
+    assert result["status"] == "dry-run"
+    assert result["service_name"] == "travel-planner"
 
 
 @requires_otel

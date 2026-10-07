@@ -18,7 +18,7 @@ def run_convert(
     *,
     output_dir: Optional[str | Path] = None,
     output_filename: str = "otel_sdk_spans.jsonl",
-    service_name: str = "mas-runtime",
+    service_name: str = "",
     app_name: str = "",
     export_layers: Any | None = None,
     converter_profile: str | None = "observe_sdk",
@@ -37,8 +37,8 @@ def run_convert(
         output_dir: Directory to write the spans JSONL into.  When *None* the
             span set is returned in memory only.
         output_filename: Filename written under *output_dir*.
-        service_name: OTel ``service.name`` resource attribute.
-        app_name: ``application_id`` stamped on every span (defaults to service).
+        service_name: MAS name when ``app_name`` is unset and events do not carry one.
+        app_name: MAS name stamped as ``application_id`` and ``service.name``.
         export_layers: Layer toggles (dict or ``ExportLayers``).
         dry_run: If *True*, convert but do not write output.
 

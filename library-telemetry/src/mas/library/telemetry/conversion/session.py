@@ -48,7 +48,7 @@ class OtelExport:
 def create_otel_export(
     *,
     spans_path: str | Path,
-    service_name: str = "mas-runtime",
+    service_name: str = "",
     app_name: str = "",
     export_layers: ExportLayers | dict[str, Any] | None = None,
     converter_profile: str | None = "observe_sdk",
@@ -126,7 +126,15 @@ def create_otel_export(
 
         exporters.append(OTLPSpanExporter(endpoint=f"{otlp_endpoint.rstrip('/')}/v1/traces"))
 
-    resource_attrs = {"service.name": service_name}
+    from mas.library.telemetry.conversion.topology import require_mas_name
+
+    # service.name is the OTel resource identity of the process that
+    # emits telemetry. In theory that is the agent (one process per
+    # agent). Observe SDK treats the MAS as that service, so we put
+    # the MAS name here — the same value as application_id. Agent
+    # names stay on agent_id / mas.agent.id.
+    mas_name = require_mas_name(app_name, service_name)
+    resource_attrs = {"service.name": mas_name}
     if profile != "observe_sdk":
         resource_attrs["mas.instrumentation.version"] = "1.0.0"
         resource_attrs["mas.plugin"] = "mas.library.telemetry"
@@ -144,7 +152,7 @@ def create_otel_export(
     provider.add_span_processor(SimpleSpanProcessor(sink))
     converter = MasOtelConverter(
         provider.get_tracer("mas-otel"),
-        app_name=app_name or service_name,
+        app_name=mas_name,
         export_layers=layers,
         converter_profile=profile,
         annotation_enabled=annotation_enabled,
