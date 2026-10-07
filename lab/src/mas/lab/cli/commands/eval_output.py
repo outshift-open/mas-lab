@@ -7,16 +7,16 @@ Configure via OPENAI_API_KEY + OPENAI_BASE_URL (or OPENAI_API_BASE) in .env.
 
 Shared MCE computation logic lives in :mod:`mas.library.eval.mce.runner`.
 """
+
 from __future__ import annotations
 
 import json as _json
 from pathlib import Path
+from typing import Optional
 
 import click
-
+from mas.library.eval.mce.catalog import METRIC_MAP
 from mas.library.eval.mce.runner import (
-    ALL_SESSION_METRICS,
-    METRIC_MAP,
     compute_session_metrics,
     install_openai_llm_service,
 )
@@ -27,11 +27,15 @@ _DEFAULT_METRICS = ["goal_success_rate"]
 @click.command("eval-output")
 @click.argument("trace", type=str, metavar="SOURCE")
 @click.option(
-    "--fixture", type=Path, default=None,
+    "--fixture",
+    type=Path,
+    default=None,
     help="Path to a fixture YAML that provides ground truth.",
 )
 @click.option(
-    "--metric", "metrics", multiple=True,
+    "--metric",
+    "metrics",
+    multiple=True,
     help=(
         "MCE metric(s) to compute (repeatable). "
         f"Defaults to {_DEFAULT_METRICS} when omitted. "
@@ -39,7 +43,9 @@ _DEFAULT_METRICS = ["goal_success_rate"]
     ),
 )
 @click.option(
-    "--response-agent", default=None, show_default="auto-detect from trace",
+    "--response-agent",
+    default=None,
+    show_default="auto-detect from trace",
     help="agent_id whose last execution_end is the final response. Auto-detected when omitted.",
 )
 @click.option(
@@ -49,7 +55,10 @@ _DEFAULT_METRICS = ["goal_success_rate"]
     help="Override model name (infra manifest default is used when omitted).",
 )
 @click.option(
-    "--json", "output_json", is_flag=True, default=False,
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
     help="Output results as JSON instead of a human-readable table.",
 )
 @click.option("--overlay", default=None, help="Label for display (e.g. inject-C7-backend).")
@@ -61,7 +70,8 @@ _DEFAULT_METRICS = ["goal_success_rate"]
     help="Metric computation engine: mce-v1.",
 )
 @click.option(
-    "--api-key-env", default=None,
+    "--api-key-env",
+    default=None,
     help="Name of the environment variable holding the API key (default: OPENAI_API_KEY).",
 )
 def eval_output_cmd(
@@ -87,6 +97,7 @@ def eval_output_cmd(
     """
     # ── Resolve source path ──────────────────────────────────────────────
     from mas.lab.cli.commands.plot import resolve_source
+
     resolved = resolve_source(trace)
     trace_path = Path(resolved).expanduser()
 
@@ -150,7 +161,7 @@ def _print_v2_table(results_dict: dict, label: str) -> None:
     click.echo(f"  eval-output — {label}")
     click.echo(f"{'─' * 72}")
     click.echo(f"  {'Metric':<30}  {'Score':>6}  Reasoning")
-    click.echo(f"  {'─'*30}  {'─'*6}  {'─'*30}")
+    click.echo(f"  {'─' * 30}  {'─' * 6}  {'─' * 30}")
     for name, result in results_dict.items():
         if name.startswith("__"):
             continue

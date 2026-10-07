@@ -40,6 +40,7 @@ def test_metric_registry():
     from mas.library.eval.mce import METRIC_REGISTRY
 
     quality_metrics = [
+        "AnswerRelevancy",
         "GoalSuccessRate",
         "Groundedness",
         "ResponseCompleteness",

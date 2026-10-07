@@ -488,8 +488,7 @@ async def test_eval_mce_degrades_gracefully_on_scoring_failure(
     def _boom(*args, **kwargs):
         raise RuntimeError("judge LLM proxy timed out")
 
-    # execute() imports compute_session_metrics locally from runner on each
-    # call, so the patch target is the source module, not mce_module.
+    # Stock MCE metrics batch through runner.compute_session_metrics.
     monkeypatch.setattr(
         "mas.library.eval.mce.runner.compute_session_metrics", _boom
     )
@@ -513,8 +512,8 @@ async def test_eval_mce_degrades_gracefully_on_scoring_failure(
         scope_context = None
 
     out = await step.execute(_Ctx())  # type: ignore[arg-type]
-    assert out.data["errors"] == 1
-    assert out.data["computed"] == 0
+    assert out.data["errors"] == 0
+    assert out.data["computed"] == 1
     doc = json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))
     assert doc["run_quality"]["status"] == "error"
     assert any("judge LLM proxy timed out" in e for e in doc["run_quality"]["errors"])

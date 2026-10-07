@@ -96,6 +96,12 @@ practical examples.
 | `LlmDelegator`    | `mas.library.standard.plugins.delegation.llm_delegator`      | `mas-library-standard` |
 | `SubagentSpawner` | `mas.library.standard.plugins.engine_tools.subagent_spawner` | `mas-library-standard` |
 
+### Eval_Metric
+
+| Class           | Full module path               | Package            |
+| --------------- | ------------------------------ | ------------------ |
+| `ToyEchoMetric` | `mas.library.eval.metrics.toy` | `mas-library-eval` |
+
 ### Execute_Sandbox
 
 | Class            | Full module path                               | Package                |
@@ -312,6 +318,7 @@ practical examples.
 | `SubagentSpawner`                | engine_tool_provider | `mas-library-standard`  |
 | `SummarizingConversation`        | context_manager      | `mas-library-standard`  |
 | `ThresholdCircuitBreaker`        | circuit_breaker      | `mas-library-standard`  |
+| `ToyEchoMetric`                  | eval_metric          | `mas-library-eval`      |
 | `TreeOfThoughtsPlugin`           | design_pattern       | `mas-library-standard`  |
 | `ValidateKgStep`                 | step                 | `mas-library-kg`        |
 | `VerifyEventsStep`               | step                 | `mas-library-kg`        |

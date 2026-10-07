@@ -22,8 +22,11 @@ verification. Same setup for CLI and web UI.
 | 5 | [A2A agents](05-a2a-agents/) | Discover and dispatch local and remote agents through a stable contract |
 | 6 | [Sessions and recovery](06-sessions-and-recovery/) | Checkpoint, fork, resume and recover a conversation |
 | 7 | [Spawned subagents](07-subagents/) | Run bounded, pre-authored subagent templates during a turn |
+| 10 | [Evaluation metrics](10-evaluation-metrics/) | Stock MCE, one-off prompts, reusable EvalMetrics, judge infra |
 
-After Tutorial 7, reproduce all paper results across 3 labs: [Paper](../paper/index.md).
+After Tutorial 7 you can reproduce paper labs ([Paper](../paper/index.md)) or
+continue to [Tutorial 10](10-evaluation-metrics/) to score runs beyond stock
+MCE.
 
 Start from [Tutorial 0](00-environment-setup/README.md) for install and first commands —
 CLI and optional [web UI](../ui/index.md) use the same setup.
@@ -54,5 +57,5 @@ benchmark pipelines on run logs directly.
 After Tutorial 7:
 
 - **Labs** — runnable experiment artifacts live in [`labs/`](../../labs/): `design-space.lab` (design patterns + topologies), `lifecycle-control.lab`, `extensions.lab` — see [paper index](../paper/index.md). Lab vs library: [labs-and-libraries.md](../labs-and-libraries.md)
-- **Custom evaluation** — extend the Tutorial 3 pipeline with your own metrics and reports
+- **Evaluation metrics** — [Tutorial 10](10-evaluation-metrics/): stock MCE, step-local prompts, plugins, judge infra
 - **Protocol references** — see the [MCP ToolServerRegistry reference](../references/tool-server-registry.md) and [A2A developer reference](../a2a/developer.md)

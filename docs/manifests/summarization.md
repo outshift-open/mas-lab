@@ -349,8 +349,14 @@ both are set). Interactive labs use the same fields on `lab-config.yaml`.
 8. `experiment.metadata.model_name` (legacy annotation)
 9. local `config.yaml` `defaults.model` / package `defaults.yaml` (only for `any`)
 
-Metric *prompts* are owned by MCE (`mce_metrics_plugin`); mas-lab does not
-override them. Only the **model id** is a step/lab field.
+Metric *prompts* for stock MCE ids are owned by MCE (`mce_metrics_plugin`);
+mas-lab does not override them. Only the **model id** is a step/lab field.
+Libraries may register additional session metrics (`type: eval_metric` on the
+MCE eval provider). A pipeline may also define inline metrics on
+`eval_mce.config.prompt_metrics` (`id`, `prompt`, `unit`, `evidence`).
+Those fields belong to the metric. Stock MCE ids use MAS input/output.
+All ids land in the same `metrics.json`. Map:
+[Tutorial 10](../tutorials/10-evaluation-metrics/).
 
 Runnable pin: [library-eval/examples/mce/judge-override/](../../library-eval/examples/mce/judge-override/).
 

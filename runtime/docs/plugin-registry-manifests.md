@@ -90,6 +90,32 @@ A manifest entry can declare `variants:` (a dict of named implementations,
 e.g. `builtin`/`otel`) instead of a single top-level `module`/`class`, for
 plugins that ship more than one backing implementation behind the same URN.
 
+### `eval_metric`
+
+Session metrics registered onto an eval provider (default `mce`). One plugin
+is either a single `EvalMetric` subclass (`module` + `class`) or a family
+factory (`factory: package.module:build_metrics` returning an iterable of
+metrics). `library-eval` walks this type at load and calls
+`EvalProvider.register_metric` on that provider. Duplicate ids raise.
+`eval_mce` scores every requested id through `get_provider("mce").compute_metrics`
+(stock MCE session ids, registered plugins, and step-local `prompt_metrics`).
+
+```yaml
+types: [eval_metric]
+plugins:
+  - type: eval_metric
+    name: toy_echo
+    module: mas.library.eval.metrics.toy
+    class: ToyEchoMetric
+    attributes:
+      provider: mce
+  - type: eval_metric
+    name: challenge_family
+    factory: mas.library.example.eval.challenges:build_metrics
+    provider: mce
+    description: One factory yields many metric ids.
+```
+
 ## How a type becomes known — and why it matters
 
 The registry does **not** trust a plugin's own `type:` field just because

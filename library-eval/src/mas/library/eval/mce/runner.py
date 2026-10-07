@@ -30,36 +30,16 @@ stub (unfinished TODO prompt) and is not wired into this runner.
 
 from __future__ import annotations
 
-import importlib
 import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from mas.library.eval.mce.catalog import run_mce_class, session_scope
 from mas.runtime.engine.llm_output_limits import output_token_kwargs
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Metric registry  (public: mce_metrics_plugin from agntcy/telemetry-hub)
-# ---------------------------------------------------------------------------
-
-METRIC_MAP: Dict[str, str] = {
-    "answer_relevancy": "mce_metrics_plugin.session.answer_relevancy:AnswerRelevancy",
-    "goal_success_rate": "mce_metrics_plugin.session.goal_success_rate:GoalSuccessRate",
-    "groundedness": "mce_metrics_plugin.session.groundedness:Groundedness",
-    "response_completeness": "mce_metrics_plugin.session.response_completeness:ResponseCompleteness",
-    "workflow_cohesion_index": "mce_metrics_plugin.session.workflow_cohesion_index:WorkflowCohesionIndex",
-    "workflow_efficiency": "mce_metrics_plugin.session.workflow_efficiency:WorkflowEfficiency",
-    "consistency": "mce_metrics_plugin.session.consistency:Consistency",
-    "context_preservation": "mce_metrics_plugin.session.context_preservation:ContextPreservation",
-    "information_retention": "mce_metrics_plugin.session.information_retention:InformationRetention",
-    "intent_recognition_accuracy": "mce_metrics_plugin.session.intent_recognition_accuracy:IntentRecognitionAccuracy",
-    "component_conflict_rate": "mce_metrics_plugin.session.component_conflict_rate:ComponentConflictRate",
-}
-
-ALL_SESSION_METRICS: List[str] = list(METRIC_MAP.keys())
 
 # ---------------------------------------------------------------------------
 # DeepEval — native continuous scoring (no BinaryGrading constraint)
@@ -176,6 +156,9 @@ def _compute_deepeval_score(
 _jury: Any = None  # metrics_computation_engine.llm_judge.jury.Jury
 _jury_patched = False
 _effective_model: str = ""
+_openai_client: Any = None
+_openai_base_url: str = ""
+_openai_api_key: str = ""
 
 
 def install_openai_llm_service(
@@ -201,6 +184,7 @@ def install_openai_llm_service(
     next to summarizer model logs.
     """
     global _jury, _jury_patched, _deepeval_model, _effective_model
+    global _openai_client, _openai_base_url, _openai_api_key
     infra_api_base, infra_api_key_env, infra_model = _resolve_infra()
     effective_model = model_override or infra_model
 
@@ -218,6 +202,9 @@ def install_openai_llm_service(
     from openai import OpenAI
 
     _client = OpenAI(api_key=effective_api_key, base_url=effective_api_base)
+    _openai_client = _client
+    _openai_base_url = str(effective_api_base or "")
+    _openai_api_key = str(effective_api_key or "")
     _output_kwargs = output_token_kwargs(effective_model, generation=_resolve_infra_generation())
 
     from metrics_computation_engine.llm_judge.jury import Jury
@@ -264,6 +251,50 @@ def install_openai_llm_service(
         "ok" if _deepeval_model else "unavailable",
     )
     return effective_model
+
+
+def get_openai_client() -> Any:
+    """Return the OpenAI client installed by :func:`install_openai_llm_service`."""
+    if _openai_client is None:
+        raise RuntimeError(
+            "Judge LLM client is not installed. Call install_openai_llm_service() first (eval_mce does this)."
+        )
+    return _openai_client
+
+
+def get_effective_judge_model() -> str:
+    """Return the model id last installed for the shared judge client."""
+    if not _effective_model:
+        raise RuntimeError(
+            "Judge LLM client is not installed. Call install_openai_llm_service() first (eval_mce does this)."
+        )
+    return _effective_model
+
+
+def get_jury() -> Any:
+    """Return the MCE Jury installed by :func:`install_openai_llm_service`."""
+    if _jury is None:
+        raise RuntimeError(
+            "Judge LLM client is not installed. Call install_openai_llm_service() first (eval_mce does this)."
+        )
+    return _jury
+
+
+def llm_service_config() -> dict[str, str]:
+    """Model, base URL, and API key last installed for the shared client.
+
+    Callers (for example a Stateful Eval wrapper) must not copy these into
+    process environment variables; pass them as constructor arguments.
+    """
+    if _openai_client is None:
+        raise RuntimeError(
+            "Judge LLM client is not installed. Call install_openai_llm_service() first (eval_mce does this)."
+        )
+    return {
+        "model": _effective_model,
+        "base_url": _openai_base_url,
+        "api_key": _openai_api_key,
+    }
 
 
 def _resolve_infra() -> tuple[str, str, str]:
@@ -486,24 +517,30 @@ def compute_session_metrics(
                 )
                 continue
 
-            metric_cls = _import_metric(name)
-            if metric_cls is None:
-                results[name] = {"value": None, "reasoning": "", "error": f"import failed: {name}"}
-                continue
             try:
-                metric = metric_cls()
-                metric.init_with_model(_jury)
-                outcome = loop.run_until_complete(metric.compute(session))
-                results[name] = {
-                    "value": float(outcome.value) if outcome.value is not None else None,
-                    "reasoning": str(outcome.reasoning or ""),
-                    "error": str(outcome.error_message) if outcome.error_message else None,
-                }
+                outcome = loop.run_until_complete(run_mce_class(name, session, jury=_jury))
             except Exception as exc:
                 logger.error("MCE metric %r failed on %s: %s", name, trace_path, exc)
                 results[name] = {"value": None, "reasoning": "", "error": str(exc)}
+                continue
+            if outcome is None:
+                results[name] = {"value": None, "reasoning": "", "error": f"import failed: {name}"}
+                continue
+            results[name] = {
+                "value": float(outcome.value) if outcome.value is not None else None,
+                "reasoning": str(outcome.reasoning or ""),
+                "error": str(outcome.error_message) if outcome.error_message else None,
+            }
     finally:
         loop.close()
+
+    from mas.library.eval.metrics.scope import scope_details
+
+    for name, score in results.items():
+        unit, evidence = session_scope(name)
+        details = dict(score.get("details") or {})
+        details.update(scope_details(unit, evidence))
+        score["details"] = details
 
     # Build run-quality metadata: warnings (data issues) + errors (metric failures)
     warnings: List[str] = []
@@ -549,21 +586,6 @@ def build_metrics_document(
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
-
-
-def _import_metric(name: str):
-    """Import and return the MCE metric class for *name*, or ``None`` on failure."""
-    spec = METRIC_MAP.get(name)
-    if not spec:
-        logger.warning("Unknown MCE metric: %r.  Known: %s", name, list(METRIC_MAP))
-        return None
-    module_path, cls_name = spec.rsplit(":", 1)
-    try:
-        mod = importlib.import_module(module_path)
-        return getattr(mod, cls_name)
-    except Exception as exc:
-        logger.error("Import error for MCE metric %r (%s): %s", name, spec, exc)
-        return None
 
 
 def _run_id_from_path(trace_path: Path) -> str:

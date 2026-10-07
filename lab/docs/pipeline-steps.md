@@ -31,12 +31,12 @@ curl -s http://localhost:8090/api/pipeline-step-types   # when controller runnin
 
 | Type | Output |
 |------|--------|
-| `eval_mce` | One run's `events.jsonl` → `metrics.json` (`scope: run`). Judge: `experiment.evaluation.model`, else `experiment.models.judge`, else `experiment.model` / `models.main`, else application `spec.models[]`. |
+| `eval_mce` | One run → `metrics.json` (`scope: run`). Lists metric ids; each metric knows its input. Stock MCE = MAS I/O. Inline `prompt_metrics` are metric definitions (`id`, `prompt`, `unit`, `evidence`). Judge: `experiment.evaluation.model`, else `experiment.models.judge`, else `experiment.model` / `models.main`, else application `spec.models[]`. |
 | `eval_trip_planner_gt` | Trip-planner ground truth |
 | `eval_adversarial` | Adversarial probes |
 | `annotate_metrics` | Attach scores to run metadata |
-| `collect_metrics` | Aggregate run metrics (whole-tree walk; legacy alternative to `metrics_to_dataframe` + `gather_level`) |
-| `metrics_to_dataframe` | One run's `metrics.json` → tidy `data.csv` in that run folder (`scope: run`) |
+| `collect_metrics` | Aggregate run metrics (whole-tree walk; legacy alternative to `metrics_to_dataframe` + `gather_level`). `metrics_filename` may be a name, glob, or list so split eval files merge; `details` is copied as JSON. |
+| `metrics_to_dataframe` | One run's metrics file(s) → tidy `data.csv` in that run folder (`scope: run`). Same `metrics_filename` list/glob as `collect_metrics`. |
 | `compute_ci` | Confidence intervals |
 | `validate_outputs` | Check `experiment.output_schema`'s `required_files`/`required_columns` against the output directory |
 

@@ -16,6 +16,52 @@ This library provides:
 
 When installed, `mas-library-eval` automatically registers the `mas-lab eval` command via the `mas.lab.cli.components` entry point.
 
+## EvalMetrics on the MCE provider
+
+Libraries register session metrics onto the existing MCE eval provider
+through the `eval_metric` plugin type (`EvalProvider.register_metric`).
+`eval_mce` then runs any mix of stock MCE ids and registered ids into one
+`metrics.json`. Each metric knows what input it needs (`unit` / `evidence`
+on the metric). Stock MCE ids are MAS I/O, not the raw trajectory.
+
+```yaml
+# library.yaml
+types:
+  - eval_metric
+plugins:
+  - type: eval_metric
+    name: toy_echo
+    module: mas.library.eval.metrics.toy
+    class: ToyEchoMetric
+    attributes:
+      provider: mce          # default
+  # A family that yields many ids from one factory:
+  - type: eval_metric
+    name: my_family
+    factory: mas.library.example.metrics:build_metrics
+    attributes:
+      provider: mce
+```
+
+- Duplicate metric ids raise at registration.
+- Stock MCE session ids are `EvalMetric`s on `get_provider("mce")` (MAS I/O, one batch per run).
+- Plugins and inline `prompt_metrics` run through the same `compute_metrics` engine.
+- Unknown ids error with the list of available ids.
+- Metrics that share `batch_key` are computed once per run via `compute_batch`.
+- A failing metric writes `{value: null, error: "..."}` for that id only.
+- Optional `details` on each score is additive in `metrics.json` schema v1.
+
+List registered ids in an `eval_mce` step `metrics:` list, or split families
+across steps with distinct `metrics_filename` values (`metrics.json`,
+`metrics_judge2.json`). One-off LLM-as-judge questions can be added on the
+same step as `prompt_metrics: [{id, prompt, unit, evidence}]` without a
+plugin (ids must not collide with stock MCE or a registered metric).
+`collect_metrics` and `metrics_to_dataframe` accept a filename, a glob, or
+a list, and copy `details` into a JSON column.
+
+How the pieces fit (stock MCE, prompts, plugins, judge infra, trajectory
+wrappers): [Tutorial 10](../docs/tutorials/10-evaluation-metrics/).
+
 ## Installation
 
 ```bash
@@ -38,12 +84,15 @@ The `mas-lab eval` command is automatically available after installation — no 
 ```
 src/mas/library/eval/
 ├── __init__.py
-├── mce/                       # MCE integration
-│   └── __init__.py            # Core API: compute_session_metrics, build_session_from_trace, METRIC_REGISTRY
-├── steps/                     # Pipeline steps
-│   └── __init__.py            # EvalMceStep for benchmark pipelines
-└── cli/                       # CLI component
-    └── __init__.py            # EvalCliComponent (auto-registered as 'mas-lab eval')
+├── evaluator.py               # EvalProvider + get_provider("mce")
+├── providers/mce.py           # Built-in MCE provider (stock + registered metrics)
+├── mce/
+│   ├── catalog.py             # One catalog: METRIC_MAP + METRIC_REGISTRY
+│   ├── runner.py              # Native-trace MCE/deepeval compute
+│   └── registry_api.py        # SessionEntity CamelCase API
+├── metrics/                   # EvalMetric, plugins, prompt_metrics, stock wrappers
+├── steps/                     # Legacy CamelCase EvalMceStep
+└── cli/                       # mas-lab eval
 ```
 
 ## CLI Component Integration
