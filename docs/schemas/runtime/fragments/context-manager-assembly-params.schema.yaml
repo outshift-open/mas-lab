@@ -43,6 +43,14 @@ properties:
         description: >
           Tokens reserved for the completion (and other non-history payload).
           Defaults to the primary model's max_tokens when that is set.
+      safety_margin_ratio:
+        type: number
+        minimum: 0
+        maximum: 0.5
+        default: 0.1
+        description: >
+          Fraction of the resolved input window kept unused for tokenizer
+          estimation error and provider-side request overhead.
   working_memory_ref:
     type: string
     description: Registry ref for working_memory context source plugin.

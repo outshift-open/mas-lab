@@ -42,12 +42,13 @@ properties:
     type: number
     minimum: 0
     maximum: 1
-    default: 0.2
+    default: 0.1
     description: >
       Summarising CM — extra headroom after a compaction before summarizing
       again. After compressing to keep_turns, new turns accumulate verbatim
       until the managed payload exceeds the budget times (1 + hysteresis_ratio).
-      Stops a summary LLM call on every subsequent iteration.
+      The automatic trigger is lowered so this ceiling remains inside the hard
+      context budget. Stops a summary LLM call on every subsequent iteration.
   summarizer:
     description: >
       Sub-plugin of the summarising context manager. Compresses older turns.

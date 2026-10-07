@@ -69,6 +69,7 @@ properties:
   design_pattern:
     # Object form is tighter than the base schema (design-pattern-config fragment).
     # String shorthand (plugin name) is the same as agent spec.
+    # `$op.merge` keeps type/ref and only patches params (production overlays).
     oneOf:
       - type: "null"
       - type: string
@@ -84,6 +85,30 @@ properties:
             $ref: "./design-pattern-config.schema.yaml"
           config:
             $ref: "./design-pattern-config.schema.yaml"
+          $op:
+            type: object
+            additionalProperties: false
+            minProperties: 1
+            properties:
+              merge:
+                type: object
+                additionalProperties: false
+                properties:
+                  type:
+                    type: string
+                  params:
+                    $ref: "./design-pattern-config.schema.yaml"
+              replace:
+                type: object
+                additionalProperties: false
+                properties:
+                  type:
+                    type: string
+                  params:
+                    $ref: "./design-pattern-config.schema.yaml"
+              clear:
+                type: boolean
+                const: true
   budget:
     $ref: "../agent.schema.yaml#/properties/spec/properties/budget"
   control:

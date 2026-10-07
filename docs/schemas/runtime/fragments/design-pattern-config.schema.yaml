@@ -8,11 +8,12 @@ type: object
 additionalProperties: true
 properties:
   max_steps:
-    type: integer
+    type: ["integer", "null"]
     minimum: 1
-    default: 512
+    default: null
     description: >
-      Kernel dispatch-loop cap (KernelConfig.max_auto_steps). Default 512.
+      Kernel dispatch-loop cap (KernelConfig.max_auto_steps). Null / omitted
+      means no cap. Production overlay `with-hardened` sets 512.
   max_cot_pass:
     type: integer
     minimum: 0

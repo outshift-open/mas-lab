@@ -144,12 +144,29 @@ class LlmCacheMiddleware:
         key = hashlib.sha256(preview.encode("utf-8")).hexdigest()
         if self.allow_read and key in self._cache:
             self._simulate_replay_delay()
-            return middleware_cache_deserialize(self._cache[key], io.correlation_id)
+            ret = middleware_cache_deserialize(self._cache[key], io.correlation_id)
+            return ret.model_copy(
+                update={
+                    "cache_status": "hit",
+                    "cache_layer": "infra_llm_cache",
+                    "cache_events": [{"layer": "infra_llm_cache", "status": "hit"}],
+                }
+            )
         if self.allow_read and self.raise_on_miss:
             self._log_miss(key, preview)
+            self._record_strict_miss(io)
             shown = preview if len(preview) <= 4000 else preview[:4000] + "\n…"
             raise RuntimeError(f"llm_cache miss (raise_on_miss=true) for key {key}\n{shown}")
         ret = self.inner.invoke(io)
+        if self.allow_read:
+            events = [*ret.cache_events, {"layer": "infra_llm_cache", "status": "miss"}]
+            ret = ret.model_copy(
+                update={
+                    "cache_status": "miss",
+                    "cache_layer": "infra_llm_cache",
+                    "cache_events": events,
+                }
+            )
         if (
             self.allow_write
             and ret.response_kind == "MODEL_TEXT"
@@ -170,12 +187,29 @@ class LlmCacheMiddleware:
         key = hashlib.sha256(preview.encode("utf-8")).hexdigest()
         if self.allow_read and key in self._cache:
             await self._asimulate_replay_delay()
-            return middleware_cache_deserialize(self._cache[key], io.correlation_id)
+            ret = middleware_cache_deserialize(self._cache[key], io.correlation_id)
+            return ret.model_copy(
+                update={
+                    "cache_status": "hit",
+                    "cache_layer": "infra_llm_cache",
+                    "cache_events": [{"layer": "infra_llm_cache", "status": "hit"}],
+                }
+            )
         if self.allow_read and self.raise_on_miss:
             self._log_miss(key, preview)
+            self._record_strict_miss(io)
             shown = preview if len(preview) <= 4000 else preview[:4000] + "\n…"
             raise RuntimeError(f"llm_cache miss (raise_on_miss=true) for key {key}\n{shown}")
         ret = await self.inner.ainvoke(io)
+        if self.allow_read:
+            events = [*ret.cache_events, {"layer": "infra_llm_cache", "status": "miss"}]
+            ret = ret.model_copy(
+                update={
+                    "cache_status": "miss",
+                    "cache_layer": "infra_llm_cache",
+                    "cache_events": events,
+                }
+            )
         if (
             self.allow_write
             and ret.response_kind == "MODEL_TEXT"
@@ -222,6 +256,17 @@ class LlmCacheMiddleware:
                 fh.write(json.dumps({"key": key, "preview": preview}) + "\n")
         except Exception:
             pass
+
+    def _record_strict_miss(self, io: InvokeEngineIo) -> None:
+        ctx = getattr(self.inner, "ctx", None)
+        observability = getattr(ctx, "observability", None)
+        record = getattr(observability, "record_cache_lookup", None)
+        if callable(record):
+            record(
+                correlation_id=io.correlation_id,
+                cache_layer="infra_llm_cache",
+                cache_status="miss",
+            )
 
     def _preview(self, io: InvokeEngineIo) -> str:
         preview = getattr(self.inner, "exchange_preview", None)

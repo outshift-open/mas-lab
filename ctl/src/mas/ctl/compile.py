@@ -85,7 +85,8 @@ def fill_agent_defaults(doc: dict[str, Any], *, workspace: Any = None) -> dict[s
     from mas.runtime.kernel.config import KernelConfig
 
     kernel_defaults = KernelConfig()
-    dp_params.setdefault("max_steps", kernel_defaults.max_auto_steps)
+    if kernel_defaults.max_auto_steps is not None:
+        dp_params.setdefault("max_steps", kernel_defaults.max_auto_steps)
     dp_params.setdefault("max_cot_pass", kernel_defaults.max_cot_pass)
     dp_params.setdefault("parallel", kernel_defaults.parallel_tool_calls)
 

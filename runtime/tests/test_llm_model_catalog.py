@@ -29,6 +29,9 @@ def test_catalog_loads_curated_models_and_sources():
     assert flash is not None
     assert flash.supports("think") is False
     assert flash.supports("reasoning.mode") is False
+    assert flash.pricing["input_per_million_tokens"] == 0.30
+    assert flash.pricing["cached_input_per_million_tokens"] == 0.03
+    assert flash.pricing["output_per_million_tokens"] == 2.50
     assert catalog.get("default") is None
     toy_unlisted = catalog.get("gpt-5-mini")
     assert toy_unlisted is not None

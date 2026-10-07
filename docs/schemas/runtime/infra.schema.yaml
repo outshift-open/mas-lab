@@ -210,6 +210,29 @@ properties:
                   generation-config max_new_tokens).
               on_truncation:
                 $ref: "./fragments/llm-truncation.schema.yaml"
+              context_window:
+                type: integer
+                minimum: 1
+                description: >
+                  Input context-window override for the resolved endpoint. A
+                  model-level context_window takes precedence; otherwise the
+                  runtime model catalog is used.
+              pricing:
+                type: object
+                additionalProperties: false
+                description: >
+                  Optional operator pricing override in USD per million tokens.
+                  Values replace the model catalog rates for cost estimates.
+                properties:
+                  input_per_million_tokens:
+                    type: number
+                    minimum: 0
+                  cached_input_per_million_tokens:
+                    type: number
+                    minimum: 0
+                  output_per_million_tokens:
+                    type: number
+                    minimum: 0
 
       endpoints:
         description: "Application: map of id → endpoint. LLMProxy: may be a list with name field."

@@ -145,6 +145,32 @@ class SessionSnapshotView:
     spec_revision: int | None = None
 
 
+@dataclass(frozen=True)
+class ContextUsageView:
+    """Privacy-safe token and cache snapshot from the latest assembled request."""
+
+    session_id: str
+    available: bool = False
+    captured_at: str = ""
+    model: str = ""
+    context_window: int | None = None
+    estimated_prompt_tokens: int = 0
+    completion_reserve: int = 0
+    estimated_remaining_tokens: int | None = None
+    fill_ratio: float | None = None
+    token_breakdown: dict[str, int] = field(default_factory=dict)
+    context_parts: tuple[dict[str, Any], ...] = ()
+    latest_provider_usage: dict[str, Any] = field(default_factory=dict)
+    provider_usage_source: str = "unavailable"
+    cache_hits: int = 0
+    cache_misses: int = 0
+    cache_hit_rate: float | None = None
+    cache_hits_by_layer: dict[str, int] = field(default_factory=dict)
+    cache_misses_by_layer: dict[str, int] = field(default_factory=dict)
+    estimated_cost_usd: float | None = None
+    cost_status: str = "pricing_not_configured"
+
+
 class ControlContract(Protocol):
     """Capability-scoped control plane. Callers pass ``session_id``, not objects.
 
@@ -177,6 +203,7 @@ class ControlContract(Protocol):
     ) -> None: ...
     def discard_last(self, session_id: str) -> str: ...
     def inspect(self, session_id: str) -> SessionSnapshotView: ...
+    def inspect_context(self, session_id: str) -> ContextUsageView: ...
     def snapshot(self, session_id: str, *, label: str = "", auto_stop: bool = False) -> Any: ...
     def persist(
         self,

@@ -19,9 +19,13 @@ properties:
         minimum: 1
         default: 32
       max_auto_steps:
-        type: integer
+        type: ["integer", "null"]
         minimum: 1
-        default: 512
+        default: null
+        description: >
+          Dispatch-loop cap. Null / omitted means no cap. Production
+          overlays (with-hardened) and RuntimeEngine manifests set an
+          integer when a runaway loop must stop.
       timeout:
         type: ["number", "null"]
         minimum: 0

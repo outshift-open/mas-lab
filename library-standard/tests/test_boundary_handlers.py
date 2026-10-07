@@ -131,6 +131,11 @@ def test_context_assembled_emits_processing_span_and_context_event() -> None:
             "total_tokens": 25,
             "message_count": 2,
             "tools": ["get_logs", "get_metrics"],
+            "context_usage": {
+                "context_window": 256000,
+                "estimated_prompt_tokens": 250,
+                "context_parts": [{"source": "skills", "pinned": True, "tokens": 80}],
+            },
         },
     }
     out = dispatch_boundary(record, ctx=_ctx())
@@ -141,6 +146,8 @@ def test_context_assembled_emits_processing_span_and_context_event() -> None:
 
     assembled = next(ev for ev in out if ev.get("kind") == "context_assembled")
     assert assembled["tools"] == ["get_logs", "get_metrics"]
+    assert assembled["context_usage"]["context_window"] == 256000
+    assert assembled["context_usage"]["context_parts"][0]["pinned"] is True
 
     pstart = next(ev for ev in out if ev.get("kind") == "processing_call_start")
     pend = next(ev for ev in out if ev.get("kind") == "processing_call_end")
@@ -148,6 +155,40 @@ def test_context_assembled_emits_processing_span_and_context_event() -> None:
     assert pstart["context_operation"] == "PREPEND"
     assert pstart.get("parent_call_id") == "exec-1"
     assert pstart["call_id"] == pend["call_id"]
+
+
+def test_cache_lookup_projects_without_creating_llm_completion() -> None:
+    record = {
+        "kind": "cache.lookup",
+        "correlation_id": 8,
+        "call_id": "llm-call-8",
+        "payload": {"op": "LLM_CALL", "cache_layer": "infra_llm_cache", "cache_status": "miss"},
+    }
+    out = dispatch_boundary(record, ctx=_ctx())
+    assert len(out) == 1
+    assert out[0]["kind"] == "cache_lookup"
+    assert out[0]["cache_layer"] == "infra_llm_cache"
+    assert out[0]["cache_status"] == "miss"
+
+
+def test_cache_lookup_is_not_misreported_as_a_model_completion() -> None:
+    record = {
+        "kind": "cache.lookup",
+        "correlation_id": 8,
+        "call_id": "llm-call-8",
+        "payload": {"op": "LLM_CALL", "cache_layer": "infra_llm_cache", "cache_status": "miss"},
+    }
+    out = dispatch_boundary(record, ctx=_ctx())
+    assert out == [{
+        "kind": "cache_lookup",
+        "agent_id": "moderator",
+        "run_id": "run-1",
+        "correlation_id": 8,
+        "call_id": "llm-call-8",
+        "timestamp": out[0]["timestamp"],
+        "cache_layer": "infra_llm_cache",
+        "cache_status": "miss",
+    }]
 
 
 def test_parallel_group_emits_processing_start_and_end_for_fork_and_aggregation() -> None:

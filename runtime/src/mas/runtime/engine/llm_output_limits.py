@@ -27,12 +27,18 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 logger = logging.getLogger(__name__)
+_WARNED_CONTEXT_MODELS: set[str] = set()
 
 TRUNCATION_ACTIONS = ("ignore", "warn", "error", "escalate")
 ENV_MAX_TOKENS = "MAS_LLM_MAX_TOKENS"
 ENV_MAX_COMPLETION_TOKENS = "MAS_LLM_MAX_COMPLETION_TOKENS"
 ENV_ON_TRUNCATION = "MAS_LLM_ON_TRUNCATION"
 _TOKEN_KEYS = ("max_tokens", "max_completion_tokens")
+_PRICING_KEYS = (
+    "input_per_million_tokens",
+    "cached_input_per_million_tokens",
+    "output_per_million_tokens",
+)
 
 
 @dataclass(frozen=True)
@@ -79,6 +85,7 @@ class OutputLimits:
     max_completion_tokens: int | None = None
     ceiling: int | None = None
     context_window: int | None = None
+    pricing: dict[str, Any] = field(default_factory=dict)
     truncation: TruncationPolicy = field(default_factory=TruncationPolicy)
 
     @property
@@ -206,12 +213,33 @@ def resolve_output_limits(
     policy = TruncationPolicy.from_spec(fallback.get("on_truncation"), base=policy)
     policy = TruncationPolicy.from_spec(entry.get("on_truncation"), base=policy)
 
-    window = _first(entry.get("context_window"), info.context_window if info is not None else None)
+    window = _first(
+        entry.get("context_window"),
+        generation.get("context_window"),
+        info.context_window if info is not None else None,
+    )
+    if window is None:
+        from mas.runtime.spec.defaults import DEFAULT_MODEL_CONTEXT_WINDOW
+
+        warning_key = name or "<unspecified>"
+        if warning_key not in _WARNED_CONTEXT_MODELS:
+            _WARNED_CONTEXT_MODELS.add(warning_key)
+            logger.warning(
+                "Unable to resolve context window for model %s; using fallback %d. "
+                "Set spec.models[].context_window or infra generation.context_window.",
+                warning_key,
+                DEFAULT_MODEL_CONTEXT_WINDOW,
+            )
+        window = DEFAULT_MODEL_CONTEXT_WINDOW
     return OutputLimits(
         max_tokens=values["max_tokens"],
         max_completion_tokens=values["max_completion_tokens"],
         ceiling=ceiling,
         context_window=int(window) if window is not None else None,
+        pricing=_numeric_pricing(
+            info.pricing if info is not None else {},
+            generation.get("pricing") if isinstance(generation.get("pricing"), Mapping) else {},
+        ),
         truncation=policy,
     )
 
@@ -230,6 +258,86 @@ def estimate_prompt_tokens(messages: list[dict[str, Any]], tools: list[dict[str,
     if tools:
         chars += len(json.dumps(tools, default=str))
     return chars // 4 + 4 * len(messages)
+
+
+def _numeric_pricing(*sources: Mapping[str, Any]) -> dict[str, float]:
+    """Merge known rates while keeping catalog provenance out of runtime payloads."""
+    rates: dict[str, float] = {}
+    for source in sources:
+        for key in _PRICING_KEYS:
+            value = source.get(key)
+            if value is None:
+                continue
+            try:
+                number = float(value)
+            except (TypeError, ValueError):
+                continue
+            if number >= 0:
+                rates[key] = number
+    return rates
+
+
+def estimate_tool_tokens(tools: list[dict[str, Any]] | None) -> int:
+    """Estimate the prompt budget consumed by tool schemas sent separately."""
+    if not tools:
+        return 0
+    return len(json.dumps(tools, ensure_ascii=False, default=str)) // 4 + 4 * len(tools)
+
+
+def estimate_model_cost_usd(
+    model: str,
+    usage: Mapping[str, Any] | None,
+    *,
+    pricing_override: Mapping[str, Any] | None = None,
+) -> float | None:
+    """Estimate text-token cost from versioned catalog rates and provider usage."""
+    if not isinstance(usage, Mapping):
+        return None
+    prompt_raw = usage.get("prompt_tokens")
+    completion_raw = usage.get("completion_tokens")
+    if prompt_raw is None or completion_raw is None:
+        return None
+    try:
+        prompt_tokens = max(0, int(prompt_raw))
+        completion_tokens = max(0, int(completion_raw))
+    except (TypeError, ValueError):
+        return None
+
+    from mas.runtime.engine.llm_model_catalog import default_model_catalog
+
+    info = default_model_catalog().get(model)
+    pricing = dict(info.pricing) if info is not None else {}
+    if isinstance(pricing_override, Mapping):
+        pricing.update(pricing_override)
+    input_rate = pricing.get("input_per_million_tokens")
+    output_rate = pricing.get("output_per_million_tokens")
+    if input_rate is None or output_rate is None:
+        return None
+
+    details = usage.get("prompt_tokens_details")
+    details = details if isinstance(details, Mapping) else {}
+    cached_raw = (
+        details.get("cached_tokens")
+        or details.get("cache_read_input_tokens")
+        or usage.get("cache_read_input_tokens")
+        or usage.get("cached_tokens")
+        or 0
+    )
+    try:
+        cached_tokens = min(prompt_tokens, max(0, int(cached_raw)))
+        input_rate = float(input_rate)
+        output_rate = float(output_rate)
+        cached_rate = float(pricing.get("cached_input_per_million_tokens", input_rate))
+    except (TypeError, ValueError):
+        return None
+    if min(input_rate, output_rate, cached_rate) < 0:
+        return None
+    uncached_tokens = prompt_tokens - cached_tokens
+    return (
+        uncached_tokens * input_rate
+        + cached_tokens * cached_rate
+        + completion_tokens * output_rate
+    ) / 1_000_000
 
 
 def output_token_kwargs(model: str | None = None, *, generation: Mapping[str, Any] | None = None) -> dict[str, int]:

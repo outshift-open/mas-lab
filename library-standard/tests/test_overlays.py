@@ -98,6 +98,7 @@ def test_hardened_stacks_on_existing_governance() -> None:
     names = [g if isinstance(g, str) else next(iter(g)) for g in merged["spec"]["governance"]]
     assert names == ["sample_governance", "gov_no_undeclared_tool", "retry_on_error"]
     assert merged["spec"]["control"]["circuit_breaker"]["failure_threshold"] == 5
+    assert merged["spec"]["design_pattern"]["params"]["max_steps"] == 512
 
 
 def test_hardened_then_native_keeps_both_patches() -> None:

@@ -179,6 +179,7 @@ def _render_defaults() -> str:
     asm_props = _merged_properties(assembly, _FRAGMENTS)
     trimmer_props = (asm_props.get("trimmer") or {}).get("properties") or {}
     reserve_default = (trimmer_props.get("reserve_tokens") or {}).get("default", 512)
+    margin_default = (trimmer_props.get("safety_margin_ratio") or {}).get("default", 0.1)
 
     lines = [
         "#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates",
@@ -191,8 +192,9 @@ def _render_defaults() -> str:
         f"EXECUTION_ENGINE_QUEUE_DEPTH = {exec_defaults['engine_queue_depth']!r}",
         f"CONTEXT_MANAGER_WORKING_MEMORY_MESSAGES = {asm_defaults['working_memory_messages']!r}",
         f"CONTEXT_MANAGER_RESERVE_TOKENS = {reserve_default!r}",
+        f"CONTEXT_MANAGER_SAFETY_MARGIN_RATIO = {margin_default!r}",
         f"CONTEXT_MANAGER_KEEP_TURNS = {strategy_defaults.get('keep_turns', 10)!r}",
-        f"CONTEXT_MANAGER_HYSTERESIS_RATIO = {strategy_defaults.get('hysteresis_ratio', 0.2)!r}",
+        f"CONTEXT_MANAGER_HYSTERESIS_RATIO = {strategy_defaults.get('hysteresis_ratio', 0.1)!r}",
         f"DEFAULT_MODEL_CONTEXT_WINDOW = {model_defaults.get('context_window', 128000)!r}",
         f"DEFAULT_MODEL_MAX_TOKENS = {model_defaults.get('max_tokens', 2000)!r}",
         "",

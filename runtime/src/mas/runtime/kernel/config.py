@@ -32,7 +32,7 @@ class KernelConfig:
     max_cot_pass: int = 1
     parallel_tool_calls: bool = True
     engine_queue_depth: int = DEFAULT_ENGINE_QUEUE_DEPTH
-    max_auto_steps: int = DEFAULT_MAX_AUTO_STEPS
+    max_auto_steps: int | None = DEFAULT_MAX_AUTO_STEPS
     policy_engine: GovernancePolicyEngine | None = field(default=None, compare=False)
     ingress_governance_plugins: tuple = field(default=(), compare=False)
     enable_governance: bool = True

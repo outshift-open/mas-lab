@@ -128,6 +128,10 @@ class ObsEnvelopeMachine:
                             finish_reason=ev.finish_reason,
                             tools=getattr(ev, "offered_tools", None),
                             model=getattr(ev, "model", "") or "",
+                            cache_status=getattr(ev, "cache_status", None),
+                            cache_layer=getattr(ev, "cache_layer", "") or "",
+                            cache_events=list(getattr(ev, "cache_events", []) or []),
+                            pricing=dict(getattr(ev, "pricing", {}) or {}),
                         )
         elif symbol == EnvelopeSymbol.CONTRACT_EXECUTE:
             payload["tool_name"] = str(ctx.tool_name or ctx.scheduled_op or ctx.operation or "tool")

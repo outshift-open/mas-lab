@@ -78,7 +78,11 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
-from mas.library.standard.plugins.context.token_budget import trim_messages_to_budget
+from mas.library.standard.plugins.context.token_budget import (
+    estimate_tool_tokens,
+    estimate_tokens,
+    trim_messages_to_budget,
+)
 from mas.library.standard.lib.context.history_budget import (
     assembly_trimmer_params,
     context_manager_history_budget_hint,
@@ -189,7 +193,12 @@ def _turn_history_to_past(turn_history: list[tuple[str, str]]) -> list[dict[str,
     return past
 
 
-def inject_context_plugins(ctx: Any, system_parts: list[str]) -> None:
+def inject_context_plugins(
+    ctx: Any,
+    system_parts: list[str],
+    *,
+    part_usage: list[dict[str, Any]] | None = None,
+) -> None:
     """Append ContextPart contents from ``ctx.plugin_collection``, placement-ordered."""
     collection = getattr(ctx, "plugin_collection", None)
     if not collection:
@@ -212,6 +221,17 @@ def inject_context_plugins(ctx: Any, system_parts: list[str]) -> None:
     ):
         if str(part.content).strip():
             system_parts.append(str(part.content).strip())
+            if part_usage is not None:
+                part_usage.append(
+                    {
+                        "source": str(part.source),
+                        "section_id": str(part.section_id),
+                        "role": str(part.role),
+                        "placement": str(getattr(part.placement, "value", part.placement)),
+                        "tokens": int(part.token_estimate or 0),
+                        "pinned": bool(part.pinned),
+                    }
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -296,23 +316,31 @@ class ContextAssemblerPlugin(BasePlugin):
         manifest: Optional[Dict[str, Any]] = None,
         correlation_id: int = 0,
         tools: Optional[List[Dict[str, Any]]] = None,
+        resolved_model: str | None = None,
+        context_window: int | None = None,
+        completion_tokens: int | None = None,
     ) -> List[Dict[str, Any]]:
         """Engine path: system → managed history → user → WM / token trim / pairing.
 
         ``correlation_id`` and ``tools`` are accepted for the kernel dispatcher
         signature; telemetry is recorded in the kernel after this returns.
         """
-        _ = correlation_id, tools
+        _ = correlation_id
         manifest = manifest if manifest is not None else self._manifest
 
         messages: List[Dict[str, Any]] = []
         system_parts: List[str] = []
+        part_usage: list[dict[str, Any]] = []
+        try:
+            ctx.context_usage_parts = part_usage
+        except (AttributeError, TypeError):
+            pass
         for line in getattr(ctx, "injected_context", []) or []:
             if str(line).strip():
                 system_parts.append(str(line).strip())
         for key, content in getattr(ctx, "memory_seeds", []) or []:
             system_parts.append(f"[memory:{key}] {content}")
-        inject_context_plugins(ctx, system_parts)
+        inject_context_plugins(ctx, system_parts, part_usage=part_usage)
         if system_parts:
             messages.append({"role": "system", "content": "\n\n".join(system_parts)})
 
@@ -327,14 +355,7 @@ class ContextAssemblerPlugin(BasePlugin):
         else:
             past = _turn_history_to_past(list(getattr(ctx, "turn_history", []) or []))
 
-        cm = cached_context_manager(ctx, manifest)
-        managed = cm.manage_history(past, context_manager_history_budget_hint(manifest))
-        messages.extend(managed)
-
         last_user_text = str(getattr(ctx, "last_user_text", "") or "")
-        if last_user_text:
-            messages.append({"role": "user", "content": last_user_text})
-
         store = getattr(ctx, "working_memory", None)
         wm_messages: List[Dict[str, Any]] = []
         if isinstance(store, WorkingMemoryStore) and store.messages:
@@ -342,10 +363,36 @@ class ContextAssemblerPlugin(BasePlugin):
                 store.messages, working_memory_slice_limit(manifest)
             )
 
+        fixed_context_tokens = (
+            estimate_tokens(messages)
+            + estimate_tokens([{"role": "user", "content": last_user_text}])
+            + estimate_tokens(wm_messages)
+            + estimate_tool_tokens(tools)
+        )
+        cm = cached_context_manager(ctx, manifest)
+        managed = cm.manage_history(
+            past,
+            context_manager_history_budget_hint(
+                manifest,
+                resolved_model=resolved_model,
+                context_window_override=context_window,
+                completion_tokens_override=completion_tokens,
+                fixed_context_tokens=fixed_context_tokens,
+            ),
+        )
+        messages.extend(managed)
+        if last_user_text:
+            messages.append({"role": "user", "content": last_user_text})
+
         if not messages and not wm_messages:
             messages.append({"role": "user", "content": "Hello"})
 
-        trimmer = assembly_trimmer_params(manifest)
+        trimmer = assembly_trimmer_params(
+            manifest,
+            resolved_model=resolved_model,
+            context_window_override=context_window,
+            completion_tokens_override=completion_tokens,
+        )
         if trimmer is not None:
             max_tokens, reserve = trimmer
             messages = trim_messages_to_budget(
@@ -353,6 +400,7 @@ class ContextAssemblerPlugin(BasePlugin):
                 max_tokens=max_tokens,
                 reserve_tokens=reserve,
                 pin_tail=wm_messages,
+                fixed_tokens=estimate_tool_tokens(tools),
             )
         else:
             messages = messages + wm_messages

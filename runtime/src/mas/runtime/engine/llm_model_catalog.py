@@ -59,6 +59,7 @@ class ModelInfo:
     apis: tuple[str, ...] = ()
     defaults: dict[str, Any] = field(default_factory=dict)
     settings: dict[str, ModelSetting] = field(default_factory=dict)
+    pricing: dict[str, Any] = field(default_factory=dict)
 
     def setting(self, name: str) -> ModelSetting | None:
         return self.settings.get(name)
@@ -138,6 +139,7 @@ def load_model_catalog(path: Path | None = None) -> ModelCatalog:
                 apis=tuple(str(a) for a in (raw.get("apis") or [])),
                 defaults=dict(raw.get("defaults") or {}),
                 settings=settings,
+                pricing=dict(raw.get("pricing") or {}),
             )
             models[info.name] = info
             alias_index[info.name] = info.name

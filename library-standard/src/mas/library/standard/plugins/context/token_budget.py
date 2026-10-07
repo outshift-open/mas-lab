@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -27,6 +28,13 @@ def _estimate_tokens_lists(*parts: list[dict[str, Any]]) -> int:
 
 def estimate_tokens(messages: list[dict[str, Any]]) -> int:
     return _estimate_tokens_lists(messages)
+
+
+def estimate_tool_tokens(tools: list[dict[str, Any]] | None) -> int:
+    """Estimate the token cost of tool schemas sent outside ``messages[]``."""
+    if not tools:
+        return 0
+    return len(json.dumps(tools, ensure_ascii=False, default=str)) // 4 + 4 * len(tools)
 
 
 def _oldest_group_size(msgs: list[dict[str, Any]]) -> int:
@@ -68,10 +76,11 @@ def trim_messages_to_budget(
     max_tokens: int,
     reserve_tokens: int = 0,
     pin_tail: list[dict[str, Any]] | None = None,
+    fixed_tokens: int = 0,
 ) -> list[dict[str, Any]]:
     if max_tokens <= 0:
         return list(messages) + list(pin_tail or [])
-    budget = max(0, max_tokens - max(0, reserve_tokens))
+    budget = max(0, max_tokens - max(0, reserve_tokens) - max(0, fixed_tokens))
     pinned_tail = list(pin_tail or [])
     if _estimate_tokens_lists(messages, pinned_tail) <= budget:
         return list(messages) + pinned_tail

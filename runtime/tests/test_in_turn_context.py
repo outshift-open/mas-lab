@@ -26,7 +26,7 @@ def test_default_cm_is_summarising():
     cm = CMFactory.create(manifest={})
     assert cm.__class__.__name__ == "SummarizingConversation"
     assert cm.keep_turns == 10
-    assert cm.hysteresis_ratio == 0.2
+    assert cm.hysteresis_ratio == 0.1
     assert cm._summarizer is not None
     assert cm._summarizer.__class__.__name__ == "LlmSummarizer"
 

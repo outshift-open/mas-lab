@@ -5,7 +5,10 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
+
+from mas.runtime.engine.llm_output_limits import estimate_prompt_tokens, estimate_tool_tokens
 
 
 def _preview(text: str, *, limit: int = 120) -> str:
@@ -22,6 +25,8 @@ def _token_estimate(text: str) -> int:
 def _message_source(msg: dict[str, Any], *, index: int, layer: str) -> str:
     role = str(msg.get("role") or "?")
     if role == "system":
+        if str(msg.get("content") or "").startswith("[Conversation summary —"):
+            return "conversation/summarized"
         return "context/system"
     if role == "tool":
         return f"{layer}/tool_result"
@@ -116,18 +121,52 @@ def record_context_assembly(
     turn_index: int = 0,
     agent_id: str = "agent",
     tools: list[str] | None = None,
-) -> None:
+    tool_schemas: list[dict[str, Any]] | None = None,
+    model: str = "",
+    context_window: int | None = None,
+    completion_reserve: int | None = None,
+    context_parts: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Log the exact messages[] snapshot sent to the LLM (pre-call).
 
     ``tools`` is the function names from the OpenAI ``tools`` array on that
     same request. ``None`` means the caller did not record them.
     """
+    segments = segments_from_messages(messages)
+    tool_tokens = estimate_tool_tokens(tool_schemas)
+    estimated_prompt_tokens = estimate_prompt_tokens(messages, tool_schemas)
+    breakdown: dict[str, int] = {"tool_definitions": tool_tokens}
+    for segment in segments:
+        source = str(segment.get("source") or "conversation")
+        breakdown[source] = breakdown.get(source, 0) + int(segment.get("tokens") or 0)
+    reserve = max(0, int(completion_reserve or 0))
+    remaining = max(0, context_window - estimated_prompt_tokens - reserve) if context_window else None
+    usage = {
+        "captured_at": datetime.now(UTC).isoformat(),
+        "model": str(model or ""),
+        "context_window": context_window,
+        "estimated_prompt_tokens": estimated_prompt_tokens,
+        "completion_reserve": reserve,
+        "estimated_remaining_tokens": remaining,
+        "fill_ratio": (estimated_prompt_tokens / context_window) if context_window else None,
+        "token_breakdown": breakdown,
+        "context_parts": [
+            {
+                "source": str(part.get("source") or ""),
+                "section_id": str(part.get("section_id") or ""),
+                "role": str(part.get("role") or ""),
+                "placement": str(part.get("placement") or ""),
+                "tokens": max(0, int(part.get("tokens") or 0)),
+                "pinned": bool(part.get("pinned", False)),
+            }
+            for part in (context_parts or [])
+        ],
+    }
     if observability is None or not messages:
-        return
+        return usage
     record = getattr(observability, "record_context_assembled", None)
     if not callable(record):
-        return
-    segments = segments_from_messages(messages)
+        return usage
     record(
         correlation_id=correlation_id,
         turn_index=turn_index,
@@ -136,7 +175,9 @@ def record_context_assembly(
         segments=segments,
         total_tokens=sum(s.get("tokens") or 0 for s in segments),
         tools=tools,
+        context_usage=usage,
     )
+    return usage
 
 
 def record_engine_llm_return(

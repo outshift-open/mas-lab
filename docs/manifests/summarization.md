@@ -45,10 +45,12 @@ manager — not a second history engine.
 On every LLM turn, `ContextAssemblerPlugin` builds `messages[]` and asks the
 context manager to bound committed history (`manage_history`):
 
-1. Estimate tokens in committed history (`chars ÷ 4` + 4 per message — the
-   same heuristic as assembly trim, so we do not depend on a tokenizer).
-2. Compare to the **history budget** (below). If under budget, return history
-   unchanged.
+1. Resolve the effective model window and completion reserve. Estimate fixed
+  system/context, current input, working-memory, and tool-schema costs, then
+  keep the configured safety margin.
+2. Compare committed history to the soft **history trigger**. If under budget,
+  return history unchanged; the final assembly trim still enforces the hard
+  safety-bounded request budget.
 3. Split into user-turn groups. Keep the last `keep_turns` (default **10**)
    verbatim.
 4. Ask the summarizer to compress the prefix:
@@ -110,27 +112,35 @@ Runnable pin: [library-standard/examples/context/summarizer-override/](../../lib
 
 `drop` has no params. Context-manager knobs (already on `summarising`):
 
-**Default (SOTA, compile-filled):** history budget =
-`models[].context_window − models[].max_tokens`.
+**Default: auto at runtime.** The engine resolves the input window after infra
+model mappings, then accounts for completion reserve, fixed request content,
+tool schemas, safety margin, and hysteresis.
 
 | Input | Default | Role |
 |-------|---------|------|
-| `spec.models[].context_window` | `128000` if omitted (`mas-ctl compile` writes it) | Model **input** window |
+| `spec.models[].context_window` | omitted = auto; fallback `128000` with warning when unknown | Model **input** window |
 | `spec.models[].max_tokens` | `2000` reserve when unset | Completion **reserve** — left free so the next answer still fits. Unset still sends no output limit on the request ([Output-token limits](agent.md#output-token-limits)) |
-| `summary_threshold` | that difference (`126000` for the defaults) | Trigger for `manage_history` when no assembly budget is passed |
-| `trimmer.max_tokens` / `trimmer.reserve_tokens` | `context_window` / `max_tokens` | Assembly-time payload cap (tool-group-aware) |
+| `infra.spec.generation.context_window` | omitted | Optional deployment override |
+| `summary_threshold` | auto, safety-bounded | Optional absolute estimated-history trigger |
+| `trimmer.max_tokens` / `trimmer.reserve_tokens` | auto window / completion budget | Assembly-time payload cap (tool-group-aware) |
+| `trimmer.safety_margin_ratio` | `0.1` | Portion kept unused for estimate/provider overhead |
 | `keep_turns` | `10` | Recent user turns never summarized |
-| `hysteresis_ratio` | `0.2` | Do not re-summarize until managed history grows 20% past budget |
+| `hysteresis_ratio` | `0.1` | Reuse the summary until near the hard budget |
 
-`summary_threshold: 0` (or omitted before compile) means “derive from the
-model window”. An explicit positive `summary_threshold` **wins**. Explicit
-`params.trimmer` **wins** over the model-window derivation.
+Omitting `context_window` means auto-resolve from the effective model. Explicit
+agent and infra overrides take precedence over the model catalog. Unknown models
+use the documented fallback with a warning. A positive `summary_threshold`
+can move compaction earlier; it is capped so hysteresis stays inside the hard
+safety-bounded budget. Explicit trimmer fields override their auto values.
 
-This is **not** tiktoken and **not** the provider's billed usage. It is the
-same chars÷4 estimate used for assembly trim, so compaction and trim agree.
+Prompt estimates include tool schemas, system context, and conversation, but
+remain a chars÷4 heuristic. Provider usage is recorded separately after a call.
+See [Context Management](../references/context-management.md) for the breakdown,
+control snapshot, cache rate, and pricing limitations.
 
-`mas-ctl compile agent.yaml` prints the resolved numbers. Trust that output
-over remembered defaults.
+`mas-ctl compile agent.yaml` preserves auto values when the final runtime model
+is not yet known. Use `inspect_context(session_id)` to see the resolved runtime
+window and the latest request estimate.
 
 ```yaml
 spec:
@@ -138,17 +148,16 @@ spec:
     - id: main
       model: gpt-4o
       max_tokens: 2000          # completion reserve
-      context_window: 128000    # input window; compile fills if omitted
+      # context_window omitted: auto-resolve from the effective model
   context_manager:
     type: summarising           # package default
     params:
       keep_turns: 10
-      hysteresis_ratio: 0.2
+      hysteresis_ratio: 0.1
       summarizer: llm           # summarizer slot, else turn model
-      # summary_threshold: 126000  # compile: context_window − max_tokens
       trimmer:
-        max_tokens: 128000
         reserve_tokens: 2000
+        safety_margin_ratio: 0.1
 ```
 
 Override the trigger without changing the model:

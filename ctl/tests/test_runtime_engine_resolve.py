@@ -80,7 +80,7 @@ def test_standard_runtime_default_bundle(tmp_path: Path):
         runtime_refs=["standard:runtime-default"],
     )
     assert infra.runtime_engine.get("engine_queue_depth") == 32
-    assert infra.runtime_engine.get("max_auto_steps") == 512
+    assert infra.runtime_engine.get("max_auto_steps") is None
 
 
 def test_runtime_engine_applies_to_kernel():

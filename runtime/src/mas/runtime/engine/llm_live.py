@@ -435,8 +435,23 @@ class LiveLlmEngine:
         usage = message.pop("usage", None) or {}
         finish_reason = message.pop("finish_reason", None) or ""
         max_tokens = message.pop("_max_tokens", None)
+        cache_status = message.pop("_mas_cache_status", None)
         ret = self._message_to_engine_return(
-            io, message, messages, tool_defs, answering_from_tools, usage, finish_reason
+            io,
+            message,
+            messages,
+            tool_defs,
+            answering_from_tools,
+            usage,
+            finish_reason,
+            cache_status=cache_status,
+            cache_layer="provider_cache" if cache_status else "",
+            cache_events=(
+                [{"layer": "provider_cache", "status": cache_status}]
+                if cache_status
+                else []
+            ),
+            pricing=dict(self.output_limits.pricing if self.output_limits is not None else {}),
         )
         if max_tokens is None and not retries:
             return ret
@@ -489,8 +504,23 @@ class LiveLlmEngine:
         usage = message.pop("usage", None) or {}
         finish_reason = message.pop("finish_reason", None) or ""
         max_tokens = message.pop("_max_tokens", None)
+        cache_status = message.pop("_mas_cache_status", None)
         ret = self._message_to_engine_return(
-            io, message, messages, tool_defs, answering_from_tools, usage, finish_reason
+            io,
+            message,
+            messages,
+            tool_defs,
+            answering_from_tools,
+            usage,
+            finish_reason,
+            cache_status=cache_status,
+            cache_layer="provider_cache" if cache_status else "",
+            cache_events=(
+                [{"layer": "provider_cache", "status": cache_status}]
+                if cache_status
+                else []
+            ),
+            pricing=dict(self.output_limits.pricing if self.output_limits is not None else {}),
         )
         if max_tokens is None and not retries:
             return ret
@@ -607,6 +637,11 @@ class LiveLlmEngine:
         answering_from_tools: bool,
         usage: dict[str, Any],
         finish_reason: str,
+        *,
+        cache_status: str | None = None,
+        cache_layer: str = "",
+        cache_events: list[dict[str, str]] | None = None,
+        pricing: dict[str, Any] | None = None,
     ) -> EngineIoReturn:
         _ = messages, answering_from_tools
         message = maybe_recover_textual_tool_calls(message, tool_defs)
@@ -637,6 +672,10 @@ class LiveLlmEngine:
                     finish_reason=finish_reason,
                     offered_tools=self._names_from_tool_defs(tool_defs),
                     model=self.model,
+                    cache_status=cache_status,
+                    cache_layer=cache_layer,
+                    cache_events=cache_events or [],
+                    pricing=pricing or {},
                 )
             name, args = parsed[0]
             self._pending_tool = name
@@ -652,6 +691,10 @@ class LiveLlmEngine:
                 finish_reason=finish_reason,
                 offered_tools=self._names_from_tool_defs(tool_defs),
                 model=self.model,
+                cache_status=cache_status,
+                cache_layer=cache_layer,
+                cache_events=cache_events or [],
+                pricing=pricing or {},
             )
 
         text = str(message.get("content") or "").strip()
@@ -664,11 +707,23 @@ class LiveLlmEngine:
             finish_reason=finish_reason,
             offered_tools=self._names_from_tool_defs(tool_defs),
             model=self.model,
+            cache_status=cache_status,
+            cache_layer=cache_layer,
+            cache_events=cache_events or [],
+            pricing=pricing or {},
         )
 
     def _build_messages(self, *, tools: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
         if self.ctx:
-            return assemble_llm_messages(self.ctx, manifest=self.manifest, tools=tools)
+            limits = self.output_limits
+            return assemble_llm_messages(
+                self.ctx,
+                manifest=self.manifest,
+                tools=tools,
+                resolved_model=self.model,
+                context_window=limits.context_window if limits is not None else None,
+                completion_tokens=limits.budget if limits is not None else None,
+            )
         return [{"role": "user", "content": "Hello"}]
 
     def _tool_defs(self) -> list[dict[str, Any]]:

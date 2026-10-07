@@ -62,7 +62,7 @@ def test_driver_engine_pool_uses_kernel_config_depth():
 
 
 def test_default_max_auto_steps_constant():
-    assert DEFAULT_MAX_AUTO_STEPS == 512
+    assert DEFAULT_MAX_AUTO_STEPS is None
 
 
 def test_parse_agent_spec_reads_max_auto_steps():
@@ -72,6 +72,7 @@ def test_parse_agent_spec_reads_max_auto_steps():
 
 def test_parse_agent_spec_default_max_auto_steps():
     config, _ = parse_agent_spec({})
+    assert config.max_auto_steps is None
     assert config.max_auto_steps == DEFAULT_MAX_AUTO_STEPS
 
 

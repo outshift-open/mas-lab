@@ -36,6 +36,7 @@ class ObsEventKind(str, Enum):
     CONTEXT_STEER = "context.steer"
     CONTEXT_MUTATION = "context.mutation"
     CONTEXT_ASSEMBLED = "context.assembled"
+    CACHE_LOOKUP = "cache.lookup"
     ENGINE_IO_RETURN = "engine.io.return"
     ENVELOPE_ACTIVITY = "envelope.activity"
     CONTROL = "control"

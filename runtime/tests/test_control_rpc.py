@@ -53,6 +53,8 @@ async def test_control_rpc_unix_socket_list_and_navigate() -> None:
         assert moved.snapshot_id == origin.ref.snapshot_id
         view = await client.ainspect("s1")
         assert view["cursor_snapshot_id"] == origin.ref.snapshot_id
+        context = await client.ainspect_context("s1")
+        assert context["available"] is False
     finally:
         await client.close()
         await server.close()

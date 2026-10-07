@@ -140,6 +140,67 @@ def test_capability_token_scopes_methods_and_sessions() -> None:
         ).inspect("s1")
 
 
+def test_inspect_context_returns_numeric_snapshot_and_cache_rate() -> None:
+    from mas.runtime.boundary.obs.operator import ObservabilityOperator
+
+    manager = SessionManager()
+    session = _session(manager)
+    driver = session.instance.driver
+    driver.observability = ObservabilityOperator()
+    driver.ctx.last_context_usage = {
+        "messages": [{"role": "system", "content": "NEVER_EXPOSE_THIS_PROMPT"}],
+        "captured_at": "2026-10-06T12:00:00+00:00",
+        "model": "vertex_ai/gemini-2.5-flash",
+        "context_window": 1048576,
+        "estimated_prompt_tokens": 300,
+        "completion_reserve": 12000,
+        "estimated_remaining_tokens": 1011276,
+        "fill_ratio": 300 / 1048576,
+        "token_breakdown": {"context/system": 200, "conversation/user": 100},
+        "context_parts": [
+            {"source": "skills", "section_id": "skills/active", "tokens": 80, "pinned": True}
+        ],
+    }
+    driver.observability.record_engine_io_return(
+        correlation_id=1,
+        op="LLM_CALL",
+        usage={"prompt_tokens": 300, "completion_tokens": 20},
+        model="vertex_ai/gemini-2.5-flash",
+        pricing={"input_per_million_tokens": 1.0, "output_per_million_tokens": 10.0, "cached_input_per_million_tokens": 0.5},
+        cache_status="hit",
+        cache_layer="infra_llm_cache",
+    )
+    driver.observability.record_engine_io_return(
+        correlation_id=2,
+        op="LLM_CALL",
+        usage={"prompt_tokens": 300, "completion_tokens": 21},
+        model="vertex_ai/gemini-2.5-flash",
+        pricing={"input_per_million_tokens": 1.0, "output_per_million_tokens": 10.0, "cached_input_per_million_tokens": 0.5},
+        cache_status="miss",
+        cache_layer="infra_llm_cache",
+    )
+    driver.observability.record_cache_lookup(
+        correlation_id=3,
+        cache_layer="infra_llm_cache",
+        cache_status="miss",
+    )
+
+    view = manager.control(capability=ControlCapability(actor="debugger", surface="admin")).inspect_context("s1")
+    assert view.available is True
+    assert view.context_window == 1048576
+    assert view.estimated_prompt_tokens == 300
+    assert view.cache_hits == 1
+    assert view.cache_misses == 2
+    assert view.cache_hit_rate == 1 / 3
+    assert view.latest_provider_usage["completion_tokens"] == 21
+    assert view.provider_usage_source == "provider"
+    assert view.context_parts[0]["pinned"] is True
+    assert view.estimated_cost_usd == pytest.approx((300 * 1.0 + 21 * 10.0) / 1_000_000)
+    assert view.cost_status == "catalog_estimate"
+    assert "NEVER_EXPOSE_THIS_PROMPT" not in repr(view)
+    assert not hasattr(view, "messages")
+
+
 def test_checkpoint_does_not_unpause_a_paused_session() -> None:
     manager = SessionManager()
     session = _session(manager)

@@ -129,7 +129,7 @@ def middleware_cache_serialize(
     usage = dict(getattr(ret, "usage", {}) or {})
     finish_reason = str(getattr(ret, "finish_reason", "") or "")
 
-    if next_step == "STOP" and text and not tool_name and not parallel_tools and not include_preview:
+    if next_step == "STOP" and text and not tool_name and not parallel_tools and not include_preview and not usage:
         return text
 
     entry: dict[str, Any] = {

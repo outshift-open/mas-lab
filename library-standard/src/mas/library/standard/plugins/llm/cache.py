@@ -87,6 +87,7 @@ class CacheLLMProvider:
             if cached is not None:
                 if cached_usage:
                     cached["usage"] = cached_usage
+                cached["_mas_cache_status"] = "hit"
                 return cached
             if self.raise_on_miss:
                 key = llm_cache_key(model, messages, tools, params=params)
@@ -99,6 +100,9 @@ class CacheLLMProvider:
             max_tokens=max_tokens,
             **kwargs,
         )
+        if self.allow_read:
+            message = dict(message)
+            message["_mas_cache_status"] = "miss"
         if self.allow_write and self.cache_path:
             self._persist_message(model, messages, tools, message, params=params)
         return message
@@ -122,6 +126,7 @@ class CacheLLMProvider:
             if cached is not None:
                 if cached_usage:
                     cached["usage"] = cached_usage
+                cached["_mas_cache_status"] = "hit"
                 return cached
             if self.raise_on_miss:
                 key = llm_cache_key(model, messages, tools, params=params)
@@ -134,6 +139,9 @@ class CacheLLMProvider:
             max_tokens=max_tokens,
             **kwargs,
         )
+        if self.allow_read:
+            message = dict(message)
+            message["_mas_cache_status"] = "miss"
         if self.allow_write and self.cache_path:
             self._persist_message(model, messages, tools, message, params=params)
         return message
