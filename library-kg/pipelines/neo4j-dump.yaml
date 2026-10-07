@@ -1,0 +1,23 @@
+# Fetch a KG back out of Neo4j (the read-back counterpart of
+# native-to-neo4j.yaml's push-to-neo4j step -- dump == deserialize).
+#
+# Mirrors `mas-lab kg dump`.
+apiVersion: mas/v1
+kind: Pipeline
+
+metadata:
+  name: kg-neo4j-dump
+  description: Fetch a session/run's KG from Neo4j to kg.jsonld.
+
+spec:
+  steps:
+    - name: dump-from-neo4j
+      type: neo4j_dump
+      per_run: true
+      config:
+        # One of the two, supplied via --var session_id=... / --var run_id=...
+        # (see README.md "Quickstart"). Connection falls back to env vars
+        # NEO4J_URI / NEO4J_USER / NEO4J_PASSWORD / NEO4J_DB_AGENT, same as
+        # native-to-neo4j.yaml's push-to-neo4j step.
+        session_id: "{session_id}"
+        run_id: "{run_id}"

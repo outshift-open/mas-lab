@@ -18,6 +18,7 @@ dependencies = [
     "mas-library-eval",
     "mas-library-ioa[cli]",
     "mas-library-telemetry",
+    "mas-library-kg",
     "pika>=1.4.1",
 ]
 
@@ -53,6 +54,7 @@ members = [
     "library-eval",
     "library-ioa",
     "library-telemetry",
+    "library-kg",
     "lab",
     "lab/components/core",
     "lab/components/bench",
@@ -69,6 +71,7 @@ mas-library-lab      = { workspace = true }
 mas-library-eval     = { workspace = true }
 mas-library-ioa = { workspace = true }
 mas-library-telemetry = { workspace = true }
+mas-library-kg = { workspace = true }
 mas-lab         = { workspace = true }
 mas-lab-core    = { workspace = true }
 mas-lab-bench   = { workspace = true }

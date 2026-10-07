@@ -1,0 +1,37 @@
+# Native events → KG + structural validation (reference path).
+apiVersion: mas/v1
+kind: Pipeline
+
+metadata:
+  name: observability-native-to-kg
+  description: Verify events.jsonl, normalize to kg.json, validate KG structure.
+
+spec:
+  steps:
+    - name: verify-native-events
+      type: verify_events
+      per_run: true
+      config:
+        fail_on_error: true
+
+    # strict: true — this is the reference regression-check path, so an
+    # observability gap must fail the pipeline, not silently shrink the KG.
+    - name: normalize-native
+      type: normalize_events
+      per_run: true
+      depends_on: [verify-native-events]
+      config:
+        strict: true
+        # Categories (same as CLI --include-governance / --include-trajectory):
+        # include_trajectory: true
+        # include_provenance: false
+        # include_governance: false
+        # include_infrastructure: false
+
+    - name: validate-native-kg
+      type: validate_kg
+      per_run: true
+      depends_on: [normalize-native]
+      config:
+        fail_on_error: true
+        strict: false

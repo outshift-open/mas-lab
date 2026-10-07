@@ -1,0 +1,30 @@
+# Trajectory HTML from native events and from kg.json.
+apiVersion: mas/v1
+kind: Pipeline
+
+metadata:
+  name: observability-native-plots
+  description: Multilevel trajectory plots (native events + KG fold).
+
+spec:
+  steps:
+    - name: plot-trajectory-native
+      type: plot_multilevel_trajectory
+      per_run: true
+      config:
+        artifact: trajectory_native
+        format: html
+        title: "Multilevel Trajectory (native)"
+        width_mode: log
+        show_provenance: true
+
+    - name: plot-trajectory-kg
+      type: plot_multilevel_trajectory_kg
+      per_run: true
+      depends_on: [normalize-native]
+      config:
+        artifact: trajectory_kg
+        fmt: html
+        title: "Multilevel Trajectory (KG)"
+        width_mode: log
+        show_provenance: true

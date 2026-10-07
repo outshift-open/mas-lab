@@ -497,6 +497,7 @@ PACKAGE_REGISTRY: list[tuple[str, str, str]] = [
     ("library-samples/pyproject.toml", "library-samples", "Libraries"),
     ("library-ioa/pyproject.toml", "library-ioa", "Libraries"),
     ("library-telemetry/pyproject.toml", "library-telemetry", "Libraries"),
+    ("library-kg/pyproject.toml", "library-kg", "Libraries"),
 ]
 
 # Library manifests: (library.yaml relative path, library package name)
@@ -505,6 +506,7 @@ LIBRARY_MANIFESTS: list[tuple[str, str]] = [
     ("library-skills/library.yaml", "mas-library-skills"),
     ("library-samples/library.yaml", "mas-library-samples"),
     ("library-telemetry/library.yaml", "mas-library-telemetry"),
+    ("library-kg/library.yaml", "mas-library-kg"),
 ]
 
 # Tool/flavour search roots: (relative path, library package name)

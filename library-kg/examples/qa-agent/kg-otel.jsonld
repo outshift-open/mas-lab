@@ -1,0 +1,527 @@
+{
+  "@context": {
+    "@vocab": "https://outshift-open.github.io/oxp-ontology/kg-artifact#",
+    "mas": "https://outshift-open.github.io/oxp-ontology/mas#",
+    "maskg": "https://outshift-open.github.io/oxp-ontology/kg#"
+  },
+  "nodes": [
+    {
+      "id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "name": "Session 961e373c-8dd3-4495-b680-55ace065f113",
+      "sessionId": "961e373c-8dd3-4495-b680-55ace065f113",
+      "startTime": 1791132003.891217,
+      "endTime": 1791132006.201372,
+      "duration": 2310.154914855957,
+      "spanId": "679184216b3350a8",
+      "parentSpanId": "",
+      "success": true,
+      "node_type": "Session",
+      "hierarchyLevel": "session",
+      "block": "execution"
+    },
+    {
+      "id": "mas-runtime",
+      "name": "mas-runtime",
+      "declared": false,
+      "description": "mas-runtime",
+      "node_type": "MAS",
+      "hierarchyLevel": "mas",
+      "block": "structural"
+    },
+    {
+      "id": "llm-unknown-llm",
+      "name": "llm",
+      "declared": false,
+      "description": "",
+      "provider": "unknown",
+      "node_type": "LLM",
+      "hierarchyLevel": "call",
+      "block": "structural"
+    },
+    {
+      "id": "llmcall:0cb5ae9a4c89",
+      "name": "LLM call (unknown/llm) a905e2296688c98a",
+      "sessionId": "961e373c-8dd3-4495-b680-55ace065f113",
+      "startTime": 1791132003.900404,
+      "endTime": 1791132006.112082,
+      "duration": 2211.677952,
+      "spanId": "a905e2296688c98a",
+      "parentSpanId": "57766ffbc8800d1a",
+      "success": true,
+      "totalTokenCount": 46,
+      "promptTokenCount": 38,
+      "completionTokenCount": 8,
+      "temperature": 0.0,
+      "finishReason": "stop",
+      "responseId": "",
+      "cacheReadTokenCount": 0,
+      "node_type": "LLMCall",
+      "hierarchyLevel": "call",
+      "block": "execution",
+      "provider": "unknown",
+      "modelName": "llm",
+      "agentId": "agent"
+    },
+    {
+      "id": "state:d419d0bd9f20",
+      "name": "",
+      "sessionId": "961e373c-8dd3-4495-b680-55ace065f113",
+      "content": "[{\"role\": \"system\", \"content\": \"[intent] Answer general knowledge questions.\\n\\n[role] Answer questions clearly and concisely.\"}, {\"role\": \"user\", \"content\": \"What is 15 * 23?\"}]",
+      "node_type": "State",
+      "layer": "normalized",
+      "block": "trajectory"
+    },
+    {
+      "id": "state:5da49bf06fae",
+      "name": "",
+      "sessionId": "961e373c-8dd3-4495-b680-55ace065f113",
+      "content": "15 * 23 equals 345.",
+      "node_type": "State",
+      "layer": "normalized",
+      "block": "trajectory"
+    },
+    {
+      "id": "transition:94583d9ad913",
+      "name": "",
+      "sessionId": "961e373c-8dd3-4495-b680-55ace065f113",
+      "node_type": "Transition",
+      "layer": "normalized",
+      "block": "trajectory"
+    },
+    {
+      "id": "agent",
+      "name": "agent",
+      "declared": false,
+      "description": "",
+      "node_type": "Agent",
+      "hierarchyLevel": "agent",
+      "block": "structural"
+    },
+    {
+      "id": "agentcall:1022f5fc2552",
+      "name": "agent call 57766ffbc8800d1a",
+      "sessionId": "961e373c-8dd3-4495-b680-55ace065f113",
+      "startTime": 1791132003.8905869,
+      "endTime": 1791132006.1125069,
+      "duration": 2221.92,
+      "spanId": "57766ffbc8800d1a",
+      "parentSpanId": "fead35abba884ff4",
+      "success": true,
+      "node_type": "AgentCall",
+      "hierarchyLevel": "agent",
+      "block": "execution",
+      "agentId": "agent"
+    },
+    {
+      "id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "name": "MASCall 961e373c-8dd3-4495-b680-55ace065f113",
+      "sessionId": "961e373c-8dd3-4495-b680-55ace065f113",
+      "startTime": 1791132003.8905869,
+      "endTime": 1791132003.8905869,
+      "duration": 0.0,
+      "spanId": "",
+      "parentSpanId": "",
+      "success": false,
+      "node_type": "MASCall",
+      "hierarchyLevel": "mas",
+      "block": "execution"
+    },
+    {
+      "id": "state:208e7c894336",
+      "name": "",
+      "sessionId": "961e373c-8dd3-4495-b680-55ace065f113",
+      "content": "input:agent:What is 15 * 23?",
+      "node_type": "State",
+      "layer": "normalized",
+      "block": "trajectory"
+    },
+    {
+      "id": "state:bd2ad8ea7221",
+      "name": "",
+      "sessionId": "961e373c-8dd3-4495-b680-55ace065f113",
+      "content": "output:agent:15 * 23 equals 345.",
+      "node_type": "State",
+      "layer": "normalized",
+      "block": "trajectory"
+    },
+    {
+      "id": "transition:e645d5ef8b6c",
+      "name": "",
+      "sessionId": "961e373c-8dd3-4495-b680-55ace065f113",
+      "node_type": "Transition",
+      "layer": "normalized",
+      "block": "trajectory"
+    },
+    {
+      "id": "transition:148b967b14b0",
+      "name": "",
+      "sessionId": "961e373c-8dd3-4495-b680-55ace065f113",
+      "node_type": "Transition",
+      "layer": "normalized",
+      "block": "trajectory"
+    },
+    {
+      "id": "transition:97e79bf4211f",
+      "name": "",
+      "sessionId": "961e373c-8dd3-4495-b680-55ace065f113",
+      "node_type": "Transition",
+      "layer": "normalized",
+      "block": "trajectory"
+    }
+  ],
+  "edges": [
+    {
+      "source_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "target_id": "mas-runtime",
+      "from_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "mas-runtime",
+      "edge_type": "executesSession"
+    },
+    {
+      "source_id": "agent",
+      "target_id": "llm-unknown-llm",
+      "from_id": "agent",
+      "to_id": "llm-unknown-llm",
+      "edge_type": "usesLLM"
+    },
+    {
+      "source_id": "llmcall:0cb5ae9a4c89",
+      "target_id": "llm-unknown-llm",
+      "from_id": "llmcall:0cb5ae9a4c89",
+      "to_id": "llm-unknown-llm",
+      "edge_type": "executesLLM"
+    },
+    {
+      "source_id": "llmcall:0cb5ae9a4c89",
+      "target_id": "state:d419d0bd9f20",
+      "from_id": "llmcall:0cb5ae9a4c89",
+      "to_id": "state:d419d0bd9f20",
+      "edge_type": "hasInitialState"
+    },
+    {
+      "source_id": "llmcall:0cb5ae9a4c89",
+      "target_id": "state:d419d0bd9f20",
+      "from_id": "llmcall:0cb5ae9a4c89",
+      "to_id": "state:d419d0bd9f20",
+      "edge_type": "hasState"
+    },
+    {
+      "source_id": "llmcall:0cb5ae9a4c89",
+      "target_id": "state:5da49bf06fae",
+      "from_id": "llmcall:0cb5ae9a4c89",
+      "to_id": "state:5da49bf06fae",
+      "edge_type": "hasFinalState"
+    },
+    {
+      "source_id": "llmcall:0cb5ae9a4c89",
+      "target_id": "state:5da49bf06fae",
+      "from_id": "llmcall:0cb5ae9a4c89",
+      "to_id": "state:5da49bf06fae",
+      "edge_type": "hasState"
+    },
+    {
+      "source_id": "state:d419d0bd9f20",
+      "target_id": "transition:94583d9ad913",
+      "from_id": "state:d419d0bd9f20",
+      "to_id": "transition:94583d9ad913",
+      "edge_type": "inputTo"
+    },
+    {
+      "source_id": "transition:94583d9ad913",
+      "target_id": "state:5da49bf06fae",
+      "from_id": "transition:94583d9ad913",
+      "to_id": "state:5da49bf06fae",
+      "edge_type": "leadsTo"
+    },
+    {
+      "source_id": "llmcall:0cb5ae9a4c89",
+      "target_id": "transition:94583d9ad913",
+      "from_id": "llmcall:0cb5ae9a4c89",
+      "to_id": "transition:94583d9ad913",
+      "edge_type": "correspondsToTransition"
+    },
+    {
+      "source_id": "transition:94583d9ad913",
+      "target_id": "llmcall:0cb5ae9a4c89",
+      "from_id": "transition:94583d9ad913",
+      "to_id": "llmcall:0cb5ae9a4c89",
+      "edge_type": "representsExecution"
+    },
+    {
+      "source_id": "agent",
+      "target_id": "mas-runtime",
+      "from_id": "agent",
+      "to_id": "mas-runtime",
+      "edge_type": "belongsToMAS"
+    },
+    {
+      "source_id": "agentcall:1022f5fc2552",
+      "target_id": "agent",
+      "from_id": "agentcall:1022f5fc2552",
+      "to_id": "agent",
+      "edge_type": "executesAgent"
+    },
+    {
+      "source_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "target_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "from_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "edge_type": "hasMASCall"
+    },
+    {
+      "source_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "target_id": "mas-runtime",
+      "from_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "mas-runtime",
+      "edge_type": "executesMAS"
+    },
+    {
+      "source_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "target_id": "agentcall:1022f5fc2552",
+      "from_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "agentcall:1022f5fc2552",
+      "edge_type": "hasAgentCall"
+    },
+    {
+      "source_id": "agentcall:1022f5fc2552",
+      "target_id": "state:208e7c894336",
+      "from_id": "agentcall:1022f5fc2552",
+      "to_id": "state:208e7c894336",
+      "edge_type": "hasInitialState"
+    },
+    {
+      "source_id": "agentcall:1022f5fc2552",
+      "target_id": "state:208e7c894336",
+      "from_id": "agentcall:1022f5fc2552",
+      "to_id": "state:208e7c894336",
+      "edge_type": "hasState"
+    },
+    {
+      "source_id": "agentcall:1022f5fc2552",
+      "target_id": "state:bd2ad8ea7221",
+      "from_id": "agentcall:1022f5fc2552",
+      "to_id": "state:bd2ad8ea7221",
+      "edge_type": "hasFinalState"
+    },
+    {
+      "source_id": "agentcall:1022f5fc2552",
+      "target_id": "state:bd2ad8ea7221",
+      "from_id": "agentcall:1022f5fc2552",
+      "to_id": "state:bd2ad8ea7221",
+      "edge_type": "hasState"
+    },
+    {
+      "source_id": "state:208e7c894336",
+      "target_id": "transition:e645d5ef8b6c",
+      "from_id": "state:208e7c894336",
+      "to_id": "transition:e645d5ef8b6c",
+      "edge_type": "inputTo"
+    },
+    {
+      "source_id": "transition:e645d5ef8b6c",
+      "target_id": "state:bd2ad8ea7221",
+      "from_id": "transition:e645d5ef8b6c",
+      "to_id": "state:bd2ad8ea7221",
+      "edge_type": "leadsTo"
+    },
+    {
+      "source_id": "agentcall:1022f5fc2552",
+      "target_id": "transition:e645d5ef8b6c",
+      "from_id": "agentcall:1022f5fc2552",
+      "to_id": "transition:e645d5ef8b6c",
+      "edge_type": "correspondsToTransition"
+    },
+    {
+      "source_id": "transition:e645d5ef8b6c",
+      "target_id": "agentcall:1022f5fc2552",
+      "from_id": "transition:e645d5ef8b6c",
+      "to_id": "agentcall:1022f5fc2552",
+      "edge_type": "representsExecution"
+    },
+    {
+      "source_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "target_id": "state:208e7c894336",
+      "from_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "state:208e7c894336",
+      "edge_type": "hasInitialState"
+    },
+    {
+      "source_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "target_id": "state:208e7c894336",
+      "from_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "state:208e7c894336",
+      "edge_type": "hasState"
+    },
+    {
+      "source_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "target_id": "state:bd2ad8ea7221",
+      "from_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "state:bd2ad8ea7221",
+      "edge_type": "hasFinalState"
+    },
+    {
+      "source_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "target_id": "state:bd2ad8ea7221",
+      "from_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "state:bd2ad8ea7221",
+      "edge_type": "hasState"
+    },
+    {
+      "source_id": "state:208e7c894336",
+      "target_id": "transition:148b967b14b0",
+      "from_id": "state:208e7c894336",
+      "to_id": "transition:148b967b14b0",
+      "edge_type": "inputTo"
+    },
+    {
+      "source_id": "transition:148b967b14b0",
+      "target_id": "state:bd2ad8ea7221",
+      "from_id": "transition:148b967b14b0",
+      "to_id": "state:bd2ad8ea7221",
+      "edge_type": "leadsTo"
+    },
+    {
+      "source_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "target_id": "transition:148b967b14b0",
+      "from_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "transition:148b967b14b0",
+      "edge_type": "correspondsToTransition"
+    },
+    {
+      "source_id": "transition:148b967b14b0",
+      "target_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "from_id": "transition:148b967b14b0",
+      "to_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "edge_type": "representsExecution"
+    },
+    {
+      "source_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "target_id": "state:208e7c894336",
+      "from_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "state:208e7c894336",
+      "edge_type": "hasInitialState"
+    },
+    {
+      "source_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "target_id": "state:208e7c894336",
+      "from_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "state:208e7c894336",
+      "edge_type": "hasState"
+    },
+    {
+      "source_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "target_id": "state:bd2ad8ea7221",
+      "from_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "state:bd2ad8ea7221",
+      "edge_type": "hasFinalState"
+    },
+    {
+      "source_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "target_id": "state:bd2ad8ea7221",
+      "from_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "state:bd2ad8ea7221",
+      "edge_type": "hasState"
+    },
+    {
+      "source_id": "state:208e7c894336",
+      "target_id": "transition:97e79bf4211f",
+      "from_id": "state:208e7c894336",
+      "to_id": "transition:97e79bf4211f",
+      "edge_type": "inputTo"
+    },
+    {
+      "source_id": "transition:97e79bf4211f",
+      "target_id": "state:bd2ad8ea7221",
+      "from_id": "transition:97e79bf4211f",
+      "to_id": "state:bd2ad8ea7221",
+      "edge_type": "leadsTo"
+    },
+    {
+      "source_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "target_id": "transition:97e79bf4211f",
+      "from_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "transition:97e79bf4211f",
+      "edge_type": "correspondsToTransition"
+    },
+    {
+      "source_id": "transition:97e79bf4211f",
+      "target_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "from_id": "transition:97e79bf4211f",
+      "to_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "edge_type": "representsExecution"
+    },
+    {
+      "edge_type": "executes",
+      "from_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "mas-runtime"
+    },
+    {
+      "edge_type": "executes",
+      "from_id": "llmcall:0cb5ae9a4c89",
+      "to_id": "llm-unknown-llm"
+    },
+    {
+      "edge_type": "executes",
+      "from_id": "agentcall:1022f5fc2552",
+      "to_id": "agent"
+    },
+    {
+      "edge_type": "belongsToMASCall",
+      "from_id": "agentcall:1022f5fc2552",
+      "to_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113"
+    },
+    {
+      "edge_type": "executes",
+      "from_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "mas-runtime"
+    },
+    {
+      "edge_type": "hasLLMCall",
+      "from_id": "agentcall:1022f5fc2552",
+      "to_id": "llmcall:0cb5ae9a4c89"
+    },
+    {
+      "edge_type": "inputTo",
+      "from_id": "state:5da49bf06fae",
+      "to_id": "transition:94583d9ad913"
+    },
+    {
+      "edge_type": "inputTo",
+      "from_id": "state:bd2ad8ea7221",
+      "to_id": "transition:e645d5ef8b6c"
+    },
+    {
+      "edge_type": "inputTo",
+      "from_id": "state:bd2ad8ea7221",
+      "to_id": "transition:148b967b14b0"
+    },
+    {
+      "edge_type": "inputTo",
+      "from_id": "state:bd2ad8ea7221",
+      "to_id": "transition:97e79bf4211f"
+    },
+    {
+      "edge_type": "correspondsToTransition",
+      "from_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "transition:97e79bf4211f"
+    },
+    {
+      "edge_type": "correspondsToTransition",
+      "from_id": "961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "transition:94583d9ad913"
+    },
+    {
+      "edge_type": "correspondsToTransition",
+      "from_id": "mascall:961e373c-8dd3-4495-b680-55ace065f113",
+      "to_id": "transition:94583d9ad913"
+    }
+  ],
+  "metadata": {
+    "nodes": 15,
+    "edges": 53,
+    "otel_spans": 8,
+    "otel_format": "sdk",
+    "normalization_path": "otel_via_norm",
+    "event_count": 0
+  }
+}
