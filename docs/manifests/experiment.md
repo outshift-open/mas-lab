@@ -218,7 +218,7 @@ directly. Checkpoint IDs and source paths are written to `results.csv` and
 `session_mappings.jsonl` alongside each run's session ID.
 
 See the [checkpoint-axis example](../schemas/examples/checkpoint-axis.yaml)
-and [Tutorial 6](../tutorials/06-sessions-and-recovery/README.md).
+and [Tutorial 11](../tutorials/11-sessions-and-recovery/README.md).
 
 ---
 

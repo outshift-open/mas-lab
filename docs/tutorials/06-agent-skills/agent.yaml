@@ -1,0 +1,14 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Agent
+
+metadata:
+  name: skill-tutorial-agent
+
+spec:
+  description: "Answer general knowledge questions."
+  context:
+    role: |
+      Answer the user's question clearly. Do not invent facts that you cannot
+      support.

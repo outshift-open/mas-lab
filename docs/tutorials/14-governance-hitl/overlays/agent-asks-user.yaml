@@ -1,0 +1,23 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+apiVersion: mas/v1
+kind: Overlay
+
+metadata:
+  name: budget-agent-asks-user
+
+spec:
+  target:
+    kind: Agent
+  patch:
+    context:
+      role: |
+        Help the user calculate a project budget. Show the expression used and
+        explain the result. Use the calculator when it is available. If a
+        calculated total exceeds 400 dollars, call request_human_input to ask
+        whether the user approves the total before presenting it as accepted.
+    tools:
+      $op:
+        add:
+          - kind: system
+            name: request_human_input

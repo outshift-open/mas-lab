@@ -1,6 +1,6 @@
 # Tutorial: From Trace to Knowledge Graph
 
-MAS-Lab [Tutorial 8](../../docs/tutorials/08-kg-oxp/README.md) is the
+MAS-Lab [Tutorial 9](../../docs/tutorials/09-kg-oxp/README.md) is the
 hands-on KG & OXP path (native→KG, OTel→KG, Neo4j, equivalence). This page is
 the library-kg deep dive: Neo4j push/dump and KG compare.
 
@@ -14,7 +14,7 @@ Python whenever the CLI shortcuts aren't enough.
 - `mas-lab` installed
 - Docker (for the Neo4j instance) — `library-kg/docker/compose.yaml`
 - The sample files in `library-kg/examples/trip-planner/` (MAS) and
-  `library-kg/examples/qa-agent/` (Tutorial 1 qa-agent, used by Tutorial 8)
+  `library-kg/examples/qa-agent/` (Tutorial 1 qa-agent, used by Tutorial 9)
 
 **Reference docs used in this tutorial**
 

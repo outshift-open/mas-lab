@@ -1,0 +1,72 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+name: tutorial-11-sessions-and-recovery
+title: "Tutorial 11 — Sessions and recovery"
+description: >
+  Checkpoint, fork, resume and recover a conversation. Reuses Tutorial 01's
+  agent.yaml; the checkpoint file in this demo is written directly through
+  JsonCheckpointStore so the fork/list/show commands below are offline —
+  capturing one from a live `mas-ctl chat --save-checkpoint` run needs a
+  live LLM (see the README).
+version: "1.0"
+authors: ["MAS Framework Team"]
+tags: ["sessions", "checkpoint", "tutorial"]
+prerequisites:
+  - "Tutorial 0"
+  - "Offline: pytest tests/tutorials/test_scenario_commands.py -k tuto-11"
+estimated_duration_min: 10
+working_dir: . # repo root
+cache_dir: ".demo-cache"
+
+sections:
+  - id: validate
+    title: "Validate"
+    steps:
+      - type: command
+        title: "Validate the reused Tutorial 01 agent"
+        command: mas-ctl validate docs/tutorials/01-building-an-agent/agent.yaml
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "OK"
+
+  - id: checkpoint
+    title: "Capture, list, show, fork"
+    steps:
+      - type: command
+        title: "Write a v2 checkpoint directly (stand-in for --save-checkpoint)"
+        command: >-
+          python -c
+          "from mas.ctl.adapters.checkpoint import JsonCheckpointStore;
+          from mas.runtime.session import ManifestRef;
+          import yaml;
+          manifest = yaml.safe_load(open('docs/tutorials/01-building-an-agent/agent.yaml'));
+          ref = ManifestRef.from_content(manifest);
+          store = JsonCheckpointStore('.demo-cache/t11-checkpoints');
+          store.save({'version': 2, 'label': 'turn-0001', 'turn': 1,
+          'lineage': {'session_id': 'session-1', 'parent_session_id': None,
+          'forked_from_checkpoint': None, 'root_session_id': 'session-1',
+          'created_at': '2026-09-30T12:00:00+00:00'},
+          'kernel': {'q': {}, 'run': {}}, 'working_memory': [],
+          'manifest': {'content': manifest, 'content_hash': ref.content_hash}},
+          label='turn-0001');
+          print('wrote', store.list_checkpoints())"
+        allowed_modes: [offline]
+        requires: [mas.ctl]
+        expected_exit_code: 0
+        expected_output: "wrote"
+
+      - type: command
+        title: "List checkpoints"
+        command: mas-ctl checkpoint list .demo-cache/t11-checkpoints
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "turn-0001"
+
+      - type: command
+        title: "Fork into a new session identity"
+        command: >-
+          mas-ctl checkpoint fork .demo-cache/t11-checkpoints/turn-0001.checkpoint.json
+          --session-id experiment-a
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "experiment-a"

@@ -1,0 +1,37 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+name: tutorial-05-a2a-agents
+title: "Tutorial 05 — A2A agents"
+description: >
+  Discover and dispatch local and remote agents through a stable contract.
+  Reuses Tutorial 02's MAS and schedule_agent plus
+  library-samples/infra/mixed-agents.infra.yaml.
+version: "1.0"
+authors: ["MAS Framework Team"]
+tags: ["a2a", "tutorial"]
+prerequisites:
+  - "Tutorial 0, Tutorial 2"
+  - "Offline: pytest tests/tutorials/test_scenario_commands.py -k tuto-05"
+estimated_duration_min: 10
+working_dir: . # repo root
+cache_dir: ".demo-cache"
+
+sections:
+  - id: validate
+    title: "Validate"
+    steps:
+      - type: command
+        title: "Validate the Tutorial 2 MAS"
+        command: mas-ctl validate docs/tutorials/02-creating-a-mas/mas.yaml
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "OK"
+
+      - type: command
+        title: "Validate the schedule agent"
+        command: >-
+          mas-ctl validate
+          docs/tutorials/02-creating-a-mas/agents/schedule-agent/agent.yaml
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "OK"

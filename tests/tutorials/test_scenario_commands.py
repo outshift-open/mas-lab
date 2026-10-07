@@ -208,22 +208,57 @@ _SCENARIOS = [
         REPO_ROOT,          # working_dir is relative to repo root (as declared in YAML)
         "tuto-03",
     ),
+    (
+        REPO_ROOT / "docs/tutorials/04-mcp-tools/demo/scenario.yaml",
+        REPO_ROOT,
+        "tuto-04",
+    ),
+    (
+        REPO_ROOT / "docs/tutorials/05-a2a-agents/demo/scenario.yaml",
+        REPO_ROOT,
+        "tuto-05",
+    ),
+    (
+        REPO_ROOT / "docs/tutorials/06-agent-skills/demo/scenario.yaml",
+        REPO_ROOT,
+        "tuto-06",
+    ),
+    (
+        REPO_ROOT / "docs/tutorials/11-sessions-and-recovery/demo/scenario.yaml",
+        REPO_ROOT,
+        "tuto-11",
+    ),
+    (
+        REPO_ROOT / "docs/tutorials/12-subagents/demo/scenario.yaml",
+        REPO_ROOT,
+        "tuto-12",
+    ),
+    (
+        REPO_ROOT / "docs/tutorials/13-control-and-debug/demo/scenario.yaml",
+        REPO_ROOT,
+        "tuto-13",
+    ),
+    (
+        REPO_ROOT / "docs/tutorials/14-governance-hitl/demo/scenario.yaml",
+        REPO_ROOT,
+        "tuto-14",
+    ),
 ]
 
 if (REPO_ROOT / "library-telemetry/examples/qa-agent").is_dir():
     _SCENARIOS.append(
         (
-            REPO_ROOT / "docs/tutorials/07-telemetry/demo/scenario.yaml",
+            REPO_ROOT / "docs/tutorials/08-telemetry/demo/scenario.yaml",
             REPO_ROOT,
-            "tuto-07",
+            "tuto-08",
         )
     )
 if (REPO_ROOT / "library-kg/examples/qa-agent").is_dir():
     _SCENARIOS.append(
         (
-            REPO_ROOT / "docs/tutorials/08-kg-oxp/demo/scenario.yaml",
+            REPO_ROOT / "docs/tutorials/09-kg-oxp/demo/scenario.yaml",
             REPO_ROOT,
-            "tuto-08",
+            "tuto-09",
         )
     )
 

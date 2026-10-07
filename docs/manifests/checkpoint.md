@@ -61,7 +61,7 @@ manifest (or current working directory). Retention prunes only files belonging
 to the same session.
 
 A walkthrough (crash, resume, fork, backtrack):
-[Tutorial 6](../tutorials/06-sessions-and-recovery/).
+[Tutorial 11](../tutorials/11-sessions-and-recovery/).
 
 ## Resume and fork
 

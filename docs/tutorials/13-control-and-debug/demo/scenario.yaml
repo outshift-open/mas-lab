@@ -1,0 +1,39 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+name: tutorial-13-control-and-debug
+title: "Tutorial 13 — Control attach and debug scripts"
+description: >
+  Interrupt a bad session, persist, resume; investigate; steer-to-fix on
+  the restarted chat; auto-checkpoint tree; gdb script_file / --debug-script.
+  The live multi-terminal witness needs a running session to attach to,
+  which this scenario format cannot express — see
+  tests/tutorials/test_tutorial_13.py for that coverage, driven through
+  this tutorial's own recover.ctl / steer-fix.ctl / debug.gdb.
+version: "1.0"
+authors: ["MAS Framework Team"]
+tags: ["control", "debug", "checkpoint", "tutorial"]
+prerequisites:
+  - "Tutorial 0, Tutorial 11"
+  - "Offline: pytest tests/tutorials/test_scenario_commands.py -k tuto-13"
+estimated_duration_min: 15
+working_dir: . # repo root
+cache_dir: ".demo-cache"
+
+sections:
+  - id: validate
+    title: "Validate"
+    steps:
+      - type: command
+        title: "Validate the debug-script agent"
+        command: mas-ctl validate docs/tutorials/13-control-and-debug/agent.yaml
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "OK"
+
+      - type: command
+        title: "Validate the auto-checkpoint agent"
+        command: >-
+          mas-ctl validate docs/tutorials/13-control-and-debug/agent-auto.yaml
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "OK"

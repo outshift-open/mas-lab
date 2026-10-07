@@ -1,0 +1,25 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Tutorial 13 agent — gdb-like debug_script from a filename.
+apiVersion: mas/v1
+kind: Agent
+
+metadata:
+  name: debug-script-demo
+
+spec:
+  models:
+    - model: gpt-4o-mini
+  description: "Research assistant for control attach, checkpoints, and steering."
+  context:
+    role: |
+      You are a research assistant. Use web_search for facts and calc for arithmetic.
+      Remember earlier turns in the same session.
+  tools:
+    - ref: ./tools/web_search.tool.yaml
+    - ref: ./tools/calc.tool.yaml
+  governance:
+    - debug_script:
+        script_file: ./debug.gdb
+  observability:
+    - native
