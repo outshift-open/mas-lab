@@ -51,6 +51,16 @@ When you add or rename a doc page, update **`mkdocs.yml` nav** and cross-links i
 - [1 — Build an agent](tutorials/01-building-an-agent/README.md)
 - [2 — Orchestrate your MAS](tutorials/02-creating-a-mas/README.md)
 - [3 — Run an experiment](tutorials/03-experiments-and-analysis/README.md)
+- [4 — MCP tools](tutorials/04-mcp-tools/README.md)
+- [5 — A2A agents](tutorials/05-a2a-agents/README.md)
+- [6 — Agent skills](tutorials/06-agent-skills/README.md)
+- [8 — Telemetry](tutorials/08-telemetry/README.md)
+- [9 — KG & OXP](tutorials/09-kg-oxp/README.md)
+- [10 — Evaluation metrics](tutorials/10-evaluation-metrics/README.md)
+- [11 — Sessions and recovery](tutorials/11-sessions-and-recovery/README.md)
+- [12 — Spawned subagents](tutorials/12-subagents/README.md)
+- [13 — Control attach and debug scripts](tutorials/13-control-and-debug/README.md)
+- [14 — Governance and HITL](tutorials/14-governance-hitl/README.md)
 
 ### References
 

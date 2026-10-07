@@ -23,8 +23,15 @@ TUTORIALS = REPO_ROOT / "docs" / "tutorials"
 T01 = TUTORIALS / "01-building-an-agent"
 T02 = TUTORIALS / "02-creating-a-mas"
 T03 = TUTORIALS / "03-experiments-and-analysis"
-T07 = TUTORIALS / "07-telemetry"
-T08 = TUTORIALS / "08-kg-oxp"
+T04 = TUTORIALS / "04-mcp-tools"
+T05 = TUTORIALS / "05-a2a-agents"
+T06 = TUTORIALS / "06-agent-skills"
+T08 = TUTORIALS / "08-telemetry"
+T09 = TUTORIALS / "09-kg-oxp"
+T11 = TUTORIALS / "11-sessions-and-recovery"
+T12 = TUTORIALS / "12-subagents"
+T13 = TUTORIALS / "13-control-and-debug"
+T14 = TUTORIALS / "14-governance-hitl"
 
 
 @pytest.fixture
@@ -40,6 +47,19 @@ def t02_dir():
 @pytest.fixture
 def t03_dir():
     return T03
+
+
+# ---------------------------------------------------------------------------
+# Networking helpers
+# ---------------------------------------------------------------------------
+
+def free_port() -> int:
+    """An OS-assigned free TCP port on localhost, for in-process server tests."""
+    import socket
+
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        return int(listener.getsockname()[1])
 
 
 # ---------------------------------------------------------------------------

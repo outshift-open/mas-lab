@@ -2,16 +2,16 @@
   Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
   SPDX-License-Identifier: Apache-2.0
 -->
-# Tutorial 8 — Building a knowledge graph from OTel and native events
+# Tutorial 9 — Building a knowledge graph from OTel and native events
 
 > **Packages:** `mas-library-kg` (native→KG is first-party; OTel→KG reuses
 > OXP's own `norm` package), `mas-library-telemetry` (span files from
-> [Tutorial 7](../07-telemetry/))
-> **Prerequisite:** [Tutorial 7](../07-telemetry/).
+> [Tutorial 8](../08-telemetry/))
+> **Prerequisite:** [Tutorial 8](../08-telemetry/).
 > **Example traces:** [`library-kg/examples/qa-agent/`](../../../library-kg/examples/qa-agent/)
 > (same layout as `examples/trip-planner/`)
 
-Tutorial 7 gave you two exports of the same run: native `events.jsonl` and
+Tutorial 8 gave you two exports of the same run: native `events.jsonl` and
 OTel spans. Neither is a **knowledge graph** — both are flat, ordered logs.
 To ask graph questions ("which tools did this agent call", "what's the call
 tree") you need to normalize one of those exports into typed nodes and
@@ -70,7 +70,7 @@ A built graph can carry more than one category — `structure`/`execution`/
 `trajectory` by default; `provenance`, `governance`, and `infrastructure` are
 off. Tune them on the CLI (`--include-governance`, `--include-provenance`, …)
 or on the pipeline step (`include_governance: true`) — the same categories
-Tutorial 7 uses for the OTel export.
+Tutorial 8 uses for the OTel export.
 
 ---
 
@@ -207,7 +207,7 @@ this short capture. Run validate on every new `kg.jsonld`.
 
 ## 6 — Realtime: normalize and push the graph while the run is still happening
 
-Tutorial 7 §6 showed `--realtime`: instead of one `.graph` span at the end
+Tutorial 8 §6 showed `--realtime`: instead of one `.graph` span at the end
 of a run, you get a stream of `topology.node.*` / `tool.*` / `llm.*` signal
 spans as each boundary is crossed. That answers "can I see activity while
 the run is still going." This section answers the follow-up: can the
@@ -230,7 +230,7 @@ mas-lab kg neo4j-push /tmp/t8-realtime-kg.jsonld --dry-run
 ```
 
 Swap the first command for a live agent run with the
-`observability-otel-realtime` overlay from Tutorial 7 §6 and the spans file
+`observability-otel-realtime` overlay from Tutorial 8 §6 and the spans file
 grows while the agent is still executing. The second and third commands are
 what you'd run on a timer (every few seconds, or after every N new lines)
 against that same, growing file.
@@ -243,7 +243,7 @@ deliberate, not an oversight:
 
 - Node and edge ids are deterministic, derived from the call/span ids in the
   spans themselves, not assigned sequentially. The span-id-reuse fix from
-  Tutorial 7 §6 (`topology.node.started`/`.completed` sharing one span id)
+  Tutorial 8 §6 (`topology.node.started`/`.completed` sharing one span id)
   is what makes this hold for realtime signals specifically — before that
   fix, a "started" and "completed" signal for the same logical call minted
   two different ids and would have produced two disconnected nodes instead
@@ -277,7 +277,7 @@ pipeline rather than "replay the file so far on a timer":
 
 - **An actual event stream**, not a file or a batch query. Today's two
   realtime sources are a growing JSONL file (this section) and a live OTLP
-  collector writing into ClickHouse (Tutorial 7 §6's live-plugin path) —
+  collector writing into ClickHouse (Tutorial 8 §6's live-plugin path) —
   neither gives you a cursor or offset to resume from, only "everything up
   to now."
 - **An incremental registry** in `norm`/`mas-library-kg`, so a tick could
@@ -296,12 +296,12 @@ the growing file, not by streaming deltas into persistent graph state.
    first-party. Both target `oxp_ontology.models.*`.
 2. **CLI commands** (`kg normalize`, `kg neo4j-push`) are shortcuts to
    pipeline steps. File path vs `--infra` is the same serialize-to-file /
-   serialize-to-service split as Tutorial 7.
+   serialize-to-service split as Tutorial 8.
 3. **`$NEO4J_URI`** skips the YAML infra file. `--dry-run` does not need Neo4j
    running.
 4. **Categories** (`include_trajectory` / `include_provenance` /
    `include_governance` / `include_infrastructure`) match the OTel export
-   layers from Tutorial 7. Governance is off unless you opt in.
+   layers from Tutorial 8. Governance is off unless you opt in.
 5. **Equivalence** is the contract that the two KG views stay aligned.
 6. **Realtime KG today** means re-normalizing the whole growing spans file
    on a timer and pushing again — safe because ids are deterministic and

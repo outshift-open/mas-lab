@@ -859,8 +859,8 @@ Larger experiments: `labs/design-space.lab/` (patterns + topologies).
 
 ## Next
 
-[Tutorial 7 — Telemetry](../07-telemetry/) converts these native traces to
-OTel (live plugin or replay). [Tutorial 8 — KG & OXP](../08-kg-oxp/)
+[Tutorial 8 — Telemetry](../08-telemetry/) converts these native traces to
+OTel (live plugin or replay). [Tutorial 9 — KG & OXP](../09-kg-oxp/)
 normalizes OTel or native events into a knowledge graph and checks the two
 KG paths match.
 

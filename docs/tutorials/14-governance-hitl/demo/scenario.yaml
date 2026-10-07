@@ -1,0 +1,55 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+name: tutorial-14-governance-hitl
+title: "Tutorial 14 — Governance and HITL"
+description: >
+  Require human or automated-policy approval before a tool call runs.
+version: "1.0"
+authors: ["MAS Framework Team"]
+tags: ["governance", "hitl", "tutorial"]
+prerequisites:
+  - "Tutorial 0"
+  - "Offline: pytest tests/tutorials/test_scenario_commands.py -k tuto-14"
+estimated_duration_min: 10
+working_dir: . # repo root
+cache_dir: ".demo-cache"
+
+sections:
+  - id: validate
+    title: "Validate"
+    steps:
+      - type: command
+        title: "Validate the base agent"
+        command: mas-ctl validate docs/tutorials/14-governance-hitl/agent.yaml
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "OK"
+
+      - type: command
+        title: "Validate with tools + auto-approve governance"
+        command: >-
+          mas-ctl validate docs/tutorials/14-governance-hitl/agent.yaml
+          -o docs/tutorials/14-governance-hitl/overlays/tools.yaml
+          -o docs/tutorials/14-governance-hitl/overlays/governance-auto-approve.yaml
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "OK"
+
+      - type: command
+        title: "Validate with tools + auto-deny governance"
+        command: >-
+          mas-ctl validate docs/tutorials/14-governance-hitl/agent.yaml
+          -o docs/tutorials/14-governance-hitl/overlays/tools.yaml
+          -o docs/tutorials/14-governance-hitl/overlays/governance-auto-deny.yaml
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "OK"
+
+      - type: command
+        title: "Validate agent-asks-user escalation overlay"
+        command: >-
+          mas-ctl validate docs/tutorials/14-governance-hitl/agent.yaml
+          -o docs/tutorials/14-governance-hitl/overlays/agent-asks-user.yaml
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "OK"

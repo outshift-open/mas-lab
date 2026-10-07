@@ -2,7 +2,7 @@
   Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
   SPDX-License-Identifier: Apache-2.0
 -->
-# Tutorial 6 — Sessions and recovery
+# Tutorial 11 — Sessions and recovery
 
 > **Packages:** `mas-runtime`, `mas-ctl`
 > **Prerequisite:** [Tutorial 0](../00-environment-setup/) and an Agent manifest
@@ -46,6 +46,28 @@ Continue the conversation in the fork, then fork again from the same source.
 Each controller owns a separate working-memory registry; changes in one branch
 are not visible in its sibling.
 
+## What a checkpoint actually is
+
+Two stores implement one `CheckpointStore` protocol
+(`ctl/src/mas/ctl/adapters/checkpoint.py`):
+
+| Store | Backs | Survives process exit |
+| --- | --- | --- |
+| `JsonCheckpointStore` | `--checkpoint-dir`, `--save-checkpoint`, `checkpoint fork` | Yes — one `*.checkpoint.json` file per checkpoint |
+| `InMemoryCheckpointStore` | `/backtrack`, pause/inspect snapshots | No — process-local, for walking recent turns without disk I/O |
+
+Either store accepts a raw kernel snapshot and wraps it as `version: 1`
+(`kernel`, `memory_seeds`, `turn`); a snapshot that already carries
+`version: 2` — kernel, committed conversation, manifest content, session
+lineage — is written through unchanged. That is what `--save-checkpoint`
+produces, and what [Tutorial 13](../13-control-and-debug/)'s control scripts
+read directly.
+
+`retain(session_id, mode, n)` prunes only that session's own files (matched
+by filename prefix), so forking never ages out a sibling's history:
+`single` keeps the latest checkpoint, `last_n` keeps the last `n`, `all`
+keeps everything — this is the `spec.checkpoint.retention` block below.
+
 ## Recover manually
 
 For automatic capture at every model response, apply the packaged `openclaw`
@@ -82,3 +104,16 @@ starting-state axis; see the
 `/steer` injects operator text. A paused session refuses the next user turn
 until resume. In-memory snapshots are listed and walked through the same
 control contract as pause; persist is a separate step.
+
+## Reference material
+
+- [Session checkpoints](../../manifests/checkpoint.md) — full policy,
+  retention, and cap reference.
+- [checkpoint-axis example](../../schemas/examples/checkpoint-axis.yaml) —
+  using a checkpoint as an experiment starting-state axis.
+- [Kernel operations](../../references/kernel-primitives.md) — where
+  checkpoint/persist/steer sit among the runtime's primitive operations.
+- Next: [Tutorial 13 — Control attach and debug](../13-control-and-debug/)
+  attaches to a *live* session from another process by session id (the same
+  id an A2A caller sees as `contextId`), and adds gdb-like governance
+  breakpoints on top of the checkpoint mechanics from this tutorial.

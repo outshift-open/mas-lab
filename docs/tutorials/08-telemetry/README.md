@@ -2,7 +2,7 @@
   Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
   SPDX-License-Identifier: Apache-2.0
 -->
-# Tutorial 7 — Telemetry: native, OTel, and replay
+# Tutorial 8 — Telemetry: native, OTel, and replay
 
 > **Packages:** `mas-library-standard` (native plugin), `mas-library-telemetry`
 > (OTel plugin, replay, collector, ClickHouse)
@@ -10,7 +10,7 @@
 > [Tutorial 1](../01-building-an-agent/),
 > [Tutorial 2](../02-creating-a-mas/),
 > [Tutorial 3](../03-experiments-and-analysis/).
-> **Follow-on:** [Tutorial 8 — Knowledge graphs](../08-kg-oxp/)
+> **Follow-on:** [Tutorial 9 — Knowledge graphs](../09-kg-oxp/)
 > **Example traces:** [`library-telemetry/examples/qa-agent/`](../../../library-telemetry/examples/qa-agent/)
 > (same layout as `examples/trip-planner/`)
 
@@ -297,7 +297,7 @@ call — and likewise `tool.started`/`.completed`, `llm.started`/`.completed`
 — are two independently started-and-ended OTel spans, which would normally
 get two unrelated random span ids. The converter makes the "completed" half
 reuse the "started" half's own span id, so anything reading these spans
-(norm's realtime ingestion, see Tutorial 8 §6) sees one logical call, not
+(norm's realtime ingestion, see Tutorial 9 §6) sees one logical call, not
 two disconnected ones:
 
 ```bash
@@ -309,7 +309,7 @@ python -m pytest tests/telemetry/conversion/test_oxp_contract.py -k realtime -q
 
 ## Next
 
-[Tutorial 8 — Knowledge graphs](../08-kg-oxp/) turns these files into a
+[Tutorial 9 — Knowledge graphs](../09-kg-oxp/) turns these files into a
 knowledge graph (native→KG, first-party, and OTel→KG by reusing OXP's own
 `norm` package) and checks the two KG paths match — including the realtime
 spans from §6.

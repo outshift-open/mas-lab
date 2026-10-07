@@ -15,4 +15,4 @@ export CLICKHOUSE_HOST=localhost
 
 Images: `otel/opentelemetry-collector-contrib` and `clickhouse/clickhouse-server`.
 The collector config is `otel-collector.yaml` in this directory (OTLP HTTP `:4318`
-plus ClickHouse `otel_traces`). Used from [Tutorial 7 — Telemetry](../../docs/tutorials/07-telemetry/README.md).
+plus ClickHouse `otel_traces`). Used from [Tutorial 8 — Telemetry](../../docs/tutorials/08-telemetry/README.md).
