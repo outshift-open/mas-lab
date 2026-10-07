@@ -26,7 +26,7 @@ spec:
     type: summarising
     params:
       keep_turns: 2
-      hysteresis_ratio: 0.2
+      hysteresis_ratio: 0.1
       summary_threshold: 80
       summarizer:
         type: llm

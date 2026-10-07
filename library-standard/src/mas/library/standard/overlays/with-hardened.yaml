@@ -3,7 +3,8 @@
 # Hardened agent posture for production: refuse undeclared tool names,
 # classify typed failures at ingress, retry transient/unavailable after
 # infra retries, open a circuit on persistent unavailability, and cap
-# LLM/tool call counts so a runaway loop can't run unbounded.
+# LLM/tool call counts plus the kernel dispatch loop so a runaway
+# session can't run unbounded.
 apiVersion: mas/v1
 kind: Overlay
 metadata:
@@ -12,6 +13,11 @@ spec:
   target:
     kind: Agent
   patch:
+    design_pattern:
+      $op:
+        merge:
+          params:
+            max_steps: 512
     budget:
       max_llm_calls: 50
       max_tool_calls: 100

@@ -54,7 +54,6 @@ metadata:
 spec:
   models:
   - model: gpt-4o
-    context_window: 128000
   description: Answer general knowledge questions.
   context:
     intent: Answer general knowledge questions.
@@ -64,20 +63,18 @@ spec:
   design_pattern:
     type: react@v1
     params:
-      max_steps: 512
       max_cot_pass: 1
       parallel: true
   context_manager:
     type: summarising
     params:
       keep_turns: 10
-      hysteresis_ratio: 0.2
-      summary_threshold: 126000
+      hysteresis_ratio: 0.1
       summarizer: llm
       working_memory_messages: 20
       trimmer:
-        max_tokens: 128000
         reserve_tokens: 2000
+        safety_margin_ratio: 0.1
   assembler:
     type: assembler
     params:
@@ -89,10 +86,10 @@ spec:
 
 | Block | Plugin (default) | Attributes | Docs |
 |-------|-------------------|------------|------|
-| `models[0].context_window` | — | `128000`: the model's input window, filled from the model catalog when omitted | [agent.md](../manifests/agent.md#spec-field-reference) |
+| `models[0].context_window` | — | Auto-resolved from the effective model; an unknown model warns and uses `128000` | [agent.md](../manifests/agent.md#spec-field-reference) · [context-management](context-management.md) |
 | `design_pattern` | `react@v1` (registry alias `react`) | `max_steps` (dispatch-loop cap), `max_cot_pass`, `parallel` | [plugin-bindings.md § design_pattern](../manifests/plugin-bindings.md#design_pattern-default-react) |
 | `assembler` | `assembler` (`ContextAssemblerPlugin`) | `emit_segments`, `always_reassemble` — builds `messages[]`; **not** where history policy lives | [plugin-bindings.md § assembler](../manifests/plugin-bindings.md#assembler-default-assembler) · [context-assembly.md](../manifests/context-assembly.md#assembler-required-default) |
-| `context_manager` | `summarising` | `keep_turns`, `hysteresis_ratio`, `summary_threshold`, `working_memory_messages`, `trimmer.{max_tokens,reserve_tokens}` | [plugin-bindings.md § context_manager](../manifests/plugin-bindings.md#context_manager-default-summarising) · [context-assembly.md](../manifests/context-assembly.md#context_manager-plugins) |
+| `context_manager` | `summarising` | `keep_turns`, `hysteresis_ratio`, `summary_threshold`, `working_memory_messages`, `trimmer.{max_tokens,reserve_tokens,safety_margin_ratio}` | [plugin-bindings.md § context_manager](../manifests/plugin-bindings.md#context_manager-default-summarising) · [context-management](context-management.md) |
 | `context_manager.params.summarizer` | `llm` (sub-plugin of `summarising`) | `params.model` omitted → summarizer slot (Agent/MAS/`experiment.models.summarizer`) else agent's primary model. Compile does **not** invent a cheaper summarizer. | [plugin-bindings.md § summarizer](../manifests/plugin-bindings.md#summarizer-sub-plugin-of-summarising) · [summarization.md](../manifests/summarization.md) |
 
 Every one of these is a real registered plugin — resolving `type: react@v1`,

@@ -58,7 +58,7 @@ The overlay sets `params.model: gpt-4o-mini` only (default instructions).
 |-------|-------|---------|
 | When it fires | `params.summary_threshold` / model window | `context_window − max_tokens` |
 | Recency pin | `params.keep_turns` | `10` |
-| Hysteresis | `params.hysteresis_ratio` | `0.2` |
+| Hysteresis | `params.hysteresis_ratio` | `0.1` |
 | Plugin | `params.summarizer` | `llm` (`drop` = no LLM) |
 | Summary LLM | `summarizer.params.model` | summarizer slot, else agent turn model |
 | System prompt | `summarizer.params.instructions` | package constant (facts / decisions / identifiers, plain prose) |

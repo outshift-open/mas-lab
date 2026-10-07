@@ -142,6 +142,13 @@ spec:
       max_output_tokens: 65536
       max_thinking_tokens: 24576
       apis: [chat_completions, gemini]
+      pricing:
+        currency: USD
+        input_per_million_tokens: 0.30
+        cached_input_per_million_tokens: 0.03
+        output_per_million_tokens: 2.50
+        source: https://cloud.google.com/vertex-ai/generative-ai/pricing
+        checked_at: "2026-10-06"
       settings:
         reasoning.budget_tokens: {min: 0, max: 24576}
         reasoning.effort: {enum: [none, low, medium, high]}

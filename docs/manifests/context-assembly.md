@@ -8,6 +8,10 @@
 `mas.runtime.boundary.context.assemble` · **Schema:** `agent.schema.yaml`
 (`spec.assembler`, `spec.context_manager`) · **Bindings:** [plugin-bindings.md](plugin-bindings.md)
 
+For request composition, pinning, resolved model limits, context snapshots,
+cache metrics, and cost accounting, see the full
+[context-management reference](../references/context-management.md).
+
 Each LLM call builds `messages[]` in a fixed order (`spec.assembler`, default
 `assembler`):
 
@@ -56,6 +60,12 @@ Each manager **is** a plugin with strategy code (not an empty shell). The
 summarising manager additionally composes a **summarizer sub-plugin**
 (registry type `summarizer`: `llm` | `drop`).
 
+System context parts are rebuilt for each LLM request. Skills and other
+`ContextPart`s marked `pinned` stay outside conversation summarization; tool
+schemas are sent separately and also count toward the request budget. See the
+[Context Management reference](../references/context-management.md) for the
+complete ordering and pinning rules.
+
 Instance is cached per `(ctx, manifest)` so hysteresis can reuse a summary.
 
 ### `summarising` (package default)
@@ -68,13 +78,12 @@ spec:
     type: summarising
     params:
       keep_turns: 10
-      hysteresis_ratio: 0.2
+      hysteresis_ratio: 0.1
       summarizer: llm            # agent's model; drop = discard older turns
-      summary_threshold: 126000  # compile: context_window − max_tokens
       working_memory_messages: 20
       trimmer:
-        max_tokens: 128000
         reserve_tokens: 2000
+        safety_margin_ratio: 0.1
 ```
 
 The plugin keeps the last `keep_turns` user turns verbatim, then asks the
@@ -145,34 +154,37 @@ spec:
 
 ## Assembly token trim (model context window)
 
-History is capped to **model `context_window` minus completion reserve**
-(`models[].max_tokens`). Override with **`spec.context_manager.params.trimmer`**
-(not a separate `spec` key and not a registry plugin type):
+The automatic cap is derived from the **effective model** after infra mappings.
+It counts fixed system/context, current input, working memory, and tool schemas,
+reserves completion tokens, then leaves a safety margin. Override with
+`spec.models[].context_window`, infra `generation.context_window`, or
+`spec.context_manager.params.trimmer`:
 
 ```yaml
 spec:
   models:
     - model: gpt-4o
       max_tokens: 2000          # completion reserve
-      context_window: 128000    # input window; compile fills this if omitted
+      # context_window omitted: auto-resolve from the effective model
   context_manager:
     type: summarising           # default; sliding-window | stack also valid
     params:
       keep_turns: 10            # recent user turns never summarized (override per agent)
-      hysteresis_ratio: 0.2     # don't re-summarize until managed history grows 20% past budget
+      hysteresis_ratio: 0.1     # summary reuse stays within the hard safety budget
       working_memory_messages: 20
       trimmer:
-        max_tokens: 128000      # defaults to models[].context_window
-        reserve_tokens: 2000    # defaults to models[].max_tokens
+        reserve_tokens: 2000    # defaults to the effective completion budget
+        safety_margin_ratio: 0.1
 ```
 
 | Field | Meaning |
 |-------|---------|
-| `trimmer.max_tokens` | Estimated input token ceiling (chars÷4 heuristic + per-message overhead). Defaults to the primary model's `context_window`. |
+| `trimmer.max_tokens` | Optional explicit input ceiling. Omit to resolve the effective model window. |
 | `trimmer.token_budget` | Alias for `max_tokens` |
-| `trimmer.reserve_tokens` | Subtracted from `max_tokens` before comparing to the payload. Defaults to the primary model's `max_tokens`. |
+| `trimmer.reserve_tokens` | Completion reserve. Defaults to the effective output budget. |
+| `trimmer.safety_margin_ratio` | Fraction held back for estimate error and provider overhead (default `0.1`). |
 | `keep_turns` | Last N committed user turns kept verbatim (default 10). Older turns are summarized (or dropped). |
-| `hysteresis_ratio` | After a summary, new turns stay verbatim until the managed payload exceeds `budget × (1 + ratio)` (default 0.2). |
+| `hysteresis_ratio` | Reuse the summary until near the safety-bounded hard budget (default `0.1`). |
 
 In-turn working memory is passed as **`pin_tail`**: oldest tool-call groups in
 history are dropped first; WM can be trimmed by group only after history is

@@ -53,7 +53,8 @@ def apply_runtime_engine_to_kernel(
     if "engine_queue_depth" in runtime_engine:
         cfg = replace(cfg, engine_queue_depth=int(runtime_engine["engine_queue_depth"]))
     if "max_auto_steps" in runtime_engine:
-        cfg = replace(cfg, max_auto_steps=int(runtime_engine["max_auto_steps"]))
+        raw = runtime_engine["max_auto_steps"]
+        cfg = replace(cfg, max_auto_steps=None if raw is None else int(raw))
     if "parallel" in runtime_engine:
         cfg = replace(cfg, parallel_tool_calls=bool(runtime_engine["parallel"]))
     return cfg

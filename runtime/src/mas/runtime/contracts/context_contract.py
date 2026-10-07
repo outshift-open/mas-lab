@@ -503,10 +503,11 @@ class ContextPart:
                 "via": "collect_context",
             },
         )
+        priority = kwargs.pop("priority", 40)
         return cls(
             content=content,
             placement=ContextPlacement.SYSTEM_SKILLS,
-            priority=40,
+            priority=priority,
             source=source,
             **kwargs,
         )

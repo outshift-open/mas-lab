@@ -11,6 +11,7 @@ from mas.runtime.engine.llm_cache import (
     resolve_cache_path,
 )
 from mas.runtime.engine.llm_live import LiveLlmEngine
+from mas.runtime.schema.egress import InvokeEngineIo
 
 
 def test_resolve_cache_path_prefers_explicit_argument(tmp_path, monkeypatch):
@@ -92,6 +93,7 @@ def test_cache_provider_misses_when_reasoning_changes(tmp_path) -> None:
     assert inner.calls == 2
     replay = provider.chat_completion(model="gpt-5", messages=messages, api_key="k", reasoning={"effort": "low"})
     assert replay["content"] == "a"
+    assert replay["_mas_cache_status"] == "hit"
     assert inner.calls == 2
 
 
@@ -145,6 +147,32 @@ def test_live_llm_cache_read_hit_skips_inner(tmp_path) -> None:
     )
     out = reader._chat_completion([{"role": "user", "content": "hello"}], api_key="", tools=None)
     assert out["content"] == "cached-response"
+    assert reader_inner.calls == 0
+
+
+def test_live_engine_reports_provider_cache_hit(tmp_path) -> None:
+    cache_path = tmp_path / "llm-cache.json"
+    writer = LiveLlmEngine(
+        llm_provider=_StubProvider({"role": "assistant", "content": "cached-response"}),
+        cache_path=cache_path,
+        use_cache=True,
+        cache_read=False,
+        cache_write=True,
+    )
+    writer.invoke(InvokeEngineIo(correlation_id=1, op="LLM_CALL"))
+
+    reader_inner = _StubProvider({"role": "assistant", "content": "live"})
+    reader = LiveLlmEngine(
+        llm_provider=reader_inner,
+        cache_path=cache_path,
+        use_cache=True,
+        cache_read=True,
+        cache_write=False,
+    )
+    ret = reader.invoke(InvokeEngineIo(correlation_id=1, op="LLM_CALL"))
+    assert ret.text == "cached-response"
+    assert ret.cache_status == "hit"
+    assert ret.cache_layer == "provider_cache"
     assert reader_inner.calls == 0
 
 

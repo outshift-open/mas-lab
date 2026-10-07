@@ -14,7 +14,11 @@ LLM endpoints are not configured here — use workspace `infra_refs` with
 agents or MAS).
 
 **Schema:** `docs/schemas/runtime/fragments/runtime-engine.schema.yaml`  
-**Bundled ref:** `standard:runtime-default` (`library-standard`)
+**Bundled ref:** `standard:runtime-default` (`library-standard`) — queue
+depth only; no dispatch cap. Cap the loop with overlay
+`pkg://mas.library.standard/overlays/with-hardened.yaml` (`max_steps: 512`)
+or set `spec.engine.max_auto_steps` on a RuntimeEngine you pass via
+`--runtime-ref`.
 
 ## Example
 

@@ -43,6 +43,15 @@ from mas.runtime.spec.defaults import DEFAULT_MAX_AUTO_STEPS
 
 _logger = logging.getLogger(__name__)
 
+
+def _within_auto_step_budget(auto_steps: int, max_auto_steps: int | None) -> bool:
+    """True while the driver may take another dispatch step.
+
+    ``max_auto_steps is None`` means no cap (lab default). A production
+    overlay such as ``with-hardened`` sets an integer.
+    """
+    return max_auto_steps is None or auto_steps < max_auto_steps
+
 ExchangeKind = Literal[
     "user_in",
     "user_out",
@@ -258,7 +267,7 @@ class KernelDriver:
     ctx: AutoCtxAssembler | None = field(default_factory=AutoCtxAssembler)
     observability: ObservabilityOperator | None = field(default_factory=ObservabilityOperator)
     coordination: ChokepointCoordinator | None = field(default_factory=ChokepointCoordinator)
-    max_auto_steps: int = DEFAULT_MAX_AUTO_STEPS
+    max_auto_steps: int | None = DEFAULT_MAX_AUTO_STEPS
     agent_id: str = "agent"
     # When this driver is running a delegated turn, the specialist's final
     # text goes back to this caller — not to the user. Empty means this
@@ -331,7 +340,7 @@ class KernelDriver:
         queue: deque[IngressSymbol] = deque([event])
         auto_steps = 0
 
-        while queue and auto_steps < self.max_auto_steps:
+        while queue and _within_auto_step_budget(auto_steps, self.max_auto_steps):
             ingress = queue.popleft()
             if not validate_ingress(
                 ingress,
@@ -454,7 +463,7 @@ class KernelDriver:
         queue: deque[IngressSymbol] = deque([event])
         auto_steps = 0
 
-        while queue and auto_steps < self.max_auto_steps:
+        while queue and _within_auto_step_budget(auto_steps, self.max_auto_steps):
             ingress = queue.popleft()
             if not validate_ingress(
                 ingress,

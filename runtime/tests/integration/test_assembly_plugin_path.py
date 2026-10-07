@@ -5,12 +5,31 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from typing import Any
 
 from mas.runtime.boundary.context.assemble import assemble_llm_messages
+from mas.runtime.boundary.context import assemble as context_assemble
 from mas.runtime.boundary.context.provider_invariant import assert_provider_payload
 from mas.runtime.contracts.cm_factory import CMFactory
 from mas.runtime.driver.mocks import AutoCtxAssembler
+
+
+def test_legacy_custom_assembler_does_not_need_model_budget_hints(monkeypatch) -> None:
+    class LegacyAssembler:
+        def assemble_messages(self, ctx, *, manifest=None, correlation_id=0, tools=None):
+            return [{"role": "user", "content": "legacy"}]
+
+    monkeypatch.setattr(context_assemble, "cached_assembler", lambda *_args: LegacyAssembler())
+    ctx = SimpleNamespace()
+    messages = assemble_llm_messages(
+        ctx,
+        resolved_model="vertex_ai/gemini-2.5-flash",
+        context_window=1048576,
+        completion_tokens=12000,
+    )
+    assert messages == [{"role": "user", "content": "legacy"}]
+    assert ctx.last_context_usage["context_window"] == 1048576
 
 
 def _fat_tool_turn(call_id: str) -> list[dict[str, Any]]:

@@ -93,7 +93,7 @@ spec:
   design_pattern:
     type: react                # aliases: react@v1
     params:
-      max_steps: 512           # kernel dispatch cap (KernelConfig.max_auto_steps)
+      max_steps: 512           # optional kernel dispatch cap (omit = no cap)
       max_cot_pass: 1          # extra CoT refinement passes
       parallel: true           # parallel tool calls
 ```
@@ -105,7 +105,7 @@ params). Other shipped ids: `single_pass`, `introspection`, `plan_execute`,
 
 | Param | Maps to | Default | Who uses it |
 |-------|---------|---------|-------------|
-| `max_steps` | `KernelConfig.max_auto_steps` | 512 | every pattern (loop cap) |
+| `max_steps` | `KernelConfig.max_auto_steps` | none | every pattern (loop cap; `with-hardened` sets 512) |
 | `max_cot_pass` | `KernelConfig.max_cot_pass` | 1 | `cot`, `introspection`, `tree_of_thoughts` (min 2 internally) |
 | `parallel` | `KernelConfig.parallel_tool_calls` | true | `react` and tool-calling patterns |
 
@@ -134,14 +134,13 @@ spec:
     type: summarising
     params:
       keep_turns: 10
-      hysteresis_ratio: 0.2
+      hysteresis_ratio: 0.1
       summarizer: llm          # sub-plugin; ≡ {type: llm}. Alternative: drop
       # summarizer: {type: llm, params: {model: gpt-4o-mini}}  # cheaper summary LLM
-      summary_threshold: 126000  # compile: context_window − max_tokens
       working_memory_messages: 20
       trimmer:
-        max_tokens: 128000     # models[].context_window
-        reserve_tokens: 2000   # models[].max_tokens
+        reserve_tokens: 2000   # effective completion budget
+        safety_margin_ratio: 0.1
 ```
 
 `sliding-window` equivalent: `{type: sliding-window, params: {keep_turns: 10}}`

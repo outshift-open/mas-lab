@@ -23,12 +23,13 @@ from typing import Any, Callable
 
 from mas.library.standard.lib.context.payload import split_user_turns, start_of_tool_group
 from mas.runtime.contracts.context_manager_contract import ContextManagerContract
+from mas.runtime.spec.defaults import DEFAULT_HYSTERESIS_RATIO, DEFAULT_KEEP_TURNS
 
 _log = logging.getLogger(__name__)
 
 # Matches spec.context_manager.params.keep_turns / hysteresis_ratio schema defaults.
-_DEFAULT_KEEP_TURNS = 10
-_DEFAULT_HYSTERESIS_RATIO = 0.2
+_DEFAULT_KEEP_TURNS = DEFAULT_KEEP_TURNS
+_DEFAULT_HYSTERESIS_RATIO = DEFAULT_HYSTERESIS_RATIO
 
 
 def _flatten(turns: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:

@@ -10,11 +10,24 @@ rewrite stored history to the context manager's recency cap.
 
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 from mas.runtime.boundary.context.assembly_cache import cached_assembler
 from mas.runtime.boundary.context.provider_invariant import assert_provider_payload
 from mas.runtime.boundary.context.telemetry import record_context_assembly
+
+
+def _accepts_keyword(fn: Any, name: str) -> bool:
+    """Keep optional runtime hints additive for custom assembler plugins."""
+    try:
+        parameters = inspect.signature(fn).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(
+        parameter.name == name or parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters
+    )
 
 
 def _openai_tool_names(tools: list[dict[str, Any]] | None) -> list[str] | None:
@@ -36,6 +49,9 @@ def assemble_llm_messages(
     manifest: dict | None = None,
     correlation_id: int = 0,
     tools: list[dict[str, Any]] | None = None,
+    resolved_model: str | None = None,
+    context_window: int | None = None,
+    completion_tokens: int | None = None,
 ) -> list[dict[str, Any]]:
     """Build OpenAI-shaped messages via the registered assembler plugin."""
     plugin = cached_assembler(ctx, manifest)
@@ -45,24 +61,40 @@ def assemble_llm_messages(
             f"{type(plugin).__name__} is not a context assembler "
             "(missing assemble_messages)"
         )
-    messages = assemble(
-        ctx,
-        manifest=manifest,
-        correlation_id=correlation_id,
-        tools=tools,
-    )
+    assemble_kwargs: dict[str, Any] = {
+        "manifest": manifest,
+        "correlation_id": correlation_id,
+        "tools": tools,
+    }
+    for name, value in (
+        ("resolved_model", resolved_model),
+        ("context_window", context_window),
+        ("completion_tokens", completion_tokens),
+    ):
+        if _accepts_keyword(assemble, name):
+            assemble_kwargs[name] = value
+    messages = assemble(ctx, **assemble_kwargs)
     assert_provider_payload(messages)
 
     obs = getattr(ctx, "observability", None)
     cid = correlation_id or int(getattr(ctx, "_assembly_correlation_id", 0) or 0)
-    record_context_assembly(
+    context_usage = record_context_assembly(
         obs,
         correlation_id=cid,
         messages=messages,
         turn_index=int(getattr(ctx, "turn_index", 0) or 0),
         agent_id=str(getattr(ctx, "agent_id", "agent") or "agent"),
         tools=_openai_tool_names(tools),
+        tool_schemas=tools,
+        model=resolved_model or "",
+        context_window=context_window,
+        completion_reserve=completion_tokens,
+        context_parts=getattr(ctx, "context_usage_parts", None),
     )
+    try:
+        ctx.last_context_usage = context_usage
+    except (AttributeError, TypeError):
+        pass
     return messages
 
 

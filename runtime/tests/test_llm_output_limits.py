@@ -12,6 +12,7 @@ from mas.runtime.engine.llm_live import LiveLlmEngine
 from mas.runtime.engine.llm_output_limits import (
     OutputLimits,
     TruncationPolicy,
+    estimate_model_cost_usd,
     output_token_kwargs,
     resolve_output_limits,
 )
@@ -63,6 +64,51 @@ def test_catalog_max_output_tokens_is_a_ceiling() -> None:
         {"spec": {"models": [{"model": "gpt-4o", "max_tokens": 50000}]}}, model="gpt-4o", env={}
     )
     assert limits.max_tokens == 16384
+
+
+def test_context_window_resolves_from_effective_model_catalog() -> None:
+    limits = resolve_output_limits(_manifest(), model="vertex_ai/gemini-2.5-flash", env={})
+    assert limits.context_window == 1048576
+
+
+def test_infra_context_window_override_precedes_catalog_but_not_agent_override() -> None:
+    generation = {"context_window": 200000}
+    assert (
+        resolve_output_limits(_manifest(), model="vertex_ai/gemini-2.5-flash", generation=generation, env={})
+        .context_window
+        == 200000
+    )
+    assert (
+        resolve_output_limits(
+            _manifest(context_window=256000),
+            model="vertex_ai/gemini-2.5-flash",
+            generation=generation,
+            env={},
+        ).context_window
+        == 256000
+    )
+
+
+def test_unknown_model_uses_context_fallback_with_warning(caplog) -> None:
+    limits = resolve_output_limits(_manifest(), model="custom-unlisted-context-model", env={})
+    assert limits.context_window == 128000
+    assert "using fallback 128000" in caplog.text
+
+
+def test_estimate_model_cost_uses_provider_cached_token_rate() -> None:
+    cost = estimate_model_cost_usd(
+        "vertex_ai/gemini-2.5-flash",
+        {
+            "prompt_tokens": 1000000,
+            "completion_tokens": 100000,
+            "prompt_tokens_details": {"cached_tokens": 400000},
+        },
+    )
+    assert cost == pytest.approx(0.6 * 0.30 + 0.4 * 0.03 + 0.1 * 2.50)
+
+
+def test_estimate_model_cost_is_unknown_without_catalog_rates() -> None:
+    assert estimate_model_cost_usd("custom-proxy-model", {"prompt_tokens": 5, "completion_tokens": 2}) is None
 
 
 def test_invalid_env_value_is_rejected() -> None:
@@ -175,6 +221,26 @@ def test_engine_escalates_on_length(monkeypatch) -> None:
     assert ret.max_tokens == 2000
     assert ret.truncation_retries == 1
     assert ret.usage["completion_tokens"] == 2500
+
+
+def test_infra_pricing_override_precedes_catalog_rates() -> None:
+    limits = resolve_output_limits(
+        _manifest(),
+        model="vertex_ai/gemini-2.5-flash",
+        generation={
+            "pricing": {
+                "input_per_million_tokens": 1.0,
+                "cached_input_per_million_tokens": 0.5,
+                "output_per_million_tokens": 10.0,
+            }
+        },
+        env={},
+    )
+    assert estimate_model_cost_usd(
+        "vertex_ai/gemini-2.5-flash",
+        {"prompt_tokens": 100, "completion_tokens": 10},
+        pricing_override=limits.pricing,
+    ) == pytest.approx((100 * 1.0 + 10 * 10.0) / 1_000_000)
 
 
 @pytest.mark.asyncio

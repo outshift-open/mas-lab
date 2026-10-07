@@ -45,17 +45,18 @@ def test_fill_agent_defaults_fills_omitted_runtime_fields() -> None:
     filled = fill_agent_defaults(doc)
     spec = filled["spec"]
     assert spec["design_pattern"]["type"]
-    assert spec["design_pattern"]["params"]["max_steps"] == 512
+    assert "max_steps" not in spec["design_pattern"]["params"]
     assert spec["design_pattern"]["params"]["max_cot_pass"] == 1
     assert spec["design_pattern"]["params"]["parallel"] is True
     assert spec["models"][0]["model"] == "any"
-    assert spec["models"][0]["context_window"] == 128000
+    assert "context_window" not in spec["models"][0]
     cm = spec["context_manager"]
     assert cm["type"] == "summarising"
     assert cm["params"]["keep_turns"] == 10
-    assert cm["params"]["hysteresis_ratio"] == 0.2
-    assert cm["params"]["trimmer"]["max_tokens"] == 128000
+    assert cm["params"]["hysteresis_ratio"] == 0.1
+    assert "max_tokens" not in cm["params"]["trimmer"]
     assert cm["params"]["trimmer"]["reserve_tokens"] == 2000
+    assert cm["params"]["trimmer"]["safety_margin_ratio"] == 0.1
     assert spec["assembler"]["type"] == "assembler"
     assert spec["assembler"]["params"]["emit_segments"] is True
     assert spec["assembler"]["params"]["always_reassemble"] is False
@@ -99,7 +100,8 @@ def test_fill_agent_defaults_preserves_explicit_model() -> None:
     trimmer = filled["spec"]["context_manager"]["params"]["trimmer"]
     assert trimmer["max_tokens"] == 64000
     assert trimmer["reserve_tokens"] == 1500
-    assert filled["spec"]["context_manager"]["params"]["summary_threshold"] == 62500
+    assert "summary_threshold" not in filled["spec"]["context_manager"]["params"]
+    assert trimmer["safety_margin_ratio"] == 0.1
     assert filled["spec"]["assembler"]["type"] == "assembler"
     assert filled["spec"]["context_manager"]["params"]["summarizer"] == "llm"
 
@@ -113,7 +115,7 @@ def test_fill_agent_defaults_accepts_design_pattern_string_shorthand() -> None:
     }
     filled = fill_agent_defaults(doc)
     assert filled["spec"]["design_pattern"]["type"] == "cot"
-    assert filled["spec"]["design_pattern"]["params"]["max_steps"] == 512
+    assert "max_steps" not in filled["spec"]["design_pattern"]["params"]
 
 
 def test_fill_agent_defaults_preserves_explicit_assembler() -> None:
@@ -158,7 +160,7 @@ def test_fill_agent_defaults_translates_working_memory_compaction() -> None:
     cm = filled["spec"]["context_manager"]
     assert cm["type"] == "stack"
     assert cm["params"]["max_messages"] == 4
-    assert cm["params"]["trimmer"]["max_tokens"] == 128000
+    assert "max_tokens" not in cm["params"]["trimmer"]
 
 
 def test_fill_agent_defaults_compaction_summarize_model() -> None:
@@ -182,7 +184,7 @@ def test_fill_agent_defaults_compaction_summarize_model() -> None:
     assert filled["spec"]["context_manager"]["type"] == "summarising"
     assert params["keep_turns"] == 4
     assert params["summarizer"] == {"type": "llm", "params": {"model": "gpt-4o-mini"}}
-    assert params["summary_threshold"] == 126000
+    assert "summary_threshold" not in params
 
 
 def test_fill_agent_defaults_preserves_summarizer_model_id() -> None:
@@ -207,7 +209,7 @@ def test_fill_agent_defaults_preserves_summarizer_model_id() -> None:
     filled = fill_agent_defaults(doc)
     params = filled["spec"]["context_manager"]["params"]
     assert params["summarizer"]["params"]["model"] == "summarizer"
-    assert params["summary_threshold"] == 126000
+    assert "summary_threshold" not in params
 
 
 def test_compile_tutorial_1_stacks_overlays() -> None:
@@ -236,8 +238,9 @@ def test_compile_tutorial_1_stacks_overlays() -> None:
     assert spec["design_pattern"]["type"]
     assert spec["context_manager"]["type"] == "summarising"
     assert spec["context_manager"]["params"]["keep_turns"] == 10
-    assert spec["context_manager"]["params"]["hysteresis_ratio"] == 0.2
-    assert spec["context_manager"]["params"]["trimmer"]["max_tokens"] == 128000
+    assert spec["context_manager"]["params"]["hysteresis_ratio"] == 0.1
+    assert "max_tokens" not in spec["context_manager"]["params"]["trimmer"]
+    assert spec["context_manager"]["params"]["trimmer"]["safety_margin_ratio"] == 0.1
     assert spec["assembler"]["type"] == "assembler"
 
 

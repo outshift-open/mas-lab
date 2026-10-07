@@ -478,6 +478,7 @@ class ObservabilityOperator:
         segments: list | None = None,
         total_tokens: int = 0,
         tools: list | None = None,
+        context_usage: dict | None = None,
     ) -> ObservabilityEvent:
         payload: dict = {
             "agent_id": agent_id,
@@ -489,6 +490,8 @@ class ObservabilityOperator:
         }
         if tools is not None:
             payload["tools"] = [str(name) for name in tools if str(name)]
+        if context_usage is not None:
+            payload["context_usage"] = dict(context_usage)
         return self._emit(
             ObsEventKind.CONTEXT_ASSEMBLED,
             ObsPhase.EXECUTE,
@@ -502,6 +505,26 @@ class ObservabilityOperator:
                 # dispatch's own llm_call_start/end use, via
                 # _interval_call_id(correlation_id, "LLM_CALL").
                 "op": "LLM_CALL",
+            },
+        )
+
+    def record_cache_lookup(
+        self,
+        *,
+        correlation_id: int,
+        cache_layer: str,
+        cache_status: str,
+    ) -> ObservabilityEvent:
+        """Record a cache probe that has no engine return (for example a strict miss)."""
+        return self._emit(
+            ObsEventKind.CACHE_LOOKUP,
+            ObsPhase.RESULT,
+            "M_model",
+            correlation_id=correlation_id,
+            payload={
+                "op": "LLM_CALL",
+                "cache_layer": cache_layer,
+                "cache_status": cache_status,
             },
         )
 

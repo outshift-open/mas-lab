@@ -98,6 +98,11 @@ class EngineIoReturn(BaseModel):
     # Output-token budget sent on the final attempt; None when no limit was sent.
     max_tokens: int | None = None
     truncation_retries: int = 0
+    # Response-cache provenance is separate from provider-reported token usage.
+    cache_status: Literal["hit", "miss"] | None = None
+    cache_layer: str = ""
+    cache_events: list[dict[str, str]] = Field(default_factory=list)
+    pricing: dict[str, float] = Field(default_factory=dict)
 
 
 class CtxAssemblyComplete(BaseModel):

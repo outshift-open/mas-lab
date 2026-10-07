@@ -34,6 +34,7 @@ Execution kernel, contracts, and plugins (`mas-runtime`, `mas-ctl`).
 | Topic | Reference |
 |-------|-----------|
 | Runtime manifests (Agent, MAS, overlay) | [Manifest fields](../manifests/runtime.md) |
+| Context window, summarization, pinned prompt parts, cache and token usage | [Context management](context-management.md) |
 | Reliability (retries, circuit, `error_policy`, logging) | [reliability.md](reliability.md) |
 | Contracts & Mealy envelope | [Contracts](contracts.md) · [runtime package docs](runtime.md) |
 | Thin waist (plugin vs catalog) | [thin-waist.md](thin-waist.md) |

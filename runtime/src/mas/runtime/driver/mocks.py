@@ -37,6 +37,8 @@ class AutoCtxAssembler:
     tool_fixtures: Any = None
     q_product: QProduct | None = None
     observability: Any | None = None
+    last_context_usage: dict[str, Any] | None = None
+    context_usage_parts: list[dict[str, Any]] = field(default_factory=list)
     _assembly_correlation_id: int = 0
     # PluginCollection holding ContextContract plugins (e.g. SkillCatalogPlugin).
     # collect_results("collect_context") is called by assemble_llm_messages() on

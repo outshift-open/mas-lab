@@ -68,10 +68,15 @@ compile to `any`. At engine time the chain is CLI → Agent → MAS →
 `experiment.models.main` / `experiment.model` → local `config.yaml`
 `defaults.model` (then package `defaults.yaml`).
 
-- `spec.design_pattern` (package default `react`; string `design_pattern: cot` ≡ `{type: cot}`. Compile fills `params.max_steps: 512`, `max_cot_pass: 1`, `parallel: true`)
+- `spec.design_pattern` (package default `react`; string `design_pattern: cot` ≡ `{type: cot}`. Compile fills `params.max_cot_pass: 1`, `parallel: true`. `max_steps` is omitted unless a production overlay such as `with-hardened` sets it)
 - `spec.models[0]` (`model: any` when omitted — inherit MAS / `experiment.models.main`, then local `config.yaml` at runtime)
 - MAS `spec.models[0]` (same `any` sentinel when the MAS omitted a default)
-- `spec.context_manager` (`summarising`, `keep_turns` 10, `hysteresis_ratio` 0.2, `summarizer: llm`, trimmer from the model window)
+- `spec.context_manager` (`summarising`, `keep_turns` 10, `hysteresis_ratio` 0.1, `summarizer: llm`, safety margin 0.1)
+
+Auto context windows are resolved at runtime after infra model mappings; compile
+does not freeze an unknown or remappable model to a generic window. Unknown
+models use the 128,000-token fallback with a warning. See
+[Context Management](../references/context-management.md).
 - `spec.assembler` (package default `assembler`; compile fills `emit_segments: true`, `always_reassemble: false`)
 
 Pass `--no-defaults` to emit overlay merge only. Explicit values are never

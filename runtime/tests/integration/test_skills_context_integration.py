@@ -7,6 +7,8 @@ import pytest
 from mas.library.skills.lib.resolver import resolve_skill_path
 from mas.library.skills.lib.spec import skill_refs_from_manifest
 from mas.library.skills.plugins.sk_catalog import SkillCatalogPlugin, attach_skill_catalog_plugin
+from mas.runtime.boundary.context.assemble import assemble_llm_messages
+from mas.runtime.driver.mocks import AutoCtxAssembler
 
 
 def test_skill_refs_from_manifest():
@@ -111,3 +113,30 @@ def test_attach_populates_ctx_skill_registry(tmp_path):
     # plugin_collection has both catalog + activated-skills plugin
     assert hasattr(ctx, "plugin_collection")
     assert len(ctx.plugin_collection) == 2
+
+
+def test_active_skill_is_reported_as_pinned_context_without_body_text(tmp_path):
+    skill_dir = tmp_path / "my-skill"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: my-skill\ndescription: Does something.\n---\n# Body\nSECRET_SKILL_TEXT",
+        encoding="utf-8",
+    )
+    manifest = {"spec": {"skills": ["my-skill"], "context_manager": {"type": "stack"}}}
+    ctx = AutoCtxAssembler(manifest=manifest)
+    attach_skill_catalog_plugin(ctx, manifest, tmp_path)
+    ctx.activated_skills_plugin.add_activated("my-skill", "# Body\nSECRET_SKILL_TEXT")
+
+    assemble_llm_messages(
+        ctx,
+        manifest=manifest,
+        resolved_model="vertex_ai/gemini-2.5-flash",
+        context_window=1048576,
+        completion_tokens=12000,
+    )
+
+    usage = ctx.last_context_usage
+    pinned = [part for part in usage["context_parts"] if part["pinned"]]
+    assert any(part["section_id"] == "skills/catalog" for part in pinned)
+    assert any(part["section_id"] == "skills/activated/my-skill" for part in pinned)
+    assert "SECRET_SKILL_TEXT" not in repr(usage)

@@ -245,11 +245,11 @@ Constructor kwargs forwarded to the `ContextManagerPlugin`. All fields are optio
 | `max_messages` | `integer` ≥ 1 | Stack context manager — cap on total past messages. |
 | `summary_threshold` | `integer` ≥ 0 | Summarising — token estimate that triggers compaction; `0` uses the derived model context window. |
 | `keep_turns` | `integer` ≥ 1, default `10` | Summarising — recent user turns kept verbatim. |
-| `hysteresis_ratio` | number [0–1], default `0.2` | Summarising — extra headroom after compaction before the next summary. |
+| `hysteresis_ratio` | number [0–1], default `0.1` | Summarising — reuse the cached summary until near the safety-bounded hard budget. |
 | `summarizer` | string \| object | Sub-plugin: `llm` or `drop`; object form can set model and instructions. |
 | `working_memory_messages` | `integer` ≥ 1, default `20` | Assembly cap on in-turn working-memory messages. |
 | `max_in_turn_messages` | `integer` ≥ 1 | Alias for `working_memory_messages`. |
-| `trimmer` | object | Assembly-time token trimming; accepts `max_tokens`/`token_budget` and `reserve_tokens`. |
+| `trimmer` | object | Assembly-time token trimming; accepts `max_tokens`/`token_budget`, `reserve_tokens`, and `safety_margin_ratio`. |
 | `working_memory_ref` | `string` | no | Registry ref for the working-memory context source plugin. |
 
 Nested `trimmer` and `summarizer` keys are defined in the

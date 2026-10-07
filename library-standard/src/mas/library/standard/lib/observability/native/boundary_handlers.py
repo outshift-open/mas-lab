@@ -143,6 +143,9 @@ def _boundary_engine_io_return(
             rec["truncation_retries"] = payload["truncation_retries"]
         if isinstance(payload.get("tools"), list):
             rec["tools"] = list(payload["tools"])
+        for key in ("cache_status", "cache_layer", "cache_events"):
+            if payload.get(key) is not None:
+                rec[key] = payload[key]
         out.append(_with_parent(rec, record, ctx))
     if op == "TOOL_CALL" and key not in ctx._seen_engine_returns:
         ctx._seen_engine_returns.add(key)
@@ -429,6 +432,8 @@ def _boundary_context_assembled(
         _ca["messages"] = _asm_msgs
     if isinstance(payload.get("tools"), list):
         _ca["tools"] = list(payload["tools"])
+    if isinstance(payload.get("context_usage"), dict):
+        _ca["context_usage"] = dict(payload["context_usage"])
     out: list[dict] = [
         _with_parent(_proc_start, record, ctx),
         _ca,
@@ -490,6 +495,28 @@ def _boundary_context_assembled(
                 ]
             )
     return out
+
+
+def _boundary_cache_lookup(
+    record: dict,
+    *,
+    ctx: TransformContext,
+    cid: int,
+    base: dict,
+    payload: dict,
+    ts: float,
+) -> list[dict]:
+    from mas.library.standard.lib.observability.native.transform import _resolve_call_id, _with_parent
+
+    event = {
+        "kind": "cache_lookup",
+        **base,
+        "call_id": _resolve_call_id(record, ctx, cid, "LLM_CALL"),
+        "timestamp": ts,
+        "cache_layer": str(payload.get("cache_layer") or "unknown"),
+        "cache_status": str(payload.get("cache_status") or "unknown"),
+    }
+    return [_with_parent(event, record, ctx)]
 
 
 def _boundary_context_mutation(
@@ -769,6 +796,7 @@ _BOUNDARY_KIND_HANDLERS: dict[str, _BoundaryHandler] = {
     ObsEventKind.ENGINE_IO_RETURN.value: _boundary_engine_io_return,
     ObsEventKind.ENVELOPE_ACTIVITY.value: _boundary_envelope_activity,
     ObsEventKind.CONTEXT_ASSEMBLED.value: _boundary_context_assembled,
+    ObsEventKind.CACHE_LOOKUP.value: _boundary_cache_lookup,
     ObsEventKind.CONTEXT_MUTATION.value: _boundary_context_mutation,
     ObsEventKind.CLIENT_RESPONSE.value: _boundary_client_response,
     ObsEventKind.HITL_REQUEST.value: _boundary_hitl_request,

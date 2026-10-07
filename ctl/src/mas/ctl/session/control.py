@@ -15,14 +15,17 @@ from mas.runtime.boundary.control.contract import (
     ControlCapability,
     ControlDenied,
     ControlEvent,
+    ContextUsageView,
     QueueAt,
     QueueView,
     QueuedInputView,
     SessionNotStopped,
     SessionSnapshotView,
 )
+from mas.runtime.engine.llm_output_limits import estimate_model_cost_usd
 from mas.runtime.session import SessionStatus
 from mas.runtime.session.snapshot import SnapshotRef, SnapshotTree
+from mas.runtime.schema.observability import ObsEventKind
 
 
 class SessionControl:
@@ -260,6 +263,133 @@ class SessionControl:
             session_id,
             kind="checkpoint_inspected",
             payload={"live": view.live_snapshot_id, "cursor": view.cursor_snapshot_id},
+        )
+        return view
+
+    def inspect_context(self, session_id: str) -> ContextUsageView:
+        """Return the latest numeric context snapshot and cache counters only."""
+        session = self._require("inspect_context", session_id)
+        driver = getattr(getattr(session, "instance", None), "driver", None)
+        ctx = getattr(driver, "ctx", None)
+        raw = getattr(ctx, "last_context_usage", None)
+        usage = dict(raw) if isinstance(raw, dict) else {}
+
+        observability = getattr(driver, "observability", None)
+        events = list(getattr(observability, "events", ()) or ())
+        llm_returns = [
+            event
+            for event in events
+            if getattr(event, "kind", None) == ObsEventKind.ENGINE_IO_RETURN
+            and (getattr(event, "payload", {}) or {}).get("op") == "LLM_CALL"
+        ]
+        latest_payload = dict(getattr(llm_returns[-1], "payload", {}) or {}) if llm_returns else {}
+        hits_by_layer: dict[str, int] = {}
+        misses_by_layer: dict[str, int] = {}
+        call_statuses: dict[int, set[str]] = {}
+        for event in llm_returns:
+            payload = getattr(event, "payload", {}) or {}
+            cache_events = payload.get("cache_events") or []
+            if not cache_events and payload.get("cache_status") in {"hit", "miss"}:
+                cache_events = [
+                    {
+                        "layer": payload.get("cache_layer") or "unknown",
+                        "status": payload.get("cache_status"),
+                    }
+                ]
+            for cache_event in cache_events:
+                status = cache_event.get("status")
+                layer = str(cache_event.get("layer") or "unknown")
+                if status == "hit":
+                    hits_by_layer[layer] = hits_by_layer.get(layer, 0) + 1
+                elif status == "miss":
+                    misses_by_layer[layer] = misses_by_layer.get(layer, 0) + 1
+                if status in {"hit", "miss"}:
+                    call_statuses.setdefault(int(getattr(event, "correlation_id", 0)), set()).add(status)
+        strict_misses = 0
+        for event in events:
+            if getattr(event, "kind", None) != ObsEventKind.CACHE_LOOKUP:
+                continue
+            payload = getattr(event, "payload", {}) or {}
+            if payload.get("op") != "LLM_CALL":
+                continue
+            layer = str(payload.get("cache_layer") or "unknown")
+            if payload.get("cache_status") == "hit":
+                hits_by_layer[layer] = hits_by_layer.get(layer, 0) + 1
+            elif payload.get("cache_status") == "miss":
+                misses_by_layer[layer] = misses_by_layer.get(layer, 0) + 1
+                strict_misses += 1
+            status = payload.get("cache_status")
+            if status in {"hit", "miss"}:
+                call_statuses.setdefault(int(getattr(event, "correlation_id", 0)), set()).add(status)
+
+        hits = sum("hit" in statuses for statuses in call_statuses.values())
+        misses = sum("hit" not in statuses and "miss" in statuses for statuses in call_statuses.values())
+        attempts = hits + misses
+        latest_usage = dict(latest_payload.get("usage") or {})
+        latest_cache_events = latest_payload.get("cache_events") or []
+        latest_is_cached = any(row.get("status") == "hit" for row in latest_cache_events)
+        if not latest_is_cached and latest_payload.get("cache_status") == "hit":
+            latest_is_cached = True
+        usage_source = "cached_response" if latest_is_cached else "provider" if latest_usage else "unavailable"
+
+        session_cost = 0.0
+        session_cost_known = bool(llm_returns) or strict_misses > 0
+        for event in llm_returns:
+            payload = getattr(event, "payload", {}) or {}
+            cache_events = payload.get("cache_events") or []
+            if not cache_events and payload.get("cache_status") in {"hit", "miss"}:
+                cache_events = [
+                    {
+                        "layer": payload.get("cache_layer") or "unknown",
+                        "status": payload.get("cache_status"),
+                    }
+                ]
+            response_cached = any(row.get("status") == "hit" for row in cache_events)
+            if response_cached:
+                continue
+            cost = estimate_model_cost_usd(
+                str(payload.get("model") or ""),
+                payload.get("usage") or {},
+                pricing_override=payload.get("pricing"),
+            )
+            if cost is None:
+                session_cost_known = False
+                break
+            session_cost += cost
+        estimated_cost = session_cost if session_cost_known else None
+        cost_status = "catalog_estimate" if session_cost_known else "pricing_or_usage_unavailable"
+        view = ContextUsageView(
+            session_id=session_id,
+            available=bool(usage),
+            captured_at=str(usage.get("captured_at") or ""),
+            model=str(usage.get("model") or latest_payload.get("model") or ""),
+            context_window=usage.get("context_window"),
+            estimated_prompt_tokens=int(usage.get("estimated_prompt_tokens") or 0),
+            completion_reserve=int(usage.get("completion_reserve") or 0),
+            estimated_remaining_tokens=usage.get("estimated_remaining_tokens"),
+            fill_ratio=usage.get("fill_ratio"),
+            token_breakdown=dict(usage.get("token_breakdown") or {}),
+            context_parts=tuple(dict(part) for part in (usage.get("context_parts") or [])),
+            latest_provider_usage=latest_usage,
+            provider_usage_source=usage_source,
+            cache_hits=hits,
+            cache_misses=misses,
+            cache_hit_rate=hits / attempts if attempts else None,
+            cache_hits_by_layer=hits_by_layer,
+            cache_misses_by_layer=misses_by_layer,
+            estimated_cost_usd=estimated_cost,
+            cost_status=cost_status,
+        )
+        self._trace(
+            "inspect_context",
+            session_id,
+            kind="context_usage_inspected",
+            payload={
+                "available": view.available,
+                "estimated_prompt_tokens": view.estimated_prompt_tokens,
+                "cache_hits": hits,
+                "cache_misses": misses,
+            },
         )
         return view
 

@@ -58,6 +58,8 @@ def _scrub_value(key: str, value: Any) -> Any:
 def _normalize_event(event: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for key in sorted(event.keys()):
+        if key in {"context_usage", "cache_status", "cache_layer", "cache_events"}:
+            continue
         out[key] = _scrub_value(key, event[key])
     return out
 

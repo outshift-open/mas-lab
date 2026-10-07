@@ -6,11 +6,16 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from types import SimpleNamespace
 
+import pytest
+
+from mas.runtime.boundary.obs.operator import ObservabilityOperator
 from mas.runtime.engine.infra_pipeline import apply_middleware
 from mas.runtime.engine.llm_cache import middleware_cache_deserialize, middleware_cache_serialize
 from mas.runtime.schema.egress import InvokeEngineIo
 from mas.runtime.schema.ingress import EngineIoReturn, ToolCallSpec
+from mas.runtime.schema.observability import ObsEventKind
 
 
 @dataclass
@@ -85,6 +90,21 @@ def test_middleware_cache_roundtrip_tool_call():
     assert restored.tool_arguments == {"q": "hello"}
 
 
+def test_middleware_cache_roundtrip_text_preserves_provider_usage():
+    ret = EngineIoReturn(
+        correlation_id=1,
+        response_kind="MODEL_TEXT",
+        next_step="STOP",
+        text="answer",
+        usage={"prompt_tokens": 17, "completion_tokens": 5, "total_tokens": 22},
+    )
+    entry = middleware_cache_serialize(ret)
+    assert isinstance(entry, dict)
+    restored = middleware_cache_deserialize(entry, 9)
+    assert restored.text == "answer"
+    assert restored.usage == ret.usage
+
+
 def test_middleware_cache_roundtrip_parallel_tools():
     ret = EngineIoReturn(
         correlation_id=1,
@@ -127,8 +147,14 @@ def test_llm_cache_middleware_caches_tool_call_response(tmp_path):
     second = engine.invoke(io)
     assert first.next_step == "TOOL_CALL"
     assert first.tool_name == "lookup"
+    assert first.cache_status == "miss"
+    assert first.cache_layer == "infra_llm_cache"
+    assert first.cache_events == [{"layer": "infra_llm_cache", "status": "miss"}]
     assert second.next_step == "TOOL_CALL"
     assert second.tool_name == "lookup"
+    assert second.cache_status == "hit"
+    assert second.cache_layer == "infra_llm_cache"
+    assert second.cache_events == [{"layer": "infra_llm_cache", "status": "hit"}]
     assert inner.calls == 1
     data = json.loads(cache_path.read_text(encoding="utf-8"))
     assert any(isinstance(v, dict) and v.get("next_step") == "TOOL_CALL" for v in data.values())
@@ -171,6 +197,8 @@ def test_llm_cache_trajectory_replay_is_all_hits(tmp_path):
     assert r1.next_step == "TOOL_CALL"
     assert r2.next_step == "STOP"
     assert r2.text == "The current president is cached."
+    assert r1.cache_status == r2.cache_status == "hit"
+    assert r1.cache_layer == r2.cache_layer == "infra_llm_cache"
     assert replay_inner.calls == 0
 
 
@@ -220,6 +248,34 @@ def test_llm_cache_backward_compatible_plain_string_entries(tmp_path):
     assert ret.text == "plain answer"
     assert ret.next_step == "STOP"
     assert inner.calls == 0
+
+
+def test_raise_on_miss_records_cache_lookup_without_llm_return(tmp_path):
+    cache_path = tmp_path / "cache.json"
+    inner = _SequenceEngine(
+        preview_text="not recorded",
+        responses=[EngineIoReturn(correlation_id=1, response_kind="MODEL_TEXT", next_step="STOP")],
+    )
+    observability = ObservabilityOperator()
+    inner.ctx = SimpleNamespace(observability=observability)
+    engine = apply_middleware(
+        inner,
+        {
+            "middleware": "llm_cache",
+            "params": {
+                "cache_path": str(cache_path),
+                "allow_read": True,
+                "allow_write": False,
+                "raise_on_miss": True,
+            },
+        },
+    )
+    with pytest.raises(RuntimeError, match="llm_cache miss"):
+        engine.invoke(InvokeEngineIo(correlation_id=7, op="LLM_CALL"))
+    event = next(event for event in observability.events if event.kind == ObsEventKind.CACHE_LOOKUP)
+    assert event.correlation_id == 7
+    assert event.payload["cache_layer"] == "infra_llm_cache"
+    assert event.payload["cache_status"] == "miss"
 
 
 def test_peer_engine_middleware_instances_do_not_clobber_cache(tmp_path):
