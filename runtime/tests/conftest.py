@@ -4,7 +4,13 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
+
+# pytest runtime/tests does not load repo-root tests/conftest.py.
+os.environ.pop("MAS_LIBRARY_PATHS", None)
+os.environ.pop("MAS_WORKSPACE_ROOT", None)
 
 
 @pytest.fixture(autouse=True)
@@ -31,16 +37,22 @@ def _clear_library_discovery_caches():
 
 
 @pytest.fixture(autouse=True)
-def _isolate_workspace_root(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Clear ``MAS_WORKSPACE_ROOT`` so ``RuntimeWorkspaceConfig.load(start=...)``
-    resolves the ``start`` a test passed instead of silently deferring to
-    whatever the outer test session's ``conftest.py`` exported for its own
-    sample-workspace isolation (``find_workspace_file`` checks the env var
-    before ``start`` — see ``mas.runtime.workspace_config``). Without this,
-    tests here pass in isolation but fail when the full suite runs them after
-    ``tests/conftest.py`` has set the variable for the process's lifetime.
+def _isolate_workspace_root(monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory) -> None:
+    """Keep runtime tests off the developer's workspace and sibling worktrees.
+
+    ``pytest runtime/tests`` does not load repo-root ``tests/conftest.py``,
+    so without this the suite reads ``~/.config/mas`` and ``MAS_LIBRARY_PATHS``.
     """
     monkeypatch.delenv("MAS_WORKSPACE_ROOT", raising=False)
+    monkeypatch.delenv("MAS_LIBRARY_PATHS", raising=False)
+    xdg = tmp_path_factory.mktemp("xdg-runtime")
+    for name in ("config", "data", "cache", "state"):
+        (xdg / name).mkdir()
+    (xdg / "config" / "mas").mkdir()
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(xdg / "data"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(xdg / "cache"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(xdg / "state"))
 
 
 @pytest.fixture

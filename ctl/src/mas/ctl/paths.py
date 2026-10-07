@@ -57,7 +57,15 @@ def resolve_manifest(manifest: str | Path, *, cwd: Path | None = None) -> Path:
 
 
 def resolve_overlay_path(path: str | Path, *, orig_cwd: Path, manifest_dir: Path) -> Path:
-    """Resolve overlay relative to manifest dir or original cwd."""
+    """Resolve overlay relative to manifest dir, original cwd, or ``pkg://``."""
+    text = str(path).strip()
+    if text.startswith("pkg://"):
+        from mas.runtime.package_refs import resolve_path_ref
+
+        resolved = resolve_path_ref(text, orig_cwd)
+        if not resolved.is_file():
+            raise FileNotFoundError(f"overlay not found: {path} -> {resolved}")
+        return resolved
     raw = Path(path)
     if raw.is_absolute():
         if not raw.is_file():

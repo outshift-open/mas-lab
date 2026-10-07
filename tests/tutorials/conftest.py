@@ -23,6 +23,8 @@ TUTORIALS = REPO_ROOT / "docs" / "tutorials"
 T01 = TUTORIALS / "01-building-an-agent"
 T02 = TUTORIALS / "02-creating-a-mas"
 T03 = TUTORIALS / "03-experiments-and-analysis"
+T07 = TUTORIALS / "07-telemetry"
+T08 = TUTORIALS / "08-kg-oxp"
 
 
 @pytest.fixture

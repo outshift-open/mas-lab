@@ -54,18 +54,13 @@ def build_observability_plugins(
     agent_id: str | None = None,
 ) -> list[ObservabilityPlugin]:
     resolved_agent_id = agent_id or "agent"
-    names = list(binding.plugins) if binding.plugins else ["native"]
+    names = list(binding.plugins)
 
     plugins: list[ObservabilityPlugin] = []
     for name in names:
         plugin = _load_observability_plugin(name, binding, base_dir=base_dir, agent_id=resolved_agent_id)
         if plugin is not None:
             plugins.append(plugin)
-
-    if not plugins:
-        fallback = _load_observability_plugin("native", binding, base_dir=base_dir, agent_id=resolved_agent_id)
-        if fallback is not None:
-            plugins.append(fallback)
     return plugins
 
 
@@ -107,7 +102,7 @@ class ObsPluginSet:
         # processed — and so no guarantee the shared plugin's run-global
         # mas_call_id has propagated — before any agent's own turn starts.
         # Every delegated agent's own async worker thread reads that shared
-        # state (see NativeObservabilityPlugin._ctx_for); racing ahead of it
+        # state; racing ahead of it
         # left a delegate's very first execution_start permanently missing
         # its parent_call_id. Draining here (once, at setup, off the hot
         # path) establishes that ordering for every agent sharing this set.

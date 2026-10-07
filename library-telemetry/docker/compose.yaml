@@ -1,0 +1,41 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+#
+# Local OTel collector + ClickHouse. No passwords in this file — ClickHouse
+# listens as the built-in `default` user. Set CLICKHOUSE_PASSWORD in the
+# environment if you lock the instance down.
+#
+#   docker compose -f library-telemetry/docker/compose.yaml up -d
+#   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+#   export CLICKHOUSE_HOST=localhost
+name: mas-telemetry
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      CLICKHOUSE_DB: otel
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      clickhouse:
+        condition: service_healthy

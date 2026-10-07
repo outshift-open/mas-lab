@@ -1,0 +1,211 @@
+# genai-observe-sdk.spanspec.yaml — the REAL OTel span contract
+#
+# This is the one OTel format MAS Lab actually cares about in production: a
+# standard OTel span carrying GenAI semantic-convention attributes, extended
+# by ioa-observe/observe-sdk's own `ioa_observe.*` layer, on top of the base
+# OpenLLMetry (`traceloop.*`) auto-instrumentation observe-sdk is built on.
+# It is what real ClickHouse-exported traces from a running MAS actually
+# contain, and what OXP norm
+# are meant to parse.
+#
+# Contrast with mas.spanspec.yaml in this same directory: that file specifies
+# a SEPARATE, PascalCase-named span shape (AgentCall/LLMCall/ToolCall/...,
+# `mas.*`-prefixed attributes) used only for library-telemetry's own
+# native-events -> OTel -> native-events round-trip/replay self-test. It is
+# a toy/internal conformance fixture, not a description of real traffic —
+# do not use it as a reference for what a real trace looks like.
+#
+# Every attribute name below is verified against one or more of:
+#   (a) observe-sdk source (github.com/agntcy/observe, `ioa_observe/sdk/`),
+#   (b) a real 108-span production trace captured from ClickHouse
+#       (session dump, LangGraph-based trip-planner MAS, 2026-01-28),
+#   (c) library-kg's consumer-side vocabulary.py / extractors.py, which is
+#       the executable ground truth for what is actually read.
+# Attributes that exist in code/spec but were never observed on the real
+# trace, or that are read by no consumer, are marked accordingly rather than
+# silently included as if equally load-bearing.
+#
+# InsightClaw's `openclaw.*` extension layer is real (see Appendix B of the
+# mas-ontology-kg paper) but is a SEPARATE, optional, additional layer for
+# InsightClaw-instrumented deployments — it does not appear on a plain
+# observe-sdk trace like the one this file is grounded in, and is
+# deliberately out of scope here.
+
+version: "1.0"
+description: >
+  Real OTel span contract: GenAI semantic conventions + ioa-observe/observe-sdk
+  extensions, layered over base OpenLLMetry (traceloop) auto-instrumentation.
+
+# ── Layers (attribute PRECEDENCE, most-specific first — not a strictness ladder) ──
+#
+# Unlike mas.spanspec.yaml's L1-L4 (each level a strictly higher conformance
+# bar), these layers are read in precedence order for the SAME semantic
+# field: a consumer checks L2 first, falls back to L1, falls back to L0.
+# A span is not expected to satisfy all three; it is expected to satisfy at
+# least one per required field.
+layers:
+  - id: L0
+    name: traceloop
+    description: >
+      Base OpenLLMetry auto-instrumentation attributes. Present on spans that
+      pass through a Traceloop-patched integration (LangChain/LangGraph nodes,
+      tool calls, LLM client calls) whether or not observe-sdk's own
+      decorators also wrap the same call. This is the layer beneath
+      ioa_observe.*, not a competing format.
+  - id: L1
+    name: genai-semconv
+    description: "OTel GenAI Semantic Conventions (both the older Traceloop-derived generation and the newer official incubating generation coexist in real traces)."
+    url: "https://opentelemetry.io/docs/specs/semconv/gen-ai/"
+  - id: L2
+    name: ioa-observe
+    description: >
+      ioa-observe/observe-sdk's own attributes, added by explicit
+      @agent/@task/@tool/@workflow decorators. Highest precedence when
+      present.
+
+# ── Global attributes (every span in a real trace) ─────────────────────────
+global_attributes:
+  - level: L2
+    required: []
+    recommended:
+      - session.id                       # bare, NOT ioa_observe.session.id
+      - application_id
+      - ioa_start_time
+      - ioa_observe.workflow.name
+      - ioa_observe.association.properties.thread_id
+    optional:
+      # Present when the underlying framework is LangGraph specifically;
+      # not a general observe-sdk guarantee.
+      - ioa_observe.association.properties.langgraph_checkpoint_ns
+      - ioa_observe.association.properties.langgraph_node
+      - ioa_observe.association.properties.langgraph_path
+      - ioa_observe.association.properties.langgraph_step
+      - ioa_observe.association.properties.langgraph_triggers
+      - ioa_observe.association.properties.ls_model_name
+      - ioa_observe.association.properties.ls_model_type
+      - ioa_observe.association.properties.ls_provider
+      - ioa_observe.association.properties.ls_temperature
+      - execution.success
+      - agent_chain_start_time
+      - agent_id
+
+# ── Per-span shapes ──────────────────────────────────────────────────────────
+#
+# Real span naming is NOT a fixed `{entity}.{kind}` suffix convention read in
+# isolation — library-kg's IoaObserveHandler dispatches on, in order: (1) the
+# `ioa_observe.span.kind` attribute (falling back to `traceloop.span.kind`),
+# (2) a `.agent`/`.task`/`.tool`/`.routing` name suffix, (3) for LLM spans
+# specifically, a permissive fallback (gen_ai.operation.name value, or a
+# verb-substring match against {chat, completion, generate, messages,
+# invoke} anywhere in the name) — NOT a required `.llm` suffix. The real
+# trace this file is grounded in never uses a literal `.llm`-suffixed span;
+# its LLM spans are named `{ModelClassName}.chat` (e.g. `ChatOpenAI.chat`),
+# caught by the verb-substring fallback.
+shapes:
+  - span_kind: agent
+    description: >
+      Agent/task turn. Matched via ioa_observe.span.kind=="agent", OR a
+      `.agent`/`.task` name suffix. NOTE (open issue, not yet root-caused):
+      on the real trace, `.agent`-suffixed spans (carrying L2 entity.input/
+      output directly) were observed with parent_id=null — disconnected from
+      the `.task` span representing the same logical call, which is properly
+      parented but typically carries only L0 (traceloop) attributes. Treat
+      both as real, currently-coexisting shapes for the same concept, not a
+      single agreed shape.
+    fields:
+      - level: L2
+        recommended: [ioa_observe.entity.input, ioa_observe.entity.output, ioa_observe.entity.name]
+      - level: L0
+        recommended: [traceloop.entity.input, traceloop.entity.output, traceloop.entity.name, traceloop.entity.path, traceloop.workflow.name]
+        note: >
+          CONFIRMED on real data: a `.task` span carrying ONLY these L0
+          fields (no L2 counterpart) currently normalizes with input/output
+          silently null in library-kg — ENTITY_INPUT/ENTITY_OUTPUT extraction
+          has no traceloop.entity.input/.output fallback, unlike
+          SPAN_KIND/ENTITY_NAME which do fall back correctly. This is a
+          verified gap, not a hypothetical.
+
+  - span_kind: llm
+    description: "LLM completion call. Matched by ioa_observe.span.kind==\"llm\", gen_ai.operation.name, or a verb-substring name match — not a fixed suffix."
+    fields:
+      - level: L1
+        recommended:
+          [gen_ai.system, gen_ai.request.model, gen_ai.response.model, gen_ai.response.id]
+      - level: L1
+        recommended: [gen_ai.usage.prompt_tokens, gen_ai.usage.completion_tokens]
+        note: "Older Traceloop-derived generation — observed exclusively on real trace; gen_ai.usage.input_tokens/output_tokens (newer generation) were NOT observed."
+      - level: L1
+        optional: [gen_ai.usage.cache_read_input_tokens, gen_ai.prompt.N.*, gen_ai.completion.N.*, gen_ai.completion.N.tool_calls.N.*]
+      - level: L0
+        optional: [llm.usage.total_tokens, llm.request.type, llm.request.functions.N.name, llm.request.functions.N.description, llm.request.functions.N.parameters]
+        note: "Non-gen_ai-prefixed legacy fields; real, but not part of either GenAI semconv generation."
+      - level: L2
+        optional: [ioa_observe.entity.input, ioa_observe.entity.output]
+
+  - span_kind: tool
+    description: "Tool invocation. Matched by ioa_observe.span.kind==\"tool\" or a `.tool` name suffix."
+    fields:
+      - level: L2
+        recommended: [ioa_observe.entity.input, ioa_observe.entity.output, ioa_observe.entity.name]
+      - level: L0
+        recommended: [traceloop.entity.input, traceloop.entity.output, traceloop.entity.name]
+        note: "Same unfixed fallback gap as the agent/task shape above."
+
+  - span_kind: workflow
+    description: >
+      Scope envelope for the overall run/graph (e.g. `LangGraph.workflow`,
+      `{name}.graph`). Suppressed by library-kg: `IoaObserveHandler` returns
+      no event for a span whose kind is "workflow" or whose name ends in
+      `.workflow`/`.graph`. Present in real traces; produces nothing
+      downstream by design, not by omission.
+    fields:
+      - level: L1
+        optional: [gen_ai.ioa.graph, gen_ai.ioa.graph_dynamism, gen_ai.ioa.graph_determinism_score]
+        note: "gen_ai.ioa.* extension attributes — real, confirmed on trace, but only ever seen on the single top-level `.graph` span, not per-agent spans."
+
+  - span_kind: routing
+    description: "Agent routing/handoff decision. Matched by a `.routing` name suffix."
+    fields:
+      - level: L2
+        recommended: [routing.from_agent, routing.to_agent, routing.task]
+        note: "Not observed on this particular trace (single linear graph, no explicit routing span) — carried over from library-kg's consumer-side expectations, not independently re-verified against a real routing-bearing trace this pass."
+
+  - span_kind: memory, rag, skill, processing
+    description: "memory_call / rag_query / skill_execution / processing_call boundaries."
+    fields:
+      - level: L2
+        note: >
+          Not present on this trace (a LangGraph agent/tool/LLM-only run —
+          no memory/RAG/skill/processing boundaries fired). Field names
+          carried over from library-kg's OPENCLAW_SPAN_TO_KIND_BASE dispatch
+          table (mas.memory.call / mas.rag.query / mas.skill.exec) — real as
+          dispatch keys, not independently re-verified against a real
+          memory/RAG/skill-bearing trace this pass.
+
+  - span_kind: governance
+    description: "Governance/policy decision events."
+    fields:
+      - level: L2
+        note: >
+          UNVERIFIED this pass — no governance boundary fired on the
+          available real trace, and no governance-specific ioa_observe.*
+          attribute was found in observe-sdk source either. Do not treat
+          any specific attribute name here as confirmed; consult
+          library-kg's `_governance_event` (reads `mas.governance.*`,
+          downstream-injected — see Appendix B of the mas-ontology-kg paper)
+          for the one governance shape that is actually wired end to end.
+
+notes:
+  - >
+    This file intentionally does NOT use mas.spanspec.yaml's required/
+    recommended pass/fail conformance model. Real traces are not produced
+    by one committed emitter under this project's control the way the
+    round-trip toy format is — they come from whatever combination of
+    LangGraph, LangChain, OpenLLMetry auto-instrumentation, and observe-sdk
+    decorators happen to be present in a given deployment. "Required" would
+    overclaim; "recommended" / "optional" with a provenance note per field
+    is the honest contract.
+  - >
+    Update this file's `note:` fields, not just the field lists, when new
+    real traces are reviewed — the value of this schema is in staying
+    grounded, not in looking complete.

@@ -38,11 +38,8 @@ def test_load_obs_plugins_native(tmp_path) -> None:
     assert isinstance(plugins[0], NativeObservabilityPlugin)
 
 
-def test_load_obs_plugins_defaults_to_native_when_no_plugins(tmp_path) -> None:
-    """Empty plugin list defaults to native."""
-    from mas.library.standard.plugins.observability.native_plugin import NativeObservabilityPlugin
-
+def test_load_obs_plugins_empty_list_builds_nothing(tmp_path) -> None:
+    """Empty plugin list does not invent a plugin."""
     binding = ObservabilityBinding(plugins=[])
     plugins = build_observability_plugins(binding, base_dir=tmp_path)
-    assert len(plugins) == 1
-    assert isinstance(plugins[0], NativeObservabilityPlugin)
+    assert plugins == []

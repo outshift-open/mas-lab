@@ -42,6 +42,18 @@ oneOf:
                           type: string
                         otel_file:
                           type: string
+                        converter_profile:
+                          type: string
+                        otlp_endpoint_env:
+                          type: string
+                        service_name:
+                          type: string
+                        app_name:
+                          type: string
+                        realtime:
+                          type: boolean
+                        extensions:
+                          type: boolean
           remove:
             type: array
             items:

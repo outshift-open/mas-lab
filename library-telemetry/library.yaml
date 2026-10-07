@@ -1,0 +1,40 @@
+name: mas-library-telemetry
+description: Native-events-to-OTel conversion, span verification, and OTLP collector serialization.
+version: "0.1.0"
+
+types:
+  - observability
+  - step
+
+plugins:
+  - type: observability
+    name: otel
+    urn: mas.observability.otel
+    module: mas.library.telemetry.plugins.otel_plugin
+    class: OtelObservabilityPlugin
+    requires: [opentelemetry.sdk.trace]
+    extra: "mas-library-telemetry[convert]"
+  - type: step
+    name: events_to_otel
+    module: mas.library.telemetry.bench
+    class: EventsToOtelStep
+  - type: step
+    name: verify_otel
+    module: mas.library.telemetry.bench
+    class: VerifyOtelStep
+  - type: step
+    name: compare_otel_spans
+    module: mas.library.telemetry.bench
+    class: CompareOtelSpansStep
+  - type: step
+    name: export_otel
+    module: mas.library.telemetry.bench
+    class: ExportOtelStep
+  - type: step
+    name: clickhouse_dump
+    module: mas.library.telemetry.bench
+    class: ClickhouseDumpStep
+  - type: step
+    name: list_clickhouse_sessions
+    module: mas.library.telemetry.steps.list_clickhouse_sessions
+    class: ListClickhouseSessionsStep

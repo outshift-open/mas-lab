@@ -187,11 +187,9 @@ def ensure_live_otel_span_files(events_path: Path, obs_cfg: Any) -> None:
         targets.append(traces_dir / "observe_sdk_spans.jsonl")
 
     try:
-        from mas.library.standard.lib.observability.export_layers import parse_export_layers
-        from mas.library.standard.lib.observability.otel.converter import (
-            OTEL_AVAILABLE,
-            MasOtelConverter,
-        )
+        from mas.library.telemetry.conversion.exporter import OTEL_AVAILABLE
+        from mas.library.telemetry.conversion.layers import parse_export_layers
+        from mas.library.telemetry.conversion.replay import replay_events_file
     except ImportError:
         return
     if not OTEL_AVAILABLE:
@@ -213,7 +211,7 @@ def ensure_live_otel_span_files(events_path: Path, obs_cfg: Any) -> None:
             logger.debug("Span export already present (%d spans): %s", live_count, dest)
             continue
         try:
-            MasOtelConverter.replay_file(
+            replay_events_file(
                 events_path,
                 dest,
                 service_name=service_name,

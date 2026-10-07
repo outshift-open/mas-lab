@@ -1,0 +1,18 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+# Infra manifest — where a span set reads back from ClickHouse.
+# Shortcut: set $CLICKHOUSE_HOST (and optional $CLICKHOUSE_PORT / _USER /
+# _DATABASE / $CLICKHOUSE_PASSWORD) instead of passing this file.
+apiVersion: mas/v1
+kind: Infra
+metadata:
+  name: local-clickhouse
+spec:
+  targets:
+    - kind: ClickHouse
+      host: localhost
+      port: 8123
+      database: otel
+      user: default
+      password_env: CLICKHOUSE_PASSWORD
+      table: otel_traces

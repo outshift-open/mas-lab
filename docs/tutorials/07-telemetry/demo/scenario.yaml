@@ -1,0 +1,73 @@
+#  Copyright (c) 2026 Cisco Systems, Inc. and its affiliates
+#  SPDX-License-Identifier: Apache-2.0
+name: tutorial-07-telemetry
+title: "Tutorial 07 — Telemetry"
+description: >
+  Native events.jsonl, live OTel JSON, replay, and collector dry-run using
+  library-telemetry/examples/qa-agent (same layout as examples/trip-planner).
+version: "1.0"
+authors: ["MAS Framework Team"]
+tags: ["telemetry", "otel", "observability", "tutorial"]
+prerequisites:
+  - "Tutorial 0 and Tutorial 1"
+  - "mas-ctl and mas-lab on PATH"
+  - "Offline: pytest tests/tutorials/test_scenario_commands.py -k tuto-07"
+estimated_duration_min: 20
+working_dir: . # repo root — examples live in library-telemetry/
+cache_dir: ".demo-cache"
+
+sections:
+  - id: validate
+    title: "Validate overlays"
+    steps:
+      - type: command
+        title: "Validate native overlay"
+        command: >-
+          mas-ctl validate docs/tutorials/01-building-an-agent/agent.yaml
+          -o pkg://mas.library.standard/overlays/observability-native.yaml
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "OK"
+
+      - type: command
+        title: "Validate OTel JSON overlay"
+        command: >-
+          mas-ctl validate docs/tutorials/01-building-an-agent/agent.yaml
+          -o library-telemetry/overlays/observability-otel-json.yaml
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "OK"
+
+  - id: replay
+    title: "Replay native to OTel"
+    steps:
+      - type: command
+        title: "Replay qa-agent events"
+        command: >-
+          python -c
+          "from pathlib import Path; from mas.library.telemetry.pipeline import convert_events_to_spans_file;
+          n=convert_events_to_spans_file(Path('library-telemetry/examples/qa-agent/events.jsonl'), Path('/tmp/t7-replay.jsonl'), service_name='mas-runtime', app_name='qa-agent');
+          print('replayed', n)"
+        allowed_modes: [offline]
+        requires: [opentelemetry.sdk]
+        expected_exit_code: 0
+        expected_output: "replayed"
+
+  - id: push
+    title: "OTLP dry-run"
+    steps:
+      - type: command
+        title: "Push live spans dry-run"
+        command: mas-lab telemetry push library-telemetry/examples/qa-agent/otel_sdk_spans_live.jsonl --dry-run
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "dry-run"
+
+      - type: command
+        title: "Push with infra manifest dry-run"
+        command: >-
+          mas-lab telemetry push library-telemetry/examples/qa-agent/otel_sdk_spans_live.jsonl
+          --infra library-telemetry/infra/local-otel.yaml --dry-run
+        allowed_modes: [offline]
+        expected_exit_code: 0
+        expected_output: "dry-run"

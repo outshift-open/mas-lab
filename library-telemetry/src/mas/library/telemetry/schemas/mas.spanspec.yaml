@@ -1,0 +1,450 @@
+# mas.spanspec.yaml — MAS Framework OTel Span Specification
+#
+# Analogous to SHACL for RDF graphs: declarative shape constraints on OTel spans.
+#
+# CONFORMANCE MODEL
+# -----------------
+# A span is *passing* at level L  ↔  all `required` attributes are present.
+# A span is *full*    at level L  ↔  all `required` + `recommended` attrs present.
+# A trace/session is passing/full when every span in it is passing/full.
+#
+# Levels (ascending strictness):
+#   L1  structural     OTel GenAI / envelope structural conventions
+#   L2  gen_ai_semconv observe-sdk / GenAI attribute contract
+#   L3  mas_native_roundtrip MAS Framework observability (full span taxonomy)
+#   L4  full           All recommended fields present — complete KG construction
+
+version: "1.0"
+description: "MAS Framework OTel span specification — 4-level conformance model"
+
+# Native events.jsonl internal envelope fields (optional, never required):
+#   layer, block, summand, mealy_symbol — stamped by the native observability
+#   plugin; accepted by validators but not propagated as span attributes.
+
+levels:
+  - id: L1
+    name: genai-semconv
+    description: "OTel GenAI Semantic Conventions"
+    url: "https://opentelemetry.io/docs/specs/semconv/gen-ai/"
+  - id: L2
+    name: gen_ai_semconv
+    description: "observe-sdk / GenAI attribute contract required for OXP ingestion"
+  - id: L3
+    name: mas_native_roundtrip
+    description: "MAS Framework observability — full MAS span taxonomy and attributes"
+  - id: L4
+    name: full
+    description: "Full spec — all recommended fields present; enables complete KG"
+
+# ── Global attributes (applied to every span, regardless of type) ──────────────
+global_attributes:
+  - level: L2
+    required:
+      - application_id # ClickHouse DEFAULT SpanAttributes['application_id']
+      - session.id # ClickHouse DEFAULT; OXP groups apps by this
+    recommended: []
+  - level: L3
+    required: []
+    recommended:
+      - mas.call.id # Stable PK shared with native events.jsonl call_id
+
+# ── Per-span shapes (matched by span.name) ──────────────────────────────────────
+shapes:
+  # ─ Agent-level boundaries ────────────────────────────────────────────────────
+
+  - span_name: AgentCall
+    description: "Top-level agent invocation (execution_start / execution_end pair)"
+    levels:
+      - level: L3
+        required: [mas.agent.id, mas.boundary]
+        recommended: [mas.input, mas.status]
+        optional:
+          [mas.dp.id, mas.run.id, mas.failure.reason, mas.failure.category]
+      - level: L4
+        required: [mas.agent.id, mas.boundary, mas.input, mas.status]
+        recommended: [mas.output, mas.failure.reason]
+
+  - span_name: TaskCall
+    description: "Cross-agent task delegation (mas_call_start / mas_call_end pair)"
+    levels:
+      - level: L3
+        required: [mas.agent.id, mas.boundary]
+        recommended: [mas.status, mas.session.id]
+        optional: [mas.run.id, mas.output]
+      - level: L4
+        required: [mas.agent.id, mas.boundary, mas.status]
+        recommended: [mas.output]
+
+  - span_name: ProcessingCall
+    description: "Pre/post-processing pipeline step (processing_call_start/end)"
+    levels:
+      - level: L3
+        required: [mas.agent.id, mas.boundary]
+        recommended:
+          [mas.processing.name, mas.processing.type, mas.processing.tokens]
+        optional: [mas.processing.segments]
+
+  # ─ LLM calls ─────────────────────────────────────────────────────────────────
+
+  - span_name: LLMCall
+    description: "LLM inference call (llm_call_start / llm_call_end pair)"
+    levels:
+      - level: L1
+        # GenAI semconv attributes — MAS converter uses mas.llm.* instead; expect errors here
+        required: [gen_ai.system, gen_ai.operation.name]
+        recommended:
+          [
+            gen_ai.request.model,
+            gen_ai.usage.input_tokens,
+            gen_ai.usage.output_tokens,
+          ]
+        optional:
+          [
+            gen_ai.request.temperature,
+            gen_ai.request.max_tokens,
+            gen_ai.response.finish_reasons,
+          ]
+      - level: L3
+        required: [mas.agent.id, mas.boundary, mas.llm.model]
+        recommended:
+          [
+            mas.llm.messages,
+            mas.llm.response,
+            metrics.token.input,
+            metrics.token.output,
+          ]
+        optional:
+          [
+            mas.llm.temperature,
+            mas.llm.max_tokens,
+            mas.llm.finish_reason,
+            metrics.token.total,
+          ]
+      - level: L4
+        required:
+          [
+            mas.agent.id,
+            mas.llm.model,
+            mas.llm.response,
+            metrics.token.input,
+            metrics.token.output,
+          ]
+        recommended: [mas.llm.thinking, mas.llm.finish_reason, mas.llm.messages]
+
+  # ─ Tool calls ────────────────────────────────────────────────────────────────
+
+  - span_name: ToolCall
+    description: "Tool invocation (tool_call_start / tool_call_end pair)"
+    levels:
+      - level: L3
+        required: [mas.agent.id, mas.boundary, mas.tool.name]
+        recommended: [mas.tool.input, mas.tool.category, mas.status]
+        optional: [mas.tool.barrier_id]
+      - level: L4
+        required:
+          [
+            mas.agent.id,
+            mas.tool.name,
+            mas.tool.input,
+            mas.tool.output,
+            mas.status,
+          ]
+
+  # ─ Memory / RAG ──────────────────────────────────────────────────────────────
+
+  - span_name: MemoryCall
+    description: "Memory read/write operation (memory_store_start / memory_read_start pairs)"
+    levels:
+      - level: L3
+        required: [mas.agent.id, mas.boundary, mas.memory.operation]
+        recommended: [mas.memory.type, mas.memory.key, mas.memory.query]
+        optional: [mas.memory.input, mas.memory.output, mas.memory.result_count]
+      - level: L4
+        required: [mas.agent.id, mas.memory.operation, mas.memory.type]
+        recommended: [mas.memory.output, mas.memory.result_count]
+
+  - span_name: RAGQuery
+    description: "Retrieval-Augmented Generation query (rag_query_start / rag_query_end)"
+    levels:
+      - level: L3
+        required: [mas.agent.id, mas.boundary]
+        recommended: [mas.memory.query, mas.memory.collection, mas.memory.top_k]
+        optional: [mas.memory.output, mas.memory.result_count]
+      - level: L4
+        required: [mas.agent.id, mas.memory.query, mas.memory.collection]
+        recommended: [mas.memory.result_count, mas.memory.output]
+
+  # ─ Agent communication ────────────────────────────────────────────────────────
+
+  - span_name: AgentCommunication
+    description: "Message between agents (agent_communication_start / end)"
+    levels:
+      - level: L3
+        required:
+          [
+            mas.agent.id,
+            mas.boundary,
+            mas.communication.source,
+            mas.communication.target,
+          ]
+        recommended: [mas.communication.type, mas.communication.correlation_id]
+
+  # ─ Workflow ────────────────────────────────────────────────────────────────────
+
+  - span_name: WorkflowTransition
+    description: "State-machine transition (workflow_transition_start / end)"
+    levels:
+      - level: L3
+        required: [mas.workflow.from, mas.workflow.to]
+        recommended: [mas.agent.id]
+
+  # ─ Skills ─────────────────────────────────────────────────────────────────────
+
+  - span_name: SkillExecution
+    description: >
+      OTel wire alias for native skill_execution_* / OWL SkillCall.
+      Native fold uses SkillCall; SpanSpec keeps SkillExecution for export compatibility.
+    levels:
+      - level: L3
+        required: [mas.agent.id, mas.skill.name]
+        recommended: [mas.skill.input, mas.skill.output, mas.status]
+
+  # ─ Infrastructure ──────────────────────────────────────────────────────────────
+
+  - span_name: Worker
+    description: "Worker process info point-event (infrastructure_info)"
+    levels:
+      - level: L3
+        required: [mas.agent.id, mas.boundary, mas.worker.id]
+        recommended: [mas.worker.pid, mas.worker.durable_backend]
+
+  - span_name: NetworkCall
+    description: "External HTTP/network request (network_call_start / end)"
+    levels:
+      - level: L3
+        required: [mas.network.url, mas.network.method]
+        recommended: [mas.network.status_code, mas.agent.id]
+
+  # ─ Governance ──────────────────────────────────────────────────────────────────
+
+  - span_name: GovernanceEvent
+    description: "Governance check point-event (governance_event / governance_checked)"
+    levels:
+      - level: L3
+        required: [mas.agent.id]
+        recommended: [mas.governance.policy, mas.governance.result]
+
+  - span_name: GovernancePolicy
+    description: "Governance policy annotation point-event"
+    levels:
+      - level: L3
+        required: [mas.agent.id]
+        recommended: [mas.governance.policy.name, mas.governance.policy.action]
+
+  - span_name: GovernanceDecision
+    description: "Governance decision point-event (hitl_gate)"
+    levels:
+      - level: L3
+        required: [mas.agent.id]
+        recommended: [mas.governance.decision, mas.governance.reason]
+
+  - span_name: PolicyDenial
+    description: "Policy denial point-event (governance_denied)"
+    levels:
+      - level: L3
+        required: [mas.agent.id]
+        recommended: [mas.policy.name, mas.policy.reason]
+
+  - span_name: HITLRequest
+    description: "Human-in-the-loop request point-event"
+    levels:
+      - level: L3
+        required: [mas.agent.id]
+        recommended: [mas.hitl.task, mas.hitl.timeout_s]
+
+  - span_name: HITLGate
+    description: "Human-in-the-loop gate result point-event"
+    levels:
+      - level: L3
+        required: [mas.agent.id]
+        recommended: [mas.hitl.approved, mas.hitl.approver]
+
+  - span_name: BudgetEvent
+    description: "Token/cost budget event point-event"
+    levels:
+      - level: L3
+        required: [mas.agent.id]
+        recommended: [mas.budget.type, mas.budget.current, mas.budget.limit]
+
+  - span_name: ControlIntervention
+    description: "Runtime control-plane intervention point-event"
+    levels:
+      - level: L3
+        required: [mas.agent.id]
+        recommended: [mas.control.type, mas.control.reason]
+
+  - span_name: CallAnnotation
+    description: "Metadata annotation point-event (routing, context, state)"
+    levels:
+      - level: L3
+        required: []
+        recommended: [mas.agent.id]
+
+  - span_name: ContextContribution
+    description: "Context contribution to an agent call"
+    levels:
+      - level: L3
+        required: []
+        recommended: [mas.agent.id, mas.context.source, mas.context.tokens]
+
+# ── OXP ioa_observe naming convention (span names matched by SUFFIX) ────────
+#
+# OXP-API identifies span types by the suffix of SpanName after the last dot:
+#   - SpanName LIKE '%.agent' → agent span
+#   - SpanName LIKE '%.chat'  → LLM/chat span (token counting, model listing)
+#   - SpanName LIKE '%.tool'  → tool span
+#
+# These shapes are matched by `span_name_suffix` (not exact name).
+# They express L3 OXP requirements: what must be present for the OXP UI
+# to display agents, token metrics, and span details.
+
+suffix_shapes:
+  - span_name_suffix: ".graph"
+    description: "Multi-agent topology span (@graph / MAS Graph) — OXP renders the agent graph from gen_ai.ioa.graph"
+    levels:
+      - level: L2
+        required:
+          - gen_ai.ioa.graph
+        recommended:
+          - ioa_observe.span.kind
+      - level: L3
+        recommended:
+          - gen_ai.ioa.graph.protocol
+          - gen_ai.ioa.graph_dynamism
+          - gen_ai.ioa.graph_determinism_score
+          - mas.boundary
+
+  - span_name_suffix: ".agent"
+    description: "ioa_observe agent span — triggers OXP agents listing and detail UI"
+    levels:
+      - level: L3
+        required:
+          - agent_id
+          - ioa_observe.entity.input
+          - ioa_observe.entity.output
+        recommended:
+          - ioa_observe.entity.name
+          - ioa_observe.span.kind
+          - mas.agent.id
+          - mas.boundary
+
+  - span_name_suffix: ".chat"
+    description: "ioa_observe LLM/chat span — triggers OXP token/cost charts and model listing"
+    levels:
+      - level: L1
+        required:
+          - gen_ai.request.model
+          - gen_ai.usage.prompt_tokens
+          - gen_ai.usage.completion_tokens
+        recommended:
+          - gen_ai.system
+      - level: L3
+        required:
+          - agent_id
+          - gen_ai.request.model
+          - gen_ai.usage.prompt_tokens
+          - gen_ai.usage.completion_tokens
+        recommended:
+          - mas.llm.model
+          - mas.boundary
+
+  - span_name_suffix: ".tool"
+    description: "ioa_observe tool span — triggers OXP tool detail UI"
+    levels:
+      - level: L3
+        required:
+          - agent_id
+        recommended:
+          - ioa_observe.entity.input
+          - ioa_observe.entity.output
+          - mas.tool.name
+          - mas.boundary
+
+# ── Cross-span consistency rules ───────────────────────────────────────────────
+#
+# check types:
+#   group_unique       — spans grouped by `group_by` must all share one `unique_field`
+#   has_ancestor_named — target span must have an ancestor with one of `ancestor_names`
+
+consistency_rules:
+  - name: graph_span_present
+    description: "Every trace must contain a '<app>.graph' topology span (OXP renders the agent graph from gen_ai.ioa.graph; a trace without it cannot be processed)"
+    level: L2
+    check: span_present
+    span_name_suffix: ".graph"
+    severity: error
+
+  - name: session_spans_share_trace
+    description: "Spans with the same session.id should share the same trace_id"
+    level: L2
+    target: all_spans
+    check: group_unique
+    group_by: session.id
+    unique_field: trace_id
+    severity: warning
+
+  - name: llm_call_has_agent_parent
+    description: "Every LLMCall should have an AgentCall or TaskCall ancestor"
+    level: L3
+    target_span_name: LLMCall
+    check: has_ancestor_named
+    ancestor_names: [AgentCall, TaskCall]
+    severity: warning
+
+  - name: tool_call_has_agent_parent
+    description: "Every ToolCall should have an AgentCall ancestor"
+    level: L3
+    target_span_name: ToolCall
+    check: has_ancestor_named
+    ancestor_names: [AgentCall]
+    severity: warning
+
+  - name: memory_call_has_agent_parent
+    description: "Every MemoryCall should have an AgentCall ancestor"
+    level: L3
+    target_span_name: MemoryCall
+    check: has_ancestor_named
+    ancestor_names: [AgentCall]
+    severity: warning
+
+# ── Attribute type constraints (validated when attribute is present) ───────────
+attribute_types:
+  mas.tool.name:
+    level: L3
+    type: string
+    min_length: 1
+  mas.agent.id:
+    level: L3
+    type: string
+    min_length: 1
+  mas.boundary:
+    level: L3
+    type: string
+    min_length: 1
+  mas.call.id:
+    level: L3
+    type: string
+    min_length: 1
+  mas.status:
+    level: L3
+    type: string
+    enum: [success, error, failed, ok]
+  metrics.token.input:
+    level: L3
+    type: integer
+  metrics.token.output:
+    level: L3
+    type: integer
+  metrics.token.total:
+    level: L3
+    type: integer

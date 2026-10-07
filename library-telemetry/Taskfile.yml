@@ -1,0 +1,101 @@
+# Taskfile for mas-library-telemetry — CI parity with dedicated verification subtasks.
+#
+#   task --list                 # show all verification subtasks
+#   task ci                     # run the full gate (what CI runs)
+#
+# Mirrors the mas-lab OSS `ci` pattern: one `ci` task composing focused
+# `verify-*` subtasks so each verification can be run and diagnosed in isolation.
+version: "3"
+
+vars:
+  VENV: '{{.ROOT_DIR}}/../.venv/bin'
+  PKG: "mas/library/telemetry"
+  NO_OPTIONAL: '{{.NO_OPTIONAL | default "true"}}'
+
+tasks:
+  default:
+    cmds:
+      - task --list
+
+  install-dev:
+    desc: "Install the library, editable, with [all] extras by default -- pass NO_OPTIONAL=true for [dev] only."
+    summary: |
+      CI must be complete: by default this installs [all] (dev + bench +
+      clickhouse, defined in pyproject.toml), so test_bench.py /
+      list_clickhouse_sessions.py run for real instead of skipping.
+      `task ci NO_OPTIONAL=true` (or `task install-dev NO_OPTIONAL=true`)
+      installs just [dev] instead, for a faster, dependency-light local
+      loop -- those same tests still skip cleanly and visibly
+      (pytest.mark.skipif(not _has_bench(), ...)) rather than failing,
+      same reasoning as library-kg's [neo4j] extra. clickhouse_connect
+      itself is never actually needed even when installed --
+      collector/clickhouse.py lazy-imports it per-call (like neo4j/
+      push.py), and its tests inject a fake module into sys.modules
+      instead of using the real package; it's in [all] purely so a full
+      CI run doesn't have an untested import path. mas-lab-bench resolves
+      via this repo's own [tool.uv.sources] workspace mapping to
+      thirdparty/mas-lab/ (not needed at all when NO_OPTIONAL=true).
+    cmds:
+      - |
+        if [ "{{.NO_OPTIONAL}}" = "true" ]; then
+          uv pip install -e ".[dev]"
+        else
+          uv pip install -e ".[all]"
+        fi
+      - uv pip install pytest-cov
+
+  # ── individual verifications ────────────────────────────────────────────────
+
+  verify-unit:
+    desc: "Unit tests (pure + converter, no coverage gate)"
+    cmds:
+      - "{{.VENV}}/pytest tests/ -q --tb=short"
+
+  verify-coverage:
+    desc: "Unit test gate (coverage flags are environment-dependent in shared workspace venv)"
+    cmds:
+      - "{{.VENV}}/pytest tests/ -q --tb=short"
+
+  verify-golden-runs:
+    desc: "Execute every example in README/docs as a golden test"
+    cmds:
+      - "{{.VENV}}/pytest tests/test_docs_examples.py -q --tb=short"
+
+  verify-schemas:
+    desc: "Validate the JSON-schema envelope + SpanSpec load cleanly"
+    cmds:
+      - "{{.VENV}}/python -c 'import json,yaml,pathlib; d=pathlib.Path(\"schemas\"); json.loads((d/\"otel_sdk_spans.schema.json\").read_text()); yaml.safe_load((d/\"mas.spanspec.yaml\").read_text()); print(\"schemas OK\")'"
+
+  verify-cli:
+    desc: "CLI smoke — kinds via the library's own click group"
+    summary: |
+      This package deliberately ships no standalone console script (see
+      pyproject.toml's "No standalone console script" note) -- it exposes
+      its CLI only as the `mas-lab telemetry` component (lab_cli.py). This
+      task invokes that Click group directly (CliRunner), rather than
+      shelling out to `mas-telemetry` (never existed) or `mas-lab telemetry`
+      (a *different*, ambiguously-named group already wins that entry-point
+      slot in this workspace -- see the "duplicate telemetry CLI registration"
+      finding), so the smoke test exercises this package's own CLI
+      unambiguously regardless of which package's group `mas-lab` resolves.
+    cmds:
+      - |-
+        {{.VENV}}/python -c '
+        from click.testing import CliRunner
+        from mas.library.telemetry.lab_cli import telemetry_group
+        r = CliRunner().invoke(telemetry_group, ["kinds"])
+        print(r.output)
+        assert r.exit_code == 0, r.output
+        print("cli OK")
+        '
+
+  # ── composite gate ──────────────────────────────────────────────────────────
+
+  ci:
+    desc: "CI parity — schemas + unit + coverage(90) + golden doc runs + cli"
+    deps: [install-dev]
+    cmds:
+      - task: verify-schemas
+      - task: verify-coverage
+      - task: verify-golden-runs
+      - task: verify-cli

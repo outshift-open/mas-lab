@@ -37,10 +37,7 @@ def test_build_observability_plugin_set_returns_none_for_none_binding(tmp_path) 
 
 def test_build_observability_plugin_set_returns_none_for_empty_plugin_list(tmp_path) -> None:
     binding = ObservabilityBinding(plugins=[])
-    # An explicitly empty list still means "nothing to build" here -- the
-    # native fallback only kicks in inside build_observability_plugins when
-    # the *caller* asked for plugins and none resolved, not when the binding
-    # itself declares zero plugins up front.
+    # An explicitly empty list still means "nothing to build".
     assert binding.plugins == []
 
 

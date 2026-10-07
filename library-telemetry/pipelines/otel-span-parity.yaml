@@ -1,0 +1,58 @@
+# JSONL span parity — replay reference vs live plugin exports (no collector).
+apiVersion: mas/v1
+kind: Pipeline
+
+metadata:
+  name: observability-otel-span-parity
+  description: Reference replay spans vs otel/observe plugin live JSONL.
+
+spec:
+  steps:
+    - name: events-to-otel-replay
+      type: events_to_otel
+      per_run: true
+      config:
+        service_name: mas-runtime
+        output_filename: otel_sdk_spans_replay.jsonl
+
+    - name: verify-otel-replay
+      type: verify_otel
+      per_run: true
+      depends_on: [events-to-otel-replay]
+      config:
+        fail_on_error: true
+        spanspec_level: L3
+        spanspec_strictness: required
+
+    - name: verify-otel-plugin
+      type: verify_otel
+      per_run: true
+      depends_on: [events-to-otel-replay]
+      config:
+        spans_filename: otel_sdk_spans.jsonl
+        fail_on_error: true
+        spanspec_level: L3
+        spanspec_strictness: required
+
+    - name: verify-observe-plugin
+      type: verify_otel
+      per_run: true
+      depends_on: [events-to-otel-replay]
+      config:
+        spans_filename: observe_sdk_spans.jsonl
+        fail_on_error: true
+        spanspec_level: L3
+        spanspec_strictness: required
+
+    - name: compare-otel-plugins
+      type: compare_otel_spans
+      per_run: true
+      depends_on: [events-to-otel-replay]
+      config:
+        reference: otel_sdk_spans_replay.jsonl
+        candidates:
+          - label: otel-plugin
+            filename: otel_sdk_spans.jsonl
+          - label: observe-sdk
+            filename: observe_sdk_spans.jsonl
+        assert_equivalent: true

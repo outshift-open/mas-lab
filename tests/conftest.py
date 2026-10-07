@@ -39,6 +39,8 @@ os.environ["XDG_CONFIG_HOME"] = str(_XDG_CONFIG)
 os.environ["XDG_DATA_HOME"] = str(_XDG_DATA)
 os.environ["XDG_CACHE_HOME"] = str(_XDG_CACHE)
 os.environ["XDG_STATE_HOME"] = str(_XDG_STATE)
+os.environ.pop("MAS_LIBRARY_PATHS", None)
+os.environ.pop("MAS_WORKSPACE_ROOT", None)
 
 
 @pytest.fixture(autouse=True)

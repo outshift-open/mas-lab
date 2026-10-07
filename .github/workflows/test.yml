@@ -12,6 +12,7 @@ on:
       - "library-standard/**"
       - "library-eval/**"
       - "library-ioa/**"
+      - "library-telemetry/**"
       - "tests/**"
       - "compliance/**"
       - "docs/**"
