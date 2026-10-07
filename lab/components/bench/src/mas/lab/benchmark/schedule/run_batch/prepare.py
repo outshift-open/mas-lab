@@ -313,6 +313,11 @@ async def prepare_batch(
         infra_name=loaded.infra_name,
         step_overrides=loaded.step_overrides_dict,
         data_cache_dir=data_cache_dir,
+        # Only experiment-level ``pre`` runs here, once, before any run.
+        # scenario / item / run ``pre`` run right before the runs beneath them
+        # (see ``pre_hooks``); expanding them over run folders found on disk
+        # produced no instances on a clean directory and stale ones on a rerun.
+        scopes={"experiment"},
     )
     if _pre_dataset is not None:
         dataset_items = _pre_dataset

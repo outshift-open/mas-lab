@@ -94,6 +94,7 @@ async def run_mas_benchmark(
         progress=progress,
         force=force,
         strategy=strategy,
+        data_cache_dir=data_cache_dir,
     )
     return await finalize_batch(
         loaded,

@@ -334,6 +334,9 @@ class ExecutionResult:
 
     artifacts: Dict[str, int] = field(default_factory=dict)
     """Produced artefact basenames → instance counts (``data.csv`` × 500)."""
+
+    step_errors: Dict[str, str] = field(default_factory=dict)
+    """Error message of each step that raised (steps skipped for a failed dependency have none)."""
     
     def summary(self) -> str:
         """Human-readable summary."""
@@ -563,6 +566,7 @@ class PipelineExecutor:
             # Execute steps
             executed_steps = []
             failed_steps = []
+            step_errors: Dict[str, str] = {}
 
             # Restore cached steps: iterate the step's declared output_artifacts and
             # load each one from disk.  Steps that produced no serialized artifacts
@@ -635,6 +639,7 @@ class PipelineExecutor:
                         if isinstance(result, Exception):
                             logger.error(f"Step '{step_name}' failed: {result}")
                             failed_steps.append(step_name)
+                            step_errors[step_name] = str(result)
                         else:
                             executed_steps.append(step_name)
                             step = self.pipeline.get_step(step_name)
@@ -683,6 +688,7 @@ class PipelineExecutor:
                             raise
                         logger.error(f"Step '{step_name}' failed: {e}")
                         failed_steps.append(step_name)
+                        step_errors[step_name] = _err
 
             duration_ms = (datetime.now() - start_time).total_seconds() * 1000
             type_progress.close()
@@ -695,6 +701,7 @@ class PipelineExecutor:
                 duration_ms=duration_ms,
                 step_timings=list(type_progress.timings),
                 artifacts=dict(type_progress.artifacts),
+                step_errors=step_errors,
             )
 
             logger.info(result.summary())

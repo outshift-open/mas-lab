@@ -103,11 +103,13 @@ properties:
               description: "(v2) Output artifact name(s) produced at this step's scope."
             scope:
               type: string
-              enum: [run, test, scenario, application, experiment]
+              enum: [run, item, scenario, experiment, test, application]
               description: >
-                (v2) Execution scope. Normally inferred from which experiment-level
-                block (run/test/scenario/application) declared the step; only needed
-                here for a standalone pipeline.yaml with no enclosing level block.
+                Execution scope. Normally inferred from which experiment-level
+                block (run/item/scenario/experiment root) declared the step; only
+                needed here for a standalone pipeline.yaml with no enclosing level
+                block. ``item`` and ``experiment`` are canonical; ``test`` and
+                ``application`` are deprecated aliases.
             phase:
               type: string
               enum: [pre, post]
@@ -116,6 +118,13 @@ properties:
             persist:
               type: boolean
               description: "Persist this step's output as a resumable artifact (e.g. LLM-as-judge steps)."
+            concurrency:
+              type: integer
+              minimum: 1
+              default: 1
+              description: >
+                Max concurrent per-run instances for a run-scope step. Values > 1
+                wrap the per-run instances in one concurrent runner.
             per_scenario:
               type: boolean
               description: "(v1, legacy) Expand this step once per scenario. Superseded by scope: scenario."
