@@ -8,6 +8,8 @@ import json
 import logging
 from typing import Any
 
+from mas.library.standard.lib.context.skill_content import is_skill_block
+
 _log = logging.getLogger(__name__)
 
 
@@ -91,6 +93,10 @@ def trim_messages_to_budget(
         head.append(tail.pop(0))
     total = _estimate_tokens_lists(head, tail, pinned_tail)
     while tail and total > budget and len(tail) > 1:
+        if is_skill_block(tail[0]):
+            # Retained skill content is never trimmed (agentskills.io Step 5).
+            head.append(tail.pop(0))
+            continue
         n = _oldest_group_size(tail)
         if n >= len(tail):
             break

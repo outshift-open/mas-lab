@@ -88,6 +88,7 @@ from mas.library.standard.lib.context.history_budget import (
     context_manager_history_budget_hint,
 )
 from mas.library.standard.lib.context.payload import sanitize_provider_messages
+from mas.library.standard.lib.context.skill_content import drop_pinned_skill_blocks
 from mas.library.standard.lib.context.working_memory import (
     bounded_working_memory_tail,
     working_memory_slice_limit,
@@ -380,7 +381,8 @@ class ContextAssemblerPlugin(BasePlugin):
                 fixed_context_tokens=fixed_context_tokens,
             ),
         )
-        messages.extend(managed)
+        # A skill pinned in SYSTEM_SKILLS needs no second copy in history.
+        messages.extend(drop_pinned_skill_blocks(managed, "\n\n".join(system_parts)))
         if last_user_text:
             messages.append({"role": "user", "content": last_user_text})
 

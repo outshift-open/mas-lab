@@ -302,7 +302,7 @@ class SkillToolsPlugin(ToolContract):
             return {
                 "notice": (
                     f"Skill '{name}' instructions are already in context{turn_info}. "
-                    "Refer to the earlier tool result for the full instructions."
+                    "Follow the earlier skill content for the full instructions."
                 ),
                 "skill": name,
                 "already_activated": True,

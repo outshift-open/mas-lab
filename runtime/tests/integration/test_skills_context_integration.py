@@ -140,3 +140,54 @@ def test_active_skill_is_reported_as_pinned_context_without_body_text(tmp_path):
     assert any(part["section_id"] == "skills/catalog" for part in pinned)
     assert any(part["section_id"] == "skills/activated/my-skill" for part in pinned)
     assert "SECRET_SKILL_TEXT" not in repr(usage)
+
+
+@pytest.mark.parametrize("pin_activated", [True, False])
+def test_activated_skill_body_survives_compaction_once(tmp_path, pin_activated):
+    import json
+
+    from mas.library.skills.plugins.sk_tools import SkillToolsPlugin
+
+    skill_dir = tmp_path / "my-skill"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: my-skill\ndescription: Does something.\n---\n# Body\nSKILL_RULE_TEXT",
+        encoding="utf-8",
+    )
+    manifest = {
+        "spec": {
+            "skills": ["my-skill"],
+            "context_manager": {
+                "type": "summarising",
+                "params": {"keep_turns": 2, "summary_threshold": 200, "summarizer": "drop"},
+            },
+        }
+    }
+    ctx = AutoCtxAssembler(manifest=manifest)
+    attach_skill_catalog_plugin(ctx, manifest, tmp_path, pin_activated=pin_activated)
+    ctx.skill_pin_activated = pin_activated
+    result = SkillToolsPlugin().on_execute_tool("activate_skill", {"name": "my-skill"}, ctx=ctx)
+
+    history = [
+        {"role": "user", "content": "q0"},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {"id": "c1", "type": "function", "function": {"name": "activate_skill", "arguments": "{}"}}
+            ],
+        },
+        {"role": "tool", "tool_call_id": "c1", "content": json.dumps(result, indent=2)},
+        {"role": "assistant", "content": "a0"},
+    ]
+    for i in range(1, 8):
+        history += [
+            {"role": "user", "content": f"q{i} " + "x" * 400},
+            {"role": "assistant", "content": "y" * 400},
+        ]
+    ctx.committed_messages = history
+
+    messages = assemble_llm_messages(ctx, manifest=manifest)
+
+    assert not any(m.get("role") == "tool" for m in messages)  # activation turn was folded
+    assert json.dumps(messages).count("SKILL_RULE_TEXT") == 1
