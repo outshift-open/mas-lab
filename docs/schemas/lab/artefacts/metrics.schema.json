@@ -72,6 +72,10 @@
     "cache_key": {
       "type": "string",
       "description": "Cache key for this run; currently identical to run_hash (single-manifest, single-overlay path). Written after schema validation."
+    },
+    "inputs_digest": {
+      "type": "string",
+      "description": "sha256 of everything the scores were computed from: trace, side files, metric ids and definitions, judge model, metric implementation version, offline-stub flag. eval_mce with overwrite: false reuses an existing file only when this matches; a file without it (older version) is adopted once."
     }
   },
   "$defs": {

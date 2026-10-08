@@ -73,12 +73,23 @@ async def invoke_lab_run_with_retry(
     max_attempts: int,
     backoff_s: float,
     on_retry=None,
+    before_attempt=None,
 ) -> tuple[dict, str, str, str, int]:
-    """Run ``do_run`` up to ``max_attempts``. Returns result, status, error, output, attempts used."""
+    """Run ``do_run`` up to ``max_attempts``. Returns result, status, error, output, attempts used.
+
+    ``before_attempt`` (async, no arguments) runs before every attempt (``run.pre``
+    steps: reset per-run state). If it raises, the run fails at once with that
+    error and is not retried — the MAS never starts on unprepared state.
+    """
     result_dict: dict = {}
     status, error, output = "error", "not started", ""
     attempts = max(1, max_attempts)
     for attempt in range(attempts):
+        if before_attempt is not None:
+            try:
+                await before_attempt()
+            except Exception as exc:
+                return {}, "error", str(exc), "", attempt + 1
         try:
             result_dict = await asyncio.to_thread(do_run)
             status, error, output = _status_from_runner(result_dict)
@@ -126,6 +137,7 @@ async def execute_batch(
     progress: bool = True,
     force: bool = False,
     strategy: Optional[str] = None,
+    data_cache_dir: Optional[Path] = None,
 ) -> ExecutionResult:
     """Run all planned (scenario × item × run) executions."""
     import contextlib
@@ -228,6 +240,20 @@ async def execute_batch(
             anchor=experiment_yaml.parent,
             cli_refs=list(prepared.infra_refs),
         )
+    )
+
+    from mas.lab.benchmark.schedule.run_batch.pre_hooks import LevelPreHooks
+
+    _pre_hooks = LevelPreHooks(
+        exp=exp,
+        experiment_yaml=experiment_yaml,
+        output_dir=output_dir,
+        specs=loaded.pipeline_specs,
+        scenario_ids=prepared.loaded_ids,
+        infra_name=loaded.infra_name,
+        step_overrides=loaded.step_overrides_dict,
+        data_cache_dir=data_cache_dir,
+        progress=progress,
     )
 
     async def _run_one(scenario_id: str, item: dict, run_idx: int) -> None:
@@ -522,6 +548,15 @@ async def execute_batch(
                     max_attempts=_max_attempts,
                     backoff_s=_retry_backoff,
                     on_retry=_on_retry,
+                    before_attempt=(
+                        (lambda: _pre_hooks.before_attempt(
+                            scenario=_sc_dir_name,
+                            test=f"item{item_id}",
+                            run=f"r{run_idx + 1}",
+                        ))
+                        if _pre_hooks.active
+                        else None
+                    ),
                 )
                 write_cache_inputs(
                     _global_run_dir, _run_hash, _run_input_dict, item_id,

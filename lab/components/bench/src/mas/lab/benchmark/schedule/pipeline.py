@@ -349,6 +349,70 @@ def _emit_instances(
     return [_step_dict(spec, base_name, shared, deps)]
 
 
+#: Scope vocabulary used by ``_Node`` / the node tables, for the public aliases.
+_NODE_SCOPE_ALIASES = {"item": "test", "experiment": "application"}
+
+
+def node_scope(scope: str) -> str:
+    """Normalise a public scope name (``item``, ``experiment``) to the node key."""
+    return _NODE_SCOPE_ALIASES.get(scope, scope)
+
+
+def make_node(
+    scope: str,
+    path: Path,
+    scenario: str = "",
+    test: str = "",
+    run: str = "",
+) -> _Node:
+    """Build the node a level hook runs for (no disk discovery involved)."""
+    return _Node(node_scope(scope), Path(path), scenario, test, run)
+
+
+#: Hierarchy rank of a scope (inner levels first); aliases share a rank.
+_SCOPE_RANK = {"run": 0, "test": 1, "item": 1, "scenario": 2, "application": 3, "experiment": 3}
+
+#: Artifacts the execution engine itself writes (no pipeline step declares ``out:`` for them).
+_ENGINE_ARTIFACTS = frozenset({"trace", "events", "run_info"})
+
+
+def _dataflow_deps(phase_specs: list) -> dict[str, list[str]]:
+    """Implicit dependencies from ``in:`` / ``out:``.
+
+    A step that reads artifact ``X`` runs after the steps that write it. Among the
+    producers at or below the consumer's level, the nearest level wins (a scenario
+    step reading ``df`` follows the scenario step that gathers ``df``, not every run
+    step that wrote a per-run ``df``). Names are base step names; expansion to the
+    instances under the consumer's node is done by ``_expand_deps``.
+    """
+    producers: dict[str, list[tuple[int, str]]] = {}
+    for sp in phase_specs:
+        for art in getattr(sp, "outputs", None) or []:
+            producers.setdefault(art, []).append(
+                (_SCOPE_RANK.get(_effective_scope(sp), 3), _base_step_name(sp))
+            )
+    derived: dict[str, list[str]] = {}
+    for sp in phase_specs:
+        me = _base_step_name(sp)
+        rank = _SCOPE_RANK.get(_effective_scope(sp), 3)
+        extra: list[str] = []
+        for art in getattr(sp, "inputs", None) or []:
+            cands = [(rk, nm) for rk, nm in producers.get(art, []) if rk <= rank and nm != me]
+            if not cands:
+                if art not in _ENGINE_ARTIFACTS:
+                    logger.warning(
+                        "step %r reads artifact %r (in:), but no step in this phase writes it (out:)",
+                        me, art,
+                    )
+                continue
+            nearest = max(rk for rk, _ in cands)
+            for _rk, nm in cands:
+                if _rk == nearest and nm not in extra:
+                    extra.append(nm)
+        derived[me] = extra
+    return derived
+
+
 def materialize_step_dicts(
     specs: list,
     *,
@@ -358,8 +422,14 @@ def materialize_step_dicts(
     step_overrides: Optional[dict],
     template_vars: Optional[dict[str, str]] = None,
     level_artifacts: Optional[dict[str, dict[str, Any]]] = None,
+    scopes: Optional[set[str]] = None,
+    nodes: Optional[dict[str, list[_Node]]] = None,
 ) -> list[dict]:
     """Expand each spec once per folder at its level.
+
+    ``scopes`` keeps only specs whose effective scope is in the set (public or
+    node names). ``nodes`` replaces folder discovery with explicit nodes, so a
+    hook can expand a spec for exactly the run/item/scenario it belongs to.
 
     Higher-level steps receive ``artifact_paths`` — the child files of the
     artifact named in ``in:``. ``level_artifacts`` (``{level: {name: ArtifactSpec}}``,
@@ -372,16 +442,24 @@ def materialize_step_dicts(
         if phase is not None
         else list(specs)
     )
+    if scopes is not None:
+        wanted = {node_scope(sc) for sc in scopes}
+        phase_specs = [s for s in phase_specs if node_scope(_effective_scope(s)) in wanted]
     if not phase_specs:
         return []
 
     tmpl = template_vars or {}
     output_dir = Path(tmpl.get("output_dir", "."))
     ids = list(scenario_ids or [])
-    nodes = {
-        scope: _nodes_for_scope(scope, output_dir, ids)
-        for scope in ("run", "test", "scenario", "application")
-    }
+    if nodes is None:
+        nodes = {
+            scope: _nodes_for_scope(scope, output_dir, ids)
+            for scope in ("run", "test", "scenario", "application")
+        }
+    else:
+        nodes = {node_scope(k): list(v) for k, v in nodes.items()}
+        for scope in ("run", "test", "scenario", "application"):
+            nodes.setdefault(scope, [])
     nodes["item"] = nodes["test"]
     nodes["experiment"] = nodes["application"]
     name_scope = {
@@ -404,6 +482,7 @@ def materialize_step_dicts(
         and len(nodes["run"]) > 1
     }
     level_arts = level_artifacts or {}
+    derived_deps = _dataflow_deps(phase_specs)
 
     step_dicts: list[dict] = []
     for spec in phase_specs:
@@ -420,8 +499,10 @@ def materialize_step_dicts(
             )
             suffix = node.suffix()
             name = f"{base_name}-{suffix}" if suffix else base_name
+            declared = list(spec.depends_on or [])
             deps = _expand_deps(
-                list(spec.depends_on or []), node, name_scope, nodes, batched,
+                declared + [d for d in derived_deps.get(base_name, []) if d not in declared],
+                node, name_scope, nodes, batched,
                 collapsed=concurrent,
             )
             instances.append((name, cfg, deps))
@@ -507,8 +588,11 @@ async def execute_runtime_pipeline(
         )
         print(result.summary())
         if not result.success:
+            detail = "; ".join(
+                f"{name}: {msg}" for name, msg in list(result.step_errors.items())[:3]
+            ) or ", ".join(result.failed_steps[:3])
             raise PipelineExecutionError(
-                f"{phase_label or 'pipeline'} failed — see step errors above"
+                f"{phase_label or 'pipeline'} failed — {detail or 'see step errors above'}"
             )
         return True
     except PipelineExecutionError:
@@ -564,8 +648,14 @@ async def run_pipeline_phase(
     step_overrides: Optional[dict] = None,
     progress: bool = True,
     data_cache_dir: Optional[Path] = None,
+    scopes: Optional[set[str]] = None,
+    nodes: Optional[dict[str, list[_Node]]] = None,
+    label: str | None = None,
 ) -> list | None:
     """Run all steps for ``phase`` (``pre`` or ``post``).
+
+    ``scopes`` / ``nodes`` restrict and anchor the expansion (see
+    ``materialize_step_dicts``); ``label`` suffixes the pipeline name.
 
     Returns updated dataset items when ``phase=='pre'`` and a generator step
     wrote ``generated_dataset.yaml``; otherwise ``None``.
@@ -579,6 +669,8 @@ async def run_pipeline_phase(
         step_overrides=step_overrides,
         template_vars={"output_dir": str(output_dir)},
         level_artifacts=_level_artifacts(exp),
+        scopes=scopes,
+        nodes=nodes,
     )
     if not step_dicts:
         return None
@@ -587,7 +679,7 @@ async def run_pipeline_phase(
         exp=exp,
         experiment_yaml=experiment_yaml,
         step_dicts=step_dicts,
-        pipeline_name=f"{exp.name}-{phase}",
+        pipeline_name=f"{exp.name}-{phase}" + (f"-{label}" if label else ""),
     )
     ok = await execute_runtime_pipeline(
         pipeline,

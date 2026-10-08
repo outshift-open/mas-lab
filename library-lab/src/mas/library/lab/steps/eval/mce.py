@@ -5,8 +5,10 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -29,9 +31,9 @@ def _judge_semaphore(max_workers: int) -> asyncio.Semaphore:
     return sem
 
 
-def _install_judge(config: dict[str, Any], ctx: ExecutionContext) -> tuple[str, str]:
+def _resolve_judge(config: dict[str, Any], ctx: ExecutionContext) -> Any:
+    """Resolve the judge model without installing the LLM service (no side effects)."""
     from mas.library.eval.mce.judge_model import resolve_judge_model
-    from mas.library.eval.mce.runner import install_openai_llm_service
 
     backfilled = config.get("model_source") if config.get("model") else None
     step_model = config.get("model")
@@ -66,6 +68,13 @@ def _install_judge(config: dict[str, Any], ctx: ExecutionContext) -> tuple[str, 
         experiment_model=experiment_model,
         experiment_judge_model=experiment_judge_model,
     )
+    return judged
+
+
+def _install_judge(config: dict[str, Any], ctx: ExecutionContext) -> tuple[str, str]:
+    from mas.library.eval.mce.runner import install_openai_llm_service
+
+    judged = _resolve_judge(config, ctx)
     effective = install_openai_llm_service(model_override=judged.model, model_source=judged.source)
     logger.info(
         "EvalMceStep judge model=%s source=%s",
@@ -73,6 +82,99 @@ def _install_judge(config: dict[str, Any], ctx: ExecutionContext) -> tuple[str, 
         judged.source,
     )
     return effective or judged.model or "", judged.source
+
+
+_DIGEST_VERSION = "eval_mce.inputs/1"
+
+
+def _file_sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with Path(path).open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _canonical(obj: Any) -> str:
+    return json.dumps(obj, sort_keys=True, ensure_ascii=False, default=str, separators=(",", ":"))
+
+
+def _metric_impl_version() -> str:
+    try:
+        from importlib.metadata import version
+
+        return version("mas-library-eval")
+    except Exception:
+        return ""
+
+
+def _inputs_digest(
+    *,
+    events_path: Path,
+    run_folder: Path,
+    metric_names: list[str],
+    prompt_metrics: Any,
+    metric_options: Any,
+    response_agent: Any,
+    judge_model: str,
+) -> str:
+    """Digest of everything a ``metrics.json`` score was computed from.
+
+    Covers the trace, the optional side files the metrics read, the metric ids
+    and definitions, the judge model, the metric implementation version and
+    whether the offline stub was active (stub scores must never be reused as
+    real ones). ``run_info.json`` is deliberately excluded: it is rewritten
+    with fresh timestamps on cached runs and would invalidate every rerun.
+    """
+    side: dict[str, str] = {}
+    for name in ("otel_sdk_spans.jsonl", "otel_sdk_spans_replay.jsonl", "kg.json"):
+        candidate = Path(run_folder) / name
+        if candidate.exists():
+            side[name] = _file_sha256(candidate)
+    payload = {
+        "v": _DIGEST_VERSION,
+        "impl": _metric_impl_version(),
+        "offline": os.environ.get("MAS_MCE_OFFLINE", "").lower() in ("1", "true", "yes"),
+        "events": _file_sha256(events_path),
+        "side": side,
+        "metrics": sorted(str(m) for m in metric_names),
+        "prompt_metrics": prompt_metrics or [],
+        "metric_options": metric_options or {},
+        "response_agent": str(response_agent or ""),
+        "judge_model": judge_model,
+    }
+    return hashlib.sha256(_canonical(payload).encode("utf-8")).hexdigest()
+
+
+def _reuse_decision(metrics_file: Path, digest: str) -> tuple[bool, str]:
+    """Decide whether an existing ``metrics.json`` may be reused (``overwrite: false``).
+
+    Reuse only when the stored inputs digest matches. A file written by an
+    older version (no digest) is adopted once: stamped with the current
+    digest and reused, so historical results are not re-judged. A failed
+    scoring (``run_quality.status == "error"``) is never reused.
+    """
+    try:
+        doc = json.loads(metrics_file.read_text(encoding="utf-8"))
+    except Exception:
+        return False, "existing metrics file is unreadable"
+    if not isinstance(doc, dict):
+        return False, "existing metrics file is not an object"
+    if (doc.get("run_quality") or {}).get("status") == "error":
+        return False, "previous scoring failed"
+    stored = doc.get("inputs_digest")
+    if stored is None:
+        doc["inputs_digest"] = digest
+        metrics_file.write_text(json.dumps(doc, indent=2, ensure_ascii=False), encoding="utf-8")
+        logger.warning(
+            "eval_mce: adopted %s (no inputs_digest, written by an older version); "
+            "reusing it and stamping the current inputs digest",
+            metrics_file,
+        )
+        return True, "adopted legacy result"
+    if stored == digest:
+        return True, "inputs unchanged"
+    return False, "inputs changed (events, metrics, judge model or version)"
 
 
 class EvalMceStep(PipelineStep):
@@ -152,12 +254,6 @@ class EvalMceStep(PipelineStep):
         run_folder = Path(run_dir) if run_dir else events_path.parent.parent
         metrics_file = run_folder / str(config.get("metrics_filename", "metrics.json"))
         overwrite = bool(config.get("overwrite", False))
-        if metrics_file.exists() and not overwrite:
-            return StepOutput(
-                data={"total": 1, "computed": 0, "skipped": 1, "errors": 0},
-                files=[metrics_file],
-                metadata={"skipped": True},
-            )
 
         test = str(config.get("test") or "")
         item_id = test[4:] if test.startswith("item") else test
@@ -168,6 +264,25 @@ class EvalMceStep(PipelineStep):
         from mas.library.eval.metrics.prompt import parse_prompt_metrics
 
         prompt_metrics = parse_prompt_metrics(config.get("prompt_metrics"))
+        digest = _inputs_digest(
+            events_path=events_path,
+            run_folder=run_folder,
+            metric_names=metric_names,
+            prompt_metrics=config.get("prompt_metrics"),
+            metric_options=config.get("metric_options"),
+            response_agent=config.get("response_agent"),
+            judge_model=str(_resolve_judge(config, ctx).model or ""),
+        )
+        if metrics_file.exists() and not overwrite:
+            reuse, reason = _reuse_decision(metrics_file, digest)
+            if reuse:
+                return StepOutput(
+                    data={"total": 1, "computed": 0, "skipped": 1, "errors": 0},
+                    files=[metrics_file],
+                    metadata={"skipped": True, "reuse": reason},
+                )
+            logger.info("eval_mce: re-scoring %s: %s", metrics_file, reason)
+
         judge_model, judge_source = _install_judge(config, ctx)
 
         max_workers = int(config.get("max_workers", 2))
@@ -189,6 +304,7 @@ class EvalMceStep(PipelineStep):
                 scenario=str(config.get("scenario") or ""),
                 session_scores=session_scores,
             )
+            doc["inputs_digest"] = digest
             if bool(config.get("validate", True)):
                 schema = _load_metrics_schema()
                 if schema is not None:
