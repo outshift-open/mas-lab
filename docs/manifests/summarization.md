@@ -71,6 +71,29 @@ ReAct loop or tool dispatch.
 
 ---
 
+## Skill content is never compacted
+
+Activated skill instructions are durable guidance
+([Agent Skills, Step 5](https://agentskills.io/client-implementation/adding-skills-support#protect-skill-content-from-context-compaction)).
+Every history strategy (`summarising`, `sliding_window`, `stack`) exempts them
+from pruning:
+
+- An `activate_skill` result in the folded prefix is identified by its
+  `<skill_content name="…">` wrapper. Each skill's latest block stays in
+  history as its own `system` row, after the summary block.
+- The summarizer receives `[skill content retained verbatim: <name>]` in place
+  of the body, so the summary never paraphrases skill instructions.
+- The assembly trimmer never removes a retained skill row.
+- With `pin_activated: true` (default, `spec.context_sources`), the body is
+  already pinned in `SYSTEM_SKILLS`, and the retained history row is left out
+  of the request. With `pin_activated: false`, the history row is the only
+  copy and is always sent.
+
+`activate_skill(name, unload=true)` does not rewrite history, so a skill
+activated before the unload keeps its retained row.
+
+---
+
 ## Trigger vs prompt
 
 **When it fires** is not a user prompt. The CM compares estimated history

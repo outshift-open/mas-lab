@@ -13,6 +13,10 @@ Each context manager **is** a plugin with strategy code (not an empty shell):
 
 ``manage_history`` bounds the LLM view. Turn commit persists that same
 recency cap onto the stored log.
+
+All three keep activated skill content (``<skill_content>``) out of the
+folded prefix: each skill's latest block stays as a ``system`` row and is
+never summarized or dropped (agentskills.io Step 5).
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ import logging
 from typing import Any, Callable
 
 from mas.library.standard.lib.context.payload import split_user_turns, start_of_tool_group
+from mas.library.standard.lib.context.skill_content import split_skill_content
 from mas.runtime.contracts.context_manager_contract import ContextManagerContract
 from mas.runtime.spec.defaults import DEFAULT_HYSTERESIS_RATIO, DEFAULT_KEEP_TURNS
 
@@ -64,7 +69,8 @@ class StackConversation(ContextManagerContract):
                 evicted,
                 len(past) - start,
             )
-        return list(past[start:])
+        _, skills = split_skill_content(list(past[:start]))
+        return skills + list(past[start:])
 
 
 class SlidingWindowConversation(ContextManagerContract):
@@ -100,7 +106,8 @@ class SlidingWindowConversation(ContextManagerContract):
             len(turns) - self.max_turns,
             self.max_turns,
         )
-        return _flatten(kept)
+        _, skills = split_skill_content(_flatten(turns[: -self.max_turns]))
+        return skills + _flatten(kept)
 
 
 class SummarizingConversation(ContextManagerContract):
@@ -128,6 +135,7 @@ class SummarizingConversation(ContextManagerContract):
         self._cached_n_compressed: int = 0
         self._cached_prefix_fp: str | None = None
         self._cached_prefix_ids: tuple[int, int, int] | None = None
+        self._cached_skills: list[dict[str, Any]] = []
 
     def bind_summarizer(self, summarizer: Any) -> None:
         """Attach a summarizer plugin, a ``summarize`` callable, or ``None`` (drop)."""
@@ -192,6 +200,7 @@ class SummarizingConversation(ContextManagerContract):
         self._cached_n_compressed = 0
         self._cached_prefix_fp = None
         self._cached_prefix_ids = None
+        self._cached_skills = []
 
     def _budget(self, budget_tokens: int) -> int:
         return budget_tokens if budget_tokens > 0 else self.summary_threshold
@@ -214,7 +223,7 @@ class SummarizingConversation(ContextManagerContract):
             return None
         if not self._prefix_unchanged(turns, n):
             return None
-        suffix = _flatten(turns[n:])
+        suffix = self._cached_skills + _flatten(turns[n:])
         if self._cached_summary is None:
             return suffix
         return [self._summary_block(n, self._cached_summary)] + suffix
@@ -255,9 +264,10 @@ class SummarizingConversation(ContextManagerContract):
 
         to_compress = turns[:-keep]
         verbatim = turns[-keep:]
-        to_compress_msgs = _flatten(to_compress)
-        verbatim_msgs = _flatten(verbatim)
+        to_compress_msgs, skill_msgs = split_skill_content(_flatten(to_compress))
+        verbatim_msgs = skill_msgs + _flatten(verbatim)
         n_compressed = len(to_compress)
+        self._cached_skills = skill_msgs
 
         model = getattr(self._summarizer, "model", None)
         model_source = getattr(self._summarizer, "model_source", None)

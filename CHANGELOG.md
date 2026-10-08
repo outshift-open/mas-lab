@@ -28,6 +28,15 @@ reconciling the release notes with the code and docs currently on that branch.
 
 ### Fixed
 
+- Activated skill content is no longer summarized or dropped by history
+  compaction (agentskills.io Step 5). `summarising`, `sliding_window`, and
+  `stack` keep each skill's latest `<skill_content>` block as its own
+  `system` row; the summarizer sees a stub instead of the body, and the
+  assembly trimmer never removes the row. This holds with
+  `pin_activated: false`, which used to lose the body after the first
+  compaction. With the default pin, the history copy is dropped from the
+  request so the body is sent once. See
+  [Skill content is never compacted](docs/manifests/summarization.md#skill-content-is-never-compacted).
 - Overlay patches that target one agent of a MAS (`patch.agents.<id>`,
   `$entry`, `$not-entry`, `$all`, `$delegates`) are merged onto the loaded
   Agent YAML. An agency row stays `{id, ref}`. The MAS document is
