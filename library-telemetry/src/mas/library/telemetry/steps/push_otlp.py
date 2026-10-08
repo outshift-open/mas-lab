@@ -16,7 +16,7 @@ def run_push_otlp(
     *,
     endpoint: str | None = None,
     infra: str | Path | None = None,
-    service_name: str = "mas-runtime",
+    service_name: str = "",
     app_name: str = "",
     dry_run: bool = False,
     batch_size: int = 200,

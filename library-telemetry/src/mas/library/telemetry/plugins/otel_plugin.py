@@ -42,7 +42,7 @@ def create_otel_plugin(
     context: TransformContext,
     mas_id: str = "",
     session_id: str = "",
-    service_name: str = "mas-runtime",
+    service_name: str = "",
     app_name: str = "",
     otlp_endpoint: str | None = None,
     export_layers: ExportLayers | None = None,
@@ -51,10 +51,13 @@ def create_otel_plugin(
     extensions: bool | None = None,
     rewrite_tool_delegation: bool = True,
 ) -> OtelObservabilityPlugin:
+    from mas.library.telemetry.conversion.topology import require_mas_name
+
+    mas_name = require_mas_name(app_name, mas_id, service_name)
     export = create_otel_export(
         spans_path=spans_path,
-        service_name=service_name,
-        app_name=app_name,
+        service_name=mas_name,
+        app_name=mas_name,
         otlp_endpoint=otlp_endpoint,
         export_layers=export_layers,
         converter_profile=converter_profile,
@@ -65,7 +68,7 @@ def create_otel_plugin(
     plugin = OtelObservabilityPlugin(
         converter=export.converter,
         context=context,
-        mas_id=mas_id,
+        mas_id=mas_name,
         session_id=session_id,
         spans_path=spans_path,
         realtime=realtime,
@@ -150,8 +153,13 @@ class OtelObservabilityPlugin(ObservabilityPlugin):
         )
         endpoint = os.environ.get(env_name, "").strip() or None
 
-        service_name = str(otel_cfg.get("service_name") or agent_id or "mas-runtime")
-        app_name = str(otel_cfg.get("app_name") or service_name)
+        from mas.library.telemetry.conversion.topology import require_mas_name
+
+        mas_name = require_mas_name(
+            str(otel_cfg.get("app_name") or ""),
+            str(otel_cfg.get("mas_id") or ""),
+            str(otel_cfg.get("service_name") or ""),
+        )
         profile = str(otel_cfg.get("converter_profile") or "observe_sdk")
         realtime = bool(otel_cfg.get("realtime", False)) or _env_flag(
             "OBSERVE_REALTIME_OBSERVABILITY_ENABLED", False
@@ -162,9 +170,9 @@ class OtelObservabilityPlugin(ObservabilityPlugin):
         return create_otel_plugin(
             spans_path=spans_path,
             context=ctx,
-            mas_id="",
-            service_name=service_name,
-            app_name=app_name,
+            mas_id=mas_name,
+            service_name=mas_name,
+            app_name=mas_name,
             otlp_endpoint=endpoint,
             export_layers=parse_export_layers(otel_cfg),
             converter_profile=profile,

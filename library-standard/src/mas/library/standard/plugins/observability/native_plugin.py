@@ -173,10 +173,12 @@ class NativeObservabilityPlugin(ObservabilityPlugin):
         emitters.insert(0, JsonlFileEmitter(events_path))
 
         include, exclude = _parse_categories(native_cfg.get("categories"))
+        mas_id = str(native_cfg.get("app_name") or native_cfg.get("mas_id") or "")
         return cls(
             transforms=[NativeObservabilityTransform()],
             emitters=emitters,
             context=TransformContext(agent_id=agent_id, run_id=""),
+            mas_id=mas_id,
             categories_include=include,
             categories_exclude=exclude,
         )

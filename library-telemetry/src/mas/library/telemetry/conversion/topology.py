@@ -207,27 +207,39 @@ def _spec_agents(spec: Dict[str, Any]) -> List[str]:
     return out
 
 
+def require_mas_name(*candidates: str) -> str:
+    """Return the first non-empty MAS name, or raise.
+
+    The MAS name is mandatory. There is no hardcoded default.
+    """
+    for raw in candidates:
+        name = str(raw or "").strip()
+        if name:
+            return name
+    raise ValueError(
+        "MAS app name is required: pass --app-name or set app_name on the events"
+    )
+
+
 def derive_app_name(events: List[Dict[str, Any]], fallback: str = "") -> str:
     """Best-effort application name from the event stream.
 
-    Looks for an explicit app name on any event (``app_name`` / ``application`` /
-    ``app`` / ``metadata.app_name``), or a ``system_specification`` event's
-    ``name`` / ``app_name``.  Returns *fallback* when none is found.
-
-    This is what fixes the "everything defaults to ``mas-runtime``" bug: callers
-    that do not pass an explicit ``app_name`` get the real app name from the
-    trace, while an explicit ``app_name`` always overrides.
+    Looks for an explicit app name on any event (``app_name`` / ``mas_id`` /
+    ``application`` / ``app`` / ``metadata.app_name``), or a
+    ``system_specification`` event's ``name`` / ``app_name``.  Returns
+    *fallback* when none is found.
     """
     for ev in events:
-        for key in ("app_name", "application", "app", "application_id"):
+        for key in ("app_name", "mas_id", "application", "app", "application_id"):
             val = ev.get(key)
             if val:
                 return str(val)
         meta = ev.get("metadata")
         if isinstance(meta, dict):
             for key in ("app_name", "application", "app"):
-                if meta.get(key):
-                    return str(meta[key])
+                raw = meta.get(key)
+                if raw:
+                    return str(raw)
         if ev.get("kind") == "system_specification":
             name = ev.get("name") or ev.get("app_name")
             if name:
@@ -241,6 +253,7 @@ __all__ = [
     "topology_dynamism",
     "determinism_score",
     "has_topology",
+    "require_mas_name",
     "derive_app_name",
     "GRAPH_ATTR",
     "GRAPH_PROTOCOL_ATTR",

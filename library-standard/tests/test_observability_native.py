@@ -173,3 +173,4 @@ def test_native_plugin_emits_tool_call(tmp_path) -> None:
     assert event["kind"] == "tool_call_start"
     assert event["tool_name"] == "delegate_to_flights"
     assert event["mas_id"] == "trip-planner"
+    assert event["app_name"] == "trip-planner"

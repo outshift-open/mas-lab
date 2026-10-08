@@ -78,7 +78,7 @@ def replay_events_file(
     input_path: str | Path,
     output_path: str | Path,
     *,
-    service_name: str = "agent-runtime",
+    service_name: str = "",
     app_name: str = "",
     flush_timeout_ms: int = 5000,
     export_layers: "ExportLayers | Dict[str, Any] | None" = None,
@@ -94,14 +94,16 @@ def replay_events_file(
     agent_llm_models: Dict[str, str] | None = None,
 ) -> int:
     """Replay ``events.jsonl`` to OTel spans via :func:`create_otel_export`."""
-    from mas.library.telemetry.conversion.topology import derive_app_name
+    from mas.library.telemetry.conversion.topology import derive_app_name, require_mas_name
 
     input_path = Path(input_path)
     if not input_path.exists():
         raise FileNotFoundError(f"events.jsonl not found: {input_path}")
 
     events = _read_events(input_path)
-    effective_app_name = app_name or derive_app_name(events, fallback=service_name)
+    effective_app_name = require_mas_name(
+        app_name, derive_app_name(events), service_name
+    )
 
     annotation_enabled: bool | None = None
     if isinstance(export_layers, dict):
@@ -143,7 +145,7 @@ def replay_events_file(
 
     export = create_otel_export(
         spans_path=output_path,
-        service_name=service_name,
+        service_name=effective_app_name,
         app_name=effective_app_name,
         export_layers=export_layers,
         converter_profile=converter_profile,
@@ -195,7 +197,7 @@ def replay_events_file(
         _write_mapping(
             output_path=Path(output_path),
             app_name=effective_app_name,
-            service_name=service_name,
+            service_name=effective_app_name,
             session_uuid=export.converter._session_uuid,
             run_id=export.converter._run_id,
             input_path=input_path,

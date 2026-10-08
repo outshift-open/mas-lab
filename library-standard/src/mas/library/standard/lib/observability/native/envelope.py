@@ -117,6 +117,7 @@ def stamp_envelope_fields(
     run_id = str(out.get("run_id") or "")
     if mas_id:
         out.setdefault("mas_id", mas_id)
+        out.setdefault("app_name", mas_id)
     if session_id:
         out.setdefault("session_id", session_id)
     elif run_id:

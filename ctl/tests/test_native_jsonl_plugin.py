@@ -10,6 +10,7 @@ from mas.library.standard.lib.observability.emit import JsonlFileEmitter
 from mas.library.standard.lib.observability.native.envelope import stamp_envelope_fields
 from mas.library.standard.lib.observability.native.transform import NativeObservabilityTransform, TransformContext
 from mas.library.standard.plugins.observability.native_plugin import NativeObservabilityPlugin
+from mas.runtime.boundary.obs.binding import ObservabilityBinding
 from mas.runtime.boundary.obs.transition import TransitionEvent
 
 
@@ -52,6 +53,7 @@ def test_native_jsonl_plugin_tool_call_with_arguments(tmp_path) -> None:
     assert event["tool_name"] == "delegate_to_flights"
     assert event["arguments"] == {"task": "check fares"}
     assert event["mas_id"] == "trip-planner"
+    assert event["app_name"] == "trip-planner"
     assert event["block"] == "execution"
     assert event["summand"] == "tool"
     assert event["mealy_symbol"] == "TOOL_CALL"
@@ -115,3 +117,19 @@ def test_native_jsonl_plugin_contract_call_alone_produces_no_llm_call(tmp_path) 
         )
     )
     assert not any("llm_call" in line for line in events_path.read_text().splitlines())
+
+
+def test_native_from_binding_uses_mas_name(tmp_path) -> None:
+    binding = ObservabilityBinding(
+        plugins=["native"],
+        plugin_configs={
+            "native": {
+                "path": str(tmp_path / "e.jsonl"),
+                "app_name": "trip-planner",
+            }
+        },
+    )
+    plugin = NativeObservabilityPlugin.from_binding(
+        binding, base_dir=tmp_path, agent_id="planner"
+    )
+    assert plugin.mas_id == "trip-planner"

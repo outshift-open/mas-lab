@@ -138,7 +138,9 @@ def test_otlp_http_error(monkeypatch):
             "resource": {"attributes": {}},
         }
     ]
-    res = otlp.push_spans_to_collector(sdk, "http://x:4318", dry_run=False)
+    res = otlp.push_spans_to_collector(
+        sdk, "http://x:4318", app_name="app", dry_run=False
+    )
     assert res["status"] == "error"
     assert "503" in res["detail"]
 

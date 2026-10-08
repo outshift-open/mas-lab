@@ -46,7 +46,7 @@ class OtelCollectorTarget:
 
     endpoint: str
     protocol: str = "otlp-http"
-    service_name: str = "mas-runtime"
+    service_name: str = ""
     app_name: str = ""
 
     def resolved_endpoint(self, override: Optional[str] = None) -> str:
@@ -194,7 +194,7 @@ def otel_collector_target(
     return OtelCollectorTarget(
         endpoint=str(t.get("endpoint") or ""),
         protocol=str(t.get("protocol") or "otlp-http"),
-        service_name=str(t.get("service_name") or "mas-runtime"),
+        service_name=str(t.get("service_name") or ""),
         app_name=str(t.get("app_name") or ""),
     )
 

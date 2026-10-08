@@ -100,6 +100,21 @@ def test_clickhouse_shape_passes_through(monkeypatch) -> None:
     assert nodes[0]["SpanName"] == "planner.agent"
 
 
+def test_sdk_span_prefers_application_id_over_service_name() -> None:
+    row = otel_via_norm.sdk_span_to_clickhouse(
+        {
+            "name": "planner.agent",
+            "context": {"trace_id": "tt", "span_id": "ss"},
+            "attributes": {"application_id": "sample-app"},
+            "resource": {"attributes": {"service.name": "mas-runtime"}},
+            "start_time": "2024-01-01T00:00:00Z",
+            "end_time": "2024-01-01T00:00:01Z",
+        }
+    )
+    assert row["ServiceName"] == "sample-app"
+    assert row["SpanAttributes"]["application_id"] == "sample-app"
+
+
 def test_normalize_otel_imports_norm_when_installed() -> None:
     pytest.importorskip("norm")
     from mas.library.kg.observability.otel_via_norm import normalize_otel

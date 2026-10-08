@@ -42,6 +42,14 @@ def obs_config_to_binding(config: ObservabilityConfig) -> ObservabilityBinding |
         native_cfg = dict(plugin_configs.get("native") or {})
         native_cfg.setdefault("path", config.events_file)
         plugin_configs["native"] = native_cfg
+    if config.mas_id:
+        # Live native + otel export must use the MAS name, not the agent
+        # or the runtime package id.
+        for plugin in ("otel", "native"):
+            cfg = dict(plugin_configs.get(plugin) or {})
+            cfg.setdefault("app_name", config.mas_id)
+            cfg.setdefault("mas_id", config.mas_id)
+            plugin_configs[plugin] = cfg
     return ObservabilityBinding(
         plugins=plugins,
         plugin_configs=plugin_configs,

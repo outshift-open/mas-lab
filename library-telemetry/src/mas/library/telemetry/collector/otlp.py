@@ -85,7 +85,7 @@ def push_spans_to_collector(
     sdk_spans: List[dict],
     endpoint: str,
     *,
-    service_name: str = "mas-runtime",
+    service_name: str = "",
     app_name: str = "",
     dry_run: bool = False,
     batch_size: int = 200,
@@ -96,16 +96,21 @@ def push_spans_to_collector(
 
     Returns ``{"spans", "batches", "status", "detail"}``.
     """
-    effective_app_name = app_name or service_name
     spans = _sdk_spans_to_otlp(sdk_spans)
+    if not spans:
+        return {"spans": 0, "batches": 0, "status": "ok", "detail": "no spans generated"}
     resource_attrs = _resource_from_sdk(sdk_spans[0]) if sdk_spans else {}
-    resource_attrs.setdefault("service.name", service_name)
-    for s in spans:
-        s.attributes["application_id"] = effective_app_name
+    mas_name = _mas_name(
+        app_name=app_name,
+        service_name=service_name,
+        resource_attrs=resource_attrs,
+        spans=spans,
+    )
+    _stamp_mas_name(spans, resource_attrs, mas_name)
     if shift_to_now:
         _shift_otlp_spans_to_now(spans)
     if new_session_id:
-        _rekey_otlp_session_id(spans, effective_app_name)
+        _rekey_otlp_session_id(spans, mas_name)
     return _push(
         spans, resource_attrs, endpoint, dry_run=dry_run, batch_size=batch_size
     )
@@ -114,7 +119,7 @@ def push_spans_to_collector(
 def push_file(
     path: str | Path,
     endpoint: str,
-    service_name: str = "mas-runtime",
+    service_name: str = "",
     app_name: str = "",
     dry_run: bool = False,
     batch_size: int = 200,
@@ -126,9 +131,10 @@ def push_file(
     Parameters
     ----------
     app_name:
-        When non-empty, sets ``application_id`` on every span so the
-        OXP/ClickHouse platform groups traces under this application name.
-        Defaults to *service_name*.
+        MAS name. Required unless the file already carries ``application_id``
+        or native events include ``app_name``. Stamped as ``application_id``
+        on every span. ``service.name`` is the same MAS: Observe SDK treats
+        the MAS, not each agent, as the service that produces telemetry.
 
     Returns a summary dict::
 
@@ -138,32 +144,41 @@ def push_file(
     if not events:
         return {"spans": 0, "batches": 0, "status": "ok", "detail": "empty file"}
 
-    effective_app_name = app_name or service_name
     first = events[0]
 
     if _is_sdk_span(first):
         spans = _sdk_spans_to_otlp(events)
         resource_attrs = _resource_from_sdk(first)
-        resource_attrs.setdefault("service.name", service_name)
-        for s in spans:
-            s.attributes["application_id"] = effective_app_name
-        if shift_to_now:
-            _shift_otlp_spans_to_now(spans)
-        if new_session_id:
-            _rekey_otlp_session_id(spans, effective_app_name)
+        if spans:
+            mas_name = _mas_name(
+                app_name=app_name,
+                service_name=service_name,
+                resource_attrs=resource_attrs,
+                spans=spans,
+            )
+            _stamp_mas_name(spans, resource_attrs, mas_name)
+            if shift_to_now:
+                _shift_otlp_spans_to_now(spans)
+            if new_session_id:
+                _rekey_otlp_session_id(spans, mas_name)
     else:
-        # MAS native events — convert to OTel SDK spans via the library converter.
         run_id = first.get("run_id", "unknown")
         sdk_spans = _replay_native_to_sdk_spans(
             path,
             service_name,
-            effective_app_name,
+            app_name,
             shift_to_now=shift_to_now,
             new_session_id=new_session_id,
         )
         spans = _sdk_spans_to_otlp(sdk_spans)
         resource_attrs = _resource_from_sdk(sdk_spans[0]) if sdk_spans else {}
-        resource_attrs.setdefault("service.name", service_name)
+        mas_name = _mas_name(
+            app_name=app_name,
+            service_name=service_name,
+            resource_attrs=resource_attrs,
+            spans=spans,
+        )
+        _stamp_mas_name(spans, resource_attrs, mas_name)
         resource_attrs["mas.run.id"] = run_id
         resource_attrs["mas.source"] = "mas-library-telemetry"
 
@@ -183,7 +198,7 @@ def push_file(
 def convert_file_to_otlp_jsonl(
     path: str | Path,
     output: str | Path,
-    service_name: str = "mas-runtime",
+    service_name: str = "",
     app_name: str = "",
 ) -> dict:
     """Convert *path* to OTLP JSON spans and write to *output* (no push).
@@ -201,15 +216,17 @@ def convert_file_to_otlp_jsonl(
 
     out_path = Path(output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    effective_app_name = app_name or service_name
-
     if _is_sdk_span(first):
         events = load_events(path)
         spans = _sdk_spans_to_otlp(events)
         resource_attrs = _resource_from_sdk(first)
-        resource_attrs.setdefault("service.name", service_name)
-        for s in spans:
-            s.attributes["application_id"] = effective_app_name
+        mas_name = _mas_name(
+            app_name=app_name,
+            service_name=service_name,
+            resource_attrs=resource_attrs,
+            spans=spans,
+        )
+        _stamp_mas_name(spans, resource_attrs, mas_name)
         payload = _build_otlp_payload(spans, resource_attrs)
         out_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
         return {"spans": len(spans), "status": "ok", "detail": str(out_path)}
@@ -218,7 +235,7 @@ def convert_file_to_otlp_jsonl(
     from mas.library.telemetry.conversion.replay import replay_events_file
 
     replay_events_file(
-        path, out_path, service_name=service_name, app_name=effective_app_name
+        path, out_path, service_name=service_name, app_name=app_name
     )
     span_count = sum(
         1 for line in out_path.read_text(encoding="utf-8").splitlines() if line.strip()
@@ -316,6 +333,52 @@ def _resource_from_sdk(first_span: dict) -> dict:
     return dict(res.get("attributes") or {})
 
 
+def _mas_name(
+    *,
+    app_name: str,
+    service_name: str,
+    resource_attrs: dict,
+    spans: List[OtlpSpan],
+) -> str:
+    from mas.library.telemetry.conversion.topology import require_mas_name
+
+    existing_app = next(
+        (
+            str(span.attributes.get("application_id") or "").strip()
+            for span in spans
+            if str(span.attributes.get("application_id") or "").strip()
+        ),
+        "",
+    )
+    return require_mas_name(
+        app_name,
+        existing_app,
+        str(resource_attrs.get("service.name") or ""),
+        service_name,
+    )
+
+
+def _stamp_mas_name(
+    spans: List[OtlpSpan],
+    resource_attrs: dict,
+    mas_name: str,
+) -> None:
+    """Stamp the MAS name as ``application_id`` and resource ``service.name``.
+
+    Observe SDK treats the MAS as the telemetry-producing service, so
+    ``service.name`` is the MAS, not the agent.
+    """
+    previous = str(resource_attrs.get("service.name") or "")
+    resource_attrs["service.name"] = mas_name
+    for span in spans:
+        span.attributes["application_id"] = mas_name
+        for key in ("session.id", "mas.session.id"):
+            raw = str(span.attributes.get(key) or "")
+            prefix = f"{previous}_"
+            if previous and raw.startswith(prefix):
+                span.attributes[key] = f"{mas_name}_{raw[len(prefix):]}"
+
+
 # ---------------------------------------------------------------------------
 # OTLP HTTP push
 # ---------------------------------------------------------------------------
@@ -356,6 +419,7 @@ def _push(
         "status": status,
         "detail": detail,
         "session_id": session_id,
+        "service_name": str(resource_attrs.get("service.name") or ""),
     }
 
 

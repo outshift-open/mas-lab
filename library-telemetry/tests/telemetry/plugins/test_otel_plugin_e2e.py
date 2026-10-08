@@ -83,6 +83,7 @@ def test_create_otel_export_with_otlp_endpoint(tmp_path: Path) -> None:
 
     export = create_otel_export(
         spans_path=tmp_path / "s.jsonl",
+        app_name="sample-app",
         otlp_endpoint="http://localhost:4318/",
     )
     assert export.converter is not None
@@ -109,6 +110,30 @@ def test_from_binding_constructs_plugin(tmp_path: Path, monkeypatch) -> None:
     plugin.on_transition(_transition())
     plugin.close()
     assert (tmp_path / "traces" / "otel_sdk_spans.jsonl").read_text()
+    assert plugin.mas_id == "sample-app"
+    assert plugin.converter is not None
+    assert plugin.converter._app_name == "sample-app"
+
+
+def test_from_binding_uses_mas_id_not_agent_or_runtime(tmp_path: Path) -> None:
+    from mas.library.telemetry.plugins.otel_plugin import OtelObservabilityPlugin
+
+    binding = ObservabilityBinding(
+        plugins=["otel"],
+        plugin_configs={
+            "otel": {
+                "output_path": str(tmp_path / "out.jsonl"),
+                "service_name": "mas-runtime",
+                "mas_id": "sample-app",
+            }
+        },
+    )
+    plugin = OtelObservabilityPlugin.from_binding(binding, base_dir=tmp_path, agent_id="planner")
+    assert plugin is not None
+    assert plugin.mas_id == "sample-app"
+    assert plugin.converter is not None
+    assert plugin.converter._app_name == "sample-app"
+    plugin.close()
 
 
 @_needs_otlp
@@ -118,7 +143,9 @@ def test_from_binding_honours_env_otlp_endpoint(tmp_path: Path, monkeypatch) -> 
     monkeypatch.setenv("MY_OTLP", "http://localhost:4318")
     binding = ObservabilityBinding(
         plugins=["otel"],
-        plugin_configs={"otel": {"output_path": str(tmp_path / "out.jsonl")}},
+        plugin_configs={
+            "otel": {"output_path": str(tmp_path / "out.jsonl"), "app_name": "sample-app"}
+        },
         otlp_endpoint_env="MY_OTLP",
     )
     plugin = OtelObservabilityPlugin.from_binding(binding, base_dir=tmp_path, agent_id="a")
@@ -135,7 +162,9 @@ def test_from_binding_defaults_to_otel_exporter_env(tmp_path: Path, monkeypatch)
     monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
     binding = ObservabilityBinding(
         plugins=["otel"],
-        plugin_configs={"otel": {"output_path": str(tmp_path / "out.jsonl")}},
+        plugin_configs={
+            "otel": {"output_path": str(tmp_path / "out.jsonl"), "app_name": "sample-app"}
+        },
     )
     plugin = OtelObservabilityPlugin.from_binding(binding, base_dir=tmp_path, agent_id="a")
     assert plugin is not None

@@ -532,19 +532,15 @@ class MasOtelConverter:
         overlay: Dict[str, Any] = {}
         boundary_name = str(attrs.get("mas.boundary") or "")
         if self._app_name:
-            # The real SDK never stamps application_id/session.name on
-            # ordinary call spans -- only on session.start/.end, which set
-            # application.id (not application_id) themselves, and norm's
-            # own handlers fall back to the OTel resource's service.name
-            # when application_id is absent. Keep the overlay for Graph
-            # (a MAS Lab extension the *.graph OXP contract test already
-            # requires it on) and for anything not yet categorized; drop it
-            # for the boundaries that are meant to mirror real SDK output.
+            # application_id is the MAS name. service.name (the resource)
+            # is the same MAS: Observe SDK treats the MAS, not each
+            # agent, as the service that produces telemetry. Agent names
+            # stay on agent_id / mas.agent.id.
+            overlay[semconv.APPLICATION_ID] = self._app_name
             if not (
                 self._converter_profile == "observe_sdk"
                 and boundary_name in self._REAL_SDK_MIRRORED_BOUNDARIES
             ):
-                overlay[semconv.APPLICATION_ID] = self._app_name
                 overlay[semconv.SESSION_NAME] = self._app_name
             if self._session_uuid:
                 overlay[semconv.SESSION_ID] = semconv.session_id_for(
@@ -879,6 +875,7 @@ class MasOtelConverter:
                 "mas.boundary": "Session",
                 semconv.SESSION_ID: session_id,
                 semconv.IOA_START_TIME: str(ts_s),
+                semconv.APPLICATION_ID: self._app_name,
             }
             if ended:
                 attrs[semconv.IOA_WORKFLOW_NAME] = self._app_name
