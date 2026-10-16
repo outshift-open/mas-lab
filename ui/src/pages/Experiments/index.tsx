@@ -6,28 +6,15 @@ import {
   BenchmarkOps,
   TabPanel,
 } from "@/components";
-import { AddExperimentModal } from "@/components/ExperimentsTable/AddExperimentModal";
 import type { ExperimentJobStatus } from "@/components/ExperimentsTable/ExperimentsTable";
-import {
-  Alert,
-  Box,
-  Button,
-  Stack,
-  Tab,
-  Tabs,
-  Typography,
-  useTheme,
-} from "@mui/material";
+import { Alert, Box, Stack, Typography, useTheme } from "@mui/material";
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router";
-import { stringify, parse } from "yaml";
-import type { Experiment } from "@/types/experiment-types";
+import { parse } from "yaml";
 import {
   useExperiments,
   type ExperimentSummary,
   fetchExperimentContent,
-  createExperiment,
-  updateExperimentApi,
   deleteExperimentApi,
   runBenchmark,
   pollJob,
@@ -37,6 +24,7 @@ import {
   downloadBenchmarkExport,
 } from "@/api/apiCalls";
 import { useQueryClient } from "@tanstack/react-query";
+import { Button, Tab, Tabs } from "@open-ui-kit/core";
 
 const POLL_INTERVAL = 2000;
 
@@ -59,10 +47,6 @@ const Experiments = () => {
     return map;
   }, [experiments]);
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingExperiment, setEditingExperiment] = useState<Experiment | null>(
-    null,
-  );
   const [runningJobs, setRunningJobs] = useState<
     Record<string, ExperimentJobStatus>
   >({});
@@ -75,8 +59,7 @@ const Experiments = () => {
   const pollTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const handleAdd = () => {
-    setEditingExperiment(null);
-    setModalOpen(true);
+    navigate(`/${library}/experiments/new/setup`);
   };
 
   const resolveExperiment = useCallback(
@@ -89,29 +72,14 @@ const Experiments = () => {
   );
 
   const handleEdit = useCallback(
-    async (name: string) => {
+    (name: string) => {
       const exp = resolveExperiment(name);
       const expLibrary = exp?.library ?? library;
-      try {
-        const detail = await fetchExperimentContent(expLibrary, name);
-        const raw = parse(detail.content) as Record<string, unknown>;
-        const parsed = (raw?.experiment ?? raw) as Experiment;
-        if (parsed) {
-          if (!parsed.name) parsed.name = name;
-          setEditingExperiment(parsed);
-          setModalOpen(true);
-        }
-      } catch (err) {
-        setAlertMessage({
-          message:
-            err instanceof Error
-              ? err.message
-              : "Failed to load experiment for editing.",
-          severity: "error",
-        });
-      }
+      navigate(
+        `/${expLibrary}/experiments/${encodeURIComponent(name)}/edit/setup`,
+      );
     },
-    [library, resolveExperiment],
+    [library, navigate, resolveExperiment],
   );
 
   useEffect(() => {
@@ -119,39 +87,6 @@ const Experiments = () => {
     const timer = setTimeout(() => setAlertMessage(null), 5000);
     return () => clearTimeout(timer);
   }, [alertMessage]);
-
-  const handleSave = useCallback(
-    async (experiment: Experiment) => {
-      const yamlContent = stringify({ experiment }, { lineWidth: 120 });
-      try {
-        if (editingExperiment) {
-          await updateExperimentApi(library, editingExperiment.name, {
-            name: experiment.name,
-            content: yamlContent,
-          });
-        } else {
-          await createExperiment(library, {
-            name: experiment.name,
-            content: yamlContent,
-          });
-        }
-        queryClient.resetQueries({ queryKey: ["experiments"] });
-      } catch (err) {
-        setAlertMessage({
-          message:
-            err instanceof Error ? err.message : "Failed to save experiment.",
-          severity: "error",
-        });
-        throw err;
-      }
-    },
-    [editingExperiment, library, queryClient],
-  );
-
-  const handleClose = () => {
-    setModalOpen(false);
-    setEditingExperiment(null);
-  };
 
   const handleDelete = useCallback(
     async (names: string[]) => {
@@ -417,7 +352,11 @@ const Experiments = () => {
             >
               Experiments
             </Typography>
-            {tab === 0 && <Button onClick={handleAdd}>Add Experiment</Button>}
+            {tab === 0 && (
+              <Button variant="gradient" onClick={handleAdd}>
+                Add Experiment
+              </Button>
+            )}
           </Stack>
         }
       >
@@ -448,13 +387,6 @@ const Experiments = () => {
           <BenchmarkOps library={library} />
         </TabPanel>
       </PageWithTitle>
-      <AddExperimentModal
-        open={modalOpen}
-        onClose={handleClose}
-        onSave={handleSave}
-        editingExperiment={editingExperiment}
-        library={library}
-      />
     </Box>
   );
 };
